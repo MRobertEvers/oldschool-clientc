@@ -1,0 +1,976 @@
+{{External|rs|rsc|dw}}
+{{Skill table links}}
+{{Has calculator|Calculator:Prayer}}
+{{Has skill guide|members=Pay-to-play Prayer training|free=Free-to-play Prayer training|iron=Ironman Guide/Prayer|UIM=Ultimate Ironman Guide/Prayer}}
+{{Infobox Skill
+|name = Prayer
+|image = [[File:Prayer icon.png]]
+|release = [[4 January]] [[2001]]
+|update = Runescape beta is now online!
+|members = No
+|type = Combat
+}}
+[[File:Prayer icon (detail).png|left]]
+'''Prayer''' is a [[F2P|non-members]] [[combat]] [[skill]], trained by using [[remains]] in various ways. 
+
+[[Remains#Bones|Bones]] can be buried, offered to [[gilded altar]]s with [[incense burner]]s, offered to the altar in the [[Chaos Temple (church)|Chaos Temple]], converted into [[Ectofuntus]], converted to [[Blessed bone shards]] and offered at the [[Libation bowl]], or have [[Sinister Offering]] cast on them. [[Remains#Demonic ashes|Demonic ashes]] can be scattered or converted into experience with [[Demonic Offering]]. Players can also kill [[monsters]] that were reanimated with [[reanimation spells]], or [[Shades of Mort'ton (minigame)|cremate shade remains]] to unlock chests. These chests can drop pieces of the [[zealot's robes]], a [[skilling outfit]] which gives a 1.25% chance per piece to save most [[remains]] when used.
+
+[[#Prayers list|Prayers]] are unlocked as the level in the skill goes up. They can assist the player in combat, for instance, with boosted [[Attack]], immunity to [[Magic]] damage, or faster [[Hitpoints|Hitpoint]] regeneration. Prayers are activated by clicking relevant prayer icons on the prayer tab, or by clicking on the prayer orb after quick prayers are selected.
+
+As long as prayers are activated, the player's [[prayer points]] are slowly drained. These points are required to have prayers enabled, and can be regained by praying at any [[altar]]. Using the [[#Prayer flicking|prayer flicking]] mechanic can be beneficial for saving prayer points.
+
+{{Listen
+|align = right
+|title = [[Prayer Level Up!]]
+|filename = Prayer Level Up!.ogg
+|desc = The music that plays when levelling up.}}Most active prayers are not visible to either the player or others without viewing the prayer tab. The exceptions are overhead prayers, which display an icon above the player’s head when active.{{Listen
+|align = right
+|title = [[Prayer Level Up! (Unlocks)]]
+|filename = Prayer Level Up! (Unlocks).ogg
+|desc = The music that plays when levelling up and unlocking new content.}}
+
+==Prayer points==
+[[File:Prayer tab.png|frame|Prayer interface]]
+[[File:Activating quick prayers.gif|left|Activating quick prayers]]
+'''Prayer points''' are a measure of the player's ability to use [[prayers]] and are shown as a whole-point integer; in the background, it is represented as a fraction. This fraction can be reset through a [[rejuvenation pool]], the [[Falador shield]] prayer recharge, or dying. Drinking a [[Prayer potion]] will '''NOT''' reset it. A player's maximum, unboosted number of prayer points is equal to their [[Prayer]] [[level]]. Prayer points can be restored in several ways, including praying at an [[altar]], using a [[rejuvenation pool]] (or better) in a [[player-owned house]], or drinking a dose of a [[prayer potion]].
+
+The player's current prayer points are displayed on the game's [[skills tab]] and are displayed by the [[minimap]] if the Data orb option is toggled on. The number of prayer points the player has remaining is an indication of how long a player can use prayers before having to restore them. The player can left-click on the prayer orb to begin using [[quick prayers]], or the player can right-click on the prayer orb to set up their desired quick prayers.
+
+The player's maximum prayer points can be raised permanently by levelling up the prayer skill or temporarily with [[Temporary skill boost|boosts]] (e.g., by using the [[ancient mace]] or the [[Eldritch Nightmare staff]]).
+
+==Recharging points==
+
+Players can recharge their prayer points to maximum using an [[altar]], identified by an altar [[File:Altar icon.png]] [[icon]] on the [[world map]] and [[minimap]].
+
+Praying at the following altars will recharge the player's prayer points above the maximum:
+*The Altar of Nature in the [[Nature Grotto]]
+*The [[Edgeville Monastery]] (requires level 31 Prayer)
+*Altars found within the [[God Wars Dungeon]] boss chambers.
+
+===Consumables===
+{{See also|Calculator:Prayer/Prayer point cost}}
+Additionally, players can recharge their prayer points with consumables. [[prayer potion]]s, [[super restore]]s, [[sanfew serum]]s, [[zamorak brew]]s, [[ancient brew]]s, and [[forgotten brew]]s will recharge prayer points proportional to the player's Prayer level. Eating [[jangerberries]] or drinking a [[tonameyo white]] restores 1 prayer point each. Drinking a [[moonlight moth mix]] restores 22 prayer points per dose to the drinker and, if in a [[multicombat area]], up to 3 adjacent players.
+
+Note that there are no consumables that restore prayer in [[free-to-play]], so free-to-play players must use [[altar]]s to restore prayer.
+
+{| class="wikitable"
+! colspan="2" | Consumable
+! style="width:350px;" | Prayer Points Restored
+|-
+|{{plinkt|Prayer potion}}
+| rowspan=2 | +7 to +31 (+7 to +33 using a [[holy wrench]])
+|-
+|{{plinkt|Prayer mix}}
+|-
+|{{plinkt|Super restore}}
+| rowspan=3 | +8 to +32 (+8 to +34 using a [[holy wrench]])
+|-
+|{{plinkt|Blighted super restore}}
+|-
+|{{plinkt|Super restore mix}}
+|-
+|{{plinkt|Sanfew serum}}
+| +4 to +33 (+4 to +35 using a [[holy wrench]])
+|-
+|{{plinkt|Zamorak brew}}
+| rowspan=2 | +0 to +9
+|-
+|{{plinkt|Zamorak mix}}
+|-
+|{{plinkt|Ancient brew}}
+|rowspan=2 | +2 to +11
+|-
+|{{plinkt|Forgotten brew}}
+|-
+|{{plinkt|Jangerberries}}
+| +1
+|-
+|{{plinkt|Tonameyo white}}
+| +1
+|-
+|{{plinkt|Moonlight moth (item)|txt=Moonlight moth}}
+| +22
+|-
+|{{plinkt|Moonlight moth mix|pic=Moonlight moth mix (2)}}
+| +22 to drinker and up to 3 adjacent players
+|-
+|{{plinkt|Moonlight potion|pic=Moonlight potion}}
+| +18 to +36 depending on the player's Prayer and Herblore levels. Only available in [[Neypotzli]].
+|-
+|{{plinkt|Prayer regeneration potion}}
+| +1 every 12 ticks over 8 minutes<br>(+66 total)
+|-
+|{{plinkt|Bluefin}}
+| +5
+|}
+{{efnlist}}
+
+===Spells===
+[[Demonic Offering]] and [[Sinister Offering]] are the only two spells that restore prayer points; both are on the [[Arceuus spellbook]].
+* Demonic Offering sacrifices up to three [[Remains#Demonic ashes|demonic ashes]] in the inventory; each set of ashes restores one prayer point, [[infernal ashes]] restore two.
+* Sinister Offering sacrifices up to three bones in the inventory; each set of bones restores one prayer point.
+** [[Ourg bones|Ourg]], [[Dagannoth bones|dagannoth]], [[hydra bones|hydra]], and [[superior dragon bones]] restore two points.
+
+===Equippable items===
+The [[special attack]]s of some weapons will restore prayer points. The [[ancient mace]] recharges the player's prayer points by 100% of the damage dealt. The [[eldritch Nightmare staff]] recharges prayer points by 50% of the damage dealt. Lastly, the [[Saradomin godsword]] recharges by 25% of the damage dealt, rounded up.
+
+The [[Falador shield]] will also recharge a certain percentage of prayer points. The shield will restore 25%, 50% or 100% with completion of the [[Falador diary]] easy, medium, and hard tiers, respectively. The shield may be used once a day with completion of the easy tier and may be used twice a day with completion of the elite tier.
+
+The [[Necklace of Faith]] is a rarely used equippable item that restores 25% of the wearer's prayer points when their [[hitpoints]] drop below 20% of the wearer's maximum. It functions similarly to the [[Phoenix necklace]] and [[Redemption]], but restores prayer points at low health instead of restoring health.
+
+===Interactive scenery===
+A player can use a [[rejuvenation pool]] (or better) to fully restore their prayer points along with additional benefits. The pool can be built in the [[Pool space]] of the [[superior garden]] in a [[player-owned house]]. Players can use the pool at another player's house, provided they are able to access it, i.e., restrictions on certain ironman accounts.
+
+The [[pool of refreshment]] functions similarly to the pools in the POH, restoring the player's Prayer points, along with additional benefits. Two pools of refreshment are found in the chapel of the [[Ferox Enclave]] located in the [[Wilderness]], and one is found in Daimon's Crater for the [[Bounty Hunter]] minigame.
+
+After completion of the Spirits of the Elid quest, praying at the [[Elidinis Statuette]] restores Prayer points, along with additional benefits.
+
+The [[Altar of the Damned]], located in the central chamber of the [[Shade Catacombs]]. Players can sacrifice [[bleached bones]] at the altar to recharge their [[prayer points]]. '''Bleached bones''' are an untradeable drop from [[Undead Zealot|Undead Zealots]].
+
+The [[Spirit offerings]], located in [[Auburnvale]], can be used to restore 5/10/15/20 prayer points based on items gifted to the sprits.
+
+===Area effects===
+The [[Demonic Ruins]] in level 44-48 [[Wilderness]] has an area effect which restores 1 prayer point every 5 game ticks (3 seconds) for players in the area.
+
+A special area effect of the [[Catacombs of Kourend]] is that players who bury [[bones]] of any type within it will have a small amount of their Prayer points restored. This also applies if the bones are crushed via the [[bonecrusher]], although the Prayer restoration effect of the [[bonecrusher necklace]] does not stack. ''Note scattering [[demonic ashes]] does not restore Prayer points - only bones.''
+
+{| class="wikitable plainlinks" width="auto"
+! colspan="2" |Bones
+! Prayer Points Restored
+|-
+|{{plinkt|Bones}}
+| +1
+|-
+|{{plinkt|Big bones}}
+| +2
+|-
+|{{plinkt|Dragon bones}}
+| +4
+|-
+|}
+
+==<span class="anchor" id="Prayers"></span> Prayers list ==
+[[File:Activated prayer.png|left]]
+The prayer tab contains all of the available prayers. To activate a prayer, simply click it. This will show a beige circle around any active prayers, and will start to drain [[prayer points]].
+
+All prayers up to [[Mystic Might]] are available for [[free-to-play]] players, but prayers from [[Retribution]] onward require the player to be on a [[members]]' server. Additionally, certain prayers have additional requirements to unlock:
+
+* {{Plink|Chivalry}} and {{Plink|Piety}} require completion of the [[Knight Waves]]
+
+* {{Plink|Deadeye}} and {{Plink|Mystic Vigour}} must be unlocked through the untradeable [[deadeye prayer scroll]] and [[mystic vigour prayer scroll]] from the [[Royal Titans]], and will permanently override {{Plink|Eagle Eye}} and {{Plink|Mystic Might}} when unlocked
+* {{Plink|Preserve}}, {{Plink|Rigour}}, and {{Plink|Augury}} must be unlocked through the [[torn prayer scroll|torn]], [[dexterous prayer scroll|dexterous]], and [[arcane prayer scroll]]s from the [[Chambers of Xeric]]
+
+{| class="wikitable sortable align-center-1 align-center-2 align-center-6" style="width:850px"
+! style="width:5%;" |{{SCP|Prayer}} Level
+! colspan="2" style="width:20%;" |Prayer
+! style="width:50%;" |Effect
+! style="width:20%;" |Drain rate
+! style="width:5%;" |Drain effect{{efn|See {{Section|Prayer drain mechanics}}}}
+!Members
+!Overhead
+|-
+|1
+|{{plinkt|Thick Skin}}
+| +5% [[Defence]]
+|1 point per 36 seconds
+| 1
+|{{Members|No}}
+|No
+|-
+|4
+|{{plinkt|Burst of Strength}}
+| +5% [[Strength]]
+|1 point per 36 seconds
+| 1
+|{{Members|No}}
+|No
+|-
+|7
+|{{plinkt|Clarity of Thought}}
+| +5% [[Attack]]
+|1 point per 36 seconds
+| 1
+|{{Members|No}}
+|No
+|-
+|8
+|{{plinkt|Sharp Eye}}
+| +5% [[Ranged]] attack and +5% [[Ranged Strength]]
+|1 point per 36 seconds
+| 1
+|{{Members|No}} 
+|No
+|-
+|9
+|{{plinkt|Mystic Will}}
+| +5% [[Magic]] Attack and Defence
+|1 point per 36 seconds
+| 1
+|{{Members|No}}
+|No
+|-
+|10
+|{{plinkt|Rock Skin}}
+| +10% [[Defence]]
+|1 point per 6 seconds
+|6
+|{{Members|No}} 
+|No
+|-
+|13
+|{{plinkt|Superhuman Strength}}
+| +10% [[Strength]]
+| 1 point per 6 seconds 
+|6
+|{{Members|No}}
+|No
+|-
+|16
+|{{plinkt|Improved Reflexes}}
+| +10% [[Attack]]
+|1 point per 6 seconds
+|6
+|{{Members|No}}
+|No
+|-
+|19 
+|{{plinkt|Rapid Restore}}
+|2x restore rate for all [[skills]], except [[Hitpoints]] and Prayer
+|1 point per 36 seconds 
+|1
+|{{Members|No}}
+|No
+|-
+|22
+|{{plinkt|Rapid Heal}}
+|2x Restore rate for [[Hitpoints]]
+|1 point per 18 seconds
+|2
+|{{Members|No}} 
+|No
+|-
+| 25
+|{{plinkt|Protect Item}}
+|Keep one extra [[item]] upon [[death]]
+|1 point per 18 seconds
+|2
+|{{Members|No}}
+|No
+|-
+|26
+|{{plinkt|Hawk Eye}}
+| +10% [[Ranged]] Attack and +10% [[Ranged Strength]]
+| 1 point per 6 seconds
+|6
+|{{Members|No}} 
+|No
+|-
+|27
+|{{plinkt|Mystic Lore}}
+| +10% [[Magic]] Attack and Defence. +1% [[Magic damage]]
+|1 point per 6 seconds 
+|6
+|{{Members|No}}
+|No
+|-
+|28
+|{{plinkt|Steel Skin}}
+| +15% [[Defence]]
+|1 point per 3 seconds
+|12
+|{{Members|No}}
+|No
+|-
+|31
+|{{plinkt|Ultimate Strength}}
+| +15% [[Strength]]
+|1 point per 3 seconds
+|12 
+|{{Members|No}}
+|No
+|-
+| 34
+|{{plinkt|Incredible Reflexes}}
+| +15% [[Attack]]
+|1 point per 3 seconds
+|12
+|{{Members|No}}
+|No
+|-
+|37
+|{{plinkt|Protect from Magic}}
+|100% protection from magic attacks by NPCs, 40% from players
+|1 point per 3 seconds
+|12
+|{{Members|No}}
+|Yes
+|-
+| 40
+|{{plinkt|Protect from Missiles}}
+|100% protection from ranged attacks by NPCs, 40% from players
+|1 point per 3 seconds
+|12
+|{{Members|No}}
+|Yes
+|-
+|43
+|{{plinkt|Protect from Melee}}
+|100% protection from melee attacks by NPCs, 40% from players
+|1 point per 3 seconds
+|12
+|{{Members|No}} 
+|Yes
+|-
+|44
+|{{plinkt|Eagle Eye}}
+| +15% [[Ranged]] attack and +15% [[Ranged Strength]]
+|1 point per 3 seconds
+|12 
+|{{Members|No}} 
+|No
+|-
+|45 
+|{{plinkt|Mystic Might}}
+| +15% [[Magic]] Attack and Defence, and +2% [[Magic damage]]
+| 1 point per 3 seconds
+|12
+|{{Members|No}}
+|No
+|-
+|46
+|{{plinkt|Retribution}}
+|Upon death, deals damage up to 25% of the player's base Prayer level to targets in a 3x3 radius
+|1 point per 12 seconds 
+|3
+|{{Members|Yes}}
+|Yes
+|-
+|49
+|{{plinkt|Redemption}}
+|Heals the player by 25% of their base Prayer level if they fall below 10% health, draining their prayer points fully
+|1 point per 6 seconds
+|6
+|{{Members|Yes}}
+|Yes
+|-
+|52 
+|{{plinkt|Smite}}
+|Reduces the opponent's prayer points by 25% of damage dealt
+|1 point per 2 seconds 
+|18
+|{{Members|Yes}}
+|Yes
+|-
+|55 
+|{{plinkt|Preserve}}
+|Boosted stats last 50% longer
+|1 point per 18 seconds
+|2
+|{{Members|Yes}}
+|No
+|-
+| 60
+|{{plinkt|Chivalry}}
+| +15% [[Attack]], +18% [[Strength]], and +20% [[Defence]]
+|1 point per 3 seconds
+|12
+|{{Members|Yes}}
+|No
+|-
+| 62
+|{{plinkt|Deadeye}}
+| +18% [[Ranged]] attack, +18% [[Ranged Strength]], and +5% [[Defence]]
+|1 point per 3 seconds
+|12
+|{{Members|Yes}}
+|No
+|-
+| 63
+|{{plinkt|Mystic Vigour}}
+| +18% [[Magic]] Attack and Defence, +5% [[Defence]], and +3% [[Magic damage]]
+|1 point per 3 seconds
+|12
+|{{Members|Yes}}
+|No
+|-
+|70
+|{{plinkt|Piety}}
+| +20% [[Attack]], +23% [[Strength]], and +25% [[Defence]]
+|1 point per 1.5 seconds
+|24
+|{{Members|Yes}}
+|No
+|-
+|74 
+|{{plinkt|Rigour}}
+| +20% [[Ranged]] attack, +23% [[Ranged Strength]], and +25% [[Defence]]
+|1 point per 1.5 seconds
+|24
+|{{Members|Yes}}
+|No
+|-
+|77 
+|{{plinkt|Augury}}
+| +25% [[Magic]] Attack and Defence, +25% [[Defence]], and +4% [[Magic damage]]
+|1 point per 1.5 seconds
+|24
+|{{Members|Yes}}
+|No
+|}
+{{Notelist}}
+
+== Conflicting prayers ==
+Not all prayers may be active at once. When enabling a prayer while having conflicting prayer(s) already active, the active prayer(s) will be disabled and only the clicked prayer will be active. Most prayers are in a conflict group.
+
+The only prayers without conflicting prayers, and thus can always be activated, are:
+
+{{Plink|Rapid Restore}}, {{Plink|Rapid Heal}}, {{Plink|Protect Item}}, and {{Plink|Preserve}}.
+{| class="wikitable defaultcenter"
+|+
+!colspan=4 |Conflicting prayers
+|-
+|Defence Boosting Prayers{{efn|Deadeye and Mystic Vigour boost defence, but do not conflict with the three basic Defence prayers}}
+|colspan=2 |{{Plinkp|Thick Skin}}{{Plinkp|Rock Skin}}{{Plinkp|Steel Skin}}
+|rowspan=3 |{{Plinkp|Chivalry}}{{Plinkp|Piety}}<br \>{{Plinkp|Rigour}}<br \>{{Plinkp|Augury}}
+|-
+|rowspan=2 |Offence Boosting Prayers
+|{{Plinkp|Burst of Strength}}{{Plinkp|Superhuman Strength}}{{Plinkp|Ultimate Strength}}
+|rowspan=2 |{{Plinkp|Sharp Eye}}{{Plinkp|Hawk Eye}}{{Plinkp|Eagle Eye}}{{Plinkp|Deadeye}}<br \>{{Plinkp|Mystic Will}}{{Plinkp|Mystic Lore}}{{Plinkp|Mystic Might}}{{Plinkp|Mystic Vigour}}
+|-
+|{{Plinkp|Clarity of Thought}}{{Plinkp|Improved Reflexes}}{{Plinkp|Incredible Reflexes}}
+|-
+| Overhead Prayers
+|colspan=3 |{{Plinkp|Protect from Magic}}{{Plinkp|Protect from Missiles}}{{Plinkp|Protect from Melee}}{{Plinkp|Retribution}}{{Plinkp|Redemption}}{{Plinkp|Smite}}
+|-
+|}
+{{notelist}}
+
+==Prayer drain==
+{{See also|Prayer items|Calculator:Prayer/Prayer drain}}
+While active, each prayer slowly depletes a player's prayer points. Different prayers drain prayer points at different rates. For example, a low-level prayer such as [[Thick Skin]] drains prayer significantly slower than its higher-level counterpart, [[Steel Skin]].
+
+''Prayer bonus'', determined by worn equipment, allows a player to slow the rate at which prayer points are drained. Players can view their prayer bonus in the [[Equipment Stats]] window. Only certain types of armour, clothing, [[weapons]], and [[jewellery]] grant a prayer bonus.
+
+In practice, each point of prayer bonus effectively increases the duration prayer points will last by 3.33%. For example, if a player uses the "[[Protect from Melee]]" prayer with a prayer bonus of 0, their prayer points would drain at a rate of 1 point every 3 seconds. If that player then equips [[armour]], giving a prayer bonus of +15, the player can expect this duration to increase by 50%, draining 1 point per 4.5 seconds instead of 1 point every 3 seconds.
+
+Prayer bonus does not help to stave off the side-effects of locations and [[monsters]] that drain Prayer.
+
+===Prayer drain mechanics ===
+Each prayer has an associated ''drain effect'', and the total across all activated prayers is added to an internal ''prayer drain counter'' each [[game tick]]. Whenever this counter value exceeds a certain threshold, known as the player's ''prayer drain resistance'', one prayer point is depleted, and that player's current prayer drain counter value decreases by their prayer drain resistance. As this can occur more than once per game tick, it is possible to lose more than one prayer point within a single game tick.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/814540902542802944|date=29 December 2016|archiveurl=https://reldo.runescape.wiki/i/109185|archivedate=30 May 2020|quote=The drain effect of the new Raids prayers is still subject to change. [https://pbs.twimg.com/media/C03UXntXAAQd6PP.jpg]}}
+
+Players have a base ''prayer drain resistance'' of 60, increased by 2 for every point of prayer bonus. In the example above, a player with a prayer bonus of +15 would have a prayer drain resistance of 90, instead of 60. This would result in prayer points taking an average of 50% longer to deplete. Prayer drain resistance can be calculated with the following formula:
+
+<math>\mathit{drain}_\mathrm{resistance} = 2 \times \mathit{bonus} + 60</math>
+
+The number of seconds it takes for one Prayer point to drain, requiring the summation of the drain effect of each Prayer as a drain effect, is then calculated with the following formula:
+
+<math>\mathit{seconds} = 0.6 \times \left( \mathit{drain}_\mathrm{resistance} / \mathit{drain}_\mathrm{effect} \right)</math>
+
+==Quick prayers ==
+[[File:Quick prayers interface.png|thumb|160px|Quick-prayers interface]]
+[[File:Activating quick prayers.gif|left|Activating quick prayers]]
+On [[Update:Quick-prayers & Loot Broadcast|6 February 2014]], data orbs were added with the [[Minimap#User interface icons|Prayer icon]] being given the ability to select quick prayers. It can be left-clicked to activate or deactivate a group of prayers preselected by the player simultaneously. You can select which prayers are activated by right-clicking the button and choosing the "Setup quick-prayers" option. Before the addition of this function, players had to locate the prayer tab and activate them one by one. This function allows players to place many of the most useful prayers on immediate standby. It is very useful for prayer flicking. Quick prayers can also be used as an easy way to turn off all prayers by double left-clicking them (to turn quick prayers on, then off).
+
+==Prayer filtering==
+By enabling the prayers filter via right-clicking the prayer icon, players may alter the contents of their prayers interface based on several filters by clicking the "Filters" button at the bottom of the prayer interface: 
+* Lower tiers of tiered prayers
+* Tiered prayers, even if multi-skill prayers are available
+* Rapid Healing prayers
+* Prayers that the player lacks the Prayer level to activate
+* Prayers that the player lacks the requirements to activate
+
+Once a player checks or unchecks the desired filter, tapping the "Filters" button again will display the filtered interface. Unlike the [[spellbook]] filtering, prayer icons will not enlarge if enough prayers are filtered out.
+
+Following an [[Update:Ruinous_Powers_Beta_v2#Prayer_Re-Ordering_and_Third-party_Clients|update]], [[Game client|third-party client]] developers were allowed to implement control over the visibility and order of individual prayers, though the feature is not present on official clients.
+
+==Prayer flicking==
+Flicking lets a player use prayers in combat without having their [[prayer points]] drain continuously. A skilled player will turn prayers on right before their effects are required and turn them off immediately after. This will stop prayer from continuously draining between attacks. For prayer flicking involving [[protection prayers]], the player will activate the prayer just before being hit, and turn it off immediately after the hit lands. This uses up very few prayer points and negates prayer point usage completely if done quickly enough.
+
+Although flicking requires timing and skill, doing it successfully can save prayer points and allow a player to fight [[monsters]] for much longer, or increase damage rates with offensive prayers. In some cases, flicking can take advantage of mechanics, such as rendering [[Dessous]] unable to attack the player. If done perfectly, no prayer will be consumed regardless of how long the fight lasts.
+
+Most players will not have perfect timing. Wearing gear with a high prayer bonus will help you prayer flick much longer. Flicking is considerably easier when fighting a monster that matches your weapon's speed, and/or when playing with sounds on. A metronome set to 100 beats per minute (or once every 0.6 seconds) can be used for practicing. If playing on a client or device without a metronome available, many songs ingame have 100 BPM which can be followed. Some examples that are easy to unlock include [[Sea Shanty 2]], [[Dogs of War]], and [[Null and Void]].
+
+Prayer flicking is a powerful technique, but it comes with several drawbacks. It requires high click intensity, as players must constantly toggle prayers on and off with precise timing. Mastering it takes time and practice, and even then, mistakes can be costly. In high-risk situations, a mistimed flick can leave a player vulnerable, resulting in unnecessary damage or even death. Additionally, the constant focus and effort required make it impractical for long fights or extended gameplay sessions.
+
+===How to prayer flick===
+[[File:Prayer flicking (4t vs 6t).gif|thumb|Flicking Protect from Melee and an offensive prayer when using a 4-tick weapon against a 6-tick monster.]]
+[[File:Prayer flicking (4t vs 4t).gif|thumb|Flicking Protect from Melee and an offensive prayer when using a 4-tick weapon against a 4-tick monster.]]
+To prayer flick, one must activate and deactivate a prayer so it is active on the needed [[RuneScape clock|game tick]]. If flicking a combat prayer, this is the tick you attack. If flicking a protection prayer, this is the tick your enemy attacks (which is typically when their attack animation begins, not necessarily the tick in which you take damage). If flicking against monsters, it will help immensely to know the monster's [[attack speed]].
+
+[[File:Prayer flicking (4-tick, ranged).gif|thumb|Flicking offensively with a crossbow on the Rapid setting. Note that the XP drop and overhead prayer appear at the same time.]]
+While it is possible to prayer flick against monsters that use Magic or Ranged attacks, it is best to practice against monsters that use melee at a 2.4-second (4 tick) interval while using a 4-tick weapon if you are learning how to flick for the first time. Practicing during [[Slayer]] tasks is a relatively safe and yet rewarding way to learn. [[Mutated Bloodveld]]s are an example of a good monster to practice at: they are not aggressive, their hits are accurate (meaning you will see easily when you make a mistake), and they are easy to reach.
+
+In essence, when using protection prayers, activate the prayer just before the opponent's attack animation begins (for example, a ranger raising his bow and shooting the arrow, or a meleer swinging his sword). When using offensive prayers, activate the prayer just before your attack animation begins (and the experience drop shows up, if your hit is successful). To consume no prayer points, turn the prayer off within the next tick. This is often called '''lazy flicking'''.
+
+'''Note:''' Latency to the server is unavoidable; usually, the ping is 20 to 150 milliseconds to the closest server. Keep this in mind when prayer flicking.
+
+There are some exceptions to the rule of protection prayer having to be active on the first tick of the attack: for example, many of [[TzTok-Jad]], [[The Nightmare]], and [[Verzik Vitur]]'s attacks are calculated shortly after the start of their attack animation to allow the player to react to them switching between their attacks; and similarly many of [[Scurrius]] and [[The Leviathan]]'s attacks are only calculated when their projectiles reach the player.
+
+===1-tick prayer flicking===
+{{Incomplete|Is there a more straightforward way to demonstrate a tick by tick example than a 2x2 chart?}}
+[[File:Prayer flicking (1-tick).gif|thumb|Demonstration of 1-tick prayer, including activation and deactivation.]]
+While this method is extremely click-intensive, it is possible to have your prayers active at all times while not draining any prayer points. 1-tick prayer involves deactivating and reactivating your prayers on every single game tick, and requires precise timing along with strict adherence to the click pattern. Notably, this is the only way to reliably protect yourself in a multi-combat zone filled with aggressive enemies without expending prayer points, and it works against enemies that cannot be reliably prayer-flicked against due to varying attack speeds (such as [[cave horror]]s). In addition, it can reliably be used for both protection and offensive prayers, to nullify and deal more damage at the same time. When done correctly, your overhead prayer should be visible at all times, but you will not lose any prayer points.
+
+The [[Preserve]] and [[Rapid Heal]] prayers provide no benefit when using this technique. This is because Preserve needs to be continuously active for at least 15 seconds before the next stat drain in order for it to be extended and Rapid Heal resets your health regeneration timer to 30 seconds every time it is activated. While 1-tick flicking rapid heal entirely prevents health regeneration which is relevant for Dharok's set, it is far more click intensive than using a self-damaging item every 60 seconds or just toggling rapid heal once every 29 seconds to stay at 1 Hitpoint. 
+{| class="wikitable"
+|+Tick by tick example
+!Ticks
+!Game Action
+|-
+|1
+|Turn prayer on
+|-
+|2+
+|Turn prayer off, turn prayer back on before tick is over
+|}
+While 1-tick flicking can be performed with just a single prayer, the quick-prayer orb is almost always used instead in order to maintain both offensive and defensive prayers without spending prayer points, although it is essentially limited to one set of prayers at a time. The prayer book can be used for 1-tick flicking with more versatility, but it is much more difficult and straining.
+
+Prayer drain is calculated once per tick based on your active prayers but attacks are only affected by prayers that were active at the start of that game tick, so offensive and defensive prayers do not apply to anything on the tick that they are activated. In order to compensate for this, the game does not drain prayer for prayers on the tick they are activated. 1-tick flicking works because your prayers are active at the start of each game tick so they affect every attack but by deactivating and reactivating them before the next tick the game also thinks those prayers were just activated when you get to the end of each tick so prayer is never drained.
+
+==Equipment that affects Prayer==
+{{See also|Prayer items|Armour/Prayer armour}}
+Some equipment can bypass or disable other players' overhead [[protection prayers]], as well as drain, restore, or depend on Prayer.
+
+Most of this equipment cannot bypass monster protection prayers, except [[Verac the Defiled's equipment|Verac's set]] against the [[Kalphite Queen]].
+
+===Special attacks===
+{| class="wikitable align-center-1"
+|-
+! colspan="2" |Weapon
+!Notes
+|-
+|{{plinkt|Ancient mace}}
+|The ancient mace's special attack ignores Protect from Melee when used against players and drains their Prayer by the amount of damage inflicted, while restoring the user's Prayer by the same amount. It can restore the user's Prayer above their base level.
+|-
+|{{plinkt|Dragon scimitar}}
+|The dragon scimitar's [[special attack]] is more accurate and will disable as well as prevent a player from using their overhead [[protection prayers]] if it is a [[successful hit]], for 5 seconds.
+|-
+|{{plinkt|Dragon sword}}
+|The dragon sword's special attack hits the target with 25% increased accuracy and damage, and ignores Protect from Melee when used against players. 
+|-
+|{{plinkt|Abyssal bludgeon}}
+|The abyssal bludgeon's special attack deals a hit with 0.5% extra damage for every prayer point the attacker is missing.
+|-
+|{{plinkt|Bandos godsword}}
+|The Bandos godsword's special attack increases damage dealt by 21% and doubles the accuracy, draining one of the target's Combat stats by the amount of damage dealt, until it reaches 0. If the stat drained reaches 0 before all of the damage can be accounted for, another stat will be drained by the amount remaining. Stats are drained in the following order: [[Defence]], [[Strength]], Prayer, [[Attack]], [[Magic]], [[Ranged]].
+|-
+|{{plinkt|Saradomin godsword}}
+|The Saradomin godsword's special attack increases damage dealt by 10% and doubles the accuracy. If it is a successful hit, it restores the user's Hitpoints by 50% of the damage dealt (with a minimum of 10 Hitpoints) and Prayer by 25% of damage dealt (with a minimum of 5 prayer points).
+|-
+|{{plinkt|Eldritch Nightmare staff}}
+|The Eldritch Nightmare staff's special attack increases damage dealt and restores the caster's [[prayer points]] by 50% of the damage dealt. It can boost the caster's prayer points above their base level.
+|}
+
+===Passive/set effects===
+{| class="wikitable align-center-1"
+|-
+! colspan="2" | Equipment 
+!Notes
+|-
+|{{plinkt|Necklace of faith}}
+|When the user is hit down to less than 20% of their maximum hitpoints (including being hit for 0), they will have their Prayer restored for 25% of their Prayer level, destroying the necklace in the process.
+|-
+|{{plinkt|Dragonbone necklace}}
+|After it is equipped, burying bones (either manually or through the [[Bonecrusher]]) will restore a certain number of Prayer points.
+|-
+|{{plinkt|Sapphire bolts (e)}}
+| rowspan="2" |The passive effect of enchanted sapphire bolts causes the target to lose prayer points calculated as 1/20th of the attacker's current Ranged stat, and the attacker gains about half of them.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/731076518181490689|date=13 May 2016|archiveurl=https://reldo.runescape.wiki/i/104127|archivedate=13 February 2021|quote=The target loses points calculated as 1/20 of the attacker's current Ranged stat, and the attacker gains about half of them.}}
+|-
+|{{plinkt|Sapphire dragon bolts (e)}}
+|-
+|{{plinkt|Spectral spirit shield}}
+|The passive effect of the spectral spirit shield reduces the effectiveness of all Prayer-draining attacks by 50%. This effect does not work against other players.
+|-
+|{{plinkt|Verac the Defiled's equipment|pic=Verac's flail|txt=Verac's set}}
+| The [[passive effect|set effect]] of Verac's has a 25% chance to ignore the target's Defence, armour, and protection prayers.
+|-
+|{{plinkt|Holy wrench}}
+|When held in the player's inventory, it increases the amount of Prayer points restored when drinking a dose of certain prayer-restoring potions by an additional 2%.
+|}
+
+===Spells===
+{| class="wikitable align-center-1"
+|-
+! colspan="2" |Spell
+!Notes
+|-
+|[[File:Saradomin Strike.png]]||[[Saradomin Strike]]
+|On a [[successful hit]] in [[PvP]], [[Saradomin Strike]] lowers opponent's prayer points by 1.
+|-
+| [[File:Corruption hitsplat.png]]||[[Corruption spells]]
+|Cast on oneself. The player's next [[successful hit]] has a chance to inflict [[Corruption_(status)|corruption]] on an enemy player. [[Corruption_(status)|Corruption]] drains 6 prayer points over 18 seconds. 
+|-
+|}
+
+=== Automation ===
+{| class="wikitable align-center-1"
+|-
+! colspan="2" |Item
+!Notes
+|-
+|{{plinkt|Bonecrusher}}
+| Upon killing a creature that drops bones, automatically crushes the bones for half the experience you would have gained when manually burying. Increases to full exp upon completing the [[Elite Morytania Diary]].
+|-
+|{{plinkt|Bonecrusher necklace}}
+| Combines the effects of both the [[Bonecrusher]] and the [[Dragonbone amulet]], automatically restoring Prayer upon killing creatures that drop bones.
+|-
+|{{plinkt|Ash sanctifier}}
+| Upon killing a [[Demonic]] creature, automatically sanctifies the ashes for half the experience you would have gained when manually scattering. Increases to full exp upon completing the [[Elite Kourend and Kebos Diary]].
+|-
+|{{plinkt|Ectoplasmator}}
+| Upon killing a [[Spectral]] creature, gain experience equal to 20% of the creature's health. Combines with the bonecrusher for [[Ankou]].
+|}
+
+=== Miscellaneous===
+{| class="wikitable align-center-1"
+|-
+! colspan="2" |Item
+!Notes
+|-
+|{{plinkt|Prayer book}}
+| Right-clicking the prayer book while wearing a [[Holy symbol]] allows the player to use prayer to heal poison at the cost of some prayer points.
+|-
+|{{plinkt|Prayer cape}}
+| Boosts Prayer by 1 when operated, only usable at 99 Prayer. Can be done once every 60 seconds.
+|}
+
+==Monsters that use Prayer==
+Several monsters can make use of protection prayers.
+
+{| class="wikitable align-center-2" style="text-align:left; width:650px;"
+|-
+! style="width:15%;" | Monster
+! style="width:15%;" |Prayers
+! style="width:70%;" |Notes
+|-
+|[[Kalphite Queen]]
+|[[File:Protect from Magic and Missiles overhead.png|link=]] {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+|Her first form will use Protect from Magic and Missiles simultaneously, while her second form will use Protect from Melee. '''Her prayers are purely visual''', and only indicate a higher defence bonus against a particular attack style.
+|-
+|[[Mother]]
+|{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+|Mother protects against the last attack style that was used against him until the player extinguishes the Fire of Domination, at which point Mother only protects against Magic.
+|-
+|[[Demonic gorilla]] 
+|{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+|The gorilla will spawn, protecting from a random style. After 70 or more damage has been taken, the gorilla will switch its protection prayer according to the style of the last damage it took.
+|-
+|[[Sigmund]]
+|{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+| Only when fought during [[Another Slice of H.A.M.]]. He will first protect against whatever style the player attacks him with, then Missiles to counter [[Zanik]]; once the player uses the [[ancient mace]] special attack against him at this point, his Prayer will be drained, and he can no longer use it.
+|-
+|[[Crystalline Hunllef]] / [[Corrupted Hunllef]]
+|{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+|The Hunllef will spawn in protecting from a random style and change its protection prayer to protect against the sixth attack it receives that it is not protecting from.
+|-
+|[[Judge of Yama (A Kingdom Divided)|Judge of Yama]]
+|[[File:Protect from Magic and Missiles overhead.png|link=]]
+|Fought during the [[A Kingdom Divided]] quest.
+|-
+|[[Xamphur]] 
+|{{plinkp|Protect from Magic|pic=Protect from Magic overhead}}
+|Fought during the [[A Kingdom Divided]] quest.
+|-
+| [[Nex]]
+|{{plinkp|Soul Split|pic=Soul Split overhead}} {{plinkp|Dampen Melee|pic=Dampen Melee overhead}} {{plinkp|Wrath|pic=Wrath overhead}}
+|Nex uses [[Soul Split]], [[Dampen Melee|Deflect Melee]], and [[Wrath]] from the [[Ruinous Powers]] (Zarosian prayers inaccessible to the player) during her final phase.
+|-
+|[[Akkha]]
+|{{plinkp|Protect from magic|pic=Protect from Magic overhead}} {{plinkp|Protect from missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from melee|pic=Protect from Melee overhead}} [[File:Protect_from_Magic_and_Missiles_overhead.png|link=]]
+|Denotes complete immunity to the attack styles prayed against. The prayers change in correlation to the number of attacks of a particular style used during the fight, unless the Stay Vigilant invocation is active, in which they change when he uses a special attack. Uses Protect from Magic and Missiles only during the enrage phase.
+|-
+|[[Tumeken's Warden]] / [[Elidinis' Warden]]
+|[[File:Protect from Missiles and Melee overhead.png|link=]] [[File:Protect from Magic and Melee overhead.png|link=]] [[File:Protect from all.png|link=]]
+|Denotes complete immunity to the attack styles prayed against. The Wardens will activate "Protect from All" briefly when [[Energy Siphon]]s are active.
+|-
+|[[Lesser demon (The Scar)|Lesser demon]] (Chanting puzzle)
+|[[File:Protect from all.png|link=]]
+|The Lesser demons will pray "Protect from All" until their linked [[scarred imp]] has been killed.
+|-
+|[[Mysterious Figure]]
+|{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+|The mysterious figure will swap prayers based on the last few attacks made by the player.
+|-
+|[[Strange Creature]] / [[Phantom Muspah]]
+|{{plinkp|Soul Split|pic=Soul Split overhead}}
+|The Phantom Muspah uses Soul Split during its Prayer shield phase.
+|-
+|[[Elite Dark Warrior]] / [[Elite Black Knight]]
+|{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+|Will switch their protection prayer according to the style used against them. After a while, they will run out of prayer points and unable to use prayers for the remainder of the fight.
+|-
+|[[Surok Magis]]
+|[[File:Protect from Missiles and Melee overhead.png|link=]]
+|Fought during [[While Guthix Sleeps]].
+|-
+|[[Balance Elemental]]
+|{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+
+[[File:Protect from Magic and Missiles overhead.png|link=]] [[File:Protect from Missiles and Melee overhead.png|link=]] [[File:Protect from Magic and Melee overhead.png|link=]] 
+|Final boss of While Guthix Sleeps. Begins praying against one style below 550 HP, then prays against two styles below 200 HP.
+|-
+|[[Tormented demon]] 
+|{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+|The demon will spawn, protecting from a random style. After 150 or more damage has been taken, the demon will switch its protection prayer according to the style of the last damage it took.
+|-
+|[[Echo Kalphite Queen]]
+|[[File:Protect from Magic and Missiles overhead.png|link=]] {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+|Her first form will use Protect from Magic and Missiles simultaneously, while her second form will use Protect from Melee. '''Her prayers are purely visual''', and only indicate a higher defence bonus against a particular attack style. [[Raging Echoes League]] and [[Demonic Pacts League]] only.
+|-
+|[[Echo Dagannoth Kings]]
+|[[File:Protect from all.png|link=]]
+|Two of the three kings pray Protect from All, starting with Prime and Rex. Every 250 damage taken, the Kings swap prayers; Rex stops praying next, followed by Prime, before looping back to Supreme. All of the Kings stop praying during the enrage phase. [[Raging Echoes League]] and [[Demonic Pacts League]] only.
+|-
+|[[Echo Thermonuclear smoke devil]]
+|{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+|After using its special attack, the Echo Thermonuclear smoke devil prays against the last style the player used. [[Raging Echoes League]] and [[Demonic Pacts League]] only.
+|-
+|[[Echo Corrupted Hunllef]]
+|[[File:Protect from all.png|link=]]
+
+{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+|Prays Protect from All at the beginning of the fight and at 75%, 50%, and 25% HP, assuming it had been disabled with the [[Crystal dagger (perfected)|crystal dagger]]'s special attack. After disabling Protect from All, the Echo Hunllef will immediately pray against the last style the player used. It will then change its protection prayer to protect against the sixth attack it receives that it is not protecting from. [[Raging Echoes League]] and [[Demonic Pacts League]] only.
+|-
+|[[Echo Hespori]] flowers
+|{{plinkp|Protect from Melee|pic=Protect from Melee overhead}} [[File:Protect from Magic and Missiles overhead.png|link=]]
+|Spawns randomly praying either Protect from Melee or Protect from Magic and Missiles. [[Raging Echoes League]] and [[Demonic Pacts League]] only.
+|-
+|[[Judge of Yama]]
+|[[File:Protect_from_Missiles_and_Melee_overhead.png|link=]] [[File:Protect from Magic and Missiles overhead.png|link=]]
+|Encountered during the fight against [[Yama]].
+|-
+|[[Ennius Tullus]]
+|[[File:Protect from Magic and Missiles overhead.png|link=]]
+|Fought during the quest [[The Final Dawn]].
+|-
+|[[Doom of Mokhaiotl]]
+|[[File:Protect_from_Magic_and_Missiles_overhead.png|link=]]
+|Prays Protect from Magic and Missiles during a melee charge.
+|-
+|[[Demonic larva]]
+|{{plinkp|Protect from Magic|pic=Protect from Magic overhead}} {{plinkp|Protect from Missiles|pic=Protect from Missiles overhead}} {{plinkp|Protect from Melee|pic=Protect from Melee overhead}}
+[[File:Protect_from_Magic_and_Missiles_overhead.png|link=]] [[File:Protect_from_Missiles_and_Melee_overhead.png|link=]] [[File:Protect_from_Magic_and_Melee_overhead.png|link=]]
+|Encountered during the fight against the [[Doom of Mokhaiotl]]. Larvae begin praying against two styles at delve level 4.
+|}
+
+==Temporary boosts==
+{{main|Temporary skill boost}}
+{{:Temporary skill boost/Prayer}}
+
+==Quests==
+{{Sync}}
+
+===Quests requiring Prayer===
+{| class="wikitable sortable lighttable sticky-header mw-collapsible qc-active oqg-table" style="text-align:center;"
+!Quest
+! data-sort-type="number" | Prayer<br />requirement
+!Other skill requirements
+|-
+|[[Another Slice of H.A.M.]]||{{SCP|Prayer|25}}||{{SCP|Attack|15}}
+|-
+|[[Scorpion Catcher]]||{{SCP|Prayer|31}}||-
+|-
+|[[Legends' Quest]]||{{SCP|Prayer|42}}||{{SCP|Strength|50}}, {{SCP|Agility|50}}, {{SCP|Crafting|50}}, {{SCP|Herblore|45}}, {{SCP|Magic|56}}, {{SCP|Mining|52}}, {{SCP|Smithing|50}}, {{SCP|Thieving|50}}, {{SCP|Woodcutting|50}}
+|-
+|[[Enakhra's Lament]]
+|{{SCP|Prayer|43}}
+|{{SCP|Crafting|50}}, {{SCP|Firemaking|45}}, {{SCP|Magic|39}}
+|-
+|[[Rum Deal]]||{{SCP|Prayer|47}}||{{SCP|Fishing|50}}, {{SCP|Crafting|42}}, {{SCP|Farming|40}}, {{SCP|Slayer|42}}
+|-
+|[[The Great Brain Robbery]]||{{SCP|Prayer|50}} ||{{SCP|Crafting|16}}, {{SCP|Construction|30}}
+|-
+|[[Hopespear's Will]]
+([[Miniquests|miniquest]])
+|{{SCP|Prayer|50}}
+| -
+|-
+|}
+
+===Quests rewarding Prayer experience===
+{{Main|Quest experience rewards}}
+{| class="wikitable sortable lighttable sticky-header mw-collapsible qc-active oqg-table" style="text-align:center;"
+!Quest
+!Experience<br />reward
+!Prayer<br />requirement
+!Other requirements
+|-
+|[[Rag and Bone Man I]] ||{{+=|Prayer|500|echo=2}}||-||-
+|-
+|[[Making History]]||{{+=|Prayer|1,000|echo=2}}||-||-
+|-
+|[[Recruitment Drive]] ||{{+=|Prayer|1,000|echo=2}}||-||{{SCP|Quest|12}}
+|-
+|[[The Restless Ghost]]||{{+=|Prayer|1,125|echo=2}}||-||-
+|-
+|[[Priest in Peril]]||{{+=|Prayer|1,406|echo=2}}||-||-
+|-
+|[[Mountain Daughter]]||{{+=|Prayer|2,000|echo=2}}||-||{{SCP|Agility|20}}
+|-
+|[[Ghosts Ahoy]]||{{+=|Prayer|2,400|echo=2}}||-||{{SCP|Agility|25}}, {{SCP|Cooking|20}}
+|-
+|[[Another Slice of H.A.M.]]||{{+=|Prayer|3,000|echo=2}}||{{SCP|Prayer|25}}||{{SCP|Attack|15}}
+|-
+|[[Rag and Bone Man II]]||{{+=|Prayer|5,000|echo=2}}||-||{{SCP|Slayer|40}}, {{SCP|Defence|20}}
+|-
+|[[The Great Brain Robbery]]||{{+=|Prayer|6,000|echo=2}}||{{SCP|Prayer|50}}||{{SCP|Crafting|16}}, {{SCP|Construction|30}}
+|-
+|[[Rum Deal]]||{{+=|Prayer|7,000|echo=2}}||{{SCP|Prayer|47}}||{{SCP|Crafting|42}}, {{SCP|Fishing|50}}, {{SCP|Farming|40}}, {{SCP|Slayer|42}}
+|-
+|[[Spirits of the Elid]]||{{+=|Prayer|8,000|echo=2}}||-|| {{SCP|Thieving|37}}, {{SCP|Magic|33}}, {{SCP|Ranged|37}}, {{SCP|Mining|37}}
+|-
+|[[Swan Song]]||{{+=|Prayer|10,000|echo=2}}||-||{{SCP|Quest|100}}, {{SCP|Magic|66}}, {{SCP|Cooking|62}}, {{SCP|Fishing|62}}, {{SCP|Smithing|45}}, {{SCP|Firemaking|42}}, {{SCP|Crafting|40}}
+|-
+|[[Holy Grail]]||{{+=|Prayer|11,000|echo=2}}||-||{{SCP|Attack|20}}
+|-
+|[[His Faithful Servants]]<br />([[Miniquests|miniquest]])||{{+=|Prayer|20,000|echo=2}}||-|| Combat level sufficient to defeat the [[Barrows]] brothers
+|-
+|[[Hopespear's Will]]<br />([[Miniquests|miniquest]])||{{+=|Prayer|38,750|echo=2}}||{{SCP|Prayer|50}}||-
+|-
+!Total
+!{{formatnum:{{#var:Prayer}}}}
+! colspan="2" |
+|}
+
+===Diaries Requiring Prayer===
+{| class="wikitable sortable lighttable mw-collapsible" style="text-align:center;"
+!Diary
+!Prayer<br />requirement
+!Other requirements for tasks<br/> requiring prayer
+|-
+|[[Falador Medium Diary]]
+|{{SCP|Prayer|10}}
+|{{SCP|Defence|20}}
+|-
+|[[Falador Hard Diary]]
+|{{SCP|Prayer|70}}
+| -
+|-
+|[[Kandarin Hard Diary]]
+|{{SCP|Prayer|70}}
+|{{SCP|Defence|70}}
+|-
+|[[Lumbridge & Draynor Hard Diary]]
+|{{SCP|Prayer|52}}
+| -
+|-
+|[[Morytania Hard Diary]]
+|{{SCP|Prayer|70}} {{boostable|n}}
+|{{SCP|Defence|70}} {{boostable|n}}
+|-
+|[[Varrock Hard Diary]]
+|{{SCP|Prayer|52}}
+| -
+|-
+|[[Desert Elite Diary]]
+|{{SCP|Prayer|85}} {{boostable|n}}
+| -
+|-
+|[[Western Provinces Elite Diary]]
+|{{SCP|Prayer|22}}
+|{{SCP|Combat|40}} {{SCP|Defence|42}} {{SCP|Attack|42}} {{SCP|Strength|42}} {{SCP|Ranged|42}} {{SCP|Magic|42}} {{SCP|Hitpoints|42}}
+|}
+
+===Skill choice===
+Upon completing any of the following quests, players may choose to allocate experience to Prayer. These rewards usually come in the form of items, such as lamps or books, and are independent of any experience rewards directly received for completing the quest.
+{{SkillChoice|Prayer}}
+
+===Other Prayer experience rewards===
+
+{| class="wikitable sortable lighttable mw-collapsible" style="text-align:center;"
+!Source
+!Experience<br />reward
+!Requirements
+|-
+| [[Information clerk]]
+|4000
+|151+ [[Kudos]]
+|-
+! Total
+!4,000
+! colspan="2" |
+|}
+
+==Level up messages==
+{{hastranscript|skill}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 1 April 2026
+|update = Remaining Getting Around Changes
+|change = A picture of a pink skirt has been removed from the Prayer skill guide.
+}}
+{{Subject changes
+|date = 26 March 2025
+|update = Poll 83 QoL Changes
+|change = Tooltips in the Prayer interface now show the base drain rate for each prayer.
+}}
+{{Subject changes
+|date = 12 February 2025
+|update = Royal Titans Feedback & 12th Birthday Celebrations
+|change = The Prayer filter will no longer show older Prayer icons after they are upgraded.
+}}
+{{Subject changes
+|date = 28 July 2023
+|update = Desert Treasure II - The Fallen Empire
+|change = [[Ruinous Powers]] prayers skill guide have been removed.
+}}
+{{Subject changes
+|date = 26 July 2023
+|update = Desert Treasure II - The Fallen Empire
+|change = [[Ruinous Powers]] prayers skill guide has been added.
+}}
+{{Subject changes
+|date = 3 May 2023
+|update = Points-Based Combat Achievements
+|change = A bug with Quick Prayers not turning off consistently in [[PvP]] has been fixed.
+}}
+{{Subject changes
+|date = 5 April 2023
+|update = Easter 2023
+|change = Praying at an [[altar]] will now reset the timer on any Prayer Point draining effects.
+}}
+{{Subject changes
+|date = 9 March 2023
+|update = Even More Poll 78 Changes
+|poll = New Skill: Community Consultation and Poll 78
+|change = Prayer filtering has been added.
+}}
+{{Subject changes
+|date = 22 February 2023
+|update = 10th Birthday Event
+|change = Bones will now also be consumed starting from the top left when sacrificed on the [[Chaos Temple (church)|Wilderness chaos altar]].
+}}
+{{Subject changes
+|date = 15 February 2023
+|update = More Poll 78 Changes!
+|poll = New Skill: Community Consultation and Poll 78
+|change = When sacrificing bones to an [[Player-owned house altars|altar]] in a [[player-owned house]], the game now consumes them starting from the top left of your [[inventory]].
+}}
+{{Subject changes
+|date = 26 May 2001
+|update = Prayers last 50% longer
+|change = Prayers now last 50% longer before you need to recharge.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The symbol used by the Prayer skill is the same symbol used by the god [[Saradomin]], possibly hinting that the effects of prayers are granted by him.
+*A Prayer bonus of +30 is required to halve the drain rate of prayers.
+*In ''[[RuneScape 2]]'', the Prayer icon colour was originally yellow, but [[Jagex]] changed the colour on [[27 September]] [[2006]].
+* [[Burst of Strength]], [[Rock Skin]], and [[Thick Skin]] were originally spells in the "GoodMagic" skill in ''[[RuneScape Classic]]''. They were moved to the Prayer skill in May 2001.
+*Within the game cache, there is an unused icon for {{RSL|Protect from Summoning}} ([[File:Protect from Summoning.png]]). This is left over from the [[August 2007 Archive of RuneScape|original ''Old School RuneScape'' backup]] from August 2007 when the {{RSL|Summoning}} skill was still being developed.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/817537442953699328|date=6 January 2017|archiveurl=https://reldo.runescape.wiki/i/100935|archivedate=29 May 2020|quote=[Summoning] was in development in August 2007, and the icon was already in our repository. We've not deleted it.}}
+
+==See also==
+*[[Prayer/Experience table]], a list of all Prayer experience sources
+*[[Prayer/Level up table]], a list of all requirements and unlockables within the Prayer skill
+
+==References==
+{{Reflist}}
+
+{{Prayer}}
+{{Skills}}
+{{Interface}}
+[[Category:Combat]]
+[[Category:Free-to-play skills]]

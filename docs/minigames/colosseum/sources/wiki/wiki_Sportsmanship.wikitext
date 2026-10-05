@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Sportsmanship
+|image = [[File:Sol Heredit.png|150px]]
+|release = [[17 April]] [[2024]]
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|members = Yes
+|description = Defeat Sol Heredit once.
+|tier = Master
+|monster = Fortis Colosseum
+|type = Kill Count
+|id = 538
+|leagueRegion = Varlamore
+}}
+'''Sportsmanship''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to defeat [[Sol Heredit]] once.
+
+==Other tasks==
+{{Combat Achievements list|Fortis Colosseum}}
+
+{{Combat Achievements}}

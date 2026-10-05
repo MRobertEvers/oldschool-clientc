@@ -1,0 +1,31 @@
+{{Infobox Combat Achievement
+|name = Colosseum Speed-Chaser
+|image = [[File:Fortis Colosseum.png|300px]]
+|release = [[17 April]] [[2024]]
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|members = Yes
+|description = Complete the Colosseum with a total time of 28:00 or less.
+|tier = Master
+|monster = Fortis Colosseum
+|type = Speed
+|id = 549
+|leagueRegion = Varlamore
+}}
+'''Colosseum Speed-Chaser''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete the [[Fortis Colosseum]] with a total time of 28 minutes or less.
+
+==Strategy==
+''For strategies on this achievement, see [[Colosseum Speed-Runner]].''
+
+==Other tasks==
+{{Combat Achievements list|Fortis Colosseum}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 24 April 2024
+|update = Varlamore Tweaks, GameJam V Commences & More!
+|change = The task was renamed from "Colosseum Speed-Trialist" to "Colosseum Speed-Chaser".
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

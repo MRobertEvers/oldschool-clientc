@@ -1,0 +1,228 @@
+{{Update|date=20 August 2025|rev=21 August 2025|url=https://secure.runescape.com/m=news/more-doom-tweaks-poll-84--summer-sweep-up-changes?oldschool=1|category=game}}
+[[File:More Doom Tweaks, Poll 84, & Summer Sweep Up Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+| We’re aware of an issue where some players are being stuck at sea near Fossil Island. If you have encountered this, using a Home Teleport will resolve the issue. Apologies for the inconvenience - the team are working on a fix asap!
+| Hotfixed.
+|-
+| We are aware of a bug where failed Stackable hunter traps require 1 free inventory space to pickup.
+| Hotfixed.
+|-
+| Identified an issue where the Doom could hit players with two different projectile types on the same tick when disrupting its beam attack.
+| Hotfixed.
+|-
+| We’re aware of an issue causing Earthen Shields to spawn after destroying just one Volatile Earth instead of the intended two.
+| Hotfixed.
+|}
+
+''This week’s update brings more Doom boss adjustments, Summer Sweep Up Combat changes, and a bundle of Poll 84 improvements to enhance your adventuring. ''
+
+==Changelog August 20th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Delve Boss Changes'''
+
+* The burrow hole will no longer sparkle when a player receives a duplicate pet drop.
+* Fixed a bug where the Delve boss’s diagonal burrow attack could hit players outside its visible path.
+* Fixed a bug where rocks placed on acid would disappear when the boss entered its burrow phase.
+* Fixed a bug where players could get stuck in walls when the burrow hole spawned in a corner.
+* If a projectile is travelling towards the boss as it swaps to shield phase, the damage will now still apply to the shield.
+* Projectile attacks immediately following a melee punish will now account for boulder impacts, ensuring that if two projectiles land on the player on the same tick, they will always be of the same damage type. Players can pray to block the damage, but missing the Prayer will result in the full impact of both attacks.
+
+'''Summer Sweep Up (Combat)'''
+
+* The Kill Count in the Deranged Archaeologist's Collection Log is now white. We apologise for any distress that this erroneous orange text caused.
+* Fixed a bug where the Herb Box incorrectly stated 10 herbs were inside when it should have been seven.
+* Fixed missing elemental weaknesses for various NPCs:
+** Added 40% Water weakness to Nibblers and Inferno Bats.
+** Added 50% Fire weakness to Giant Scarab (Contact!) and NMZ variant.
+** Added 25% Fire weakness to Jungle Demon (Monkey Madness).
+** Added 35% Earth weakness to the Skeletal Hellhound (In Search of the Myreque).
+** Added Demonbane weakness to the following Nightmare Zone monsters: Bouncer, Jungle Demon, and Skeletal Hellhound.
+* Dying to the regular Nightmare now respawns you near the boss, next to Shura, instead of at your default respawn point. This mirrors the change we made to Phosani's Nightmare.
+* You can now use the Volatile Nightmare Staff’s Special Attack in Deadman without an auto-cast set.
+* Purple drop rates in Tombs of Amascut now scale and interpolate ''between'' Raid Level invocations. Instead of only adjusting at 50-level intervals (350, 400, 450, 500), reward weightings are now adjusted every 5 Levels. This allows gradual increases in drop chances without requiring large jumps in difficulty.
+
+'''Poll 84'''
+
+* Hunter traps will now stack in the Inventory.
+* Improved various Hunting spots by adding more trap locations and rotating existing ones for a more efficient hunt.
+* Updated the list of quest items that can be cleared from your Bank by the Wise Old Man.
+* Added a one-way Level 74 Agility zipline shortcut on Fossil Island from the tower to the small island. Just don't be too rough on the ropes.
+* With level 69 Agility, you can now jump over some of the rocks found on top of the walls of Darkmeyer to access the Castle Drakan master clue step there. These rocks are accessible by climbing the Darkmeyer wall shortcut and running north-west.
+** You can also right-click the inconspicuous rocks/S.T.A.S.H units to jump back, should you need to! However, you cannot use that shortcut without completing Sins of the Father, and without first unlocking the Darkmeyer wall shortcut with a long rope.
+* Added two new Agility shortcuts to the Slayer Tower. One level 18 shortcut east of the entrance to reach Banshees, and one level 81 shortcut west of the entrance for quick access to the top floor.
+* Some of the settings in the settings menu are now filtered based on an account type. Additionally, there is now a button on the Settings title bar that allows you to show or hide settings you don't yet have the requirements for, which should make it easier to find the ones you care about!
+* The modify button on the GE Offer status page has been changed from a right-click on the abort button to a button of its own.
+* Added Grand Exchange set boxes for newer armour, including Blood Moon, Blue Moon, Eclipse Moon, Oathplate, Torva, Virtus, Dagannoth (melee/mage/range), Swampbark, Bloodbark, Mixed Hide, and Hueycoatl sets.
+
+'''Other Changes'''
+
+* Standardised the button order (Bin left, Bank and Inventory right) for the Lunar chest, ToB chest, ToA chest, Colosseum, Trawler, and Wilderness and Deadman loot chests and keys.
+* All tradeable Yama items can now be added to Death's coffer.
+* Improved the dialogue for reclaiming the Ghostly Robes. After choosing a piece from the set, the selection menu now reopens automatically (if you have Inventory space) so you can claim multiple pieces without repeating the dialogue.
+* You can now disable the confirmation warning when clearing bushes or cacti farming spots. This can be done directly from the warning prompt using the 'Don’t ask me again' option, or via Settings → Warnings → Confirmations.
+* Added rowing and idle animations to the Tal Teklan boat harvesters outside Kastori.
+* Updated the Wilderness loot key interface to match the Deadman mode style.
+* Fixed an issue where certain tradeable items could incorrectly fill Collection Log slots if sold and repurchased from a general store - slots will now only register when obtained from the correct source.
+* Fixed numerous terrain and object clipping issues with the new renderer beta, including trapdoors, cave entrances, stairs, rugs, crates, and wallkits, plus visual fixes in Brimhaven Agility Arena.
+* Duke Sucellus no longer remains poisoned from one fight to the next.
+* Re-designed the Item Sets interface to let players toggle between viewing all sets or only those craftable with items currently in their Inventory.
+* Fixed a bug with the Player-Owned House viewer on the official client and mobile. In some cases, certain features such as topiary bushes or other hotspots with editable 'states' (i.e., portals or boss lairs), would cause the viewer to crash or behave unexpectedly.
+* Icthlarin's Hood now correctly displays your character’s skin colour.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using ''''Zerker'''' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Delve Boss Changes==
+We’re back with more fixes and changes for the Delve boss!
+
+* The burrow hole will no longer sparkle when a player receives a duplicate pet drop.
+* Fixed a bug where the Delve boss’s diagonal burrow attack could hit players outside its visible path.
+* Fixed a bug where rocks placed on acid would disappear when the boss entered its burrow phase.
+* Fixed a bug where players could get stuck in walls when the burrow hole spawned in a corner.
+* If a projectile is travelling towards the boss as it swaps to shield phase, the damage will now still apply to the shield.
+
+===Adjusting Early Melee Punish Damage===
+Last week, we explained that we’d be keeping the interaction where an early melee punish could result in two unavoidable hits from Doom. Our aim was to keep the encounter challenging and reward precise timing; however, it’s clear from your feedback that this approach didn't hit the mark. Many of you felt it was punishing players for being fast, rather than rewarding skill.
+
+After reviewing the mechanic in more detail, we agreed that this needed to change. Now, projectile attacks immediately following a melee punish will account for boulder impacts, ensuring that if two projectiles land on the same tick, they will always be of the same damage type. This means the damage can be avoided with the right Prayer, though missing it will result in the full force of both hits. We believe this change maintains the fight's challenge, while ensuring incoming damage is more readable, avoidable, and no longer punishes quick reactions.
+
+We want to thank you for holding us to a higher standard here - your feedback has helped us strike a better balance between maintaining difficulty and keeping the mechanic fair.
+
+==Summer Sweep Up (Combat) Changes==
+A few more changes have landed for the Summer Sweep Up Combat Adjustments:
+
+* The Kill Count in the Deranged Archaeologist's Collection Log is now white. We apologise for any distress that this erroneous orange text caused.
+* Fixed a bug where the Herb Box incorrectly stated 10 herbs were inside when it should have been seven.
+* Fixed missing elemental weaknesses for various NPCs:
+** Added 40% Water weakness to Nibblers and Inferno Bats.
+** Added 50% Fire weakness to Giant Scarab (Contact!) and NMZ variant.
+** Added 25% Fire weakness to Jungle Demon (Monkey Madness).
+** Added 35% Earth weakness to the Skeletal Hellhound (In Search of the Myreque).
+** Added Demonbane weakness to the following Nightmare Zone monsters: Bouncer, Jungle Demon, and Skeletal Hellhound.
+* Dying to the regular Nightmare now respawns you near the boss, next to Shura, instead of at your default respawn point. This mirrors the change we made to Phosani's Nightmare.
+* You can now use the Volatile Nightmare Staff’s Special Attack in Deadman without an auto-cast set.
+* Purple drop rates in Tombs of Amascut now scale and interpolate ''between'' Raid Level invocations. Instead of only adjusting at 50-level intervals (350, 400, 450, 500), reward weightings are now adjusted every 5 Levels. This allows gradual increases in drop chances without requiring large jumps in difficulty.
+
+==Poll 84 Changes==
+
+* Hunter traps will now stack in the Inventory.
+* Improved various Hunting spots by adding more trap locations and rotating existing ones for a more efficient hunt.
+* Updated the list of quest items that can be cleared from your Bank by the Wise Old Man.
+* Added a one-way Level 74 Agility zipline shortcut on Fossil Island from the tower to the small island. Just don't be too rough on the ropes.
+* With level 69 Agility, you can now jump over some of the rocks found on top of the walls of Darkmeyer to access the Castle Drakan master clue step there. These rocks are accessible by climbing the Darkmeyer wall shortcut and running north-west.
+** You can also right-click the inconspicuous rocks/S.T.A.S.H units to jump back, should you need to! However, you cannot use that shortcut without completing Sins of the Father, and without first unlocking the Darkmeyer wall shortcut with a long rope.
+* Added two new Agility shortcuts to the Slayer Tower. One level 18 shortcut east of the entrance to reach Banshees, and one level 81 shortcut west of the entrance for quick access to the top floor.
+* Some of the settings in the settings menu are now filtered based on an account type. Additionally, there is now a button on the Settings title bar that allows you to show or hide settings you don't yet have the requirements for, which should make it easier to find the ones you care about!
+* The modify button on the GE Offer status page has been changed from a right-click on the abort button to a button of its own.
+* Added Grand Exchange set boxes for newer armour, including Blood Moon, Blue Moon, Eclipse Moon, Oathplate, Torva, Virtus, Dagannoth (melee/mage/range), Swampbark, Bloodbark, Mixed Hide, and Hueycoatl sets.
+
+===Slayer Tower Shortcuts: Top Floor Level Requirement Change===
+Some of you eagle-eyed adventurers may notice that the Agility requirement for the top-floor Slayer Tower shortcut isn’t quite what we first teased in the original blog.
+
+After hearing your feedback, we realised this shortcut is a pretty serious timesaver, so we’ve nudged the requirement up to 81 Agility - hopefully a little something to reward those who’ve put in the elbow grease. Our initial suggestion was outright better than the chain shortcut used to take you from the first floor to the second floor, despite having a lower Agility requirement, which was an oversight on our part and didn't really make much sense.
+
+We understand this adjustment might be frustrating for some players who expected lower requirements, and we truly appreciate your understanding. Our aim is to make these shortcuts feel like a satisfying reward for skill and effort, while still easing that Slayer grind a bit.
+
+Now go forth, climb, and skip those stairs like the parkour pro you are! 
+
+===Banking Consistently===
+We’ve been tidying up the way your banking and item retrieval interfaces work! Previously, some interfaces would shuffle the deposit buttons around, which could lead to unfortunate accidents.
+
+To make things more predictable, we’ve standardised the order of buttons across banking, loot, and item retrieval interfaces:
+
+* Bin on the left → Bank and Inventory on the right
+
+[[File:More Doom Tweaks, Poll 84, & Summer Sweep Up Changes (1).png|thumb|250px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-20/tob.jpg here]!'']]
+
+This affects a wide range of interfaces, including:
+
+* Lunar Chest
+* Theatre of Blood Chest
+* Tombs of Amascut Chest
+* Colosseum Chest
+* Fishing Trawler
+* Wilderness and Deadman Loot Keys
+
+We hope these changes will make your inventory management that bit more intuitive, and thanks for all the feedback that helped us standardise these interfaces - may your clicks be precise and your Banks full of loot!
+
+===Bank QoL Changes: Coming a Bit Later===
+Just a quick heads-up - two planned Poll 84 changes will be arriving a little later than the rest.
+
+* The Looting Bag deposit button upgrade, which will let you empty a bunch of different containers straight into your Bank.
+* A new Empty option for the Shades of Mort'ton coffin while you’ve got it in your Inventory at the Bank.
+
+These two are linked under the hood, and the Bank interface is a bit more complicated than it can look, so we’ve decided to take more time to get these changes right before pushing them live. Don’t worry - they haven’t been forgotten, and we’ll keep you posted.
+
+==Other Changes==
+
+* Standardised the button order (Bin left, Bank and Inventory right) for the Lunar chest, ToB chest, ToA chest, Colosseum, Trawler, and Wilderness and Deadman loot chests and keys.
+* All tradeable Yama items can now be added to Death's coffer.
+* Improved the dialogue for reclaiming the Ghostly Robes. After choosing a piece from the set, the selection menu now reopens automatically (if you have Inventory space) so you can claim multiple pieces without repeating the dialogue.
+* You can now disable the confirmation warning when clearing bushes or cacti farming spots. This can be done directly from the warning prompt using the 'Don’t ask me again' option, or via Settings → Warnings → Confirmations.
+* Added rowing and idle animations to the Tal Teklan boat harvesters outside Kastori.
+* Updated the Wilderness loot key interface to match the Deadman mode style.
+* Fixed an issue where certain tradeable items could incorrectly fill Collection Log slots if sold and repurchased from a general store - slots will now only register when obtained from the correct source.
+* Fixed numerous terrain and object clipping issues with the new renderer beta, including trapdoors, cave entrances, stairs, rugs, crates, and wallkits, plus visual fixes in Brimhaven Agility Arena.
+* Duke Sucellus no longer remains poisoned from one fight to the next.
+* Re-designed the Item Sets interface to let players toggle between viewing all sets or only those craftable with items currently in their Inventory.
+* Fixed a bug with the Player-Owned House viewer on the official client and mobile. In some cases, certain features such as topiary bushes or other hotspots with editable 'states' (i.e., portals or boss lairs), would cause the viewer to crash or behave unexpectedly.
+* Icthlarin's Hood now correctly displays your character’s skin colour.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using ''''Zerker'''' loadouts in Ranked Duels and Tournaments this week.
+
+==Community Update==
+===CreatorCrafted Merch===
+We’ve got another update from [https://url.uk.m.mimecastprotect.com/s/TXIPCmORktkXWl9cBi5sRhCNj?domain=creatorcrafted.com CreatorCrafted] on products featuring designs from leading Old School community artists!
+
+Their latest design is a brilliant tribute to one of RuneScape’s most nostalgic minigames: '''Castle Wars!''' Crafted in collaboration with community artist [https://url.uk.m.mimecastprotect.com/s/yjvNCnxQlSrwmDkfZs6sJanmb?domain=x.com Rurupert], this design brings the battleground to life. Can you spot all 11 hidden runes?
+
+[[File:More Doom Tweaks, Poll 84, & Summer Sweep Up Changes (2).jpg|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-20/pic.jpg here]!'']]
+
+Prefer something a little more modern? Check out the fiery hot Yama deskmat, designed by community artist [https://url.uk.m.mimecastprotect.com/s/v5CKCoVRmC69vYQhOtMsp958r?domain=x.com Amentos]. Don’t worry - unlike the in-game boss fight, you won’t need to bargain your soul for this loot.
+
+[[File:More Doom Tweaks, Poll 84, & Summer Sweep Up Changes (3).jpg|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-20/pic2.jpg here]!'']]
+
+These are just a couple of the many moments community artists have brought to life.   If you're interested in either of the designs above, or want to see what else is available, [https://url.uk.m.mimecastprotect.com/s/TXIPCmORktkXWl9cBi5sRhCNj?domain=creatorcrafted.com click here] to explore the full collection. You can get 10% off your order right now using the code ‘'''CASTLEWARS'''’ at checkout!
+
+''Creator Crafted LED signs and mousepads are produced in collaboration with members of the OSRS art community, under license from Jagex.''
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1mvabm5/more_doom_tweaks_poll_84_summer_sweep_up_changes 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Donkey, Ed, Elena, Enigma, Entropi, Errol, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

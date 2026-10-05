@@ -1,0 +1,1140 @@
+{{Update|date=28 May 2021|rev=14 June 2021|link=https://secure.runescape.com/m=news/equipment-rebalance-ranged-meta-proposal?oldschool=1|category=devblog}}
+[[File:Equipment Rebalance- Ranged Meta Proposal newspost.png|right]]
+{{Clear}}
+Welcome back to another Equipment Rebalance blog! This time we’re focusing on some further aspects of the Ranged meta.
+
+''If you missed it, you can check out our previous blog [https://secure.runescape.com/m=news/equipment-rebalance-ranged-meta?oldschool=1 here].''
+
+Since then, we’ve gathered all your feedback and had many an exciting discussion about what steps to take next. Today, we’d like to share our latest Ranged meta proposal with you.
+
+{{ToC}}
+==Feedback and Changes - June 14th==
+{|class=wikitable style="text-align:left; width:665px;"
+! style="width:40%;" | Your Feedback
+! style="width:60%;" | Our Actions
+|-
+|'''Bow of Faerdhinen:''' Your feedback has clearly shown that giving the Corrupted bow a 50% chance to save ammo charge rather than providing unlimited charges is not something you want.
+|We've reverted this so that the Corrupted bow will once again provide unlimited charges, though for this additional convenience the number of shards required will be higher than that of the Blade of Saeldor (2,000 Crystal Shards rather than 1,000).
+
+Q: Why does the Bow of Faerdhinen require 2,000 Crystal Shards to corrupt when the Blade of Saeldor only require 1,000?
+
+A: We never specified in previous iterations of the blog exactly how many shards would be required to corrupt the bow.
+
+Ranged weapons have a thematic feel about them where they typically require ammunition to use, which has an associated cost. Melee weapons don't typically follow that same trend (except for the Scythe of Vitur and the Wilderness weapons).
+
+The initial feedback we received from many players suggested that having the Bow of Faerdhinen with no upkeep cost was too strong when compared to other Ranged items, so we opted for corruption to provide a 50% chance to save charges, rather than it provide an unlimited amount.
+
+Your feedback has clearly shown this is not something you want, and as such we've reverted the corruption mechanic to once again provide unlimited charges, though for this additional convenience the price to corrupt the bow will be higher than that of the blade. This will help ensure that the bow remains balanced from a cost vs power perspective.
+|}
+
+==Feedback and Changes - June 11th==
+{|class=wikitable style="text-align:left; width:665px;"
+! style="width:40%;" | Your Feedback
+! style="width:60%;" | Our Actions
+|-
+|'''Inferno:''' There was a lack of clarity about the DPS calculations we shared for the Inferno, and concern that we were assuming player accuracy or Ranged level would be too high.
+|The DPS calculations were for the shield phase of the Inferno, and for when minions were spawning. We weren’t assuming that Ranging potions would always be used, but it's expected players will typically save a Ranging potion for this particular phase of the encounter. It's important to note that the improved Toxic Blowpipe special attack is likely to help out more during this phase than before, too.
+|-
+|'''Dart Changes:''' There were concerns that Amethyst dart tips would be over-abundant and too easily acquired.
+|The amount of Dart tips that can be crafted from each Amethyst will be reduced from 15 to 8. In addition, because Amethyst mining is rising in popularity, we’re considering increasing the size of the mining area, or adding other mining areas.
+|-
+|'''Dart Changes:''' There are ongoing concerns around the availability of Dragon darts.
+|We are committed to monitoring the availability of Dragon Darts.
+|-
+|'''Dart Changes:''' Some players are concerned that Amethyst darts aren’t strong enough.
+|We’re happy with how they sit between Rune and Dragon currently.
+|-
+|'''Crystal Armour:''' Generally, there’s a lot of support for how we’ve approached the Crystal Armour changes, particularly around the bonus distribution. That said, there are some concerns that the Magic defence reduction on the Helm is too much.
+|As it stands the Crystal helm will occupy a position of having better Ranged defence than an Armadyl Helm, while having the same Magic defence that it provides. We think this is a good place for the helm to be.
+|-
+|'''Bow of Faerdhinen:''' There’s a lot of support for the shake-up it’ll give the end-game Ranged meta, but some players questioned why we’re adding a new bow rather than buffing the current bow.
+|We think it’d feel off to buff an existing tier 70 item with few requirements, to such an extent. We hope you'll enjoy using the new bow.
+|-
+|'''Bow of Faerdhinen:''' There were observations that the bow was, put simply, too strong.
+|On reviewing it, the bow was better in certain encounters than we'd intended. We’re going to make the following changes:
+
+* Reduce Ranged strength from +112 to +106
+* Reduce Ranged accuracy from +138 to +128
+* Give the Corrupted bow a 50% chance to save ammo charges rather than unlimited charges.
+|-
+|'''Bow of Faerdhinen:''' There was discussion about the seed conversion mechanic.
+|We’re going to replace the Blade of Saeldor drop into an Enhanced Crystal Weapon seed. This will also change on the Collection Log.
+
+This will have the same drop rate as the Blade of Saeldor.
+|-
+|'''Bow of Faerdhinen:''' Some of you felt that the bow should only be obtainable from the Corrupted Gauntlet.
+|We’re content that the drop rate from the standard Gauntlet is so rare that the optimal way of acquiring the bow will be the Corrupted Gauntlet.
+|-
+|'''Bow of Faerdhinen:''' Some of you felt that the bow should come from new content rather than being added to existing content such as the Gauntlet.
+|Given the Bow of Faerdhinen's strength largely relies on combining it with the Crystal Armour set, it makes sense for it to come from the Gauntlet. We're confident that adding the bow this way won't limit our options for future Ranged based rewards. Many players would prefer to close the gap left behind after the changes to the Toxic Blowpipe sooner, which would not be possible if the bow was to come from future content.
+
+Should the bow fail a poll and not be added via the Gauntlet, we can consider adding a different reward from future content to fill the gap left behind.
+|-
+|'''Armadyl Crossbow:''' There were questions about whether the special attack would work in PvP.
+|Yup, it will work in PvP.
+|-
+|'''Armadyl Crossbow:''' There were concerns that the Armadyl Crossbow with the Twisted Buckler would be too strong in PvP.
+|We’re going to keep it as it is, but monitor it going forward. We’d like to adopt a stance moving forward in which we avoid items working differently in PvP versus PvM where possible.
+|-
+|'''Ranged Offhands:''' Some of you observed that, while we proposed buffing the Odium Ward, Dragonfire Ward, and Twisted Buckler, D’hide shields are still weak.
+|We’re not going to make changes now, but we’ll monitor the impact of the proposal as a whole and consider changes later.
+|-
+|'''Dragon Hunter Crossbow:''' Some of you felt that our proposed stat reductions were too much.
+|We get it, but we think that, when accompanied by the Offhand buffs, the Dragon Hunter Crossbow will still be an extremely effective choice. That said, we’re going to monitor the impact of the changes and review accordingly!
+|-
+|'''Polling:''' Some of you felt that we should poll the various buffs to equipment offered as part of the Equipment Rebalance.
+|Multiple poll questions have been added to the bottom of the blog.
+|}
+
+==Toxic Blowpipe==
+Let’s get straight to the heart of this discussion: the Toxic Blowpipe. We’ve already covered why we believe these changes are necessary, so we’ll jump right into our findings from the survey:
+
+* '''78% of respondents''' said the current Ranged meta is stale.
+* '''61% of respondents''' think introducing new Ranged rewards that cause powercreep is a problem.
+* '''75% of respondents''' agreed that the Toxic Blowpipe is too strong in the current meta.
+* '''76% of respondents''' feel the Toxic Blowpipe is preventing other Ranged weapons from being introduced without causing powercreep.
+* '''75% of respondents''' said that dart scaling with the Toxic Blowpipe is an issue, and that lower tier darts should be significantly weaker.
+* '''93% of respondents''' said the Toxic Blowpipe should be the best Ranged item against low-defence targets.
+* '''79% of respondents''' said the Toxic Blowpipe should be less effective against mid and high-defence targets.
+
+To reiterate, our aim isn’t to make the Blowpipe redundant – it’s a popular weapon, and it’s been an iconic part of Old School for so long that it’s more than earned a place in the game. Instead, we hope to make the Toxic Blowpipe the go-to weapon for low-Defence targets – which according to our survey, is what the vast majority of players want too.
+
+===Dart Changes===
+The biggest difference in our newest proposal is the way we’re balancing Darts. Previously, we reduced the Ranged accuracy and strength of most of them, whilst slightly increasing the Ranged strength of Rune and Dragon Darts to help create a greater gap between them and the lower tiers.
+
+This time, we’re looking to entirely remove Ranged accuracy and instead increase the Ranged strength Darts offer. This was inspired by other Ranged weapons where the weapon itself handles the accuracy and the ammunition provides the strength. You can see the full extent of these changes in the table below:
+
+{| class=wikitable style="text-align:center; width:600px;"
+|+
+! rowspan="2" |Dart Stats
+! colspan="2" |Current
+! colspan="2" |Old Proposal
+! colspan="2" |New Proposal
+|-
+!Accuracy
+!Strength
+!Accuracy
+!Strength
+!Accuracy
+!Strength
+|-
+|Bronze Dart
+|3
+|1
+|2
+|1
+|0
+|1
+|-
+|Iron Dart
+|4
+|3
+|3
+|2
+|0
+|2
+|-
+|Steel Dart
+|5
+|4
+|4
+|3
+|0
+|3
+|-
+|Black Dart
+|7
+|6
+|5
+|4
+|0
+|6
+|-
+|Mithril Dart
+|8
+|7
+|6
+|6
+|0
+|9
+|-
+|Adamant Dart
+|11
+|10
+|7
+|10
+|0
+|17
+|-
+|Rune Dart
+|15
+|14
+|11
+|20
+|0
+|26
+|-
+|Dragon Dart
+|18
+|20
+|15
+|28
+|0
+|35
+|}
+
+This change not only helps make the Toxic Blowpipe an effective weapon against low-Defence targets (as Ranged accuracy has very little impact), but also allows us to balance it around a fixed accuracy value for all dart tiers. Now, we only have to consider the impact of additional Ranged strength bonuses.
+
+We realise that this is a much bigger change than we first proposed, so let us explain.
+
+To start with, it’ll affect how Darts are used as an independent Ranged weapon – but we feel that even with the lowered accuracy, they’re still getting an overall buff from Mithril onwards. They may not be as accurate, but they’ll tear right through a low-Defence target!
+
+'''Points of Discussion'''
+* We could avoid this change using custom exceptions so that Darts have +0 Ranged accuracy when used by the Toxic Blowpipe, but not when used by themselves. But is having the same item work differently in different situations really the best approach?
+
+Check the links at the bottom of the blog to give us your feedback!
+
+===Blowpipe Changes===
+So, what does this mean for the Blowpipe’s base stats? From our initial proposal, the Ranged accuracy will be staying, but we’ll be reducing the Ranged strength of the Blowpipe slightly to compensate for the additional strength coming from the higher tier Darts. Take a look:
+
+{| class=wikitable style="text-align:center; width:600px;"
+! rowspan="2" |Dart Stats
+! colspan="2" |Current
+! colspan="2" |Old Proposal
+! colspan="2" |New Proposal
+|-
+!Accuracy
+!Strength
+!Accuracy
+!Strength
+!Accuracy
+!Strength
+|-
+|Toxic Blowpipe
+|60
+|40
+|30
+|25
+|30
+|20
+|}
+
+We’ll also be offering a 100% accuracy boost on the Blowpipe’s special attack. We saw a lot of positive feedback about this last time, and even with the loss of accuracy to both the Blowpipe and darts, this is still a substantial increase to it's overall accuracy. We expect this change to add lots of extra value in certain encounters – or ones you haven’t even seen yet…
+
+===Amethyst Darts===
+One of the major concerns we’ve seen is that if Rune and Dragon Darts become meta, players with limited access to this ammo (Iron accounts, for example) may feel like the nerf impacts them more than others.
+
+Here’s the results of our survey on this subject:
+* '''82% of respondents''' said Amethyst Darts should be added to the game
+* '''54% of respondents''' said Amethyst Darts should be tradeable
+* '''46% of respondents''' would prefer them to be untradeable
+
+Here’s what you had to say about how strong Amethyst Darts should be if they were tradeable:
+* '''57% of respondents''' would prefer them to be somewhere between Rune and Dragon Darts
+* '''26% of respondents''' would prefer them to be the same strength as Rune Darts
+* '''17% of respondents''' would prefer them to be weaker than Rune Darts
+
+And lastly, this is what you said about how strong Amethyst Darts should be if they were untradeable:
+* '''85% of respondents''' would prefer them to be somewhere between Rune and Dragon Darts
+* '''11% of respondents''' would prefer them to be the same strength as Rune Darts
+* '''4% of respondents''' would prefer them to be weaker than Rune Darts
+
+The insights above clearly show that there’s a demand for Amethyst Darts, and that they could solve the issue of limited access to higher-tier Darts. So, here’s our proposal:
+
+{| class="wikitable"
+! rowspan="2" |Dart Stats
+! colspan="2" |New Proposal
+|-
+!Accuracy
+!Strength
+|-
+|Amethyst Darts
+|0
+|28
+|}
+
+For reference, Amethyst Darts would have +2 Ranged strength compared to Rune Darts. This may sound significant but with best-in-slot gear there would not be an additional max hit at 112 Ranged with Rigour. The same applies for full Void Knight armour, Void Knight armour with a Salve Amulet, and even full Armadyl gear.
+
+However, there will be a max hit gain when using the Amethyst Darts at specific Ranged attack values, and this could be amplified if additional Ranged strength gear is added to the game. However, their max hit will always be lower than Dragon Darts.
+
+We’d also like Amethyst Darts to be tradeable, like most other kinds of Ranged ammunition, including Amethyst Arrows. We do anticipate that this would impact the price of Rune Darts, considering the current price of Amethyst. However, combined with the newly-altered Blowpipe this isn’t such an issue from a balancing perspective, and we expect the value to stabilise as they’ll be tied to Runite items obtained through Smithing.
+
+Amethyst Darts would require 89 Crafting and 90 Fletching to make.
+* Each Amethyst can be turned into 8 Amethyst Dart Tips, rewarding 60 Crafting XP
+* Crafting a full dart would reward 21 Fletching XP (compared to 18.8 XP from Rune Darts and 25 XP from Dragon)
+
+===Combined Stats - Old VS New===
+So, let’s see how all this looks when Darts are added to the Blowpipe, compared to the current stats, our previous proposal, and the one we’ve put forward today.
+
+{| class=wikitable style="text-align:center; width:700px;"
+! rowspan="2" |Dart + Pipe Stats
+! colspan="2" |Current
+! colspan="2" |Old Proposal
+! colspan="2" |New Proposal
+|-
+!Accuracy
+!Strength
+!Accuracy
+!Strength
+!Accuracy
+!Strength
+|-
+|Toxic Blowpipe + Bronze Dart
+|63
+|41
+|32
+|26
+|30
+|21
+|-
+|Toxic Blowpipe + Iron Dart
+|64
+|43
+|33
+|27
+|30
+|22
+|-
+|Toxic Blowpipe + Steel Dart
+|65
+|44
+|34
+|28
+|30
+|23
+|-
+|Toxic Blowpipe + Black Dart
+|67
+|46
+|35
+|29
+|30
+|26
+|-
+|Toxic Blowpipe + Mithril Dart
+|68
+|47
+|36
+|31
+|30
+|29
+|-
+|Toxic Blowpipe + Adamant Dart
+|71
+|50
+|37
+|35
+|30
+|37
+|-
+|Toxic Blowpipe + Rune Dart
+|75
+|54
+|41
+|45
+|30
+|46
+|-
+|Toxic Blowpipe + Amethyst Dart
+| -
+| -
+| -
+| -
+|30
+|48
+|-
+|Toxic Blowpipe + Dragon Dart
+|78
+|60
+|45
+|53
+|30
+|55
+|}
+
+As you can see, Ranged accuracy has decreased across the board compared to our old proposal – but for Adamant, Rune and Dragon Darts, Ranged strength has been increased to compensate. You can also see that Amethyst Darts fit snugly between Rune and Dragon.
+
+Let’s look a little closer and translate these stats to something tangible. We’ll start with max hits.
+
+{| class=wikitable style="text-align:center; width:700px;"
+! rowspan="2" |Max hit comparison
+! colspan="2" |Current Max Hit
+! colspan="2" |Old Proposal Max Hit
+! colspan="2" |New Proposal Max Hit
+|-
+!Armadyl
+!Void
+!Armadyl
+!Void
+!Armadyl
+!Void
+|-
+|Toxic Blowpipe + Bronze Dart
+|25
+|29
+|22
+|25
+|21
+|23
+|-
+|Toxic Blowpipe + Iron Dart
+|26
+|29
+|22
+|25
+|21
+|24
+|-
+|Toxic Blowpipe + Steel Dart
+|26
+|29
+|22
+|25
+|21
+|24
+|-
+|Toxic Blowpipe + Black Dart
+|27
+|30
+|23
+|25
+|22
+|25
+|-
+|Toxic Blowpipe + Mithril Dart
+|27
+|30
+|23
+|26
+|23
+|25
+|-
+|Toxic Blowpipe + Adamant Dart
+|27
+|31
+|24
+|27
+|24
+|28
+|-
+|Toxic Blowpipe + Rune Dart
+|28
+|32
+|26
+|30
+|27
+|30
+|-
+|Toxic Blowpipe + Amethyst Dart
+| -
+| -
+| -
+| -
+|27
+|30
+|-
+|Toxic Blowpipe + Dragon Dart
+|30
+|33
+|28
+|32
+|29
+|32
+|}
+
+We can see there is very little change to max hits for the higher tier Darts and in some cases our new proposal results in higher max hits than in our old proposal.
+
+It also highlights how similar Rune and Amethyst Darts are when used with the Toxic Blowpipe. This is intentional - as mentioned previously they will provide an additional max hit at specific Ranged attack values, and this will be amplified further as additional Ranged strength gear is added to the game. We want to avoid devaluing Rune Darts entirely by giving them an additional max hit with maxed Ranged. This also stops accounts with a steady supply of Runite Bars from feeling like obtaining Amethyst Darts is a necessity.
+
+===DPS Comparisons===
+Now, let’s explore how this proposal impacts the actual DPS of the Toxic Blowpipe. The below graphs show a variety of different setups comparing our proposal to what’s currently possible in-game.
+
+[[File:Equipment Rebalance- Ranged Meta Proposal (1).png|thumb|centre|600px|''Click the image for a larger version.'']]
+
+[[File:Equipment Rebalance- Ranged Meta Proposal (2).png|thumb|centre|600px|''Click the image for a larger version.'']]
+
+''Note: for ease of viewing, we’ve grouped Rune and Amethyst Darts together in the above graphs since their accuracy and max hits at maxed Ranged are the same. There are times where Amethyst Darts will retain an additional max hit over Rune however, such as when the effects of a Ranging Potion begin to dwindle.''
+
+As expected, the use of full Void Knight armour is impacted more than Armadyl gear, which makes sense given it has significantly less accuracy. The trade-off is that using Void Knight armour against low Defence targets massively increased the DPS due to having a higher max hit potential.
+
+Here’s some more things to look out for:
+* DPS dramatically decreases over time as effective Defence increases.
+* The difference between lower tier Darts is much clearer than in our previous proposal.
+* When not wearing full Void Knight Armour, this is a DPS increase over our previous proposal until your target has roughly 25k-30k effective Defence.
+
+==Crystal Armour==
+Even after the Toxic Blowpipe changes, Crystal Armour and the Crystal Bow are still stuck with underwhelming performance for their high requirements and maintenance cost. Currently, Crystal Armours have a special set effect where each piece will give a 3% damage boost and a 6% accuracy bonus to the Crystal Bow. If all pieces are worn, the player receives a 15% damage boost and a 30% accuracy bonus.
+
+Our previous efforts to improve the Crystal Armour were ineffective, and we quickly concluded that in order to make using it alongside a Crystal Bow viable, there would need to be some considerable changes. We asked how you felt about this in our survey, and here’s what you had to say:
+
+Should the Crystal Bow with Crystal Armour be buffed so it is better than the Toxic Blowpipe against creatures with high Defence?
+* '''73% of respondents''' said Yes
+* '''17% of respondents''' said Maybe
+* '''10% of respondents''' said No
+
+If the Crystal Bow with Crystal Armour is buffed, how should the buff be applied?
+* '''25% of respondents''' said it should increase the accuracy and damage bonus of the Crystal Armour set
+* '''45% of respondents''' said we should introduce a new Crystal Bow with better stats and higher requirements
+* '''30% of respondents''' said we should buff the existing Crystal Bow
+
+Should the Crystal Armour's set bonus be redistributed so that wearing a Slayer Helmet with the body and legs will be stronger than the full set when on a Slayer task?
+* '''78% of respondents''' said Yes
+* '''15% of respondents''' said Maybe
+* '''7% of respondents''' said No
+
+If a new Crystal Bow with better stats is added to the game, how should it be added?
+* '''41% of respondents''' thought it should be a new drop from existing content
+* '''49% of respondents''' thought it should be a new drop from future content
+
+Lastly, we presented respondents with the following scenario:
+
+The Corrupted Gauntlet will no longer reward players with the Blade of Saeldor. Instead you will now receive an Enhanced Crystal Weapon Seed. This seed can be used to make an Enhanced Crystal Bow or the Blade of Saeldor. Existing Blades of Saeldor can be reverted back to an Enhanced Crystal Weapon Seed for a cost.
+
+* '''57% of respondents''' said “I like it”
+* '''19% of respondents''' said “I don’t care”
+* '''24% of respondents''' said “I don’t like it”
+
+Survey results in hand, we went back to the drawing board and worked out some changes that should place Crystal Armour in a better position in the Ranged meta following the Toxic Blowpipe changes.
+
+{| class=wikitable style="text-align:center; width:1000px;"
+! rowspan="2" |
+! colspan="5" |Attack Bonuses
+! colspan="5" |Defence Bonuses
+! colspan="4" |Other
+! colspan="2" |Crystal Armour Bonus
+|-
+!Stab
+!Slash
+!Crush
+!Magic
+!Ranged
+!Stab
+!Slash
+!Crush
+!Magic
+!Ranged
+!Strength
+!Prayer
+!Speed
+!Weight
+!Accuracy
+!Strength
+|-
+|Crystal Bow
+| +0
+| +0
+| +0
+| +0
+| +100
+| +0
+| +0
+| +0
+| +0
+| +0
+|<nowiki>+70</nowiki>
+
+'''{{Colour|#008000|+78}}'''
+| +0
+|4
+|1.8kg
+| -
+| -
+|-
+|Crystal Helmet
+| +0
+| +0
+| +0
+| -10
+|<nowiki>+8</nowiki>
+
+'''{{Colour|#008000|+9}}'''
+| +12
+| +8
+| +14
+|<nowiki>+26</nowiki>
+
+'''{{Colour|#ff0000|+10}}'''
+| +18
+| +0
+| +2
+| -
+|2.7kg
+
+'''{{Colour|#008000|0.5kg}}'''
+|6%
+
+'''{{Colour|#ff0000|5%}}'''
+|3%
+
+'''{{Colour|#ff0000|2.5%}}'''
+|-
+|Crystal Body
+| +0
+| +0
+| +0
+| -18
+|<nowiki>+30</nowiki>
+
+'''{{Colour|#008000|+31}}'''
+|<nowiki>+34</nowiki>
+
+'''{{Colour|#008000|+46}}'''
+|<nowiki>+24</nowiki>
+
+'''{{Colour|#008000|+38}}'''
+|<nowiki>+32</nowiki>
+
+'''{{Colour|#008000|+48}}'''
+| +44
+|<nowiki>+53</nowiki>
+
+'''{{Colour|#008000|+68}}'''
+| +0
+| +3
+| -
+|10.0kg
+
+'''{{Colour|#008000|2kg}}'''
+|6%
+
+'''{{Colour|#008000|15%}}'''
+|3%
+
+'''{{Colour|#008000|7.5%}}'''
+|-
+|Crystal Legs
+| +0
+| +0
+| +0
+| -12
+|<nowiki>+17</nowiki>
+
+'''{{Colour|#008000|+18}}'''
+|<nowiki>+20</nowiki>
+
+'''{{Colour|#008000|+26}}'''
+|<nowiki>+16</nowiki>
+
+'''{{Colour|#008000|+21}}'''
+|<nowiki>+24</nowiki>
+
+'''{{Colour|#008000|+30}}'''
+| +34
+|<nowiki>+29</nowiki>
+
+'''{{Colour|#008000|+38}}'''
+| +0
+| +2
+| -
+|9.1kg
+
+'''{{Colour|#008000|1kg}}'''
+|6%
+
+'''{{Colour|#008000|10%}}'''
+|3%
+
+'''{{Colour|#008000|5%}}'''
+|}
+
+The following changes will be made to the Crystal Armour base stats:
+* Ranged accuracy of all pieces increased by 1 per piece, granting higher Ranged accuracy than both Black Dragonhide and Karil’s
+* Melee defence of all pieces increased slightly
+* Magic defence of the Crystal Helmet lowered slightly, granting lower Magic defence than Armadyl with higher Ranged defence to compensate
+* Weight of all pieces reduced significantly, making it easier to dodge Ranged attacks
+
+We’ve also removed the Ranged damage and accuracy set bonus, and instead redistributed these stats across the different pieces. The main benefit is that this will provide additional variety in gear. For example, we expect using an imbued Slayer Helmet with the Crystal Body and Legs to be popular, as it’ll grant a total bonus of 40% Ranged accuracy and 27.5% Ranged damage while on any Slayer task.
+
+Lastly we want to increase the Ranged strength of the basic Crystal Bow. This small change has a big impact, providing +2 points of damage to the Bow’s max hit rising to +3 points when used with the full Crystal Armour set. A helpful little nudge to universal viability!
+
+But wait – there’s more…
+
+==Bow of Faerdhinen==
+''As mentioned in the feedback summary table, we’ve adjusted the stats of the Bow of Faerdhinen, as well as the way the corrupted version handles ammo charges, following your feedback. We’ve also added a poll question which you can find at the foot of this blog.''
+
+[[File:Equipment Rebalance- Ranged Meta Proposal (3).png|thumb|centre|600px|''Concept art for the Bow of Faerdhinen. You'll be able to vote for your preferred option in the upcoming poll.'']]
+
+
+We know that even with the changes listed above, the Crystal Bow won’t be in a strong enough position to compete with the Toxic Blowpipe. But what if there was another option?
+
+It would appear that the Gauntlet has another secret to give up – a new Ranged weapon available to any adventurer willing to take on the Crystalline Hunllef!
+
+{| class=wikitable style="text-align:center; width:1000px;"
+! rowspan="2" |
+! colspan="5" |Attack Bonuses
+! colspan="5" |Defence Bonuses
+! colspan="4" |Other
+|-
+!Stab
+!Slash
+!Crush
+!Magic
+!Ranged
+!Stab
+!Slash
+!Crush
+!Magic
+!Ranged
+!Strength
+!Prayer
+!Speed
+!Weight
+|-
+|Crystal Bow
+| +0
+| +0
+| +0
+| +0
+| +100
+| +0
+| +0
+| +0
+| +0
+| +0
+| +78
+| +0
+|4
+|1.8kg
+|-
+|Bow of Faerdhinen
+| +0
+| +0
+| +0
+| +0
+| +128
+| +0
+| +0
+| +0
+| +0
+| +0
+| +106
+| +0
+|4
+|1.5kg
+|}
+
+Faerdhinen was an elite Elven warrior, sister to Saeldor. Her legendary bow is an upgraded version of the Crystal Bow and could be obtained by completing both the standard and Corrupted Gauntlet.
+
+Alternatively, it would be possible to break down an existing Blade of Saeldor and transform it into an Enhanced Crystal Weapon Seed for 250 Crystal Shards. A skilled crystal-singer could then grow that seed into the Bow of Faerdhinen for an additional 250 Crystal Shards. Should you want to switch back to your Blade of Saeldor, this transformation would also work in reverse.
+
+The Bow of Faerdhinen requires 75 Ranged to equip and would benefit from the damage and accuracy boosts of the Crystal Armour set, making it a rather powerful weapon to have in your arsenal! Much like the Blade of Saeldor, the bow can also be corrupted, though it will cost 2,000 Crystal Shards to do so. Once Corrupted, the bow will have unlimited ammunition. When not Corrupted, it will have 20,000 charges, similar to other Crystal items. These charges are used in place of Ranged ammunition, and more charges can be obtained with Crystal Shards.
+
+''Note: The Bow of Faerdhinen requirements would be subject to changes as part of the Tier rebalancing work we intend to do later this year.''
+
+One more thing: since your votes decided to make it possible to recolour the Blade of Saeldor into each of the Prifddinas clan colours, the same will be possible for the Bow of Faerdhinen
+
+
+'''Why did we opt to add a new bow rather instead of buffing the Crystal Bow or Crystal Armour set further?'''
+
+We didn’t feel that our previous proposal – to buff the set bonus from 30% accuracy and 15% damage to 30% accuracy and 20% damage – went far enough.
+
+To really give it an edge we’d need to buff the set effect to 50% Ranged accuracy and 40% Ranged strength, or else make the accuracy bonus absurdly high. This sort of thing can be really damaging when we’re trying to prevent powercreep.
+
+For example, let’s pretend we bring out a new pair of boots with +10 Ranged accuracy and +4 Ranged strength. With the current Crystal Armour, these stats would be boosted to the equivalent of +13 Ranged accuracy and +4.6 Ranged strength.
+
+If the Crystal Armour was buffed to 50% Ranged accuracy and 40% Ranged strength, you’d get a total of +15 Ranged accuracy and 5.6 Ranged strength.
+
+And if the Crystal Armour provided 220% Ranged accuracy and 20% Ranged strength, you’d get an absolutely ludicrous +32 Ranged accuracy and 4.8 Ranged strength. All this from a pair of boots!
+
+The Crystal Bow just doesn’t have the base stats to be competitive in the endgame and, as we’ve seen from the boots example, buffing those stats would make it incongruous with the other Tier 70 gear. The Bow of Faerdhinen will be Tier 75, which gives us the room to make it as powerful as it needs to be.
+
+===Bow of Faerdhinen DPS Comparisons===
+[[File:Equipment Rebalance- Ranged Meta Proposal (4).png|thumb|centre|600px|''Click the image for a larger version.'']]
+
+[[File:Equipment Rebalance- Ranged Meta Proposal (5).png|thumb|centre|600px|''Click the image for a larger version.'']]
+
+The above graphs really highlight how much of a difference the additional Ranged strength on the Crystal Bow makes. There will be times where you’d choose to use it over the Toxic Blowpipe against monsters with a Defence level similar to TzKal-Zuk’s, when previously the Blowpipe would be better – if it could reach on Rapid, of course!
+
+In this next graph, you can see the Bow of Faerdhinen will still be worse against creatures that are susceptible to Twisted Bow, but it will also be better than a Twisted Bow against creatures with 150 and lower Magic defence.
+
+[[File:Equipment Rebalance- Ranged Meta Proposal (6).png|thumb|centre|600px|''Click the image for a larger version.'']]
+
+==Additional Changes==
+Last time your feedback suggested that we hadn’t covered as many areas of the Ranged meta as we should have. Many of you mentioned other Ranged weapons and offhand items specifically.
+
+We touched on these topics in the survey. Here’s what you had to say:
+
+Should crossbows be stronger than they are currently?
+* '''52% of respondents''' said Yes
+* '''31% of respondents''' said Maybe
+* '''17% of respondents''' said No
+
+If crossbows are buffed, how should the buff be applied?
+* '''31% of respondents''' thought we should introduce a new Tier 75 crossbow above Armadyl (Tier 70)
+* '''62% of respondents''' thought we should rebalance the stats of crossbows and Ranged offhands
+* '''7% of respondents''' selected ‘Other’
+
+If a new crossbow is added to the game, how should it be added?
+* '''16% of respondents''' suggested a new drop from existing content
+* '''84% of respondents''' suggested a new drop from future content
+
+Should the Armadyl Crossbow special attack be reworked? Currently the special attack doesn't work well with the bolt activation effects.
+* '''82% of respondents''' said Yes
+* '''15% of respondents''' said Maybe
+* '''3% of respondents''' said No
+
+===Crossbows & Ranged Offhand Items===
+As you can see, there’s a lot of support for buffing crossbows, but we don’t want to cause such an increase in power that other Ranged weapons are no longer viable.
+
+However, we can still improve crossbows without having to rebalance everything else by improving Ranged-based offhand items.
+
+{| class=wikitable style="text-align:center; width:1000px;"
+! rowspan="2" |
+! colspan="5" |Attack Bonuses
+! colspan="5" |Defence Bonuses
+! colspan="3" |Other
+|-
+!Stab
+!Slash
+!Crush
+!Magic
+!Ranged
+!Stab
+!Slash
+!Crush
+!Magic
+!Ranged
+!Melee<br>Strength
+!Ranged<br>Strength
+!Prayer
+|-
+|Odium Ward
+| -12
+| -12
+| -12
+| -8
+| +12
+| +0
+| +0
+| +0
+| +24
+| +52
+| +0
+|<nowiki>+0</nowiki>
+
+'''{{Colour|#008000|+4}}'''
+| +0
+|-
+|Dragonfire Ward
+| -10
+| -10
+| -
+| -10
+| +
+| +25
+| +30
+| +28
+| +28
+| +68
+| -2
+|<nowiki>+0</nowiki>
+
+'''{{Colour|#008000|+8}}'''
+| +0
+|-
+|Twisted Buckler
+| -7
+| -8
+| -7
+| -10
+| +18
+| +22
+| +24
+| +22
+| +26
+| +58
+| +0
+|<nowiki>+0</nowiki>
+
+'''{{Colour|#008000|+10}}'''
+| +0
+|}
+
+With the increase to Ranged strength listed above, the following max hit increases can be expected:
+* Odium Ward +1
+* Dragonfire Ward +2
+* Twisted Buckler +2
+
+We hope that this small change will help to make crossbows more competitive across the board, while also helping the off-hand items retain some value as their effective power increases. This is also an opportunity to prioritise damage over defence.
+
+Of course, this will impact every other 1-handed Ranged weapon too. Darts, knives, thrownaxes, Toktzx-Xil-Ul and Chinchompas will all receive max hit buffs with this change.
+
+Points for Discussion
+* Does this make Chinchompas too strong? Black Chinchompas’ max hit would go from 23 to 25, a DPS increase of around 8.6% if we assume 100% accuracy.
+
+Check the links at the bottom of the blog to give us your feedback!
+
+===Dragonhunter Crossbow===
+Earlier we spoke about how % modifiers can cause small stat buffs to become bigger than intended. That’s the case with the Dragonhunter Crossbow. Because of the way it scales, especially when used at Vorkath with Salve Amulet and full Void Knight Armour, the increase to its max hit would actually be +5 max compared to the intended +2.
+
+To bring it back in line, we’re going to slightly reduce the bonus damage the Dragonhunter Crossbow deals vs Dragons from 30% to 25%.
+
+Currently, the Dragonhunter Crossbow has a max hit of 74 against Vorkath. Here’s how that shapes up against these changes:
+* 75 when using a Twisted Buckler (requires Antifire Potions)
+* 75 when using a Dragonfire Ward (no Antifire Potions)
+* 72 when using an Odium Ward (requires Antifire Potions)
+* 71 without any of the above
+
+As you can see, not using any offhand items does have a significant impact on the damage dealt. However, the Dragonhunter crossbow remains one of the strongest items against dragons by a large margin, and so we don’t expect its position in the meta to change.
+
+===Armadyl Crossbow===
+We’ve had overwhelming support for reworking the Armadyl Crossbow special attack. Today we’d like to propose an additional change, intended to make it feel less like energy has been wasted when a bolt activation happens.
+
+For reference, here’s the current effect:
+* Costs 40% Special Attack Energy
+* Doubles the player's accuracy for that shot
+
+And here’s our proposal:
+* Costs 50% Special Attack Energy
+* Doubles the player's accuracy and base bolt effect activation chance for that shot
+* Bolt activation chance increases
+* For Diamond bolts specifically, it would increase from a 10% chance (11% with Kandarin hard diary) to 20% chance (21% with Kandarin hard diary)
+
+[[File:Equipment Rebalance- Ranged Meta Proposal (7).png|thumb|centre|600px|''Click the image for a larger version. Note: all these values assume the Ruby bolt spec will hit 100. If Diamond bolts are used or if the NPC has less health, then the DPS values get lower accordingly.'']]
+
+===Shayzien Armour===
+When we first pitched changes to the Toxic Blowpipe we saw that many players felt that the changes were only going to make existing content take longer or be harder than originally intended. Lizardmen Shamans were a key example.
+
+While Lizardmen Shamans have lower Defence, the Shayzien Armour (5) that you wear while fighting them has low Ranged accuracy, so the changes to the Toxic Blowpipe have a much higher impact. To mitigate this debuff, we’d like to add more Ranged accuracy.
+
+{| class=wikitable style="text-align:center; width:700px;"
+! rowspan="2" |
+! colspan="5" |Attack Bonuses
+! colspan="5" |Defence Bonuses
+|-
+!Stab
+!Slash
+!Crush
+!Magic
+!Ranged
+!Stab
+!Slash
+!Crush
+!Magic
+!Ranged
+|-
+|Shayzien Helm (5)
+| +0
+| +0
+| +0
+| -6
+|<nowiki>-2</nowiki>
+
+'''{{Colour|#008000|+4}}'''
+| +10
+| +14
+| +12
+| -2
+| +13
+|-
+|Shayzien Platebody (5)
+
+'''{{Colour|#008000|Shayzien Body (5)}}'''
+| +0
+| +0
+| +0
+| -10
+|<nowiki>+0</nowiki>
+
+'''{{Colour|#008000|+10}}'''
+|<nowiki>+30</nowiki>
+
+'''{{Colour|#ff0000|+20}}'''
+|<nowiki>+37</nowiki>
+
+'''{{Colour|#ff0000|+24}}'''
+|<nowiki>+40</nowiki>
+
+'''{{Colour|#ff0000|+28}}'''
+| -4
+| +27
+|-
+|Shayzien Greaves (5)
+| +0
+| +0
+| +0
+| -20
+|<nowiki>-8</nowiki>
+
+'''{{Colour|#008000|+6}}'''
+| +23
+| +22
+| +21
+| -4
+| +23
+|-
+|Shayzien Gloves (5)
+| +0
+| +0
+| +2
+| -1
+|'''+0'''
+
+'''{{Colour|#008000|+6}}'''
+| +0
+| +2
+| +3
+| -1
+| +2
+|-
+|Shayzien Boots (5)
+| +0
+| +0
+| +0
+| -2
+|<nowiki>-1</nowiki>
+
+'''{{Colour|#008000|+4}}'''
+| +5
+| +7
+| +8
+| +0
+| +0
+|-
+|Total
+| +0
+| +0
+| +2
+| -39
+|<nowiki>-8</nowiki>
+
+'''{{Colour|#008000|+30}}'''
+| +68
+| +82
+| +84
+| -11
+|65
+|}
+
+You might have noticed that we’ve also made other changes to the Shayzien Platebody. First of all, it’s now the Shayzien Body, since it’ll have Ranged accuracy stats which platebodies typically don’t. We’re also going to reduce the defensive bonuses, since it’s now Ranged gear.
+
+This results in the new Toxic Blowpipe with Adamant Darts being 13.09% worse than what’s currently possible in-game while on task. Each Lizardman Shaman would take approximately 2.22 seconds longer to kill, which adds up to an extra 3.08 hours, on average, to get a Dragon Warhammer.
+
+Using Rune or Amethyst Darts, however, it’s only 0.53% worse – hardly any difference at all.
+
+===Inferno - TzKal-Zuk’s Minions===
+One other point of contention was the Inferno, which many players thought would be made unnecessarily more difficult.
+
+In particular, it was believed that Jal-Xil (the ranger) and Jal-MejJak (TzKal-Zuk’s healers) would take much longer to kill, which could result in the player being unable to defeat TzKal-Zuk when they would otherwise have been able to.
+
+Obviously this was a point of concern for us too – so we looked into it, and busted that myth wide open. Here’s what we found:
+
+[[File:Equipment Rebalance- Ranged Meta Proposal (8).png|thumb|centre|200px|''Gear used for the numbers below'']]
+
+{| class=wikitable style="text-align:center; width:700px;"
+! rowspan="2" |
+! colspan="5" |Jal-Xil (Ranger)
+! colspan="5" |Jal-MejJak (Zuk's healer)
+|-
+!Max Hit
+!Accuracy
+!DPS
+!Average Hits
+!Time to kill
+!Max Hit
+!Accuracy
+!DPS
+!Average Hits
+!Time to kill
+|-
+|Before Nerfs
+|30
+|93.73%
+|11.716
+|9.246
+|11.095
+|30
+|90.09%
+|11.262
+|5.920
+|7.104
+|-
+|After Nerfs
+|29
+|92.22%
+|11.144
+|9.722
+|11.666
+|29
+|87.72%
+|10.599
+|6.290
+|7.548
+|-
+|Comparison
+| -1
+| -1.51%
+| -5.14%
+|0.476
+|0.571
+| -1
+| -2.37%
+| -6.25%
+|0.37
+|0.444
+|}
+
+''Note: the above assumes you have 112 Ranged (from Ranging Potion), active Rigour, and a Toxic Blowpipe with Dragon Darts.''
+
+As you can see, the difference is negligible. This is because both of these creatures have relatively low Defence values, so accuracy has less weighting.
+
+Following your feedback in response to May’s blog, we’re going to proceed with reducing the Hitpoints of both Jal-Xil and Jal-MejJak throughout the Inferno by 5 each.
+
+==Summary==
+Now that we’ve been through all the changes let’s see how everything compares:
+
+[[File:Equipment Rebalance- Ranged Meta Proposal (9).png|thumb|centre|600px|''Click the image for a larger version.'']]
+
+
+The gaps have been filled, and there’s now a five weapon meta instead of a three weapon meta.
+
+Here’s a reminder of the old meta:
+* Twisted Bow against high Magic targets without low Defence
+* Dragonhunter Crossbow against Dragons
+* Toxic Blowpipe against everything else
+
+And here’s what it’ll look like now:
+* Twisted Bow against high Magic targets
+* Dragonhunter Crossbow against Dragons
+* Toxic Blowpipe against low Defence targets (up to around 20k effective Defence)
+* Armadyl Crossbow against mid-high Defence targets when the boss has enough Hitpoints for Ruby Bolts to be effective
+* Bow of Faerdhinen against mid-high Defence targets when Ruby Bolts would be ineffective
+
+But that’s not all:
+* Shields now substantially increase the DPS of 1-Handed Ranged weapons
+* Crystal Armour has a defensive niche, as it provides better defence against Ranged attacks than Armadyl
+* Crystal Armour is now usable with the Slayer Helmet
+* A slight increase to Ranged strength on the Crystal Bow makes it more viable
+* A small buff to Darts without the use of Toxic Blowpipe will increase their DPS
+* A moderate buff to Chinchompas when using a Ranged offhand will increase their DPS
+
+==Polling==
+When this blog first released in May, we reiterated that most of the proposal here will be undertaken without a poll, due to being balancing and integrity changes. We also asked you how you felt about us polling some of the equipment stat buffs we’ve offered.
+
+The feedback we received was mixed. Some players supported us polling as much as we were comfortable with, whilst others felt that players may naturally gravitate to voting for any positive changes offered.
+
+We understand both perspectives, and we’ve made the choice to proceed with polling some of the changes. And ultimately we’ll use the voting trends here to inform how we might handle similar scenarios in the future.
+
+{{News Poll|1|Should we add Amethyst Darts to the game, as described in the blog? They will be tradeable, and will require 89 Crafting and 90 Fletching to create.}}
+{{News Poll|2|Should the Ranged damage and accuracy set bonus of the Crystal Armour be redistributed as described in the blog?}}
+{{News Poll|3|Should we increase the Ranged Strength of the Crystal Bow, from +70 to +78, as described in the blog?}}
+{{News Poll|4|Should the Bow of Faerdhinen be added to the game, as described in the blog? This item will be a reward from the Gauntlet and Corrupted Gauntlet.}}
+{{News Poll|5|If the Bow of Faerdhinen is added to the game, which of the following appearance options do you prefer? If Poll Question #4 passes, the highest voted option from this question will be added to the game.}}
+[[File:Equipment Rebalance- Ranged Meta Proposal (3).png|thumb|centre|600px|''Concept art for the Bow of Faerdhinen. You'll be able to vote for your preferred option in the upcoming poll.'']]
+{{News Poll|6|Should we increase the Ranged Strength of the Odium Ward, from +0 to +4, as described in the blog? If this question passes, the bonus damage the Dragonhunter Crossbow deals vs Dragons will be reduced from 30% to 25%.}}
+{{News Poll|7|Should we increase the Ranged Strength of the Dragonfire Ward, from +0 to +8, as described in the blog? If this question passes, the bonus damage the Dragonhunter Crossbow deals vs Dragons will be reduced from 30% to 25%.}}
+{{News Poll|8|Should we increase the Ranged Strength of the Twisted Buckler, from +0 to +10, as described in the blog? If this question passes, the bonus damage the Dragonhunter Crossbow deals vs Dragons will be reduced from 30% to 25%.}}
+{{News Poll|9|Should the special attack of the Armadyl Crossbow be changed so that it doubles the player's accuracy and base bolt effect activation chance for that shot? If this question passes, the special attack energy required will increase from 40% to 50%.}}
+{{News Poll|10|Should the Shayzien Armour (5) be rebalanced so that it favours Ranged accuracy more as described in the blog?}}
+
+==That's a Wrap!==
+That’s all we have to share with you regarding the Ranged portion of the Equipment Rebalance project. We believe that we're ready for the implementation and polling stage, but as always we'll be keeping a close eye on your feedback to see whether there are any key concerns or trends that need to be addressed before we move forward.
+
+Be on the look out for more Equipment Rebalance changes in future. In our Wilderness Changes blog, we’ll talk about Dragonhide and Dinh’s Bulwark. After that, we’ll be tackling the Tier Rebalancing, and finally, we’ll be taking a look at some of your suggestions.
+
+As always, your feedback is very much appreciated and welcomed, so please share it via the [http://services.runescape.com/m=forum/forums.ws?380,381,728,66217065 official forums], on the [https://www.reddit.com/r/2007scape/comments/nmwleq/equipment_rebalance_ranged_meta_proposal/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel
+
+----
+
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gayns, Gecko, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''

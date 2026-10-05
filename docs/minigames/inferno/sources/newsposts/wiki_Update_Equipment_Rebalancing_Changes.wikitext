@@ -1,0 +1,163 @@
+{{Update|date=26 January 2021|link=https://secure.runescape.com/m=news/equipment-rebalancing-changes?oldschool=1|category=dev blog}}
+[[File:Equipment Rebalancing Changes newspost.png|right]]
+{{clear}}
+{{ToC}}
+==Equipment Rebalancing Changes==
+Last week we released the first iteration of our proposed plans to tackle some Equipment Rebalancing changes that will benefit the game's long-term health.
+
+If you haven’t seen the Equipment Rebalancing blog yet, you can [https://secure.runescape.com/m=news/equipment-rebalancing?oldschool=1 do so here].
+
+Today we’ll highlight the main changes we’ve made following your feedback, and provide more information about what's not changing.
+
+If you’re wondering why some changes aren’t mentioned here, it's because we really wanted to focus on the biggest issues presented by the community. We’ll list any further changes in a later all-encompassing Equipment Rebalancing blog.
+
+==Beta Worlds==
+With tomorrow’s game update, we'll be opening two beta worlds, giving you an opportunity to test some of the proposed changes as if they were live in-game. These worlds will include the following items with their new stats for testing:
+* Toxic Blowpipe
+* Crystal Armour
+* Black D'hide Armour
+
+You’ll be able to play any content within the main game, including the Inferno. In addition to the above, we’ll also provide supply chests for easy access to the typical gear you’d use. You won't be able to select a specific Slayer task, but you can skip tasks freely, allowing you to force any particular task you might want to experiment with. You'll also be given 100,000 Slayer Points to use on any unlocks or purchases you feel are appropriate (such as 'Like a boss' to enable Boss Slayer tasks).
+
+==Toxic Blowpipe==
+Feedback to the Toxic Blowpipe changes has been the most prominent - which is to be expected, given it's one of the most widely used weapons in the game.
+
+It was clear that a number of players felt the proposed changes to the Toxic Blowpipe were too harsh. Many of you said that it would make current content too difficult, or that we’ve been designing content around the expectation of players using the existing Blowpipe.
+
+Before we go through the newly revised Toxic Blowpipe changes, we’d like to take a moment to step back and reiterate why we feel change is necessary.
+
+It’s no secret that the Toxic Blowpipe is strong - it’s one of the reasons why it gets used by almost every player in any situation where Ranged damage is preferable (and even at times when it’s not, as it still outperforms some of the most expensive items). Having a single item be strong for a number of activities is generally fine, but the Blowpipe is simply too powerful. There is little reason to use any other weapon if Ranged attacks are an option.
+
+Adding to this lack of variety, it's also difficult for us to effectively balance around its strength. Its high attack speed means it benefits hugely from additional Ranged strength and accuracy, both of which are already high due to the Blowpipe's strong base stats.
+
+This leaves us little room for adding new Ranged items with strength and accuracy. We’ve tried and failed on multiple occasions.
+
+In its current form, the Blowpipe's also far too cheap to purchase and maintain to justify how powerful it is. Using Bronze darts can output a higher DPS than some of the most expensive gear setups available. That is a problem we need to solve.
+
+Taking all of that into account, and listening to your feedback, we’ve made some changes that we feel leave the Toxic Blowpipe in a much healthier position. Our intention remains for the Blowpipe to remain a very powerful weapon against low Defence creatures, but to limit its power against higher Defence creatures:
+* We add 100% accuracy to the special attack (due to technical constraints, this will not be available to test in time for the beta)
+* Adamant Darts Ranged strength is increased from 8 to 10
+* Rune Darts Ranged strength is increased from 14 to 20
+* Dragon Darts Ranged strength is increased from 20 to 28
+
+The above changes reduce the impact of the Blowpipe nerf, yet remain in line with our original intentions, properly enforcing where the weapon will be used (low Defence monsters) as well as creating a bigger gap between dart tiers.
+
+As such, we’ll also increase the Ranged level required to equip it, in line with the other tier rebalancing we’ve done.
+
+[[File:Equipment Rebalancing Changes (1).png|frame|center|Left image showing current stats, right image showing proposed stats]]
+
+
+We saw quite a lot of confusion surrounding the potential impact of the initial changes. Many players claimed thanks to the base stats changes they amounted to a 50% nerf. We could have done a better job of reflecting how these changes impacted the overall Ranged accuracy and strength of the Blowpipe, as they alter based on which dart is being used.
+
+The below tables highlight the difference between the In-Game and Proposed stats for Darts and the Toxic Blowpipe:
+
+[[File:Equipment Rebalancing Changes (2).png|center|500px]]
+
+
+[[File:Equipment Rebalancing Changes (3).png|center|500px]]
+
+As you can see, there is still a clear difference between the new and old versions, even with the most expensive to use darts having been slightly nerfed. This is intentional - we’re not simply making it more expensive to upkeep, as that is only part of the problem.
+
+So how much will these changes impact you in-game? The answer varies based on what type of monster you’re killing. We’ve put together some examples that highlight the difference, though we imagine you’ll want to wait until the beta is live to try it out for yourself.
+
+''Note: the below calculations are done based on the user wearing either the maximum Ranged bonuses available or full Elite Void Knight armour. They do not necessarily reflect the specific gear choices you’d make in these situations, and are used purely to highlight the differences.''
+
+[[File:Equipment Rebalancing Changes (4).png|thumb|600px|center|You can click the image for a larger version.]]
+
+* The difference in raw DPS output is much smaller when facing low Defence creatures where accuracy is not as important.
+* The Blowpipe outperforms the Armadyl Crossbow even when using Adamant darts against low Defence creatures.
+* Using higher tier darts (Rune/Dragon) closes the gap in DPS significantly in comparison to cheaper darts (Adamant and below).
+* Conversely, the difference in raw DPS output is much bigger when facing high Defence creatures where accuracy is more important.
+
+
+[[File:Equipment Rebalancing Changes (5).png|thumb|500px|center|You can click the image for a larger version.]]
+
+
+By focusing more a monster's Defence, these changes leave us in a much better position to balance future content around Ranged damage. Currently this is very difficult because the accuracy of the Blowpipe is just too high to balance around without negatively impacting all other standard Ranged weapons.
+
+We’ve had many players asking what we meant when we said we’re generally happy with where the Twisted Bow sits. The message we were trying to send was that it’s much simpler for us to balance around the Twisted Bow because of its unique effect - the higher the target's Magic level or Magic accuracy (whichever is higher), the higher the Twisted Bow's accuracy and damage becomes.
+
+If we want to introduce a new boss that is not susceptible to the Twisted Bow, it’s simply a case of us ensuring it has a lower Magic level or reduced Magic accuracy stats. Changing this has zero impact on any other Ranged weapons, as they all roll based on the target’s Defence level or Ranged defence stat.
+
+==Filling the Gaps==
+With the proposed changes to the Toxic Blowpipe, there is a clear gap to fill for a Ranged weapon that excels against high defence creatures. We still intend to increase the bonus damage offered with the full Crystal Armour set from 15% to 20%, but we know that even this buff does not compete enough to be considered a replacement to the Blowpipe.
+
+We discussed increasing both the bonus damage and accuracy of the full Crystal Armour set even further, but we’d really need to go big on the numbers. In order for the full set to be competitive, it would need to provide ~40% damage and 50% accuracy (instead of 20% damage and 30% accuracy) and that would in-turn lead us into the problem of a T70 Ranged weapon being stronger than its requirements - even when considering requiring Crystal Shards to maintain.
+
+Another popular suggestion was to split the Toxic Blowpipe into multiple versions - the newly proposed Blowpipe and another created by adding an attachment or upgrade to restore it to its current state. This is something we already considered internally when we started our work on the Equipment Rebalancing changes but, despite the increased expense, we'd ultimately be left with the same issues as the current Blowpipe has - having a single item dominating the Ranged meta, with little room for variety.
+
+We think there is a definite gap to fill, but feel it would be better to offer an upgrade to the Crystal Bow (or a different weapon entirely) in the future, as we’d then be able to increase its requirements accordingly.
+
+We welcome your feedback on this. Would you be happy for another unique to be added to the Gauntlet to upgrade the Crystal Bow? Should the current blowpipe remain as it is but with a potentially higher cost upgrade? Or would you prefer to see a new Ranged weapon come from new future content, such as Combat Achievements or something entirely new? Let us know!
+
+==Personal Bests==
+In our initial proposal we did not touch on how we'd approach already obtained Personal Bests for boss kill times. Given the changes we're proposing will likely cause some of these times to be unobtainable for a good while (at least until new equipment is introduced into the game), we'd like your thoughts on how we approach this. Our options are:
+* Reset all current Personal Best kill times, making everyone start fresh with the changed values.
+* Store all current Personal Best kills times and mark them as 'pre-balance', and then reset them.
+* Leave all current Personal Best kills times as they are.
+
+Let us know what you think is the best approach for us to take!
+
+Personal Best times aside, we'd also like to touch on the upcoming Combat Achievements update. In the poll blog for Combat Achievements, we said some speed task completions will carry over and count towards task completions.
+
+Given the nature of the Equipment Rebalancing proposals (and again, taking into account that these previous speeds may not be obtainable again for some time) we feel it's only fair that we don't carry over any speed completions aside from those earned within encounters where your gear doesn't matter (such as the Gauntlet).
+
+==Neitiznot Faceguard==
+Many of you felt our proposed change would render the Neitiznot Faceguard obsolete, and that the reduction in Strength was not necessary.
+
+Whilst we still believe the item is far more powerful than the content it is awarded from, and that it would still serve a purpose in-game, there are other examples that follow this same trend but that we are not looking to change. As a result, we’ve decided not to go ahead with this change, meaning the Faceguard will remain as it currently is.
+
+[[File:Equipment Rebalancing Changes (6).png|center]]
+
+
+With the helm remaining in its current form, we're going to revisit our proposed changes to Basilisk Knights and Basilisk Sentinels. We'd still like to generally improve them, but the as the changes were intended to make them easier to kill (reflecting the lower strength of the helm) we'll be changing our approach.
+
+We're currently considering keeping the Basilisk Knights as they are (leaving them as a relatively easy, long and AFK task) while introducing a newer, slightly more difficult and engaging variant with a better drop rate of the Basilisk Jaw.
+
+Have any ideas on what mechanics an upgraded version of the Basilisk Knights could have? Let us know!
+
+==Dragonhide Armour==
+We previously mentioned changes to the stats of Dragonhide armour due to its imbalanced stat distribution, which is emphasised within PvP situations.
+
+Understandably, many of you were upset that we’re making changes to items that have existed in their current form for many years. It was not an easy decision to make, but we do feel it is best for the longevity of the game, and will provide a welcome change to the PvP meta.
+
+As such, we’d like to continue with the initial proposal. To clarify: any changes would apply to all tiers of Dragonhide armour, including the Blessed variants from Clue Scrolls.
+
+[[File:Equipment Rebalancing Changes (7).png|frame|center|Current Stats]]
+
+
+[[File:Equipment Rebalancing Changes (8).png|frame|center|Proposed Stats]]
+
+
+With both Crystal and Karil's armour base stats being kept as they are, they naturally become a more expensive alternative to help fill the gap left by the changes. We’ve also had many great suggestions on how we could otherwise fill this gap, whether it be adding entirely new content such as Dark Hide armour, or making the Blessed variants of the armour retain their stats as they are currently.
+
+This is something we’d like to explore further in a future update, and we’ll share more on that when we’re able to.
+
+==Dinh's Bulwark==
+Similar to the changes proposed to Dragonhide armour, we feel the Dinh’s Bulwark is just too strong to be considered balanced in PvP.
+
+We agree that such a big shield should retain high defensive capabilities, but even with the shield's previous stats, it saw very little use in-game as a defensive item outside of PvP. That is why we opted to retain some of its Melee Defence stats, while emphasising its high Ranged Defence.
+
+The lack of uses for the item in PvM is a result of our design choices, and not necessarily a reflection of the stats it has. There just aren’t currently many reasons for you to be a Gielinorian shield wall!
+
+We’d like to continue with our proposed changes to the Bulwark while we explore options where it could prove to be useful in the future.
+
+[[File:Equipment Rebalancing Changes (9).png|frame|center|Left image showing current stats, right image showing proposed stats]]
+
+==Next Steps==
+As explained above, two beta worlds will be opening with tomorrow’s game update, giving you an opportunity to test the proposed Toxic Blowpipe with all the available darts. You’ll also be able to experiment with the reduced Black D’hide armour set alongside the slightly buffed Crystal Armour.
+
+As we prioritised including the Blowpipe, we didn’t have enough time to include everything in this beta, but hopefully this will still allow you to get a feel for how impactful the changes might be on your individual playstyles.
+
+We haven’t covered everything here today, so expect an updated blog after we’ve had the opportunity to process your feedback to this post and the beta.
+
+Thank you again for your continued support and feedback. We're still hopeful that the Equipment Rebalancing work will be completed before Combat Achievements, which is just around the corner now. We know change isn’t always welcomed, but we’ll continue to work with you all to find the best outcome for the game.
+
+
+----
+
+As always, we’d love to hear what you think about the proposed Equipment Rebalancing changes, so please share your feedback with us via our [http://services.runescape.com/m=forum/forums.ws?380,381,688,66200218 official forums], on the [https://www.reddit.com/r/2007scape/comments/l5ghvw/equipment_rebalancing_changes/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Ed, Elena, Errol, Fed, Flippy, Gayns, Gecko, Gee, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

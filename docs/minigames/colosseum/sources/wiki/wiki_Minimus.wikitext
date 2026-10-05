@@ -1,0 +1,36 @@
+{{Infobox NPC
+|version1 = Regular
+|version2 = Waves
+|name = Minimus
+|image = [[File:Minimus.png|130px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|race = [[Dwarf (race)|Dwarf]]
+|location = [[Fortis Colosseum entrance]]
+|options1 = Talk-to
+|options2 = Start-wave, Leave
+|examine = A mighty gladiator.
+|map1 = {{Map|x=1805|y=9508|r=4|plane=0|mtype=square|mapID=-1}}
+|map2 = No
+|id1 = 12807
+|id2 = 12808
+|leagueRegion = Varlamore
+}}
+[[File:Minimus chathead.png|left]]
+'''Minimus''' is an extremely skilled [[Dwarf (race)|dwarven]] gladiator who serves as the Colosseum Master{{CiteNPC|npc=Minimus|quote=Eventually, the kingdom gave me the role of Colosseum Master. I still make sure to fit some fighting in, but now I have the honor of managing the fights themselves.}} of [[Civitas illa Fortis]] in the [[Fortis Colosseum entrance]]. He tells players about the mechanics of the [[Fortis Colosseum]], and must be spoken to at least once before entering the arena.
+
+When attempting the Colosseum, if players do not pick a handicap for the next wave, Minimus will appear next to them so they can do so. Players can also give him excess unblessed [[Dizana's quiver]]s for either 4,000 [[sunfire splinters]] or an additional 1/200 chance at the [[Smol Heredit]] pet.<ref>{{DropLogProject|kills=6882}}</ref>
+
+While Minimus is responsible for maintaining the Colosseum's day-to-day function, he also answers to [[Ueman, Teoki of Ralos|Ueman]],{{CiteNPC|npc=Ueman, Teoki of Ralos|quote=Well, much of the day-to-day running is handled by the Colosseum Master, but yes, I am the one overall in charge of this place.}} the [[teoki]] who is responsible for overseeing the Colosseum as a holy site.{{CiteNPC|npc=Ueman, Teoki of Ralos|quote=This is more than just a place of spectacle. You stand in one of the holiest sites in all of Varlamore.}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Trivia==
+* Minimus' name is likely a reference to the character Maximus Decimus Meridius from the 2000 film ''{{WP|Gladiator (2000 film)|Gladiator}}'', as well as being a play on his short stature as a dwarf.
+
+==References==
+{{Reflist}}
+
+{{Fortis Colosseum}}

@@ -1,0 +1,239 @@
+{{Update|date=17 October 2023|rev=24 October 2023|url=https://secure.runescape.com/m=news/fortis-colosseum---first-look--rewards?oldschool=1|category=devblog}}
+[[File:Fortis Colosseum - First Look & Rewards newspost.png|right]]
+{{clear}}
+__TOC__
+[[File:Fortis Colosseum - First Look & Rewards (1).jpg|600px|center]]
+
+Get ready to vote for Varlamore’s most exciting bloodsport… are you ready to take on the Colosseum? Step through this grand entrance and find out... 
+
+===The Audio Read===
+<center>
+{{Listen
+|title = Audio reading
+|desc = ''Thanks to Mod Sween for the Audio Read, he's a little under the weather hence the husky tones!''
+|align = center
+|filename = Fortis Colosseum - First Look & Rewards narration.ogg
+}}
+</center>
+==Blog Update - Tuesday, October 24th==
+We're back to chat Colosseum rewards and to make a few clarifications. There's still a little time before polling, which should give these tweaks plenty of time to sink in!
+
+Let's kick things off by talking Rewards...
+
+Of all the rewards we shared with you last week, one generated more conversation than nearly all of the others combined, where better to start than Old School's first ever equippable quiver.
+
+===Dizana's Quiver & 'Chargescape'===
+For the most part, you seemed pretty on board with a new Ranged cape slot upgrade, especially since it's the first time we're offering an actual quiver for those of you looking to feel that 'classic' Ranger fantasy.
+
+"But what good is a quiver that doesn't hold any arrows?" we hear you ask. Great question, and you're right: a quiver that doesn't hold any ammunition is no quiver at all. With that in mind, we'd like to give Dizana's Quiver the ability to hold at least 2 types of ammo (exact number TBD) and automatically select which one suits your current weapon. If you pop Dragon arrows and Ruby dragon bolts (e) in your quiver, a Twisted bow would default to using those arrows while a Zaryte crossbow would default to bolts. This frees up your ammo slot for a blessing or Ghommal's lucky penny and might even free up inventory slots in cases where you're bringing a crossbow switch, handy!
+
+When charged, ammo fired from the quiver gains an additional +1 Ranged strength, totalling the +4 we showed off initially. This does two things: alleviates a little concern about the Toxic blowpipe being made disproportionately stronger compared to other Ranged weapons when factoring in Dizana's quiver, and tees us up to talk about charges.
+
+We'll open with the headline: we'll be giving players the option to 'corrupt' their quiver so that it never runs out of charges, similar to the Bow of Faerdhinen. With that said, we wanted to shed a little light on our initial proposal, why we're fond of charge systems, the role they play in loot tables, and ultimately why we initially proposed Dizana's quiver as a non-corruptible, charged item. As far back as the initial Tasakaal Trials pitch (from which the Fortis Colosseum draws a lot of inspiration), we were keen on exploring the idea of a wave-based minigame with a tangible element of monetary gain and risk vs. reward decision-making, which is something players seemed pretty happy for us to explore both then and now.
+
+It's not controversial to say that difficult, active and engaging content should be rewarding, but how exactly do we make things rewarding? In some cases we can use untradeable uniques (such as Dizana's quiver itself) to satisfy that reward element, while in others, monetary gain and tradeable items that can be converted into GP fit the bill - this one's a combination of both. Those tradeable items generall fall into a number of categories: alchables, supplies, uniques or unique consumables.
+
+Generally speaking we want to steer clear of adding too many alchables to loot tables, since it can be difficult to introduce goldsinks that make a meaningful enough dent in the amount of gold circulating in-game, and inflation is a concern for many players. Adding supplies lets players trade those supplies for GP, but risks weakening the position of those supplies in the economy and also exacerbating concerns about PvM outcompeting skilling too heavily for resource generation. Uniques are good, and we've got a handful of tradeable uniques coming from the Fortis Colosseum, but it's difficult to predict their prices long-term or to rely on them for consistent GP, so they need to be supplemented with other drops.
+
+The final category is unique consumables, things like Revenant ether or Ancient essence, which tend to be an appealing option, since they're constantly being used up and can be sold off without harming items that didn't exist before. In this case, that unique (tradeable) consumable is Sunfire dust, which we positioned as being used up by the Glaive of Ralos, Sunfire rune creation and Dizana's quiver. For these unique consumables to hold a good value, they need to actually be consumed so that they're in demand, and the best way to do this is to make the things consuming them useful in a number of scenarios, rather than being overly niche. 
+
+The reason for us initially aiming to make Dizana's quiver a solely charged item is to provide a constant use-case for Sunfire dust and help keep Colosseum runs consistently profitable. While the glaive and Sunfire runes will help use up some Sunfire dust, they're not ubiquitous enough to sink significant quantities, and Dizana's quiver seemed our best option, especially with us not looking to powercreep massively on weaponry at the moment. To keep it brief: charge systems like this are just as much about the item used to charge things, we don't propose them to be difficult or introduce tedium, but to try and find new ways to make content profitable without running in to some of the other pitfalls we've mentioned here.
+
+Having said all that, we understand that feeling like you need to constantly check how many charges your gear has before embarking on a long session gets frustrating when there are so many things to keep track of. So we'd like to offer a 'corrupted' variant of Dizana's quiver that consumes a whole bunch of dust in exchange for you never having to worry about it again. While this isn't a 'proper' sink since many of the players likely to get the most use out of their quiver (and obtain one in the first place) will tend towards corrupting their quivers and no longer sink Sunfire dust, we understand the benefits for your experience for offering something like this. If we wind up in a position where we think we'd like to give Sunfire dust a little boost, then that's a bridge we can cross when we come to it!
+
+In the meantime, you'll still be able to charge your quiver if you're not quite ready to fork out for corrupting, but we'll aim to make upkeep relatively painless (more like Ancient essence than Zulrah's scales) and ensure that the Colosseum is fun above all else so that any upkeep feels dynamic and exciting rather than feeling like a grind.
+
+''TLDR:''
+
+* Dizana's quiver will be able to store 2+ ammo types (arrows/bolts) while equipped in the cape slot.
+** The correct ammo type for the weapon you're currently using will be automatically selected.
+* Dizana's quiver will remain a chargeable equipment piece, but you will be able to corrupt it for a permanently charged version, in exchange for some quantity of Sunfire dust (a tradeable, unique consumable item obtained from the Fortis Colosseum).
+** When charged (or corrupted), arrows and bolts fired from the quiver will gain an additional +1 Ranged strength and +10 Ranged accuracy, on top of the +3 Ranged Strength and +18 Ranged Accuracy provided by Dizana's quiver itself. The bonuses are unchanged from before, but they will only apply to ammo that's stored in the quiver itself, meaning these additional benefits cannot apply to weapons like the Bow of Faerdhinen or the Toxic Blowpipe, though the 'uncharged' stats are still best-in-slot in all scenarios!
+
+With the longest section out of the way, let's talk about Sunfire Fanatic gear!
+
+===Sunfire Fanatic Armour===
+The Sunfire Fanatic Armour was our attempt at keeping things simple. Even though the later waves (and eventual endless runs) of the Colosseum scale up to test even seasoned PvMers, we still want there to be something in it for people looking to get their feet wet with some earlier waves. Initially we'd proposed this set as a direct upgrade to Proselyte, slightly better defensive stats and +2 Prayer bonus over its equivalent in each slot.
+
+By making this comparison to Proselyte, we saw a whole bunch of you come out to suggest we should reserve this space for a continuation to the Temple Knight questline, so we'd like to propose an alternative. Before we dive into the specifics of this alternative though, it's worth us pointing out that while we do have some exciting quests on the far horizon, we're not sure when we'd feasibly pick up the Temple Knight/Sea Slug story to fill this space, so we'll keep the original proposal for Sunfire Fanatic armour in our back pocket in case it feels preferable to stick to our guns.
+
+[[File:Fortis Colosseum - First Look & Rewards (6).png|600px|center]]
+
+To change things up, we've put together an alternative approach to Sunfire Fanatic armour that slots in as a Ranged/Prayer hybrid set, beating out Crystal armour's prayer bonus but with stats equivalent to Red d'hide armour (with the exception of the coif), though coming in slightly below Proselyte in terms of raw prayer bonus.
+
+Still keeping things nice and simple, so let us know what you think about the change in approach!
+
+===Everything Else===
+Beyond Dizana's quiver and Sunfire Fanatic set, we didn't see a whole lot of chatter about our big-ticket tradeable unique, the Glaive of Ralos, which is hopefully a good sign! Though it's still not too late for feedback on that front if you have any lingering questions or thoughts.
+
+'''Sunfire runes''' drummed up a little bit of chatter, so we'd like to make a clarification or two quickly!
+
+First up, we saw a handful of people asking about how these sun-kissed stones would interact with the Tome of Fire, since many people using fire spells will be using the Tome's in-built fire runes (thanks to Burnt pages) to cast spells with. We'd like to propose the ability to combine Sunfire runes or dust with Burnt pages to make Searing pages, which would allow the Tome of Fire to provide the additional 10% minimum hit that Sunfire runes offer on their own.
+
+Beyond that, we saw some understandable nerves around the idea of a new rune, how it fits or makes sense, and wondering why fire spells are the ones getting all the love. Varlamore exists as a land without any rune altars, so we thought it'd be interesting to see how their available resources intersect with what we're used to over on the mainland - and while we haven't decided on the exact theming yet, we'll be ensuring that the creation of Sunfire runes feels in keeping with our world and helps cement the ties between Runecraft and Magic as sister skills, while also not feeling like a chore for you Irons out there.
+
+As for why fire spells are the ones getting all the love, it's largely because of the thematic ties to Ralos as a sun deity, and also because the current iteration of the Standard spellbook has fire spells as the most damaging. We absolutely believe that this could prove to be interesting reward space to explore with other elements in the future, either by giving them unique additional effects and identities with the spellbook we currently have, or the potential for things like a Standard spellbook reshuffle down the line and seeing how upgraded elemental runes intersect with those. With how diverse the landscape of Varlamore is, it's possible for us to keep exploring these themes across all elements, so if you're reading along and have any cool ideas or suggestions for other elements then let us know!
+
+That's a wrap on everything we've got to update you on in terms of rewards. Before we sign off, we'd like to make one last clarification around Glory, to clear up something we saw a few questions about.
+
+Glory isn't a currency like Tokkul, it's effectively a representation of your personal best (PB) performance. If two players finish a run of the Fortis Colosseum, but player A finishes faster and with fewer mistakes than player B, then player A will have higher Glory. If player B then goes on to do a run even faster and with fewer mistakes, then player B would have higher Glory. For untradeable rewards like Dizana's quiver, potential cosmetics or unlocks around the area, you'll need to have passed a certain Glory threshold to unlock them, with the potential for requiring a 'completed' run similar to purchasing a Fighter torso from Barbarian Assault.
+With all that said, we're signing off for this updated segment! Let us know what you think across all the usual channels, we've still got some time before polling so have the ability to make further changes if they're necessary and will be keeping an eye out for any feedback you have.
+
+Good luck on the gains, stay safe, and happy 'Scapin'!
+
+==The Fortis Colosseum - Tuesday, October 17th==
+Long ago, when Civitas illa Fortis was simply ‘Fortis’, its citizens worshipped the sun god Ralos even more fervently than they do today. Ralos is a god of warmth and sustenance. A god of change and renewal. A god… of battle.
+
+On the cliffs outside of Civitas illa Fortis, there once stood a great temple, dedicated to sustaining Ralos’ power. Those foolish enough to commit crime within the city walls were dragged here, kicking and screaming, to be sacrificed upon the altar.
+
+These days, of course, the Varlamorians have developed more civilised ways to sustain their god. When he took the throne, King Maximus Tullus ordered the destruction of the temple, and replaced it with an even greater monument – the Fortis Colosseum.
+
+To this very day, warriors from all over Varlamore gather in this hallowed arena to battle to the death in search of fame and glory. Each drop of blood spilt is an offering to Ralos – and a treat for the roaring crowd.
+
+Management of the Colosseum is overseen by one of the seven Teoki of Ralos, senior priests appointed by the Teokan himself. The fighters, however, are hand-selected by the Lanistas, elite warriors who’ve proved themselves on the field of battle.
+
+If blood sacrifice and thrilling combat sounds like your sort of thing, you’re in luck – we just happen to have an invitation with your name on it…
+
+===Gameplay===
+The Fortis Colosseum is Old School’s third wave-based minigame, following in the fiery footsteps of the Fight Caves and the Inferno.
+
+Like its predecessors, the Colosseum is a highly repeatable PvM encounter with a high skill ceiling and a steep difficulty curve. The later waves contain some of the toughest enemies Gielinor has to offer – although players who are new to combat can still try their hand at the earlier waves.
+
+There’s a big focus on ‘reactionary combat’ – the kind where you see the enemies spawn in and quickly figure out how to manage them.
+
+''Unlike'' the Fight Caves and the Inferno, the Colosseum invites you to make big decisions between each wave…
+
+===Modifiers===
+The modifiers system ensures that no two Colosseum runs will be the same. You might have seen similar systems in Roguelikes and Roguelites. At the end of each round, you’ll be given the option to alter your gameplay experience in significant ways – buffing enemies, debuffing yourself, and even altering the terrain for a bigger challenge. The selection of modifiers you have to choose from is randomised, but beware – your choice will persist for the rest of your run. Don’t bite off more than you can chew!
+
+Thankfully, you’ll also be offered another choice at regular intervals – the option to exit the Colosseum with all the loot you’ve accumulated so far. There’s no shame in holding back to fight another day – although the ''best ''rewards are reserved for those rare champions who stick it out to the bitter end.
+
+We want to keep the specific details a surprise, but this mechanic is at the heart of the Colosseum experience. We can’t wait to see you battle through the waves and find out what’s waiting at the end!
+
+[[File:Fortis Colosseum - First Look & Rewards (2).jpg|600px|thumb|center|''A first look at some concept art, check out the shadowy outlines for a sense of scale - fighting to the death in here is sure to be spectacular!'']]
+
+===Glory===
+Now, not everyone is in it for the heaping piles of gold you can gain in battle. No, some fighters want something even greater… glory!
+
+Within the walls of the Fortis Colosseum, ‘glory’ is more than flowery language. It serves as a measurement of your prowess and comes with tangible benefits.
+
+You’ll earn Glory every time you complete a wave. How much you get depends on how much damage you took, how quickly you cleared the wave, and the number of errors you made – effectively, it’s a reflection of how well you performed.
+
+This isn’t a currency in the traditional sense – you can’t farm it by repeating low-level waves over and over again. It’s based solely on your performance, and the better you perform, the more Glory you’ll accrue.
+
+As you gain more Glory, you’ll gain respect inside and outside of the Colosseum. The regulars will grant you access to untradeable rewards – including a swanky new cape slot upgrade, of course – while ordinary citizens all over Varlamore will recognise you and bestow rewards befitting your station.
+
+Outside of the reward space, Glory also serves as a way to measure yourself against other players. Anyone can beat the Fight Caves and crow about it to their heart’s content, but Glory will let you see which of your friends is ''really ''the better fighter. We know that talented PvMers have been competing against each other for time immemorial (or at least since 2013), and this system makes that official. We hope that it will encourage everyone to get stuck in and improve their PvM skills!
+
+That said, there are only so many ticks you can save, hits you can avoid, and enemies you can slay in a single run. To distinguish between the best of the best, we need to go ''beyond''… we need to go… ''endless mode.''
+
+Those of you who can’t get enough of the Colosseum can choose to extend their run by running back every single wave with ''all ''the modifiers accumulated so far… plus a few new ones. This is sure to push your Glory to new heights… if you make it out alive.
+
+==Rewards==
+Of course, few people would put their life on the line without getting anything in return. For your time spent bloodletting in the Colosseum, you’ll receive plenty of rewards.
+
+You earn rewards in two distinct ways. Firstly, after completing a wave you’ll have the chance to earn some unique tradeable rewards which you can choose to cash out the next time you’re offered the opportunity. Additionally, you can also unlock untradeable awards by meeting the requisite Glory threshold.
+
+As always, we’re open to discussion about what rewards might be on offer. We’ve already had a few ideas to get things started…
+
+===Glaive of Ralos===
+For starters, we're talking about throwing glaives, not those great big spear, polearm thingies (although one of these might prove super cool...)
+
+The Glaive of Ralos is a one-handed, chargeable, thrown weapon in a brand-new weapon category, which bounces back to you after each hit - handy!
+
+Uncharged, you'll throw it out, hit your enemy for between 0 - 50% of your maximum hit and have the glaive return to your hand. Infinite ammo sounds neat, but only 50% damage? What gives?
+
+When ''charged'' this groovy glaive really comes into its own, its sharp edges will slice ''and ''dice for two hitsplats. Each splat rolls its own accuracy and damage, where the damage rolls between 0% and 50% of your maximum hit. Not bad, but there's more!
+
+As fun as the thematics are, we've got a cherry on top to make sure that your time spent obtaining one of these bad boys is worthwhile: its special attack. For 50% Energy, successful hits will drain the target's Defence level by 10% of their ''Magic ''level. This means that when charged, you'll drain either 0%, 10% or 20% of your target's Magic level from their Defence, depending on whether zero, one or two hits connect. In essence, it's a little bit like a Ranged Dragon Warhammer, just with a twist. Additionally, your target's Defence cannot be reduced by the Glaive of Ralos past 50% of its initial value. Meaning if a target has 200 Defence, the Glaive could shave off 100 at most.
+
+[[File:Fortis Colosseum - First Look & Rewards (3).jpg|400px|center]]
+The Dragon Warhammer's special attack reduces your target's Defence by 30% of its current value, meaning each subsequent special attack drains a smaller number of Defence levels than the hits before. The Glaive of Ralos drains your target's Defence, but the drain is based on the target's current Magic level, meaning that subsequent hits should still reduce Defence by the same amount, since the target's Magic level likely hasn't changed.
+
+Against targets with high Defence and low Magic levels, the Dragon Warhammer still reigns supreme as your Defence-reduction spec weapon, but against targets with high Defence ''and ''high Magic levels, the Glaive of Ralos should prove to be the better option - especially coupled with multiple chances to hit, so it's a little less 'all or nothing' than the Dragon Warhammer. Our hope here is to add a little more variety when it comes to choosing your spec weapon for certain content, move beyond the Dragon Warhammer a little in spots, and perhaps provide a more enjoyable alternative for any of you Irons to grind if you can't bear to look at another Lizardman Shaman for the time being - though it's not a complete replacement!
+
+===Echo Crystal===
+Our next unique is something you’ll likely see in the wild a little more often – the Echo Crystal. These resonant rocks give off a nasty shockwave when struck, inflicting recoil damage on your attacker. That’s great, but, uh, how do you equip them?
+
+We’re thinking you’ll be able to slot your Crystals into an existing boot slot item that needs a little extra love. The current frontrunner is the Guardian Boots, although nothing’s set in stone just yet. When charged with the Echo Crystals, the boots will inflict recoil damage on a 3x3 square around the wearer – yowch!
+
+We reckon this effect will again be perfect for wave-based battles, although we think you’ll find it useful in a wide variety of situations – ‘chomp and stomp’ Slayer Tasks, for example.
+
+When the charges run out, you’ll need to pick up another Echo Crystal. They’re tradeable, so you can spend a little GP to grab one on the Grand Exchange, or head back to the Colosseum to refresh your supply.
+
+===Sunfire Fanatic Armour===
+'''NOTE (Tuesday, October 24th): This section is currently outdated, scroll up to the 'blog update' section for a more up-to-date look at Sunfire Fanatic armour, and our alternative approach to making this set a Prayer/Ranged hybrid set'''
+
+Between the Glaive of Ralos, Echo Crystal, and Sunfire runes (more on those in just a moment), a lot of what's on offer is a little more involved than simple 'bigger number' approaches to rewards. That said, sometimes it's nice to keep things simple, and we've got just the thing!
+
+Sunfire Fanatic Armour is effectively Proselyte armour with bigger numbers. That's it, the whole pitch!
+
+Seriously though, Proselyte has been the go-to Prayer bonus gear since 2006, and spilling blood to sustain an enigmatic sun god in an ancient Colosseum feels like a fitting spot to earn some gear that brings you a little closer to the divine. Each piece of the tradeable Sunfire Fanatic set requires 60 Prayer and 40 Defence, and will be dropped individually with each piece boasting +2 Prayer bonus over its Proselyte equivalent plus similar defensive bonuses to Rune armour.
+
+[[File:Fortis Colosseum - First Look & Rewards (4).png|600px|center]]
+
+Now let's get back into something a little spicier!
+
+===Sunfire Dust===
+You’ll receive Sunfire Dust in bulk pretty regularly throughout your Colosseum runs. Similar to the Phantom Muspah’s Ancient Essence, Sunfire Dust lets you charge or otherwise interact with various other items, making it a consistent source of profit for anybody taking on the Colosseum challenge.
+
+You already know that you can use Sunfire Dust to charge the Glaive of Ralos, but you’ll also be able to use it to craft Sunfire Runes and charge Dizana's Quiver. Let’s talk about those in order.
+
+===Sunfire Runes===
+Sunfire Runes are a ''brand new Rune ''that take a slightly different approach to the Wrath Rune formula. Assuming you have the requisite Runecraft level (or the funds to pay someone else to do it), you can obtain Sunfire Runes by imbuing regular ol’ Fire Runes with Sunfire Dust at the Fire Altar.
+
+Just like Lava Runes, Sunfire Runes will count as Fire Runes when casting spells – but whenever you consume one, that spell will gain a 10% minimum hit. As a brief note, we anticipate that hovering over a Fire spell with any Sunfire Runes in your inventory would clearly show that you'd be using Sunfire runes as opposed to boring old Fire Runes!
+
+We hope that this boost will breathe new life into the fire spells offered in the Standard Spellbook, especially in conjunction with weapons like the Harmonised Nightmare Staff. Again, we’re thinking that the added damage consistency will help make these underloved options more attractive. Bigger isn’t ''always ''better, you know…
+
+===Dizana's Quiver===
+'''NOTE (Tuesday, October 24th): This section is ''slightly'' outdated by today's blog update. Scroll up for full details, but the key points are that the quiver will be able to hold ammo, still be a charged item but give you the option to corrupt it, and ammo fired from the quiver itself (e.g. arrows and bolts) will benefit from the charged bonuses, but weapons like the Toxic Blowpipe and Bow of Faerdhinen will not.'''
+
+Would it ''really'' be a wave-based minigame without a sick cape up for grabs?
+
+Dizana's Quiver is our proposal for a new best-in-slot Ranged offering in the Cape/Back slot, after almost 6 years of Ava’s Assembler occupying the top slot.
+
+Now, a best-in-slot item comes with ''very ''high expectations – in this case, you’ll need to put on a truly ''glorious ''performance in the Colosseum. Make it through every wave, and you should have accumulated enough Glory to take home this untradeable unique reward.
+
+For your trouble, you’ll get +10 Ranged accuracy and +1 Ranged strength over Ava’s Assembler – and let’s face it, it looks ''much ''nicer than a rucksack full of magnets and undead animal parts.
+
+[[File:Fortis Colosseum - First Look & Rewards (5).jpg|220px|thumb|center|''The numbers in brackets indicate the stats of Dizana's Quiver when it's charged with Sunfire Dust, more on that in just a sec!'']]
+
+So, it ''looks'' cooler and it’s a good bit stronger – but come on. We can’t seriously expect you to start picking your own arrows up off the floor. Bring your quiver and your favourite of Ava’s devices along to her workshop, and she’ll apply the same ammo-saving effect to your Cape - that's 80% pickup rate for an Assembler or 72% for an Accumulator.
+
+On top of all of that, you can charge your quiver using Sunfire Dust to gain an ''additional ''+10 Ranged accuracy and +1 Ranged strength. Each time you fire a shot, you’ll lose a little Dust – so make sure to stock up if you want the best bang for your buck.
+
+Some of you may be wondering why this new cape-slot upgrade is aimed at Ranged, not Magic – especially since Mage Arena II and Dragon Slayer II made their way into the game around the same time.
+
+At the end of the day, neither Ava’s Assembler nor the Imbued God Capes are obtained from content suitable for a best-in-slot item. With the addition of Sunfire Runes to add some Magic reward, we felt it appropriate to make the Dizana's Quiver a Ranged item.
+
+This also lets us stay well clear of talks about Magic powercreep, which is a real and pressing concern – upgrading the God Capes would also make Tumeken’s Shadow more dominant, and we’d want to give such an upgrade very careful consideration before we even ''thought ''about putting it in the game. By contrast, it’s about time that someone knocked the Accumulator down a peg – and the Dizana's Quiver will do that nicely.
+
+Dizana's Quiver is a pretty exciting reward – so we really want to hear your thoughts on it. Send us your feedback through all the usual channels!
+
+===Other Rewards===
+Unlike the Fight Caves or the Inferno, where all your rewards are tied up in the big fancy Capes you get at the end, the Fortis Colosseum will give you plenty of opportunities to cash out early and make a tidy profit. End-of-wave rewards may contain any of the tradeable uniques, Sunfire Dust, and other familiar items – all of which can be converted to GP.
+
+The aim is to really drive home the risk vs. reward element. Will you take your big pile of loot and gracefully drop out, or risk it all for the chance to wow the crowd and earn more Glory?
+
+At the same time, we want newer players to feel like they can give content like this a go, even if they can’t make it all the way to the final waves. Surviving even a few rounds is more than the average citizen of Civitas illa Fortis can hope for, and making the effort will earn their respect.
+
+In addition to the untradeable uniques, meeting certain Glory thresholds will also unlock utilities all over Varlamore. A Bank chest in a useful location, an Agility shortcut to help you get around, a new Emote, or even a unique quest – it’s all on the table!
+
+We hope this will incentivise lower-level players to give the Colosseum a go and get their first taste of PvM combat. The waves aren’t just a bunch of new enemies to fight – they’re a benchmark for you to measure yourself against every time you enter the minigame. We hope to see players come back every few levels to see how they’ve improved – while picking up some neat rewards in the meanwhile.
+
+ARE YOU NOT ENTERTAINED? Sorry. You know what they say, when in Fortis…
+
+If you ''are'' entertained, we’d love to hear your feedback on all the regular social channels – especially regarding rewards. We’re really stepping outside our comfort zone this time, and we want to make sure we’re on the right track.
+
+We’ll poll all these rewards in November. This means we’ll have loads of time to gather your feedback and make changes before the poll goes live, so keep an eye out for updates.
+
+In the meanwhile, we hope you’re excited to participate in a grand Varlamorian tradition, and can’t wait to show you what the rest of the region has to offer… 
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

@@ -1,0 +1,28 @@
+mechanic_id	scope	note
+entry.sacrifice_item	all	solo; the sacrifice branch (inferno.rs2:221-228) has no click path (INF-AV-001/ENG-6): read from the script, played only past it with varb5646=2
+entry.sacrifice_count	all	solo; same: unreachable by click today, a test stages varb5646=0 only once the entrance is clickable at 0
+entry.sacrifice_is_one_time	all	solo; measured as cape count before/after a real entry at varb5646=2
+entry.other_requirements	all	solo; static read of inferno_enter (cape, not already active, instance only)
+entry.max_fire_cape_sacrificeable	all	solo; open row M3, approx
+entry.city_gate_item	all	solo; no content exists (ENTRY-3)
+entry.city_gate_consumes	all	solo; no content exists (ENTRY-3)
+entry.entrance_op_varbit_value	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.entrance_noop_values	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.sacrifice_varbit_bits	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.entrance_loc_name	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.entrance_op1_label	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.entrance_loc_width	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.entrance_loc_length	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.entrance_placements	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.ketkeh_name	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.ketkeh_exchange_zuk_kills	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.ketkeh_exchange_label	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.ketkeh_ready_anim	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.ketkeh_walk_anim	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.vent_gas_anim	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.vent_sound_id	all	solo; read from the cache record (a presentation row); the client draws it, no tick measurement
+entry.teleport_out_allowed	all	solo; one tablet in a real run (a spell and jewellery are further samples)
+entry.dropped_item_despawn	all	solo; 3000 ticks of waiting: read from the drop script, not played
+entry.players_per_run	all	solo; static read (one instance per player)
+entry.landing_x	all	solo; the landing tile read from the first tile after entry
+entry.landing_z	all	solo; the landing tile read from the first tile after entry

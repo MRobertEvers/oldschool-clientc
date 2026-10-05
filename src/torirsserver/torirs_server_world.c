@@ -4105,6 +4105,7 @@ npc_spawn(
          * which is a memory ceiling now and not the roster. */
         if( slot >= srv->npc_slot_max )
             srv->npc_slot_max = slot + 1;
+        ToriRSServer_TicklogNpcSpawn(srv, slot);
         return slot;
     }
 
@@ -4286,6 +4287,8 @@ ToriRSServer_WorldNpcFree(
      */
     npc_set_occupancy(npc, 0);
 
+    /* Below the held-free returns: the row is the tick the npc really left. */
+    ToriRSServer_TicklogNpcFree(srv, slot);
     npc->active = 0;
     npc->pending_free = 1;
 
@@ -5761,7 +5764,11 @@ ToriRSServer_WorldObjAdd(
     int level,
     int duration)
 {
-    return world_obj_add(srv, obj_id, count, x, z, level, duration, -1, 0);
+    int slot = world_obj_add(srv, obj_id, count, x, z, level, duration, -1, 0);
+
+    if( slot >= 0 )
+        ToriRSServer_TicklogObjAdd(srv, ToriRSServer_CoordPack(level, x, z), obj_id, count, -1);
+    return slot;
 }
 
 int
@@ -5776,10 +5783,15 @@ ToriRSServer_WorldObjAddPrivate(
     int duration,
     int private_ticks)
 {
+    int slot;
+
     if( private_ticks <= 0 || !owner )
         return ToriRSServer_WorldObjAdd(srv, obj_id, count, x, z, level, duration);
-    return world_obj_add(srv, obj_id, count, x, z, level, duration,
-                         owner->pid, private_ticks);
+    slot = world_obj_add(srv, obj_id, count, x, z, level, duration, owner->pid, private_ticks);
+    if( slot >= 0 )
+        ToriRSServer_TicklogObjAdd(srv, ToriRSServer_CoordPack(level, x, z), obj_id, count,
+                                   owner->pid);
+    return slot;
 }
 
 int
@@ -13862,6 +13874,10 @@ ToriRSServer_WorldReset(struct ToriRSServer* srv)
     srv->static_spawns_live = 0;
     srv->static_npcs_live = 0;
     world_static_npcs_reset();
+    /* A log of a world being thrown away would describe the next one's slots
+     * with the last one's rows. */
+    if( ToriRSServer_TicklogEnabled(srv) )
+        ToriRSServer_TicklogDisable();
 }
 
 /*
@@ -15636,6 +15652,9 @@ ToriRSServer_WorldLocSetOps(
     result = world_loc_set_ops_in_window(srv, x, z, level, shape, loc_id, angle, kind, ops,
                                          covering != NULL);
     ToriRSServer_SceneBindWindow(home);
+    if( result )
+        ToriRSServer_TicklogLocSet(srv, ToriRSServer_CoordPack(level, x, z), loc_id, shape, angle,
+                                   (int)kind);
     return result;
 }
 
@@ -17187,6 +17206,10 @@ ToriRSServer_WorldTick(struct ToriRSServer* srv)
     phase_npcs(srv);
     BD_MARK();
     phase_players(srv);
+    /* The tick log's tiles: after every npc and every player has moved, so a
+     * PLAYER_TILE row is the tile the NEXT tick's npcs will scan
+     * (ENCOUNTER_TIMING.md section 1). One branch while the log is off. */
+    ToriRSServer_TicklogTickEnd(srv);
     BD_MARK();
     phase_logouts(srv);
     BD_MARK();

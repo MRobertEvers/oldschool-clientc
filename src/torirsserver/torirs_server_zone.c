@@ -745,6 +745,9 @@ ToriRSServer_ZoneProjanim(
     event.peak = peak;
     event.arc = arc;
     queue_event(srv, zone, &event);
+    ToriRSServer_TicklogProjectile(srv, ToriRSServer_CoordPack(level, x, z),
+                                   ToriRSServer_CoordPack(dst_level, dst_x, dst_z), target,
+                                   spotanim, start_delay, end_delay);
 }
 
 void
@@ -785,6 +788,8 @@ ToriRSServer_ZoneMapanim(
             level,
             delay);
     queue_event(srv, zone, &event);
+    ToriRSServer_TicklogMapSpotanim(srv, ToriRSServer_CoordPack(level, x, z), spotanim, height,
+                                    delay);
 }
 
 void

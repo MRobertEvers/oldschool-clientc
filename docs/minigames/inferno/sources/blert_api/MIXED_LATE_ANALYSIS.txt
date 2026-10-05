@@ -1,0 +1,29 @@
+mixed-wave (35-66) run-waves with events: 524; runs 18
+wave duration ticks (wave_records.ticks) n=551 min 16 p10 51 p50 90 p90 167 max 1544
+duration waves 35-44 n=190 p10 38 p50 67 p90 111
+duration waves 45-56 n=207 p10 59 p50 97 p90 163
+duration waves 57-66 n=154 p10 72 p50 113 p90 218
+tick-0 non-pillar composition equals the wave table: 524 of 524 run-waves (0 differ)
+run-waves where two tick-0 monsters share a spawn tile: 160 of 524
+run-waves where two NON-nibbler tick-0 monsters share a spawn tile: 0 of 524
+first attack of ANY monster, ticks from wave message n=524 p10 1 p50 1 p90 7
+attack ticks with two or more different styles (R/M/G) at once: 332 of 12504 attack ticks (2.7%)
+distinct-style changes in the merged attack stream per wave n=524 p10 1 p50 7 p90 23
+  style changes waves 35-44 n=180 p50 4 p90 12
+  style changes waves 45-56 n=195 p50 9 p90 24
+  style changes waves 57-66 n=149 p50 13 p90 29
+non-tick-0 spawns (revives; blob splits not counted: bloblet ids excluded) per run-wave: {0: 362, 1: 138, 2: 21, 3: 3}
+kind that dies first (non-nibbler) in a mixed wave: {'mag': 238, 'bat': 149, 'blob': 34, 'ran': 14, 'mel': 89}
+tick of the last non-pillar death n=524 p10 48 p50 89 p90 159
+kinds attacking on the first attack tick of the wave (counts): {'mag': 363, 'bat': 38, 'blob': 43, 'ran': 108, 'mel': 23}
+wave 66 tick-0 mager spawns per run: {2: 14}
+--- phase
+mager vs ranger (waves >= 50, one of each, both attacked) n=225 first-attack phase difference mod 4 {0: 62, 1: 62, 2: 55, 3: 46}; same first tick 32
+mager vs meleer (waves >= 42, one of each, both attacked) n=185 first-attack phase difference mod 4 {0: 39, 1: 61, 2: 45, 3: 40}; same first tick 2
+ranger vs meleer (waves >= 57, one of each, both attacked) n=75 first-attack phase difference mod 4 {0: 19, 1: 23, 2: 22, 3: 11}; same first tick 1
+ranger attack ticks that are also a mager attack tick (waves 50-66): 63 of 2964
+--- cadence
+mager auto gap in waves 35-66: n=5269 modal 4 (4767 = 90.5%), below modal 0
+ranger auto gap in waves 35-66: n=2652 modal 4 (2303 = 86.8%), below modal 0
+meleer auto gap in waves 35-66: n=732 modal 4 (648 = 88.5%), below modal 0
+bat auto gap in waves 35-66: n=871 modal 3 (661 = 75.9%), below modal 0

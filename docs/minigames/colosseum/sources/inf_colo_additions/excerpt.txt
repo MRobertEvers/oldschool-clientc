@@ -1,0 +1,12 @@
+# excerpt, bopsec/bop-plugins@6ce8337b (plugin hub: inf-colo-additions), src/main/java/com/bop/TzhaarColoAdditionsPlugin.java, BSD-2-Clause (LICENSE). Fetched 2026-10-03. Line-numbered.
+51:	private static final int COLOSSEUM_REGION_ID = 7216;
+52:	private static final int COLOSSEUM_BANK_REGION = 7316;
+53:	private static final int COLOSSEUM_ARENA_MIN_X = 1808;
+54:	private static final int COLOSSEUM_ARENA_MAX_X = 1840;
+55:	private static final int COLOSSEUM_ARENA_MIN_Y = 3090;
+56:	private static final int COLOSSEUM_ARENA_MAX_Y = 3123;
+66:
+67:	private static final Set<Integer> COLOSSEUM_PILLARS = Set.of(ObjectID.PILLAR_CIVITAS01_COLOSSEUM01, ObjectID.PILLAR_CIVITAS01_COLOSSEUM02);
+68:
+69:	private static final Set<Integer> COLOSSEUM_OBJECTS_TO_KEEP = Set.of(ObjectID.PILLAR_CIVITAS01_COLOSSEUM01, ObjectID.PILLAR_CIVITAS01_COLOSSEUM02, ObjectID.COLOSSEUM_REWARD, ObjectID.COLOSSEUM_WAVE_EGG_SHELL, ObjectID.COLOSSEUM_MOLTEN_POOL_1, ObjectID.COLOSSEUM_MOLTEN_POOL_2, ObjectID.COLOSSEUM_MOLTEN_POOL_3, ObjectID.COLOSSEUM_HOLY_FIRE);
+70:

@@ -1,0 +1,40 @@
+# runelite/runelite gameval NpcID.java (excerpt: Inferno / Jad-challenge rows only)
+# commit d8e7d1e5f34e2899eda3d7cf4cd9661ae2206f22 (master 2026-09-30), file runelite-api/src/main/java/net/runelite/api/gameval/NpcID.java, fetched 2026-10-03 from raw.githubusercontent.com
+# RuneLite is BSD-2-Clause (Copyright (c) 2016-2026 Adam <Adam@sigterm.info> and contributors); the line numbers below are the line numbers in that file.
+14767:	public static final int TZHAAR_FIGHTCAVE_SWARM_BOSS_CLERIC = 3128;
+27567:	public static final int POH_JADPET = 5892;
+27572:	public static final int JADPET = 5893;
+34989:	public static final int POH_INFERNO_PET = 7674;
+34994:	public static final int INFERNO_PET = 7675;
+35065:	public static final int INFERNO_MASTER = 7690;
+35070:	public static final int INFERNO_NIBBLER = 7691;
+35075:	public static final int INFERNO_CREATURE_HARPIE = 7692;
+35080:	public static final int INFERNO_CREATURE_SPLITTER = 7693;
+35085:	public static final int INFERNO_CREATURE_SPLITTER_MAGE = 7694;
+35090:	public static final int INFERNO_CREATURE_SPLITTER_RANGE = 7695;
+35095:	public static final int INFERNO_CREATURE_SPLITTER_MELEE = 7696;
+35100:	public static final int INFERNO_CREATURE_MELEE = 7697;
+35105:	public static final int INFERNO_CREATURE_RANGER = 7698;
+35110:	public static final int INFERNO_CREATURE_MAGER = 7699;
+35115:	public static final int INFERNO_JAD = 7700;
+35120:	public static final int INFERNO_JAD_HEALER = 7701;
+35125:	public static final int INFERNO_RANGER_FINALWAVE = 7702;
+35130:	public static final int INFERNO_MAGER_FINALWAVE = 7703;
+35135:	public static final int INFERNO_JAD_FINALWAVE = 7704;
+35140:	public static final int INFERNO_JAD_HEALER_FINALWAVE = 7705;
+35145:	public static final int INFERNO_TZKALZUK_PLACEHOLDER = 7706;
+35150:	public static final int INFERNO_MOVING_SAFESPOT = 7707;
+35155:	public static final int INFERNO_ZUK_HEALER = 7708;
+35160:	public static final int INFERNO_INVISIBLE_3X3 = 7709;
+35165:	public static final int INFERNO_SAFESPOT_DYING = 7710;
+45975:	public static final int POH_JADPET_INFERNO = 10620;
+45980:	public static final int JAD_CHALLENGE_MASTER_1OP = 10621;
+45985:	public static final int JAD_CHALLENGE_MASTER_2OP = 10622;
+45990:	public static final int JAD_CHALLENGE_JAD = 10623;
+45995:	public static final int JAD_CHALLENGE_HEALER = 10624;
+46000:	public static final int JADPET_INFERNO = 10625;
+46001:	public static final int JAD_CHALLENGE_MASTER = 10626;
+48662:	public static final int INFERNO_MASTER_1OP = 11247;
+48667:	public static final int INFERNO_MASTER_2OP = 11248;
+53898:	public static final int DEADMAN_BREACH_INFERNO_MELEE = 12455;
+54549:	public static final int INFERNO_CREATURE_MELEE_SMALL = 12594;

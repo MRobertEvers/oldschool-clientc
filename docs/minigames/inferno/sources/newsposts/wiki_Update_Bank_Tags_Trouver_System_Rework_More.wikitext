@@ -1,0 +1,471 @@
+{{Update|date=17 June 2026|url=https://secure.runescape.com/m=news/bank-tags-trouver-system-rework--more?oldschool=1|category=game}}
+[[File:Bank Tags, Trouver System Rework & More! newspost.png|right]]
+__TOC__{{clear}}
+
+{| class="wikitable" style="text-align: center;"
+! Known Issues
+! Status
+|-
+|Some items are not currently receiving their intended Trouver Parchment protection when lost on death. We're working on adjustments to affected items and reviewing additional cases where item protection behaviour may not match expectations.
+|To be Coldfixed
+|}
+
+<center>''We've got a jam-packed game update this week: Bank Tags for mobile and the Official Client, Leagues VI rewards tweaks, new Slayer unlocks for Frost Dragons, Trouver System Rework and more!''</center>
+
+Heads up: As we prepare for the launch of Blood Moon Rises on June 30th, there will be '''no game update''' next Wednesday, June 24th. See you on June 30th, for the rise of the Blood Moon!
+
+==Changelog - June 17th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Bank Tags'''
+
+Bank Tags for mobile and the Official Client are here! 
+
+* You can create up to 20 Bank Tags.
+* To create a Bank Tag:
+** Select the lil' + button in the top-left corner of your Bank
+** Give your tag a title in the chat box that opens
+** Next you'll get a search box where you can select an item to represent your tag as an icon
+** Drag and drop an item from your main bank to your tag icon on the left to fill your tag
+* To swap into your tag-view, simply select the icon and it'll pull up your tag. Tap or click it again to switch back to the bank.
+* You can move your items around into any order you like, including leaving gaps or whole lines between items if you like.
+* You can also duplicate tags by selecting duplicate from the minimenu, or if you're using a keyboard and mouse, you can hold shift while you drag an item and it'll spawn a new one.
+** Unfortunately for you rare item collectors this only duplicates the tag not the item! You've still got to grind for those T-bows!
+* Read more details in its dedicated section further down the blog.
+
+====Leagues VI Rewards Tweaks====
+
+* Made the head of Soulreaper Axe (o) larger, more befitting for its mighty makeover.
+* The Demonic Pacts Throne Scroll no longer has a Construction level requirement to apply to a Demonic Throne.
+* Equipping the two-handed League VI trophies and the Storm cruiser's coat will no longer form a tail behind you.
+* The uncharged Toxic Trident (e) (o) has been made darker to make it more visually distinct from the Trident of the Swamp (e) (o). Also, the icons for the Trident of the Seas (o) has been rotated to match its non-ornamented version.
+* Ornamenting the Trident of the Swamp, Trident of the Seas and Iban Staff now works in both ways: either by using the staves on their respective ornament kits, or by using the kits on the staves.
+* The examine texts of Leagues VI trophies have been updated to reflect the extended end date of the Leagues.
+* Not Demonic Pacts related, but still Leagues-related: Falo the Bard will now accept the Trailblazer Reloaded variant of the Infernal Axe (or) for his clue step asking for an Infernal Axe.
+
+====Sailing Improvements====
+
+* Added two new Slayer unlocks to Frost Dragons:
+** '''Chance of Heavy Frost''': This unlock allows you to increase the ''weighting'' of Frost Dragon tasks from 5 to '''8''' on both Nieve and Duradel, making it more likely to receive these as tasks.
+** '''I See Dragon''': This second unlock allows you to increase the ''task length'' of Frost Dragon Tasks, so you can keep slaying them for longer. Once this is unlocked, you'll be assigned between '''180 to 240''' Frost Dragons on both Nieve and Duradel.
+** These unlocks cost '''100 Slayer Points''' each. Also, both of these unlocks can be disabled without a refund, should you prefer to.
+* Bounty Task & Other Sailing Changes:
+** Adjusted Bounty Tasks to ensure that their rewards better reflect participation.
+** Players with multiple Bounty Tasks will also no longer receive multiple bounty item rolls from a single kill.
+** Fixed a bug causing Veiled Kraken to give off-task rates while on a Bounty Task for the Dragon Cannon Barrel.
+** Adjusted market values of several Sailing uniques to better align them with their current Grand Exchange prices.
+** If you loot sea creatures while operating a cannon, you will no longer have to re-engage with the cannon. This means you'll now continue firing the cannon automatically after looting nearby sea creatures.
+** If you are already overhealed from a Haddock and have between 100 and 108 Hitpoints, eating another Haddock will now correctly restore your Hitpoints to 109.
+
+====Trouver System Rework====
+
+* To reduce the chances of players losing crucial untradeables in the Wilderness, we've applied the following changes:
+** Untradeables with ''no'' Combat benefits should never be lost on death,
+** Untradeables with ''some'' Combat bonuses should break and need repairing without a Trouver parchment,
+** Untradeables with ''strong'' Combat bonuses should need to be 'Trouvered' once, then never again.
+* Untradeable items that previously didn't 'break', for example the Graceful set, will '''no longer be lost''' on death above Level 20 Wilderness.
+* Untradeable items that previously broke will continue to break whether below or above level 20 Wilderness, but will no longer be lost. You'll continue to receive their 'broken' version and can repair them at Perdu for a small fee. Visit its dedicated section to see the items in this category.
+* 'Higher tier' untradeables will continue to use the Trouver Parchment system, but with a crucial change: '''once a Trouver parchment has been used on an item, it will remain in that state forever''', the parchment will not be lost on death.
+** On death '''below Level 20 Wilderness''' (or in PvP Worlds for fights at the Grand Exchange, for example), these higher tier items will simply break and be repairable with the current fee.
+** On death '''above Level 20 Wilderness''', the item will become 'mangled' and require a higher fee of 500,000 GP to fix.
+** You can still use the item on Perdu to remove the Trouver Parchment, should you wish to. Note that if you do not add a Trouver parchment to your 'higher tier' items, they will continue to be lost above 20 Wilderness.
+* In cases where items are kitted using things like Ornament kits, the usual behaviour will occur and whoever kills you should receive the Ornament kit used, provided the Ornament kit is tradeable. For example, on death above Level 20 Wilderness, Dragon Defender (t) will break but it won't be lost, and the Dragon Defender Ornament Kit will go to the PKer.
+* Though it didn't make it into this game update, there is one additional change we're working on: attempting to enter the Wilderness with any untradeable item that requires a Trouver Parchment to be protected will display a warning to make sure you're aware that you're risking an untradeable.
+
+====Last Man Standing Changes====
+
+* Added Dragon Crossbow and Opal Dragon Bolts (e) to the Max/Med loadout, and removed Rune Crossbow and Diamond Bolts (e).
+* If you have the "Automatically smash empty vials" setting disabled, you will now keep the vials in your Inventory once a potion is fully consumed in Last Man Standing.
+* Adjusted the default preset for players who have never played Last Man Standing before to have 3 Saradomin brews, 2 Sanfew serums and 10 sharks.
+* Replaced the Berserker ring with the Berserker ring (i) in the starter kit for all builds.
+* Set the default spellbook to Ancient Magicks if the player is brand new to the Last Man Standing gear setup.
+* Zuriel's staff in Last Man Standing is now able to autocast Ancient Magicks spells as well.
+* Added the Oathplate helm into the "Max/Med defensive" loot pool.
+* Replaced the Dragon dagger with Dragon claws in the "Max/Med" starter kit.
+* If sharks are dropped on the floor because the Inventory was entirely full, the sharks received when refilling your Inventory after a kill will stay on the floor only for 1 minute, as opposed to 10.
+
+Additionally, we've also got a change for Emir's Arena:
+
+* Added Ancient warriors' weapons to the list of items that can be used at Emir's Arena.
+
+====Other Changes====
+
+* Herb patches in Weiss and Trollheim now display what herb they contain.
+* The hitbox on Huasca herbs now matches that of other herbs.
+* Adjusted the Portal Nexus interface to make teleport options easier to read.
+* The Blue Moon spear's special attack tooltip now refers to the Blue Moon set by its correct name.
+* Fixed a bug where if a player used the special attack of Vesta's Spear (bh) and then switched weapons, ranged damage wasn't being blocked. Now, both melee and ranged damage are blocked regardless of whether or not the player has Vesta's Spear (bh) equipped after using its special attack. We have also changed Vesta's Spear (Deadman Mode) to have the same functionality.
+* Level-up messages will no longer list the same spell multiple times when it is available through more than one spell book.
+* The Bottomless Milk Bucket now works with the Zanaris Dairy Cow.
+* On C++ client, if you have an active clue and the Clue Helper setting is on, the music player will now automatically scroll to the track you need to play for Cecilia.
+
+Additionally, we've fixed various Z-buffer related graphical issues:
+
+* The shadows of Penance Queen and its pet no longer flicker.
+* Various NPC models across Gielinor (such as Prince Ali, Philippa, Watson, Freaky Forester etc) no longer have clipping issues.
+* In Stronghold of Security, dropped items no longer clip into the ground.
+* Bandos Godsword no longer clips with the table.
+* Resolved flickering issues with the Hallowed Sepulchre pillars, Emir's Arena and Clan Wars portals, the entrances of Waterbirth Island Dungeon and Lovakengj Minecart Network.
+* Guardians of the Rift statues and Prifddinas Agility Course Portal no longer flicker with the terrain.
+* Dropped bones no longer clip with the carpets at Keep La Faye.
+* Resolved flickering and clipping issues at the Kourend Castle Tower, Varrock bank roof, the snow-covered mountain within Stranglewood, Elemental Workshop Mind Chamber, Myths' Guild, the caves visited during the Recipe of Disaster quest and more.
+* Fixed various clipping issues caused by intersecting levels and floors across Gielinor - for instance, Red Axe Caves.
+* Fixed various clipping issues that occur when objects are on top of each other, such as pages on top of the crates in Red Axe Caves.
+* The feet of player characters no longer clip into the floor at the Agility Pyramid, the Arceuus Library, the basement of the Varrock Museum,  grounds outside the southern entrance of Varrock, Lumbridge Castle kitchen and Shayzien Encampment wooden kits.
+* The feet of birds in Tel Teklan no longer clip into surfaces.
+* Fur rugs in the Ardougne Marketplace no longer phase into the ground.
+* The QR code tiles in Shayzien are once again visible.
+
+====PvP Rota====
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+==Bank Tags==
+===Bank Tags for mobile and the Official Client are here!===
+[[File:Bank Tags, Trouver System Rework & More! (1).gif|thumb|450px|center|''If you can't see the gif above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-05-29/BankTags2.gif here]!'']]
+
+Pre-plan your gear, lay out your pots and food for easy access and be ready to take on whatever content you're heading to next.
+
+Before using the Bank Tags, make sure you have the mobile app and the Official Client updated to the latest version. And if you have used Bank Tags before updating, you will need to delete all Bank Tags using the functionality provided.
+
+===Creating Bank Tags===
+[[File:Bank Tags, Trouver System Rework & More! (2).mp4|thumb|600px|center|''If you can't see the video above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-17/banktags.mp4 here]!'']]
+
+Creating a Bank Tag is super simple. You'll now find a little + button in the top-left corner of your Bank. Selecting this will open up a chat box where you can give your tag a title. Our usual chat filters apply here, and you can use up to 25 alphanumeric characters. 
+
+Following your feedback from the Summer Campfire, we've increased the total tags you can create to 20. Hopefully this feels like more breathing room to cover all your bases.
+
+Next you'll get a search box where you can select an item to represent your tag as an icon. You can use pretty much any item in the game, both tradeable and untradeable. 
+
+Then, it's time to fill your tag! It's as easy as dragging and dropping an item from your main bank to your tag icon on the left. It'll drop in there ready for you to organise your layout. 
+
+To swap into your tag-view, simply select the icon and it'll pull up your tag. Tap or click it again to switch back to the bank. You can move your items around into any order you like, including leaving gaps or whole lines between items if you like. You can also duplicate tags by selecting duplicate from the minimenu, or if you're using a keyboard and mouse, you can hold shift while you drag an item and it'll spawn a new one! 
+
+Unfortunately for you rare item collectors this only duplicates the tag not the item, you've still got to grind for those T-bows!
+[[File:Bank Tags, Trouver System Rework & More! (3).jpg|thumb|400px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-17/manifesting.jpg here]!'']]
+
+Removing an item from a tag is as easy as selecting "remove from tag" from the minimenu. You can delete the whole tag by opening the tag's minimenu and selecting "delete tag". You'll get a warning message first so there's no accidental misclicks! 
+
+You can also drag your tags up and down the list so your favourite or current activity tags are right at your fingertips. 
+
+It's pretty much as easy as that! You will see a few more or a few less tags depending on whether you have the incinerator active, Potion Storage and/or Group Ironman Storage. We've popped a couple of screenshots below so you know what to expect.
+[[File:Bank Tags, Trouver System Rework & More! (4).png|thumb|250px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-17/tags1.png here]!'']]
+
+===Get Inspired===
+Want to get stuck in to Bank Tags but unsure of what would make for a useful layout or collection? We caught up with content creators and asked them to share some of their go-to layouts! Want to take on bosses with a little help from MMORPG? Or do some Clue hunting like Megan? Well, here you go!
+[[File:Bank Tags, Trouver System Rework & More! (5).gif|thumb|400px|center|''Take on some Elite Clue Scrolls with the help of <u>[https://www.twitch.tv/megan Megan]</u>'s tag layout.
+If you can't see the gif above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-17/BankTags_megan2.gif here]!'']]
+[[File:Bank Tags, Trouver System Rework & More! (6).jpg|thumb|400px|center|''<u>[https://www.twitch.tv/mmorpg MMORPG]</u>'s got you sorted for your next Doom of Mokhaiotl showdown.
+If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-17/mmorpgbanktag1.jpg here]!'']]
+[[File:Bank Tags, Trouver System Rework & More! (7).gif|thumb|400px|center|''Go on a Farming run with <u>[https://www.twitch.tv/zecookies Zecookies]</u>' guidance.
+If you can't see the gif above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-17/BankTags_zecookies3.gif here]!'']]
+[[File:Bank Tags, Trouver System Rework & More! (8).jpg|thumb|400px|center|''Or test your mettle by taking on some delves with the help of <u>[https://www.twitch.tv/muts Muts]</u>.
+If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-17/MutsDelveBankTag3.jpg here]!'']]
+
+===FAQs===
+We caught a few questions being asked after our announcement, and we know it can be tricky to track those answers down spread across various platforms and comment replies. So, here are our answers all rounded up into one spot, and we'll keep this updated as we see more coming through.
+
+====How do Bank Tags interact with Potion Storage?====
+Right now, they act as two different entities. So if you want to make a tag with any potions, or to withdraw then via your tag, you'll need to make sure they're in your bank-proper, as opposed to the storage.
+
+====Will these tags affect any Bank Tags I have in approved third-party clients?====
+Nope! This system is only being implemented on our C++ client and mobile, meaning any approved third-party client tags will be completely unaffected. 
+
+====Will tags interfere with my main bank at all?====
+No, whatever happens in a tag, stays in a tag! So you won't see any movement or separation in your main bank. Obviously any withdrawals will affect both, as the tag is merely a representation of your item.
+
+===Known Issues===
+
+* There is a known issue of duplicate icons appearing when searching for a suitable Bank Tag icon, we will resolve this in a future update.
+
+If you do come across any issues not listed here, please drop us a message on Reddit or Discord in the Official Client section!
+
+===Wrapping up===
+We're so excited to get Bank Tags in your hands! We'll be keeping up with feedback so make sure you share your thoughts.
+
+==Leagues VI Rewards Tweaks==
+The Leagues Rewards Shop opened last week, allowing you to spend your hard-earned League Points and get those sweet shiny rewards. If you missed it, you can purchase the Leagues VI: Demonic Pacts rewards from the Leagues Tutor, who can be found in the grounds of the Lumbridge Castle.
+
+With the rewards being unlocked, many of you pointed out that the ornamented Soulreaper Axe with the Demonic Axe kit wasn't quite living up to the legendary presence of Yama's axe. We've taken that feedback to heart and made the head of Soulreaper Axe (o) larger, better reflecting its mighty makeover.
+[[File:Bank Tags, Trouver System Rework & More! (9).png|thumb|450px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-17/srao.png here]!'']]
+
+Besides the above adjustment, we've got a few more changes related to the League rewards:
+
+* The Demonic Pacts Throne Scroll no longer has a Construction level requirement to apply to a Demonic Throne.
+* The uncharged Toxic Trident (e) (o) has been made darker to make it more visually distinct from the Trident of the Swamp (e) (o). Also, the icons for the Trident of the Seas (o) have been rotated to match its non-ornamented version.
+* Equipping the two-handed League VI trophies and the Storm cruiser's coat will no longer form a tail behind you.
+* Ornamenting the Trident of the Swamp, Trident of the Seas and Iban Staff now works in both ways: either by using the staves on their respective ornament kits, or by using the kits on the staves.
+* The examine texts of Leagues VI trophies have been updated to reflect the extended end date of the Leagues.
+
+Although it's not Demonic Pacts related, we have Leagues-related bug fix that we'd like to mention: Falo the Bard will now accept the Trailblazer Reloaded variant of the Infernal Axe (or) for his clue step "A fiery axe of great inferno, when you use it, you'll wonder where the logs go."
+
+We're also aware of your feedback regarding the additional 1,000 Slayer Points to unlock the Leagues VI associated Slayer Helmet. The team are actively discussing your feedback and we'll share an update as soon as we have more information.
+
+===Leagues VI Survey===
+It's time to look back on your experience with this League! 
+
+Take our post-Leagues VI survey and share your thoughts. We'll take a look at the results and use your feedback to help us shape future Leagues!
+
+Click the button below to complete the <u>[https://survey.alchemer.eu/s3/91136988/Leagues-VI-Survey-2026 survey]</u>and help us learn more about your experience.
+[[File:Bank Tags, Trouver System Rework & More! (10).png|200px|center|link=https://survey.alchemer.eu/s3/91136988/Leagues-VI-Survey-2026]]
+
+==Sailing Improvements==
+===New Slayer Unlocks for Frost Dragons===
+The proposed Slayer unlocks from our <u>[https://secure.runescape.com/m=news/sailing-update-buffs-changes--more?oldschool=1 Sailing buffs blog]</u> are now here!
+
+We've added two new Slayer unlocks to Frost Dragons:
+
+* '''Chance of Heavy Frost''': This unlock allows you to increase the ''weighting ''of Frost Dragon tasks from 5 to '''8''' on both Nieve and Duradel, making it more likely to receive these as tasks.
+* '''I See Dragon''': This second unlock allows you to increase the ''task length'' of Frost Dragon Tasks, so you can keep slaying them for longer. Once this is unlocked, you'll be assigned between '''180 to 240''' Frost Dragons on both Nieve and Duradel.
+[[File:Bank Tags, Trouver System Rework & More! (11).png|thumb|250px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-17/unlock.png here]!'']]
+
+These unlocks cost '''100 Slayer Points''' each. Also, both of these unlocks can be disabled without a refund, should you prefer to.
+
+===Bounty Task Changes===
+We'll be making some adjustments to Bounty Tasks to ensure that their rewards better reflect participation.
+
+First, the chance of receiving rewards and unique drops from bounty creatures will now scale based on your contribution towards killing the creature. Players who contribute more damage towards a kill will have a greater chance of receiving these rewards, while players who contribute less will have a proportionally lower chance.
+
+This change applies to unique drops from:
+
+* Great White Sharks
+* Armoured Krakens
+* Vampyre Krakens
+* Veiled Krakens
+* Orcas
+* Narwhals
+
+Players with multiple Bounty Tasks will also no longer receive multiple Bounty item rolls from a single kill. Players can only progress one Bounty Task at a time, but having multiple tasks will allow players to extend their trips for longer.
+
+We've also fixed a bug causing Veiled Kraken to give off-task rates while on a Bounty Task for the Dragon Cannon Barrel.
+
+===Other Sailing Changes===
+Last but not least, we're adjusting the market values of several Sailing uniques to better align them with their current Grand Exchange prices. This is to ensure they work with existing systems that rely on an item's market value, such as Death's Coffer.
+
+The item value adjustment change will affect: 
+
+* Large Dragon Keel Parts
+* Dragon Keel Parts
+* Dragon Metal Sheets
+* Bottled Storms
+* Inky Paint
+* Broken Dragon Hooks
+* Dragon Cannon Barrel
+
+Please note, these changes won't affect their Grand Exchange prices.
+
+Additional Sailing improvements:
+
+* If you loot sea creatures while operating a cannon, you will no longer have to re-engage with the cannon. This means you'll now continue firing the cannon automatically after looting nearby sea creatures.
+* If you are already overhealed from a Haddock and have between 100 and 108 Hitpoints, eating another Haddock will now correctly restore your Hitpoints to 109.
+
+==Trouver System Rework==
+We're bringing you the proposed changes to the Trouver System from <u>[https://secure.runescape.com/m=news/gathering-qol-trouver-changes--more?oldschool=1 this blog]</u> back in April. For those who don't know what 'Trouver' means, you can check out the blog for a detailed explanation. In a nutshell, a Trouver parchment allows you to "lock" your untradeable items by using them on Perdu, preventing them from being lost on PvP death. However, once you've died, the Trouver parchment would be lost. It's easy to forget to re-lock your untradeables after dying, which can result in permanently losing them the next time you're PKed.
+
+To reduce the chances of players losing crucial untradeables in the Wilderness, we've applied the following changes. The general rule of thumb here is:
+
+
+* Untradeables with ''no'' Combat benefits should never be lost on death,
+* Untradeables with ''some'' Combat bonuses should break and need repairing without a Trouver parchment,
+* Untradeables with ''strong'' Combat bonuses should need to be 'Trouvered' once, then never again.
+
+First, untradeable items that previously didn't 'break', for example the Graceful set, will '''no longer be lost''' on death above Level 20 Wilderness. [https://oldschool.runescape.wiki/w/(l)?_gl=1*bpeirl*_gcl_au*MTkzNDY2MTU0LjE3Nzg0ODc4MjU. This applies to any untradeable item that isn't found on this list.]
+
+Second, untradeable items that previously broke will continue to break whether below or above level 20 Wilderness, but will no longer be lost. You'll continue to receive their 'broken' version and can repair them at Perdu for a small fee. The items in this category are:
+{{Collapsed section|18|CLICK HERE TO EXPAND}}
+
+* Fire cape
+* Imbued guthix cape
+* Imbued saradomin cape
+* Imbued zamorak cape
+* Fire max cape
+* Imbued guthix max cape
+* Imbued saradomin max cape
+* Imbued zamorak max cape
+* Ava's assembler
+* Masori assembler
+* Assembler max cape
+* Masori assembler max cape
+* Bronze defender
+* Iron defender
+* Steel defender
+* Black defender
+* Mithril defender
+* Adamant defender
+* Rune defender
+* Dragon defender
+* Avernic defender
+* Barronite mace
+* Void knight mace
+* Decorative armour (gold)
+* Decorative magic armour
+* Decorative ranged armour
+* Guthix halo
+* Saradomin halo
+* Zamorak halo
+* Armadyl halo
+* Bandos halo
+* Seren halo
+* Ancient halo
+* Brassica halo
+* Fighter hat
+* Ranger hat
+* Healer hat
+* Runner hat
+* Penance skirt
+
+{{Collapsed section end}}
+Third, 'higher tier' untradeables will continue to use the Trouver Parchment system, but with a crucial change: '''once a Trouver parchment has been used on an item, it will remain in that state forever''', the parchment will not be lost on death.
+
+* On death '''below Level 20 Wilderness''' (or in PvP Worlds for fights at the Grand Exchange, for example), these higher tier items will simply break and be repairable with the current fee.
+* On death '''above Level 20 Wilderness''', the item will become 'mangled' and require a higher fee of 500,000 GP to fix.
+* You can still use the item on Perdu to remove the Trouver Parchment, should you wish to. Note that if you do not add a Trouver parchment to your 'higher tier' items, they will continue to be lost above 20 Wilderness.
+
+For clarity, these 'higher tier' items are as follows: 
+{{Collapsed section|18|CLICK HERE TO EXPAND}}
+
+* Void melee helm
+* Void mage helm
+* Void ranger helm
+* Void knight top
+* Elite void top
+* Void knight robe
+* Elite void robe
+* Void knight gloves
+* Void melee helm (or)
+* Void ranger helm (or)
+* Void mage helm (or)
+* Elite Void robe (or)
+* Elite Void top (or)
+* Void Knight Gloves (or)
+* Void Knight robe (or)
+* Void Knight top (or)
+* Infernal max cape
+* Infernal cape
+* Blood ancient sceptre
+* Ice ancient sceptre
+* Smoke ancient sceptre
+* Shadow ancient sceptre
+* Fighter torso
+* Fighter Torso (or)
+* Rune pouch
+* Divine rune pouch
+* Dizana's quiver
+* Blessed dizana's quiver
+* Dizana's max cape
+
+{{Collapsed section end}}
+This means fixing your untradeables should be fast, all at once, and with no need for extra Trouver Parchments.
+
+Lastly, in cases where items are kitted using things like Ornament kits, the usual behaviour will occur and whoever kills you should receive the Ornament kit used, provided the Ornament kit is tradeable. For example, on death above Level 20 Wilderness, Dragon Defender (t) will break but it won't be lost, and the Dragon Defender Ornament Kit will go to the PKer.
+
+Though it didn't make it into this game update, there is one additional change we'd like to make: attempting to enter the Wilderness with any untradeable item that requires a Trouver Parchment to be protected will display a warning to make sure you're aware that you're risking an untradeable. This is being worked on, and you can rest assured that it will make it into the game soon.
+
+==Last Man Standing Changes==
+
+* Added Dragon Crossbow and Opal Dragon Bolts (e) to the Max/Med loadout, and removed Rune Crossbow and Diamond Bolts (e).
+* If you have the "Automatically smash empty vials" setting disabled, you will now keep the vials in your Inventory once a potion is fully consumed in Last Man Standing.
+* Adjusted the default preset for players who have never played Last Man Standing before to have 3 Saradomin brews, 2 Sanfew serums and 10 sharks.
+* Replaced the Berserker ring with the Berserker ring (i) in the starter kit for all builds.
+* Set the default spellbook to Ancient Magicks if the player is brand new to the Last Man Standing gear setup.
+* Zuriel's staff in Last Man Standing is now able to autocast Ancient Magicks spells as well.
+* Added the Oathplate helm into the "Max/Med defensive" loot pool.
+* Replaced the Dragon dagger with Dragon claws in the "Max/Med" starter kit.
+* If sharks are dropped on the floor because the Inventory was entirely full, the sharks received when refilling your Inventory after a kill will stay on the floor only for 1 minute, as opposed to 10.
+
+Additionally, we've also got a change for Emir's Arena:
+
+* Added Ancient warriors' weapons to the list of items that can be used at Emir's Arena.
+
+==Other Changes==
+
+* Herb patches in Weiss and Trollheim now display what herb they contain.
+* The hitbox on Huasca herbs now matches that of other herbs.
+* Adjusted the Portal Nexus interface to make teleport options easier to read.
+* The Blue Moon spear's special attack tooltip now refers to the Blue Moon set by its correct name.
+* Fixed a bug where if a player used the special attack of Vesta's Spear (bh) and then switched weapons, ranged damage wasn't being blocked. Now, both melee and ranged damage are blocked regardless of whether or not the player has Vesta's Spear (bh) equipped after using its special attack. We have also changed Vesta's Spear (Deadman Mode) to have the same functionality.
+* Level-up messages will no longer list the same spell multiple times when it is available through more than one spell book.
+* The Bottomless Milk Bucket now works with the Zanaris Dairy Cow.
+* On C++ client, if you have an active clue and the Clue Helper setting is on, the music player will now automatically scroll to the track you need to play for Cecilia.
+
+Additionally, we've fixed various Z-buffer related graphical issues:
+
+* The shadows of Penance Queen and its pet no longer flicker.
+* Various NPC models across Gielinor (such as Prince Ali, Philippa, Watson, Freaky Forester etc) no longer have clipping issues.
+* In Stronghold of Security, dropped items no longer clip into the ground.
+* Bandos Godsword no longer clips with the table.
+* Resolved flickering issues with the Hallowed Sepulchre pillars, Emir's Arena and Clan Wars portals, the entrances of Waterbirth Island Dungeon and Lovakengj Minecart Network.
+* Guardians of the Rift statues and Prifddinas Agility Course Portal no longer flicker with the terrain.
+* Dropped items no longer clip through carpets.
+* Resolved flickering and clipping issues at the Kourend Castle Tower, Varrock bank roof, the snow-covered mountain within Stranglewood, Elemental Workshop Mind Chamber, Myths' Guild, the caves visited during the Recipe of Disaster quest and more.
+* Fixed various clipping issues caused by intersecting levels and floors across Gielinor - for instance, Red Axe Caves.
+* Fixed various clipping issues that occur when objects are on top of each other, such as pages on top of the crates in Red Axe Caves.
+* The feet of player characters no longer clip into the floor at the Agility Pyramid, the Arceuus Library, the basement of the Varrock Museum,  grounds outside the southern entrance of Varrock, Lumbridge Castle kitchen and Shayzien Encampment wooden kits.
+* The feet of birds in Tel Teklan no longer clip into surfaces.
+* Fur rugs in the Ardougne Marketplace no longer phase into the ground.
+* The QR code tiles in Shayzien are once again visible.
+
+==Deadman All Stars Season 3==
+[[File:Bank Tags, Trouver System Rework & More! (12).png|thumb|600px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-17/dmmas3.png here]!'']]
+
+The competition is heating up!
+
+Deadman Allstars Season 3 is in full swing now, with only 3 days left until the live finale at the Rosemont Theatre. Team captains are battling it out for the win and praying for RNG to be on their side. If you're not attending, don't worry, you can still watch from home!
+
+It's not long now until Sunday, so let's recap on how you can watch the finale live on the 20th of June at: '''1:00 PM CDT / 2:00 PM EDT / 11:00 AM PDT / 7:00 PM BST and will run for roughly 8 hours.'''
+
+[https://www.youtube.com/solomission Solomission] has given us the pleasure of hosting it this year on the Official OldSchoolRS channel, so make sure to follow [https://www.twitch.tv/oldschoolrs OldSchoolRS] on Twitch and turn notifications on to be notified when we go live!
+
+Good luck to all teams and participants for the time being and we'll see you there whether you're at home, or coming in person!
+
+==BMR Baking Competition==
+[[File:Bank Tags, Trouver System Rework & More! (13).png|thumb|400px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-17/baking.png here]!'']]
+
+The Blood Moon Rises, and so do the baking standards...
+
+In celebration of its launch on June 30th, our lovely Discord mods are running a Blood Moon Rises themed baking competition! Whether it's a cake, pie, cookies or any bakery of your preference, unleash your Level 99 baking skill! Dark delicacy or moonlit masterpieces, we're looking forward to see them all.
+
+* '''Where''': In the <u>[https://discord.gg/bpTbA9EJ5 #server-events channel]</u> of our <u>[https://discord.gg/OSRS official OSRS Discord channel]</u>.
+* '''When''': Competition has started on June 15th, and will end on June 29th 4 PM UTC.
+
+==Merch==
+===Makeship Jumbo Boss Plushies===
+[[File:Bank Tags, Trouver System Rework & More! (14).jpg|thumb|600px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-17/jumbo.jpg here]!'']]
+
+Bring iconic bosses from the Fight Caves and Falador Mole Lair into your home...
+
+New Jad, Giant Mole and Cerberus Jumbo plushies are now available to purchase in the Makeship store! Pre-order them <u>[https://www.makeship.com/shop/runescape here]</u> to add them to your plushie collection log.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the <u>[https://www.reddit.com/r/2007scape/ 2007Scape subreddit]</u>, the <u>[https://steamcommunity.com/app/1343370/discussions/ Steam forums]</u>, or the community-led <u>[http://discord.gg/OSRS OSRS Discord]</u> in the #gameupdate channel. For more info on the above content, check out the official <u>[[Old School Wiki]]</u>.
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Bulb, Chilly, Criminal, Curse, Daizong, Default, Doctor, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Ghost, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lotus, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Oasis, Ori, Other, Otter, Pheasant, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spacebar, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora, Yume & Zaf'''
+
+''The Old School Team.''

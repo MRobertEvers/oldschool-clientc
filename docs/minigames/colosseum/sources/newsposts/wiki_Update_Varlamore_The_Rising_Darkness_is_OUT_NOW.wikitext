@@ -1,0 +1,294 @@
+{{Update|date=25 September 2024|url=https://secure.runescape.com/m=news/a=13/varlamore-the-rising-darkness-is-out-now?oldschool=1|category=game}}
+[[File:Varlamore- The Rising Darkness is OUT NOW newspost.png|right]]
+{{clear}}
+__TOC__
+'''Note: We brought the Wintertodt beta to a close with this week's update, so while you may be able to still see those worlds as visible, you are no longer able to connect. Thanks to everyone who tried out the beta!'''
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+| We're aware of issues affecting the Bank interface and the missing Deposit Worn Item button.
+| This is a RuneLite issue related the Bank Tags plugin.
+|-
+| Player character's hand is stretching when depositing herbs into the refiner.
+| NEEDS COLDFIXING
+|-
+| Buying the Colossal Wrym Teleport Scroll doesn't get its log spot completed in the Collection Log.
+| The following issues with the Collection Log have been fixed:
+* Wyrm teleport scrolls are now correctly tracked in the log.
+* The counter for total number of items collected now correctly increases when collecting Wyrm agility items.
+An issue where the Wyrm agility section doesn’t turn green upon completion will be fixed next week.
+|-
+| Panic at the Twilight Temple hard clue step cannot be completed.
+| HOTFIXED
+|-
+| River Ortus medium clue step cannot be completed.
+| HOTFIXED
+|-
+| Wyrm Graceful and Alchemist clothes don't have slot in the Magic Wardrobe.
+| NEEDS COLDFIXING
+|-
+| When using a watering can on the fountain at the entrance of the Farming Guild, you get Nothing Interesting Happens.
+| HOTFIXED
+|-
+| Wyrm Graceful cape reverts back to the normal variant upon unequipping it.
+| HOTFIXED
+|}
+
+''Explore more of Varlamore than ever before!''
+
+==Changelog September 25th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Varlamore: The Rising Darkness'''
+
+* New parts of Varlamore are now available to explore! Main features include:
+** Multiple new quests including The Heart of Darkness and Death on the Isle.
+** Hueycoatl, a new group boss.
+** Mastering Mixology, a new Herblore activity.
+** The Colossal Wyrm Agility Course.
+** ... and more!
+
+'''Araxxor'''
+
+* Updated the descriptions of the Perfect Araxxor combat task to include the fail conditions.
+* Renamed the 'Relaxed Gamer' task to 'Relaxxor'.
+
+'''Other Changes'''
+
+* Adjusted the Inquisitor Armour's Damage and Accuracy bonus to Crush. Now, each Inquisitor Armour piece (Plateskirt, Helmet, Hauberk) gives +2.5% Crush Accuracy and Damage when used alongside the Inquisitor's Mace, regardless of set effects.
+* Enabled the ability to toggle Run to ‘Always On’.
+* The quest journal will now remain open when moving around and will also resize on larger screen sizes.
+* You will now get a warning when dropping items in the Giants' Foundry during the Sleeping Giants quest.
+* The flames on the Leagues IV: Trailblazer Reloaded trophies are now animated.
+* Bridge Guard no longer spots the player at the safe spot near the north-western bridge during the Stealing Artifacts minigame.
+* Farmers now have trade options which use the standard shop interface.
+* Reduced the aggression radius of ancient wyverns.
+* Making Ultracompost now gives token Farming XP.
+* The S.T.A.S.H. unit at the top of the Watchtower can once again be used for storage before the quest is complete. This does not affect the quest requirement for the clue.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Varlamore: The Rising Darkness==
+[[File:Varlamore- The Rising Darkness is OUT NOW (1).png|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-09-25/Varlamore2KeyArt.jpg here].'']]
+
+The time has come to venture even further into Varlamore, as The Rising Darkness is here!
+
+If you haven’t yet set foot in the Shining Kingdom, don’t forget you’ll need to complete Children of the Sun before you can travel there.
+
+We gave you the full rundown in our [https://secure.runescape.com/m=news/varlamore-the-rising-darkness---overview?oldschool=1 Summer Summit blog], so make sure to check that out for the full details. Or, take a peek at this video by creator Josh Isn't.
+
+<center>{{Youtube|4LadjV6G9T4}}</center>
+<center>''If you can’t view the video above, click [https://youtu.be/4LadjV6G9T4 here ] to watch it!''</center>
+
+===New Areas===
+[[File:Varlamore- The Rising Darkness is OUT NOW (2).png|thumb|500px|center|''An updated map of Varlamore! Note the greyed-out portions, which are part of GentleTractor’s original map and are not included in The Rising Darkness. If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-01-16-th3y4REa1waysWATCHING8/y0haulticETL/VmorePt2MapNew.png#_ga=2.140174262.466741720.1726751433-1804576905.1662975989 here].'']]
+
+Today’s update opens up two new areas of Varlamore – the snowy mountains, and the island paradise of Aldarin.
+
+On Darkfrost Mountain, you’ll encounter the Hueycoatl, an ancient monster which has started causing chaos for unwary travellers in the region. A little further east you’ll spot the Proudspire, the mysterious Tower of Ascension and the sprawling Twilight Temple – all sites of great importance to the Varlamorians, but especially for the shadowy Twilight Emissaries...
+
+Meanwhile, on the island of Aldarin, you’ll be able to sample their famous vineyards and have a go at some mixology of your own. Grapes produced here are destined for the Moonrise Brewery and Winery, which produces fine wines for Varlamore’s fanciest drinkers. Nearby, you’ll find the Alchemical Society, who could use your help brewing up potions. Oh, and while you’re here, don’t forget to kick back and enjoy a bit of drama – we hear there’s to be a ''very'' exciting play at the Amphitheatre on the eastern coast...
+
+In both areas you’ll find plenty of things to do. People to talk to, Mining, Fishing, Hunter and Smithing nodes to train at, shops and vendors to trade with, and even a brand-new portal location for your Player-Owned House.
+
+===The Heart of Darkness===
+In this thrilling follow-up to Twilight’s Promise, you’ll be investigating the mysterious cult behind the attempt on Teokan Servius’ life. It begins right where we left off, at the Teomat.
+
+[[File:Varlamore- The Rising Darkness is OUT NOW (3).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-09-25/MainQuestStart.jpg here].'']]
+
+While investigating, you’ll be able to explore the new areas and enjoy a new Slayer cave and mini boss.
+
+''Quest Requirements:''
+
+* 55 Mining
+* 48 Thieving
+* 48 Slayer
+* 46 Agility
+* Completed Twilight's Promise
+* We recommend a Combat level of at least 65. Don’t forget your gear!
+
+''Rewards:''
+
+* 2 Quest Points
+* 8,000 Mining XP
+* 8,000 Thieving XP
+* 8,000 Slayer XP
+* 8,000 Agility XP
+* Access to a new Slayer Dungeon
+
+===New Slayer Dungeon===
+Completing The Heart of Darkness unlocks a new Slayer dungeon containing a range of creatures. Most of these are existing foes, but the dungeon also introduces frost nagua. Frost nagua can be fought as part of the existing Lesser Nagua Slayer Task. Killing them gives you a chance to obtain the new Glacial Temotli weapons along with a useful item to help you get around Varlamore. In addition, the dungeon also includes a demi-boss variant of the frost nagua with an improved loot table!
+
+===Tales of the Sun===
+Alongside The Heart of Darkness, we also have some new Tales of the Sun for you to enjoy. These standalone quests are found all across Varlamore. We’re only going to talk about one today – the rest you’ll have to find for yourselves!
+
+===Death on the Isle===
+Everything you could want from a murder mystery - disguises, deception, and deductions galore! We're a spoiler-free zone so don't expect us to give any more away, but we will help you get prepped by breaking down what's needed to get started.
+
+[[File:Varlamore- The Rising Darkness is OUT NOW (4).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-09-25/MysteryQuestStart.jpg here].'']]
+
+The quest begins in Aldarin, where you’ll find a stressed-looking gentleman outside one of the fancier villas.
+
+''Quest Requirements:''
+
+* 34 Thieving
+* 32 Agility
+* Completed Children of the Sun
+* We recommend a Combat level of at least 40
+
+''Rewards:''
+
+* 2 Quest Points
+* 10,000 Thieving XP
+* 7,500 Agility XP
+* 5,000 Crafting XP
+* Ability to use a Costume Needle - A new needle that doesn't require thread to use.
+
+===The Hueycoatl===
+[[File:Varlamore- The Rising Darkness is OUT NOW (5).png|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-01-16-th3y4REa1waysWATCHING8/y0haulticETL/Huey.png#_ga=2.135454900.466741720.1726751433-1804576905.1662975989 here].'']]
+
+The Darkfrost Mountain trembles as legend becomes truth: the great and terrible Hueycoatl has awoken!
+
+Team up with your fellow adventurers and take on this ancient serpent. We broke down the gameplay and rewards in-depth in the [https://secure.runescape.com/m=news/varlamore-the-rising-darkness---overview?oldschool=1 Summer Summit blog], but here's a really quick overview:
+
+===Gameplay===
+
+* Join the Dwarven Party and make your way up the Darkfrost mountain.
+* Attack the parts of the Hueycoatl sticking out from the rock, while avoiding hazards. Don’t forget your protection Prayers!
+* When the Hueycoatl moves, climb to the top of the mountain and attack the head.
+* If the Hueycoatl uses its tail to defend itself, shatter it so you can resume the fight!
+* Deal damage to the head until the Hueycoatl is defeated.
+
+===Rewards===
+For your efforts, you'll be rewarded with a number of powerful items. All of these are tradeable, so feel free to use them for yourself or sell them on for a quick bit of extra GP. Remember, further details can be found in the [https://secure.runescape.com/m=news/varlamore-the-rising-darkness---overview?oldschool=1 Summer Summit blog]!
+
+* Tome of Earth
+* Dragon Hunter Wand
+* Hueycoatl Hide Armour
+* Huasca Seed, which you can use to grow the herb and make a Prayer Regeneration Potion.
+
+===Mastering Mixology===
+[[File:Varlamore- The Rising Darkness is OUT NOW (6).png|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-01-16-th3y4REa1waysWATCHING8/y0haulticETL/mixology.png#_ga=2.140174262.466741720.1726751433-1804576905.1662975989 here].'']]
+
+Discover a fresh approach to potion-making with this brand new Herblore activity. The Varlamorian Alchemists need a helping hand keeping up with demand, and there are plenty of rewards for your assistance.
+
+Once again, the full details can be found in our Summer Summit Blog, but here's a quick rundown:
+
+===Gameplay===
+
+* There's no need for secondary ingredients here, so you'll only need to stock up on herbs.
+* Take unnoted herbs from the convenient Bank Chest and use them on the nearby refiner.
+* Refining herbs will give you Mox, Aga or Lye Paste depending on the herb type. You'll need all three pastes to consistently satisfy potion orders.
+* You can store up to 300 Mox, Aga and Lye reagents in the hopper, with any excess Paste able to be stored in the Bank until you need it.
+* You'll see three Potion Orders to choose from and an indicator for whether the end result needs to be Concentrated, Crystallised or Homogenous. Don't worry, there are convenient Lab notes nearby to tell you exactly what goes into each potion.
+* To mix your potion, use the levers on the mixing table to fill up the mixing vessel.
+* Grab the unfinished potion from the mixing vessel and either concentrate, crystallise or homogenise it at the corresponding machine to finish it off.
+* Place your final potion on the conveyor belt to finish off your order and receive points depending on how much Mox, Aga or Lye was used to make it. These points can be used to purchase rewards, so you can always target orders that use more of the reagents you need more points for.
+
+===Rewards===
+For varying quantities of Mox, Aga and Lye points, you'll be able to snag a whole host of Herblore rewards!
+
+
+* Potion Packs (untradeable, rewards tradeable potions), three varieties to choose from:
+** Apprentice - requires Level 60 Herblore
+** Adept - requires Level 70 Herblore
+** Expert - requires Level 85 Herblore
+* Aldarium (Tradeable), which can be used to make Goading Potions
+* Reagents Pouch (Untradeable)
+* Alchemist’s Outfit (Untradeable)
+* Alchemist's Amulet (Untradeable)
+* Pre-pot Device (Tradeable)
+* Potion Storage (Account unlock)
+
+===Colossal Wyrm Agility Course===
+[[File:Varlamore- The Rising Darkness is OUT NOW (7).png|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-01-16-th3y4REa1waysWATCHING8/y0haulticETL/Agility.png#_ga=2.127518856.466741720.1726751433-1804576905.1662975989 here].'']]
+
+Worm Tongue, an anteater (stick with us, it's relevant), has been appointed by the Museum to lead a preservation effort and save the remains of this majestic Colossal Wyrm from a rampant termite infestation. While Worm Tongue used to be pretty adept at catching termites (on account of being an anteater), his age is catching up to him. He needs your help to preserve this ancient landmark... and supply him with snacks!
+
+===Gameplay===
+
+* There are two routes to choose from:
+** Basic route for players with 50 Agility
+** Advanced route for players above 62 Agility
+* You'll receive slightly lower Agility XP than other training options due to its low intensity, however you'll have the chance to earn some unique rewards.
+* To earn rewards, bring Worm Tongue every termite you can find. As you run your laps of the course, there's a chance for termites to appear on some obstacles. These are automatically picked up and stack in your Inventory.
+
+===Rewards===
+The simplest rewards are Amylase Packs and the Colossal Wyrm Agility Course teleport – both of which do exactly what they say on the tin.
+
+===Varlamore Graceful Recolour===
+[[File:Varlamore- The Rising Darkness is OUT NOW (8).png|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-01-16-th3y4REa1waysWATCHING8/y0haulticETL/V2_Graceful.png#_ga=2.98763803.466741720.1726751433-1804576905.1662975989 here].'']]
+
+Gather up enough termites and you can turn them in for a Graceful recolour that adds some Varlamorian flair to its base appearance. If you look closely, you'll notice some regal hints of deep blues and yellows, and also that your midriff is entirely exposed! You know what they say, if you've got it, flaunt it, but perhaps don't try wearing this in the Colosseum.
+
+===Squirrel Transmog===
+[[File:Varlamore- The Rising Darkness is OUT NOW (9).png|thumb|300px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-01-16-th3y4REa1waysWATCHING8/y0haulticETL/BoneSquirrel.png#_ga=2.170123301.466741720.1726751433-1804576905.1662975989 here].'']]
+
+Bone Squirrel. Need we say more? This creepy critter is the perfect companion for your boney adventures.
+
+That’s all you need to know to get stuck into Varlamore: The Rising Darkness. If you want to know more, you’ll just have to do some exploring yourself... 
+
+==Araxxor Changes==
+Last week, we rolled out Combat Achievements for Araxxor. It was great to see that so many of you enjoyed the new approach to speedrun tasks, where RNG smooths out over several kills. Your feedback is crucial in helping us shape the game together, so thanks for sharing your thoughts! You also had a few more suggestions, and we’re putting those into action this week.
+
+[[File:Varlamore- The Rising Darkness is OUT NOW (10).png|thumb|300px|center|'' If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-09-25/perfect_araxxor.jpg here].'']]
+
+We started by addressing one of your top requests by adding information about the fail conditions to the Perfect Araxxor Achievement text.
+
+[[File:Varlamore- The Rising Darkness is OUT NOW (11).png|thumb|300px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-09-25/relaxxor.jpg here].'']]
+
+Our creative community never fails to impress with their brilliant ideas. One such gem was the suggestion to rename the 'Relaxed Gamer' task to 'Relaxxor', which we just couldn’t resist. Check the Combat Achievements menu to see the new name in all its glory!
+
+==Other Changes==
+
+* Adjusted the Inquisitor Armour's Damage and Accuracy bonus to Crush. Now, each Inquisitor Armour piece (Plateskirt, Helmet, Hauberk) gives +2.5% Crush Accuracy and Damage when used alongside the Inquisitor's Mace, regardless of set effects. We know you've been waiting a long time for this one and we're sorry for the delay. The initial implementation and delay in fixing are both the result of internal miscommunications that we're working to improve. Now get out there and crush to your heart's content!
+* Ever wished that run mode would automatically be enabled as soon as you regain some Run Energy? We hope so, because that’s what we’ve implemented with ‘Always On’ run mode! In the settings menu, you can now set a threshold at which run mode is automatically re-enabled. For example, if you set it to 20, when your character's energy runs out and starts walking, your character will automatically start running again once their energy restores to 20.
+* The Quest Journal will now remain open when moving around and will also resize on larger screen sizes.
+* You will now get a warning when dropping items in the Giants' Foundry during the Sleeping Giants quest.
+* The flames on the Leagues IV: Trailblazer Reloaded trophies are now animated.
+* Bridge Guard no longer spots the player at the safe spot near the north-western bridge during the Stealing Artifacts minigame.
+* Farmers at Farming Patches throughout Gielinor now have a standard trade interface, instead of a cumbersome dialogue menu.
+* Reduced the aggression radius of ancient wyverns.
+* Making Ultracompost now gives token Farming XP.
+* The S.T.A.S.H. unit at the top of the Watchtower can once again be used for storage before the quest is complete. This does not affect the quest requirement for the clue.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1fozru9/varlamore_the_rising_darkness_is_out_now/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Other, Philomel, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

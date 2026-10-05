@@ -427,6 +427,9 @@ ToriRSServer_AnimPlayNpc(
     npc->anim_id = seq_id;
     npc->anim_delay = delay;
     npc->masks |= TORIRSSERVER_NMASK_ANIM;
+    /* After the priority gate: the tick log records the animation the client
+     * is sent, which is the one a recorder (Blert's NPC_ATTACK) sees. */
+    ToriRSServer_TicklogNpcAnim(npc, seq_id, delay);
     /* Whoever played the death seq, it has now been played this life — see the
      * field. A script that shows a death and the engine's own death step must
      * agree on that, or the client is sent it twice and shows it once. */
@@ -1392,6 +1395,7 @@ ToriRSServer_CombatHitNpc(
     ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount,
                         amount > 0 ? type : hitsplat_block(),
                         ToriRSServer_HitmarkDealerFromAttackerScript(srv));
+    ToriRSServer_TicklogHitNpc(srv, slot, amount, amount > 0 ? type : hitsplat_block());
 
     /* Warn every ironman fighting this npc, not just the one who swung: the
      * player who is about to lose the drop is the one who got there FIRST, and
@@ -1520,6 +1524,7 @@ ToriRSServer_CombatHitNpc(
          */
         npc->death_stage = TORIRSSERVER_DEATH_QUEUED;
         npc->death_tick = srv->tick + 1;
+        ToriRSServer_TicklogNpcDeath(srv, slot);
         /*
          * Drop whatever was already armed on the npc's own queue — a healer's
          * `npc_queue(4, heal, ...)` chief among them.
@@ -1799,6 +1804,11 @@ ToriRSServer_CombatHitPlayerFrom(
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
                         amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()),
                         dealer_slot);
+    /* The splat as shown: after `::god`, absorption and the clamp to the
+     * hitpoints left, which is the number a recorder reads off the client. */
+    ToriRSServer_TicklogHitPlayer(
+        srv, player, amount,
+        amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()), dealer_slot);
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;
     player->hitpoints = player->hitpoints < 0 ? 0 : player->hitpoints;
@@ -1807,6 +1817,24 @@ ToriRSServer_CombatHitPlayerFrom(
     if( player->hitmark_count >= 2 )
         player->masks |= TORIRSSERVER_PMASK_DAMAGE2;
     ToriRSServer_CombatSyncHitpoints(player);
+
+    /*
+     * The combat logout delay: every hit received, a 0 or a fully absorbed one
+     * included, re-arms it. OSRS Wiki, Logout button: "players in combat cannot
+     * log out until 16 game ticks, or 9.6 seconds, after they have last
+     * received a hit" (docs/minigames/inferno/sources/wiki/
+     * wiki_Logout_button.wikitext:9).
+     *
+     * The rule and its clock are content's (skill_combat/combat.rs2
+     * `[proc,combat_player_hit_received]`, interface_logout/scripts/logout.rs2);
+     * the engine's part is only to say "a hit landed", and to say it here
+     * because this is the one place every hit on a player ends -- an npc's
+     * default swing, a scripted projectile's queue, the `damage` opcode of a
+     * boss or of another player all arrive through it, and no single attack
+     * script sees them all. A tree without the proc (a selftest pack) runs
+     * nothing, which is the "no rule" it states.
+     */
+    ToriRSServer_ScriptsRunProc(srv, "[proc,combat_player_hit_received]", NULL, 0);
 
     /*
      * The block animation is content's — [ai_opplayer2,_] plays

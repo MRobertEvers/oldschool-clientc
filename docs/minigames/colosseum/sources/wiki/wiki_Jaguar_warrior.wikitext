@@ -1,0 +1,53 @@
+{{Otheruses|Deadman Mode variant|Jaguar warrior (Deadman)|def=no}}
+{{Infobox Monster
+|name = Jaguar warrior
+|image = [[File:Jaguar warrior.png|120px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|combat = 234
+|size = 2
+|examine = A furry with a score to settle.
+|xpbonus = 5
+|max hit = 47 (x3)
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Slash]]
+|attack speed = 5
+|hitpoints = 125
+|att = 200
+|str = 330
+|def = 125
+|mage = 100
+|range = 160
+|attbns = 0
+|strbns = 25
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 30
+|dslash = 30
+|dcrush = 30
+|dmagic = 15
+|dlight = 45
+|dstandard = 45
+|dheavy = 45
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|id = 12810
+}}
+'''Jaguar warriors''' are enemies encountered in [[Fortis Colosseum]]. Similarly to [[nail beast]]s, their attacks consist of three hits on the player, with each hit having its own independent accuracy and strength roll. This means it is possible for the warrior to instantly kill the player with one attack if all three accuracy rolls succeed and the damage roll is sufficiently high enough.
+
+These enemies only appear as reinforcements during the first six waves of the Colosseum if the player does not clear the wave within 40 seconds.
+
+==Gallery==
+<gallery mode="packed" heights="160" style="text-align:left">
+Fortis Colosseum - jaguar and serpent men concept art.jpg|Concept art of the jaguar warrior and serpent shaman, by [[Mod Grub]].
+</gallery>
+
+==Trivia==
+*The jaguar warrior uses the same attack animation as the [[dragon claws]] special attack, barring the uppercut sequence.
+
+{{Fortis Colosseum}}

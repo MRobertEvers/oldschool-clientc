@@ -1,0 +1,67 @@
+{{Infobox Monster
+|name = Fremennik warband seer
+|image = [[File:Fremennik warband seer.png|170px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|combat = 104
+|size = 1
+|examine = A seer from a faraway land, come to test their skills.
+|xpbonus = 0
+|max hit = 12
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 6
+|hitpoints = 50
+|att = 110
+|str = 110
+|def = 80
+|mage = 110
+|range = 110
+|attbns = 0
+|strbns = 0
+|amagic = 150
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 50
+|dslash = 50
+|dcrush = 50
+|dmagic = 30
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|id = 12815
+}}
+'''Fremennik warband seers''' are enemies encountered in the [[Fortis Colosseum]]. They appear at the start of each wave (except wave 12 without Quartet), alongside a [[Fremennik warband archer]] and [[Fremennik warband berserker]]. Attacking them with ranged will always result in a max hit. If attacking with [[Ice Barrage]], the player needs at least a +104 magic attack bonus with [[Augury]] to guarantee a freeze, or +140 without. This will not guarantee a max hit.
+
+They are able to use routefinding, and as such will move around pillars to reach players. They attack on a fixed 6 tick cycle, only attacking when they are in melee distance and are not moving.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 June 2024
+|update = Colosseum NPC Clickboxes & More
+|change = The clickbox of the NPC was updated to include all of its models.
+}}
+{{Subject changes
+|date = 3 April 2024
+|update = Varlamore Tweaks & Drop Rates
+|change = The seer was given the following changes:
+* Ranged level increased from 3 to 110.
+* Melee attack bonus decreased from 150 to 0.
+* Melee strength bonus decreased from 150 to 0.
+* XP bonus decreased from 12.5% to 0%.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="160" style="text-align:left">
+Fortis Colosseum - Fremennik warbands concept art.jpg|Concept art of the Fremennik warband by [[Mod Grub]]. It appears to show a scrapped warband druid, as well as scrapped gendered variants.
+</gallery>
+
+{{Fortis Colosseum}}

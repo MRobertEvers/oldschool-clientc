@@ -1,0 +1,80 @@
+mechanic_id	scope	note
+serpent_shaman.stats.hp	all	one solo test
+serpent_shaman.stats.combat_level	all	one solo test
+serpent_shaman.stats.attack_level	all	one solo test
+serpent_shaman.stats.defence_level	all	one solo test
+serpent_shaman.stats.strength_level	all	one solo test
+serpent_shaman.stats.ranged_level	all	one solo test
+serpent_shaman.stats.magic_level	all	one solo test
+serpent_shaman.stats.size	all	one solo test
+serpent_shaman.stats.attack_rate_param	all	one solo test
+serpent_shaman.stats.magic_attack_bonus	all	one solo test
+serpent_shaman.stats.strength_bonus	all	one solo test
+serpent_shaman.stats.ranged_attack_bonus	all	one solo test
+serpent_shaman.stats.stab_defence	all	one solo test
+serpent_shaman.stats.slash_defence	all	one solo test
+serpent_shaman.stats.crush_defence	all	one solo test
+serpent_shaman.stats.magic_defence	all	one solo test
+serpent_shaman.stats.ranged_defence_light	all	one solo test
+serpent_shaman.stats.ranged_defence_standard	all	one solo test
+serpent_shaman.stats.ranged_defence_heavy	all	one solo test
+serpent_shaman.stats.param_26	all	one solo test
+serpent_shaman.stats.param_65	all	one solo test
+serpent_shaman.stats.examine	all	one solo test
+serpent_shaman.stats.aggressive	all	one solo test
+serpent_shaman.stats.immune_cannon	all	one solo test
+serpent_shaman.stats.poison_venom_resistance	all	one solo test
+serpent_shaman.style.attack_style	all	one solo test
+serpent_shaman.style.spell	all	one solo test
+serpent_shaman.style.auto_prayer	all	one solo test
+serpent_shaman.style.attack_kinds	all	one solo test
+serpent_shaman.range.tiles	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.range.adjacent_attacks	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.range.measure	all	one solo test
+serpent_shaman.attack.hits_per_attack	all	one solo test
+serpent_shaman.maxhit.per_hit_unprayed	all	one solo test
+serpent_shaman.maxhit.strategies_page_value	all	one solo test
+serpent_shaman.maxhit.not_56	all	one solo test
+serpent_shaman.maxhit.prayed	all	one solo test
+serpent_shaman.accuracy.per_hit_chance	all	one solo test
+serpent_shaman.hit.flight_ticks	all	one solo test
+serpent_shaman.hit.prayer_read_tick	all	one solo test
+serpent_shaman.cadence.attack	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.cadence.gap_share_five	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.cadence.gap_minimum	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.cadence.gap_over_five_cause	all	one solo test
+serpent_shaman.cadence.attacks_per_life_max	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.first_attack.earliest_tick_zero	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.first_attack.earliest_reinforcement	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.first_attack.never_attacked	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.spawn.tick_zero_waves	all	one solo test
+serpent_shaman.spawn.reinforcement_waves	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.spawn.reinforcement_tick	all	one solo test
+serpent_shaman.spawn.reinforcement_tiles	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.spawn.pair_tile_distinct	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.spawn.tick_zero_tiles	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.spawn.centre_when_player_adjacent	all	one solo test
+serpent_shaman.spawn.centre_tile	all	one solo test
+serpent_shaman.spawn.first_move_after_spawn	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.movement.max_tiles_per_tick	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+serpent_shaman.movement.routefinds	all	one solo test
+serpent_shaman.movement.blocked_by_melee_partner	all	one solo test
+serpent_shaman.movement.red_flag_passes_minotaur	all	one solo test
+serpent_shaman.heal.none	all	one solo test
+serpent_shaman.technique.offtick_reinforcement	all	one solo test
+serpent_shaman.presentation.model	all	one solo test
+serpent_shaman.presentation.idle.seq	all	one solo test
+serpent_shaman.presentation.walk.seq	all	one solo test
+serpent_shaman.presentation.attack.seq	all	one solo test
+serpent_shaman.presentation.attack.length	all	one solo test
+serpent_shaman.presentation.attack.sound_frames	all	one solo test
+serpent_shaman.presentation.attack.release_frame	all	one solo test
+serpent_shaman.presentation.projectile.graphic	all	one solo test
+serpent_shaman.presentation.impact.graphic	all	one solo test
+serpent_shaman.presentation.impact.sound	all	one solo test
+serpent_shaman.presentation.animation_update	all	one solo test
+serpent_shaman.presentation.defend.seq	all	one solo test
+serpent_shaman.presentation.death.seq	all	one solo test
+serpent_shaman.presentation.death.active_cycles	all	one solo test
+serpent_shaman.presentation.spawn.seq	all	one solo test
+serpent_shaman.presentation.graphics.lizardshaman_not_this_npc	all	one solo test

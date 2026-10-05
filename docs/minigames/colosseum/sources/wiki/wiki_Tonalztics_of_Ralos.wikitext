@@ -1,0 +1,254 @@
+{{Infobox Item
+|defver = 2
+|version1 = Uncharged
+|version2 = Charged
+|name1 = Tonalztics of Ralos (uncharged)
+|name2 = Tonalztics of Ralos
+|image1 = [[File:Tonalztics of Ralos (uncharged).png]]
+|image2 = [[File:Tonalztics of Ralos.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|tradeable1 = Yes
+|tradeable2 = No
+|bankable = Yes
+|equipable = Yes
+|stackable = No
+|noteable1 = Yes
+|noteable2 = No
+|options1 = Wield, Drop
+|options2 = Wield, Check, Charge, Uncharge
+|examine = A rebounding throwing weapon of devastating proportions.
+|value = 600000
+|alchable1 = Yes
+|alchable2 = No
+|weight = 3.000
+|exchange1 = Yes
+|exchange2 = No
+|id1 = 28919
+|id2 = 28922
+|leagueRegion = Varlamore
+}}
+{{Synced switch
+|version1 = [[File:Tonalztics of Ralos (uncharged) detail.png|150px|left]]
+|version2 = [[File:Tonalztics of Ralos detail.png|150px|left]]
+}}
+The '''Tonalztics of Ralos''' is a one-handed [[Weapons/Categories#Thrown|thrown]] weapon that requires level 75 [[Ranged]] to equip, obtained by participating in the [[Fortis Colosseum]]. Unlike most [[thrown weapons]], it is not stackable and effectively provides unlimited "ammo," though it has an additional effect when charged with [[Sunfire splinter]]s. The weapon rolls against a monster's light ranged defence.
+
+When charged, the weapon will [[Multi-hit weapons|hit twice]], with two independent damage rolls and an attack range of 7 tiles (9 on longrange). Uncharged, the weapon hits a target once for 0-75% of the player's [[maximum ranged hit]], with a slightly worse attack range of 6 tiles (8 on longrange). It can hold a maximum of 20,000 charges. One charge is consumed per throw, whether or not the special attack is used, and regardless of the amount of hits that land. Players can configure the charges while the weapon is in their bank by right-clicking on Configure-Charges, as long as players have the required materials.
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Charged
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = +115
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = +55
+|mdmg = 0
+|prayer = +2
+|slot = weapon
+|speed = 7
+|attackrange1 = 6
+|attackrange2 = 7
+|combatstyle = Thrown
+|image1 = [[File:Tonalztics of Ralos (uncharged) equipped male.png|120px]]
+|image2 = [[File:Tonalztics of Ralos equipped male.png|120px]]
+|altimage1 = [[File:Tonalztics of Ralos (uncharged) equipped female.png|120px]]
+|altimage2 = [[File:Tonalztics of Ralos equipped female.png|120px]]
+}}
+
+{{Synced switch
+|version1 = {{CombatStyles|Thrown|speed=7|attackrange=6}}
+|version2 = {{CombatStyles|Thrown|speed=7|attackrange=7}}
+}}
+
+==Special attack==
+The Tonalztics of Ralos has a [[special attack]], ''Division'', costing 50% special attack energy. ''Division'' increases accuracy by 50% and reduces the target's [[Defence]] level by 1/8 of the target's [[Magic]] level upon a [[successful hit]]. This effect occurs for each individual hit, meaning a ''charged'' special attack can potentially reduce the target's defence twice ''(1/4 of Magic level)''.
+
+This effect makes it uniquely useful for high-defence targets who have an accompanying high-magic level, or for draining the defence of targets who are otherwise unreachable with standard methods (like a [[dragon warhammer]]), provided that their light ranged defence is relatively low. The weapon shines best against enemies such as [[Zulrah]], the [[Great Olm]], and [[The Maiden of Sugadinti]], as these enemies have high Magic levels with little or no light ranged defence.
+
+When used on NPCs, the defence reduction from a successful first hit will apply for the calculation of the second hit. However, this is not the case when used in PvP.{{CiteTwitter|url=https://x.com/jagexash/status/1794310805233840131|date=25 May 2024|author=Mod Ash|archiveurl=https://archive.is/uEGYt|archivedate=30 May 2024|quote=On an NPC, I believe any defence reduction from the 1st calculated hit can help with the 2nd roll even though it's in the same tick. However, on a player, I *believe* the target's effective defence would not be recalculated within that tick, so the 2nd roll may not be helped.}}
+
+The special attack animation differs depending on whether the weapon is charged.
+
+<gallery mode="packed" heights="200" style="text-align:left">
+Division.gif|A player performs ''Division'' with the uncharged weapon.
+Division (charged).gif|A player performs ''Division'' with the charged weapon.
+</gallery>
+
+== Charging ==
+In order for the Tonalztics of Ralos' to [[Multi-hit weapons|hit twice]], it must be charged with [[Sunfire splinter]]s, holding up to 20,000 maximum charges. Each charge requires 1 Sunfire splinter, costing {{NoCoins|{{GEP|Sunfire splinters|1}}|c}} per attack. The total cost to fully charge the weapon with 20,000 splinters is {{NoCoins|{{GEP|Sunfire splinters|20000}}|c}}. Assuming non-stop use, on the rapid attack style, one attack every 3.6 seconds and 1,000 attacks per hour, the weapon costs {{NoCoins|{{GEP|Sunfire splinters|1}}* 1000|c}} per hour to use.
+
+{| class="wikitable align-right-2"
+!Resource 
+!Cost per charge
+|-
+|1x {{plink|Sunfire splinters}}
+|{{Coins|{{GEP|Sunfire splinters}} * 1}}
+|-
+! '''Total cost per charge'''
+| style="text-align:right;" | {{Coins|({{GEP|Sunfire splinters}} * 1)}}
+|}
+
+==Item sources==
+{{Drop sources|Tonalztics of Ralos (uncharged)}}
+The expected drop rate if you complete all twelve waves is approximately 1/83.61.
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Tonalztics of Ralos charge.wav|desc=Charging}}
+{{SFXLine|file=Tonalztics of Ralos uncharge.wav|desc=Uncharging}}
+{{SFXLine|file=Equip battleaxe.wav|desc=Wielding}}
+{{SFXLine|file=Tonalztics of Ralos attack.wav|desc=Attacking}}
+{{SFXLine|file=Thrownaxe attack.wav|desc=Projectile (only when charged)}}
+{{SFXLine|file=Tonalztics of Ralos attack while charged.wav|desc=Attack impact (only when charged)}}
+{{SFXLine|file=Tonalztics of Ralos special attack 1.wav|desc=Special attack throw}}
+{{SFXLine|file=Tonalztics of Ralos special attack 2.wav|desc=Special attack spin}}
+{{SFXTableBottom}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Tonalztics of Ralos}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Tonalztics of Ralos attack.gif|A player attacks with an uncharged Tonalztics of Ralos.
+Tonalztics of Ralos attack (charged).gif|A player attacks with a charged Tonalztics of Ralos.
+Colosseum rewards concept art.png|Concept art of the Tonalztics of Ralos (referred to as the Glaive of Ralos during development) alongside other Colosseum rewards, by [[Mod Jerv]].
+Division model.mp4|Division animation, by [[Mod Hend]].
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 August 2026
+|update = Summer Sweep Up - Hunter & Skilling
+|change = The item was renamed from "Tonalztics of ralos" to "Tonalztics of Ralos".
+}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = The special attack, ''Division'', has received the following changes: 
+* An accuracy bonus of 50% has been added.
+* The Defence reduction has been increased from 10% of the target's Magic level per hit to 12.5%.
+}}
+{{Subject changes
+|date = 29 April 2026
+|update = More Leagues VI Fixes
+|change = Players who have had the bank's charge-configuring feature set the item's charge-on-withdrawal quantity to 50,000 were now set to 20,000.
+}}
+{{Subject changes
+|date = 23 April 2026
+|update = Leagues VI Changes
+|change = The item's charge cap was set to 20,000, causing the bank to delete entire stacks of sunfire splinters for a small number of players who have had the bank's charge-configuring feature set to 50,000 prior to the 12 March 2025 update.
+}}
+{{Subject changes
+|date = 25 February 2026
+|update = Cow Boss is Out Today!
+|change = The item can no longer be thrown at the [[dartboard]] in the POH [[Games room]].
+}}
+{{Subject changes
+|date = 19 February 2026
+|type = hotfix
+|change = The item will no longer be deleted when thrown at a [[dartboard]].{{CiteReddit|author=Mod Sarnie|url=https://www.reddit.com/r/2007scape/comments/1r8t59l/lost_my_ralos_to_poh_bug/o67qotm/|title=Lost my ralos to POH bug...|quote=Hey there homie! We've released a hotfix to patch the time/space void that the Tonalztics of Ralos create when being thrown at a dartboard.|date=19 February 2026|archiveurl=https://archive.ph/jwYD8|archivedate=19 February 2026}}
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = 
+* The uncharged version's [[attack range]] has been increased from 5 to 6.
+* The charged version's attack range has been increased from 5 to 7.
+}}
+{{Subject changes
+|date = 12 March 2025
+|update = Permanent Deadman: World 345 Improvements
+|change = Configuring charges for the item within the bank now correctly caps at 20,000. Players who have had configured the item to hold 50,000 charges before this update remain able to do so.
+}}
+{{Subject changes
+|date = 5 March 2025
+|update = Game Jam: Charges QoL
+|change = 
+* The item now supports a bank item option for changing charges.
+* The amount of charges the item can hold was erroneously increased to 50,000 if charged via the bank's "Configure-Charges" option.
+}}
+{{Subject changes
+|date = 25 September 2024
+|update = Varlamore: The Rising Darkness is OUT NOW
+|change = The item's inventory icon was adjusted.
+}}
+{{Subject changes
+|date = 7 August 2024
+|update = Poll 82 Changes
+|change = The player's attack animation when using ''Division'' against a player has been corrected to use the special attack's animation when using it against NPCs, rather than using the standard attack animation.
+}}
+{{Subject changes
+|date = 10 April 2024
+|update = Undead Pirates, Colosseum Changes & more!
+|change = 
+* The 50% Defence level reduction cap applied by ''Division'' has been removed.
+* The item's [[value]] has been increased from 150,000 to 600,000.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{{Switch infobox
+|text1 = Uncharged
+|item1 =
+|text2 = Charged
+|item2 =
+}}
+{|style="text-align: center" cellpadding="15"
+|
+{{Synced switch
+|version1 = [[File:Tonalztics of ralos (uncharged) v1 detail.png|center|300x150px]]
+|version2 = [[File:Tonalztics of ralos v1 detail.png|center|300x150px]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Tonalztics of Ralos (uncharged) detail.png|center|300x150px]]
+|version2 = [[File:Tonalztics of Ralos detail.png|center|300x150px]]
+}}
+|-
+|
+{{Synced switch
+|version1 = [[File:Tonalztics of ralos (uncharged) v1.png|center]]
+|version2 = [[File:Tonalztics of ralos v1.png|center]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Tonalztics of Ralos (uncharged).png|center]]
+|version2 = [[File:Tonalztics of Ralos.png|center]]
+}}
+|-
+|20 March 2024 –<br/>25 September 2024
+|25 September 2024 –<br/>present
+|}
+
+==Trivia==
+* The weapon was initially proposed as the "Glaive of Ralos" but was changed to its current name after player feedback. The term "{{wp|glaive}}" historically refers to a polearmed weapon, and was popularised as a term describing thrown weapons that return to the user after the 1983 film ''{{wp|Krull (film)|Krull}},'' which features a similarly shaped weapon as its {{wp|MacGuffin}}. Indeed, ''RuneScape 3'' also has a similarly named weapon, the {{RSL|shadow glaive}}, as well as a proper glaive named the {{RSL|Death Lotus Glaive}}.
+* The word "tonalztics" is made up of morphemes from the {{wp|Nahuatl}} language. The root "tona-" evokes the warmth of the Sun, as in {{wp|Tōnatiuh}}, a deity who carries the Sun across the sky, or {{wp|tonalli}}, an animating force and aspect of one's soul that manifests in one way as internal body temperature. Many Nahuatl nouns and adjectives end in "-ztic".
+* Unlike most stat-reducing special attack weapons, which can apply their draining effects on an accurate hit that does not deal damage, the Tonalztics of Ralos requires a specific check for damage to be dealt. Targets with attack-type specific damage reduction such as the Great Olm's Left Hand thus requires a minimum hit of 1 damage to apply draining effects. {{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1529141679318368409|date=21 July 2026|quote=|ctxquote=|archiveurl=|archivedate=|notes=|name=|group=}}
+
+==References==
+{{reflist}}
+
+{{Fortis Colosseum}}
+{{Ranged weapons}}
+{{Multi-hit weapons}}
+
+[[Category:Defence reduction]]
+[[Category:Collection log items]]
+[[Category:Weapons with Special attacks]]
+[[Category:Items with charges]]

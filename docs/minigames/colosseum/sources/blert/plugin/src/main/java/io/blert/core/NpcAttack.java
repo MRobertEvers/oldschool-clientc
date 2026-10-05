@@ -1,0 +1,106 @@
+/*
+ * Copyright (c) 2024 Alexei Frolov
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the
+ * Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+package io.blert.core;
+
+import lombok.Getter;
+
+public enum NpcAttack {
+    TOB_MAIDEN_AUTO(1),
+    TOB_MAIDEN_BLOOD_THROW(2),
+    TOB_BLOAT_STOMP(3),
+    TOB_NYLO_BOSS_MELEE(4),
+    TOB_NYLO_BOSS_RANGE(5),
+    TOB_NYLO_BOSS_MAGE(6),
+    TOB_SOTE_MELEE(7),
+    TOB_SOTE_BALL(8),
+    TOB_SOTE_DEATH_BALL(9),
+    TOB_XARPUS_SPIT(10),
+    TOB_XARPUS_TURN(11),
+    TOB_VERZIK_P1_AUTO(12),
+    TOB_VERZIK_P2_BOUNCE(13),
+    TOB_VERZIK_P2_CABBAGE(14),
+    TOB_VERZIK_P2_ZAP(15),
+    TOB_VERZIK_P2_PURPLE(16),
+    TOB_VERZIK_P2_MAGE(17),
+    TOB_VERZIK_P3_MELEE(19),
+    TOB_VERZIK_P3_RANGE(20),
+    TOB_VERZIK_P3_MAGE(21),
+    TOB_VERZIK_P3_WEBS(22),
+    TOB_VERZIK_P3_YELLOWS(23),
+    VERZIK_P3_BALL(24),
+
+    COLOSSEUM_BERSERKER_AUTO(100),
+    COLOSSEUM_SEER_AUTO(101),
+    COLOSSEUM_ARCHER_AUTO(102),
+    COLOSSEUM_SHAMAN_AUTO(103),
+    COLOSSEUM_JAGUAR_AUTO(104),
+    COLOSSEUM_JAVELIN_AUTO(105),
+    COLOSSEUM_JAVELIN_TOSS(106),
+    COLOSSEUM_MANTICORE_MAGE(107),
+    COLOSSEUM_MANTICORE_RANGE(114),
+    COLOSSEUM_MANTICORE_MELEE(115),
+    COLOSSEUM_SHOCKWAVE_AUTO(108),
+    COLOSSEUM_MINOTAUR_AUTO(109),
+    COLOSSEUM_HEREDIT_THRUST(110),
+    COLOSSEUM_HEREDIT_SLAM(111),
+    COLOSSEUM_HEREDIT_BREAK(112),
+    COLOSSEUM_HEREDIT_COMBO(113),
+
+    INFERNO_BAT_AUTO(70),
+    INFERNO_BLOB_RANGED(71),
+    INFERNO_BLOB_MAGE(72),
+    INFERNO_BLOB_MELEE(73),
+    INFERNO_BLOBLET_RANGED_AUTO(74),
+    INFERNO_BLOBLET_MAGE_AUTO(75),
+    INFERNO_BLOBLET_MELEE_AUTO(76),
+    INFERNO_MELEER_AUTO(77),
+    INFERNO_MELEER_DIG(78),
+    INFERNO_RANGER_AUTO(79),
+    INFERNO_RANGER_MELEE(80),
+    INFERNO_MAGER_AUTO(81),
+    INFERNO_MAGER_MELEE(82),
+    INFERNO_MAGER_RESURRECT(83),
+    INFERNO_JAD_RANGED(84),
+    INFERNO_JAD_MAGE(85),
+    INFERNO_JAD_MELEE(86),
+    INFERNO_JAD_HEALER_AUTO(87),
+    INFERNO_ZUK_AUTO(88),
+
+    MOKHAIOTL_AUTO(50),
+    MOKHAIOTL_BALL(54),
+    MOKHAIOTL_CHARGE(57),
+    MOKHAIOTL_BLAST(58),
+    MOKHAIOTL_RACECAR(59),
+    MOKHAIOTL_SLAM(60),
+    MOKHAIOTL_SHOCKWAVE(61),
+    MOKHAIOTL_MELEE(62),
+    ;
+
+    @Getter
+    private final int id;
+
+    NpcAttack(int id) {
+        this.id = id;
+    }
+}

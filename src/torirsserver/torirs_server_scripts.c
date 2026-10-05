@@ -2266,6 +2266,50 @@ trigger_requires_active_npc(int trigger)
            (trigger >= SS_TRIGGER_AI_APPLAYER1 && trigger <= SS_TRIGGER_AI_OPPLAYER5);
 }
 
+/*
+ * Whether this rung is the DEFAULT retaliation and the npc's record refuses it.
+ *
+ * `[ai_queue1,_]` is the engine-wide retaliation rung (see RESERVED QUEUE SLOTS
+ * in ToriRSServer_ScriptsLoad): `~npc_retaliate` arms `npc_queue(1, …)` on the
+ * tick a cast, an arrow or a special lands, and the wildcard body is
+ * `npc_setmode(opplayer2)` — the npc takes the player and walks over to hit
+ * him. `retaliate=no` on the record says "being hit does not give this npc a
+ * target" (torirs_server_content.h), and the engine's own latch already obeys
+ * it (combat.c, the `npc_def(npc)->retaliate` test on the landing). The rung
+ * did not: a Jal-Nib or a Maiden blood spawn hit by a spell turned and swung
+ * at the caster while the same npc whipped stood still (seam pass 3
+ * scr_b_before2: hit_player 21:0 31:0 from a retaliate=no slug; ENG-25).
+ *
+ * Only the `_` rung is withheld. A `[ai_queue1,<type>]` binding is the type's
+ * own authored answer to being hit (the Inferno nibbler's "never while a pillar
+ * stands", the Glyph's `npc_setmode(none)`, every queue-1 timer a quest arms on
+ * its own npc) and still runs whatever the record says.
+ *
+ * The caller has already proved the slot live (trigger_requires_active_npc
+ * covers every [ai_queue*]), so a dead or out-of-range slot here is a bug.
+ */
+static int
+rung_is_refused_retaliation(
+    struct ToriRSServer* srv,
+    int trigger,
+    int rung_type,
+    int rung_category,
+    int npc_slot)
+{
+    const struct ToriRSServerNpc* npc;
+    const struct ToriRSServerNpcDef* def;
+
+    assert(srv);
+    if( trigger != SS_TRIGGER_AI_QUEUE1 || rung_type != -1 || rung_category != -1 )
+        return 0;
+    assert(npc_slot >= 0);
+    assert(npc_slot < TORIRSSERVER_NPC_MAX);
+    npc = &srv->npcs[npc_slot];
+    assert(npc->active);
+    def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
+    return !def->retaliate;
+}
+
 /** Engine-driven npc triggers run in their owned player's context when one is
  * bound. This is intentionally narrower than `trigger_requires_active_npc`:
  * an ordinary player click already has the correct active player. */
@@ -2629,6 +2673,13 @@ run_trigger_impl(
                 return TORIRSSERVER_TRIGGER_FAILED;
             }
         }
+
+        /* `retaliate=no`: the default retaliation rung is not this npc's to
+         * run. Skipped, not declined — nothing was offered and refused, the
+         * record simply has no default answer to being hit. */
+        if( chain && rung_is_refused_retaliation(srv, trigger, rungs[i].type, rungs[i].category,
+                                                 npc_slot) )
+            continue;
 
         context_player = srv->active_player;
         if( trigger_is_ai_npc(trigger) && npc_slot >= 0 && npc_slot < TORIRSSERVER_NPC_MAX &&
@@ -4941,6 +4992,7 @@ ToriRSServer_NpcChangeType(
     int duration)
 {
     assert(npc);
+    ToriRSServer_TicklogNpcRetype(npc, npc->type, type, duration);
     npc_changetype_rehydrate(npc, type);
     npc->change_type = type;
     npc->masks |= TORIRSSERVER_NMASK_CHANGE_TYPE;
@@ -8696,6 +8748,7 @@ ToriRSServer_ScriptCommand(
         npc->spotanim_id = values[0];
         npc->spotanim_height_delay = (values[1] << 16) | (values[2] & 0xffff);
         npc->masks |= TORIRSSERVER_NMASK_SPOTANIM;
+        ToriRSServer_TicklogNpcSpotanim(npc, (int)values[0], (int)values[1], (int)values[2]);
         return 1;
     }
 
@@ -8734,6 +8787,11 @@ ToriRSServer_ScriptCommand(
         npc->face_x = ToriRSServer_CoordFine(coord_x(coord), 1);
         npc->face_z = ToriRSServer_CoordFine(coord_z(coord), 1);
         npc->masks |= TORIRSSERVER_NMASK_FACE_COORD;
+        /* The only writer of an npc's FACE_COORD mask (no C movement or
+         * combat path turns an npc to a square), so the tick log's npc_face
+         * row is complete from here: the raid tests read "Xarpus turned to
+         * the quadrant he was hit from" off it. */
+        ToriRSServer_TicklogNpcFace(npc, coord_x(coord), coord_z(coord));
         /*
          * A coord facing SUPERSEDES the entity latch, and the server's own copy
          * has to say so or the two ends desync permanently.
@@ -9824,9 +9882,13 @@ ToriRSServer_ScriptCommand(
          * `hitsplat_damage_me`. A script damaging its own player passes itself,
          * which is also right: an overload's self-hit is damage you dealt.
          */
+        /* The tick log's HIT_PLAYER row names the npc whose script swung,
+         * which only this frame knows (-1 from a player's own script). */
+        ToriRSServer_TicklogSetDealerNpc(active_npc_slot(state));
         ToriRSServer_CombatHitPlayerFrom(
             srv, values[1], values[2],
             saved_player ? (int)(saved_player - &srv->players[0]) : -1);
+        ToriRSServer_TicklogSetDealerNpc(-1);
         ToriRSServer_WorldSetActive(srv, saved_player);
         return 1;
     }
@@ -9867,6 +9929,8 @@ ToriRSServer_ScriptCommand(
         }
         saved_player = srv->active_player;
         ToriRSServer_WorldSetActive(srv, target_player);
+        /* The swinging npc for the tick log -- see `damage` above. */
+        ToriRSServer_TicklogSetDealerNpc(active_npc_slot(state));
         if( values[3] )
         {
             /*
@@ -9889,6 +9953,7 @@ ToriRSServer_ScriptCommand(
                 srv, values[2], values[1],
                 saved_player ? (int)(saved_player - &srv->players[0]) : -1);
         }
+        ToriRSServer_TicklogSetDealerNpc(-1);
         ToriRSServer_WorldSetActive(srv, saved_player);
         return 1;
     }

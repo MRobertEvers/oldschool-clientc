@@ -1,0 +1,160 @@
+{{Update|date=31 January 2019|rev=1 February 2019|link=http://services.runescape.com/m=news/chambers-of-xeric-kebos-and-collection-log-changes?oldschool=1|category=game}}
+[[File:Chambers of Xeric, Kebos, and Collection Log Changes newspost.png|right]]
+{{clear}}
+
+<center>''This week sees the release of Chambers of Xeric Quality of life and balancing tweaks, some changes to Kebos and updates for the Collection Log. Unrestricted worlds are now open for the duration of the Twitch Prime promotion. We're also happy to announce an extension to the Gold Premier Club offer!''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Chambers of Xeric Balancing}}
+
+
+Last week we published [http://services.runescape.com/m=news/chambers-of-xeric-revisited?oldschool=1 this blog] about improving the Chambers of Xeric. Mostly players seemed happy with the balancing changes, especially the removal of scavenger runts, though opinions were more divided about the proposed methods for influencing what rooms you might encounter. We’re starting off by releasing most of the balancing changes; see below for details of which ones got into this week’s update – spoiler: the scavenger runts are gone. The remaining balancing adjustments will come later in February, around the QoL Month dev work. 
+
+The proposed change to energy pools, whereby they’d cure poison as well as replenishing energy, wasn’t so well received. As it’s more contentious, and not required for the balancing of the Chambers, we’re happy to leave it out for now, and put it to a poll in future if it seems more popular. 
+
+Regarding the Xeric’s Ward scrolls, we’d like to put that section aside for now, and continue working on the balancing of the rooms through updates like this one. Once we’ve had a chance to see the effects of this kind of change, especially checking which rooms players are more willing to play and which ones they’re still avoiding, we’ll reconsider that topic. We’d also need to ensure players can acquire suitable gear for the raid ahead of them. 
+
+In the meantime, the following changes have been made: 
+
+'''Tekton'''
+*Tekton’s defence has been reduced by 25% to make it less dependant on defence-reducing attacks
+*Tekton has been made less sensitive to return to the anvil abruptly without trying to hit anyone
+
+[[File:Chambers of Xeric, Kebos, and Collection Log Changes (1).png|center|200px]]
+
+
+'''Vespula'''
+*Vespula will no longer interact with her grubs until the party has entered the room
+*The portal’s health regeneration has been lowered to 1/3rd of it’s current rate
+*Each point of HP damage dealt now gives an additional 2 points
+
+[[File:Chambers of Xeric, Kebos, and Collection Log Changes (2).png|center|250px]]
+
+
+'''The Ice Demon'''
+Adding wood to a lit brazier is now just as effective as adding wood to an unlit brazier and burning it all at once
+
+[[File:Chambers of Xeric, Kebos, and Collection Log Changes (3).png|center|111px]]
+
+
+'''Creature Keeper Room'''
+*This room now gives 5x points as you deposit grubs
+*We have removed the Thieving level restriction to the room so everyone in the party can contribute
+*The creature will now eat faster than before
+*The minimum time before the creature gets hungrier has been increased from 30 to 60 seconds
+
+'''Other Changes'''
+*The seeds given when raking weeds will now rotate between the different seeds available
+*We've increased the amount of herbs available in higher-numbered raid teams
+*Dungeon layouts that don’t give scavenger corridors before you get to rooms requiring the items they drop have been removed
+*Small scavengers will no longer spawn in the Chambers of Xeric. Only the larger Scavengers will now appear
+*Left clicking on a stackable item while storing items in a Private storage chest in the Chambers of Xeric no longer stores all the items in the stack
+
+
+{{Horizontal Line}}
+
+{{Headline|22|The Kebos Lowlands}}
+
+
+A big thanks goes out to everyone for their feedback on the post Kebos launch poll blog and its revised version and those who voted in the recent poll. We've started working on the changes and have made the ones below to kick things off:
+
+'''The Alchemical Hydra'''
+
+The Jar of Chemicals has been added to the Alchemical Hydra's drop table. This drop is additional to the regular loot rolls. The jar can be placed in players own display case found in the Achievement Gallery of the Player owned House as long as you have atleast 1 killcount of the boss. Alongside this, the topiary bush in the superior garden can now be trimmed into the shape of the hydra. This also requires 1 killcount for the Alchemical Hydra Boss.
+
+A shortcut has been added to the Mount Karuulm dungeon. This allows players with 88 Agility to bypass the aggressive monsters between the entrance and the Hydra boss. It takes a similar amount of time to reach the Alchemical Hydra this way as it does to running through the dungeon.
+
+[[File:Chambers of Xeric, Kebos, and Collection Log Changes (4).png|center|375px]]
+
+
+'''Aerial Fishing'''
+
+The rate at which Molch Pearls are obtained now scales from 1/100 to 1/75 based on your Fishing and Hunter levels. 
+
+Alry the Angler at the centre of Lake Molch now sells the Angler outfit at a cost of 100 Molch Pearls a piece.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Unrestricted Worlds Now Open}}
+
+
+New and experienced players alike - join us on Unrestriced worlds to try out any part of Old School you want! Previously known as beta worlds or tournament worlds, we have opened Unrestricted worlds for a limited time in the past. These worlds allow you to engage with content you wouldn't normally, using any stats and gear you choose. When you log in, you'll find yourself in an area with chests full all the gear you could want and a right-click option to set your stats to the desired levels. You may also travel to anywhere in Gielinor. Unrestricted worlds are going live now and are expected to close on the 21st of March.
+
+[[File:Chambers of Xeric, Kebos, and Collection Log Changes (5).png|center|250px]]
+
+
+These will give you the chance to test out any PvP set ups you want to try or have a go against any bosses you'd like to practice. The only exception is the Inferno which will be disabled on these worlds. Additionally, the 6 Jad challenge will be available for those who are brave enough to give it a go! Simply head over to the Yellow Portal just outside and West of the starting area. This also happens to be right infront of the free-for-all portal should you wish to try your hand at PvP without restrictions. This is the perfect chance to practice your skills or start learning to PK.
+
+[[File:Chambers of Xeric, Kebos, and Collection Log Changes (6).png|center|350px]]
+
+
+The rest of Gielinor is also open so feel free to explore and engage with all the content that's out there with any levels and equipment! Note that progress is not saved on these worlds so your character will be temporary and reset each time they log in.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Premier Club Gold}}
+
+[[File:Chambers of Xeric, Kebos, and Collection Log Changes (7).png|center|210px]]
+
+
+Following its continued popularity, we're extending the Gold Premier Club membership package's availability! For more information on our best value membership offer, head over to [https://oldschool.runescape.com/premier-club this page].
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Collection Log Changes}}
+
+[[File:Chambers of Xeric, Kebos, and Collection Log Changes (8).png|center|102px]]
+
+
+Since we released the Collection Log in early December, many of you have begun the enormous task of completing as many sections as possible. As you are enjoying this so much, we've listened to your feedback and added some more!
+
+If you currently own any of the recently added items below or their variants already, they should be automatically marked off in the log. If anything is missed, let us know!
+
+*Metal boots from Bronze to Rune were added to the Slayer group
+*The Graceful set was added to the Rooftop Agility group. We chose not to add all variations of the set because you’re able to recolour the same pieces and sell them back
+*Xeric's Talisman was added to the Miscellaneous group
+*The Crab Claw & Helm were added to the Miscellaneous group
+*Tower of Life satchels and the flask were added to a new "Tower of Life" group under Miscellanous tab
+*The Chompy Chick pet was added to the Bird Hunting group. This already exists under Pets but was duplicated to show on both tabs
+*A high gamble counter in the Barbarian Assault group
+*Zombie boots were added to the Random Event group
+*Fossil Island note pages were added to their own group
+*A new group called My Notes was added. These are pages acquired from killing monsters in the Barbarian Dungeon near the outpost
+*Mystic robes and the Granite Helm were moved from Miscellaneous to the Slayer group
+
+{{Horizontal Line}}
+
+{{Headline|22|Looting Bag Mechanics - UIM}}
+
+
+We are aware of the Looting Bag mechanic in Free to Play which allows UIM players to store an extra inventory's worth of items. This is unintentional and against the spirit of the game mode. Unlike other similar, unintentional cases in the past, this one carries little to no risk. As such, we are treating it as a bug and have decided to fix the issue.
+
+In the interest of fairness and to notify players ahead of time, '''we will include the fix in next weeks update'''. After this, dying in Free to Play will cause Members objects in the Looting Bag to be '''dropped to the ground''' as they do in members worlds. Members objects dropped this way will act as all other dropped items do.
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+
+*A stretching issue with the Ferocious gloves and Torag's platelegs was fixed
+*The Ferocious gloves now provide protection when picking Belladonna
+*Edmond's hand has now been re-attached to his wrist
+*A spelling error when Slayer masters remind you of your task progress was fixed
+*A grammar error in the Hydra pet's dialogue has been fixed
+*The Wintertodt timer no longer has a rogue 0 when showing ther are 10 seconds remaining
+*A typo has been fixed in the compost bin options
+*The range icon has been removed from the world map for the Fishing Platform because the scenery doesn't act as a range
+*The Arceuus essence mine now has a handy chisel spawn
+*Tool Leprechauns now let you remove all your compost in banknote form so you can fill your Bottomless buckets more conveniently. This option is also offered for empty buckets and Plant cures
+*A typo in dialogue during King's Ransom has been fixed
+*The water sink at the Sinclair Mansion has been unclogged and now works properly
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,539,66079979 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For reference on the above content, check out the official [[Wiki]].
+
+'''''Mods Archie, Ash, Bruno, Curse, Ed, Gambit, Ghost, Gee, Kieren, Lenny, Lottie, Mat K, Maz, Munro, Nasty, Roq, Ry, Sween, Tide, Weath, West & Wolf'''''<br/>''The Old School Team

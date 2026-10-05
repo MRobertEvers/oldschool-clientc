@@ -1,0 +1,211 @@
+{{Otheruses|def=no|the amulet|Amulet of glory}}
+[[File:Colosseum_scoreboard_glory_detail.png|thumb|300px|The Glory interface viewed from the colosseum scoreboard.]]
+'''Glory''' is an intangible reward obtained from the [[Fortis Colosseum]]. Players must complete [[Children of the Sun]] to gain access to the Colosseum and increase their Glory.
+
+Every time the player completes a wave, they will earn Glory, in which the amount gained is dependent on the player's performance - damage taken, time spent, errors made, and types of handicaps selected. The player will retain Glory even if they die during a subsequent wave, but not if they teleport out.
+
+The more Glory you have, the more permanent unlocks you have throughout all of [[Varlamore]], where citizens may reward you based on how much has been earned.  It is possible to achieve the title of Grand Champion without full completion of the Colosseum.
+
+Glory is not attained cumulatively; instead, it works on a personal best system. For example, to unlock the bank chest inside the Colosseum, you must earn 2,000 points as your personal best of the whole run.
+
+== Earning Glory ==
+The amount of Glory a player earns in the Colosseum is based on four contributing factors: Completion Bonus, No Damage Bonus, Modifier Points, and Time Bonus.
+{| class="wikitable"
+|+Earning Glory
+!Wave
+!Completion Bonus<ref name="completion-bonus" group="a"/>
+!No Damage Bonus<ref name="no-damage-bonus" group="a"/>
+!Modifier Points<ref name="modifier-points" group="a"/>
+!Minimal cumulative points<ref name="Minimal cumulative points" group="a"/>
+|-
+|1
+|100
+|100
+|200
+|200
+|-
+|2
+|200
+|200
+|450
+|600
+|-
+|3
+|300
+|300
+|700
+|1,200
+|-
+|4
+|400
+|400
+|950
+|2,000
+|-
+|5
+|500
+|500
+|1,150
+|3,000
+|-
+|6
+|600
+|600
+|1,350
+|4,200
+|-
+|7
+|700
+|700
+|1,600
+|5,600
+|-
+|8
+|800
+|800
+|1,800
+|7,250
+|-
+|9
+|900
+|900
+|2,000
+|9,150
+|-
+|10
+|1,000
+|1,000
+|2,200
+|11,300
+|-
+|11
+|1,100
+|1,100
+|2,400
+|13,700
+|-
+|12
+|1,200
+|1,200
+|2,600
+|16,350
+|-
+!style="text-align:left;" | Total:
+!style="text-align:left;" | 7,800
+!style="text-align:left;" | 7,800
+!style="text-align:left;" | 17,400
+!style="text-align:left;" | 16,350
+|}
+<references group="a">
+<ref name="completion-bonus">The completion bonus is always given.</ref>
+<ref name="no-damage-bonus">Only awarded when the player takes no damage from NPCs (not including environmental damage such as Solarflare or molten sand, self-inflicted damage such as divine potions, or the javelin launch from the [[Javelin Colossus]]).</ref>
+<ref name="modifier-points">The maximum possible points based on highest value handicaps. This calculation is based on taking 200-point handicaps (Doom, Frailty, Myopia, Relentless, Totemic) on waves 1, 5, 6, 8, 9, 10, 11, 12, Solar Flare (250 points) on waves 2, 3, 4, and Red Flag (250 points) on wave 7.</ref>
+<ref name="Minimal cumulative points">Assuming the player chooses the three handicaps worth 100 points and their higher tiers in the first seven waves, and any combination of the four handicaps worth 150 points or their higher tiers in the remaining five waves, and additionally completing none of the waves within 5 minutes while taking damage in every single wave, the cumulative minimum is the least amount of points a player can possibly have obtained after completing a given wave.</ref>
+</references>
+
+{| class="wikitable"
+|+Time Bonus
+!Wave
+!Starting Points
+!Points lost per tick (0.6s)<ref name="points-lost" group="b"/>
+|-
+|1
+|500
+|1
+|-
+|2
+|1,000
+|2
+|-
+|3
+|1,500
+|3
+|-
+|4
+|2,000
+|4
+|-
+|5
+|2,500
+|5
+|-
+|6
+|3,000
+|6
+|-
+|7
+|3,500
+|7
+|-
+|8
+|4,000
+|8
+|-
+|9
+|4,500
+|9
+|-
+|10
+|5,000
+|10
+|-
+|11
+|5,500
+|11
+|-
+|12
+|6,000
+|12
+|}
+<references group="b">
+<ref name="points-lost">For example, if Wave 1 takes 30 seconds (50 ticks) the Player will receive a Time Bonus of 450 points. Note that it is impossible to receive an odd-numbered time bonus, and these will be rounded down to the next even number.</ref>
+</references>
+
+The theoretical maximum Glory would be 72,000 if all waves were completed on the first tick. Taking the fastest possible wave completions into account, the likely limit is somewhere between 60,000 - 65,000.
+
+The minimum amount of Glory that one can theoretically complete the Colosseum with is 16,350.
+
+== Rewards ==
+Rewards for increased Glory are unlocked at specific threshold amounts, and come with an associated title. 
+
+The minimal amount of Glory obtained after completing wave 12 is 16,350, meaning that completing wave 12 is not guaranteed to be enough to unlock every reward. Realistically, with more valuable handicaps and reasonable time bonuses, it is more likely that completing wave 7 or 8 would be sufficient to become a Grand Champion.
+
+{| class="wikitable lighttable"
+!Title
+!Glory required
+!Reward <!-- There is only one reward per rank currently. If this changes, rename column and make each Rewards entry a bulleted list. -->
+|-
+|Brawler
+|2,000
+|Ability to use the bank chest inside the Colosseum lobby
+|-
+|Challenger
+|5,000
+|Ability to set Civitas illa Fortis as a [[respawn point]]
+|-
+|Gladiator
+|8,000
+|
+* [[Oriana]] will purchase [[valuables]] for 65 coins each (from 55 coins each)
+* [[Lucia]], [[Oli]], [[Rufus (Civitas illa Fortis)|Rufus]], and [[Ava (Civitas illa Fortis)|Ava]] will freely tell players which house is currently (or about to be) vacant
+|-
+|Hero
+|12,000
+|Ability to teleport to the Colosseum via the [[ring of dueling]]
+|-
+|Champion
+|16,000
+|The [[herb patch]] west of [[Civitas illa Fortis]] will always be [[Disease (Farming)|disease]]-free
+|-
+|Grand Champion
+|20,000
+|Ability to perform the [[Fortis Salute]] emote
+|}
+
+==Glory Expert==
+[[Gloria]] is an expert on matters of Glory. She resides in the atrium of the Fortis Colosseum, wandering near the [[colosseum scoreboard]], which she personally updates. She provides information on how Glory works, the rewards for increased Glory, and she can check the player's current rank (which is also visible on the scoreboard).
+
+== Trivia ==
+
+* With the exception of 'Challenger', the titles associated with Glory tiers also exist in [https://en.uesp.net/wiki/Oblivion:Arena_(faction)#Matches_and_Advancing The Elder Scrolls IV: Oblivion's 'Arena' faction], which is focused on gladiatorial activity.
+{{Fortis Colosseum}}

@@ -1,0 +1,17 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+colosseum_music.song.id	Song unlocked in the Colosseum is cache midi 782, 'Are You Not Entertained?'	782	count	[cache]	A	sources/cache_music.txt:8	-	exact
+colosseum_music.song.unlock_hint	Cache unlock hint text of song 782	in the Fortis Colosseum.	text	[cache]	A	sources/cache_music.txt:8	-	exact
+colosseum_music.song.unlock_trigger	Song 782 unlocks only upon starting the first wave, not by simply entering the colosseum	first_wave_start	text	[wiki]	D	sources/wiki/wiki_Are_You_Not_Entertained.wikitext:20	-	exact
+colosseum_music.song.unlock_not_on_entry	Entering the arena or lobby without starting wave 1 does not unlock song 782	0	count	[wiki]	D	sources/wiki/wiki_Are_You_Not_Entertained.wikitext:20	-	exact
+colosseum_music.song.unlock_once	The unlock is a one-time music-list flag; later runs do not change it (standard music unlock, no source states otherwise)	1	count	[wiki]	D	sources/wiki/wiki_Are_You_Not_Entertained.wikitext:20	-	exact
+colosseum_music.song.region_tiles_x	Wiki map polygon for the track spans x 1807-1842 (arena footprint)	1807-1842	tiles	[wiki]	D	sources/wiki/wiki_Are_You_Not_Entertained.wikitext:17	M45	range
+colosseum_music.song.region_tiles_y	Wiki map polygon for the track spans y 3089-3125	3089-3125	tiles	[wiki]	D	sources/wiki/wiki_Are_You_Not_Entertained.wikitext:17	M45	range
+colosseum_music.song.region_id	The polygon lies in region 7216 only (x>>6=28, y>>6=48); region 7316 named by the plan is not in the wiki polygon; docs/audio/music_regions.tsv has no row for either	7216	count	[wiki][M45]	E	sources/wiki/wiki_Are_You_Not_Entertained.wikitext:17; sources/cache_music.txt:8	M45	approx
+colosseum_music.song.plays_in_lobby	Whether song 782 plays in the lobby, the arena or both, and which tiles switch it on	?	text	[M45]	E	sources/wiki/wiki_Are_You_Not_Entertained.wikitext:17	M45	approx
+colosseum_music.song.wiki_number_conflict	Wiki infobox 'number' is 760 but its cacheid is 782; the cache id 782 binds (cache is grade A)	782	count	[cache][wiki]	A	sources/cache_music.txt:8; sources/wiki/wiki_Are_You_Not_Entertained.wikitext:3	-	exact
+colosseum_music.song.quest_unlock	The wiki also states the track unlocks during the quest Meat and Greet (a quest-side unlock, not a Colosseum run)	1	count	[wiki]	D	sources/wiki/wiki_Are_You_Not_Entertained.wikitext:22	-	exact
+colosseum_music.jingle.id	Jingle 305 is glorious_champion_fortis_colosseum	305	count	[cache]	A	sources/cache_music.txt:4	-	exact
+colosseum_music.jingle.trigger_sol_death	The jingle plays on defeating Sol Heredit (completing wave 12)	wave_12_complete	text	[wiki]	D	sources/wiki/wiki_Glorious_Champion_Fortis_Colosseum.wikitext:19	-	exact
+colosseum_music.jingle.duration	The jingle's length on the wiki infobox (mm:ss)	00:13	text	[wiki]	D	sources/wiki/wiki_Glorious_Champion_Fortis_Colosseum.wikitext:11	-	exact
+colosseum_music.jingle.not_other_waves	The jingle is not played on waves 1-11 (the wiki ties it to wave 12 only)	0	count	[wiki]	D	sources/wiki/wiki_Glorious_Champion_Fortis_Colosseum.wikitext:19	-	exact
+colosseum_music.jingle.tick_after_death	Tick offset of the jingle from Sol's death animation or the final hitsplat	?	ticks	[M45]	E	sources/wiki/wiki_Glorious_Champion_Fortis_Colosseum.wikitext:19	M45	approx

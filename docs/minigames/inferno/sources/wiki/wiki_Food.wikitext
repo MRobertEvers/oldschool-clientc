@@ -1,0 +1,619 @@
+{{external|rs|rsc|dw}}
+{{Otheruses|a full list of all healing items|/All food|def=no}}
+'''Food''' is a type of [[Items|item]] primarily used to restore the player's [[Hitpoints]], though some foods may have other effects. Food can be obtained through the [[Cooking]] skill, as a drop from certain [[monster]]s, from some [[random events]] such as the [[Sandwich lady]], from other players, or from [[non-player character]]s. There are also foods which can be grown with the [[Farming]] skill or found in some farm areas such as [[potato]]es, [[cabbage]]s, and [[onion]]s. Lastly, there are [[holiday items|holiday]] food items such as [[pumpkin]]s and [[easter egg]]s. It is not advised to eat one of these holiday items due to their low availability and high price.
+
+There are many different kinds of food, such as [[fish]] and [[meat]], [[bread]], [[cake]]s, [[pie]]s, and [[pizza]]. Some food items, such as pies and pizzas, have two or more "bites" or "slices" meaning they can be eaten multiple times.
+
+Most food will delay your next attack or food consumption by 3 [[ticks]] (1.8 seconds) when consumed. Foods which incur non-standard attack or eating delays are called [[Food/Fast foods|fast foods]].
+
+==Popular foods==
+{{see also|Food/All food}}
+This list only includes some of the most popular foods. You can find a list of all foods [[Food/All_food|here]], and a list of all cooked foods under the [[Cooking]] skill.
+{| class="wikitable sortable align-center-1 align-right-6 align-right-7"
+! colspan=2 |Food
+!Heals
+! data-sort-type=number |Skills<br/>Needed
+!Notes
+!GP per heal{{efn|GP per heal on food that take multiple bites indicate the total hitpoints healed, rather than per bite or dose.}}
+!GE price
+!Members
+|-
+|{{plinkt|Shrimps}}
+|3
+|{{SCP|Cooking|1}} {{SCP|Fishing|1}}
+|Caught via [[Small fishing net|small net]] fishing. Commonly used for very early game combat.
+|{{Coins|{{GEP|Shrimps}}/3}}
+|{{Coins|{{GEP|Shrimps}}}}
+|{{members|No}}
+|-
+|{{plinkt|Cooked chicken}}
+|3
+|{{SCP|Cooking|1}}
+|Raw chicken is obtained by killing [[chicken]]s. Commonly used for very early game combat.
+|{{Coins|{{GEP|Cooked chicken}}/3}}
+|{{Coins|{{GEP|Cooked chicken}}}}
+|{{members|No}}
+|-
+|{{plinkt|Cooked meat}}
+|3
+|{{SCP|Cooking|1}}
+|Raw meat can be obtained by killing [[cow]]s or [[giant rat]]s. Commonly used for very early game combat.
+|{{Coins|{{GEP|Cooked meat}}/3}}
+|{{Coins|{{GEP|Cooked meat}}}}
+|{{members|No}}
+|-
+|{{plinkt|Sardine}}
+|4
+|{{SCP|Cooking|1}} {{SCP|Fishing|5}}
+|Caught via [[bait fishing]]. 
+|{{Coins|{{GEP|Sardine}}/4}}
+|{{Coins|{{GEP|Sardine}}}}
+|{{members|No}}
+|-
+|{{plinkt|Bread}}
+|5
+|{{SCP|Cooking|1}}
+|Baked by players, see [[Cooking]] skill.
+Can be [[Thieving|stolen]] from [[East Ardougne#Marketplace|East Ardougne]], [[Keldagrim]], [[Kourend Castle]] and [[Hosidius]] Farmers' Market.
+|{{Coins|{{GEP|Bread}}/5}}
+|{{Coins|{{GEP|Bread}}}}
+|{{members|No}}
+|-
+|{{plinkt|Herring}}
+|5
+|{{SCP|Cooking|5}} {{SCP|Fishing|10}}
+|Caught via [[bait fishing]].
+|{{Coins|{{GEP|Herring}}/5}}
+|{{Coins|{{GEP|Herring}}}}
+|{{members|No}}
+|-
+|{{plinkt|Mackerel}}
+|6
+|{{SCP|Cooking|10}} {{SCP|Fishing|16}}
+|Caught via big net fishing.
+|{{Coins|{{GEP|Mackerel}}/6}}
+|{{Coins|{{GEP|Mackerel}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Trout}}
+|7
+|{{SCP|Cooking|15}} {{SCP|Fishing|20}}
+|Caught via [[fly fishing]].
+|{{Coins|{{GEP|Trout}}/7}}
+|{{Coins|{{GEP|Trout}}}}
+|{{members|No}}
+|-
+|{{plinkt|Pike}}
+|8
+|{{SCP|Cooking|20}} {{SCP|Fishing|25}}
+|Caught via bait fishing.
+|{{Coins|{{GEP|Pike}}/8}}
+|{{Coins|{{GEP|Pike}}}}
+|{{members|No}}
+|-
+|{{plinkt|Peach}}
+|8
+|{{SCP|Magic|60}}
+|Created with the [[Bones to Peaches]] magic spell or tablet after unlocking it from the [[Mage Training Arena]].<br/>Replenishable food source when bones are available.
+|{{Coins|(({{GEP|Nature rune}} * 2)+({{GEP|Water rune}} * 4)+({{GEP|Earth rune}} * 4))/ 10 / 8}}
+|{{Coins|({{GEP|Nature rune}} * 2)+({{GEP|Water rune}} * 4)+({{GEP|Earth rune}} * 4)}}{{efn|Estimate: Converting 10 bones with one spell.}}
+|{{members|Yes}}
+|-
+|{{plinkt|Red crab meat}}
+|8
+|{{SCP|Cooking|21}} {{SCP|Hunter|21}}
+|Caught via [[crab trapping]].
+|{{Coins|{{GEP|Red crab meat}}/8}}
+|{{Coins|{{GEP|Red crab meat}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Salmon}}
+|9
+|{{SCP|Cooking|25}} {{SCP|Fishing|30}}
+|Caught via fly fishing.
+|{{Coins|{{GEP|Salmon}}/9}}
+|{{Coins|{{GEP|Salmon}}}}
+|{{members|No}}
+|-
+|{{plinkt|Cooked t-bone steak}}
+|9
+|{{SCP|Cooking|13}}
+|Dropped by [[Brutus]].<br/>[[Boost]]s [[Strength ]] by 2.
+|{{Coins|{{GEP|Cooked t-bone steak}}/9}}
+|{{Coins|{{GEP|Cooked t-bone steak}}}}
+|{{members|No}}
+|-
+|{{plinkt|Tuna}}
+|10
+|{{SCP|Cooking|30}} {{SCP|Fishing|35}}
+|Caught with a [[harpoon]].
+|{{Coins|{{GEP|Tuna}}/10}}
+|{{Coins|{{GEP|Tuna}}}}
+|{{members|No}}
+|-
+|{{plinkt|Jug of wine}}
+|11
+|{{SCP|Cooking|35}}
+|Upon consumption, [[Attack]] is temporarily decreased by 2 points and leaves a jug behind. <br/>Can be purchased for {{coins|1}} from a variety of shops, either from the [[Free-to-play]] accessible [[Fortunato]], or the infinite stock pubs available in [[Varlamore]], such as [[The Flaming Arrow]]. Has a notably higher weight of 1.5kg compared to most other foods.
+|{{Coins|{{GEP|Jug of wine}}/11}}
+|{{Coins|{{GEP|Jug of wine}}}}
+|{{members|No}}
+|-
+|{{plinkt|Cake}}
+| data-sort-value=12 |4 × 3
+|{{SCP|Cooking|40}}
+|Baked by players, see [[Cooking]] skill.<br/>Heals 4 Hitpoints per bite (3 bites total).<br/>Can be [[Thieving|stolen]] from [[East Ardougne#Marketplace|East Ardougne]], [[Keldagrim]], [[Kourend Castle]] and [[Hosidius]] Farmers' Market. 
+|{{Coins|{{GEP|Cake}}/12}}
+|{{Coins|{{GEP|Cake}}}}
+|{{members|No}}
+|-
+|{{plinkt|Meat pie}}
+| data-sort-value=12 |6 × 2
+|{{SCP|Cooking|20}}
+|Baked by players, see [[Cooking]] skill. Can be purchased in the [[Cooks' Guild]] for {{coins|15}}.<br/>Heals 6 Hitpoints per bite (2 bites total). After eating it, a pie dish will remain.
+|{{Coins|{{GEP|Meat pie}}/12}}
+|{{Coins|{{GEP|Meat pie}}}}
+|{{members|No}}
+|-
+|{{plinkt|Lobster}}
+|12
+|{{SCP|Cooking|40}} {{SCP|Fishing|40}}
+|Caught with a [[lobster pot]].
+|{{Coins|{{GEP|Lobster}}/12}}
+|{{Coins|{{GEP|Lobster}}}}
+|{{members|No}}
+|-
+|{{plinkt|Bass}}
+|13
+|{{SCP|Cooking|43}} {{SCP|Fishing|46}}
+|Caught via [[Big fishing net|big net]] fishing.
+|{{Coins|{{GEP|Bass}}/13}}
+|{{Coins|{{GEP|Bass}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Plain pizza}}
+| data-sort-value=14 |7 × 2
+|{{SCP|Cooking|35}}
+|Baked by players, see [[cooking]] skill.<br/>Heals 7 Hitpoints per bite (2 bites total).
+|{{Coins|{{GEP|Plain pizza}}/14}}
+|{{Coins|{{GEP|Plain pizza}}}}
+|{{members|No}}
+|-
+|{{plinkt|Swordfish}}
+|14
+|{{SCP|Cooking|45}} {{SCP|Fishing|50}}
+|Caught with a [[harpoon]]. Best single bite food item for [[Free-to-play]].
+|{{Coins|{{GEP|Swordfish}}/14}}
+|{{Coins|{{GEP|Swordfish}}}}
+|{{members|No}}
+|-
+|{{plinkt|Blue crab meat}}
+|14
+|{{SCP|Cooking|48}} {{SCP|Hunter|48}}
+|Caught via [[crab trapping]].
+|{{Coins|{{GEP|Blue crab meat}}/14}}
+|{{Coins|{{GEP|Blue crab meat}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Apple pie}}
+| data-sort-value=14 |7 × 2
+|{{SCP|Cooking|30}}
+|Made by using a [[cooking apple]] on a [[pie shell]] to make an [[uncooked apple pie]] and cooking it. Can be purchased in the [[Cooks' Guild]] for {{coins|30}}.<br/>Heals 7 Hitpoints per bite (2 bites total). After eating it, a pie dish will remain.
+|{{Coins|{{GEP|Apple pie}}/14}}
+|{{Coins|{{GEP|Apple pie}}}}
+|{{members|No}}
+|-
+|{{plinkt|Chocolate cake}}
+| data-sort-value=15 |5 × 3
+|{{SCP|Cooking|50}}
+|Made by adding [[chocolate dust]] to [[cake]].<br/>Heals 5 Hitpoints per bite (3 bites total).<br/>[[Chocolate cake#Slice|1/3 slice]] can be [[Thieving|stolen]] from [[East Ardougne#Marketplace|East Ardougne]], [[Keldagrim]], [[Kourend Castle]] and [[Hosidius]] Farmers' Market.
+|{{Coins|{{GEP|Chocolate cake}}/15}}
+|{{Coins|{{GEP|Chocolate cake}}}}
+|{{members|No}}
+|-
+|{{plinkt|Swordtip squid}}
+|15
+|{{SCP|Cooking|56}} {{SCP|Fishing|52}}
+|Caught via [[Lantern harpooning]]
+|{{Coins|{{GEP|Swordtip_squid}}/15}}
+|{{Coins|{{GEP|Swordtip_squid}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Snowy_knight_(item)|txt=Snowy knight}}
+| 15
+|{{SCP|Hunter|35}}
+|Caught via hunter while having a [[Butterfly jar]].<br/>Can be released to restore 15 Hitpoints.<br/>Use on another player with accept aid turned on to heal them and up to 3 other players in a 5x5 area around them (including yourself), healing up to 60 Hitpoints total.<br/>Will not increase the delay before your next attack.
+|{{Coins|{{GEP|Snowy_knight_(item)}}/15}}
+|{{Coins|{{GEP|Snowy_knight_(item)}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Potato with cheese}}
+|16
+|{{SCP|Cooking|47}}
+|Made by using [[cheese]] on a [[potato with butter]].<br/>Can be purchased from the [[Warriors' Guild]] for {{coins|9}}, requiring a combined [[Attack]] and [[Strength]] level of 130 to access.
+|{{Coins|{{GEP|Potato with cheese}}/16}}
+|{{Coins|{{GEP|Potato with cheese}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Monkfish}}
+|16
+|{{SCP|Cooking|62}} {{SCP|Fishing|62}}
+|Caught via small net fishing in the [[Piscatoris Fishing Colony]] after the completion of the [[Swan Song]].
+|{{Coins|{{GEP|Monkfish}}/16}}
+|{{Coins|{{GEP|Monkfish}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Ixcoztic white}}
+| 16
+| {{NA}}
+|Purchased from [[Moonrise Wines]] for {{coins|100}}.<br/>Upon consumption, [[Attack]] is temporarily decreased by 5, [[Herblore]] by 1, and [[Farming]] is temporarily boosted by 1.
+|{{Coins|{{GEP|Ixcoztic white}}/16}}
+|{{Coins|{{GEP|Ixcoztic white}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Giant krill}}
+|17
+|{{SCP|Cooking|69}} {{SCP|Fishing|69}}
+|Caught with a [[fishing rod]] or via [[deep sea trawling]]. 
+|{{Coins|{{GEP|Giant krill}}/17}}
+|{{Coins|{{GEP|Giant krill}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Jumbo squid}}
+|17
+|{{SCP|Cooking|71}} {{SCP|Fishing|69}}
+|Caught via [[Lantern harpooning]]
+|{{Coins|{{GEP|Jumbo_squid}}/17}}
+|{{Coins|{{GEP|Jumbo_squid}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Cooked kyatt}}
+| data-sort-value=17 |9 + 8
+|{{SCP|Cooking|51}} {{SCP|Hunter|55}}
+|Caught via hunter. If a second hunter meat is eaten before the effect happens, only the most recent secondary heal will occur.
+|{{Coins|{{GEP|Cooked kyatt}}/17}}
+|{{Coins|{{GEP|Cooked kyatt}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Anchovy pizza}}
+| data-sort-value=18 |9 × 2
+|{{SCP|Cooking|55}}
+|Made by using [[anchovies]] on a [[plain pizza]].<br/>Heals 9 Hitpoints per bite (2 bites total). <br/>Highest healing food per inventory slot for [[Free-to-play]]
+|{{Coins|{{GEP|Anchovy pizza}}/18}}
+|{{Coins|{{GEP|Anchovy pizza}}}}
+|{{members|No}}
+|-
+|{{plinkt|Cooked karambwan}}
+|18
+|{{SCP|Cooking|30}} {{SCP|Fishing|65}}
+|A [[karambwan vessel]] and completion of [[Tai Bwo Wannai Trio]] required to fish and cook it properly.<br/>Can be eaten in the same [[tick]] as another piece of food, allowing for combo eating.<br/>Shorter attack delay than most other food (2 ticks instead of 3).
+|{{Coins|{{GEP|Cooked karambwan}}/18}}
+|{{Coins|{{GEP|Cooked karambwan}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Haddock}}
+|18
+|{{SCP|Cooking|73}} {{SCP|Fishing|73}}
+|Caught with a [[fishing rod]] or via [[deep sea trawling]].
+Can boost Hitpoints above maximum, capped at the lesser of 20% or 10HP.
+|{{Coins|{{GEP|Haddock}}/18}}
+|{{Coins|{{GEP|Haddock}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Curry}}
+|19
+|{{SCP|Cooking|60}}
+|Commonly used for fighting the [[Chaos Elemental]]. Once eaten, an empty bowl remains in the inventory. Has a notably higher weight of 1.5kg compared to most other foods.
+|{{Coins|{{GEP|Curry}}/19}}
+|{{Coins|{{GEP|Curry}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Rainbow crab meat}}
+|19
+|{{SCP|Cooking|77}} {{SCP|Hunter|77}}
+|Caught via [[crab trapping]].
+|{{Coins|{{GEP|Rainbow crab meat}}/19}}
+|{{Coins|{{GEP|Rainbow crab meat}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Yellowfin}}
+|19
+|{{SCP|Cooking|79}} {{SCP|Fishing|79}}
+|Caught with a [[fishing rod]] or via [[deep sea trawling]].
+Restores 20% [[Energy]] when eaten. 
+|{{Coins|{{GEP|Yellowfin}}/19}}
+|{{Coins|{{GEP|Yellowfin}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Cooked pyre fox}}
+| data-sort-value=19 |11 + 8
+|{{SCP|Cooking|59}} {{SCP|Hunter|57}}
+|Caught via hunter. If a second hunter meat is eaten before the effect happens, only the most recent secondary heal will occur.
+|{{Coins|{{GEP|Cooked pyre fox}}/19}}
+|{{Coins|{{GEP|Cooked pyre fox}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Guthix rest}}
+| data-sort-value=20 |5 × 4
+|{{SCP|Herblore|18}}
+|Requires partial completion of [[One Small Favour]] to make and consume.<br/>Can boost 5 Hitpoints above max. Restores 5% run energy and reduces [[poison]] damage by 1 and reduces [[venom]] to poison.<br/>In many cases, it may not be considered food as it is a [[Herblore#Potions|potion]] made with the [[Herblore]] skill; however in some raids, it is a food and cannot be consumed.<br/>Will not increase the delay until your next attack.
+|{{Coins|{{GEP|Guthix rest(4)}}/20}}
+|{{Coins|{{GEP|Guthix rest(4)}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Shark}}
+|20
+|{{SCP|Cooking|80}} {{SCP|Fishing|76}}
+|Caught with a [[harpoon]] or traded for with [[minnows]].
+|{{Coins|{{GEP|Shark}}/20}}
+|{{Coins|{{GEP|Shark}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Halibut}}
+|20
+|{{SCP|Cooking|83}} {{SCP|Fishing|83}}
+|Caught with a [[fishing rod]] or via [[deep sea trawling]].<br/>Can be eaten in the same [[tick]] as another piece of food, allowing for combo eating.<br/>Shorter attack delay than most other food (2 ticks instead of 3).
+|{{Coins|{{GEP|Halibut}}/20}}
+|{{Coins|{{GEP|Halibut}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Dragonfruit pie}}
+| data-sort-value=20 |10 × 2
+|{{SCP|Cooking|73}}
+|Heals 10 Hitpoints per bite (2 bites total).<br/>[[Boost]]s [[Fletching ]] by 4.
+|{{Coins|{{GEP|Dragonfruit pie}}/20}}
+|{{Coins|{{GEP|Dragonfruit pie}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Sea turtle}}
+|21
+|{{SCP|Cooking|82}} {{SCP|Fishing|79}}
+|Can be caught from the [[Fishing Trawler|Fishing Trawler minigame]], [[Tempoross]], [[drift net fishing]].
+Drops noted from [[Larran's small chest]], [[Larran's big chest]], and the [[Brimstone chest]].
+|{{Coins|{{GEP|Sea turtle}}/21}}
+|{{Coins|{{GEP|Sea turtle}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Cooked sunlight antelope}}
+| data-sort-value=21 |12 + 9
+|{{SCP|Cooking|68}} {{SCP|Hunter|72}}
+|Caught via hunter. If a second hunter meat is eaten before the effect happens, only the most recent secondary heal will occur.
+|{{Coins|{{GEP|Cooked sunlight antelope}}/21}}
+|{{Coins|{{GEP|Cooked sunlight antelope}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Pineapple pizza}}
+| data-sort-value=22 |11 × 2
+|{{SCP|Cooking|65}}
+|Made by using [[pineapple chunks]] or [[pineapple rings|rings]] on a [[plain pizza]].<br/>Heals 11 Hitpoints per bite (2 bites total). <br/>Useful for having a much lower Cooking requirement than similarly high-healing foods.
+|{{Coins|{{GEP|Pineapple pizza}}/22}}
+|{{Coins|{{GEP|Pineapple pizza}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Summer pie}}
+| data-sort-value=22 |11 × 2
+|{{SCP|Cooking|95}}
+|Heals 11 Hitpoints per bite (2 bites total).<br/>[[Boost]]s [[Agility]] by 5, and restores 10% [[energy|run energy]]. After eating it, a pie dish will remain. Notably has an extremely low weight of 0.001kg.
+|{{Coins|{{GEP|Summer pie}}/22}}
+|{{Coins|{{GEP|Summer pie}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Wild pie}}
+| data-sort-value=22 |11 × 2
+|{{SCP|Cooking|85}}
+|Heals 11 Hitpoints per bite (2 bites total).<br/>[[Boost]]s [[Slayer]] by 5, and [[Ranged]] by 4. After eating it, a pie dish will remain. Notably has an extremely low weight of 0.001kg.
+|{{Coins|{{GEP|Wild pie}}/22}}
+|{{Coins|{{GEP|Wild pie}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Manta ray}}
+|22
+|{{SCP|Cooking|91}}{{SCP|Fishing|81}}
+|Can be caught with fishing from [[Fishing Trawler]] [[minigame]], [[drift net fishing]], [[Tempoross]]<br/> Drops from [[Zulrah]], [[Vorkath]], and the [[Tombs of Amascut]].
+|{{Coins|{{GEP|Manta ray}}/22}}
+|{{Coins|{{GEP|Manta ray}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Tuna potato}}
+|22
+|{{SCP|Cooking|68}}
+|Made by using [[tuna and corn]] on a [[potato with butter]]. <br/>Useful for having a much lower Cooking requirement than similarly high-healing foods.
+|{{Coins|{{GEP|Tuna potato}}/22}}
+|{{Coins|{{GEP|Tuna potato}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Dark crab}}
+|22
+|{{SCP|Cooking|90}} {{SCP|Fishing|85}}
+|Caught by using a [[lobster pot]] with [[dark fishing bait]].<br/>Can only be fished in the [[Wilderness]] and the [[Resource Area]].
+|{{Coins|{{GEP|Dark crab}}/22}}
+|{{Coins|{{GEP|Dark crab}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Bluefin}}
+|22
+|{{SCP|Cooking|87}} {{SCP|Fishing|86}}
+|Caught with a [[fishing rod]] or via [[deep sea trawling]]. Also restores 5 prayer points.
+|{{Coins|{{GEP|Bluefin}}/22}}
+|{{Coins|{{GEP|Bluefin}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Anglerfish}}
+| data-sort-value=22 |3 to 22
+|{{SCP|Cooking|84}} {{SCP|Fishing|82}}
+|Caught by using a [[fishing rod]] with [[sandworms]].<br/>Healing dependent on the player's [[Hitpoints]] level (complex, [[Anglerfish#Formula for healing|see page]])<br/>Can boost Hitpoints above maximum equal to the amount it heals.
+|{{Coins|{{GEP|Anglerfish}}/22}} – {{Coins|{{GEP|Anglerfish}}/3}}
+|{{Coins|{{GEP|Anglerfish}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Cooked dashing kebbit}}
+| data-sort-value=23 |13 + 10
+|{{SCP|Cooking|82}} {{SCP|Hunter|69}}
+|Heals 13 [[Hitpoints]] immediately, then an additional 10 Hitpoints and 10 run energy after 7 ticks (4.2 seconds). If a second hunter meat is eaten before the secondary healing effect happens, only the most recent secondary heal will occur. Caught via hunter.
+|{{Coins|{{GEP|Cooked dashing kebbit}}/23}}
+|{{Coins|{{GEP|Cooked dashing kebbit}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Marlin}}
+|24
+|{{SCP|Cooking|91}} {{SCP|Fishing|91}}
+|Caught with a [[fishing rod]] or via [[deep sea trawling]].
+Requires having built an [[Eternal brazier]] on your boat to catch.
+|{{Coins|{{GEP|Marlin}}/24}}
+|{{Coins|{{GEP|Marlin}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Cooked moonlight antelope}}
+| data-sort-value=26 |14 + 12
+|{{SCP|Cooking|92}} {{SCP|Hunter|91}}
+|Heals 14 Hitpoints immediately, then 7 ticks (4.2 seconds) later it will heal 12 more, additionally curing poison/reducing venom to poison. If a second hunter meat is eaten before the secondary healing effect happens, only the most recent secondary heal will occur. Caught via hunter.
+|{{Coins|{{GEP|Cooked moonlight antelope}}/26}}
+|{{Coins|{{GEP|Cooked moonlight antelope}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Strawberries|txt=Basket of strawberries}}
+| data-sort-value=30 |(1&nbsp;to&nbsp;6)&nbsp;×&nbsp;5
+|{{SCP|Farming|31}}
+|Contains 5 strawberries, each of which heals 1-6 Hitpoints (1 + 6% of hp).<br/>[[Strawberry]] spawn at [[Shayziens' Wall]] in [[Great Kourend]] for no requirements.
+|{{Coins|{{GEP|Strawberries(5)}}/30}} – {{Coins|{{GEP|Strawberries(5)}}/5}}
+|{{Coins|{{GEP|Strawberries(5)}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Armadyl brew}}
+| data-sort-value=44 |(2&nbsp;to&nbsp;11)&nbsp;×&nbsp;4
+|{{SCP|Herblore|89}}
+|Drunk in 4 sips, each healing for <math>Hitpoints * \frac{10}{100} + 2</math> and can boost health above the maximum value.<br/>Boosts [[Ranged]] by <math>Ranged * \frac{10}{100} + 4</math>.<br/>Due to it lowering offensive stats, it is typically used with [[super restore]] potions.<br/>It is not considered food as it is a [[Herblore#Potions|potion]] made with the [[Herblore]] skill.<br/>Will not increase the delay before your next attack.
+|{{Coins|{{GEP|Armadyl brew(4)}}/(11*4)}} – {{Coins|{{GEP|Armadyl brew(4)}}/(3*4)}}
+|{{Coins|{{GEP|Armadyl brew(4)}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Saradomin brew}}
+| data-sort-value=64 |(3&nbsp;to&nbsp;16)&nbsp;×&nbsp;4
+|{{SCP|Herblore|81}}
+|Drunk in 4 sips, each healing for <math>Hitpoints * \frac{15}{100} + 2</math> and can boost health above the maximum value.<br/>Due to it lowering offensive stats, it is typically used with [[super restore]] potions.<br/>It is not considered food as it is a [[Herblore#Potions|potion]] made with the [[Herblore]] skill.<br/>Will not increase the delay before your next attack.
+|{{Coins|{{GEP|Saradomin brew(4)}}/(16*4)}} – {{Coins|{{GEP|Saradomin brew(4)}}/(3*4)}}
+|{{Coins|{{GEP|Saradomin brew(4)}}}}
+|{{members|Yes}}
+|}
+{{Notelist}}
+
+==Wilderness-only foods==
+[[Blighted]] foods can '''only''' be consumed in the [[Wilderness]], [[Ferox Enclave]], [[Mage Arena bank]], [[PvP world|PvP Worlds]], [[Castle Wars]] lobby, and [[Clan Wars]].
+{| class="wikitable sortable align-center-1"
+! colspan=2 |Food
+!Heals
+! data-sort-type=number |Skills<br/>Needed
+!Notes
+!GP per heal
+!GE price
+!Members
+|-
+|{{plinkt|Blighted karambwan}}
+|18
+|{{NA}}
+|Can only be eaten in the [[Wilderness]] and other [[PvP]] locations.<br/>Purchased from the [[Soul Wars Reward Shop]] or [[Justine's stuff for the Last Shopper Standing]].
+Can be acquired from Castle wars supply crates in quantities 35-45.<br/>Can be eaten in the same [[tick]] as another piece of food, allowing for combo eating.<br/>Shorter attack delay than most other food (2 ticks instead of 3).
+|{{Coins|{{GEP|Blighted karambwan}}/18}}
+|{{Coins|{{GEP|Blighted karambwan}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Blighted manta ray}}
+|22
+|{{NA}}
+|Can only be eaten in the [[Wilderness]] and other [[PvP]] locations.<br/>Purchased from the [[Soul Wars Reward Shop]] or [[Justine's stuff for the Last Shopper Standing]].
+Can be acquired from Castle wars supply crate in quantities 15-25.
+|{{Coins|{{GEP|Blighted manta ray}}/22}}
+|{{Coins|{{GEP|Blighted manta ray}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Blighted anglerfish}}
+| data-sort-value=22 |3 to 22
+|{{NA}}
+|Can only be eaten in the [[Wilderness]] and other [[PvP]] locations.<br/>Purchased from the [[Soul Wars Reward Shop]] or [[Justine's stuff for the Last Shopper Standing]].
+Can be acquired from Castle wars supply crates in quantities 25-35.<br />Healing dependent on the player's [[Hitpoints]] level and can boost hitpoints above one's maximum equal to the amount it heals providing that the player is not in combat with another player or NPC.
+|{{Coins|{{GEP|Blighted anglerfish}}/22}} – {{Coins|{{GEP|Blighted anglerfish}}/3}}
+|{{Coins|{{GEP|Blighted anglerfish}}}}
+|{{members|Yes}}
+|}
+
+==Fast foods==
+{{main|Food/Fast foods}}
+Fast foods refer to a subtype of food that incur non-standard attack or eating delays when they are consumed. This means you may be able to eat them faster, or attack more quickly after eating one than you could with other foods.
+*For comparison with the chart below, most foods add a 3-tick (1.8 second) penalty to when a player may attack, or eat again.
+
+===Combo eating===
+Combo eating is a strategy that allows the healing effect from multiple foods to apply in a single server tick. The most common example involves eating a [[cooked karambwan]] or [[halibut]] directly after eating another non-combo food. This consumes both foods and applies healing instantly.
+{{Fast_foods_table}}
+
+==Hunter meats==
+Hunter meats, when eaten, will heal an initial amount before doing so again after 7 ticks (4.2 seconds), making it heal more Hitpoints overall than other foods in its level bracket. If a second hunter meat is eaten before the effect happens, only the most recent secondary heal will occur. The secondary effect will not be cancelled when eating other foods such as [[manta ray]]s or [[cooked karambwan]]s, however.
+
+By default, players with the appropriate [[Cooking]] level can cook low tier hunter meat, but higher quality meats require having completed a set amount of [[Hunters' Rumours]] before being able to cook them.
+{{Hunter meats table}}
+
+== Inventory-blocking foods ==
+{{Main|Inventory_blocking_food}}
+Some foods leave behind an item in the [[inventory]] after being consumed. They are commonly used while fighting the [[Chaos Elemental]], [[Chaos Fanatic]], and [[blackjacking]] in [[Pollnivneach]].
+
+==Niche foods==
+These foods can be more useful than the more commonly used foods, but will usually only see use in more niche scenarios due to their high cost, low trade volume, difficulty to obtain, or limited use cases. Some uses would include speed, endurance, or low-level challenges for various bosses, supplementing other food as a means to perform specific strategies, or [[Ironman mode|Ironmen]] who do not wish to train Cooking very high.
+{| class="wikitable sortable align-center-1"
+! colspan=2 |Food
+!Heals
+! data-sort-type=number |Skills<br/>Needed
+!Notes
+!GP per heal{{efn|GP per heal on food that take multiple bites indicate the total hitpoints healed, rather than per bite or dose.}}
+!GE price
+!Members
+|-
+|{{plinkt|Moonlight mead(m) (keg)}}
+|6 × 4
+|{{SCP|Cooking|44}} {{SCP|Farming|72}}
+|Can heal 24 Hitpoints per inventory slot, weighs almost nothing, and has a very low Cooking requirement for its healing amount. <br/>Extremely expensive and has almost no daily trade volume. Creating it is a slow process with a low chance of success, see [[Brewing]].
+|{{Coins|{{GEP|Moonlight mead(m4)}}/24}}
+|{{Coins|{{GEP|Moonlight mead(m4)}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Purple sweets}}
+|1 to 3
+|{{NA}}
+|Restores 10% run energy per sweet, and can be stacked to heal thousands in one inventory slot.<br/>Only obtainable from [[Treasure Trails]] in small quantities, making them very expensive to use.
+|{{Coins|{{GEP|Purple sweets}}/3}} – {{Coins|{{GEP|Purple sweets}}}}
+|{{Coins|{{GEP|Purple sweets}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Onions(10)}}
+|1 × 10 or<br/>5 × 10
+|None or<br/>{{SCP|Cooking|42}}
+|Restores only 1 Hitpoint per [[Onion]], but is useful as a cheaper and more consistent option than [[Purple sweets]] for [[tick eating]], though it requires more inventory management in order to empty the sack and then eat.<br/>Without additional tools they are only practical for this purpose, as using these as a primary source of healing is slow.<br/>When combined with a [[knife]], [[bowl]], a means to cook it, and enough time out of combat to cook it, they can be made into [[Fried onions]], allowing each sack to heal 50 Hitpoints.
+|{{Coins|{{GEP|Onions(10)}}/10}} or<br/>{{Coins|{{GEP|Onions(10)}}/50}}
+|{{Coins|{{GEP|Onions(10)}}}}
+|{{members|Yes}}
+|}
+{{Notelist}}
+==Notes==
+When selecting the right food for your next venture, two things should be thought about.
+*'''Effectiveness:''' Ensure that the food you take is good enough for your next encounter. [[Tuna]] is cheap but it only heals 10 Hitpoints, making it not the most effective against stronger opponents, whereas [[swordfish]] heal 14 Hitpoints, a major difference. Also, if you know exactly what you're going to be facing, you should try to find food that ''heals for more than their max hit''. As an example, a [[TzHaar-Ket]] has a max hit of 16. Therefore, [[sharks]] and [[monkfish]] are effective, swordfish are passable, and [[lobsters]] and below are much less effective.
+*'''Cost:''' Use food that you can afford. Sharks are often sold by players for around {{Coins|{{GEP|Shark}}}} coins, whereas monkfish are nearly as effective in many situations and typically sell for {{Coins|{{GEP|Monkfish}}}} coins, 80% of the health restoration for <span class="coins-pos">{{#expr:{{GEP|Monkfish}}*100 / {{GEP|Shark}} round 2}}%</span> of the cost. Weigh the cost of food against the possible profit of the venture, and avoid using expensive food unless it is going to make a significant difference to your chance of survival or task completion.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 5 February 2015
+|update = The Dragon Defender
+|change = "It heals some health" messages have been added to the game filter for more types of food.
+}}
+{{Subject changes
+|date = 1 August 2005
+|update = Waterbirth Island
+|change = "Animation to eat or drink was changed to conceal wielded weaponry.
+}}
+{{Subject changes footer}}
+
+==See also==
+*[[Cooking]]
+*[[Cooks' Guild]]
+*[[Drinks]]
+
+[[Category:Food| ]]
+[[Category:Cooking]]

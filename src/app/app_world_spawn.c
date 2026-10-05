@@ -1080,6 +1080,14 @@ app_world_spawn_projectile_spot_now(
         peak,
         arc,
         target);
+    {
+        /* Which graphic it is, for the quest driver's hazard readers
+         * (WorldEntity_Projectile.spotanim_id); World itself never reads it. */
+        struct WorldEntity_Projectile* spawned =
+            World_EntityPoolGet(&world->entities.projectile, idx);
+        assert(spawned);
+        spawned->spotanim_id = spotanim_id;
+    }
     /* The projectile's clock starts at enqueue, not at apply: aged by the
      * cycles its assets took, the next world cycle aims it from where it
      * stands to the target in the time that is left (World_ProjectileSetTarget
@@ -1200,7 +1208,15 @@ app_world_spawn_spotanim_now(
 
     lifetime = WorldSeqSourceToriDraw_TotalDuration(&app->seq_source, spot->seq);
 
-    World_SpotanimSpawn(world, element_id, level, world_x, world_z, world_y, 0, delay, lifetime);
+    {
+        int const idx = World_SpotanimSpawn(
+            world, element_id, level, world_x, world_z, world_y, 0, delay, lifetime);
+        /* Which graphic it is, for the quest driver's hazard readers
+         * (WorldEntity_Spotanim.spotanim_id); World itself never reads it. */
+        struct WorldEntity_Spotanim* spawned = World_EntityPoolGet(&world->entities.spotanim, idx);
+        assert(spawned);
+        spawned->spotanim_id = spotanim_id;
+    }
     app_world_apply_seq(app, element_id, spot->seq);
     /* A delayed spotanim is invisible until World flips it active, so its
      * sequence must not run in the meantime. Park it as anim_external — the

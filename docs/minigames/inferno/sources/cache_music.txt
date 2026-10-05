@@ -1,0 +1,19 @@
+# music tracks and jingles -- pack/6_musictracks.pack, pack/11_musicjingles.pack,
+# songs/*.jmid, and the tree's docs/audio/*.tsv rows (paths relative to the worktree)
+
+[song 500] inferno    (pack/6_musictracks.pack:501)
+  file: songs/inferno.jmid present
+  docs/audio/music_tracks_osrs239.tsv:303: 2811	Inferno	Inferno	in the Inferno.	500	500	17,13
+  docs/audio/music_track_names.tsv:406: 500	inferno
+  docs/audio/music_regions.tsv:460: 9043	35	83	2240	5312	Inferno	inferno
+
+[song 502] song_502    (pack/6_musictracks.pack:503)
+  file: songs/song_502.jmid present
+  docs/audio/music_tracks_osrs239.tsv:414: 2922	Mor Ul Rek	Mor Ul Rek	in Mor Ul Rek.	453	502	17,14
+  docs/audio/music_regions.tsv:528: 9807	38	79	2432	5056	Mor Ul Rek	mor_ul_rek
+  docs/audio/music_regions.tsv:529: 10063	39	79	2496	5056	Mor Ul Rek	mor_ul_rek
+  docs/audio/music_regions.tsv:530: 10064	39	80	2496	5120	Mor Ul Rek	mor_ul_rek
+  docs/audio/music_regions.tsv:531: 9806	38	78	2432	4992	Mor Ul Rek	mor_ul_rek
+  docs/audio/music_regions.tsv:532: 10062	39	78	2496	4992	Mor Ul Rek	mor_ul_rek
+
+# jingles: no jingle in pack/11_musicjingles.pack matches the name rule or the list [].

@@ -1,0 +1,114 @@
+{{External|rs|rsc|dw}}
+{{See also|Combat (disambiguation)}}
+
+'''Combat''' is an event in ''[[Old School RuneScape]]'' in which two or more characters and/or [[bestiary|monsters]] or [[NPCs]] fight.
+
+==Combat skills==
+===Damage calculating===
+Below is a brief explanation of the three [[combat styles]] that can be used.
+[[File:Melee'ing.gif|frame|right|A player fighting with [[Melee]].]]
+
+*In [[melee]] combat, the maximum damage is determined by [[Strength]], along with the strength bonuses provided by equipment. Accuracy is determined by [[Attack]] and the attack bonuses provided by weapons and other equipment. See the article [[damage per second/Melee|Melee damage-per-second]] for more information on calculating Melee damage output.
+
+[[File:Ranging.gif|frame|right|A player fighting with [[Ranged]].]]
+
+*For [[Ranged]] combat, both the [[Ranged]] level and the type of ammunition determine the maximum damage. The accuracy is determined by the Ranged level and the equipment used. See the article [[Damage per second/Ranged|Ranged damage-per-second]] for more information on calculating Ranged damage output.
+
+[[File:Fire Wave.gif|frame|right|A player fighting with [[Magic]] via casting the [[Fire Wave]] [[spell]].]]
+
+*[[Magic|Magic-based]] damage is typically based on the selected [[Magic]] combat spell, not by Magic level (exceptions include [[Magic Dart]], [[Powered staff|powered staves]], and [[salamander]]s). Magic accuracy is affected by both the equipment bonuses and the Magic level. See the article on [[damage per second/Magic|Magic damage-per-second]] for more information on calculating Magic damage output.
+
+Even though each level is designated for one style of combat, multiple styles of combat can be used in one fight, since players can switch weapons at will and at any time. The act of using two or more combat styles in a fight to gain an advantage is called "hybridding". 
+
+The purpose of hybridding in [[Player killing/Mechanics|player killing]] is to bypass [[protection prayers]], and in more experienced play, optimize accuracy/defence via the [[combat triangle]]. Hybridding forces an opponent to switch prayer and gear accordingly for the best odds of living. It generally opens the door for a wide variety of tools to be used in conjunction with each other, whether it be utility or burst from magic spells or special attacks.
+
+Hybridding against certain monsters that have phase specific vulnerabilities can be a major damage boost, such as [[Phantom Muspah|the Phantom Muspah]] or [[Zulrah]]. Other bosses, such as [[Nylocas Vasilias]] or [[Akkha]], cannot be harmed unless using correct combat styles. [[Raids]] have a wide variety of bosses who are vulnerable to different combat styles, generally always requiring gear for all styles. Oftentimes, a ranged or magic switch is required or highly encouraged for when bosses are out of melee range, as is with [[Royal Titans|the Royal Titans]] or [[Nex]].
+
+===Experience gain===
+Players gain combat skill experience from dealing damage. The normal value is 4 experience per damage in ranged and melee combat styles, and 2 experience per damage in Magic combat style. However, certain high defence monsters have higher experience per hitpoint damage ratio.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/611516047707893761|date=18 June 2015|archiveurl=https://reldo.runescape.wiki/i/97786|archivedate=28 May 2020|quote=There's a formula, yes. I believe it adds a little extra XP per damage for the NPC's armour bonuses.}} The normal value for hitpoint experience gained is 1.33 experience per damage done.
+
+Magic spells also grant experience for the spell cast, even if the spell splashes. Defensive mode in Magic and Ranged is also an exception. If a player uses Magic on defensive mode, the normal value is 1.33 experience to Magic and 1 experience to Defence per damage dealt, plus casting experience. For ranging with long range, the normal value is 2 Ranged experience and 2 Defence experience per damage dealt. If a player is using a melee weapon such as an abyssal whip or spear that shares experience between Attack, Strength, and Defence, then the normal value is 1.33 experience per damage done to Attack, Strength, and Defence.
+
+====PvM bonus experience====
+Some monsters give increased experience. The normal amount of experience is multiplied by a constant based on the stats of the monster itself. If a monster has a multiplier, the bonus experience gained will be in the following skills: [[Attack]], [[Strength]], [[Defence]], [[Ranged]], [[Magic]], [[Hitpoints]], and [[Slayer]]. The formula for calculating the multiplier is:
+:<math>1+\frac{1}{40} \left\lfloor \frac{39\cdot\text{AverageLevel} \cdot (\text{AverageDefBonus} + \text{StrengthBonus} + \text{AttackBonus})}{200\,000} \right\rfloor,</math>{{CiteDiscord|author=Mod Ash|date=19 April 2025|url=https://discord.com/channels/324132423636090880/431834766325841920/1363108809354252471|quote=Where the formula divides by 5120, I believe it should multiply by 39, then divide by 200,000. That'd be about 5128.|archiveurl=https://reldo.runescape.wiki/i/27962704#chat-messages-431834766325841920-1363108809354252471|archivedate=2026-03-07}}
+where the Average terms are defined as:
+:<math>\begin{align}
+\text{AverageLevel} &= \left\lfloor \frac{\text{Attack} + \text{Strength} + \text{Defence} + \min\left\{ \text{Hitpoints},2\,000 \right\}}{4} \right\rfloor, \\ \\
+\text{AverageDefBonus} &= \left\lfloor \frac{\text{StabDefence} + \text{SlashDefence} + \text{CrushDefence}}{3} \right\rfloor.
+\end{align}</math>
+
+Some monsters have manually defined experience bonuses that ignore the formula. For example, [[Great Olm]] gives no bonus experience despite its high stats.
+
+====PvP bonus experience====
+Fighting a player in PvP situations, e.g. [[Clan Wars]], [[Wilderness]] or in a [[PvP World]], can give increased experience.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1035128539790626816|date=30 August 2018|archiveurl=https://reldo.runescape.wiki/i/109176|archivedate=14 September 2020|quote=It'll depend how you've got it split between your styles, but in PvP it's based off 4.0 for a low-level opponent scaling up to 4.5 for a high-level one.}} The normal amount of experience is multiplied by a multiplier based on the [[Combat level]] of the opponent. The formula for calculating the multiplier is:
+:<math>\min\left\{ 1+\frac{1}{40} \left\lfloor \frac{\text{CombatLevel}}{20} \right\rfloor,1.125 \right\}</math>
+{| class="wikitable" style="text-align:center;"
+!{{SCP|Combat}} Opponent combat level
+!Bonus
+|-
+|'''3 - 19'''||+0 %
+|-
+|'''20 - 39'''||+2.5 %
+|-
+|'''40 - 59'''||+5 %
+|-
+|'''60 - 79'''||+7.5 %
+|-
+|'''80 - 99'''||+10 %
+|-
+|'''100 - 126'''||+12.5 %
+|}
+
+===Defensive skills===
+====Hitpoints====
+[[Hitpoints]] is the skill that determines the maximum health of a player or NPC. When a player or NPC's health reaches zero they die. As such the Hitpoints skill plays an important role in combat. There are various methods of adjusting a player's hitpoints:
+
+* Hitpoints regenerate at the rate of 1 Hitpoint per minute passively; Certain [[Hitpoints#Regeneration|prayers and equipment]] can speed  this effect up.
+
+* Hitpoints are primarily restored through the use of [[food]] and [[potions]]. Some [[Magic]] is also be used, such as [[blood spells]] , [[Heal Other|the Heal Other spell]], or the passive effect of the [[Sanguinesti staff]]. There are roundabout methods of healing, including healing others through [[Butterfly (Hunter)|butterflies]] and Magic, or going to an [[NPC]] for healing, such as a [[monk]], but these methods are often ineffective and uncommon.
+* It is possible to temporarily boost a player's health past their current maximum Hitpoints through the use of certain [[Hitpoints#Temporary boosts|foods, potions, and equipment]].
+
+====Defence====
+[[Defence]] is another skill which plays an active role in nearly all combat situations. Defence as a skill doesn't directly reduce the damage taken per hit; Instead, it causes the attacker to be more likely to miss their attack. In this way, Defence could be equated to "evasiveness". 
+
+=====Player magic defence=====
+While [[Defence]] is responsible for reducing the accuracy of most hits, it is only 30% effective against [[Magic]] [[spells]]. Instead, 70% of the reduction of accuracy for a spell is determined by the player's own Magic level.
+
+=====Monster magic defence=====
+[[Monster]] magic defence is not affected by their Defence level, only Magic level and Magic defence bonus. See [[Magic]].
+
+===Prayer===
+[[Prayer]], the final combat skill. Each Prayer level grants an additional maximum "prayer point" which are used to activate temporary passive boosts that the player unlocks as they increase their Prayer skill ([[Prayer scroll|or receive as drops from certain monsters]]). Prayer effects include increasing [[stat]]s while active, [[Protect Item|protecting items]] upon [[death]], providing increased [[Hitpoints]] regeneration, and even the ability to [[Protection prayers|prevent all incoming damage]]. While prayers are active, the player's [[Prayer points]] are slowly drained at a rate dependent on both the type of prayer and any prayer bonuses provided by equipment, and prayers can no longer be used when all prayer points have been drained. Unlike Hitpoints, prayer points do not regenerate over time (outside of the [[Demonic Ruins]]) and can only be restored by praying at an altar, consuming potions, or using certain [[Special attacks]].
+
+===Sailing===
+{{main|Boat combat}}
+Combat with monsters in the sea while the player is on a [[boat]] has some additional mechanics:
+* Boats have a unique [[boat armour|armour]] mechanic and take damage in place of the player,
+* [[Cannons]] can be manned by [[crewmates]], and if so their accuracy is dictated by the player's [[Sailing]] level,
+* <!--Damage the player deals with weapons that are not cannons is significantly reduced, and (this was patched)-->Melee weapons outside of [[salamanders]] cannot be used.
+
+==Other factors==
+While skills are an important aspect of Combat, damage done and received is mostly determined by external traits, and there is a multitude of other factors that contribute to the fight.
+
+===Armour and weaponry===
+Generally, armour boosts a player's defensive capabilities by reducing the accuracy of incoming attacks, and weaponry boosts a player's offensive capabilities. However, armour may also provide offensive bonuses, and weapons usually provide minor defensive bonuses. For maximum effectiveness, players should use the best equipment available to them, since bonuses provided by equipment are at least as important as levels in combat skills.
+
+=====Damage absorption=====
+The [[Elysian spirit shield]], [[Dinh's bulwark]], and [[Justiciar armour]] set effects are currently the only pieces of armour that provide general damage absorption abilities. Certain shields and potions can reduce the damage taken from [[Dragonfire]] and [[Icy breath]], and the [[Neitiznot shield]] reduces damage taken from [[Ice troll female|ice troll females]] and [[Thrower Troll|thrower trolls]].
+
+===Skill boosts===
+Stat increases are available to anybody through the use of [[potions]] and certain [[food]] items. Through skill boosts, one can temporarily increase a combat statistic to a higher level. These boosts can cause a player's combat stats to exceed the cap of 99.
+
+===Special attacks===
+[[Special attack]]s are specific to some [[weapon]]s that a player can wield. Special attacks consume a set percentage of the special attack bar in exchange for an effect specific to the weapon, which may include extra damage, additional hits, stat drains, and many others.
+
+===Attack speed===
+All weapons have a specific [[Attack speed|speed]], which determines the interval between successive hits. Fast weapons tend not to be as accurate or powerful as their counterparts. Fast, inaccurate weapons are ideal against enemies with low Defence, while slower, more accurate weapons fare better against enemies with high Defence.
+
+==References==
+{{Reflist}}
+
+{{Combat Mechanics}}
+[[Category:Combat|*]]
+[[Category:Mechanics]]

@@ -1,0 +1,24 @@
+{{Infobox Combat Achievement
+|name = Showboating
+|image = [[File:Sol Heredit.png|150px]]
+|release = [[17 April]] [[2024]]
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|members = Yes
+|description = Defeat Sol Heredit after using [[Fortis Salute]] to the north, east, south and west of the arena while he is below 10% hitpoints.
+|tier = Master
+|monster = Fortis Colosseum
+|type = Mechanical
+|id = 544
+|leagueRegion = Varlamore
+}}
+'''Showboating''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to use the [[Fortis Salute]] [[emote]] to the north, east, south, and west of the arena while [[Sol Heredit]] is below 10% of his [[hitpoints]]. 
+
+==Strategy==
+Performing the emote while facing north, south, east, or west while Sol Heredit is below 10% health will cause a chat message "{{mes|colour=green|The crowd to the [direction] goes wild.}}" to be displayed, confirming that the direction has been saluted towards. The message will not appear if the player is facing diagonally, and the player does not need to be at the edges of the arena to salute in a direction.
+
+Fortis Salute is unlocked upon reaching 20,000 [[Glory]].
+
+==Other tasks==
+{{Combat Achievements list|Fortis Colosseum}}
+
+{{Combat Achievements}}

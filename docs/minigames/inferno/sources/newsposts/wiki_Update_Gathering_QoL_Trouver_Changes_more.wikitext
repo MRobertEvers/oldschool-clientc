@@ -1,0 +1,281 @@
+{{Update|date=26 March 2026|rev=9 April 2026|url=https://secure.runescape.com/m=news/gathering-qol-trouver-changes--more?oldschool=1|category=community}}
+[[File:Gathering QoL, Trouver Changes & more! newspost.png|right]]
+{{clear}}
+__TOC__
+
+==Blog Update - Thursday, April 9th==
+We've got a brief update for you with polls opening today for a whole host of Skilling-themed questions. We don't have any changes to the poll itself, but thought you'd likely have questions about seeing this poll go live without addressing some of the conversation that our LMS proposal kicked off when we shared the initial blog around.
+
+===Last Man Standing Rewards Changes===
+Initially, we'd proposed some fairly sweeping changes here which raised a whole host of valid questions around things like moving niche PvM-relevant rewards onto risky PvP activities like Bounty Hunter, how Collection Log Slots would be handled for a historically tough entry to greenlog, and what was in it for 'regular' LMS players after the changes.
+
+We've been working with our data team and want to trial a change that's a little more light touch than taking a cricket bat to the minigame, which we believe should hamper the efforts of botters without massively disadvantaging regular players. Instead of our initial proposal, we'll be starting small and adding the following requirement to Justine's reward shop:
+
+* Players must have won a game of Last Man Standing before purchasing any tradeable items from Justine's Stuff for the Last Shopper Standing.
+
+It may sound small, but we believe this change should make it more difficult for rulebreakers to continue spinning up bot farms, since they rarely win games on these illicit characters. Conversely, many players chasing Collection Log entries or even a Rune Pouch tend to land a win or two on the way and will be able to be sufficiently rewarded for their time spent.
+
+Polls open later today and this one is filled to-the-brim with questions so make sure to head to a poll booth, or use the Community tab in-game to vote!
+
+----
+
+We're back with another spoonful of QoL changes, this time with a focus on Gathering Skills and activities, though there's a good spread of things here even if you're not specifically interested in Gathering skills, including changes to the Trouver system, Sailing cannonball production ''and'' Last Man Standing rewards!
+
+There's no perfect way to split these up, so we'll group them ''loosely'' on a skill-by-skill basis (until we get to the exceptions) and try to keep things brief so that you can get back to your grinds until the polls roll around!
+
+==Mining==
+[[File:Gathering QoL, Trouver Changes & more! (1).png|500px|center]]
+
+In the spirit of Blast Mining we'll kick things off with a bang and arguably one of the most popular Mining-adjacent suggestions we see...
+
+===Gem Bag Expansion===
+Last month, we added the Pristine Spider Silk to Sarachnis, which can be combined with the Herb Sack to make the Silklined Herb Sack, increasing its capacity from 30 to 100 of each herb. Today, we'd like to propose a similar 'QoL + reward space' approach to improve the Gem Bag, add a modern reason to visit an old boss, ''and'' tie-in some Sailing resources to the wider game. 
+
+To do this, we're proposing a series of new Gem Storage options for semi-precious gems (Opal, Jade and Red Topaz) that you can level up as you progress towards the brand new Gem Sack.
+
+* '''Gem Pouch''' - Requires Level 12 Crafting. Combine Linen, Thread and Silk to make a pouch which stores 5x Opal, Jade and Red Topaz.
+* '''Gem Satchel''' - Requires Level 39 Crafting. Requires Hemp, Thread, Silk and Gem Pouch to make a satchel which stores 10x Opal, Jade and Red Topaz.
+* '''Gem Tote''' - Requires Level 81 Crafting. Requires Cotton, Thread, Silk and Gem Satchel to make a tote which stores 20x Opal, Jade and Red Topaz.
+* '''Gem Sack''' - Requires Level 81 Crafting. Requires Gem Tote, existing Gem Bag (the one that's currently in the game) and Immaculate Moleskin to make a sack 60x of all uncut gems up to Dragonstone.
+
+That's right, the future is now: marginal convenience increases for mining Gem Rocks are here to stay! We're keen to hear your thoughts on this upgrade pathway, considering this is one of the first times we're adding something new that requires a resource primarily obtained from Sailing content - those linen, hemp and cotton seeds building up in your bank are sure to come in handy here. You'll only be able to have one of these at a time alongside your regular Gem Bag, so make sure to keep it upgraded as soon as you're able!
+
+You'll also notice that the final upgrade, the Gem Sack, requires some ''Immaculate Moleskin''. You're a bright bunch so there are no prizes on offer for guessing that this will come from the Giant Mole, who's fallen a little out of favour in recent years unless you're a pet hunter or an Iron who ''really'' doesn't like Hunter. We're proposing a 1 in 50 drop for the Immaculate Moleskin from the Giant Mole, with the ability to hand dupes in to Wyson for 5 Bird Nest rolls. Additionally, we know this is likely to make the Giant Mole a little busier in the short-term, so we're ''also'' proposing an optional instance at the Giant Mole for a price of 25,000 GP.
+
+===Other Mining Tweaks===
+The majority of changes in this section (and this blog) are smaller in scope, so we'll keep them concise in an easy list format. Here's a rapidfire list of tweaks you're sure to love, ''ore'' your money back!
+
+
+* Allow Infernal Tools such as the Infernal Pickaxe, Infernal Harpoon and Infernal Axe to be recharged using a Smoldering Stone when they still have charges remaining. This means that when you see yourself running out of charges and on your last couple, you can just recharge to fill without having to specifically wait for your tool to run out of charges.
+* Allow Infernal Tools' 'burn' effect on the Infernal Pickaxe, Infernal Harpoon and Infernal Axe to be toggled off freely.
+* Allow the Expert Mining Gloves effect to apply to Runite Golems, as it does to standard Runite rocks.
+* Improve the rate at which players can obtain their ore from Runite Golems, since they often respawn before any ore can be obtained.
+* Also, allow additional rolls on the Runite Golems for extra ore on Mining success scaling with Wilderness Diary tier as follows:
+** Wilderness Medium Diary - Chance to receive up to 2 Runite Ore per successful Mining action.
+** Wilderness Hard Diary - Chance to receive up to 3 Runite Ore per successful Mining action.
+** Wilderness Elite Diary - Chance to receive up to 4 Runite Ore per successful Mining action.
+* Allow players to claim noted Daeyalt Essence from their respective shards. This one's largely for the UIM players among you, since they effectively can't interact with Daeyalt essence at all at present.
+* Allow the Celestial Signet's Mining enhancer effect to apply to Daeyalt Shards, giving players a chance to receive an additional +1 Daeyalt shard on a successful Mining action.
+
+==Hunter==
+[[File:Gathering QoL, Trouver Changes & more! (2).png|500px|center]]
+
+We've all been there: head to your Salamander rumour, forget to bring enough Rope, bank, come back, start hunting Salamanders, lose focus, look back at your screen, two Ropes and two Small Fishing Nets have been lost to the void, log out.
+
+Not only do Net Traps introduce a strangely high amount of inventory pressure, they're also the least forgiving when it comes to losing focus after a failed attempt at trapping a Salamander. We're proposing the ability for players with Level 29 Hunter to combine Rope and a Small FIshing Net to make stackable Net Traps, which can be traded with other players and stored in the Huntsman's Kit. You'd also be able to pick these up at Hunter Shops for a reasonable price, and you won't be able to dismantle these back into Ropes and Small Fishing Nets.
+
+When a Net Trap fails, it will enter a 'failed trap' state similar to a Box Trap where you'll have time to reset the trap, rather than needing to pick up the components from the floor and set the trap back up from scratch. We're like to extend this 'reset without needing to replace' functionality to more trap types, while retaining the ability to replace them if you'd prefer in certain scenarios like tick manipulation Box Trap methods.
+
+Additionally, to alleviate some annoyance when engaging with Deadfall or Pitfall traps, we'd like to allow players to construct these traps using logs that are stored in a log basket. Logs in your inventory would still be consumed first, but you'd be able to stock up at the bank in advance and chill out a little more rather than racing between respawns for trees while you're investigating a rumour!
+
+==Farming==
+[[File:Gathering QoL, Trouver Changes & more! (3).png|500px|center]]
+
+Farming's somewhere between gathering and production as far as skills go, but we're including it here all the same! There's no scene-stealer here, just a collection of changes that we're sure will add up to be more than the sum of their parts!
+
+* Add a right-click 'Deposit-all' to Tool Leprechauns so that you can quickly dump your tools or offload buckets en masse.
+* Allow players to set a 'default' seed on the Seed Box, then allow players with a default seed set to use the Seed Box on a Farming patch to plant their selected seed. If no seed is set, then whichever seed you have first in the Seed Box will be used.
+* Allow players to dig up healthy plants while they're growing for ''all'' plants, as is already the case with Herb patches.
+* Add a right-click 'Clear' option to Cactus or Potato Cactus patches with produce (Cactus Spines or Potato Cacti) still waiting to be picked, just in case you're in a rush and can't stomach the sight of another Magic potion in the bank.
+* When a player has an active Farming Contract, display the required seed at the top of the Seed Vault by default, so that the relevant seed's easier to grab in a pinch.
+* Reintroduce Sulphurous Fertiliser (made by combining Saltpetre and Compost), to be used on vine patches within the Hosidius Vinery and increase grape yield (including Zamorak's grapes) by 20%. We're not dead-set on the specific number here, so if you've got good reasons for it to be higher then let us know!
+
+On top of these, we've got one change that we'd like to make but aren't able to make on Java clients (which means RuneLite for the majority of you). On our official client (including mobile), we'd like to add a visual indicator to patches that show whether the patch has been composted, and which tier of compost has been used. There are already RuneLite plugins that do this, so being able to bring players on other clients up to speed here would be lovely!
+
+==Other Skilling-related Changes==
+But wait, there's more! Some changes that we'd like to make either don't fit neatly under any category, or aren't numerous enough to have their own category, so we've gathered them up into a convenient list!
+
+===Sailing Cannonball Production Improvements===
+[[File:Gathering QoL, Trouver Changes & more! (4).png|500px|center]]
+
+Making Cannonballs at the Ancient Furnace has been a consistent pain point within the community, especially as the rate at which you can make them is slowed down by the fact there isn't a nearby bank. To improve this, we'd like to propose a nearby NPC that can convert noted metal bars into item form.
+
+Due to its powerful convenience, the NPC will charge a higher fee than usual (100 coins per bar). Additionally, this service will only work for metal bars (no food or other items), to avoid unintentional consequences with Frost Dragons.
+
+With this proposal, you'll be smithing cannonballs faster than you can fire them into an unsuspecting bird who was minding their own business and not bothering anybody - perfect!
+
+To round off the Skilling-focused segment, here's a healthy helping of assorted QoL offerings!
+
+===Other Changes===
+
+* Allow Wesley (and any other NPCs who enjoy crushing items) to crush Coconuts into Coconut Milk. Simply provide one Coconut and one Vial (both can be either noted or unnoted) to receive one vial of Coconut Milk and one Coconut shell, for a nominal fee!
+* Allow players to store a Knife and a Hammer in the Tackle Box, for processing Sacred and Infernal Eels.
+* Allow bait to be used directly from the Tackle Box while fishing so long as the Tackle Box is in the inventory.!
+* Adjust the location of the portal at the Law Altar so that its distance from the altar better matches other Runecraft altars, likely in the 6-10 tile range. Additionally, the Monks of Entrana have no say over separate planes of existence, so they shouldn't prevent you from bringing weapons/armour to the Law Altar - no more stocking up on Bronze Pickaxes to drop every time you run through the Abyss!
+* Update Runecraft Level-up messages to clearly communicate how the Colossal Pouch improves at the relevant level thresholds.
+* Adjust the 'bonus resource' rounding on Miscellania's Kingdom Management activity. Bonus resources are currently allocated on a fixed threshold (e.g. one Bird Nest per 100 Logs collected) where any excess is rounded down (e.g. 150 Logs will round down to 100 and always award one Bird Nest). We'd like to change this to have any 'partial' progress provide a percentage chance to gain an additional reward, similar to how points at Guardians of the Rift work. To use the previous example, this would mean 150 Logs collected would guarantee one Bird Nest and provide a 50% chance for a second.
+* Update Roe (obtained by cutting fish from Barbarian Fishing) to default to 'Use' on left-click rather than 'Eat'. Naturally you're able to swap this back if you enjoy cut-eat or eat-cut Barbarian Fishing.
+* Add a 'Don't warn me again' dialogue option for the 5 Numulite Drift Net banking fee.
+* Allow Fossils to be deposited into a Fossil Storage Box without requiring a Bank PIN.
+* Reduce the number of Nightshade or Cave Nightshade required to create Poison Dynamite from 3 to 1. These are particularly annoying to upkeep for the builds most-inclined to use them, so we'd like to make them a little easier to sustain.
+
+It's not ''all'' Skilling and number-go-up changes today though! We've got something that we'd love to get your thoughts on and that we've wanted to do for a ''long' time...
+
+==Trouver System Rework - Unpolled==
+[[File:Gathering QoL, Trouver Changes & more! (5).png|thumb|500px|center|The changes in this section are unpolled since we believe them to be a matter of game integrity and improving a system that can cause significant frustration for players, but we'd like to check in with you first and see how you feel about the proposal before making any changes.]]
+
+For those of you who are reading this title and have no idea what 'Trouver' even means, here's a quick bit of context!
+
+Untradeable items are often ''lost'' on a PvP death in the Wilderness, but obviously can't be looted, meaning an untimely death while wearing your Inferno Cape or full Graceful can often mean the untradeable items are outright deleted if you're caught unaware during a Clue Scroll or in a fight.
+
+Fortunately there's a system to help you protect your untradeables, where you can take a Trouver Parchment and 500,000 GP to Perdu (who exists in a variety of locations) to 'lock' the item. Dying with a locked item that isn't protected on death means you'll keep the item, whoever killed you will receive the GP you paid to Perdu, and most crucially: '''you will need to lock the item again'''. That last bit is in bold because it's ''exceptionally'' easy to forget to re-lock your items after a death and then see them thrown into the Abyss on your next go out in the Wilderness.
+
+We're proposing a significant change to this system that should help ''all'' players reduce the chances of them losing crucial untradeables in the Wilderness. The general rule of thumb here is that untradeables with ''no'' Combat benefits should never be lost on death, untradeables with ''some'' Combat bonuses will break and need repairing without a Trouver parchment, untradeables with ''strong'' Combat bonuses will need to be 'Trouvered' once, then never again.
+
+Let's try and break it down!
+
+====All====
+Some untradeable items that currently break will continue to break whether below or above level 20 Wilderness, but will no longer be lost. You'll instead receive their 'broken' version and can repair them at Perdu for a small fee. The items in this category are:
+
+* Fire cape
+* Ava's assembler
+* Imbued guthix cape
+* Imbued saradomin cape
+* Imbued zamorak cape
+* Fire max cape
+* Assembler max cape
+* Imbued guthix max cape
+* Imbued saradomin max cape
+* Imbued zamorak max cape
+* Bronze defender
+* Iron defender
+* Steel defender
+* Black defender
+* Mithril defender
+* Adamant defender
+* Rune defender
+* Dragon defender
+* Avernic defender
+* Void knight mace
+* Decorative armour (gold)
+* Decorative magic armour
+* Decorative ranged armour
+* Guthix halo
+* Saradomin halo
+* Zamorak halo
+* Armadyl halo
+* Bandos halo
+* Seren halo
+* Ancient halo
+* Brassica halo
+* Fighter hat
+* Ranger hat
+* Runner hat
+* Healer hat
+* Penance skirt
+* Barronite mace
+* Masori assembler
+* Masori assembler max cape
+
+'Higher tier' untradeables will still use the Trouver Parchment system, but with a crucial change - '''once a Trouver parchment has been used on an item, it will remain in that state forever'''.
+
+On death '''below Level 20 Wilderness''' (or in PvP Worlds for fights at the Grand Exchange, for example), these higher tier items will simply break and be repairable with the current fee.
+
+On death '''above Level 20 Wilderness''', the item will become 'mangled' and require a higher fee of 500,000 GP to fix.
+
+This means fixing your untradeables should be fast, all at once, and with no need for extra Trouver Parchments.
+
+Additionally, attempting to enter the Wilderness with any untradeable item that requires a Trouver Parchment to be protected will display a warning to make sure you're aware that you're risking an untradeable.
+
+These 'higher tier' untradeables are as follows:
+
+* Void melee helm
+* Void mage helm
+* Void ranger helm
+* Void knight top
+* Elite void top
+* Void knight robe
+* Elite void robe
+* Void knight gloves
+* Infernal max cape
+* Infernal cape
+* Blood ancient sceptre
+* Ice ancient sceptre
+* Smoke ancient sceptre
+* Shadow ancient sceptre
+* Fighter torso
+* Rune pouch
+* Divine rune pouch
+* Dizana's quiver
+* Blessed Dizana's quiver
+* Dizana's max cape
+
+In an ideal world, we'd do away with Trouver Parchments entirely, but it's not safe for us to take this approach without risking more raw GP generation than we're comfortable with. In effect, what this means is that trying to enter the Wilderness with anything that needs protecting will warn you before doing so, and anything that's not giving you meaningful boosts in PvP activity - such as the Graceful set - won't be lost on death at all.
+
+We believe these changes should reduce frustration for PvPers who forget to re-lock their Inferno Capes (as much as we love a SkillSpecs vs. Zuk stream) while also giving non-PvPers more confidence that they won't lose something they spent hours obtaining and can't readily re-buy!
+
+Since we're in the PvP sphere, here's another radical proposal!
+
+==Last Man Standing Reward Changes - Updated Thursday, April 9th==
+'''Note:''' We've scaled back this proposal massively and will instead be moving ahead with a simpler approach, where players will require a single win before gaining access to Justine's Stuff for the Last Shopper Standing. After this has had some time to settle and we're able to collect data, we can re-assess a more wide-reaching proposal but ensure that we aren't making the same missteps. We'll leave our old proposal here for posterity, but won't be moving ahead with it at this time.
+
+[[File:Gathering QoL, Trouver Changes & more! (6).png|500px|center]]
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Click here to see the original proposal for this section</h3></div>
+<div class="mw-collapsible-content">
+The changes in this section are unpolled (with one exception) since we believe them to be a matter of game integrity, but we'd like to check in with you first and see how you feel about the proposal before making any changes.
+
+Before we start, a quick note: these changes were outlined before yesterday's adjustments to LMS gear setups. We know that games take a little longer now and don't inherently believe that to be a bad thing, but will be considering adjustments to points awarded ''or'' the point costs of rewards separately so that your tangible 'output per hour' is roughly in line with before.
+
+Last Man Standing. A proving ground for Irons looking to secure their first Rune Pouch (though less-so in more recent years), a place for players to have a go at PvP without the risk, or a fun spot to get into some action quickly in the evening, between meetings or during an ad break. It's been nearly 10 years since Last Man Standing released, and while many of us have memories of the place, it's impossible to talk about it without addressing the elephant in the room - it's one of the most prolific battlegrounds between us as a team and a seemingly endless stream of bots who ruin the experience for other players.
+
+Today, we'd like to propose ripping off the band-aid (or plaster where we're from, but the anecdote sounds better this way) and making significant changes to the rewards available from Last Man Standing. Our hope is that we can move the activity away from attracting bots like moths to a flame and instead serve as a place for players to actually fight against other players, learn the ropes of PvP, stock up on Blighted Supplies or some other useful items, then turn their know-how into confidence when venturing out into the Wilderness. Here's what we're suggesting for changes to Justine's Stuff for the Last Shopper Standing:
+
+Move the following items from Last Man Standing to the Bounty Hunter shop, while removing the associated Collection Log Entries. Bounty Hunter is considerably harder to bot, and most of these pertain to items that you're more likely to see in Daimon's Crater than in the wider Wilderness:
+
+* Ornate maul handle
+* Saradomin's tear
+* Swift blade
+* Granite clamp
+* Steam staff upgrade kit
+* Lava staff upgrade kit
+* Ward upgrade kit
+* Green dark bow paint
+* Yellow dark bow paint
+* White dark bow paint
+* Blue dark bow paint
+* Volcanic whip mix
+* Frozen whip mix
+* Guthixian icon
+* Move the Dragon pickaxe upgrade kit to Petrified Pete's Shop at Volcanic Mine.
+* Move Clue boxes to Watson, who will sell them to players for 25,000 GP.
+* Remove the following items from the shop outright:
+* Adamant arrow (x350)
+* Crystal weapon seed
+* Target teleport scroll - these can still be purchased from Bounty Hunter
+* Looting bag note - you're still able to purchase the Looting bag itself, just not to stock up on extras as readily.
+* Rune pouch note - you're still able to purchase the Rune pouch itself, just not to stock up on extras as readily. Having an excess of these should prove less necessary if the Trouver changes above go ahead.
+* Bolt rack (x200)
+* Climbing boots (x20)
+* All of the items which also drop from Wilderness Slayer:
+** Trouver parchment
+** Wilderness crabs teleport
+** Ring of wealth scroll
+** Magic shortbow scroll
+** Paddewwa teleport (x2)
+** Senntisten teleport (x2)
+** Annakarl teleport (x2)
+** Carrallanger teleport (x2)
+** Dareeyak teleport (x2)
+** Ghorrock teleport (x2)
+** Kharyrll teleport (x2)
+** Lassar teleport (x2)
+** Target teleport
+
+The items remaining in the shop currently sit at a low enough 'GP per point' that we're optimistic people won't bother to bot for them, meaning your Rune arrows are safe, and you'll still be able to PvP your way towards a Swift blade if you've got some Nylocas in your future.
+
+Understandably this does considerably undercut the reward offering for LMS for legitimate players, which is something we'd love to shore up in the future. In the meantime, we ''do'' have one thing we'd like to poll adding here which may be a boon for PvP enjoyers and Irons alike: we'd like to add the Scroll of Imbuing and Blighted Surge Sacks (currently only available from Emir's Arena) to the LMS point shop.
+
+We appreciate that this is a big swing but believe this is something we should have done sooner to help curb the presence of rulebreakers and bad faith actors abusing the minigame and ruining the experience for regular players. Let us know what you make of these changes, and make sure to visit our [https://support.runescape.com/hc/en-gb/articles/34686319959441-Player-Support-Anti-Cheating-Statistics Player Support & Anti Cheating Statistics page] if you're curious about our efforts to crack down on rulebreakers so far in 2026!
+</div></div>
+
+That's all we've got for today, leave us all of your feedback and we'll come back with some updated proposals if necessary, otherwise just keep an eye out for a poll coming soon to a poll booth near you!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1s48k7k/upcoming_poll_gathering_qol_trouver_changes_lms/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Default, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Lotus, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume'''
+
+''The Old School Team.''

@@ -105,29 +105,51 @@ test_the_click_does_not_end_the_session(void)
     free(net);
 }
 
+/*
+ * A logout the server REFUSES -- the 16-tick combat rule -- is answered by
+ * nothing at all: no LOGOUT, no closed socket, only a chat line. The player is
+ * still in the world and still in the fight, so the client must be too, for as
+ * long as it takes. This used to end the session itself when 250 cycles ran
+ * out (CONTENT_BUGS ENG-29). The rev-239 client never counts its logoutTimer
+ * down: the only things that end the wait are the server's answer and the
+ * session reset (app/app_net.c, app_logout_tick).
+ */
 static void
-test_a_wait_that_nothing_answers_ends_it_anyway(void)
+test_a_refused_logout_keeps_the_session(void)
 {
     struct ToriRS_Network* net = make_net_in_game();
     struct App* app = make_app(net);
     int ended_on_cycle = -1;
 
-    printf("TEST: a server that never answers costs the wait, not the logout\n");
+    printf("TEST: a logout nothing answers leaves the player in the world\n");
 
     app->logout_requested = 1;
     app_logout_tick(app);
-    for( int cycle = 1; cycle <= APP_LOGOUT_WAIT_CYCLES && ended_on_cycle < 0; cycle++ )
+    for( int cycle = 1; cycle <= 4 * APP_LOGOUT_WAIT_CYCLES && ended_on_cycle < 0; cycle++ )
     {
         if( app_logout_tick(app) )
             ended_on_cycle = cycle;
+        /* A second click half way through: the one a player makes once the
+         * combat delay has run out. It goes to the server; it ends nothing
+         * here either. */
+        if( cycle == 2 * APP_LOGOUT_WAIT_CYCLES )
+            app->logout_requested = 1;
     }
 
+    TEST_ASSERT(ended_on_cycle < 0, "nothing but the server ended the session");
     TEST_ASSERT(
-        ended_on_cycle == APP_LOGOUT_WAIT_CYCLES,
-        "the session ended on the last cycle of the wait and not before");
-    TEST_ASSERT(app->logout_wait_cycles == 0, "the wait is disarmed once it is spent");
-    TEST_ASSERT(net->state == TORIRS_NET_DISCONNECTED, "the session really did end");
-    TEST_ASSERT(disconnect_queued(net), "the DISCONNECT was queued behind the request");
+        app->logout_wait_cycles == APP_LOGOUT_WAIT_CYCLES,
+        "the wait is still armed, so the server's answer is still read as a logout");
+    TEST_ASSERT(net->state == TORIRS_NET_GAME, "still in the game stream");
+    TEST_ASSERT(!disconnect_queued(net), "nothing closed the socket on the player's behalf");
+
+    /* ...and the answer, whenever it comes, is still the logout. */
+    app_net_lost(app, "socket closed");
+    TEST_ASSERT(app->logout_wait_cycles == 0, "the answer ended the wait");
+    TEST_ASSERT(
+        !NetLinkWatch_Lost(&app->net_link),
+        "the late answer was not read as a lost connection to redial");
+    TEST_ASSERT(net->state == TORIRS_NET_DISCONNECTED, "the session ended");
 
     free(app);
     free(net);
@@ -263,7 +285,7 @@ main(void)
     printf("=== logout waits for the server ===\n");
 
     test_the_click_does_not_end_the_session();
-    test_a_wait_that_nothing_answers_ends_it_anyway();
+    test_a_refused_logout_keeps_the_session();
     test_a_closed_socket_is_the_answer();
     test_a_closed_socket_with_no_logout_pending_still_reconnects();
     test_a_logout_forgets_the_resumable_session();

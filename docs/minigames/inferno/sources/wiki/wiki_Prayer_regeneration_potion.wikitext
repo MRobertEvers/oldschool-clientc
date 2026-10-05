@@ -1,0 +1,155 @@
+{{External|rs=Prayer renewal}}
+{{Infobox Item
+|defver = 4
+|version1 = 1 dose
+|version2 = 2 dose
+|version3 = 3 dose
+|version4 = 4 dose
+|bucketname1 = (1)
+|bucketname2 = (2)
+|bucketname3 = (3)
+|bucketname4 = (4)
+|name1 = Prayer regeneration potion(1)
+|name2 = Prayer regeneration potion(2)
+|name3 = Prayer regeneration potion(3)
+|name4 = Prayer regeneration potion(4)
+|image1 = [[File:Prayer regeneration potion(1).png]]
+|image2 = [[File:Prayer regeneration potion(2).png]]
+|image3 = [[File:Prayer regeneration potion(3).png]]
+|image4 = [[File:Prayer regeneration potion(4).png]]
+|release = [[25 September]] [[2024]]
+|update = Varlamore: The Rising Darkness is OUT NOW
+|members = Yes
+|quest = No
+|tradeable = Yes
+|bankable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drink, Empty, Drop
+|examine1 = 1 dose of Prayer Regeneration potion.
+|examine2 = 2 doses of Prayer Regeneration potion.
+|examine3 = 3 doses of Prayer Regeneration potion.
+|examine4 = 4 doses of Prayer Regeneration potion.
+|value1 = 150
+|value2 = 200
+|value3 = 250
+|value4 = 300
+|weight1 = 0.020
+|weight2 = 0.025
+|weight3 = 0.030
+|weight4 = 0.035
+|exchange = Yes
+|id1 = 30134
+|id2 = 30131
+|id3 = 30128
+|id4 = 30125
+}}
+{{Synced switch
+|version1 = [[File:Prayer regeneration potion(1) detail.png|left|130px]]
+|version2 = [[File:Prayer regeneration potion(2) detail.png|left|130px]]
+|version3 = [[File:Prayer regeneration potion(3) detail.png|left|130px]]
+|version4 = [[File:Prayer regeneration potion(4) detail.png|left|130px|class=pageimage]]
+}}
+A '''prayer regeneration potion''' is a [[Herblore#Potions|potion]] made by using [[aldarium]] on a [[huasca potion (unf)]]. This requires level 58 [[Herblore]] and grants 132 Herblore experience.
+
+Each dose restores one [[Prayer points|Prayer point]] every 12 ticks for 8 minutes, restoring 66 Prayer points in total. Its effect is similar to that of a [[prayer enhance]] from the [[Chambers of Xeric]], but restores Prayer more slowly and lasts longer.
+
+The amount of Prayer restored is not affected by the [[holy wrench]], [[Prayer cape]], or [[ring of the gods (i)]]. However, the ring's high [[Prayer items|Prayer bonus]] can be useful in combination with the potion. With a Prayer bonus of at least +42, [[protection prayer]]s drain slowly enough for the potion's regeneration effect to offset their Prayer drain, allowing them to be maintained without additional [[prayer potion]]s.
+
+Unlike standard [[prayer potion]]s, prayer regeneration potions cannot be shared using [[Stat Restore Pot Share]] or made into a [[barbarian mix]].
+
+{{Bug|Drinking a prayer regeneration potion puts the player into combat, preventing them from logging out for 10 seconds.}}
+
+==Creation==
+{{Recipe
+|skill1 = Herblore
+|skill1lvl = 58
+|skill1boostable = Yes
+|skill1exp = 132
+|members = Yes
+|ticks = 2
+|mat1 = Huasca potion (unf)
+|mat2 = Aldarium
+|output1 = Prayer regeneration potion(3)
+}}
+
+==Price per dose==
+{{See also|Calculator:Prayer/Prayer point cost}}
+{{Price per dose|Prayer regeneration potion}}
+
+As compared to similar potions (purchasing the 4-dose variant), at level 99 Prayer:
+* Prayer regeneration potions cost {{NoCoins|{{GEP|Prayer regeneration potion(4)}}/4/66|c}} per Prayer point restored
+* [[Prayer potions]] cost {{NoCoins|{{GEP|Prayer potion(4)}}/4/31|c}} per Prayer point restored
+* [[Super restore]] potions cost {{NoCoins|{{GEP|Super restore(4)}}/4/32|c}} per Prayer point restored
+* [[Zamorak brew]]s cost {{NoCoins|{{GEP|Zamorak brew(4)}}/4/10|c}} per Prayer point restored
+
+==Item sources==
+===Prayer regeneration potion(1)===
+{{Drop sources|Prayer regeneration potion(1)}}
+
+===Prayer regeneration potion(3)===
+{{Drop sources|Prayer regeneration potion(3)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 June 2025
+|update = Misc Galore & Yama Tweaks
+|change = Prayer regeneration potions now reset on [[death]] or when a player engages in [[minigames]] that reset their stats.
+}}
+{{Subject changes
+|date = 2 October 2024
+|update = Rewards and XP Improvements - Varlamore: The Rising Darkness
+|change = Prayer regeneration potions have been [[Graphical updates|recoloured]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{{Switch infobox
+|text1 = 1 dose
+|item1 =
+|text2 = 2 dose
+|item2 =
+|text3 = 3 dose
+|item3 =
+|text4 = 4 dose
+|item4 =
+}}
+{|style="text-align: center" cellpadding="15"
+|
+{{Synced switch
+|version1 = [[File:Prayer regeneration potion(1) v1 detail.png|center|300x150px]]
+|version2 = [[File:Prayer regeneration potion(2) v1 detail.png|center|300x150px]]
+|version3 = [[File:Prayer regeneration potion(3) v1 detail.png|center|300x150px]]
+|version4 = [[File:Prayer regeneration potion(4) v1 detail.png|center|300x150px]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Prayer regeneration potion(1) detail.png|center|300x150px]]
+|version2 = [[File:Prayer regeneration potion(2) detail.png|center|300x150px]]
+|version3 = [[File:Prayer regeneration potion(3) detail.png|center|300x150px]]
+|version4 = [[File:Prayer regeneration potion(4) detail.png|center|300x150px]]
+}}
+|-
+|
+{{Synced switch
+|version1 = [[File:Prayer regeneration potion(1) v1.png|center]]
+|version2 = [[File:Prayer regeneration potion(2) v1.png|center]]
+|version3 = [[File:Prayer regeneration potion(3) v1.png|center]]
+|version4 = [[File:Prayer regeneration potion(4) v1.png|center]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Prayer regeneration potion(1).png|center]]
+|version2 = [[File:Prayer regeneration potion(2).png|center]]
+|version3 = [[File:Prayer regeneration potion(3).png|center]]
+|version4 = [[File:Prayer regeneration potion(4).png|center]]
+}}
+|-
+|25 September 2024 –<br/>2 October 2024
+|2 October 2024 –<br/>present
+|}
+
+{{Potions}}
+[[Category:Items storable in the potion storage]]

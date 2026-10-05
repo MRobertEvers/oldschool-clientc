@@ -1,0 +1,241 @@
+# enums, dbrows and structs that belong to the minigame -- quoted from OSRS-Content/osrs239-content/configs/all.{enum,dbrow,struct}
+
+[dbrow 2811] music_inferno    (configs/all.dbrow:44658)  why= name: music_inferno
+  columns=15    (configs/all.dbrow:44659)
+  table=music    (configs/all.dbrow:44660)
+  columndef=0:sortname,string    (configs/all.dbrow:44661)
+  values=0:0:Inferno    (configs/all.dbrow:44662)
+  columndef=1:displayname,string    (configs/all.dbrow:44663)
+  values=1:0:Inferno    (configs/all.dbrow:44664)
+  columndef=2:unlockhint,string    (configs/all.dbrow:44665)
+  values=2:0:in the Inferno.    (configs/all.dbrow:44666)
+  columndef=3:duration,int    (configs/all.dbrow:44667)
+  values=3:0:500    (configs/all.dbrow:44668)
+  columndef=4:midi,track    (configs/all.dbrow:44669)
+  values=4:0:500    (configs/all.dbrow:44670)
+  columndef=5:variable,int,int    (configs/all.dbrow:44671)
+  values=5:0:17,13    (configs/all.dbrow:44672)
+
+[dbrow 4059] hiscores_bosses_tzkal_zuk    (configs/all.dbrow:62938)  why= name: hiscores_bosses_tzkal_zuk
+  columns=3    (configs/all.dbrow:62939)
+  table=hiscores_bosses_info    (configs/all.dbrow:62940)
+  columndef=0:bossname,string    (configs/all.dbrow:62941)
+  values=0:0:TzKal-Zuk    (configs/all.dbrow:62942)
+  columndef=1:bossicon,graphic    (configs/all.dbrow:62943)
+  values=1:0:5630    (configs/all.dbrow:62944)
+  columndef=2:bossvarp,varp    (configs/all.dbrow:62945)
+  values=2:0:1585    (configs/all.dbrow:62946)
+
+[dbrow 6309] slayer_target_zuk    (configs/all.dbrow:96872)  why= name: slayer_target_zuk
+  columns=20    (configs/all.dbrow:96873)
+  table=slayer_task    (configs/all.dbrow:96874)
+  columndef=0:id,int    (configs/all.dbrow:96875)
+  values=0:0:105    (configs/all.dbrow:96876)
+  columndef=8:regions,int    (configs/all.dbrow:96877)
+  values=8:0:2    (configs/all.dbrow:96878)
+  columndef=9:name_lowercase,string    (configs/all.dbrow:96879)
+  values=9:0:TzKal-Zuk    (configs/all.dbrow:96880)
+  columndef=10:name_uppercase,string    (configs/all.dbrow:96881)
+  values=10:0:TzKal-Zuk    (configs/all.dbrow:96882)
+
+[dbrow 6805] action_kill_jalzek    (configs/all.dbrow:104249)  why= name: action_kill_jalzek
+  columns=37    (configs/all.dbrow:104250)
+  table=action    (configs/all.dbrow:104251)
+  columndef=0:action_name,string    (configs/all.dbrow:104252)
+  values=0:0:Defeat Jal-Zek within the Inferno    (configs/all.dbrow:104253)
+  columndef=2:action_display_graphic,graphic    (configs/all.dbrow:104254)
+  values=2:0:6759    (configs/all.dbrow:104255)
+  columndef=4:action_display_desc,string,string    (configs/all.dbrow:104256)
+  values=4:0:Relevant Items (1),Fire cape    (configs/all.dbrow:104257)
+  columndef=5:action_display_show_derived_desc,boolean    (configs/all.dbrow:104258)
+  values=5:0:0    (configs/all.dbrow:104259)
+  columndef=12:npc_kill,npc    (configs/all.dbrow:104260)
+  values=12:0:7703    (configs/all.dbrow:104261)
+  values=12:1:7699    (configs/all.dbrow:104262)
+
+[dbrow 6841] action_inferno_in_30    (configs/all.dbrow:104722)  why= name: action_inferno_in_30
+  columns=37    (configs/all.dbrow:104723)
+  table=action    (configs/all.dbrow:104724)
+  columndef=0:action_name,string    (configs/all.dbrow:104725)
+  values=0:0:Complete the Inferno in 30 minutes or less    (configs/all.dbrow:104726)
+  columndef=2:action_display_graphic,graphic    (configs/all.dbrow:104727)
+  values=2:0:6362    (configs/all.dbrow:104728)
+  columndef=4:action_display_desc,string,string    (configs/all.dbrow:104729)
+  values=4:0:Relevant Items (1),Fire cape    (configs/all.dbrow:104730)
+
+[dbrow 6846] action_equip_infernal_cape    (configs/all.dbrow:104781)  why= name: action_equip_infernal_cape
+  columns=37    (configs/all.dbrow:104782)
+  table=action    (configs/all.dbrow:104783)
+  columndef=0:action_name,string    (configs/all.dbrow:104784)
+  values=0:0:Equip an Infernal Cape    (configs/all.dbrow:104785)
+  columndef=15:equip_item,obj    (configs/all.dbrow:104786)
+  values=15:0:21295    (configs/all.dbrow:104787)
+  values=15:1:24224    (configs/all.dbrow:104788)
+  values=15:2:21285    (configs/all.dbrow:104789)
+  values=15:3:24133    (configs/all.dbrow:104790)
+
+[dbrow 6858] action_enter_inferno    (configs/all.dbrow:104938)  why= name: action_enter_inferno
+  columns=37    (configs/all.dbrow:104939)
+  table=action    (configs/all.dbrow:104940)
+  columndef=0:action_name,string    (configs/all.dbrow:104941)
+  values=0:0:Enter the Inferno    (configs/all.dbrow:104942)
+
+[dbrow 15920] boss_inferno_teleport    (configs/all.dbrow:231525)  why= name: boss_inferno_teleport
+  columns=1    (configs/all.dbrow:231526)
+  table=teleport_generic    (configs/all.dbrow:231527)
+  columndef=0:name,string    (configs/all.dbrow:231528)
+  values=0:0:Inferno    (configs/all.dbrow:231529)
+
+[struct 499] struct_499    (configs/all.struct:2676)  why= param_689=The Inferno
+  param=param_689,str,The Inferno    (configs/all.struct:2677)
+  param=param_690,int,2132    (configs/all.struct:2678)
+
+[struct 1186] struct_1186    (configs/all.struct:7634)  why= param_2028=Defeat TzKal-Zuk.
+  param=param_2028,str,Defeat TzKal-Zuk.    (configs/all.struct:7635)
+
+[struct 2836] struct_2836    (configs/all.struct:10833)  why= param_1042=Defeat TzKal-Zuk
+  param=param_1042,str,Defeat TzKal-Zuk    (configs/all.struct:10834)
+  param=param_1043,str,Molgoatkirby    (configs/all.struct:10835)
+  param=param_1044,str,30th Oct 2020    (configs/all.struct:10836)
+
+[struct 3481] struct_3481    (configs/all.struct:16148)  why= combat achievement, param_1312=60
+  param=param_1306,int,341    (configs/all.struct:16149)
+  param=param_1312,int,60    (configs/all.struct:16150)
+  param=param_1308,str,Half-Way There    (configs/all.struct:16151)
+  param=param_1309,str,Kill a Jal-Zek within the Inferno.    (configs/all.struct:16152)
+  param=param_1310,int,4    (configs/all.struct:16153)
+  param=param_1311,int,3    (configs/all.struct:16154)
+  param=param_1307,int,3594    (configs/all.struct:16155)
+
+[struct 3482] struct_3482    (configs/all.struct:16157)  why= combat achievement, param_1312=60
+  param=param_1306,int,342    (configs/all.struct:16158)
+  param=param_1312,int,60    (configs/all.struct:16159)
+  param=param_1308,str,Inferno Grandmaster    (configs/all.struct:16160)
+  param=param_1309,str,Complete the Inferno 5 times.    (configs/all.struct:16161)
+  param=param_1310,int,6    (configs/all.struct:16162)
+  param=param_1311,int,3    (configs/all.struct:16163)
+  param=param_1307,int,3594    (configs/all.struct:16164)
+
+[struct 3483] struct_3483    (configs/all.struct:16166)  why= combat achievement, param_1312=60
+  param=param_1306,int,343    (configs/all.struct:16167)
+  param=param_1312,int,60    (configs/all.struct:16168)
+  param=param_1308,str,The Floor Is Lava    (configs/all.struct:16169)
+  param=param_1309,str,Kill TzKal-Zuk without letting Jal-ImKot dig during any wave in the Inferno.    (configs/all.struct:16170)
+  param=param_1310,int,6    (configs/all.struct:16171)
+  param=param_1311,int,4    (configs/all.struct:16172)
+  param=param_1307,int,3594    (configs/all.struct:16173)
+
+[struct 3484] struct_3484    (configs/all.struct:16175)  why= combat achievement, param_1312=60
+  param=param_1306,int,344    (configs/all.struct:16176)
+  param=param_1312,int,60    (configs/all.struct:16177)
+  param=param_1308,str,Playing with Jads    (configs/all.struct:16178)
+  param=param_1309,str,Complete wave 68 of the Inferno within 30 seconds of the first JalTok-Jad dying.    (configs/all.struct:16179)
+  param=param_1310,int,6    (configs/all.struct:16180)
+  param=param_1311,int,4    (configs/all.struct:16181)
+  param=param_1307,int,3594    (configs/all.struct:16182)
+
+[struct 3485] struct_3485    (configs/all.struct:16184)  why= combat achievement, param_1312=60
+  param=param_1306,int,345    (configs/all.struct:16185)
+  param=param_1312,int,60    (configs/all.struct:16186)
+  param=param_1308,str,No Luck Required    (configs/all.struct:16187)
+  param=param_1309,str,Kill TzKal-Zuk without being attacked by TzKal-Zuk and without taking damage from a JalTok-Jad.    (configs/all.struct:16188)
+  param=param_1310,int,6    (configs/all.struct:16189)
+  param=param_1311,int,2    (configs/all.struct:16190)
+  param=param_1307,int,3594    (configs/all.struct:16191)
+
+[struct 3486] struct_3486    (configs/all.struct:16193)  why= combat achievement, param_1312=60
+  param=param_1306,int,346    (configs/all.struct:16194)
+  param=param_1312,int,60    (configs/all.struct:16195)
+  param=param_1308,str,Nibblers, Begone!    (configs/all.struct:16196)
+  param=param_1309,str,Kill TzKal-Zuk without letting a pillar fall before wave 67.    (configs/all.struct:16197)
+  param=param_1310,int,5    (configs/all.struct:16198)
+  param=param_1311,int,2    (configs/all.struct:16199)
+  param=param_1307,int,3594    (configs/all.struct:16200)
+
+[struct 3487] struct_3487    (configs/all.struct:16202)  why= combat achievement, param_1312=60
+  param=param_1306,int,347    (configs/all.struct:16203)
+  param=param_1312,int,60    (configs/all.struct:16204)
+  param=param_1308,str,Wasn't Even Close    (configs/all.struct:16205)
+  param=param_1309,str,Kill TzKal-Zuk without letting your hitpoints fall below 50 during any wave in the Inferno.    (configs/all.struct:16206)
+  param=param_1310,int,6    (configs/all.struct:16207)
+  param=param_1311,int,5    (configs/all.struct:16208)
+  param=param_1307,int,3594    (configs/all.struct:16209)
+
+[struct 3488] struct_3488    (configs/all.struct:16211)  why= combat achievement, param_1312=60
+  param=param_1306,int,348    (configs/all.struct:16212)
+  param=param_1312,int,60    (configs/all.struct:16213)
+  param=param_1308,str,Budget Setup    (configs/all.struct:16214)
+  param=param_1309,str,Kill TzKal-Zuk without equipping a Twisted Bow within the Inferno.    (configs/all.struct:16215)
+  param=param_1310,int,6    (configs/all.struct:16216)
+  param=param_1311,int,5    (configs/all.struct:16217)
+  param=param_1307,int,3594    (configs/all.struct:16218)
+
+[struct 3489] struct_3489    (configs/all.struct:16220)  why= combat achievement, param_1312=60
+  param=param_1306,int,349    (configs/all.struct:16221)
+  param=param_1312,int,60    (configs/all.struct:16222)
+  param=param_1308,str,Nibbler Chaser    (configs/all.struct:16223)
+  param=param_1309,str,Kill TzKal-Zuk without using any magic spells during any wave in the Inferno.    (configs/all.struct:16224)
+  param=param_1310,int,6    (configs/all.struct:16225)
+  param=param_1311,int,5    (configs/all.struct:16226)
+  param=param_1307,int,3594    (configs/all.struct:16227)
+
+[struct 3490] struct_3490    (configs/all.struct:16229)  why= combat achievement, param_1312=60
+  param=param_1306,int,350    (configs/all.struct:16230)
+  param=param_1312,int,60    (configs/all.struct:16231)
+  param=param_1308,str,Facing Jad Head-on II    (configs/all.struct:16232)
+  param=param_1309,str,Kill TzKal-Zuk without equipping any range or mage weapons before wave 69.    (configs/all.struct:16233)
+  param=param_1310,int,6    (configs/all.struct:16234)
+  param=param_1311,int,5    (configs/all.struct:16235)
+  param=param_1307,int,3594    (configs/all.struct:16236)
+
+[struct 3491] struct_3491    (configs/all.struct:16238)  why= combat achievement, param_1312=60
+  param=param_1306,int,351    (configs/all.struct:16239)
+  param=param_1312,int,60    (configs/all.struct:16240)
+  param=param_1308,str,Jad? What Are You Doing Here?    (configs/all.struct:16241)
+  param=param_1309,str,Kill TzKal-Zuk without killing the JalTok-Jad which spawns during wave 69.    (configs/all.struct:16242)
+  param=param_1310,int,6    (configs/all.struct:16243)
+  param=param_1311,int,5    (configs/all.struct:16244)
+  param=param_1307,int,3594    (configs/all.struct:16245)
+
+[struct 3492] struct_3492    (configs/all.struct:16247)  why= combat achievement, param_1312=60
+  param=param_1306,int,352    (configs/all.struct:16248)
+  param=param_1312,int,60    (configs/all.struct:16249)
+  param=param_1308,str,Inferno Speed-Runner    (configs/all.struct:16250)
+  param=param_1309,str,Complete the Inferno in less than 65 minutes.    (configs/all.struct:16251)
+  param=param_1310,int,6    (configs/all.struct:16252)
+  param=param_1311,int,6    (configs/all.struct:16253)
+  param=param_1307,int,3594    (configs/all.struct:16254)
+
+[struct 3573] struct_3573    (configs/all.struct:17269)  why= param_1313=TzKal-Zuk
+  param=param_1313,str,TzKal-Zuk    (configs/all.struct:17270)
+  param=param_1314,int,1400    (configs/all.struct:17271)
+  param=param_1315,int,60    (configs/all.struct:17272)
+  param=param_1319,str,TzKal-Zuk is the final boss found within the depths of the Inferno found within the inner city of Mor Ul Rek.<br><br>Attack Styles - Special<br>Immunities - Poison, Venom<br>Slayer Categories - TzHaar    (configs/all.struct:17273)
+  param=param_1320,str,Mandatory requirements:<br> - Fire Cape<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster    (configs/all.struct:17274)
+  param=param_1317,int,40883198    (configs/all.struct:17275)
+  param=param_1318,int,40    (configs/all.struct:17276)
+  param=param_1322,int,33011    (configs/all.struct:17277)
+  param=param_1323,int,7564    (configs/all.struct:17278)
+  param=param_1324,int,50    (configs/all.struct:17279)
+  param=param_1325,int,350    (configs/all.struct:17280)
+  param=param_1326,int,50    (configs/all.struct:17281)
+  param=param_1327,int,140    (configs/all.struct:17282)
+  param=param_1328,int,0    (configs/all.struct:17283)
+  param=param_1329,int,3800    (configs/all.struct:17284)
+  param=param_675,int,12    (configs/all.struct:17285)
+
+[struct 5858] struct_5858    (configs/all.struct:26132)  why= param_1042=Kill TzKal-Zuk
+  param=param_1042,str,Kill TzKal-Zuk    (configs/all.struct:26133)
+  param=param_1043,str,DV8    (configs/all.struct:26134)
+  param=param_1044,str,15th November 2023    (configs/all.struct:26135)
+
+[struct 6217] struct_6217    (configs/all.struct:26603)  why= param_1042=Kill TzKal-Zuk
+  param=param_1042,str,Kill TzKal-Zuk    (configs/all.struct:26604)
+  param=param_1043,str,DV8    (configs/all.struct:26605)
+  param=param_1044,str,27th November 2024    (configs/all.struct:26606)
+
+[struct 6458] struct_6458    (configs/all.struct:28481)  why= param_1042=Kill TzKal-Zuk
+  param=param_1042,str,Kill TzKal-Zuk    (configs/all.struct:28482)
+  param=param_1043,str,Chad Society    (configs/all.struct:28483)
+  param=param_1044,str,15th April 2026    (configs/all.struct:28484)
+

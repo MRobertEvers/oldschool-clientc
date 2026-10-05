@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Nibblers, Begone!
+|image = [[File:TzKal-Zuk.png|270px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Tzkal-Zuk without letting a pillar fall before wave 67.
+|tier = Master
+|monster = TzKal-Zuk
+|type = Perfection
+|id = 346
+|leagueRegion = Karamja
+}}
+'''Nibblers, Begone!''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill [[TzKal-Zuk]] while not letting any of the three [[rocky support|pillars]] that are provided at the start of the fight be destroyed by the [[Jal-Nib]]s.
+
+==Other tasks==
+{{Combat Achievements list|TzKal-Zuk}}
+
+{{Combat Achievements}}

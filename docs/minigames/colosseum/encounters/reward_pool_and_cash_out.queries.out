@@ -1,0 +1,19 @@
+== per reward wave: line count, sum of fractional lines, unique share, split e/a/t
+1 lines 1 sum 0 unique 0 split -
+2 lines 7 sum 1 unique 0 split -
+3 lines 15 sum 1 unique 0 split -
+4 lines 19 sum 1 unique 1/124 split (Fraction(2, 5), Fraction(3, 5), Fraction(0, 1))
+5 lines 12 sum 1 unique 1/110 split (Fraction(2, 5), Fraction(3, 5), Fraction(0, 1))
+6 lines 12 sum 1 unique 1/96 split (Fraction(2, 5), Fraction(3, 5), Fraction(0, 1))
+7 lines 19 sum 1 unique 1/82 split (Fraction(3, 8), Fraction(9, 16), Fraction(1, 16))
+8 lines 19 sum 1 unique 1/68 split (Fraction(3, 8), Fraction(9, 16), Fraction(1, 16))
+9 lines 17 sum 1 unique 1/54 split (Fraction(3, 8), Fraction(9, 16), Fraction(1, 16))
+10 lines 17 sum 1 unique 1/40 split (Fraction(3, 8), Fraction(9, 16), Fraction(1, 16))
+11 lines 15 sum 1 unique 1/26 split (Fraction(3, 8), Fraction(9, 16), Fraction(1, 16))
+12 lines 17 sum 201/200 unique 1/12 split (Fraction(3, 8), Fraction(9, 16), Fraction(1, 16))
+== denominators: old 220-16R (post waves 6-11 = R 7-12), new 180-14R (post waves 3-11 = R 4-12)
+old [108, 92, 76, 60, 44, 28] new [124, 110, 96, 82, 68, 54, 40, 26, 12]
+== wave 4-6 renormalised split (post 9/16 armour, 6/16 echo, tonalztics 0): armour 3/5 echo 2/5
+== wave-3 normal: 7 x 9/70 + 7 x 1/70 = 1 ; wave 2: 7 x 1/7 = 1
+== wave 4 tier weights of the normal part 9/10 1/10
+== expected sunfire splinters per full completion from the transcribed tables: 2014.6242309350648 (chest page :117 says 2014.6)

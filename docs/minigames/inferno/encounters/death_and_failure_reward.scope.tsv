@@ -1,0 +1,23 @@
+mechanic_id	scope	note
+death.hardcore_status_kept	all	solo; source-only (no hardcore account in the harness); our death path never touches the hardcore flag (static read of player/death.rs2)
+death.items_kept	all	solo; ::die in a real wave 1 (and a wave 10 run flagged real by cheat), 6 stacks carried plus a worn whip: kept 3 (whip, platebody, platelegs), lost the other 4 including 100000 coins: CONTENT BUG DEATH-1. ::die, not a fought death: the driver ends the run at hp 0 (a fought death at wave 1 reached the same death queue, hp 0 at tick 34, nothing readable after)
+death.items_lost_unprotected	all	solo; as items_kept: 4 of 7 lost (coins, full helm, kiteshield, scimitar), n=2 runs, same result
+death.gravestone_created	all	solo; the death proc ran the item-loss pass (player/death.rs2:178-186 guard names only fightcave, gauntlet, poh); ground items not read
+death.respawn_tile	all	solo; measured 3222,3218 (Lumbridge) 2 ticks after ::die, n=2; no source states the Inferno's respawn tile (M7)
+death.run_cleared	all	solo; measured: t+3 active 0 wave 0 saved_wave 0, n=2; source silent (M8)
+death.slayer_task_wiped	all	solo; no Inferno Slayer task exists in skill_slayer (no TzKal-Zuk reference): not measurable, CONTENT BUG DEATH-3
+death.leave_slayer_task_wiped	all	solo; as slayer_task_wiped
+death.failed_run_pays_tokkul	all	solo; the Cave exit pays (6, 12, 110 at waves 2, 3, 10, cheat varps practice 0 and alive 0); a death pays 0 at wave 10 (n=1): CONTENT BUG DEATH-2
+death.tokkul_rises_with_wave	all	solo; 6 < 12 < 110 at waves 2, 3, 10 (n=1 each); the formula 2+(w-1)(w+2) read from inferno.rs2:126-131
+death.tokkul_by_wave_table	all	solo; no source (SOURCES.md:378); our formula is an approximation tagged M9
+death.tokkul_failed_run_trigger	all	solo; ours pays only the exit, never a death; the wiki says 'the wave they were defeated on' (Inferno:298) and 'depending the number of waves completed' (Tokkul:36)
+death.tokkul_zuk_kill	all	solo; static read ^inferno_tokkul_cape = 16440 (inferno.constant:427); a Zuk kill is not reachable here (full-run unit)
+death.tokkul_elite_diary_multiplier	all	solo; static read: ~inferno_leave has no diary test (the Fight Caves script does, fightcave.rs2:316): CONTENT BUG DEATH-4
+death.tokkul_diary_applies_to_failed_run	all	solo; as multiplier (no diary account was set up; static read)
+death.tokkul_item_id	all	solo; the counts above are of tzhaar_token (6529)
+death.exit_loc_name	all	solo; clicked by name inferno_exit in scratch (click ok)
+death.exit_loc_op1	all	solo; op 1 clicked: leaves (wave clear) or arms a pause (wave live)
+death.exit_loc_op2	all	solo; op 2 not clicked
+death.exit_loc_size	all	solo; cache read only
+death.quick_exit_effect	all	solo; ours: op2 shares op1's leave, without the pause-now branch (inferno.rs2:299-304)
+death.exit_before_zuk_pays_no_cape	all	solo; static read of ~inferno_leave: a cape only when wave >= 69 and not practice

@@ -1,0 +1,575 @@
+{{External|rs}}
+{{Has quick guide|mini=1}}
+{{Infobox Miniquest
+|name = Barbarian Training
+|image = [[File:Barbarian Training.png|300px]]
+|release = [[3 July]] [[2007]]
+|update = Barbarian Training
+|members = Yes
+|series = None
+|developer = Unknown (original), [[Mod Arcane]] and [[Mod Maylea]] (rework){{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1763552188582756477|archiveurl=https://reldo.runescape.wiki/i/27963335|archivedate=07 April 2026|quote=Mod Arcane. Possibly with some help from Mod Maylea.|date=01 March 2024}}
+}}
+'''Barbarian Training''' is a [[miniquest]] that explores a set of expansions to [[Farming]], [[Firemaking]], [[Herblore]], [[Fishing]], and [[Smithing]]. The miniquest provides access to the [[Ancient Cavern]] and the numerous monsters within, such as the [[mithril dragon]].
+
+Initially released as a standalone activity on [[3 July]] [[2007]], Barbarian Training was reworked into a miniquest on [[14 February]] [[2024]], alongside the addition of Barbarian Farming. This page contains information on both the miniquest itself, as well as the individual methods of training skills.
+
+==Details==
+{{Quest details
+|start = Speak to [[Otto Godblessed]] in [[Otto's Grotto|his grotto]] at the lake atop [[Baxtorian Falls]].
+|startmap = 2504,3488
+|difficulty = Experienced
+|length = Medium
+|description = Otto Godblessed has been researching his history and training people in the ways of his ancestors, and now he's ready to teach you. From his hut on the banks of the lake at the top of Baxtorian Falls, you'll go Fishing with your bare hands, mix fish eggs into your potions, wield one-handed spears and, finally, go deep into the ancient cavern beneath the lake.
+|requirements = * Completion of [[Tai Bwo Wannai Trio]] {{Questreqstart|no}}
+* {{SCP|Fishing|55|link=yes}} {{Boostable|yes}} {{Questreqstart|no}}
+* {{SCP|Firemaking|35|link=yes}} {{Boostable|no}} {{Questreqstart|no}}
+* {{SCP|Strength|35|link=yes}} {{Boostable|no}} {{Questreqstart|no}}
+* {{SCP|Agility|15|link=yes}} {{Boostable|no}} {{Questreqstart|no}}
+* {{SCP|Farming|15|link=yes}} {{Boostable|no}} {{Questreqstart|no}}
+* {{SCP|Crafting|11|link=yes}} {{Boostable|no}} {{Questreqstart|no}}
+* {{SCP|Smithing|5|link=yes}} {{Boostable|no}} {{Questreqstart|no}}
+* {{SCP|Herblore|4|link=yes}} {{Boostable|no}} {{Questreqstart|no}}
+|items = *Farming:
+** Any [[seed]] that can be planted with a [[seed dibber]] (such as [[Allotment patch|allotment]] and [[Herb patch|herb]] seeds) and a free Farming patch for it (part 1)
+** Any [[sapling]] and a free Farming patch for it (part 2)
+** A [[spade]] (part 2)
+** An [[axe]] or 200 [[coins]] (part 2, to clear a required patch if it is occupied)
+*Firemaking:
+**Any [[bow]] ''except'' [[Twisted bow|twisted]], [[Cursed goblin bow|cursed]], [[Dark bow|dark]], [[Crystal bow|crystal]], [[ogre bow|ogre]], [[Rain bow|rain]], or the [[signed oak bow]] (part 1)
+**[[Oak logs]] (can get some oak logs north of [[Otto's house]], down a hill) (part 1)
+**A [[tinderbox]] (part 2)
+**An [[axe]] (part 2)
+*Fishing:
+**Some [[fishing bait]] or [[feather]]s
+**A [[knife]]
+*Smithing:
+**[[Hammer]]
+**Two metal [[bars]] of a level you can smith
+**Two [[logs]] corresponding to the type of metal bars you are using. [[bronze bar|Bronze]], [[iron bar|iron]], [[steel bar|steel]], [[mithril bar|mithril]], [[adamantite bar|adamantite]], and [[runite bar|runite bars]] require [[logs|normal]], [[Oak logs|oak]], [[Willow logs|willow]], [[Maple logs|maple]], [[Yew logs|yew]], or [[magic logs]], respectively.
+*Herblore:
+**A normal [[attack potion]] (2 doses)
+**[[Roe]] (can be obtained during Barbarian Fishing)
+**A [[knife]] for [[roe]] or [[caviar]]
+|recommended = * {{SCP|Combat|70|link=yes}}
+* A [[games necklace]] to teleport to the [[Barbarian Outpost]]
+* [[Armour]], [[weapon]]s, and [[food]] for fighting [[Mithril dragon]]s to obtain [[chewed bones]]
+* A [[tinderbox]]
+* [[Camelot teleport|Teleport to Camelot]] or [[Catherby teleport]] for [[Catherby]] beach or transport to the [[Fishing Guild]] (Note you must have level 68 Fishing to enter the [[Fishing Guild]])
+|kills = * Multiple [[mithril dragon]]s ''(level 304)''
+|leagueRegion = <poem>
+{{LeagueRegion|Karamja}} - location requirement
+{{LeagueRegion|Kandarin}} - location requirement
+</poem>
+}}
+
+==Starting out==
+[[File:Otto Godblessed chathead.png|left]]
+Talk to [[Otto Godblessed]] in [[Otto's Grotto|his grotto]], on top of [[Baxtorian Falls]]. Players can get there quickly by using the [[games necklace]] teleport to the [[Barbarian Outpost]] and running south. Alternatively, players can also use the [[Barbarian Assault]] [[minigame teleport]] (after fully playing through the tutorial), or run up directly from [[East Ardougne]] and climb the cliff side of the waterfall to the plateau.
+
+Otto is interested in the cultural history of his people and will offer to teach eligible players about barbarian skills. Upon speaking to him, respond with, "You think so?" to start the miniquest.
+
+Later on, if you ask about the [[Ancient Cavern]] under the lake, he will give a blank [[My notes|note book]]. You can add to the note book as you find [[ancient page]]s within, which are usually collected by searching [[Skeleton (Ancient Cavern)|skeletons]] on the cave floor. Note that doing so may result in a [[skeleton heavy]] or [[skeleton hero]] attacking.
+
+==Fishing==
+[[File:Fishing icon (detail).png|left|frameless]]
+[[Otto]] will give the player information about barbarian [[Fishing]], allowing the player to fish with a heavy rod and catch new fish, as well as catch fish barehanded. Note that you do not need to complete both sections to begin fishing in the nearby waters with a [[barbarian rod]]. 
+
+===Heavy rod fishing===
+{{Needed|[[Barbarian rod]] or the equipable version, the [[Pearl barbarian rod]]. Also, [[Fishing bait]], [[feathers]], [[fish offcuts]], [[roe]] or [[caviar]]|recommended=[[Knife]]|skills={{SCP|Fishing|48|link=yes}}, {{SCP|Agility|15|link=yes}}, {{SCP|Strength|15|link=yes}}}}
+[[File:Average heavy rod fishing XP rates.png|thumb|Barbarian Fishing experience rates using a heavy rod as a function of Fishing level.]]Speak to [[Otto Godblessed|Otto]] and ask "What can I learn about the use of a fishing rod?" He will explain that barbarians use heavier tackle to catch leaping fish in the lake nearby, and tell you to search under his [[barbarian bed|bed]] to obtain a [[barbarian rod]].
+
+Use the rod at the [[Fishing spot (barbarian)|fishing spots]] in the lake to catch [[leaping trout]], [[leaping salmon]], or [[leaping sturgeon]]. This is a [[Idle training|low-effort]] training method that also grants [[Strength]] and [[Agility]] experience.
+
+Caught fish can be gutted with a [[knife]] to obtain [[roe]] or [[caviar]], granting a small amount of [[Cooking]] experience. Gutting may fail, but at level 80 Cooking it is no longer possible to fail when cutting salmon or sturgeon. Gutting also has a chance to produce [[fish offcuts]]. Offcuts, roe, and caviar can all be used as bait at these fishing spots, though roe and caviar are only used if no other bait is in the inventory.
+
+At least one roe is needed for the Barbarian Herblore section below, so keep one when gutting.
+
+Fish offcuts can also be used for [[aerial fishing]], [[deep sea trawling]], and baiting [[Crab trap|crab traps]].
+
+{| class="wikitable align-center-1 align-left-2" style="text-align:right;"
+! colspan="2" rowspan="2" |Fish
+! colspan="4" |Level
+! colspan="5" |Experience
+|-
+!{{SCP|Fishing}}!!{{SCP|Strength}}!!{{SCP|Agility}}!!{{SCP|Cooking}}
+!{{SCP|Fishing}}!!{{SCP|Strength}}!!{{SCP|Agility}}!!{{SCP|Cooking}}!!{{SCP}}
+|-
+|{{plinkt|Leaping trout}}
+|48||15 ||15||0
+|50||5||5||10||70
+|-
+|{{plinkt|Leaping salmon}}
+|58||30 ||30||0
+|70||6||6||10||92
+|-
+|{{plinkt|Leaping sturgeon}}
+|70||45|| 45||0
+|80||7||7||15||109
+|}
+{| class="wikitable align-center-1" style="text-align:right;"
+! rowspan="2" |{{SCP|Fishing}} Level 
+! colspan="3" |XP/h (AFK)
+! colspan="4" |XP/h (3-tick)
+|-
+!{{SCP|Fishing}}
+!{{SCP|Strength}}/{{SCP|Agility}}
+!{{SCP}} Total
+!{{SCP|Fishing}}
+!{{SCP|Strength}}/{{SCP|Agility}}
+!{{SCP|Cooking}}
+!{{SCP}} Total
+|-
+|48
+|23,000
+|2,300
+|27,600
+|41,000
+|4,100
+|5,400
+|54,600
+|-
+|58
+|37,000
+|3,400
+|43,800
+|68,000
+|6,300
+|9,300
+|89,900
+|-
+|70
+|48,000
+|4,400
+|56,800
+|90,000
+|8,200
+|13,800
+|120,200
+|-
+|80
+|52,000
+|4,700
+|61,400
+|97,000
+|8,800
+|14,800
+|129,400
+|-
+|90
+|54,000
+|4,900
+|63,800
+|103,000
+|9,300
+|15,800
+|137,400
+|-
+|99
+|57,000
+|5,200
+|67,400 
+|108,000
+|9,800
+|16,800
+|144,400
+|}
+The following table shows the ratio between Fishing and Agility/Strength experience:
+{| class="wikitable"
+|+
+!Level
+!Ratio (Fishing:other skills)
+|-
+|50-57
+|10:1
+|-
+|58-69
+|~10.8:1
+|-
+|70-79
+|~10.9:1
+|-
+|80-89
+|~11.1:1
+|-
+|90-99
+|~11.3:1
+|-
+|99
+|~11.4:1
+|}
+
+===Barehanded fishing===
+{{Needed|skills={{SCP|Fishing|55|link=yes}}, {{SCP|Strength|35|link=yes}}}}
+[[File:Barbarian Fishing (barehanded).gif|thumb|200px|The player fishes tuna and swordfish without a harpoon.]]
+Speak to Otto and ask "Please teach me of your cunning with harpoons." He will tell you that instead of using a harpoon, you will use your arm as bait. Find a [[Fishing spot (cage, harpoon)|fishing spot]] where a harpoon is required; [[Catherby]] is a good location with no requirements, while the [[Fishing Guild]] is closer but requires level 68 Fishing to enter. The [[Fairy rings|fairy ring]] {{Fairycode|BJP}} to [[Soul Wars]] is directly next to a spot. The [[Fishing spot (Tempoross Cove)|fishing spots]] in [[Tempoross Cove]] will work as well.
+
+While barehanded fishing is identical in speed and catch rate as fishing with a regular [[harpoon]], it requires 20 additional Fishing levels to fish the same fish barehanded ([[boosts]] can be used). Barehanded fishing also gives small amounts of bonus [[Strength]] experience (see the table below).
+
+{| class="wikitable align-center-1 align-left-2" style="text-align:right;"
+! colspan="2" rowspan="2" |Fish
+! colspan="2" |Level
+! colspan="3" |Experience
+|-
+!{{SCP|Fishing}}
+!{{SCP|Strength}}
+!{{SCP|Fishing}}
+!{{SCP|Strength}}
+!{{SCP}}
+|-
+|{{plinkt|Raw harpoonfish}}
+|55||35
+|8.5||10||18.5
+|-
+|{{plinkt|Raw tuna}}
+|55||35
+|80||8||88
+|-
+|{{plinkt|Raw swordfish}}
+|70||50
+|100||10||110
+|-
+|{{plinkt|Raw shark}}
+|96||76
+|110||11|| 121
+|}
+
+==Firemaking==
+[[File:Firemaking icon (detail).png|left|frameless]]
+[[Otto]] will give the player information about barbarian [[Firemaking]] (This does not require completing or even starting the fishing section). He will tell you to take a [[bow]] and use it with [[oak logs]] as a way of lighting them without a [[tinderbox]].
+
+===Lighting fires with a bow===
+{{Needed|Any standard [[bow]] made with logs, and one set of [[oak logs]]|skills={{SCP|Firemaking|35|link=yes}}}}
+[[File:Barbarian Firemaking.gif|thumb|200px|The player lights a set of [[redwood logs]] with [[Seercull]].]]
+Lighting logs with a bow gives the same experience as lighting them with a tinderbox. You can use your logs on the bow to make it less click intensive. After lighting your first set of [[Oak logs]], speak to Otto again to be able to continue.
+
+This stage of barbarian training is required to enter the [[Ancient Cavern]], which is the location of [[mithril dragons]], and is required for completion of [[Dragon Slayer II]].
+
+{| class="wikitable align-center-1 align-left-2" style="text-align:right;"
+! colspan="2" rowspan="2" |Logs
+! colspan="2" |{{SCP|Firemaking|link=y}}
+|-
+!Level
+!Exp
+|-
+|{{plinkt|Logs}}
+|21||40
+|-
+|{{plinkt|Achey tree logs}}
+|21||40
+|-
+|{{plinkt|Oak logs}}
+|35||60
+|-
+|{{plinkt|Willow logs}}
+|50||90
+|-
+|{{plinkt|Teak logs}}
+|55||105
+|-
+|{{plinkt|Arctic pine logs}}
+|62||125
+|-
+|{{plinkt|Maple logs}}
+|65||135
+|-
+|{{plinkt|Mahogany logs}}
+|70||157.5
+|-
+|{{plinkt|Yew logs}}
+|80||202.5
+|-
+|{{plinkt|Camphor logs}}
+|86||245
+|-
+|{{plinkt|Magic logs}}
+|95||303.8
+|-
+|{{plinkt|Ironwood logs}}
+|99||220.5
+|-
+|{{plinkt|Rosewood logs}}
+|99||268
+|-
+|{{plinkt|Redwood logs}}
+|99||350
+|}
+
+===Pyre ships===
+{{Needed|Any woodcutting axe, [[tinderbox]] or suitable bow|recommended=One-click teleport, food and armour to kill '''level 304 [[mithril dragons]]'''.|skills={{SCP|Firemaking|11|link=yes}}'','' {{SCP|Crafting|11|link=yes}}}}
+'''''{{Colour|Red|Warning:}} '''This section involves entering the [[Ancient Cavern]], a dangerous area filled with high-level monsters that can attack using multiple combat styles, including [[dragonfire]]. There is no exit immediately available upon entering the dungeon, so it is '''highly recommended''' to bring a one-click teleport. Don't bring in anything you are not willing to lose.''
+[[File:Pyre Ship chewed bones.gif|frame|A barbarian Spirit being laid to rest]]
+After creating a fire using oak logs with a bow, players can ask Otto "I have completed firemaking with a bow. What follows this?", and he will explain how to make [[pyre ship]]s, which involves diving into the [[Ancient Cavern]] below the lake to obtain [[chewed bones]]. Only [[mithril dragon]]s will drop chewed bones (at a rate of ~1/42), and obtaining one is required to complete the miniquest; [[mangled bones]] will '''not''' count.
+
+After receiving the bones, players can build the pyre ship, requiring a set of logs (preferably magic logs for the [[elite Kandarin Diary]] requirement), a [[woodcutting axe]], and a [[tinderbox]] or suitable bow. Pyre ships can be created on the [[pyre site]]s around the lake near [[Otto's Grotto]]. Burning a pyre ship will grant the player an experience bonus of up to 300%, depending on the logs used, the next time they bury [[bones]]. In order to receive this bonus, the player must have fully completed the Firemaking portion of barbarian training.
+
+[[Peaceful barbarian spirit]]s released from chewed bones will give you [[Chewed bones#Rewards|some items]], including a 1/256 chance for a [[dragon full helm]], while spirits released from mangled bones result in a level 166 [[ferocious barbarian spirit]] appearing, who will attack the player. Please note that if you use mangled bones to make a pyre ship, you will be unable to make another pyre ship until you kill the spirit. If you attempt to make another one while a barbarian spirit is around, the sacrifice will be declined.
+
+Pyre ships have [[boost]]able [[Firemaking]] and [[Crafting]] level requirements.
+
+{{Table/Pyre ships}}
+
+==Farming==
+[[File:Farming icon (detail).png|left|frameless]]
+[[Otto]] will give the player information about barbarian [[Farming]] (This does not require completing or even starting the fishing section). Completion of barbarian Farming allows players to plant [[seed]]s without a [[seed dibber]], and automatically destroy [[empty plant pot]]s when planting [[tree patch|trees]].
+
+=== Barehanded planting===
+{{Needed|Any [[seed]] that can be planted with a [[seed dibber]], 1 free [[Farming/Patch locations|Farming patch]].|recommended=A [[rake]] to clear any [[weeds]] on the patch.}}
+
+After asking about agricultural training, Otto will request that you plant a seed without a seed dibber. This can be done using any type of patch that requires a seed dibber to plant seeds, for example [[Herb patch|herbs]] and [[Allotment patch|allotments]], however planting [[grape seeds]] will not progress the miniquest. After the seed is planted, you can return to Otto immediately; you don't need to wait for it to grow. Note that during the quest, this can fail, so it is advised to use low cost/plentiful seeds. 
+
+You'll know you succeed when you receive the message {{Mes|You feel you have learned more of barbarian ways. Otto might wish to talk to you more.}} Once completed, there is no longer a chance to fail to plant seeds barehanded; you will '''always''' succeed in planting them.
+
+===Pot-smashing===
+{{Needed|A [[spade]], any [[sapling]], 1 free [[tree patch]], [[fruit tree patch]] or [[special tree patch]].|recommended=An [[axe]] or 200 [[coins]] to clear the required patch if it is occupied|skills={{SCP|Farming|15|link=yes}}}}
+
+Talk to [[Otto Godblessed|Otto]] again after planting a seed barehanded, and ask again about agricultural training. He will speak about channeling your anger and strength into smashing the pot into dust, as not to leave a mess of pot shards all over the place. Otto will then give you the ability to smash and destroy pots automatically after planting the contents within.
+
+After planting a [[filled plant pot]] with any [[sapling]] to an empty [[tree patch]], your character will smash the pot to dust, and you can return to Otto to complete your Barbarian Farming training. This feature can be toggled in the [[settings]] menu under "Automatically smash empty plant pots."
+
+==Smithing==
+[[File:Smithing icon (detail).png|left|frameless]]
+After completion of Barbarian Fishing, speak to [[Otto Godblessed|Otto]] and ask "Tell me more about the use of spears". He will teach you how to make [[spear]]s and [[hastae]], but only after you've completed [[Tai Bwo Wannai Trio]] and claimed the combat xp from [[Tamayu]]. Completion of this section is required to equip the [[Zamorakian hasta]] and [[dragon hunter lance]].
+
+===Making the weapons===
+{{Needed|two [[bars]], two corresponding [[logs]], and a [[hammer]]|skills={{SCP|Smithing|5|link=yes}}, completion of [[Tai Bwo Wannai Trio]]}}
+
+Take a metal [[bar]] and some corresponding [[logs]], and use them on the [[barbarian anvil]] outside [[Otto's Grotto]]. Once you've made the spear, talk to [[Otto]] again, and he will tell you about [[hastae]]. '''Be careful to make only one spear, as the second bar is required for the next step.'''
+
+Forging [[hastae]] is exactly the same; take a metal [[bar]] and the corresponding [[logs]], and then use them on the barbarian anvil. Next, talk to [[Otto]] again, and your Barbarian Smithing training will be completed. If Otto says, "You do not exude the presence of one who has poured his soul into manufacturing spears," it means that you need to first smith a spear on the anvil near his grotto. 
+
+A table of the spears and hastae that you can make, as well as the logs and bars needed, is found below:
+{| class="wikitable align-center-1 align-center-3 align-center-5 align-right-7 align-right-8"
+! colspan="2" rowspan="2" |[[Spear]]s
+! colspan="2" rowspan="2" |[[Hasta]]e
+! colspan="2" rowspan="2" |Logs required
+! colspan="2" |{{SCP|Smithing|link=y}}
+|-
+!Level
+!Exp
+|-
+| {{plinkt|Bronze spear}}
+| {{plinkt|Bronze hasta}}
+| {{plinkt|Logs}}
+|5||25
+|-
+| {{plinkt|Iron spear}}
+| {{plinkt|Iron hasta}}
+| {{plinkt|Oak logs}}
+|20|| 50
+|-
+| {{plinkt|Steel spear}}
+| {{plinkt|Steel hasta}}
+| {{plinkt|Willow logs}}
+|35||75
+|-
+| {{plinkt|Mithril spear}}
+| {{plinkt|Mithril hasta}}
+| {{plinkt|Maple logs}}
+|55||100
+|-
+| {{plinkt|Adamant spear}}
+| {{plinkt|Adamant hasta}}
+| {{plinkt|Yew logs}}
+|75||125
+|-
+| {{plinkt|Rune spear}}
+| {{plinkt|Rune hasta}}
+| {{plinkt|Magic logs}}
+|90||150
+|-
+| {{plinkt|Zamorakian spear}}<ref group="n" name="zamorak">You need to pay Otto {{NoCoins|300,000|c}} in order to convert a Zamorakian spear into a Zamorakian hasta. Otto can convert your Zamorakian hasta back into a spear, free of charge.</ref>
+| {{plinkt|Zamorakian hasta}}<ref group="n" name="zamorak" />
+| {{NA}}||{{NA}}
+| {{NA}}||{{NA}}
+|}
+<references group="n" />
+
+==Herblore==
+[[File:Herblore icon (detail).png|left|frameless]]
+{{Needed|a normal [[attack potion]] (2 doses), [[roe]] or [[caviar]] (can be obtained during Barbarian Fishing)|skills={{SCP|Herblore|4|link=yes}}, completion of [[Druidic Ritual]]}}
+After completion of the rod fishing part of Barbarian Fishing, speak to Otto and ask "What was that secret knowledge of herblore we talked of?" He will tell you that the secret is in the roe and caviar that you may receive when gutting leaping fish.
+
+Otto will ask you to make an [[attack mix]] from a 2-dose [[attack potion]]. Add the [[roe]] you obtained during [[#Barbarian Fishing|the Fishing section]] to the two-dose attack potion, and hand it back to Otto. This will fully complete the training.
+
+===Barbarian potions===
+After finishing this training stage, many other potions can be enhanced by adding [[roe]] or [[caviar]] to a two-dose variant of the potions. To make 2 two-dose potions from a four-dose potion, players can use the four-dose potion on an empty [[vial]], or have certain [[Decanting#Decanting to 2-dose and 3-dose|NPCs]] do it for them.
+
+Through the creation of barbarian mixes, they will additionally heal 3 or 6 Hitpoints (depending on the mix type) in addition to the regular effects to normal potions, with the trade-off being that each potion mix is only two doses, as well as incurring the standard attack delay from eating food. Note that [[roe]] cannot be used in mixes higher levelled than the [[stat restore mix]]; any higher level mix requires [[caviar]], which is obtained the same way as roe.
+
+Left-clicking '''will not work''' for barbarian Herblore. The best way to avoid accidentally consuming the fish eggs is to position them in the bottom row of the inventory so that one can select the "use" option immediately after right-clicking, without needing to move the cursor.
+
+{| class="wikitable align-center-1 align-left-2 align-center-6" style="text-align:right;"
+! colspan="2" rowspan="2" |[[Potions|Potion]]
+! colspan="2" |{{SCP|Herblore|link=y}}
+! rowspan="2" |Heals 
+(per dose)
+! rowspan="2" |Eggs used
+|-
+!Level
+!Exp
+|-
+|{{plinkt|Attack mix}}
+|4||8||3
+|{{plinkp|Roe}} or {{plinkp|Caviar}}
+|-
+|{{plinkt|Antipoison mix}}
+|6||12||3
+|{{plinkp|Roe}} or {{plinkp|Caviar}}
+|-
+|{{plinkt|Relicym's mix}}
+|9||14||3
+|{{plinkp|Roe}} or {{plinkp|Caviar}}
+|-
+|{{plinkt|Strength mix}}
+|14||17||3
+|{{plinkp|Roe}} or {{plinkp|Caviar}}
+|-
+|{{plinkt|Restore mix}}
+|24||21||3
+|{{plinkp|Roe}} or {{plinkp|Caviar}}
+|-
+|{{plinkt|Energy mix}}
+|29||23||3
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Defence mix}}
+|33||25||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Agility mix}}
+|37 ||27||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Combat mix}}
+|40 ||28||3
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Prayer mix}}
+|42||29||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Superattack mix}}
+|47||33||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Anti-poison supermix}}
+|51||35||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Fishing mix}}
+| 53||38||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Super energy mix}}
+|56||39||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Hunting mix}}
+| 58||40 ||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Super str. mix}}
+| 59||42|| 6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Magic essence mix}}
+| 61||43|| 6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Super restore mix}}
+| 67||48 ||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Super def. mix}}
+|71|| 50||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Antidote+ mix}}
+|74||52||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Antifire mix}}
+|75||53||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Ranging mix}}
+| 80||54||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Magic mix}}
+|83||57||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Zamorak mix}}
+|85||58||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Stamina mix}}
+|86||60||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Extended antifire mix}}
+|91||61||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Ancient mix}}
+| 92||63||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Super antifire mix}}
+|98||70||6
+|{{plinkp|Caviar}}
+|-
+|{{plinkt|Extended super antifire mix}}
+| 99||78||6
+|{{plinkp|Caviar}}
+|}
+
+==Required for completing==
+Completion of barbarian training is required for the following:
+*[[Dragon Slayer II]] - Partial completion of barbarian Firemaking is required in order to access the [[Ancient Cavern]].
+*[[Hard Kandarin Diary]]
+*[[Elite Kandarin Diary]]
+*[[Elite Morytania Diary]]
+
+==Transcript==
+{{hastranscript|miniquest}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = Barbarian potions can now use the Make-all functionality. This can be toggled in the Settings menu.
+}}
+{{Subject changes
+|date = 14 February 2024
+|update = Barbarian Training, Forestry Changes & More
+|change = 
+* The Barbarian Training activity has been reworked into a [[miniquest]].
+** Players who have participated any previous sections of the activity have had those parts of the miniquest automatically completed.
+* Barbarian Farming has been added as an additional skill expansion for Barbarian Training.
+* Completion of Barbarian Farming allows players to plant [[seed]]s without a [[seed dibber]] and automatically destroy [[empty plant pot]]s when planting [[tree patch|trees]].
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = The Firemaking skillguide has been updated to include information about barbarian Firemaking.
+}}
+{{Subject changes
+|date = 9 April 2015
+|update = Motherlode Expansion & More
+|poll = Old School Content Poll 31: Easter Holiday Event
+|change = Offcuts are now prioritised over other kinds of bait when barbarian fishing.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Earlier drafts of barbarian training briefly contained a design for Barbarian Woodcutting, which would involve shouting at trees to topple them over, along with a design for Barbarian Mining, which would allow players to excavate ore by bashing their head against the rocks.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1040515493826895872|date=14 September 2018|archiveurl=https://reldo.runescape.wiki/i/103433|archivedate=10 June 2023|quote=Barbarian skills briefly contained a concept for shouting at trees to make them fall down, and mining with your head. (...)}}
+*Completing [[Alfred Grimhand's Barcrawl]] also grants what could be seen as a form of barbarian training, with a barbarian teaching how to smash empty [[vial]]s into dust on finishing a potion, similarly to smashing plant pots as taught in the [[#Pot-smashing|Farming]] segment of the miniquest.
+
+==References==
+{{Reflist}}
+
+{{Barbarian Training}}
+{{Miniquests}}

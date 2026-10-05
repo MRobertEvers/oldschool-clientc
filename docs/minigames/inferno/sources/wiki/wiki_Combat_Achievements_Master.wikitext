@@ -1,0 +1,71 @@
+{{External|rs=Combat Mastery - Master}}
+{{DISPLAYTITLE:Master Combat Achievements}}
+[[File:Combat Achievements - master tier icon.png|left]]
+'''Master [[Combat Achievements]]''' tasks require the highest combat levels, some of the best equipment available, and advanced knowledge of a boss's mechanics, with the ability to skillfully kill said bosses and deal with their mechanics with precision, especially within [[raids]].
+
+Very rarely, non-boss monsters may have master-tier combat achievements.
+__TOC__
+==Requirements==
+{{Sync}}
+<div class="qc-active">
+;Items
+{{Checklist|
+* {{plink|Brittle key}} to access the [[Grotesque Guardians]]
+* Any [[chinchompa]] to complete [[Precise Positioning]]
+* {{plink|Dark totem}} for every kill attempt at [[Skotizo]]
+* {{plink|Hespori seed}} for every successful kill at [[Hespori]]
+* Any [[salamander]] to complete [[More than just a ranged weapon]]
+* Any [[dragonbane weapon]] to complete [[Is it a bird?]]
+}}
+;Skills
+{{Checklist|
+* {{SCP|Agility|70|link=yes}}{{Boostable|no}} to enter [[Saradomin's Encampment]]
+* {{SCP|Farming|65|link=yes}} to access [[Hespori]]
+* {{SCP|Ranged|70|link=yes}}{{Boostable|no}} to enter [[Armadyl's Eyrie]]
+* {{SCP|Slayer|95|link=yes}}{{Boostable|no}}
+}}
+;Quests
+{{Checklist|smallindent=yes|notoggleparent=yes|
+* [[A Kingdom Divided]]
+* [[Beneath Cursed Sands]]
+* [[The Blood Moon Rises]] to access the [[Maggot King]]
+* [[Desert Treasure II - The Fallen Empire]]
+* [[Dragon Slayer II]]
+* [[The Frozen Door]]
+* Partial completion of [[Regicide]] to access [[Zulrah]]
+* [[Secrets of the North]]
+* [[Song of the Elves]]
+* [[The Final Dawn]]
+* [[While Guthix Sleeps]]
+}}
+</div>
+
+==Tasks==
+<onlyinclude>There are a total of {{Globals|ca master tasks}} master-tier tasks for the [[Combat Achievements]] system. Each master task gives 5 combat achievement points.
+
+{{Sync}}
+{| class="wikitable sortable music-tracks sticky-header" style="width:100%;"
+{{Combat Achievements list|master}}
+|}
+</onlyinclude>
+
+==Rewards==
+Players with {{Globals|ca master points}} Combat Achievement points may claim the master tier rewards by speaking to [[Ghommal]] or [[Laidee Gnonock]] by the entrance to the [[Warriors' Guild]]. These points do not necessarily have to be earned from tasks listed on this page, and can be earned from completing tasks from another tier.
+* An [[Antique lamp (Master Combat Achievements)|antique lamp]] worth 35,000 experience in any skill above 60
+* [[Ghommal's hilt 5]]
+** Five daily teleports to [[Mor Ul Rek]] (within the inner city)
+** Ability to create [[Ghommal's avernic defender 5]] by combining it with an [[Avernic defender]]
+* [[Ghommal's lucky penny]]
+** When consumed, offers a 5% chance to not use a charge when using items that consume charges (such as jewellery and weapons)
+* [[Like a boss]] slayer unlock will now allow players to have up to 60 boss kills (a +25 increase) when assigned a boss task
+* Slayer tasks to kill [[TzTok-Jad]] or [[TzKal-Zuk]] are increased to 2 kills per task
+* [[God Wars Dungeon]] benefits:
+** God Wars Dungeon boss entrances now require 25 follower kill count to enter instead of 30
+** [[Ecumenical key]] drop rate is now increased from 1/50 to 1/45
+** Coin cost for God Wars Dungeon private instances is reduced from 125,000 to 100,000 coins
+* [[Ghommal]] or [[Laidee Gnonock]] can make players a [[vampyric slayer helmet]]
+* Summoned [[thrall]]s last 100% longer than normal
+
+{{Combat Achievements}}
+[[Category:Combat Achievements|*5]]
+[[Category:Master Combat Achievements tasks|*]]

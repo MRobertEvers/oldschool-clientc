@@ -1,0 +1,220 @@
+{{Update|date=31 October 2023|url=https://secure.runescape.com/m=news/gielinor-gazette---october-2023?oldschool=1|category=community}}
+[[File:Gielinor Gazette - October 2023 newspost.png|right]]
+{{clear}}
+__TOC__
+
+Welcome back to the Gielinor Gazette! Or is that the Ghoulzette? Over the last few months, we’ve delivered some really exciting updates – and we’ve also been scarily busy behind the scenes. As you saw in the Summer Summit, we’re working on Varlamore, Sailing, and more – and today, you’re going to get a sneak peek at our progress!
+
+Remember, if you have something to submit to our monthly Community Showcase – a Postbag letter, some artwork for our Creation Station, an Achievement you’re especially proud of, or even a Video Highlight – you can send it to us using the form below!
+
+[[File:Gielinor Gazette - October 2023 (1).png|199px|center|link=https://forms.office.com/e/ZhELYTpdDA]]
+
+We always love seeing your work, and we must say that this month’s Community Showcase is absolutely chock-a-block with fantastic art, letters, and achievements! Click the button below to check it out.
+
+[[File:Gielinor Gazette - October 2023 (2).png|387px|center|link=https://secure.runescape.com/m=news/community-showcase---october-2023?oldschool=1]]
+
+Now then, on to the October Gazette! First up, here’s all the biggest news from this month…
+
+==October Highlights==
+<center>
+'''Content Newsposts'''
+
+October 3rd: [https://secure.runescape.com/m=news/chambers-of-xeric-scouting--scaling?oldschool=1 Chambers of Xeric: Scouting and Scaling]
+
+October 4th: [https://secure.runescape.com/m=news/leagues-iv---release-date--faqs?oldschool=1 Leagues IV: Release Date and FAQs]
+
+October 10th: [https://secure.runescape.com/m=news/chambers-of-xeric-potential-tweaks--changes?oldschool=1 Chambers of Xeric: Potential Tweaks and Changes]
+
+October 17th: [https://secure.runescape.com/m=news/fortis-colosseum---first-look--rewards?oldschool=1 Fortis Colosseum: First Look and Rewards (+ Feedback)]
+
+October 20th: [https://secure.runescape.com/m=news/shooting-stars---upcoming-changes?oldschool=1 Shooting Stars: Upcoming Changes]
+
+October 26th: [https://secure.runescape.com/m=news/leagues-iv---release-date--faqs?oldschool=1 Leagues IV: Release Date and FAQs]
+
+October 26th: [https://secure.runescape.com/m=news/perilous-moons---first-look--rewards?oldschool=1 Perilous Moons: First Look and Rewards]
+
+
+'''Game Updates'''
+
+October 4th: [https://secure.runescape.com/m=news/world-45--pvp-changes?oldschool=1 World 45 and PvP Changes]
+
+October 18th: [https://secure.runescape.com/m=news/halloween-2023?oldschool=1 Halloween 2023]
+
+October 25th: [https://secure.runescape.com/m=news/forestry-part-two?oldschool=1 Forestry: Part Two]
+
+
+'''Community & Communications'''
+
+October 6th: [https://secure.runescape.com/m=news/Regarding%20Recent%20Item%20Returns Regarding Recent Item Returns Regarding Recent Item Returns]
+
+October 27th: [https://secure.runescape.com/m=news/protecting-your-account---cybersecurity-month-2023?oldschool=1 Protecting your Account - Cybersecurity Month 2023]
+
+
+'''Livestreams & Transcripts'''
+
+<big><big>[https://www.youtube.com/embed/n9py_1vGiMQ?si=JVKr6ROA-7ToWgOW Fortis Colosseum & Perilous Moons Q&A Livestream! | OSRS Q&A Livestream October 26th]</big></big>
+</center>
+
+==Project Updates==
+===Game Jam IV===
+The leaves are falling, the weather’s turning chill, and everything’s suddenly a lot more orange than before – it’s almost the end of the year already! You know what that means – time for another Game Jam! From October 2nd through to October 12th, the team was hard at work whipping up some passion projects to show off.
+
+Previous Game Jams have led to projects like Perilous Moons, the Blood Torva visual update, LMS Game Modes, Forestry and the Path of Glouphrie – so we’re as excited as you are to see what fantastic ideas the J-Mods have come up with this time.
+
+Not every Game Jam project makes it to the game, and sometimes, they look very different from how they started. For example, the Tasakaal Trials that were originally pitched as a Kourend update have transformed into the Fortis Colosseum minigame, which you’ll get to try when the first part of Varlamore releases in 2024.
+
+The theme for this quarter’s Jam was ‘Sailing’, and you’ll see (almost) everything we came up with in November! Stay tuned…
+
+===Sailing===
+Now that Sailing has officially passed the greenlight poll, we’re ready to set sail on the high seas of Gielinor! The team still has plenty of work ahead, but we’re already well into the planning stages of Old School’s first new skill. We’ve been hard at work planning out all the resources we’ll need for the journey ahead – and the team wants to assure you that we’ll be heading full steam ahead into the next stage of development!
+
+Even if you didn't vote yes to Sailing, we'd like to reassure the community that your voices won't go unheard. A new skill is for everyone to enjoy, even those who voted no, so we're committed to working closely with various cohorts of players to ensure that Sailing is enjoyable for everyone.
+
+Expect more Sailing news next month, when we’ll be able to share our plans in detail. For now though, check out the [https://secure.runescape.com/m=news/sailing-poll-results-summary?oldschool=1 Sailing Poll Results Summary newspost] to see how the vote went down!
+
+===Varlamore: The Shining Kingdom===
+Old School’s next big area expansion is in the works! The first part of Varlamore will focus on the Avium Savannah and Civitas illa Fortis, and include three big updates: [https://secure.runescape.com/m=news/the-hunter-guild---varlamore?oldschool=1 The Hunter Guild], [https://secure.runescape.com/m=news/fortis-colosseum---first-look--rewards?oldschool=1 Fortis Colosseum], and [https://secure.runescape.com/m=news/perilous-moons---first-look--rewards?oldschool=1 Perilous Moons]. But we’re not done just yet!
+
+We've got one more newspost up our sleeve to go over some smaller activities we’ve yet to reveal. Oh, and you didn’t hear it from us, but there’s some kind of rework in the plans… wonder what that might be!
+
+The Hunter Guild and Miscellaneous poll has ended with everything passing. Hooray! Stay tuned for your chance to vote on the rewards from Fortis Colosseum and Perilous Moons. Until then, here’s some concept art to get you in the exploring mood!
+
+[[File:Gielinor Gazette - October 2023 (3).png|600px|center]]
+
+[[File:Gielinor Gazette - October 2023 (4).png|600px|center]]
+
+[[File:Gielinor Gazette - October 2023 (5).png|600px|center]]
+
+===Leagues IV: Trailblazer Reloaded===
+Speaking of exploration…
+
+Retrace your steps across Gielinor with Leagues IV: Trailblazer Reloaded! We’re bringing back our most popular League ever for another round of globetrotting excitement! This time, you’ll be able to travel to the far-off lands of Kourend, where a host of new tasks and training methods await you. You’ll also be able to experience everything we’ve added since the last Trailblazer League, so adjust your strategies accordingly!
+
+If you missed it, a previous week’s Game Update showcased the new animation for the Trailblazer Reloaded Home Teleport. Here it is again in case you missed it:
+
+[[File:Gielinor Gazette - October 2023 (6).webp|261px|center]]
+
+Fun fact: the reason we’re able to show you a full animation instead of just concept art is that this Home Teleport was developed for the original Trailblazer League! Originally, we wanted the cosmetics to use a ‘blazing’ theme – like Trailblazer, get it? We eventually went with a ‘travel’ theme instead – but now that we’re ‘firing up’ Trailblazer again, we think it’s the perfect time to let this fiery animation fly.
+
+Although we not far from Leagues starting on November 15th, next month we've got a whole host of teasers to get your prepared for Trailblazer Reloaded!
+
+===Chambers of Xeric Changes===
+This month, we released a newspost with all the juicy details regarding the Chambers of Xeric changes we announced at the Summer Summit. We know you’ve really been looking forward to this one, and with community consultation having gone well, we expect to launch all the changes later this year!
+
+===Mid-Level PvM Boss===
+Looking to bridge the gap between low and mid-level bosses, this new PvM encounter is looking to kickstart players’ bossing journey and provide a fun way to get to grips with more advanced combat.
+
+We’ll release more details soon, but until then we can tell you that this boss will be extremely accessible and may well be inspired by a certain rodent-themed Game Jam project…
+
+===Forestry: Part Two===
+Last week we released Forestry: Part Two, encompassing new events, new rewards, and a cosy new way to train Firemaking! We’ve been closely monitoring your feedback, here's some of the changes we'll be releasing in this week’s update:
+
+* Budding beekeepers will be able to build a beehive in their POH Garden/Formal Garden, using Sturdy beehive parts obtained from the Bee Hive event.
+* Changing the XP from creating the Pheasant Spoon from Mining to Crafting and reducing it to 29.5 per item made.
+* Foxes and poachers have been adjusted to only spawn outdoors, preventing some griefing by repeatedly closing the doors at locations like Seers' Village church.
+* Forester's campfires can no longer be created without using any logs since it was deemed an affront to nature.
+
+Rest assured, we’ve seen the feedback for Forestry: Part Two and we believe it’s worth re-visiting all of those conversations and addressing them correctly without rushing into quick and immediate changes.
+
+It’s important for us to make sure that you feel like this content is in a good spot and that is not something we to want to rush. We’re hoping to speak to you all soon on the next steps and what we’re doing to improve Forestry and some of its biggest issues. Just to clarify, there is not, and this will not be Forestry: Part Three and whilst not rushing we won’t make it take ages.
+
+===Mobile TLI===
+You’ve had three whole weeks to get to grips with the new Mobile UI – but we’re not done yet! The team have been discussing your feedback and are currently in talks about the next steps forward. Huge thanks to everyone who participated in the Beta and let us know your thoughts – your feedback so far has been really valuable for the team.
+
+This Beta was especially exciting for us, because for the first time, participating players were able to use a saved version of their main game save. This meant you could get a real feel for how the new UI behaved in all your favourite activities – a huge step forward!
+
+We’ll update you on our plans for the new Mobile UI as soon as we’ve finalised our plans – which should be quite soon! Until then, stay tuned…
+
+===Jagex Accounts and Jagex Launcher===
+The future of account security went into Open Beta back in April, which means everyone can now upgrade to a shiny new Jagex Account!
+
+As well as keeping all your characters in one place, Jagex Accounts provide greater security than ever. You’ll have stronger passwords, inbuilt two-factor authentication, and increased protection overall. Plus, importing your existing accounts is a total breeze – and with up to 20 character slots, there’s room for everyone!
+
+New features include the option to re-order your characters in whichever way you see fit, and the ability to hide characters from your list by visiting the Jagex Account Page.
+
+Remember, Jagex Accounts are only available via the Jagex Launcher. This nifty tool remembers your account and works with both the official client, RuneLite and HDOS!
+
+We’re currently exploring ways to enhance official communications via the Launcher – stuff you’d normally find in game or on our socials, like maintenance updates and links to the Game Status page. We’ll keep you updated on our progress!
+
+Big thanks to everyone who took part in the opinion poll earlier this month – your feedback is immensely valuable to us, and will shape the future of Jagex Accounts.
+
+In the meantime, we recently released a [https://secure.runescape.com/m=news/protecting-your-account---cybersecurity-month-2023?oldschool=1 newspost] detailing all the ways you can best protect your account. October is Cyber Security Month, so make sure you don’t get tricked out of your treats by having a read and taking action to protect your account!
+
+===Quality of Life Updates: Poll 80===
+The last few Poll 80 updates are coming to the game very soon – but today, we want to talk about lava dragons. These lovely lizards dominate a huge chunk of the Wilderness, and in Poll 80 we discussed giving them a fiery new look. Your feedback suggested our proposed design wasn’t quite runway-ready, so today we’d like to showcase an alternative version that combines elements of both the old and new designs. Feast your eyes on this!
+
+'''PLEASE NOTE THE FIRST IMAGE CONTAINS UNRIGGED MODELS, WHICH DON’T HAVE THEIR NORMAL ANIMATIONS APPLIED.'''
+
+[[File:Gielinor Gazette - October 2023 (7).jpg|600px|center|''Left: Current Model, Centre: Rework, Right: Alternative'']]
+
+
+[[File:Gielinor Gazette - October 2023 (8).jpg|600px|center]]
+
+What the lava dragons would look like in-game with the new alternative model. Let us know what you think of lava dragons’ new look in the survey below!
+
+<center><big><big>[https://forms.office.com/Pages/ResponsePage.aspx?id=cHKPuw2LyU2JAOl_a-ccwkuFydxi__NAhv4a-l6BSp1UOTNGWkxFQVFDSzJGSEZWRzBIR1owRDZDOC4u&embed=true Lava Dragon Redesign]</big></big></center>
+
+With only a few more Poll 80 updates to go, we’re already discussing the topic of our next Quality of Life poll.
+
+Mod Roq has kindly invited us to peek behind the curtain and see how the team decides what goes into a QoL update – so keep scrolling to read all about it!
+
+==Old School Quality of Life: From Polls to Product==
+''by Mod Roq''
+
+Hey folks! Roq here!
+
+You don't get to see me as much anymore, as I’m more involved behind the scenes these days. For those of you who don’t know me, I'm the Upload Manager for Old School! Alongside the review and deployment of updates, one of my responsibilities is looking at the QoL suggestions and planning and scheduling QoL polls. So, I just wanted to give you all a bit more information on the how and why for all things QoL.
+
+===What is QoL?===
+QoL stands for Quality of Life - small tweaks and changes that can improve day to day gameplay.
+
+However, we take a little bit of liberty with this phrase. For us, Quality of Life isn’t just things that improve gameplay, but things that improve content as a whole. Buffs, mechanics adjustments, additions – the common theme is that these changes are all relatively small compared to larger project-based content.
+
+All of this content is typically delivered from the Operators scrum, which currently consists of Mod Maylea and Mod Other.
+
+===Where do the suggestions come from?===
+Mainly, they're from YOU! Some suggestions also come from the rest of the team, relating to things they’ve seen as they play the game or noticed on social media.
+
+Once every week, the Operators, the Community Management team and myself get together for an hour to review and discuss the suggestions that have been put forward, how we feel about them and how effective they would be for the game.
+
+We then triage them into things we agree would be a good change, things that we do not feel would be a good change, things that may be better directed to one of the other development teams, and stuff that we may wish to discuss a little further down the line. Anything that moves forward goes into the Operators backlog, a long list of suggestions, tweaks and changes that we feel could be good for the game at some point in the future. Every reviewed suggestion is also assessed against our polling charter.
+
+Naturally, this means that over time the backlog gets larger and larger, so we have to do something with all of them! This is where the Quality of Life polls come in.
+
+Before a QoL poll is prepared, myself and a number of the team's product stakeholders, such as Mods Ash, Kieren and Ayiza, decide on a theme for the poll. Themes are often based on areas we haven’t paid attention to for a while and that need improvement.
+
+At this point I scrape the entire backlog for suggestions related to that theme and collate them into another big list.
+
+Unfortunately, we cannot always do everything all of the time. We have to set a limit on the amount of time and resources we can allocate to the poll, so we have to refine this list accordingly. Ultimately, we’re aiming to select the changes that have the most bang for our buck. This means we can deliver more polls across various themes and ensure we address as many different areas as possible.
+
+If we do not limit the poll, we would have an unfortunate repeat of Poll 76, where it took almost 9 months to launch the content without being able to move onto another poll. In turn this meant that other pressing issues we wanted to address were pushed back. We’ve learned that smaller, more focused and more frequent polls is the best path for us.
+
+Once the jobs have all been filtered and reviewed, the entire Old School team are invited to have a look over the proposed list of questions and leave feedback before the blog is written up and proposed to you, the players.
+
+When the poll blog goes live, it’s typically accompanied by a survey where we ask you to give your opinions on which improvements you’d like to see release sooner. The results obviously have a big impact on what order the changes are released in, but we also have to think about our team’s schedule. If a developer only has an hour left in the day, they’re going to pick up a smaller job rather than leaving one half-finished overnight.
+
+===What is the point of QoL?===
+The Quality of Life changes are here to improve various issues in the game. These tweaks and changes are there to supplement the regular release schedule and ensure that older content gets as much love as the new.
+
+Naturally, every week's release has a finite amount of testing time in what we call our ‘release candidate’ or ‘RC’ build, so we cannot just throw anything and everything in there. There has to be some tact and strategy when launching content. This is why you may not see QoL updates launching alongside other projects – and why we so often get questions like “When is THIS happening?”
+
+Everyone is going to have their own opinion on what should take priority. We know we can’t please everyone! Instead, we launch our QoL updates based on the needs of the players AND the needs of the business. This could mean that content gets created, tested and prepared ahead of time, but may need to wait a little while before it can be launch due to things already in the schedule taking up that testing time slot.
+
+Ultimately, launching QoL content means multiple questions have to be answered before it can go live:
+
+* Is the content ready for the RC build?
+* Do we have space in the testing scope of RC?
+* Are there any other jobs in the poll that this content should be launched with for a more cohesive update? Are those other jobs also ready?
+
+This is why sometimes seemingly trivial changes aren’t launched immediately. We need to follow this process to deliver changes safely – so it’s worth the wait.
+Once the poll is in full swing, the process repeats in a cycle. As you’ve seen in 2022, we didn’t get to deliver as much QoL as we’d hoped due to the scope of Poll 76. This year, our schedule is almost completely dedicated to QoL – and as you can see, the new system is allowing us to release significantly more QoL polls. At the time of writing, the Operators are planning a minipoll for a few Tombs of Amascut tweaks before moving onto planning Poll 80.
+
+I hope this sheds some light on how we manage QoL in Old School RuneScape. As always, you can send us your suggestions on social media like Reddit and Twitter, or via the Game Suggestions section on the official Discord server!
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,895,66289596 official forums], on the [https://www.reddit.com/r/2007scape/comments/17kl404/gielinor_gazette_community_showcase_october_2023/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

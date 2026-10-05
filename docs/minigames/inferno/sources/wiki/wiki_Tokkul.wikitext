@@ -1,0 +1,89 @@
+{{External|rs}}
+{{Infobox Item
+|name = Tokkul
+|image = [[File:Tokkul 1.png]] [[File:Tokkul 2.png]] [[File:Tokkul 3.png]] [[File:Tokkul 4.png]] [[File:Tokkul 5.png]] [[File:Tokkul 25.png]]
+|release = [[19 September]] [[2005]]
+|update = Massive minigame - Fight Pits
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = It's a token of some kind made from obsidian.
+|value = 1
+|weight = 0.000
+|id = 6529
+}}
+[[File:Tokkul detail.png|left|170px]]
+'''TokKul''' is the currency of [[Mor Ul Rek]]. It is made from obsidian and cannot be created by players. As it is a currency, TokKul dropped by monsters can be automatically collected if the player is wearing a [[ring of wealth]].
+
+TokKul is made out of the corpses of the TzHaar, as stated in the 17th [[Postbag from the Hedge]] letter. When asked why players cannot trade TokKul, [[TzHaar-Hur-Lek]] responded:
+
+{{Cquote2|TokKul is precious to us; why want you to trade it to someone else? Do you not know that TokKul is most sacred? We TzHaar age and harden, and when death takes us naturally we are then solid, unchanging obsidian. The ancients among us are then made into TokKul to ensure that they remain cared for by their descendents.
+
+JalYt-Ket: you would trade the bodies of your ancestors? We do not wish for TokKul to be traded by hands unwatched by TzHaar.|TzHaar-Hur-Lek, [[Transcript:Happy Birthday, Mr Elemental.|Postbag from the Hedge 17]]}}
+
+==Obtaining TokKul==
+There are several ways to get TokKul:
+
+*Selling items to shops in Mor Ul Rek. Stores have significantly higher buying prices while the [[Karamja gloves 1]] or better are worn.
+**[[TzHaar-Mej-Roh's Rune Store]] buys runes. Selling [[Chaos rune|chaos runes]] is a popular method for Ironmen, because even at low levels they can be acquired in large quantities by buying them from rune stores, runecrafting, drops from monsters, or through [[Barrows]] with the [[Hard Morytania Diary|hard morytania diary]] completed.
+**[[TzHaar-Hur-Lek's Ore and Gem Store]] buys ores and uncut gems.
+**[[TzHaar-Hur-Tel's Equipment Store]] buys some obsidian equipment.
+*Winning the [[TzHaar Fight Pit]]. This requires at least one other player or a second account.
+*The [[TzHaar Fight Cave]] and the [[Inferno]] both reward a variable TokKul prize depending the number of waves completed. The amount of TokKul received from both is doubled after completing the elite tasks in the [[Karamja Diary]].
+*[[TzHaar-Ket-Rak's Challenges]] award TokKul on successful completions. Challenges 1 and 2 require having beaten the Fight Cave and the rest require having beaten the Inferno.
+*With 90 [[Thieving]] and a fire cape, players can pickpocket [[TzHaar-Hur]]. While it's not a requirement to be wearing [[ice gloves]] while pickpocketing, it is suggested for them to be equipped in order to reduce the damage taken from the TzHaar-Hur.
+*With 80 [[Fishing]] and a fire cape, players can fish for [[infernal eels]]. When caught, they must be smashed open with a [[hammer]] in order to receive a small amount of TokKul, [[lava scale shard]]s, or [[onyx bolt tips]].
+*TzHaar inhabitants can be killed around Mor Ul Rek for TokKul drops:
+**[[TzHaar-Ket]]
+**[[TzHaar-Xil]]
+**[[TzHaar-Mej (Monster)|TzHaar-Mej]]
+**[[TzHaar-Hur]]
+
+==Spending TokKul==
+TokKul can be spent in the following shops:
+*[[TzHaar-Hur-Lek's Ore and Gem Store]]
+*[[TzHaar-Hur-Rin's Ore and Gem Store]] ([[Fire cape]] is required to enter the inner city)
+*[[TzHaar-Hur-Tel's Equipment Store]]
+*[[TzHaar-Hur-Zal's Equipment Store]] ([[Fire cape]] is required to enter the inner city)
+*[[TzHaar-Mej-Roh's Rune Store]]
+
+Wearing [[Karamja gloves 1]] or higher will give a player a discount. For instance, [[uncut onyx]] will cost 260,000 TokKul instead of 300,000.
+
+When selling [[chaos runes]] to the shop, each piece of TokKul costs {{NoCoins|{{GEP|Chaos rune}}/9 round 3}} coins.
+
+When buying [[uncut onyx]] (with the discount), each piece is worth {{NoCoins|{{GEP|Uncut onyx}}/260000 round 3}} coins.
+
+==Item sources==
+{{Drop sources|Tokkul}}
+
+==Gallery==
+<gallery captionalign="center" widths="120">
+Tokkul 1 detail.png|One piece of TokKul
+Tokkul 2 detail.png|Two pieces of TokKul
+Tokkul 3 detail.png|Three pieces of TokKul
+Tokkul 4 detail.png|Four pieces of TokKul
+Tokkul 5 detail.png|Five pieces of TokKul
+Tokkul detail.png|Twenty-five pieces of TokKul
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 4 May 2017
+|update = Skotos & Dark Claws
+|poll = 
+|change = Tokkul is no longer included in untradeable drop notifications.
+}}
+{{Subject changes
+|date = 26 September 2005
+|update = New graphics for Port Sarim, Rimmington and Thurgo's Peninsula
+|change = The item's examine was changed from "''It's a token of somekind{{sic}} made from obsidian.''" to "''It's a token of some kind made from obsidian.''"
+
+}}
+{{Subject changes footer}}
+
+{{Currencies}}

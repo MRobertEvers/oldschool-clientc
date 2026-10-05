@@ -1,0 +1,74 @@
+{{Infobox Monster
+|name = Jal-Zek
+|image = [[File:Jal-Zek.png|220px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|combat = 490
+|size = 4
+|examine = Goodness, gracious, great balls of fire!
+|xpbonus = 0
+|max hit = 70 ([[Magic]]), 52 ([[Melee]])
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]], [[Stab]]
+|attack speed = 4
+|slayxp = 220
+|cat = TzHaar
+|assignedby = chaeldar,nieve,duradel
+|hitpoints = 220
+|att = 370
+|str = 510
+|def = 260
+|mage = 300
+|range = 510
+|attbns = 0
+|strbns = 0
+|amagic = 80
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 0
+|venomresistance = 100
+|immuneburn = Immune to normal burns
+|id = 7699,7703
+}}
+'''Jal-Zek''' are [[volcanic creatures]] which are the [[Inferno]]'s variant of the [[Fight Cave]]'s [[Ket-Zek]], first appearing on Wave 35. They attack with powerful Magic and Melee attacks, and are the third strongest monster in the Inferno.
+
+[[File:Jal-Zek (regenerate).png|left|thumb|200px|A Jal-Zek's appearance when regenerating enemies.]]
+Jal-Zeks have a unique ability where they can revive defeated monsters in the same round they appear in. Each monster can only be revived once and with half health. Even so, it's usually better to kill the lower-levelled monsters first, as they can still hit hard and have much lower hitpoints than Jal-Zek. The revived monsters respawn near the centre-east of the arena, which is often a more favourable position. Jal-Zek will only use its respawn mechanic while in combat, as it has a 1/10 chance of choosing to use its respawn ability instead of performing a regular attack.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1639259588766605313|date=24 March 2023|archiveurl=https://reldo.runescape.wiki/i/105010|archivedate=24 March 2023|quote=1/10 of it choosing that spec rather than other attacks.}} [[Jal-Nib]]s cannot be revived, nor can the miniature [[Jal-Ak]] spawns.
+
+Jal-Zek will not attack at the same time that it is reviving another monster, and the monsters that are revived will have a slight delay before attacking the player. Jal-Zek's attacks are fairly predictable after revival: it will resume attacking 8 ticks after it uses its special ability, on what would have been its second attack. This means that players who are [[prayer flicking]] between multiple attack styles do not need to change their rhythm when this happens.
+
+Be aware that Jal-Zeks can also attack with melee diagonally when you are standing one tile diagonal of them.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Jal-Zek now have a 40% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes
+|date = 15 March 2018
+|update = QoL, Deadman and the Falador Party Room
+|change = Jal-Zek can no longer move when resurrecting another monster within the Inferno.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Jal-Zek's examine is a reference to the song ''Great Balls of Fire'' by Jerry Lee Lewis.
+
+==References==
+{{Reflist}}
+
+{{Inferno}}

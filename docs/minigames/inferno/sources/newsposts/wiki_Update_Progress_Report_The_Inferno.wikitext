@@ -1,0 +1,160 @@
+{{Update|date=3 May 2017|link=http://services.runescape.com/m=news/progress-report-the-inferno?oldschool=1|category=website}}
+[[File:Progress Report- The Inferno newspost.png|right]]
+{{clear}}
+
+[[File:Progress Report- The Inferno (1).png|center]]
+
+{{Headline|25|Progress Report: The Inferno}}
+
+
+<center>
+''With less than a month to go until the release of The Inferno, Mods Ghost and Kieren are here to give you an update on our progress.''
+
+'''{{Colour|#b22222|June 1st - Save the date!}}'''
+</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Content Development}}
+<center>''Mod Kieren''</center>
+
+All the way back on 30th March, we polled the Inferno and it passed with flying colours. 84% of you said you wanted it to be a part of the game, and you're probably wondering...
+
+
+<center>'''What's been happening since?'''</center>
+
+<center>'''When is it coming out?'''</center>
+
+<center>'''How is development coming along?'''</center>
+
+... and lots of other curious questions, too! Well, we would like to give you an insight of where we are at.
+
+BUT FIRST, we can confirm that The Inferno will be launched on '''1st of June'''! Less than a month away!
+
+[[File:Progress Report- The Inferno (2).gif|center|100px]]
+
+<center>''"-panics- AHHHH it's getting closer!"''</center>
+
+Regardless of said panicking, the whole team and myself especially are incredibly excited to see this go out, and see people attempt to take it on.
+
+Just in case you've forgotten what this all is about, we want to recreate the feeling you all had, when first taking on the TzHaar Fight Caves and its resident boss, TzTok-Jad.
+
+So many talk about that feeling of their hands shaking, panicking at the wrong time and eventually activating the wrong prayer, so much so it has come to acquire its own term, "Jad Hands".
+
+'''We're taking it up a notch'''. The Inferno will be substantially more difficult, with a final challenge to put fear in even the most hardened PvMers out there! The very best can walk away with the next tier Fire cape: the Infernal cape. You can see more info on what The Inferno is [https://www.runescape.com/oldschool/the-inferno here].
+
+So how do we approach something of this size? Where do we start? Well the first thing we need to do is to break it down into bitesize chunks. For this, we use a software package called JIRA.
+
+[[File:Progress Report- The Inferno (3).png|center]]
+
+I cannot just go and "develop The Inferno" - what components are required for it?
+
+These tasks then need to have dependencies set out, for example we cannot tie in the time-tracking feature until we have the actual wave system and minigame up and running - at least in some capacity.
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:18px;font-weight:bold;text-shadow:1px 1px #121212;">Selection of JIRA jobs</font>
+
+We prioritise features based on how vital they are to the update, and how many dependencies they have. For example, the wave structure is vital for so much of the content that we really need that in place ASAP before moving on to creating the final boss even.
+
+[[File:Progress Report- The Inferno (4).png|center]]
+
+A lot of extraneous features we associate with being "nice to have" if we get enough time. On a typical project, we make a rather large list of features in this category, and cut them back throughout development to the ones we feel are best and have time to develop.
+
+An interesting aspect to this is we poll many of these things, such as Lava eel fishing in Mor Ul Rek. This means it is vital to the update - since we've promised it is going to happen!
+
+[[File:Progress Report- The Inferno (5).png|center]]
+
+Once that's all sorted, I could start laying some code down and get the main systems in place. Most of this was straight forward, as obviously TzHaar Fight Caves has a pretty similar minigame going on - but one thing I managed to tie into the core system, was purely randomised spawns.
+
+A player shouldn't be able to determine where monsters are going to be spawned, but at the same time, these locations are saved per run! This means they cannot logout and in to get more desired spawn locations for the monsters.
+
+[[File:Progress Report- The Inferno (6).png|center]]<br/><center>''This is Runescript: our in-house scripting language. The code shown here is what runs when you first enter the Inferno.''</center>
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:18px;font-weight:bold;text-shadow:1px 1px #121212;">TzKal-Zuk</font>
+
+Now that system is in place, monsters that fill those waves can be developed and tied in, but there's one thing that is a little more important, and that is the matter of TzKal-Zuk, the final boss!
+
+The last 2-3 weeks have solely been spent working very closely with Mod Ghost over on graphics to get right.
+
+<center><div title="You're not actually going to get to see TzKal-Zuk until June 1st when he kills you - gf!"><i style="border-bottom: 1px dotted #000;text-decoration: none;">*Imagine a screenshot of a really cool looking boss monster here*</i></div></center>
+
+Normally in these sort of reports I'll go and talk about the issues we've had in development, but man, I don't think I can without spoiling some of the mechanics we've got at play here...
+
+It all involved a bit of back and forth, since we're attempting to do something never quite done before. I produced a prototype, with placeholder graphics in place, to ensure I could develop the mechanics we designed.
+
+At this stage I played with it a lot, there are a number of questions to ask myself...
+*Is this fun?
+*Is it challenging?
+*Does it feel right?
+
+Essentially, validating the design. Ideas can sound great on paper, but when you get to physically trying them, they may just not work at all! In this case, it worked incredibly well! I had other Jmods on the team give it a shot too, and offer their feedback early on.
+
+Now acquiring assets from graphics, we were able to start visualising how this would all look, and this is where the back and forth happened a fair bit. Animations and timings are notoriously tricky to get right in RuneScript!
+
+I'd fix one thing, and discover we needed to tweak an animation and this happened several times before we were all incredibly pleased with the final product! 
+
+[[File:Progress Report- The Inferno (7).png|center|300px]]<br/><center>''I would have put a picture of TzKal-Zuk here, but we're keeping him hidden until June 1st. Instead, here is a picture of me doing my best impression of the boss.''</center>
+
+Sheesh, think I managed to reveal nothing! Fair to say though, I cannot wait to see people take this on. We've all loved giving it a go... no one has successfully defeated the full finished boss just yet in the team! 
+
+At this stage, most of the key requirements for The Inferno to be what it needs to be, were there. The next stage is to create the other creatures, most of which have mechanics that are unique to The Inferno, but are certainly inspired by the original Fight Caves.
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:18px;font-weight:bold;text-shadow:1px 1px #121212;">Mor Ul Rek</font>
+
+Mor Ul Rek? I hear you ask, well that's the final stage for me (outside of feedback changes and bug fixeslater!).
+
+I already got the system in place a while ago for having to show off a Fire cape (or Max fire cape) to be able to access the city, and in fact you must sacrifice one completely to access The Inferno.
+
+Mod Ry has produced a fantastic environment for me to work with, and now I can place in the other features, many of which you saw on the poll, but mostly, to bring Mor Ul Rek to life :).
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Graphics}}
+<center>''Mod Ghost''</center>
+
+Originally, the Inferno was going to be located on Zeah in a large volcanic region named Brimstone. This was based on player feedback from the Inferno's predecessor, Jad 2, where the community asked for the content to be more than an extension of the original Fight Cave.
+[[File:Progress Report- The Inferno (8).png|left|300px]]
+I set about mapping out the remaining northwest coastline of Zeah and created a large mountainous region with a vast volcano using our map editor's terrain mapping feature.
+
+This vast wasteland of ashes would have been inhabited by the Kahlith, a race of obsidian creatures that had experimented on the TzHaar and created denatured variations of them which they had imprisoned in the inferno.
+{{clear}}
+The community decided that this was moving too far away from the TzHaar content which they know and love, and so the decision was made to move the Inferno back to the TzHaar city.
+
+A happy medium was struck with the creation of Mor Ul Rek, based on player's design.
+
+[[File:Progress Report- The Inferno (9).png|center]]
+
+Mor Ul Rek would need to be in keeping with the rest of the Tzhaar City's art style as it was an extension of the existing Tzhaar City.
+
+The sink hole at the centre of Mor Ul Rek and additional walls mapped on the upper levels of the map would add visual depth to the area where it was lacking the in rest of the city.
+
+Players will also get a more intimate understanding of the Tzhaar as a civilization, seeing how the Tzhaar recuperate as well as the a new type of Tzhaar City inhabitant, the Tzhaar Ket Guards.
+
+[[File:Progress Report- The Inferno (10).png|center|450px]]
+
+
+[[File:Progress Report- The Inferno (11).png|center|450px]]
+
+All this combined with new lore and skilling content give Mor Ul Rek some real substance.
+
+For the Inferno arena, we didn't want players to feel like they've seen it all before. We wanted the arena to feel fresh, vibrant, intimidation and exciting.
+
+This would require a warm colour palette, low lit scenery to create a menacing ambiance, large, grand walls and pillars with powerful shape language to make the area reflect the challenge at facing our players.
+
+[[File:Progress Report- The Inferno (12).png|center|450px]]
+
+
+[[File:Progress Report- The Inferno (13).png|center|450px]]
+
+
+{{Horizontal Line}}
+
+That's all for this progress report. We'll be doing more of these in the future as a way to keep you up to date during the development of some of our larger projects.
+
+With less than a month until the Inferno arrives, you've not got much longer to wait.
+
+<center>'''{{Colour|#b22222|June 1st - Brace yourself!}}'''</center>
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,385,65907852 forums].
+
+'''''Mods Archie, Ash, Ed, Ghost, Jed, John C, Kieren, Mat K, Maz, Ronan, Roq, Ry, Stone, TomH, Weath, West & Wolf'''''<br/>''The Old School Team''

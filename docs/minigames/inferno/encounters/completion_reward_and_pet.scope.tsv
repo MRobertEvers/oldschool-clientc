@@ -1,0 +1,78 @@
+mechanic_id	scope	note
+reward.cape_awarded_on_zuk_kill	all	solo, CHEAT ROW (::god + ::zuk 600 + ::zukhp 0: a solo test cannot fight Zuk down, and the row reads only what the win path pays): 8 of 8 wins added 1 cape (0..8), at cheat tick +3 (cr_scratch3, cr_scratch4); ok
+reward.cape_awarded_every_kill	all	solo, cheat row as above: 8 wins gave 8 capes. The wiki says guaranteed upon successful completion; no source says repeat kills stop paying
+reward.cape_obj_id	all	the cache record is the content (::give infernal_cape resolved, cape count read 1 after a win)
+reward.cape_name	all	static: same cache record
+reward.cape_untradeable	all	static: same cache record
+reward.cape_wear_slot	all	static: same cache record
+reward.cape_strength_bonus	all	static: same cache record; the guide Gnomonkey says four above the fire cape (sources/transcripts/STATED.md:14), not checked against a fire cape record
+reward.cape_prayer_bonus	all	static: same cache record; the fire cape's own record is not in the cache dump so the equality is the post's sentence
+reward.cape_melee_attack_bonus	all	static: same cache record
+reward.cape_ranged_magic_attack_bonus	all	static: same cache record
+reward.cape_defence_bonus	all	static: same cache record
+reward.cape_value_coins	all	static: same cache record; wiki value1 80000 (Infernal_cape.wikitext:49)
+reward.cape_broken_obj_id	all	static; the repair NPC (Perdu) and the PvP break are outside the Inferno and were not read
+reward.cape_repair_cost_coins	all	source-only: the repair happens at Perdu after a PvP death, not in the Inferno; not measured here
+reward.tokkul_zuk_kill	all	solo, cheat row as the cape: 8 of 8 wins paid 16440 each (16440 to 131520); constant ^inferno_tokkul_cape = 16440 (inferno.constant:427)
+reward.tokkul_elite_diary_multiplier	all	static read: ~inferno_leave (inferno.rs2:174-175) adds the flat constant, no diary test: CONTENT BUG DEATH-4 (already written); not measured (the diary varbit was not staged)
+reward.pet_obj_id	all	static: same cache record (infernopet)
+reward.pet_obj_name	all	static; the wiki renamed it Jal-Nib-Rek on 2026-08-12 (wiki_Jal_Nib_Rek.wikitext:83-86): ruled by the rule 'the cache at rev 239 over today's wiki'
+reward.pet_tzrek_obj_id	all	static: the content tests infernopet_zuk (inferno.rs2:138) so the object exists in the pack; the id was not read from the cache dump
+reward.pet_follower_npc_id	all	static: AV_INVENTORY.tsv:267 marks npc 7675 UNUSED: nothing in the content spawns the follower
+reward.pet_zuk_follower_npc_id	all	static: AV_INVENTORY.tsv:290 marks it UNUSED
+reward.pet_follower_model	all	presentation, static: no follower is ever spawned (REWARD-3)
+reward.pet_follower_ready_anim	all	presentation, static: same
+reward.pet_follower_walk_anim	all	presentation, static: same
+reward.pet_zuk_follower_model	all	presentation, static: same
+reward.pet_zuk_follower_ready_anim	all	presentation, static: same
+reward.pet_zuk_follower_walk_anim	all	presentation, static: same
+reward.pet_metamorphosis_offered	all	static: no op4 handler for infernopet or inferno_pet in minigame_inferno or any skill/npc script I searched (rs2 name search over server/scripts, 3 files named: inferno.rs2, poh_menagerie.rs2, constant); with no follower the option cannot appear: REWARD-3
+reward.pet_zuk_helm_no_boost	all	static: the content has no Zuk helm showing at all
+reward.pet_roll_denominator_zuk_kill	stat	statistical: settled by the recorder tool or a long run, not by one test. Static: random(^inferno_pet_rate) = 0 with the constant 100 (inferno.rs2:147, inferno.constant:431) is one in 100. Measured: 0 pets in 8 wins (expect 0.08), so the sample says nothing about the rate
+reward.pet_roll_denominator_on_task	stat	RULING D27: wiki 1/75 (three pages, one source); Gnomonkey says 1/50 on task but also 1/43 for task plus cape, and 1/43 follows only from 1/75 with 1/100 (1-(74/75)(99/100)=0.0232); with 1/50 it would be 1/33.5; the 1/50 is a slip, the 1/43 agrees with the wiki. Overturned by a Jagex statement of the number or recorder drop data. Ours: no on-task roll exists (no Zuk Slayer task, DEATH-3): CONTENT BUG REWARD-2
+reward.pet_slayer_task_raises_chance	all	static: ~inferno_pet_roll has no task input: REWARD-2
+reward.pet_cape_exchange_exists	all	static: inferno.rs2:319-333 offers it through Talk-to. Not reached by click: talk_to inferno_master and inferno_master_1op at 2495,5123 both answered not_found (no npc in the client's entity pool, n=2): no Ket-Keh spawn is reachable at the entrance
+reward.pet_cape_exchange_denominator	stat	statistical. Static: random(^inferno_pet_rate) = 0 (inferno.rs2:325) is one in 100. Not measured live (npc not reachable)
+reward.pet_cape_exchange_consumes_cape	all	static: inv_del before the roll (inferno.rs2:324); not measured live
+reward.pet_cape_exchange_blocked_if_owned	all	static: the offer is gated on ~inferno_has_pet = false, which counts inventory, bank and the TzRek-Zuk form (inferno.rs2:134-141); a pet out as a follower would not count, but none ever is
+reward.pet_combined_denominator_off_task_with_cape	stat	derived: 1-(0.99)(0.99)=0.0199 = 1 in 50.3; both sources say 50
+reward.pet_combined_denominator_on_task_with_cape	stat	derived: 1-(74/75)(0.99)=0.0232 = 1 in 43.1; both sources say 43. Not reachable here (no task)
+reward.pet_received_message	all	static: same text in inferno.rs2:156 (colour not set); the roll did not fire in 8 wins
+reward.pet_received_message_follower_out	all	static: no follower concept in the content, no such line: REWARD-3
+reward.pet_exchange_message	all	static: inferno.rs2:327 prints the kill message instead: CONTENT BUG REWARD-5
+reward.pet_appears_as_follower	all	static: ~inferno_pet_roll only inv_adds the item (inferno.rs2:155); AV_INVENTORY.tsv:267 npc 7675 UNUSED: CONTENT BUG REWARD-3
+reward.pet_not_received_inventory_full_and_follower	all	static: ours drops the item at the exit pad (inferno.rs2:150-152): same REWARD-3
+reward.pet_roll_when_owned	all	static: ours skips the roll (inferno.rs2:144-146); no source says either way
+reward.full_inventory_cape_and_tokkul_on_ground	all	solo, cheat row: 28 sharks carried, win at 28 slots: cape 0, Tokkul 0 afterwards (n=1, cr_scratch3 full.win): both are lost. Static: inv_add on a full inventory is silent (inferno.rs2:174-175, no obj_add). CONTENT BUG REWARD-1. Ground at 2495,5112 not read
+reward.collection_log_bit_id	all	static: same cache record
+reward.collection_log_bit_set_on_kill	all	solo, cheat row: varb11986 read 0 before and 0 after a win (n=2: cr_scratch4 and 4c). CONTENT BUG INF-AV-009 (already written)
+reward.kill_count_varp	all	static: same cache record (hiscores bossvarp, Ket-Keh multivarp)
+reward.kill_count_increment_per_kill	all	solo, cheat row: varp1585 read 0 before and 0 after a win (n=2). CONTENT BUG INF-AV-008 (already written)
+reward.ket_keh_exchange_kills_threshold	all	static: kills are never written so the 2op form never shows: INF-AV-008
+reward.ket_keh_exchange_op_label	all	static: same
+reward.slayer_task_id	all	static: no Zuk row is used by skill_slayer (DEATH-3)
+reward.slayer_requires_prior_kill	all	static: there is no task: DEATH-3 (already written)
+reward.slayer_xp_zuk_kill	all	static: no task, no xp: DEATH-3. The wiki says 101,890 (next row): Jagex sentence ruled, the wiki number reads as the post's 100,000 plus the kill's own xp; overturned by a recorded xp drop
+reward.slayer_xp_total_wiki	all	static: same
+reward.slayer_task_kills_master_tier	all	static: no task exists
+reward.slayer_task_kills_grandmaster_tier	all	static: no task exists
+reward.slayer_hot_stuff_perk_cost	all	static: not in the content
+reward.slayer_simultaneous_death_subtracts_kc	all	static: there is no task; the win path and the death queue are unordered in the content (not tested)
+reward.ca_structs_count	all	static: 12 found
+reward.ca_341_half_way_there	all	static; the codes 4,5,6 are Elite, Master, Grandmaster by struct 3573 (cache_enums_dbrows.txt:214 lists those three tiers)
+reward.ca_342_inferno_grandmaster	all	static
+reward.ca_343_the_floor_is_lava	all	static
+reward.ca_344_playing_with_jads	all	static
+reward.ca_345_no_luck_required	all	static
+reward.ca_346_nibblers_begone	all	static
+reward.ca_347_wasnt_even_close	all	static
+reward.ca_348_budget_setup	all	static
+reward.ca_349_nibbler_chaser	all	static
+reward.ca_350_facing_jad_head_on_ii	all	static
+reward.ca_351_jad_what_are_you_doing_here	all	static
+reward.ca_352_inferno_speed_runner	all	static
+reward.ca_completion_varbits_defined	all	static: 13 found. Solo, cheat row: killcount_1 and killcount_3 read 0 after a win, uninformative (their conditions were not met). Nothing in the content writes any of them: CONTENT BUG INF-AV-009 (already written)
+reward.win_exit_delay_ticks	all	solo, cheat row: ::zukhp 0 at tick T, cape in the inventory at T+3 (n=8). The content runs ~inferno_leave in the death queue the same tick it starts zuk_death (inferno_zuk.rs2:651-659), so the death animation is never seen: no source says a cutscene or wait
+reward.win_player_tile	all	solo: measured 2495,5112,0 (the exit pad) after 8 wins, n=8; no source gives it (M7 is the death and leave tile)
+reward.completion_message	all	solo: ours prints 'You have defeated TzKal-Zuk!' (inferno_zuk.rs2:657) then 'You have defeated TzKal-Zuk! Please accept this Infernal cape.' (inferno.rs2:176), the first line duplicated in the second (n=2: cr_scratch4c); no source quotes a line
+reward.completion_broadcast	all	solo: ours sends no broadcast (no line in 2 wins); sources searched: pinned wiki, newsposts, transcripts: none mentions an Inferno broadcast

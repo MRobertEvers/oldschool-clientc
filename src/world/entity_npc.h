@@ -51,6 +51,40 @@ struct WorldEntity_NPC
     struct WorldEntityFacet_Combat combat;
     struct WorldEntityFacet_Chat chat;
     struct WorldEntityFacet_EntitySpotanim spotanim;
+    /**
+     * The newest SEQUENCE and SPOTANIM the server SENT this npc, and the world
+     * cycle each arrived on -- stamped by World_NpcSetPrimaryAnimation and
+     * World_NpcSetSpotanim before anything decides whether to play it.
+     *
+     * Not `animation.primary.anim_id` / `spotanim.id`: those are what the npc
+     * is DRAWING, and world_apply_primary_animation does not restart a seq
+     * re-sent while it is already playing (unless the seq's replay mode says
+     * so) and refuses a lower-priority one, so a boss repeating one attack
+     * seq is invisible to "did anim_id change". A raid test anchors "the boss
+     * attacked on tick T" on the op's arrival, which is this. -1 / 0 until
+     * the first op. The quest driver reads them (DriveNpcRow.seq_tick).
+     */
+    int seq_sent_id;
+    int seq_sent_cycle;
+    int spotanim_sent_id;
+    int spotanim_sent_cycle;
+    /**
+     * The newest FACE_COORD op the server sent this npc (`npc_facesquare`),
+     * as the wire sent it -- absolute half-tiles, (tile << 1) + size -- and
+     * the world cycle it arrived on. Stamped in task_exec_entity_info.c where
+     * the op is applied.
+     *
+     * Not `facing.square_x/z`: those are the PENDING turn and world_cycle.c
+     * clears them the cycle the turn is consumed, so by the time a reader
+     * looks they are 0 again. A raid test asks "which square did the boss
+     * turn to, and on which tick" (Xarpus P3 turns to the quadrant he was hit
+     * from, tob_xarpus.rs2), which is this. 0,0 = none, the same sentinel
+     * facing.square_x uses (and the zero a fresh entity starts with). The
+     * quest driver reads them (DriveNpcRow.face_x/face_z/face_tick).
+     */
+    int face_sent_x;
+    int face_sent_z;
+    int face_sent_cycle;
     /** Exact-move window (Actor fields on the deob). Classic NPC_INFO has no
      * exact-move mask, but rebuild shifts these the same as players, and the
      * cycle update consumes them when set. */

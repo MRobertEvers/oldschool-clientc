@@ -1,0 +1,11 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+colosseum_standard_mager	12811	0	seq	813	human_staffready	12	8.4		ready	bound	npc record readyanim
+colosseum_standard_mager	12811	0	seq	1205	human_halberdwalk_f	8	1.6		walk	bound	npc record walkanim
+colosseum_standard_mager	12811	0	seq	1206	human_halberdwalk_b	8	1.6		walk	bound	npc record walkanim_b (backward)
+colosseum_standard_mager	12811	0	seq	1207	human_halberdwalk_l	4	0.8		walk	bound	npc record walkanim_l (left)
+colosseum_standard_mager	12811	0	seq	1208	human_halberdwalk_r	4	0.8		walk	bound	npc record walkanim_r (right)
+colosseum_standard_mager	12811	0	seq	10859	npc_serpent_mager_casting	17	3.33	3:varl_serpent_shaman_water_cast_01	attack1	name	on the human rig 0 (shared, so name-matched only); Jagex name says serpent_mager casting; AV_INVENTORY: casting 3.33t, sound varl_serpent_shaman_water_cast_01; shared rig so tier name, not rig+name
+colosseum_standard_mager	12811	0	seq	10860	npc_serpent_mager_death	10	1.57	1:human_death	death	name	on the human rig 0 (shared); Jagex name says serpent_mager death; shared rig so tier name, not rig+name [forcedpriority=10]; last frame holds 20000 client ticks (corpse hold), motion is 47 client ticks = 1.57 game ticks; forcedpriority=10
+colosseum_standard_mager	12811	-	spotanim		lizardshaman_spit_acid	30	1.0		unknown	name	shares only the word shaman; belongs to the Lizardman shaman, not the serpent shaman; spotanim anim=myq3_vampire_teleport_projectile_anim; id not in dump
+colosseum_standard_mager	12811	-	spotanim		lizardshaman_acid_splash	31	1.03		unknown	name	shares only the word shaman; belongs to the Lizardman shaman, not the serpent shaman; spotanim anim=watersplash; id not in dump
+colosseum_standard_mager	12811	-	spotanim		lizardshaman_spawn_explode	23	0.77		unknown	name	shares only the word shaman; belongs to the Lizardman shaman, not the serpent shaman; spotanim anim=wave_impact; id not in dump

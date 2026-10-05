@@ -1,0 +1,66 @@
+{{Update|date=20 January 2016|link=http://services.runescape.com/m=news/dev-blog-the-inferno-v2?oldschool=1|category=website}}
+[[File:Dev Blog- The Inferno v2 newspost.png|right]]
+{{clear}}
+Following feedback on the recent developer blogs for The Inferno and TzKal-Zuk we have gone back to the drawing board and re-assessed what we were offering.
+
+We need to know what '''you''' think of this content and how you would like to see it delivered. Head over to the [http://services.runescape.com/m=forum/a=946/forums.ws?380,381,256,65733712 developer blog], give it a read and let us know what you think!
+
+'''''Mods Alfred, Archie, Ash, Ghost, Ian, Jed, John C, Kieren, Mat K, Maz, Ronan, Weath'''''<br/>''The Old School Team''
+
+
+
+----
+
+
+
+
+
+{{Headline|25|Dev Blog: The Inferno}}
+
+
+We received a lot of feedback regarding our proposal for The Inferno, the home of TzKal-Zuk (Jad 2). In this developer blog we would like to discuss a design for The Inferno as a piece of content which is completely separate from the TzHaar Fight Cave.
+{{ToC}}
+==The Inferno==
+
+The Inferno is the next step up for challenges offered by the TzHaar. Those of you daring enough to take on The Inferno will be made to sacrifice a fire cape in order to be granted access to this intense test of skill (the payment of a fire cape is a one-time fee).
+
+'''Please note''': The Inferno is entirely separate from the TzHaar Fight Cave.
+
+If you accept the challenge you will be faced with '''40+ waves''' of '''6 previously unseen TzHaar monsters''', all leading up to the fight of a lifetime. The Inferno will test even the most skilled players, challenging you both mechanically and in terms of endurance.
+
+If you are able to make it to the final fight, you are in for a treat. You will be up against '''TzKal-Zuk''', an incredibly fierce foe that will not be taken down by just anyone.
+
+Our goal with this content is to, once again, bring you that same '''feeling of accomplishment''' that you felt the first time you killed TzTok-Jad. This boss will be very challenging and will '''turn you into a panicky mess''' as you approach the final fight.
+
+
+==The Rewards==
+
+We will be offering a new best-in-slot melee cape as a reward for completing The Inferno and taking down TzKal-Zuk.
+
+[[File:Dev Blog- The Inferno v2 (1).png|center|375px]]
+
+
+==The poll==
+
+This content will be offered in two questions: one asking whether or not you would like the content and the other asking whether or not you would like the reward.
+* '''Question''': Should The Inferno be added to Old School RuneScape? This is an activity similar to the Fight Cave, offering waves of monsters
+* '''Question''': Should a new best-in-slot melee cape be given as a reward for defeating TzKal-Zuk?
+
+
+==When can we expect to see The Inferno in Old School?==
+
+We had initially planned to release The Inferno around mid-February as we had a gap in our release schedule. However, with The Inferno as a separate piece of content this becomes more of a challenge. We need to know what you think is best to help us move forward with The Inferno and Old School as a whole.
+
+If we want to release The Inferno in mid-February the content may not be all it could be visually. We would likely have to re-use a lot of assets from the existing TzHaar area, tweaking them to make them unique. The gameplay will not suffer as a result of the content being released in February, however the graphics certainly will.
+
+Past mid-February we have a very full development schedule which includes a lot of updates instrumental in both keeping people playing Old School and reaching new players. Content such as the Monkey Madness 2, Deadman mode seasonal servers, Zeah batch 2 and more. Because of the tight development schedule and significance of what we plan to to be making, we are very limited with how much time we can spend on The Inferno.
+
+We do have the option of not releasing The Inferno at this point in time. We can hold onto the update up until Zeah batch 3 next January, where it would fit in perfectly with the Tasakaal - a race closely related to the TzHaar who reside in a dilapidated, dormant volcano. This would provide us with ample time to make the content visually pleasing as well as very engaging and challenging.
+
+If The Inferno were pushed back we would also be able to spend the few open weeks in our development schedule working all of your quality of life requests. Throughout February we could run weekly polls filled to the brim with quality of life suggestions from you. We would be able to turn around the updates shortly after they've been polled, making February a great month for polishing what we've already got in Old School.
+
+'''{{Colour|#b22222|We need to know what you think is preferable out of the two options}}: push to get The Inferno out in mid-February with tweaked assets and, overall, a lower standard for visuals or push The Inferno back to next January to come with Zeah batch 3, filling the open time in our schedule with massive amounts of quality of life jobs.'''
+
+'''This decision comes down to what the community wants most. Please let us know your thoughts on the matter - we want to know what you think.'''
+
+'''''Mods Alfred, Archie, Ash, Ghost, Ian, Jed, John C, Kieren, Mat K, Maz, Ronan, Weath'''''<br/>''The Old School Team''

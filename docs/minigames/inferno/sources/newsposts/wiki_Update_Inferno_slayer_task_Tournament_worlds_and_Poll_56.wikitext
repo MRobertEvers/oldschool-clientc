@@ -1,0 +1,157 @@
+{{Update|date=3 August 2017|link=http://services.runescape.com/m=news/inferno-slayer-task-tournament-worlds-and-poll-56?oldschool=1|category=game}}
+[[File:Inferno slayer task, Tournament worlds, and Poll 56! newspost.png|right]]
+{{clear}}
+
+''It has been slightly more than two months since the release of the Inferno, and as the number of players successfully besting TzKal-Zuk continues to increase, today marks the release of an Inferno Slayer task. Tournament worlds are re-opened in preparation for the PvP Championship which takes place in little over a week's time. Poll 56 has a strong emphasis on Quality of Life changes. Plus the usual range of patches, fixes, and QoL tweaks.''
+
+{{Horizontal Line}}
+
+{{Headline|25|Inferno Task}}
+
+
+[[File:Inferno slayer task, Tournament worlds, and Poll 56! (1).png|400px|center]]
+
+
+'''Firstly, it's important to specify that this task will be solely for those who have already killed TzKal-Zuk.'''
+
+Today sees the release of the most challenging and rewarding Slayer task yet. Upon being assigned a TzHaar task, players who have successfully already done so will be offered the chance to again challenge TzKal-Zuk. 
+
+Completion of this task will yield 100,000 Slayer xp from killing TzKal-Zuk, and it offers an increased chance of the Jal-nib-rek pet. 
+
+The Slayer helmet damage and accuracy boosts will be effective against all monsters inside the Inferno, and naturally the Expeditious Bracelet and the Bracelet of Slaughter ''do not affect the task''. Dying during the task or leaving the Inferno prior to completion will see the task wiped, as with the TzTok-Jad task.
+
+{{Horizontal Line}}
+
+{{Headline|25|Tournament Worlds}}
+
+
+Worlds 408 and 409 are being converted to Tournament worlds in preparation for the PvP Championship. As the [https://www.runescape.com/oldschool/pvp-championship PvP Championship] is our most ambitious non-Deadman competition to date, we felt it fitting to allow the participants to practice in an environment as close to the Championship as possible. ''Naturally everybody else is encouraged to join the fray and test their mettle too!''
+
+As with prior releases you'll be given the freedom to select your own stats, and you'll have a wide range of equipment to choose from. The Tournament worlds will be active until the 17th August, so you have two weeks to hone your combat prowess!
+
+Be sure to watch all of the action from the [https://www.runescape.com/oldschool/pvp-championship PvP Championship] on [https://www.twitch.tv/runescape twitch.tv/runescape] on Saturday 12th and Sunday 13th August!
+
+
+[[File:Inferno slayer task, Tournament worlds, and Poll 56! (2).png|center]]
+
+{{Horizontal Line}}
+
+
+{{Headline|25|In Other News}}
+
+
+As the release of Fossil Island draws nearer, we've been hard at work implementing various requested fixes and quality of life changes to improve your playing experience. 
+
+''Colour tags have been added to the following messages''
+*"Your cannon is out of ammo!" 
+*"Your kitten is hungry." 
+*"Your kitten wants attention." 
+*"You have run out of prayer points, you must recharge at an altar." 
+*"You have a funny feeling you're being followed..." 
+*"You have been frozen!"
+*Your Trident of the Seas or Trident of the Swamp running out of charges 
+*Completion of your Slayer task. 
+*Degradation messages for: Barrows equipment, Tentacle whip, Arclight, Crystal halberd, Crystal bow and Crystal shield.
+
+
+*A right-click option to Quick buy from Gertrude has been added.
+*Ancestral armour has been added to Hofuthand's prices interface.
+*A confirmation message has been added when dropping a light source into the AhZaRhoon fissure. 
+*A number of fixes have been made to the Sea Slug cutscenes.
+*A typo present in the completion message of a Karamja achievement diary task has been fixed.
+*The messaging when peeking using the Lighthouse dungeon ladder has been fixed.
+*A 100 charge remaining warning has been added to the Trident of the Seas and Trident of the Swamp.
+*A 100 charge remaining warning has been added to the Tentacle Whip.
+*A 1% scale, and a 100 dart remaining warning has been added to the Blowpipe.
+*Messages detailing how many bonemeal you have left to gain from Robin have been added.
+
+
+{{Horizontal Line}}
+
+
+{{Headline|25|The literally playable poll}}
+
+
+Poll 56 has a strong emphasis on quality of life changes. Recently we asked what you'd like to see changed to improve your playing experience, and here's what we'd like to offer:
+
+'''Question:''' Should you be able to recolour individual pieces of graceful after the initial set recolouring purchase from Brimhaven Agility Arena? For example: if you previously recoloured graceful equipment and then lost it, you'd now be able to recolour individual pieces rather than have to recolour an entire set. There would still be a cost attached to individual pieces.
+
+
+'''Question:''' When on task, should the Slayer helmet effect be applied when attacking respiratory systems encountered during the fight with the Abyssal Sire? This would apply the accuracy and damage boost of the Slayer helmet.
+
+
+'''Question:''' When hovering over the special bar of a weapon with a special attack, should a textbox appear which details the effect of the special attack?
+
+
+'''Question:''' Should the stock of teleport cards in Diango’s Toy Store be increased from 10 to 100? Teleport cards are used to charge the Chronicle which provides teleports to the Champions’ Guild. 
+
+
+'''Question:''' Should a barbarian fishing spot be added to the top of the waterfall the Chambers of Xeric?
+
+
+'''Question:''' When picking up ammunition which you already have equipped, should that ammunition be automatically equipped rather than going into your inventory?
+
+
+'''Question:''' When picking up runes found within your rune pouch, should the runes automatically be placed into the rune pouch rather than going into your inventory? 
+
+
+'''Question:''' Should the capacity of the bolt pouch be increased from 255 per slot to 10,000 per slot? 
+
+
+'''Question:''' Should the ‘Glider’ option on gnome pilots be moved to become the first option? Currently the first option is ‘Talk’.
+
+
+'''Question:''' Should a chatbox message be added which will inform you that the effects of a super-antipoison/antidote++ are about to expire, and another added to inform you when it has expired?
+
+
+'''Question:''' Should a right-click ‘Chase’ option be added to all cats? 
+
+
+'''Question:''' Should a left-click option be added to the animation room of the Warriors’ Guild which would automatically place the highest-tier armour to be animated?
+
+
+'''Question:''' Should we remove the retreat of the animated suits of armour within the Warriors’ Guild?
+
+
+'''Question:''' Should we change jewelery placeholders so that fully-charged, and completely depleted placeholders have a distinct placeholder, whilst all other states share a placeholder? For example: A ring of dueling (8) would have a placeholder, and another placeholder for charges 1-7. An Amulet of glory would behave in the same manner, but would also have a placeholder for a depleted amulet.
+
+
+'''Question:''' Currently when withdrawing doses of potions from the barrels in the Nightmare Zone it will provide you with new potions in your inventory. Should we change this so that it will fill up already existing potions of a lower dosage? For example: if you had a (1) Overload in your inventory, and you withdrew 3 more doses, you would currently be given an additional (3) Overload. With this change your original (1) potion will be made a (4) potion. 
+
+
+'''Question:''' Should an additional option be added to the Ring of Duelling
+
+which would teleport you closer to the lobby of the Duel Arena? The existing teleport to the entrance would remain.
+
+
+'''Question:''' Should the high gamble option at Barbarian Assault offer a chance at rewarding players with Elite clue scrolls?
+
+
+'''Question:''' Should the dark mage, found near the Underground Pass, offer an option to recharge Iban’s staff for a fee? An uncharged staff would cost 100,000gp to recharge, and an upgraded staff would cost 250,000gp to recharge. It would still be possible to recharge the staff for free inside Underground Pass.
+
+
+'''Question:''' Should elemental rune packs be added to the TzHaar-Mej-Roh’s store in Mor Ul Rek? 
+
+
+'''Question:''' Should Brian O’Richard automatically give players a Mystic jewel when entering Rogue’s Den? 
+
+
+'''Question:''' Should the appearance of the quests interface be recoloured slightly to aid colour-blind players? In our image example the current interface is on the left, and the new interface is on the right.
+[https://cdn.runescape.com/assets/img/external/oldschool/2017/newsposts/2017-08-03/questsbeforeafter.PNG Image]
+
+
+'''Question:''' Should successfully defeating the Champion of Champions, Leon d’Cour, be rewarded with a cape similar to Toby’s in Varrock? [https://cdn.runescape.com/assets/img/external/oldschool/2017/newsposts/2017-08-03/champcape.PNG Image]
+
+
+'''Question:''' Should a grapple shortcut be added to the Observatory to allow ease of access once players have completed Observatory Quest?
+
+
+'''Question:''' Should a separate tracker be added for lizardmen shaman? This will be separate from lizardmen, but lizardmen shaman kills will also contribute to the lizardmen tracker. It cannot track kills in retrospect. 
+
+
+
+{{Horizontal Line}}
+
+<center>Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,409,65937471 forums].</center>
+
+<center>'''Mods Archie, Ash, Delta, Ed, Ghost, Jed, John C, Kieren, Mat K, Maz, Ronan, Roq, Ry, Stone, Sween, TomH, Weath, West & Wolf'''<br/>''The Old School Team''</center>

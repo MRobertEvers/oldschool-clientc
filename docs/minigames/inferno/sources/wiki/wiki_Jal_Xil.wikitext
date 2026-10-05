@@ -1,0 +1,66 @@
+{{Infobox Monster
+|name = Jal-Xil
+|image = [[File:Jal-Xil.png|200px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|combat = 370
+|size = 3
+|examine = Holy projectile.
+|xpbonus = 0
+|max hit = 46 (Ranged), 19 (Melee)
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]], [[Crush]]
+|attack speed = 4
+|slayxp = 125
+|cat = TzHaar
+|assignedby = chaeldar,nieve,duradel
+|hitpoints = 125
+|att = 140
+|str = 180
+|def = 60
+|mage = 90
+|range = 250
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 40
+|rngbns = 50
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 0
+|venomresistance = 100
+|immuneburn = Immune to normal burns
+|id = 7698,7702
+}}
+'''Jal-Xil''' are [[volcanic creatures]] fought in the [[Inferno]], and are apparently the ancestors of the present day [[Tok-Xil]].
+
+They are exactly the same as the Tok-Xil, the only difference is that Jal-Xils boast higher combat stats.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Jal-Xil now have a 40% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|change = The Jal-Xil's hitpoints has been reduced from 130 to 125.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Its examine information is a reference to the examine text of [[Yt-MejKot]] in the [[TzHaar Fight Cave]].
+
+{{Inferno}}
