@@ -114,17 +114,22 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   driven end to end and no verb reads special energy; t.player.step_tick is unsupported on a
   member (walk_to instead). The four trio attempts for Xarpus, Sotetseg, Verzik and Nylocas must
   be re-authored (fitted to the old behaviour); Maiden's and Bloat's are strategy problems.
-- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam23` (triage `SEAM_TRIAGE_2026-10-05b.md`,
-  60fd52b93): THE SCRIPTS TAB (owner, 2026-10-05: "show a list of available scripts in a scripts
-  tab and I can search and click play on one"): api.drive.start/stop/status under
-  TORIRS_DRIVE_ON_DEMAND=1, tools/raid_gate/prepare_scripts.py, a `script_runner` panel plugin,
-  profile `osrs239-scripts`; the owner will run `python3 tools/raid_gate/prepare_scripts.py &&
-  ./launch run osrs239-scripts`. Proved headless only; never open a window from a worker.
-  THEN SEAM24 (`SEAM_TRIAGE_2026-10-05c.md`, 7d0890cc3; owner: "This will show all the scripts
-  used for quests and others right? I just want to be able to watch all the automated scripts
-  we've been making"): the tab lists EVERY script (123 quests + the raid rooms; all use
-  fresh_lumbridge), a fresh account per Play (stage the fixture, relog), legs files in one
-  sitting, a suite filter; pass `matthew-mbp-m4-raid-b1-seam24`, same card, width 1.
+- Seam23 LANDED (parent 3ba1774cc, ledger 1d75019f1): THE SCRIPTS TAB, first cut. In a client
+  launched with `python3 tools/raid_gate/prepare_scripts.py && ./launch run osrs239-scripts`:
+  log in, Confirm the Character Creator on a new name, open Scripts, search, pick, Play; the six
+  solo Entry rooms play at real speed; Stop ends a run; the client stays up. api.drive.start/
+  stop/status under TORIRS_DRIVE_ON_DEMAND=1. Proved HEADLESS only (no window was opened): the
+  owner has not yet tried it. Known rough edges (seam24 fixes them): consecutive runs share one
+  account's world, the search box loses the keyboard 600 ms after a key, unavailable rows are
+  plain labels, disabled/enabled button captions read backwards (orange = disabled).
+- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam24` (triage `SEAM_TRIAGE_2026-10-05c.md`,
+  e23b9275a). The owner's rules for it, 2026-10-05: the tab shows ALL the automated scripts
+  (123 quests + raid rooms); "The client should just query for the available scripts - the
+  server should tell it - in a similar way the client asks for the available plugins" (a
+  manifest fetched through the IO layer like plugins/plugins.ini; no prepare step, no env index;
+  the wrapping moves into the driver's Lua); searchable; a test's source is reloaded on every
+  Play (hot reload); a fresh account per Play; legs files in one sitting; seam23's open list.
+  The owner then runs just `./launch run osrs239-scripts`.
   THEN relaunch the Normal three-player pass with the same args and the seam22 notes.
 - OWNER, 2026-10-05, Verzik P1 for a trio: "the players need to take the dawnbringer from the
   skeleton on the ground after xarpus. That weapon does not have the shield penalty and the
