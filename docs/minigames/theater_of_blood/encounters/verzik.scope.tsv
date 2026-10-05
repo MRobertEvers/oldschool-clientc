@@ -58,6 +58,7 @@ verzik.p2_scythe_walk_ticks	all	technique; a solo step_tick measures it
 verzik.p2_bomb_max	normal	Normal figure; Entry has its own records (verzik.entry_p2_bomb_max)
 verzik.entry_p2_bomb_max	entry	Entry figure
 verzik.p2_bomb_judged_tile	all	applies in every mode; a solo room measures it
+verzik.p2_bomb_prayer_read_tick	all	applies in every mode; seam20: not yet measured by tob_verzik (proved by conformance seam.verzik_p2_urnbomb_prayer_read_at_landing)
 verzik.p2_bomb_live_ticks	all	applies in every mode; a solo room measures it
 verzik.p2_bomb_flight	all	applies in every mode; a solo room measures it
 verzik.p2_slam_damage_max	normal	Normal damage figure; Entry has its own records and no source gives Entry's slam (spec gap)

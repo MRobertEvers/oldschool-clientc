@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 167
+-- @seam-count 169
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 177
-local SEAM_COUNT = 167
+local SEAM_COUNT = 169
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -13668,6 +13668,127 @@ return {
             return "ok", detail .. " (tob_sotetseg_creeper_story, cache_npc_sotetseg.txt:140)"
         end)
 
+-- seam20 tob_prayer_read_on_send (row 1 of 2). NO verb added or changed and NO content
+-- behaviour changed: Sotetseg's ball reads the protection prayer at the LANDING, a sourced
+-- exception to the owner's send-tick default (blert, CONTENT_BUGS.md "From seam20"; spec row
+-- sotetseg.ball_prayer_read_tick). Solo Entry at the barrier (end_cycle 232, 7 ticks): a
+-- ball thrown unprayed with Protect from Magic raised in flight is blocked (hitsplat 26, 0)
+-- on throw + end_cycle // 30; one thrown prayed with the prayer dropped in flight is his hit
+-- a tick later, and the next press is refused (the lock). Arrivals are matched by landing
+-- tick. Teardown ::tobout. SEAM_COUNT / @seam-count +1.
+        seam("seam.tob_sotetseg_ball_prayer_read_at_landing", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local nearest = verb("npc", "nearest")
+            local log_start = verb("ticklog", "start")
+            local log_slot = verb("ticklog", "slot")
+            local log_rows = verb("ticklog", "rows")
+            local pset = verb("prayer", "set")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not nearest then return missing("npc", "nearest") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_slot then return missing("ticklog", "slot") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not pset then return missing("prayer", "set") end
+            if not ticks then return missing("ticks") end
+            local BALL_PROJ = 1606    -- tob_sotetseg_maging, his ordinary ball (solo: no ricochet)
+            local BLOCK_SPLAT = 26    -- hitsplat_block, the prayed ball's damage(uid, hitsplat_block, 0)
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel prayer 99")
+            local entered, entered_detail = enter("tob", "sotetseg", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob sotetseg entry -> " .. describe(entered_detail) end
+            log_start()
+            local found, boss = nearest("tob_sotetseg_combat_story", 40)
+            if found ~= "ok" or not is_table(boss) then setup_cheat("::tobout") return "not_found", "tob_sotetseg_combat_story -> " .. describe(boss) end
+            local _, world_slot = log_slot(boss)
+            pset("protectfrommagic", false)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local function mark(text)
+                t.ticklog.mark(text)
+                local _, ms = log_rows({ kind = "mark" })
+                return ms[#ms]
+            end
+            -- the next ordinary ball thrown after `since`: its projectile row (tick = the throw)
+            local function next_throw(since)
+                for _ = 1, 30 do
+                    local _, pj = log_rows({ kind = "projectile", since = since })
+                    for _, r in ipairs(pj or {}) do
+                        if r.spotanim == BALL_PROJ then return r end
+                    end
+                    ticks(1)
+                end
+                return nil
+            end
+            -- that ball's arrival on the player. It lands on throw + end_cycle // 30 (the
+            -- queue's delay, `~tob_flight_ticks`); a prayed ball is a block splat ON that tick
+            -- (damage(uid, hitsplat_block, 0)), an unprayed one his own hit one tick later
+            -- (combat_damage_player at delay 0). Matched by tick: his next ball is thrown five
+            -- ticks later and an earlier one can still be in the air, so "the next splat" is
+            -- not necessarily this ball's.
+            local function arrival(since, throw)
+                local land = throw.tick + math.floor(throw.end_cycle / 30)
+                for _ = 1, 15 do
+                    local _, hs = log_rows({ kind = "hit_player", since = since })
+                    for _, r in ipairs(hs or {}) do
+                        if r.tick == land and r.hitsplat == BLOCK_SPLAT and r.damage == 0 then return r, "prayed", land end
+                        if r.tick == land + 1 and r.npc_slot == world_slot and r.damage > 0 then return r, "unprayed", land end
+                    end
+                    ticks(1)
+                end
+                return nil, "none", land
+            end
+            -- one trial: the prayer stands at `before` when the ball leaves, is switched to
+            -- `after` only once the throw row is in the log (so the switch is in force from
+            -- the tick after the throw at the earliest), and the mark written after the switch
+            -- is older than the arrival; a ball that arrived first is not a trial, take the next
+            local function trial(before, after)
+                local tries, note = 0, ""
+                while tries < 4 do
+                    tries = tries + 1
+                    local r0 = pset("protectfrommagic", before)
+                    if r0 ~= "ok" then
+                        -- the unprayed ball's lock refuses a press for five ticks: wait it out
+                        ticks(6)
+                        r0 = pset("protectfrommagic", before)
+                    end
+                    if r0 ~= "ok" then return nil, "could not set the prayer " .. tostring(before) .. ": " .. tostring(r0) end
+                    local m0 = mark("s20 trial before=" .. tostring(before))
+                    local throw = next_throw(m0.serial)
+                    if throw == nil then return nil, "no ordinary ball thrown in 30 ticks" end
+                    local r1, d1 = pset("protectfrommagic", after)
+                    local m1 = mark("s20 switched to " .. tostring(after))
+                    local hit, verdict, land = arrival(throw.serial, throw)
+                    if hit == nil then return nil, "no arrival for the ball thrown at tick " .. throw.tick .. " (landing " .. land .. ")" end
+                    local line = "throw " .. throw.tick .. " (prayer " .. tostring(before) .. "), switch " .. tostring(r1)
+                        .. " in force by mark " .. m1.tick .. ", landing " .. land .. " (end_cycle " .. throw.end_cycle .. ") "
+                        .. verdict .. " (splat tick " .. hit.tick .. ", damage " .. hit.damage .. ", hitsplat " .. hit.hitsplat .. ")"
+                    if r1 == "ok" and throw.tick <= m1.tick and m1.tick < land then return verdict, line end
+                    note = note .. "; not a trial: " .. line .. " " .. describe(d1)
+                end
+                return nil, "no ball arrived after its switch in 4 tries" .. note
+            end
+            local v_on, d_on = trial(false, true)
+            local v_off, d_off = trial(true, false)
+            -- the lock that follows an unprayed hit: a press right after the second arrival is refused
+            local lock = pset("protectfrommagic", true)
+            setup_cheat("::tobout")
+            local detail = "OFF at the throw, ON before it landed: " .. tostring(d_on) .. " | ON at the throw, OFF before it landed: "
+                .. tostring(d_off) .. " | Protect from Magic pressed after that arrival: " .. tostring(lock)
+            if v_on ~= "prayed" then return "refused", "a prayer raised in flight was not read at the landing: " .. detail end
+            if v_off ~= "unprayed" then return "refused", "a prayer dropped in flight was not read at the landing: " .. detail end
+            if lock ~= "refused" then return "refused", "the unprayed arrival did not lock the protection prayers: " .. detail end
+            return "ok", detail
+        end)
+
 -- seam7 tob_party_board_and_scoreboard_interfaces -- conformance snippet for the closer.
 --
 -- NO driver verb was added or changed by this seam (content only: tob_board.rs2
@@ -14528,6 +14649,125 @@ return {
             if aura_tick == nil or globule_tick == nil or death_tick == nil then return "refused", detail end
             if aura_tick ~= globule_tick or death_tick ~= globule_tick then return "refused", "not one tick: " .. detail end
             if heals ~= 0 then return "refused", "a burst Athanatos still healed her: " .. detail end
+            return "ok", detail
+        end)
+
+-- seam20 tob_prayer_read_on_send (row 2 of 2). Verzik P2's urnbomb reads Protect from
+-- Missiles at the LANDING, the wiki's named exception (wiki_Verzik_Vitur.wikitext:394, :397;
+-- spec row verzik.p2_bomb_prayer_read_tick). Solo Entry, ::tobvzleft 0 past P1, ::god 1 on
+-- and each splat's raw read: six bombs prayed only in flight all deal at most the halved
+-- Entry max 8; six prayed only at the throw deal over 8 at least once. Teardown ::god 0 +
+-- ::tobout. SEAM_COUNT / @seam-count +1.
+        seam("seam.verzik_p2_urnbomb_prayer_read_at_landing", function()
+            local enter = verb("raid", "enter")
+            local talk = verb("player", "talk_to")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local log_mark = verb("ticklog", "mark")
+            local pset = verb("prayer", "set")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not talk then return missing("player", "talk_to") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not log_mark then return missing("ticklog", "mark") end
+            if not pset then return missing("prayer", "set") end
+            if not ticks then return missing("ticks") end
+            local BOMB_PROJ, BOMB_SEQ = 1583, 8114   -- verzik_phase2_ranged, verzik_phase2_attack_magic
+            local PRAYED_MAX = 8                     -- the Entry bomb's 16, halved (verzik.entry_p2_bomb_max)
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+                ticks(2)
+            end
+            setup_cheat("::tobout")
+            ticks(2)
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel prayer 99")
+            local entered, entered_detail = enter("tob", "verzik", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob verzik entry -> " .. describe(entered_detail) end
+            log_start()
+            setup_cheat("::god 1")
+            local talked = talk("verzik_initial_story", 1)
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            if talked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            ticks(25)
+            setup_cheat("::tobvzleft 0")    -- the P1 shield: this row is about P2's urnbomb
+            local function mark(text)
+                log_mark(text)
+                local _, ms = log_rows({ kind = "mark" })
+                return ms[#ms]
+            end
+            -- the next urnbomb thrown after `since`: its projectile row (tick = the throw)
+            -- and her slot from the 8114 cast on the same tick
+            local function next_throw(since)
+                for _ = 1, 60 do
+                    local _, pj = log_rows({ kind = "projectile", since = since })
+                    for _, r in ipairs(pj or {}) do
+                        if r.spotanim == BOMB_PROJ then
+                            local _, an = log_rows({ kind = "npc_anim", since = since })
+                            for _, a in ipairs(an or {}) do
+                                if a.tick == r.tick and a.seq == BOMB_SEQ then return r, a.slot end
+                            end
+                        end
+                    end
+                    ticks(1)
+                end
+                return nil, nil
+            end
+            -- it lands on throw + end_cycle // 30 and the splat is her hit one tick later
+            -- (combat_damage_player at delay 0); the raider never leaves the tile
+            local function arrival(since, throw, slot)
+                local land = throw.tick + math.floor(throw.end_cycle / 30)
+                for _ = 1, 10 do
+                    local _, hs = log_rows({ kind = "hit_player", since = since })
+                    for _, r in ipairs(hs or {}) do
+                        if r.tick == land + 1 and r.npc_slot == slot then return r, land end
+                    end
+                    ticks(1)
+                end
+                return nil, land
+            end
+            local function trial(before, after)
+                for _ = 1, 3 do
+                    if pset("protectfrommissiles", before) ~= "ok" then return nil, "could not set the prayer " .. tostring(before) end
+                    local m0 = mark("s20 bomb before=" .. tostring(before))
+                    local throw, slot = next_throw(m0.serial)
+                    if throw == nil then return nil, "no urnbomb in 60 ticks" end
+                    local r1 = pset("protectfrommissiles", after)
+                    local m1 = mark("s20 bomb switched to " .. tostring(after))
+                    local hit, land = arrival(throw.serial, throw, slot)
+                    if hit ~= nil and hit.raw ~= nil and r1 == "ok" and throw.tick <= m1.tick and m1.tick < land then
+                        return hit.raw, "throw " .. throw.tick .. " landing " .. land .. " raw " .. tostring(hit.raw)
+                    end
+                end
+                return nil, "no urnbomb landed after its switch in 3 tries"
+            end
+            local raised, dropped, lines = {}, {}, {}
+            -- `::god 1` stays on so twelve bombs cannot kill the raider: the row reads each
+            -- splat's `raw` (the hit as the content dealt it, prayer applied, before ::god)
+            for _ = 1, 6 do
+                local a, ad = trial(false, true)
+                local b, bd = trial(true, false)
+                if a == nil or b == nil then teardown() return "refused", tostring(ad) .. " / " .. tostring(bd) .. " | " .. table.concat(lines, "; ") end
+                raised[#raised + 1] = a
+                dropped[#dropped + 1] = b
+                lines[#lines + 1] = "OFF->ON " .. ad .. ", ON->OFF " .. bd
+            end
+            teardown()
+            local raised_max, dropped_max = 0, 0
+            for _, v in ipairs(raised) do if v > raised_max then raised_max = v end end
+            for _, v in ipairs(dropped) do if v > dropped_max then dropped_max = v end end
+            local detail = "Protect from Missiles OFF at the throw and ON at the landing dealt raw " .. table.concat(raised, ",")
+                .. " (max " .. raised_max .. ", halved max " .. PRAYED_MAX .. "); ON at the throw and OFF at the landing dealt raw "
+                .. table.concat(dropped, ",") .. " (max " .. dropped_max .. ") | " .. table.concat(lines, "; ")
+            if raised_max > PRAYED_MAX then return "refused", "a prayer raised in flight was not read at the landing: " .. detail end
+            if dropped_max <= PRAYED_MAX then return "refused", "no bomb dropped-in-flight dealt over the halved max (read at the throw?): " .. detail end
             return "ok", detail
         end)
 

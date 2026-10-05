@@ -3150,6 +3150,9 @@ sote12/tornado_scratch*.lua, vz12_kill.lua).
 
 ## Verzik P3: switch the protection prayer on what she shows; it counts when the projectile lands
 
+- RULED by the owner, 2026-10-04: "You are correct about p3 Verzik on hit". The landing read
+  is the sourced exception to the send-tick default (CONTENT_BUGS.md, Owner rulings); seam20
+  left `[queue,tob_verzik_p3_auto_land]` as it is and added only a comment line citing this.
 - The style shows on her attack tick T: npc_anim 8125 with projectile 1593 is ranged
   (Protect from Missiles), 8124 with 1594 is magic (Protect from Magic). During the crab
   summon (14406) the pose shows nothing, so key on the projectile there.
@@ -4436,3 +4439,55 @@ that table, so a `t.prayer.set(pn, false)` that failed would still print `pm fal
   (tob_verzik.rs2 `[queue,tob_verzik_p3_auto_land]`, `divide($hit, 2)`), so an Entry auto over 10
   of the matching style proves that protection was off. The launch-14c tob_verzik sample had magic
   13 and 20 and ranged 15 inside its unprayed window; name such hits in the row's detail.
+
+# Seam pass 20: when a protection prayer is read
+
+The owner's default (2026-10-04): an npc attack reads the target's protection prayer on its
+animation tick, when the projectile is sent. A landing read is the exception and needs a
+pinned source naming the npc. Seam20 audited every read in minigame_tob and changed no
+behaviour: the three landing reads are each sourced or ruled.
+
+## Sotetseg's ball: switch so the prayer is up when the ball LANDS (seam20)
+
+- He reads Protect from Magic on throw + end_cycle // 30 (7 ticks from the barrier,
+  end_cycle 232), not on the throw. A prayer raised after the throw counts; one dropped
+  after the throw does not.
+- A prayed ball is a block splat ON the landing tick: `hit_player` damage 0, hitsplat 26,
+  npc_slot -1. An unprayed one is his own hit (npc_slot = his slot) one tick later, and
+  protection presses are refused for 5 ticks after it (`t.prayer.set` answers refused).
+- Match a splat to its ball by the landing tick, never "the next splat": he throws every 5
+  ticks and the ball flies 7, so two are in the air at once.
+- The ricochets (a party of two or more) read theirs at their own landing, by the wiki's
+  "similar projectiles"; nothing has measured them apart.
+- Source: blert, 21 Normal and Hard rooms (sources/blert_api/spec_pass_sotetseg/
+  seam20_prayer_read.txt): of 30 balls thrown with Protect from Magic off and switched on
+  within four ticks, 23 cost nothing. Spec row `sotetseg.ball_prayer_read_tick` (B). Proved
+  by `seam.tob_sotetseg_ball_prayer_read_at_landing` (throw 2345, landing 2352 blocked;
+  throw 2355, landing 2362 unprayed 10 at 2363; the next press refused).
+- tob_sotetseg does not measure this row yet: the raid coverage gate reads 83 of 84 until
+  the room is re-authored with a `spec.sotetseg.ball_prayer_read_tick` row.
+
+## Verzik P2's urnbomb: Protect from Missiles counts if it is up when the bomb LANDS (seam20)
+
+- Read on throw + end_cycle // 30 (about 4 ticks), and only if you are still on the tile.
+  The blood spell is the opposite: read on her cast.
+- Under `::god`, read `hit_player.raw`; the prayer's halving is already inside it (Entry: at
+  most 8 prayed, 16 unprayed).
+- Source: wiki_Verzik_Vitur.wikitext:394 "when the urnbombs land", :397 the blood spell "is
+  calculated during her attack animation unlike the urnbombs", Strategies :907. Spec row
+  `verzik.p2_bomb_prayer_read_tick` (D). Proved by
+  `seam.verzik_p2_urnbomb_prayer_read_at_landing` (prayed only in flight: raw 3,0,2,3,5,1;
+  prayed only at the throw: 14,10,13,1,11,3).
+- tob_verzik does not measure this row yet: the coverage gate reads 145 of 146 until the
+  room is re-authored with a `spec.verzik.p2_bomb_prayer_read_tick` row.
+
+## Which ToB attacks read the prayer on the send tick, and which at the landing (seam20)
+
+- Send tick (switch before the npc animates): Maiden's auto, Bloat's flies, the Nylocas
+  waves, Vasilias, Sotetseg's melee (read on the swing tick; the splat is a tick later),
+  Verzik P1 and the P2 blood spell.
+- Landing (switch before it lands): Sotetseg's ball and ricochets, the P2 urnbomb, the P3
+  ranged and magic autos (ruled).
+- No prayer read at all: everything else, including Sotetseg's death ball, Xarpus, the P3
+  green ball, webs and melee. The full table with file:line is in CONTENT_BUGS.md, "From
+  seam20".

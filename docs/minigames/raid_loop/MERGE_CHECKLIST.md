@@ -125,6 +125,19 @@ the merge.
   - Raid-only tooling: `tools/raid_gate/raid_coverage.py` (`tob_<room>_<mode>` ids, party
     scope, `--mode`/`--party`), `tools/raid_gate/workflows/raid_author.workflow.js`
     (`args.party`).
+- seam20 (2026-10-04), when a protection prayer is read. No shared tool changed and no content
+  behaviour changed (rs2 comments only; the compiled pack is byte-identical, script.dat sha
+  5b367bd7). The suite holds its buckets (115 green, the same four RED with the same first
+  failing rows).
+  - `test/quests/_conformance.lua`: two new seam rows,
+    `seam.tob_sotetseg_ball_prayer_read_at_landing` (after the Sotetseg tornado row) and
+    `seam.verzik_p2_urnbomb_prayer_read_at_landing` (after the Athanatos row): 177 verbs, 169
+    seam rows on the branch. `tools/quest_gate/verb_list.py` unchanged.
+  - Raid rooms that moved (SEAM_LEDGER.md, seam20): tob_sotetseg and tob_verzik. Their ledgers
+    are unchanged and fully PASS, but each table gained a spec row the room does not measure
+    (`sotetseg.ball_prayer_read_tick`, `verzik.p2_bomb_prayer_read_tick`), so the raid coverage
+    gate reads 83 of 84 and 145 of 146. Both must be re-authored on this branch; neither is a
+    merge blocker for v3.
 
 ## 4. The owner's main checkout
 

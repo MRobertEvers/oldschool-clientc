@@ -797,3 +797,94 @@ Open:
   the room test's landing-tick technique stand. Sotetseg's ball and the P2 urn bombs are NOT
   covered by this ruling: seam20 (SEAM_TRIAGE_2026-10-04h.md) sources them or moves them.
 
+## From seam20 (matthew-mbp-m4-raid-b1-seam20, 2026-10-04): when a protection prayer is read
+
+The owner's default (above) is the rule this pass applied: a landing-tick read stays only
+where a pinned source names that npc. Both reads the triage named have one, so NEITHER MOVED;
+no behaviour changed (comments, spec rows and two conformance rows only), and no room test
+measures anything different. The Verzik P3 ruling row above is present and unchanged.
+
+- Sotetseg's ball, `[queue,tob_sote_impact]`: SOURCED AT THE LANDING (spec row
+  `sotetseg.ball_prayer_read_tick`, grade B). No wiki or Strategies line gives the tick
+  (wiki_Sotetseg.wikitext:92 and Strategies :787-:821 name the block, the split "upon
+  striking a player" and the 3-second lock only). The recorder does: blert's stage-13
+  streams (build/spec_state/matthew-mbp-m4-raid-b1-spec-tob/blert_sote_raw, 21 Normal and
+  Hard rooms) carry the PRIMARY raider's `prayerSet` and `hitpoints` on every tick
+  (sources/blert_repo/common__event.ts:429,436; Protect from Magic is bit 16, 65536, the
+  most common lit value in blert_sote_summary.txt MISC). Of 116 ordinary balls
+  (NPC_ATTACK 8, TOB_SOTE_BALL) aimed at the recorder:
+  - class A, Magic OFF on the throw tick and ON within T+1..T+4: 30 balls (15 switched on
+    at T+4). 23 of the 30 lost no hitpoints at all through T+12, and 26 kept the Magic
+    bit lit from the switch through T+7. A throw-tick read makes every one of the 30 an
+    unprayed roll of up to 50 followed by the lock; 23 clean outcomes cannot come from it.
+    The 7 drops are 14-45 at T+5/T+6 (four at distance 2: his melee), T+9 and T+12.
+    Many are deliberate flicks: on at T+4, off again at T+8 (`-----MMMM-----`).
+  - class C, Magic off throughout: 9 balls; the unprayed hits land at T+7 (37, 7, 4 at
+    distance 4-8), which is our own flight at the barrier (end_cycle 232 = 7 ticks).
+  - class B, Magic ON on the throw tick and OFF within T+1..T+4: 9 balls, mixed and small:
+    m11_s3_921e8 T88 lost 45 at T+7 and m11_s5_41852 T222 lost 5 at T+7 (a throw read
+    blocks both); m11_s3_71c56 T51 and m11_s3_921e8 T128 lost nothing (a 0 roll, a maze
+    null, or a counter-example: not resolvable from the stream); the rest are back on
+    before the landing or the recorder died.
+  A guide says it in words: "Put on your prayer earlier than you think. The timing for
+  these does feel super weird" (transcripts/yt_4i4lv-srJkw.md:93). The ricochets keep the
+  same landing read by the wiki's "similar projectiles" (:92); no stream separates them.
+  Script and output, pinned by the seam20 closer (who re-ran it: byte-identical):
+  sources/blert_api/spec_pass_sotetseg/scratch/seam20_prayer_read.py and
+  sources/blert_api/spec_pass_sotetseg/seam20_prayer_read.txt. OURS, measured: conformance row
+  `seam.tob_sotetseg_ball_prayer_read_at_landing` (run s20_sote_c): off at throw 16 and on
+  before landing 23, blocked to 0 (hitsplat 26); on at throw 26 and off before landing 33,
+  unprayed 10, and the next press refused (the lock).
+- Verzik P2's urnbomb, `[queue,tob_verzik_urnbomb_land]`: SOURCED AT THE LANDING (spec row
+  `verzik.p2_bomb_prayer_read_tick`, grade D: one source family, the wiki). "Praying
+  Protect from Missiles when the urnbombs land halves the damage taken from these attacks"
+  (wiki_Verzik_Vitur.wikitext:394); of the blood spell, "Protect from Magic negates all
+  damage from the blood spells, and is calculated during her attack animation unlike the
+  urnbombs" (:397); "The damage is calculated on impact. As such, it is possible to save a
+  few prayer points by not activating Protect from Missiles" (Strategies :907). So the
+  tile bomb is NOT a send-tick read: the wiki names it as the exception, in the same
+  sentence that names the blood spell as the default. The bomb is thrown at each raider's
+  locked tile, queued on that raider, and judged at the landing against that raider still
+  standing on it (`verzik.p2_bomb_judged_tile`, wording updated). OURS, measured:
+  conformance row `seam.verzik_p2_urnbomb_prayer_read_at_landing` (run s20_bomb_a, Entry,
+  max 16): off at the throw and on before the landing, raw 7,5,4,7,4,1 (all within the
+  halved 8); on at the throw and off before the landing, raw 2,11,8,1,13,12.
+- Verzik P3's autos, `[queue,tob_verzik_p3_auto_land]`: RULED (owner, 2026-10-04), the
+  landing read stands; one comment line above the queue records the ruling.
+
+What the class A/B split does NOT settle: the exact tick inside the flight. Class A
+puts the read at T+4 or later (15 balls switched on at T+4, and 10 of them lost nothing at
+all); three class B balls whose prayer was off from T+2 or T+4 lost nothing, which a 0 roll
+explains but a read near T+3 would too. "Landing" is the reading every ball agrees with; the tick within +-1 of it is open
+with M100 (sotetseg.ball_flight_by_distance).
+
+Rooms (seam20 closer): both new spec rows are in every mode's scope (sidecar `all`; the
+Sotetseg row's quantity names "Normal and Hard" only for blert's rooms, which the name
+heuristic would have read as a Hard row). Neither room test measures them yet, so the raid
+coverage gate reads tob_sotetseg 83 of 84 and tob_verzik 145 of 146; both ledgers are
+otherwise unchanged and fully PASS. tob_sotetseg and tob_verzik must be re-authored to
+measure them (SEAM_LEDGER.md).
+
+THE AUDIT: every protection-prayer read in minigame_tob/scripts (grep
+`prayer_is_on|check_protect_prayer|tob_nylo_prayed_against`, every mode: Entry, Normal and
+Hard share these procs), with the tick it is read on.
+
+| Read | Where | Tick |
+|---|---|---|
+| Maiden's blackstorm auto | `~tob_maiden_hit_damage` tob_maiden.rs2:815, called at :708 | the launch (send); the verdict rides to `[queue,tob_maiden_land_auto]` |
+| Bloat's flies (Missiles, 25 %) | `~tob_bloat_fly_damage` tob_bloat.rs2:487, called at :431 | the throw (send); the roll rides in the queue |
+| Nylocas wave swing / shot | `~tob_nylo_wave_damage` tob_damage.rs2:199 (via :180-188), called at tob_nylocas.rs2:1156 | the swing or launch (send) |
+| Vasilias (Nylocas boss) | `~tob_vasilias_damage` tob_nylocas_boss.rs2:371, called at :247 and :294 | the swing or launch (send) |
+| Sotetseg melee (Melee, halved) | `[queue,tob_sote_melee_impact]` tob_sotetseg.rs2:316 | the swing tick (queued at delay 0 from the swing: the same tick's player phase; the splat is +1) |
+| Sotetseg ball and ricochets | `[queue,tob_sote_impact]` tob_sotetseg.rs2:383 | THE LANDING, sourced (above) |
+| Verzik P1 auto (Magic, halved) | tob_verzik.rs2:771 | the launch (send); the hit rides to `[queue,tob_verzik_p1_land]` |
+| Verzik P2 urnbomb (Missiles, halved) | `[queue,tob_verzik_urnbomb_land]` tob_verzik.rs2:1614 | THE LANDING, sourced (above) |
+| Verzik P2 blood spell (Magic) | `[proc,tob_verzik_blood_spell]` tob_verzik.rs2:2243 | the cast (send) |
+| Verzik P3 ranged / magic auto | `[queue,tob_verzik_p3_auto_land]` tob_verzik.rs2:3050 | THE LANDING, ruled (owner) |
+
+No prayer read at all (nothing to time): Maiden's blood pools and crabs, Bloat's stomp and
+falling flesh, Xarpus (spit, acid, stomp, `tob_xarpus_delayed_poison`), Sotetseg's death
+ball (`[queue,tob_sote_ball_impact]`), the maze rag and tornado, Verzik P2's body slam and
+stomp and Athanatos, the Hard acid, and P3's green ball (`[queue,tob_verzik_ball_land]`),
+webs (`[queue,tob_verzik_web_land]`) and melee. Only the three landing reads above sit in
+a landing queue, each sourced or ruled.

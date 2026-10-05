@@ -15,6 +15,7 @@ sotetseg.melee_max_prayed	normal	Normal figure under Protect from Melee (half of
 sotetseg.melee_max_entry	entry	Entry figure
 sotetseg.ball_max_entry	entry	Entry figure
 sotetseg.prayer_disable	all	applies in every mode; a solo room measures it
+sotetseg.ball_prayer_read_tick	all	applies in every mode (one proc, [queue,tob_sote_impact]); the quantity names 'Normal and Hard' only for blert's rooms, so the name heuristic would skip it. Seam20: not yet measured by tob_sotetseg (proved by conformance seam.tob_sotetseg_ball_prayer_read_at_landing)
 sotetseg.ricochet_count	party	the split balls aim at OTHER players: needs two or more
 sotetseg.ball_flight_by_distance	all	flight time against the solo player's distance; the name heuristic misread 'teams' as a party size
 sotetseg.death_ball_flight	all	applies in every mode; a solo room measures it
