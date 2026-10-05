@@ -183,6 +183,26 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   9e946b5a0 by the orchestrator; raid-watch moved to 9e946b5a0 and rebuilt. The pass took 4.9
   hours (fixer 3.5, closer 1.3): the closer ran the rooms twice and three watched Plays. NEXT
   CARDS: the context must cap the closer too (suite once, no watched Play, 30 minutes).
+  STATE 2026-10-05 17:40. SEAM27 fixed, closing (pass matthew-mbp-m4-raid-b1-seam27; the session
+  restarted mid-close; relaunched with the same args, it resumes from close.progress.md):
+  `t.together` (six inputs in one tick measured; combo eating in one tick); `t.raid.play(plan_id)`
+  = the play library (in raid.lua's last banner block for now), proved on BLOAT ENTRY only: green
+  on five names, 196-281 ticks a kill (old play 329, or never), 66-160 damage taken (old 724), 3-8
+  eats (old 41); one Normal trio Bloat run measured, all three died (no Defence drain in the plan;
+  hazard skill missed the attack path). The card SKIPPED `seed_survey_gate` (it read "tooling:" as a
+  design note): the orchestrator wrote `tools/raid_gate/seed_survey.py` itself (c7d273792; proved:
+  `_play_smoke` 5 of 5 names green). USE KINDS driver / engine / content IN A TRIAGE, nothing else.
+  THE OWNER'S TWO STEPS (2026-10-05): "1. Add multiple actions per tick to the runner 2. Prefer
+  using the log to iterate on a program that can be TOB - save visual verification for the end
+  when you're succeeding." So the order below is superseded:
+  NEXT = SEAM29 (`SEAM_TRIAGE_2026-10-05h.md`): the library into its own files (one plan file per
+  room) and the hazard fix; the raider's state and inputs into the tick log and a mistakes list in
+  raid_report.py; then a sourced Entry plan per room (maiden, nylocas, sotetseg, xarpus, verzik),
+  each proved in `test/raids/_play_<room>.lua` by the five-name survey, iterated from logs only.
+  THEN the Normal three-player plans on the library (Bloat's Defence drain first), THEN seam28
+  (the survey's measurement and content rows) and the Entry re-author of the kept tests on the
+  library, THEN, when the play is succeeding, the visual pass: seam25 (mouse mapping, camera turn,
+  reset character) and the camera branch's split.
   ORDER AFTER SEAM24 (owner, 2026-10-05, after watching the whole Entry raid: "I noticed that the
   driver is not very fast or good. That is not going to work in normal mode. You will need to code
   up the agents a lot smarter using the actual strategies. Did you also fix the single action
