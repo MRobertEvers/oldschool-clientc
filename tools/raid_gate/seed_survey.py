@@ -13,8 +13,11 @@ SEED_SURVEY_2026-10-05.md).  A room is KEPT only when this tool exits 0.
 It runs the test's own name first, then the fixed other names (the prefixes
 below, so two surveys are comparable), one run at a time, each through
 tools/raid_gate/run.py (fresh private directory, fixture copied, virtual
-clock, headless).  A red name is read from its tick log by raid_report.py:
-nothing is replayed or watched.  Results: build/seed_survey/<id>/results.tsv.
+clock, headless).  A red name is read from its tick log by raid_report.py
+and its first three MISTAKES are printed (tick and raider each: a missed
+attack, a prayer, a hazard, a food, a stall, a death -- raid_report.py's
+mistakes block): nothing is replayed or watched.  Results:
+build/seed_survey/<id>/results.tsv.
 """
 
 import argparse
@@ -87,8 +90,10 @@ def main():
         run_directory = os.path.join(ROOT, "build", "quest_gate", name)
         verdict, rows, failing = read_ledger(run_directory)
         reading = ""
+        mistakes = []
         if verdict != "PASS" and os.path.isfile(os.path.join(run_directory, "ticklog.tsv")):
             report, _ = raid_report.analyse(run_directory)
+            mistakes = ["p%d %s %s" % (pid, kind, text) for _, pid, kind, text in report.get("mistakes", [])[:3]]
             if not report.get("empty"):
                 reading = "ticks %d, dealt %d in %d hits, took %d, about %d ticks with no attack, npc deaths %d" % (
                     report["last_tick"] - report["first_tick"] + 1,
@@ -98,17 +103,19 @@ def main():
                     report.get("ticks_lost", 0),
                     len(report["deaths"]),
                 )
-        results.append((name, verdict, rows, failing, reading))
+        results.append((name, verdict, rows, failing, reading, mistakes))
         print("%-13s %-10s rows %-4d %s" % (name, verdict, rows, ", ".join(failing[:4]) + (" ..." if len(failing) > 4 else "")))
         if reading:
             print("              log: %s" % reading)
+        for line in mistakes:
+            print("              mistake: %s" % line[:200])
         sys.stdout.flush()
 
     with open(os.path.join(survey_directory, "results.tsv"), "w", newline="") as handle:
         writer = csv.writer(handle, delimiter="\t")
-        writer.writerow(["name", "verdict", "rows", "failing_rows", "log_reading"])
-        for name, verdict, rows, failing, reading in results:
-            writer.writerow([name, verdict, rows, ",".join(failing), reading])
+        writer.writerow(["name", "verdict", "rows", "failing_rows", "log_reading", "first_mistakes"])
+        for name, verdict, rows, failing, reading, mistakes in results:
+            writer.writerow([name, verdict, rows, ",".join(failing), reading, " | ".join(mistakes)])
 
     green = sum(1 for result in results if result[1] == "PASS")
     print("seed survey %s: %d of %d names green -> %s" % (arguments.test_id, green, len(results), "KEEP" if green == len(results) else "NOT KEPT"))

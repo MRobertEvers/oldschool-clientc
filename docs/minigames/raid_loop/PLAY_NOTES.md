@@ -2,12 +2,17 @@
 
 The owner, 2026-10-05: "I noticed that the driver is not very fast or good. That is not going
 to work in normal mode. You will need to code up the agents a lot smarter using the actual
-strategies." This file is the strategy half of `t.raid.play`. The code is at the end of
-`script/plugins/quest_driver/raid.lua`, under the banner `SEAM raid_play_by_tick_intent`. It is
-there and not in a separate `raid_play.lua` because the driver is one chunk built from
-`DRIVE_SCRIPT_PARTS` (src/plugin/torirs_plugin_drive.c:98, C), and `dofile`, `loadfile` and
-`load` are removed from the plugin sandbox (torirs_plugin_lua.c:3980). A new part would need a
-C edit and a rebuild of every binary. That is a one-line move for a later pass if it is wanted.
+strategies." This file is the strategy half of `t.raid.play`. Since raid seam29 the code is in
+its own driver parts: the loop and the shared skills in `script/plugins/quest_driver/raid_play.lua`,
+and one file per room plan, `raid_play_tob_<room>.lua` (maiden, bloat, nylocas, sotetseg,
+xarpus, verzik). They follow `raid.lua` in `DRIVE_SCRIPT_PARTS` (src/plugin/torirs_plugin_drive.c),
+because the driver is one chunk and `dofile`/`loadfile`/`load` are removed from the sandbox
+(torirs_plugin_lua.c:3980). A room file registers its plan once with
+`QD.raid._play_plan("<id>", {...})`; a second registration of one id asserts at load. A plan
+with no `decide` answers `unsupported`, "has no decide function yet: <its `unsupported` line>".
+Today only `tob_bloat` has a decide function; the other five name raid seam30 (SEAM_TRIAGE_2026-10-05i.md).
+A new part needs the C list edit and a rebuild of `src/torirs_questtest` and of the profile's
+`src/torirs` (`make -C src -j EMBED_SERVER=1 torirs`); a Lua edit to an existing part is read live.
 
 `W` below is `docs/minigames/theater_of_blood/sources/wiki_Theatre_of_Blood_Strategies.wikitext`.
 `ET` is `docs/minigames/theater_of_blood/ENCOUNTER_TIMING.md`.
@@ -35,7 +40,7 @@ lit, per tick), `tile_at`, `swings`, `eats`, `drinks`, `downs` (Bloat: `tick`, `
 `flinch`), `flinches` (`from`, `moved` after 3 ticks), `boss_slot` and `death_tick`. A room test
 reads its technique rows from the record and the tick log.
 
-## Skills (each a function in raid.lua)
+## Skills (each a function in raid_play.lua)
 
 | Skill | Function | Rule | Source |
 |---|---|---|---|
@@ -43,6 +48,8 @@ reads its technique rows from the record and the tick log.
 | Pray by the telegraph | `_play_pray` | The plan names the set wanted on the NEXT tick, because a press made between ticks T-1 and T is in force for T. Bloat: Protect from Missiles from age 32 of the down onwards (the first fly is at T+33), and Piety for the attackable window. Pinned exceptions from DRIVER_NOTES seam20 are carried by those rooms' plans: Verzik P3 on hit, Sotetseg's ball at impact, urn bombs at landing. | ET 1.1; DRIVER_NOTES "Several inputs in one tick", "Which ToB attacks read the prayer on the send tick" |
 | Supplies | `_play_supplies` | Eat when hitpoints <= the largest total the plan's `threat(h)` says can land before the next chance to eat. On a FREE tick (not attacking, or the weapon is ready, so eating adds no delay) h is the gap to the next free tick + `QD.TOGETHER_CONFIRM_TICKS` + 1. Between swings h = 2, so a bite there costs the attack 3 ticks and only an imminent hit forces it. If the best food alone is short, a brew rides in the same tick. Restores are drunk when the missing prayer is at least one dose (32), or prayer is at 2 or less. | wiki Food ("If your weapon is ready ... eating does not add any new delay"; 3-tick eat delay), Potions ("do not incur the standard 3 tick attack or eat delay"), Food/Fast foods (combo), Super restore (8 + 25%); all quoted at consume_shared.rs2:28-49 |
 | Hazards | `_play_hazard` | A marked tile is avoided from the tick it is seen. The library moves to the safe tile nearest the wanted tile, and the shortest step from the player breaks ties. It never stands on a tank or off the floor. | ET 1.3 / 3.4 (judged on the previous tick's tile); "simply don't stand on the shadows" (transcripts/yt_4i4lv-srJkw.md:71) |
+| Safe step (seam29) | `_play_safe_step` | Every walk a plan sends goes through it, after `_play_hazard`. A hand is judged on the tile the player ends the tick BEFORE the impact on, so every tick-end of a walk matters, not only its last tile. If `want` and the first two tiles of both route shapes toward it (diagonal first, and straight along the longer axis first: the server was measured doing both) are unmarked, the walk goes to `want`. Otherwise it goes to the unmarked floor tile within two that gets nearest `want`, provided the first step of either shape is unmarked too. If no tile gets nearer and the player's own tile is unmarked, it stays. | ET 1.1 (T-1), ET 3.4; measured routes in svaplaysmoke t164-166 and s29n3 t187-189 |
+| The attack's own path (seam29) | `_play_reach` | An attack press out of reach makes the SERVER path the player, through no skill. While no marker is on the floor the press goes out as before. While one is, the player walks (through the two skills above) to the unmarked floor tile sharing an edge with the npc's footprint (`size` from the npc row; corners are left out, the seam's conservative choice) that is nearest, and presses from there. If every reach tile is marked, the press is held for that tick. A marker that appears under a standing raider is stepped off the same way: the plan sends the raider's own tile through `_play_hazard`. | playn3 t437-440 (seam27); ET 3.3 "5x5" |
 | Loadouts | the plan's `gear` list in the same `t.together` (ten inputs a block) | A gear swap is one tick. Bloat's plan swaps nothing; see "Not done" below. | DRIVER_NOTES "Several inputs in one tick" |
 | Roles | `opts.role` / `t.party.role()` | Every raider runs the same library, and the plan picks the role's line. See "Bloat, Normal trio" for what is coded today. | the room plans below |
 
@@ -112,6 +119,27 @@ attack").
   run-by on the boss with a Bandos godsword special to lower its Defence") is not in the Normal
   plan. The kept Normal attempt carries a Dragon warhammer for p1 (tob_bloat_normal.lua:5).
 
+**Seam29, after the library moved and the attack path went through the hazard skills.** One
+run, `--party 3`, name `s29n3e` (build/quest_gate/s29n3e). It is not green and was not expected
+to be.
+- The leader died at tick 516; seam27 lost its first raider at tick 440. The members were still
+  alive and ended when the leader's world closed ("a member never runs past its leader").
+- Bloat took 620 damage in 189 hits, 104 of them zeros. The Defence drain is still missing.
+- 5 hands landed on raiders, every one on a tile moved onto two ticks after its shadow was
+  drawn. See the open row below. Trios run under other `_play_safe_step` shapes:
+  - one tile a tick near a marker (`s29n3b`): no hand at all, but all three were dead to flies
+    by tick 369, because a walking raider cannot keep behind the tank while Bloat runs.
+  - two tiles near a marker (`s29n3c`): no hand, leader dead at tick 536, but two hands on solo
+    Entry names (svb/svdplaysmoke t119, t196).
+
+**`tech.protect_from_missiles` in `_play_smoke.lua` (seam29).** The protected window is now the
+fly's own flight: from the earliest launch that could have produced the hit, at most six ticks
+back, to its landing. Before, it was the hit tick and the six before it. The flies' damage is
+rolled with the prayer read AT LAUNCH (tob_bloat.rs2 `~tob_bloat_fly_hit` queues
+`~tob_bloat_fly_damage`, which reads `~prayer_is_on`). A raider who hid on every walk was hit
+only by the rise tick's fly, and its prayer goes up on T+33, so the old window found no
+evidence (seam29: `_play_smoke`, `svcplaysmoke`).
+
 ## Maiden: the full plan (decide function: the re-author pass)
 
 | Mechanic | Sourced answer | Source |
@@ -152,9 +180,15 @@ Protection prayer on hit is the pinned exception.
 
 ## Open rows (found is not fixed)
 
-- **The hazard on the attack path.** `_play_hazard` covers walks only. A down approach (the
-  attack press pathing) and standing on a shadow during a down are not covered (playn3 p3,
-  tick 440).
+- **A hand still lands on a pathed tile in the Normal trio** (seam29). Solo Entry: 0 hands on
+  any raider on five names. Normal trio `s29n3e`: 5 hands, all on tiles the raider moved onto
+  two ticks after the shadow was drawn (t190, t264 on both members, t371, t470). The same ticks
+  came back under three different `_play_safe_step` shapes (s29n3, s29n3d, s29n3e), so the walk
+  rule is not the cause. The likeliest cause is that the shadow is not yet in
+  `QD.world.spotanims` when the decision is made, which is a visibility lag. But the decisions
+  are not in any log, so this is not proved. Closing it needs the loop's per-tick decision (the
+  shadows seen, the walk sent) written to the tick log, or a member's log. That is
+  raid_log_raider_state's row.
 - **The Normal plan has no Defence drain.** W:687's run-by is the sourced answer. It needs the
   LOADOUT block (warhammer in, special, scythe back) on the first down, and in a trio the role
   of whoever does it.

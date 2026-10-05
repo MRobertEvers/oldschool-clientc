@@ -5244,8 +5244,9 @@ enum ToriRSServerTicklogKind
     TORIRSSERVER_TICKLOG_LOC_SET,       /* a=coord b=loc id (-1 removed) c=shape d=angle e=kind */
     TORIRSSERVER_TICKLOG_OBJ_ADD,       /* a=coord b=obj id c=count d=receiver pid or -1 */
     TORIRSSERVER_TICKLOG_PLAYER_TILE,   /* a=pid b=x c=z d=level (every tick, after players move) */
-    TORIRSSERVER_TICKLOG_NPC_TILE,      /* a=slot b=x c=z d=level e=npc type (on change only,
-                                         * npcs within 32 tiles of a player) */
+    TORIRSSERVER_TICKLOG_NPC_TILE,      /* a=slot b=x c=z d=level e=npc type f=size (on
+                                         * change only, npcs within 32 tiles of a
+                                         * player) */
     TORIRSSERVER_TICKLOG_NPC_FACE,      /* a=slot b=npc type c=x d=z (the tile an
                                          * `npc_facesquare` turned it to) */
     TORIRSSERVER_TICKLOG_SOUND,         /* a=pid sent to b=sound c=loops d=delay
@@ -5270,6 +5271,34 @@ enum ToriRSServerTicklogKind
                                          * label=the script that healed it
                                          * (`npc_statheal` / `npc_statadd` on
                                          * hitpoints, only when it gained some) */
+    /* The RAIDER's side (raid seam29, raid_log_raider_state; what Blert's
+     * PLAYER_UPDATE carries). These three are FILE-ONLY: written to
+     * ticklog.tsv but never pushed into the row array the driver reads, so
+     * they take no serial (their serial column repeats the last real row's)
+     * and no test's ledger moves -- ledgers print serials. */
+    TORIRSSERVER_TICKLOG_RAIDER,        /* a=pid b=hitpoints c=prayer points
+                                         * d=varp83_prayer0 (every prayer lit, one
+                                         * bit each) e=weapon obj or -1 f=com_mode
+                                         * g=special energy (varp300, 0..1000);
+                                         * label "hpmax H prmax P head I input N
+                                         * tgt S" (input 1 = a client input packet,
+                                         * walks included, arrived since the
+                                         * previous RAIDER row; tgt = the npc slot
+                                         * interacted with or -1). Every logged-in
+                                         * player, every tick. An in-process
+                                         * client's packets are handled BETWEEN
+                                         * ticks, so their INPUT/CONSUME rows carry
+                                         * the tick that had just ended and act on
+                                         * the next one. */
+    TORIRSSERVER_TICKLOG_INPUT,         /* a=pid b=trigger c=subject type d=npc slot;
+                                         * label=the trigger, "[opheld1,shark]"
+                                         * (a player-initiated trigger a script
+                                         * ran for: a click, a button, an op) */
+    TORIRSSERVER_TICKLOG_CONSUME,       /* a=pid b=obj c=op d=hitpoints before
+                                         * e=hitpoints after f=prayer before
+                                         * g=prayer after; label=the trigger (an
+                                         * `[opheld*]` script that took the obj
+                                         * out of the backpack: eat, drink) */
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 
@@ -5454,6 +5483,15 @@ void ToriRSServer_TicklogNpcHeal(const struct ToriRSServerNpc* npc, int gained, 
  *  player and an NPC_TILE row for every npc within 32 tiles of a player whose
  *  tile changed since the last row it got. */
 void ToriRSServer_TicklogTickEnd(struct ToriRSServer* srv);
+
+/** File-only rows (see TORIRSSERVER_TICKLOG_RAIDER): a player-initiated
+ *  trigger a script ran for, and an `[opheld*]` that consumed its obj. */
+void ToriRSServer_TicklogInput(const struct ToriRSServer* srv,
+                               const struct ToriRSServerPlayer* player, int trigger, int type,
+                               int npc_slot, char const* label);
+void ToriRSServer_TicklogConsume(const struct ToriRSServer* srv,
+                                 const struct ToriRSServerPlayer* player, int obj, int op,
+                                 int hitpoints_before, int prayer_before, char const* label);
 
 /**
  * The npc whose script is dealing the damage being applied, for the

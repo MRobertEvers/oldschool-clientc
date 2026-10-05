@@ -2532,6 +2532,77 @@ run_rung(
 }
 
 /*
+ * The raider's side of the tick log (raid seam29, raid_log_raider_state): a
+ * player-initiated trigger a script RAN for is an INPUT row, and an
+ * `[opheld*]` whose script took its obj out of the backpack -- eat, drink --
+ * is a CONSUME row with the hitpoints and prayer either side of it. Both are
+ * file-only (torirs_server.h TORIRSSERVER_TICKLOG_RAIDER): no test's ledger
+ * moves. Snapshotted only while the log is on, so no ordinary run pays.
+ */
+struct TicklogInputSnapshot
+{
+    int armed;
+    int obj_count;
+    int hitpoints;
+    int prayer;
+};
+
+static int
+ticklog_backpack_count(
+    const struct ToriRSServerPlayer* player,
+    int obj)
+{
+    int count = 0;
+
+    assert(player);
+    for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+    {
+        if( player->inv[i].obj_id == obj )
+            count += player->inv[i].count;
+    }
+    return count;
+}
+
+static void
+ticklog_input_begin(
+    const struct ToriRSServerPlayer* player,
+    int trigger,
+    int type,
+    struct TicklogInputSnapshot* out)
+{
+    assert(player);
+    assert(out);
+    out->armed = 1;
+    out->obj_count = 0;
+    if( trigger >= SS_TRIGGER_OPHELD1 && trigger <= SS_TRIGGER_OPHELD5 && type >= 0 )
+        out->obj_count = ticklog_backpack_count(player, type);
+    out->hitpoints = player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
+    out->prayer = player->stat_boosted[TORIRSSERVER_STAT_PRAYER];
+}
+
+static void
+ticklog_input_end(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int trigger,
+    int type,
+    int npc_slot,
+    const struct TicklogInputSnapshot* before)
+{
+    char label[192];
+
+    assert(srv);
+    assert(player);
+    assert(before);
+    trigger_label(trigger, type, label, sizeof(label));
+    ToriRSServer_TicklogInput(srv, player, trigger, type, npc_slot, label);
+    if( trigger >= SS_TRIGGER_OPHELD1 && trigger <= SS_TRIGGER_OPHELD5 && type >= 0 &&
+        ticklog_backpack_count(player, type) < before->obj_count )
+        ToriRSServer_TicklogConsume(srv, player, type, trigger - SS_TRIGGER_OPHELD1 + 1,
+                                    before->hitpoints, before->prayer, label);
+}
+
+/*
  * `chain` walks the reference's getByTrigger ladder — type, then category, then
  * `_` — where `chain == 0` looks up the single key the arguments name, the way
  * getByTriggerSpecific does. `report` is off only for the keyed half of the
@@ -2565,6 +2636,7 @@ run_trigger_impl(
     int rung_count = 0;
     int any_declined = 0;
     void* loc_handle = script_trigger_loc_handle(loc_slot);
+    struct TicklogInputSnapshot ticklog_input = { 0 };
 
     if( !srv->scripts_ok )
         return TORIRSSERVER_TRIGGER_NONE;
@@ -2642,9 +2714,15 @@ run_trigger_impl(
                 return TORIRSSERVER_TRIGGER_FAILED;
         }
         saved_player = srv->active_player;
+        if( context_player && ToriRSServer_TicklogEnabled(srv) &&
+            trigger_is_player_initiated(trigger) )
+            ticklog_input_begin(context_player, trigger, type, &ticklog_input);
         ToriRSServer_WorldSetActive(srv, context_player);
         result = run_rung(srv, script, npc_slot, loc_handle, player_slot, &declined);
         ToriRSServer_WorldSetActive(srv, saved_player);
+        if( ticklog_input.armed && result == TORIRSSERVER_TRIGGER_RAN && !declined )
+            ticklog_input_end(srv, context_player, trigger, type, npc_slot, &ticklog_input);
+        ticklog_input.armed = 0;
 
         if( srv->verbose && rung_count > 1 )
         {

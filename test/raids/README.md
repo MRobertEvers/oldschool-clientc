@@ -444,10 +444,10 @@ t.check("bloat.fight", result == "ok", detail)
 -- technique rows read `rec` (downs, flinches, prayer_at, inputs ...) and the tick log
 ```
 
-`t.raid.play` (script/plugins/quest_driver/raid.lua, banner `SEAM raid_play_by_tick_intent`)
-runs one loop every tick. It SEES what a player can see, the room's PLAN DECIDES the whole
+`t.raid.play` (script/plugins/quest_driver/raid_play.lua; each room's plan in its own part,
+raid_play_tob_<room>.lua, since raid seam29) runs one loop every tick. It SEES what a player can see, the room's PLAN DECIDES the whole
 intent for the tick, and the loop SENDS it together. The plan is a table plus a decide
-function in the same file. The skills (attack on cooldown, pray by the telegraph, supplies,
+function in the room's own part. The skills (attack on cooldown, pray by the telegraph, supplies,
 hazards, loadouts, roles) and every plan line have their sources in
 `docs/minigames/raid_loop/PLAY_NOTES.md`. The worked example is `_play_smoke.lua`: Entry
 Bloat, green on five names with tob_bloat.lua's technique rows copied unchanged, and the Normal
@@ -459,7 +459,9 @@ trio measured with `--party 3`.
 - carries a threshold with no source (an `hp < 72`, a `leave_age = 38`). A number belongs in
   the plan, with its source on the same line.
 
-A room the library does not play yet gets its plan and its decide function in raid.lua, with
+A room the library does not play yet gets its plan and its decide function in its own part
+(raid_play_tob_<room>.lua, registered with `QD.raid._play_plan`), with
 the PLAY_NOTES.md rows to match. Its test is never a private loop. The kept room tests that
 predate this rule (tob_*.lua) are re-authored onto the library in the re-author pass.
-`t.raid.play` answers `unsupported` for a plan with no decide function (Maiden today).
+`t.raid.play` answers `unsupported` for a plan with no decide function (Maiden, Nylocas,
+Sotetseg, Xarpus and Verzik today: each part names the seam30 row that writes it).

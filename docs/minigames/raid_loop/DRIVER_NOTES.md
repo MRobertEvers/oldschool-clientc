@@ -5348,3 +5348,119 @@ Bloat in about 1,200 ticks.
 - Only Bloat is played through the library, in _play_smoke.lua. The kept tob_*.lua room
   tests still use their own hand-written plays on one seed each, and are re-authored onto
   the library in a later pass (test/raids/README.md states the rule).
+
+## Reading a run's mistakes from its log: the raider rows (seam29)
+
+The owner, 2026-10-05: "use something like what blert does and just look at the log and see
+where you went wrong." A failed run is read, never replayed or watched:
+
+    python3 tools/raid_gate/raid_report.py build/quest_gate/<run>            # summary + MISTAKES
+    python3 tools/raid_gate/raid_report.py build/quest_gate/<run> --mistakes 40 --timeline 180-195
+    python3 tools/raid_gate/seed_survey.py <test id>   # five names; a red one prints its first three mistakes
+
+**The raider's side of `ticklog.tsv`.** Three kinds the server writes for every logged-in
+player (so a party's leader log carries every raider, by pid) while `t.ticklog.start()` is on:
+
+| kind | a..g | label |
+|---|---|---|
+| `raider` (every tick, after the tick's real rows) | pid, hitpoints, prayer points, `varp83_prayer0` (every prayer lit, one bit each, `configs/all.varbit` startbit), weapon obj or -1, `com_mode`, special energy (varp300, 0..1000) | `hpmax H prmax P head I input N tgt S`: input 1 = a client packet (walks included) arrived since the previous raider row; tgt = the npc slot interacted with, or -1 |
+| `input` | pid, trigger, subject type, npc slot | the trigger a script ran for, `[opheld1,shark]` (an `[apnpc*]` re-runs every tick of an approach) |
+| `consume` | pid, obj, op, hp before, hp after, prayer before, prayer after | the `[opheld*]` that took the obj out of the backpack |
+
+They are **file-only**: never in the row array `t.ticklog.rows()` reads, so they take no
+serial (their serial column repeats the last real row's) and no ledger moves -- ledgers print
+serials ("mark 'room start' at tick 60 (serial 99)"). `t.ticklog.rows({kind = "raider"})` is
+refused, naming the file. `npc_tile` rows now carry the npc's footprint in `f` (file only;
+the Lua row does not name it). An in-process client's packets are handled BETWEEN ticks, so
+an `input`/`consume` row carries the tick that had just ended and acts on the next one.
+
+**The MISTAKES block** (`raid_report.py`), each with its tick and raider:
+
+- `missed_attack`: standing still, cooldown over (the weapon's cadence = its shortest swing
+  gap; food adds three ticks, a potion none), an npc it hits within the reach most of its
+  swings were sent from on the tick before AND this tick (melee never from under, never
+  across a diagonal), and no swing.
+- `prayer`: a hit taken with no protection lit -- or through one -- on the tick its npc's
+  attack animation started (in the ten ticks before). A hit with no attack row is not judged
+  (counted on a note line). `PINNED_PRAYER` holds the owner's exceptions: Bloat Entry
+  (10812) flies read the prayer at launch, up to six ticks before the hit, and Protect from
+  Missiles only cuts them 25% (`tob_bloat.rs2 ~tob_bloat_fly_damage`).
+- `hazard`: stood on a live hazard tile (`HAZARD_SPOTANIMS`: the Bloat hand landing 1576;
+  `--hazard ID[:TICKS]` adds one for a run).
+- `food`: food (not a potion) eaten above the most any raider took in one tick of the run.
+- `stall`: no input, swing or food for 10 ticks while an npc it hits lived.
+- `death`: hitpoints 0 on the raider row (a log from before seam29: the death animation
+  836), with the raider's last ten ticks.
+
+A log from before seam29 has no raider rows: prayer and food are not judged, a stall is read
+from swings, hits and the first step of each walk (`build/seed_survey_2026-10-05/svabloat`:
+"t437-454 stall: no input for 17 ticks", then "t458 died").
+
+**`tools/raid_gate/run.py <test id> --name X`** now runs the test under X (it is rewritten to
+`--script test/raids/<id>.lua --name X --fixture <its fixture>`: same file, setup and frame
+budget) and needs `--no-publish`; before seam29 the quest gate ignored the name for a solo
+test and ran it under its own id.
+
+**The sampler keeps a room only on a green seed survey** (`raid_author.workflow.js`, step 0):
+`seed_survey.py <id>` after the room is green under its own name; a non-zero exit rejects the
+room with the tool's lines as the finding.
+
+## The play library lives in its own parts (seam29)
+
+`script/plugins/quest_driver/raid_play.lua` holds the loop `t.raid.play` and the shared
+skills. Each room's plan is its own part, `raid_play_tob_<room>.lua` (maiden, bloat,
+nylocas, sotetseg, xarpus, verzik), listed in `DRIVE_SCRIPT_PARTS`
+(`src/plugin/torirs_plugin_drive.c`) after `raid.lua` and registered with
+`QD.raid._play_plan(id, plan)`, which asserts when one id is registered twice. A plan
+with no `decide` answers `unsupported` with "has no decide function yet: <the plan's
+`unsupported` line>"; the five rooms other than Bloat answer that today, each naming the
+seam30 row that will write it.
+
+A NEW part needs the C list edit and a rebuild of both binaries, `src/torirs_questtest`
+(run.py without `--no-build`) and the profile binary `src/torirs`
+(`make -C src -j EMBED_SERVER=1 torirs`), BEFORE any code leaves an existing part: the Lua
+is read live, but the parts list is compiled in.
+
+## Every move goes through the hazard skills (seam29)
+
+`_play_hazard` picks the safe destination. `_play_safe_step` makes every tick-end of the
+walk safe: the server's route on open floor was measured both diagonal-first (playn3) and
+straight-along-the-longer-axis-first (svaplaysmoke t164-166), so the first two tiles of both
+shapes are checked. `_play_reach` replaces an attack press with a walk to an unmarked
+edge-adjacent tile while any marker is on the floor (the attack press's own server path
+goes through no skill), and holds the press when every reach tile is marked; it leaves the
+footprint's diagonal corners out (a conservative choice; no source in the tree states it).
+A plan sends its own walk, the approach, and a step off a marker under a standing raider
+through them.
+
+Not yet proved: the Normal trio (`--party 3`, run s29n3e) still took 5 hands, each on a
+tile entered exactly 2 ticks after its shadow was drawn, under three different safe-step
+shapes. The suspected cause is a visibility lag (the shadow not yet in
+`QD.world.spotanims` when the loop decides); the loop's decisions are not logged, so it
+is not shown.
+
+## Classifying a hand from the tick log (seam29)
+
+A 1576 `map_spotanim` at tick T on tile X hits a raider whose `player_tile` at T-1 is X.
+If the raider entered X at or after the 1570-1573 shadow's tick (T-3), it pathed onto a
+visible marker; otherwise the marker appeared under it (a stunned raider cannot move).
+The arrival tick is the start of the run of unchanged `player_tile` rows.
+`raid_report.py`'s `hazard` mistake lists the hand; this rule says whose fault it was.
+
+## A technique row needs evidence the play may never give (seam29)
+
+`tech.protect_from_missiles` and `tech.step_off_shadow` both need an event (a fly landing,
+a shadow on the raider's own tile) that better play makes rarer. Seam29 saw both rows fail
+on evidence alone, not on play. Read the row's numerator before reading a FAIL as a play
+fault. `_play_smoke`'s `tech.protect_from_missiles` window is now the fly's own flight
+(the earliest launch within six ticks of the hit, to the hit), because
+`tob_bloat.rs2 ~tob_bloat_fly_damage` reads the prayer at launch; the kept
+`test/raids/tob_bloat.lua` row keeps the old six-ticks-back window.
+
+## A pinned prayer mistake on Bloat's rise tick may be the stomp (seam29 closer)
+
+`raid_report.py`'s `PINNED_PRAYER` judges every hit by npc 10812 (Bloat Entry) as a fly.
+On `_play_smoke` it lists "t148 took 38" and "t224 took 21" as prayer mistakes, but an
+Entry fly does at most 8 unprotected, so those hits are larger than any fly (most likely
+the stomp). Until the rule bounds the damage, read a pinned prayer mistake above the fly
+maximum as a different attack, not a missing prayer.

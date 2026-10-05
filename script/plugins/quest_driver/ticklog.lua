@@ -101,7 +101,34 @@ QD.ticklog.FIELDS = {
     -- its base; `source` (the row's label, the healing script's name, e.g.
     -- "[proc,tob_maiden_absorb]") is added by _name.
     npc_heal = { "slot", "type", "amount", "hitpoints", "base" },
+    -- THE RAIDER'S SIDE (raid seam29, raid_log_raider_state; what Blert's
+    -- PLAYER_UPDATE carries). FILE-ONLY: the server writes these three to
+    -- ticklog.tsv but never into the row array rows() reads, because a row
+    -- there takes a serial and ledgers print serials ("mark 'room start' at
+    -- tick 60 (serial 99)"): every kept room's ledger would have moved. So
+    -- rows({kind = "raider"}) is refused (QD.ticklog.FILE_ONLY); read them
+    -- after the run with tools/raid_gate/raid_report.py (its MISTAKES block)
+    -- or grep the file. Their serial column repeats the last real row's.
+    -- `raider`: every logged-in player, every tick, after the tick's real
+    -- rows. hp/prayer = the boosted levels; `prayers` = varp83_prayer0 (every
+    -- prayer lit, one bit each: configs/all.varbit startbit); `weapon` = the
+    -- worn weapon obj or -1; `style` = com_mode; `spec` = varp300 (0..1000).
+    -- The label adds "hpmax H prmax P head I input N tgt S": input 1 = a
+    -- client packet (walks included) arrived since the previous raider row;
+    -- tgt = the npc slot the player is interacting with, or -1.
+    raider = { "pid", "hp", "prayer", "prayers", "weapon", "style", "spec" },
+    -- `input`: a player-initiated trigger a script ran for (`label` names it,
+    -- "[opheld1,shark]"; an [apnpc*] re-runs every tick of an approach).
+    -- `consume`: an [opheld*] whose script took its obj out of the backpack
+    -- (eat, drink), with hitpoints and prayer either side. An in-process
+    -- client's packets are handled BETWEEN ticks, so both carry the tick that
+    -- had just ended and act on the next one.
+    input = { "pid", "trigger", "subject", "npc_slot" },
+    consume = { "pid", "obj", "op", "hp_before", "hp_after", "prayer_before", "prayer_after" },
 }
+
+-- The kinds the server writes only to ticklog.tsv (see `raider` above).
+QD.ticklog.FILE_ONLY = { raider = true, input = true, consume = true }
 
 -- The kinds whose label is their source rather than a test's mark text.
 QD.ticklog._SOURCED = { sound = true, music = true, jingle = true }
@@ -195,6 +222,9 @@ function QD.ticklog._kind_set(kind)
     for name in pairs(set) do
         if QD.ticklog.FIELDS[name] == nil then
             return nil, name
+        end
+        if QD.ticklog.FILE_ONLY[name] then
+            return nil, name .. ": file-only, read ticklog.tsv with tools/raid_gate/raid_report.py"
         end
     end
     return set

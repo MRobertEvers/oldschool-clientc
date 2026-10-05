@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 173
+-- @seam-count 174
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 185
-local SEAM_COUNT = 173
+local SEAM_COUNT = 174
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -3108,6 +3108,32 @@ return {
             return "ok", string.format("player_tile rows: %d in the whole log, %d with area {%d,%d,%d,%d} around"
                 .. " %d,%d (0 outside), 0 in a box 200 tiles off, 0 hit_npc rows (no tile); {1,2} refused",
                 #whole, #near, box[1], box[2], box[3], box[4], tile.x, tile.z)
+        end)
+        -- seam29 raid_log_raider_state: the raider's side of the tick log
+        -- (raider / input / consume rows) is FILE-ONLY -- written to
+        -- ticklog.tsv, never into the row array rows() reads, so no serial
+        -- moves and no ledger changes. rows() must REFUSE those kinds by name
+        -- (an empty list would read as "the raider did nothing"), and still
+        -- serve an ordinary kind. No VERB_COUNT change (no new verb); SEAM_COUNT +1.
+        seam("seam.ticklog_raider_rows_file_only", function()
+            local fn = verb("ticklog", "rows")
+            if not fn then return missing("ticklog", "rows") end
+            local refused = {}
+            for _, kind in ipairs({ "raider", "input", "consume" }) do
+                local result, detail = fn({ kind = kind })
+                if result ~= "refused" or not string.find(tostring(detail), "file-only", 1, true) then
+                    return "hollow", "rows({kind = '" .. kind .. "'}) answered " .. describe(result)
+                        .. " " .. describe(detail) .. " (want refused, naming file-only)"
+                end
+                refused[#refused + 1] = kind
+            end
+            local tr, tiles = fn({ kind = "player_tile" })
+            if tr ~= "ok" or #tiles == 0 then
+                return "hollow", "player_tile rows: " .. describe(tr) .. " " .. describe(tiles)
+            end
+            return "ok", "rows() refused " .. table.concat(refused, ", ")
+                .. " as file-only (ticklog.tsv; tools/raid_gate/raid_report.py) and served "
+                .. #tiles .. " player_tile row(s)"
         end)
         step("ticklog.gaps", function()
             local fn = verb("ticklog", "gaps")
@@ -11546,8 +11572,8 @@ return {
         end)
 
 -- raid seam27 raid_play_by_tick_intent: ONE row for the ONE public verb the
--- play library adds (t.raid.play, script/plugins/quest_driver/raid.lua, banner
--- "SEAM raid_play_by_tick_intent"; its skills are private QD.raid._play_*).
+-- play library adds (t.raid.play, script/plugins/quest_driver/raid_play.lua; room plans
+-- raid_play_tob_<room>.lua; its skills are private QD.raid._play_*).
 -- PLACE: in _conformance.lua's PLAN directly AFTER step("raid.leave", ...)
 -- (the raid stanza, ~:11477) and BEFORE the party rows (step("party.role")).
 -- VERB_COUNT / verb_list 184 -> 185 (raid.play) on top of seam27's `together`.
@@ -11558,6 +11584,11 @@ return {
 -- play itself is proved on Bloat by test/raids/_play_smoke.lua (five names
 -- green, build/quest_gate/sv{a,b,c,d}bloat + playbloat); a conformance row
 -- that played Bloat would cost the harness a whole room per run.
+-- raid seam29 play_library_own_files (merged by the seam29 closer): the library
+-- moved out of raid.lua into raid_play.lua and one part per room plan
+-- (DRIVE_SCRIPT_PARTS); the row also proves the four other room parts are loaded
+-- and registered, each answering unsupported and naming the seam that writes it.
+-- No verb added; VERB_COUNT and SEAM_COUNT unchanged by it.
         step("raid.play", function()
             local fn = verb("raid", "play")
             if not fn then return missing("raid", "play") end
@@ -11569,7 +11600,15 @@ return {
             if r2 ~= "unsupported" or not string.find(tostring(d2), "no decide function", 1, true) then
                 return "hollow", "tob_maiden (strategy only) answered " .. describe(r2) .. " -- " .. describe(d2)
             end
+            for _, room in ipairs({ "nylocas", "sotetseg", "xarpus", "verzik" }) do
+                local r, d = fn("tob_" .. room, { mode = "entry" })
+                if r ~= "unsupported" or not string.find(tostring(d), "no decide function", 1, true)
+                    or not string.find(tostring(d), "play_tob_" .. room, 1, true) then
+                    return "hollow", "tob_" .. room .. " (its own part, no plan yet) answered " .. describe(r) .. " -- " .. describe(d)
+                end
+            end
             return "ok", "unknown plan: " .. tostring(d1) .. "; tob_maiden: " .. tostring(d2)
+                .. "; nylocas, sotetseg, xarpus and verzik registered from their own parts, each unsupported"
         end)
 
         -- seam17 party_run_and_verbs: conformance rows for t.party.* (script/plugins/

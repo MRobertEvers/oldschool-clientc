@@ -180,9 +180,28 @@ return {
                 elseif in_down and row.damage >= 10 then
                     stomp_hits[#stomp_hits + 1] = { tick = row.tick, damage = row.damage }
                 elseif row.damage <= 8 then
+                    -- raid seam29: the window is the fly's own flight, its launch
+                    -- tick to its landing.  The damage is rolled and the prayer read
+                    -- AT LAUNCH (tob_bloat.rs2 ~tob_bloat_fly_hit queues
+                    -- combat_damage_player with ~tob_bloat_fly_damage, which reads
+                    -- ~prayer_is_on(protectfrommissiles)).  tob_bloat.lua's six
+                    -- ticks back could only count a fly that landed 7+ ticks after
+                    -- the prayer went up, so a raider who hid on every walk had only
+                    -- the rise tick's fly (prayer up on T+33, the plan's) and the row
+                    -- had no evidence (seam29 survey: _play_smoke, svcplaysmoke).
+                    -- Which fly landed is not in the log, so the window starts at the
+                    -- EARLIEST launch that could have (six ticks back at most): svbplaysmoke's
+                    -- 7 at t27 was launched t24, not t25, before its prayer was in force
+                    -- (a press is in force from the NEXT tick's npc phase, DRIVER_NOTES
+                    -- "A prayer press is in force for the next npc phase").
+                    -- No launch row within six ticks: the six-tick rule, unchanged.
+                    local from = row.tick - 6
+                    for k = #fly_list, 1, -1 do
+                        if fly_list[k] <= row.tick and fly_list[k] >= row.tick - 6 then from = fly_list[k] end
+                    end
                     local shielded = true
-                    for back = 0, 6 do
-                        if shield_filled[row.tick - back] ~= true then shielded = false end
+                    for tk = from, row.tick do
+                        if shield_filled[tk] ~= true then shielded = false end
                     end
                     if shielded then fly_hits_protected[#fly_hits_protected + 1] = row.damage end
                 end
@@ -212,7 +231,8 @@ return {
         end
         t.ticks(1)
 
-        -- THE TECHNIQUE ROWS, each check copied unchanged from tob_bloat.lua :1795-1849
+        -- THE TECHNIQUE ROWS, each check copied unchanged from tob_bloat.lua :1795-1849,
+        -- except protect_from_missiles' window: the fly's flight (raid seam29, above)
         local behind_ticks, behind_flies = 0, 0
         if mark_tick ~= nil then
             for tk = mark_tick + 2, end_tick do
@@ -274,7 +294,7 @@ return {
             if fly_hits_protected[i] > protected_max then protected_max = fly_hits_protected[i] end
         end
         t.check("tech.protect_from_missiles", #fly_hits_protected > 0 and protected_max <= 6,
-            #fly_hits_protected .. " fly hits landed with Protect from Missiles lit on that tick and the six before it, the largest was " .. protected_max .. " against the unprotected Entry maximum of 8")
+            #fly_hits_protected .. " fly hits landed with Protect from Missiles lit from the fly's launch to its landing, the largest was " .. protected_max .. " against the unprotected Entry maximum of 8")
         t.check("bloat.killed", dead and not player_dead, "Bloat's npc_death row on tick " .. tostring(death_tick) .. "; " .. tostring(detail))
 
         -- THE MEASURE (reported against the kept tob_bloat run): duration, damage, supplies, inputs per tick

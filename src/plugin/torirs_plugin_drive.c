@@ -124,6 +124,19 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
      * test never pulls every region npc) and asserts it is there. */
     "plugins/quest_driver/ticklog.lua",
     "plugins/quest_driver/raid.lua",
+    /* The play library (raid seam29, moved out of raid.lua's tail): the loop
+     * t.raid.play and its skills, then one part per room plan, each
+     * registering through QD.raid._play_plan (raid_play.lua), so a room's
+     * plan is written without touching another's
+     * (docs/minigames/raid_loop/PLAY_NOTES.md). After raid.lua: the loop
+     * reads QD.party (raid.lua) and QD.ticklog.rows as raid.lua wrapped it. */
+    "plugins/quest_driver/raid_play.lua",
+    "plugins/quest_driver/raid_play_tob_maiden.lua",
+    "plugins/quest_driver/raid_play_tob_bloat.lua",
+    "plugins/quest_driver/raid_play_tob_nylocas.lua",
+    "plugins/quest_driver/raid_play_tob_sotetseg.lua",
+    "plugins/quest_driver/raid_play_tob_xarpus.lua",
+    "plugins/quest_driver/raid_play_tob_verzik.lua",
     /* Last: t.cutscene wraps QD.core_row_begin (core.lua) to remember the
      * camera serial each t.exec row began at, and reads QD.shot (ui.lua)
      * (seam32 cutscene_verb_and_camera_read). */
