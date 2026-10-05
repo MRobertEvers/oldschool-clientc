@@ -85,19 +85,25 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   DIFFERENT run from k=1 because the driver's verbs are frame-granular (k=10 fails a chat row),
   and it saved nothing (smoke 10.9/10.5/11.0 s at k=1/10/30: the frame loop is not the cost).
   Party default stays k=1; making the driver tick-granular is a later seam if the owner wants it.
-- Room launch 15 (ledger 146987813): tob_sotetseg KEPT at 1c86bf153 (84/84 FULL; the ball's
-  prayer read at the impact proved both ways in the tick log: raised after the throw -> blocked,
-  dropped after the throw -> 22). tob_verzik's re-author reached FULL 145/145 but the reviewer
-  rejected it on the gate's duplicate-shot rule (rows at tob_verzik.lua:2827 and :2829 shot the
-  same tick); the author's file is on disk uncommitted. The retry (5d53ddd57) passed its reviewer but the SAMPLER SENT IT BACK and reverted it (0f18f21db; ledger befac048e): its bomb row's one prayed hit of 4 cannot tell a landing read from a throw read (an unprayed Entry bomb rolls 0-16) and the prayer switch was never read back; the deciding hit is in its own log (a bomb thrown under the prayer, dropped before landing, hit 9 > the prayed max 8). RUNNING: the second retry (same args), the author told to prove each switch and grade on a sample a throw-time read cannot give.
-  Kept: tob_maiden 1dffd5230, tob_bloat abc53c18e, tob_nylocas 116a1d938, tob_xarpus f417148e4,
-  tob_sotetseg 1c86bf153, tob_verzik 3d7589ff4 (green, one coverage row short until the retry).
+- Room launches 15a-c DONE (ledgers 146987813, befac048e, fb45d4463): ALL SIX ENTRY SOLO ROOMS
+  KEPT AND FULL: tob_maiden 1dffd5230 (65), tob_bloat abc53c18e (55), tob_nylocas 116a1d938 (76),
+  tob_sotetseg 1c86bf153 (84; the ball's impact read proved both ways), tob_xarpus f417148e4 (63),
+  tob_verzik d3ff92400 (145; the urn bomb's landing read proved by a reverse trial: prayer
+  dropped after the throw, hit 12 > prayed max 8, eight prayed bombs 0-7).
+- RUNNING: THE NORMAL THREE-PLAYER ROOM PASS, pass `matthew-mbp-m4-raid-b1-rooms-tob-normal`
+  (card raid_author, raid tob, the six rooms, mode normal, party 3, width 1; ids
+  tob_<room>_normal; state build/author_state/matthew-mbp-m4-raid-b1-rooms-tob-normal/). The
+  first party play ever authored. Relaunch with the same args; the context names the sources per
+  room (Strategies wiki sections, Patyfatycake's and 10Boot's chapters, Blert's trio Nylocas
+  guide, S2L's Verzik P3 tanking), the determinism gate (party_repeat.py --runs 2 must AGREE
+  before review), the scale (750 permille), the prayer rulings, and that content findings are
+  written, never fixed, by an author.
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
   names seed on their first 12 characters, case folded (jbase37).
 
 ## Next, in order
 
-1. Room launch 15 lands (above). (Seam21 landed.) SEAM21 was on
+1. The Normal pass lands (above); re-launch for rejected or sent-back rooms with the same args. (Seam21 landed.) SEAM21 was on
    `SEAM_TRIAGE_2026-10-04i.md` (owner, 2026-10-04: "I don't want to introduce nondeterminism.
    The server and clients should be able to run in lockstep"): a member runs exactly F frames
    per tick, READY carries the frame count (the leader refuses a mismatch), TICK carries a world
