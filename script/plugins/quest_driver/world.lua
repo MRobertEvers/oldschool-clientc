@@ -886,6 +886,161 @@ function QD.player.cross_trap(spec)
     return "ok", text .. " -- landed on press " .. attempts .. " of at most " .. attempts_max
 end
 
+-- t.player.climb(spec) -> (ok, detail) `refused` `covered` `not_visible`
+-- `timeout` ...
+--
+-- One staircase, ladder or trapdoor climbed by its own op, graded on the
+-- LEVEL it lands on and the landing tile -- never on the press's answer.
+--
+--   t.exec("goUpToJohnathon", t.player.climb, {
+--       loc  = "fai_varrock_stairs_taller", op = 1, op_name = "Climb-up",
+--       at   = { 3285, 3493, 0 },  -- the copy pressed, on the floor the player is on
+--       dest = { 3285, 3496, 1 },  -- the landing: x, z and the NEW level
+--       -- optional: slack = 2 (Chebyshev tiles of dest that count; default 0),
+--       --   src = { x, z } (walked to and stood on before the press),
+--       --   landed_ok = function(tile) ... end, landed_desc = "the inn's upper floor",
+--       --   presses = 2, ticks = 10
+--   })
+--
+-- goto_tile is a teleport and walk_to never changes floor, so before this
+-- verb every level change past a staircase was hand-graded in the test
+-- (crest, idesofmilk, vampire and fenkenstrain each wrote a `climb()` helper
+-- in batch matthew-mbp-m4-b60, the same five readings in four spellings).
+-- Two shapes of stair land differently, and the spec states which by `dest`:
+--   - a maplink row (ladders_stairs maplink.dbrow) telejumps to its dest
+--     tile whatever tile the press was taken from -- an exact `dest`;
+--   - no row: ladders.rs2 [proc,climb] moves the player one plane ON THE
+--     TILE IT STANDS ON (ladders.rs2:69-78), so the landing is the approach
+--     tile -- give `src` (the tile walked to first) and the same x,z as
+--     `dest`, or a `slack` that admits every approach tile.
+-- The verdict: the player stood on `at`'s level before the press (and on
+-- `src` when given -- a press from anywhere else is not the climb the row
+-- names, so nothing is pressed), and after it stands on dest's level within
+-- `slack` of dest's x,z, and `landed_ok(tile)` (when given) holds, awaited
+-- up to `ticks` (QD.player._climb_land_ticks).  A press the camera could not
+-- land (`covered`, `not_visible`) on a player still on the start floor is
+-- pressed once more (`presses`, default 2: vampire run 2's stairstop); a
+-- press the server ANSWERED is never repeated.  Every press's word, the
+-- landing it saw and the chat it caused are in the detail ("You can't go
+-- any further." is how a stair with no route reads -- a content seam).
+QD.player._climb_land_ticks = 10
+QD.player._climb_presses = 2
+
+function QD.player.climb(spec)
+    assert(type(spec) == "table", "climb takes a spec table: { loc=, at=, dest= }")
+    local loc = spec.loc
+    assert(type(loc) == "string", "climb spec.loc must be the stair or ladder's loc symbol")
+    assert(spec.op == nil or type(spec.op) == "number", "climb spec.op must be the op number")
+    assert(spec.op_name == nil or type(spec.op_name) == "string", "climb spec.op_name must be text")
+    assert(spec.slack == nil or (type(spec.slack) == "number" and spec.slack >= 0),
+        "climb spec.slack must be a tile count, at least 0")
+    assert(spec.presses == nil or (type(spec.presses) == "number" and spec.presses >= 1),
+        "climb spec.presses must be a count of presses, at least 1")
+    assert(spec.ticks == nil or (type(spec.ticks) == "number" and spec.ticks >= 1),
+        "climb spec.ticks must be a tick count")
+    assert(spec.landed_ok == nil or type(spec.landed_ok) == "function",
+        "climb spec.landed_ok must be a function(tile)")
+    if spec.landed_ok ~= nil then
+        assert(type(spec.landed_desc) == "string", "climb spec.landed_ok needs spec.landed_desc")
+    end
+    local at_x, at_z, level = QD.player._spec_tile(spec.at, "climb spec.at")
+    assert(level ~= nil, "climb spec.at must name the level the press is taken on: {x, z, level}")
+    local dest_x, dest_z, dest_level = QD.player._spec_tile(spec.dest, "climb spec.dest")
+    assert(dest_level ~= nil, "climb spec.dest must name the level it lands on: {x, z, level}")
+    assert(dest_level ~= level, "climb spec.dest is on the press's own level -- a crossing on one floor"
+        .. " is pass_door / cross_trap / walk_route, not a climb")
+    local src_x, src_z = nil, nil
+    if spec.src ~= nil then
+        src_x, src_z = QD.player._spec_tile(spec.src, "climb spec.src")
+    end
+    local op = spec.op or 1
+    local slack = spec.slack or 0
+    local presses_max = spec.presses or QD.player._climb_presses
+    local land_ticks = spec.ticks or QD.player._climb_land_ticks
+    local tile_text = QD.player._pass_door_tile_text
+    local function landed_on(tile)
+        if type(tile) ~= "table" or tile.level ~= dest_level then
+            return false
+        end
+        if QD.player._tile_distance(tile.x, tile.z, dest_x, dest_z) > slack then
+            return false
+        end
+        return spec.landed_ok == nil or spec.landed_ok(tile) == true
+    end
+    local where = at_x .. "," .. at_z .. "," .. level
+    local op_text = "op" .. op .. (spec.op_name and (" " .. spec.op_name) or "")
+    local want = dest_x .. "," .. dest_z .. "," .. dest_level
+        .. (slack > 0 and (" within " .. slack) or "")
+        .. (spec.landed_desc and (", " .. spec.landed_desc) or "")
+    local head = "climb " .. loc .. " at " .. where .. " (" .. op_text .. "; want " .. want .. ")"
+
+    if src_x ~= nil then
+        local walk_result, walk_detail = QD.player.walk_to(src_x, src_z, 40)
+        local on_result, on = QD.world.tile()
+        if on_result ~= "ok" or type(on) ~= "table" or on.x ~= src_x or on.z ~= src_z or on.level ~= level then
+            return walk_result ~= "ok" and walk_result or "refused", head .. ": walked toward the src tile "
+                .. src_x .. "," .. src_z .. "," .. level .. " and stood at " .. tile_text(on)
+                .. " (walk_to -> " .. tostring(walk_result) .. " " .. tostring(walk_detail)
+                .. ") -- not pressed"
+        end
+    end
+    local from_result, from = QD.world.tile()
+    if from_result ~= "ok" or type(from) ~= "table" then
+        return from_result, head .. ": the player's tile did not answer -- not pressed"
+    end
+    if from.level ~= level then
+        return "refused", head .. ": the player is at " .. tile_text(from) .. ", not on level " .. level
+            .. " -- not pressed (reach the stair's floor first)"
+    end
+
+    local trail = {}
+    local presses, landed = 0, false
+    local press_result = nil
+    local after = nil
+    while presses < presses_max and not landed do
+        presses = presses + 1
+        local since = QD.player._message_serial()
+        local press_detail
+        press_result, press_detail = QD.player.click_loc(loc, op, { at = { at_x, at_z, level } })
+        QD.await({
+            level = function()
+                local tile_result, tile = QD.world.tile()
+                return tile_result == "ok" and landed_on(tile)
+            end,
+            note = "climb: " .. loc .. " lands " .. want,
+        }, land_ticks)
+        local after_result
+        after_result, after = QD.world.tile()
+        landed = after_result == "ok" and landed_on(after)
+        local said = QD.player._lines_since_text(since)
+        trail[#trail + 1] = "press " .. presses .. ": click_loc -> " .. tostring(press_result) .. " "
+            .. tostring(press_detail) .. "; landed " .. tile_text(after) .. (said ~= "" and ("; " .. said) or "")
+        -- Only a press the client could not land is taken again, and only
+        -- from the floor it started on (a press the server answered moved
+        -- the player or said why not; repeating it is a second climb).
+        if landed or (press_result ~= "covered" and press_result ~= "not_visible")
+            or type(after) ~= "table" or after.level ~= level then
+            break
+        end
+    end
+    local text = head .. ": from " .. tile_text(from) .. " | " .. table.concat(trail, " | ")
+    if not landed then
+        local word = press_result
+        if word == nil or word == "ok" or word == "timeout" then
+            word = "refused"
+        end
+        local reason = " -- did not land"
+        if type(after) == "table" and after.level == level then
+            reason = " -- still on level " .. level .. " after " .. presses .. " press(es)"
+        elseif type(after) == "table" and after.level == dest_level then
+            reason = " -- reached level " .. dest_level .. " but not the landing"
+        end
+        return word, text .. reason
+    end
+    return "ok", text .. " -- landed on level " .. dest_level .. " at " .. tile_text(after)
+        .. " on press " .. presses
+end
+
 -- t.player.walk_route(points, opts) -> (ok, detail) `refused` `timeout`
 --
 -- A waypoint chain walked on foot, graded on the EXACT end tile.

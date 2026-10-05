@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 151
+-- @verb-count 153
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 103
+-- @seam-count 104
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 151
-local SEAM_COUNT = 103
+local VERB_COUNT = 153
+local SEAM_COUNT = 104
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -9599,6 +9599,196 @@ return {
                     .. " stayed with a model the slip's death pose held at the pit"
             end
             return "ok", text
+        end)
+
+        -- b60 seam1 spell_left_selected_after_a_fight_and_no_climb_verb, half
+        -- one: A STAIRCASE CLIMBED BY ITS OWN OP, LEVEL AND LANDING READ.
+        -- Crest, idesofmilk, vampire and fenkenstrain each hand-wrote a
+        -- climb() for this.  Lumbridge castle's spiral staircase has no
+        -- maplink row: ladders.rs2 [proc,climb] moves the player one plane on
+        -- the tile it stands on, so the row stands on the src tile 3205,3228
+        -- and lands on the same x,z a floor up (spiralstairsbottom_3 op1
+        -- Climb-up at 3204,3229,0), then comes down by spiralstairsmiddle's
+        -- op3 Climb-down at 3204,3229,1 (idesofmilk b60 rows 45 and 52).
+        -- Graded on each answer naming the press and the landing, on
+        -- world.tile after each, and on a press from the wrong floor being
+        -- refused with nothing pressed.
+        stage(function()
+            setup_cheat("::goto 3207 3227 0")                   -- setup
+            settle(3)
+        end)
+        step("player.climb", function()
+            local tile = verb("world", "tile")
+            local fn = verb("player", "climb")
+            if not tile then return missing("world", "tile") end
+            if not fn then return missing("player", "climb") end
+            local function leave(result, text)
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return result, text
+            end
+            local function at_text()
+                local result, at = tile()
+                if result ~= "ok" or not is_table(at) then
+                    return nil, describe(result)
+                end
+                return at, at.x .. "," .. at.z .. "," .. at.level
+            end
+            local wrong_result, wrong_detail = fn({ loc = "spiralstairsmiddle", op = 3, op_name = "Climb-down",
+                at = { 3204, 3229, 1 }, dest = { 3205, 3228, 0 } })
+            local still, still_text = at_text()
+            local text = "from level 0, the level-1 stair -> " .. describe(wrong_result) .. " " .. tostring(wrong_detail)
+            if wrong_result ~= "refused" or string.find(tostring(wrong_detail), "not pressed", 1, true) == nil
+                or still == nil or still.level ~= 0 then
+                return leave("hollow", text .. " -- a press from the wrong floor must be refused unpressed; at "
+                    .. tostring(still_text))
+            end
+            local up_result, up_detail = fn({ loc = "spiralstairsbottom_3", op = 1, op_name = "Climb-up",
+                at = { 3204, 3229, 0 }, src = { 3205, 3228 }, dest = { 3205, 3228, 1 } })
+            text = text .. " | up -> " .. describe(up_result) .. " " .. tostring(up_detail)
+            if up_result ~= "ok" then
+                return leave(up_result, text)
+            end
+            local up_at, up_text = at_text()
+            text = text .. "; world.tile " .. tostring(up_text)
+            if string.find(tostring(up_detail), "landed on level 1 at 3205,3228,1", 1, true) == nil
+                or string.find(tostring(up_detail), "click_loc ->", 1, true) == nil then
+                return leave("hollow", text .. " -- ok, but the detail names no press or no landing")
+            end
+            if up_at == nil or up_at.x ~= 3205 or up_at.z ~= 3228 or up_at.level ~= 1 then
+                return leave("hollow", text .. " -- ok, but world.tile is not 3205,3228,1")
+            end
+            local down_result, down_detail = fn({ loc = "spiralstairsmiddle", op = 3, op_name = "Climb-down",
+                at = { 3204, 3229, 1 }, dest = { 3205, 3228, 0 } })
+            text = text .. " | down -> " .. describe(down_result) .. " " .. tostring(down_detail)
+            if down_result ~= "ok" then
+                return leave(down_result, text)
+            end
+            local down_at, down_text = at_text()
+            text = text .. "; world.tile " .. tostring(down_text)
+            if down_at == nil or down_at.x ~= 3205 or down_at.z ~= 3228 or down_at.level ~= 0 then
+                return leave("hollow", text .. " -- ok, but world.tile is not 3205,3228,0")
+            end
+            return leave("ok", text)
+        end)
+
+        -- Half two: A SELECTION NOBODY SPENT IS CANCELLED.  The client drops
+        -- an armed spell (app->targetsel) only at a menu row's doAction tail
+        -- or a left click off any target; a re-cast whose presses all
+        -- answered `covered` left Family Crest's fire blast armed after
+        -- Chronozon and every later world press read `covered ... menu rows:
+        -- <Cancel>` (crest b60 run 1 rows 138, 147).  The verb row arms Wind
+        -- Strike and cancels it: graded on was_armed, on the menu it read
+        -- having no Walk here before and Walk here after, and on a second
+        -- call reading nothing armed.
+        step("player.cancel_selection", function()
+            local arm = verb("player", "_arm_spell")
+            local fn = verb("player", "cancel_selection")
+            if not arm then return missing("player", "_arm_spell") end
+            if not fn then return missing("player", "cancel_selection") end
+            local arm_result, arm_detail = arm("wind_strike")
+            if arm_result ~= "ok" then
+                return "no_subject", "arming wind_strike -> " .. describe(arm_result) .. " " .. describe(arm_detail)
+            end
+            local result, detail, was_armed = fn("conformance: wind_strike armed")
+            local text = describe(result) .. " " .. tostring(detail) .. " was_armed=" .. tostring(was_armed)
+            if result ~= "ok" then
+                return result, text
+            end
+            if was_armed ~= true or string.find(tostring(detail), "(conformance: wind_strike armed)", 1, true) == nil
+                or string.find(tostring(detail), "no Walk here", 1, true) == nil
+                or string.find(tostring(detail), "now offers", 1, true) == nil
+                or string.find(tostring(detail), "<Walk here>", 1, true) == nil then
+                return "hollow", text .. " -- ok, but it did not read the armed menu and Walk here back"
+            end
+            local again_result, again_detail, again_armed = fn()
+            text = text .. " | again -> " .. describe(again_result) .. " " .. tostring(again_detail)
+                .. " was_armed=" .. tostring(again_armed)
+            if again_result ~= "ok" or again_armed ~= false then
+                return "hollow", text .. " -- the second call must read nothing armed"
+            end
+            return "ok", text
+        end)
+
+        -- THE CAST FIGHT ENDS WITH NOTHING ARMED.  Two places leave a spell
+        -- armed and both now cancel it (spell.lua): npc.await_dead_engaged's
+        -- re-cast wrap when the fight ends, and a cast press that missed on
+        -- every try.  Staged: Fire Blast stamps a fight on a spawned Man, Wind
+        -- Strike is armed after it (what a covered re-cast left), the Man is
+        -- killed with attempts 0 so no re-cast spends the arming; the wait's
+        -- detail must name the cancel and a cancel_selection after it must
+        -- read nothing armed.  Then a press aimed at an element no npc
+        -- carries (covered on every press) must name the cancel too.
+        stage(function()
+            setup_cheat("::clearinv")                           -- setup
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel defence 99")
+            setup_cheat("::give airrune 100")
+            setup_cheat("::give firerune 50")
+            setup_cheat("::give deathrune 10")                  -- fire blast: 4 air, 5 fire, 1 death
+            setup_cheat("::goto 3222 3219 0")
+            settle(2)
+            setup_cheat("::spawn man")                          -- setup
+            settle(2)
+        end)
+        seam("seam.cast_fight_ends_with_nothing_armed", function()
+            local cast = verb("player", "cast")
+            local arm = verb("player", "_arm_spell")
+            local wait = verb("npc", "await_dead_engaged")
+            local cancel = verb("player", "cancel_selection")
+            local missed = verb("player", "_cast_press_on_element")
+            if not cast then return missing("player", "cast") end
+            if not arm then return missing("player", "_arm_spell") end
+            if not wait then return missing("npc", "await_dead_engaged") end
+            if not cancel then return missing("player", "cancel_selection") end
+            if not missed then return missing("player", "_cast_press_on_element") end
+            local function leave(result, text)
+                setup_cheat("::clearinv")
+                setup_cheat("::setlevel magic 1")
+                setup_cheat("::setlevel hitpoints 10")
+                setup_cheat("::setlevel defence 1")
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return result, text
+            end
+            local cast_result, cast_detail = cast("fire_blast", "man", 14)
+            if cast_result ~= "ok" then
+                return leave("no_subject", "cast fire_blast on man -> " .. describe(cast_result) .. " "
+                    .. describe(cast_detail))
+            end
+            local arm_result, arm_detail = arm("wind_strike")
+            if arm_result ~= "ok" then
+                return leave("no_subject", "arming wind_strike -> " .. describe(arm_result) .. " " .. describe(arm_detail))
+            end
+            setup_cheat("::kill man")
+            local result, detail = wait(20, 0)
+            local text = "await_dead_engaged(20, 0) with wind_strike armed -> " .. describe(result) .. " "
+                .. tostring(detail)
+            if result == "refused" then
+                return leave(result, text)
+            end
+            if string.find(tostring(detail), "fight over with a selection still armed -- cancel_selection: a selection WAS armed", 1, true) == nil then
+                return leave("refused", text .. " -- the wait ended without cancelling the armed spell")
+            end
+            local after_result, after_detail, after_armed = cancel()
+            text = text .. " | then cancel_selection -> " .. describe(after_result) .. " " .. tostring(after_detail)
+            if after_result ~= "ok" or after_armed ~= false then
+                return leave("refused", text .. " -- something is still armed after the wait")
+            end
+            setup_cheat("::spawn man")
+            settle(2)
+            local press_result, press_detail = missed("wind_strike", "man", 7777777)
+            text = text .. " | missed press -> " .. describe(press_result) .. " " .. tostring(press_detail)
+            if press_result == "ok" or string.find(tostring(press_detail), "selection WAS armed", 1, true) == nil then
+                return leave("refused", text .. " -- a missed cast press must cancel the arming it made")
+            end
+            local last_result, last_detail, last_armed = cancel()
+            text = text .. " | then cancel_selection -> " .. describe(last_result) .. " " .. tostring(last_detail)
+            if last_result ~= "ok" or last_armed ~= false then
+                return leave("refused", text .. " -- something is still armed after the missed press")
+            end
+            return leave("ok", text)
         end)
 
         step("finish", function()
