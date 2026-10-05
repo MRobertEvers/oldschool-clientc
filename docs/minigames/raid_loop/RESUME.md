@@ -199,6 +199,11 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   a feature in the client automation runner to make things faster (watch for events, add
   callbacks and triggers or whatever, then do so)". He did not answer whether the room plans may
   run in parallel worktrees: they run ONE AT A TIME until he says otherwise.
+  SEAM27 LANDED 0b9633ed2 (ledger 7cc5aac68), pushed: conformance 358/358, six rooms and both
+  baseline ledgers byte-identical, suite 115 green + 4 known reds, party repeat AGREE. SEAM29
+  LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
+  library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
+  pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
   NEXT = SEAM29 (`SEAM_TRIAGE_2026-10-05h.md`): the library into its own files (one plan file per
   room) and the hazard fix; the raider's state and inputs into the tick log and a mistakes list in
   raid_report.py; then a sourced Entry plan per room (maiden, nylocas, sotetseg, xarpus, verzik),
