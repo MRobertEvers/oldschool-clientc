@@ -539,16 +539,19 @@ return {
                 .. tostring(sharks) .. " of 10 staged (" .. tostring(shark_r)
                 .. ") (margin: lowest hp >= 25, a quarter of 99, AND food left)")
         t.ticks(2)
-        -- A killing blow WITHOUT Excalibur worn heals him and downgrades
-        -- %grail spoken_crone -> failed_defeat_titan (black_knight_titan.rs2
-        -- defeat_titan): the stage must still read spoken_crone.
-        -- SEAM (reported, run 7): defeat_titan never runs in this port --
-        -- [ai_queue3] queues queue_defeat_titan on the player, but the
-        -- engine's death path removes the npc first, so npc_finduid misses
-        -- and neither "Well done! You have defeated the Black Knight Titan!"
-        -- nor the Excalibur gate fires (LostCity's ai_queue3 leaves the npc
-        -- standing until the queue decides). The kill is real; the gate is
-        -- unobservable until that is fixed.
+        -- black_knight_titan.rs2: [ai_queue3] queues queue_defeat_titan on the
+        -- player; the npc is held until that queue decides (engine seam
+        -- matthew-mbp-m4-b61-seam1). [label,defeat_titan] reads
+        -- inv_total(worn, excalibur): worn -> mes "Well done! You have
+        -- defeated the Black Knight Titan!" and the npc stays dead, %grail
+        -- untouched; not worn -> heal, "Maybe you need something more to
+        -- beat the titan?" and spoken_crone -> failed_defeat_titan.
+        local well_r, well_d = t.msg.expect("Well done! You have defeated the Black Knight Titan!")
+        t.check("attackTitan.defeated", well_r, well_d)
+        local puny_r, puny_d = t.msg.expect("Maybe you need something more to beat the titan?")
+        t.check("attackTitan.notHealed", puny_r == "refused",
+            "Excalibur-missing branch line: msg.expect -> " .. tostring(puny_r) .. " " .. tostring(puny_d)
+                .. " (want refused: defeat_titan took the worn-Excalibur branch)")
         t.check("attackTitan.withExcalibur", t.quest.expect_stage("spoken_crone"))
 
         -- ---------------------------------------------------------------
