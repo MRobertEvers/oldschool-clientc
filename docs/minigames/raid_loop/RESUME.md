@@ -104,7 +104,15 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   hides 5 tiles out); nylocas spawn_aggro 34 of 35. (c) STRATEGY: Maiden with one freezer
   leaks 11 crabs; Bloat trio deals ~30 per down. Closest: tob_nylocas_normal 81/85, tob_xarpus_normal 62/63,
   tob_maiden_normal 47/70 with a survived run.
-- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam22` (triage `SEAM_TRIAGE_2026-10-05a.md`): the
+- SEAM22 STATE: both fixers DONE (a dead member stays in lockstep and `_party_smoke` proves it,
+  member t.tick, t.prayer.points, the budget and pid docs; content: the Sotetseg trio watchdog and
+  tornado, Xarpus orbs per landing settled from Blert, Verzik P1 and the nylocas aggro count
+  settled with no change), but its CLOSER died twice on the weekly account limit (resets
+  2026-10-06 3pm Chicago) and again needs a relaunch if `build/seam_state/
+  matthew-mbp-m4-raid-b1-seam22/close.json` is missing: the edits are UNCOMMITTED in the tree
+  (14 parent files, tob_raid.rs2, tob_sotetseg.rs2, tob_xarpus.rs2, sources/blert_api/
+  spec_pass_seam22/, wiki_Prayer.wikitext). Never commit the six untracked tob_<room>_normal.lua.
+- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam22`'s closer (triage `SEAM_TRIAGE_2026-10-05a.md`): the
   harness gaps (a dead member stays in lockstep, t.tick on a member, budget, readers, README), then
   the four content findings settled from sources. Then relaunch the Normal pass with the same args
   (the state directory resumes; rejected rooms get their findings).
