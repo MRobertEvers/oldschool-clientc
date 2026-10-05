@@ -143,7 +143,10 @@ def describe(suite, directory, directory_script_path):
     if not os.path.isdir(directory):
         return entries
     for name in sorted(os.listdir(directory)):
-        if not name.endswith(".lua") or name.startswith("_"):
+        # `_` files are harnesses and stay out of the list, except the play
+        # library's own (`_play_*`: a room played through t.raid.play), which
+        # the owner watches like any room (2026-10-05).
+        if not name.endswith(".lua") or (name.startswith("_") and not name.startswith("_play_")):
             continue
         test_file = os.path.join(directory, name)
         test_id = name[:-len(".lua")]
