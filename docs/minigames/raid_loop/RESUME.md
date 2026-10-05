@@ -148,10 +148,47 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   PlayerClient: camera + pointer + pickset + menu), the runner's pick and screenshot passes
   offscreen on the software lane on demand, an Interact on/off switch always indicated, scripted
   cameras take every view, the runner's menu tinted; three seams (gather = pure refactor, split,
-  debug aids). It supersedes seam25's camera-easing item (the runner's poses no longer show).
-  It is a wide client refactor on a branch 467 commits behind v3: say so to the owner before the
-  v3 merge grows harder (he has not ruled on where it lands).
-  THEN relaunch the Normal three-player pass with the same args and the seam22 notes.
+  debug aids). It was to supersede seam25's camera item; the OWNER REINSTATED IT (2026-10-05):
+  "The scripts should also attempt to turn the camera, rather than snap to the camera for a
+  screenshot." Seam25's `watched_camera_and_shots` now makes a watched driver TURN the camera
+  through the arrow keys' own path at their rate (never an instant pose), not blocking inputs
+  that need no camera. OWNER'S RULING (2026-10-05): "Only the watched client should turn the
+  camera, headless can just snap, but make sure they both work and that the tests don't rely on
+  the snapping behavior - that should be handled by the code in a single call." So one driver
+  call owns every camera move (snap headless, turn watched, its own deadline per mode); no test
+  writes a pose itself (conformance check); the same scripts proved in both modes.
+  SEAM26 IS NOT RUN HERE ANY MORE (2026-10-05): the owner started a separate camera session from
+  the orchestrator's prompt; it works in `build/orchestrator/worktrees/camera` on branch
+  `matthew-mbp-m4-camera-b1` (cut from this branch), does the gather seam first, and merges this
+  branch in for seam24 and seam25 before the split. This session never touches that worktree.
+  Its work comes back by a merge the raid orchestrator makes when the owner asks.
+  OWNER'S RULE, 2026-10-05, FOR EVERY PASS FROM NOW ON: "Never do a real time play through. That
+  was a huge waste." "Unless I ask." (Seam24's one fixer ran 3.5 hours, the last 1.5 replaying
+  raid rooms in a real-time client.) Put it in every work order and every card context: proofs run
+  on the virtual clock; a script is played only as far as the claim needs and never twice for one
+  claim; 30 minutes of proof after the gates are green, then the report says what is not proved.
+  THEN SEAM27 (`SEAM_TRIAGE_2026-10-05f.md`): THE KEPT ENTRY ROOMS HOLD ON ONE SEED ONLY. The
+  account name seeds the random numbers; each room was kept under its own name alone. The
+  orchestrator's survey (`SEED_SURVEY_2026-10-05.md`; evidence in `build/seed_survey_2026-10-05/`):
+  each kept room replayed unchanged under four other names, 7 of 24 green (Xarpus 4 of 4; Maiden,
+  Bloat, Sotetseg 1 of 4; Nylocas and Verzik 0 of 4). Seam24's fixer met it first (Bloat died in
+  the watched client). Seven seams: `seed_survey_gate` (tools/raid_gate/seed_survey.py; the author
+  card keeps a room only when it is green on five names); `several_inputs_one_tick` (OWNER,
+  2026-10-05: "update the script runner so that it can do multiple things at once ... it's really
+  slow to equip, eat move around ... Are you sure you're writing scripts well enough?" -- he is
+  right: no driver verb lands two inputs in one tick, Verzik's bow-and-arrows swap takes two
+  ticks, Bloat eats through the slow 3-tick press, the eater eats every 6 ticks where the server
+  allows 3; the seam sources what OSRS takes in a tick, makes the server match, adds a
+  send-together block, fixes the eater, and writes the authors' rule); then one per fragile room classifying
+  every failing row as play / measurement / content and fixing or writing it. Fixers do not edit
+  the kept tests: they leave `notes.tob_<room>.md` in the state dir.
+  THEN the ENTRY RE-AUTHOR pass for the five fragile rooms (card raid_author, pass
+  `matthew-mbp-m4-raid-b1-rooms-tob-entry2`, raid tob, rooms maiden bloat nylocas sotetseg verzik,
+  mode entry, party 1, width 1, context = the seam27 notes and the rule that a fight loop sends a
+  tick's whole intent together; kept = the five-name survey green).
+  UNTIL THEN say it plainly in every report: ToB Entry solo is tested ON ONE SEED PER ROOM.
+  THEN relaunch the Normal three-player pass with the same args and the seam22 notes (it now
+  gets the five-name survey too).
 - OWNER, 2026-10-05, Verzik P1 for a trio: "the players need to take the dawnbringer from the
   skeleton on the ground after xarpus. That weapon does not have the shield penalty and the
   players should share it using their special attack." Our content agrees (tob_xarpus.rs2:1817-1850
