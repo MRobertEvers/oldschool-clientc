@@ -1,0 +1,18 @@
+# Wave test ledger -- the waves loop
+
+One line per test per test pass: the sampler's verdict, the ledger's rows, coverage, the pictures the
+sampler opened, and what was sent back and why. A test sent back is not committed; its file stays
+untracked in the worktree for the next pass to re-author.
+
+## test pass matthew-mbp-m4-waves-b1-test1 (2026-10-04, tree 7304e6c39, content 90791aac55)
+
+The first wave-test pass: the six early monster units. Nothing kept (no test green); one committed
+as a blocked record; five sent back. Every test ends blocked on the npc-record seam (CONTENT_BUGS
+TEST-2). Evidence is not published: run.py publishes a PASS only.
+
+- **inferno_bat** -- COMMITTED, blocked (content_bug BAT-DRAIN, open; MON-OPEN-5: its chance is [M24]). 53 rows: 49 PASS, 3 FAIL (the three stat_drain rows: 0 drops over 27 unprayed hits), 1 BLOCKED; coverage 25 of 38 in-scope rows (13 wait on TEST-2 or the mager unit's revive). Enters wave 1 only; no cheat inside run(). Techniques pillar_safespot, bat_outranged, one_tick_flick, pray_by_danger proved from the tick log. Sampler re-derived hitpoints 25 (cache_npc.txt:83 stat4=25, wiki_Jal_MejRah:19), attack_speed 3 (cache_npc.txt:100 attackrate 3, wiki:15), max_hit 19 grade C (wiki:11, autozuk index.html:398); ledger rows 23, 26, 28 agree. Pictures: reviewer 0 (Read hook timeout); sampler opened 3 (006 prayer.missiles, 013 kill.main, 020 technique.pillar_safespot): the arena, the prayer tab, the player beside the south pillar; no bat in frame on any of them (shots fire at row time, after the action). For the next pass: hit_delay reports one value 2 for a 1-2 range, write the distribution.
+- **inferno_blob_and_splits** -- SENT BACK: not reviewed; the author gave up after 25 runs (run 24 green but the losing-sight row, the last edit never re-run, run 25 died). 26 of 41 rows on run 24. Blocked on TEST-2 (15 rows).
+- **inferno_melee** -- SENT BACK: a wave skip. `sweep()` (inferno_melee.lua:351) enters every wave 1-16, 25-32, 42-49, 57-64 by t.wave.enter to count melees per wave (the same sweep inferno_mager_resurrection was rejected for; TEST-4). Also row spec.melee.sounds PASSes with "measured ?" (unmeasured, must be a gap). Blocker real: MELEE-DIG-LAND (dig_landing offset 1_0 twice vs nw_of_player) and TEST-2 (19 rows). 52 rows, 50 PASS 1 FAIL 1 BLOCKED; 27 of 46. Pictures: reviewer 0, sampler 0 (not kept).
+- **inferno_ranger** -- SENT BACK: a wave skip. `sweep()` / `count_wave` (inferno_ranger.lua:386-405) enters every wave 1-66 by t.wave.enter (TEST-4). Otherwise clean: 53 PASS 0 FAIL, 28 of 39, techniques pillar_safespot, one_tick_flick, pray_by_danger, do_not_stand_beside_it; blocked on TEST-2 (11 rows). Pictures: reviewer 0, sampler 0.
+- **inferno_mager_resurrection** -- SENT BACK (reviewer rejected): `sweep()` (line 395) enters every wave 34-67, a wave skip; the spec-row shots are Lumbridge after a death, not the fight; hit_delay_by_distance writes a set (2,3,4,6), not delay per distance, and passes out of tolerance. Blockers cited: MAGER-RANGE, MAGER-MELEE-CHANCE (both OPEN), TEST-2 (15 rows). Pictures: reviewer 4 of 71.
+- **inferno_nibblers_and_pillars** -- SENT BACK: entries at waves 2, 66, 67 and 68 (lines 702, 842, 923-924) are wave skips past the unit's first wave (TEST-4); the wave-66 end collapse is not reachable by a practice entry (one wave, then it leaves). Gate red also on two shots cut at 71 characters (TEST-3). New content row TEST-1: pillar_hit_gap_modal measured 2 (576 gaps: 1x134 2x347 3x95, none 4) against Blert's 4. 121 rows, 119 PASS 1 FAIL 1 BLOCKED; 29 of 36. Pictures: reviewer 0, sampler 0.
