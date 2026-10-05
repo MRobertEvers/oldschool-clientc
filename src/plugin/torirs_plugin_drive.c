@@ -1252,7 +1252,24 @@ lua_drive_session(struct lua_State* L)
  * world never sees them. Lua has no io library in this state
  * (torirs_plugin_lua.c opens base, table, string, math, utf8), so the two
  * file operations live here, confined to a bare file name in that one
- * directory. */
+ * directory.
+ *
+ * THE FILES ARE STAMPED WITH THE LOCKSTEP TICK (raid seam21,
+ * party_lockstep_frames). Between two boundaries the three clients run their
+ * frames at the same time, in three processes, so "is raider 2's file there
+ * yet?" asked in a frame of that interval was a wall-clock race: one run in
+ * three the leader saw a member's mark a tick later, passed the barrier a tick
+ * later, and everything after it shifted (seam19's one-tick shift; measured
+ * 2026-10-04: `party.barrier.normal_out ... p1 waited 1 tick(s)` in one run,
+ * `0` in the next, same build, same tick log). Now a mark records
+ * ToriRSServer_EmbedLockstepTick() -- the tick of this process's last
+ * boundary -- and counts as present only to a reader whose own lockstep tick
+ * is LATER. That is a fact of the lock step, not of timing: a mark written
+ * before boundary t+1 was written before its writer's READY (a member) or
+ * before the leader ran t+1 (the leader), and every reader past t+1 got its
+ * TICK after that. So every raider passes a barrier on the same tick, every
+ * run. Outside a party (no lockstep tick) a mark counts as soon as it
+ * exists, as before. */
 static int
 drive_run_dir_path(char const* file, char* out, size_t capacity)
 {
@@ -1298,8 +1315,9 @@ lua_drive_barrier_mark(struct lua_State* L)
          * problem to report (the barrier then times out naming it), not a
          * contract violation by the caller. */
         return PluginDrive_PushResult(L, DRIVE_REFUSED, NULL);
-    fprintf(f, "tick=%d\n", g_app && g_app->world
-        ? (int)(g_app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES) : -1);
+    fprintf(f, "lockstep=%d\ntick=%d\n", ToriRSServer_EmbedLockstepTick(),
+            g_app && g_app->world ? (int)(g_app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES)
+                                  : -1);
     fclose(f);
     return PluginDrive_PushResult(L, DRIVE_OK, NULL);
 }
@@ -1316,7 +1334,21 @@ lua_drive_barrier_present(struct lua_State* L)
     f = fopen(path, "rb");
     if( !f )
         return PluginDrive_PushResult(L, DRIVE_NOT_FOUND, NULL);
-    fclose(f);
+    {
+        int const now = ToriRSServer_EmbedLockstepTick();
+        int mark = TORIRSSERVER_EMBED_LOCKSTEP_NONE;
+        int parsed = fscanf(f, "lockstep=%d", &mark) == 1;
+
+        fclose(f);
+        /* Not a party (no lockstep tick here): existence is the answer. */
+        if( now == TORIRSSERVER_EMBED_LOCKSTEP_NONE )
+            return PluginDrive_PushResult(L, DRIVE_OK, NULL);
+        /* A mark with no stamp (torn, or another build's) or one from this
+         * very interval is not there YET: it is honoured from the next
+         * boundary on, by every raider at once. */
+        if( !parsed || mark == TORIRSSERVER_EMBED_LOCKSTEP_NONE || mark >= now )
+            return PluginDrive_PushResult(L, DRIVE_NOT_FOUND, NULL);
+    }
     return PluginDrive_PushResult(L, DRIVE_OK, NULL);
 }
 

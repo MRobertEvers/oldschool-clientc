@@ -269,6 +269,74 @@ def party_seats(directory):
     return seats
 
 
+# THE LOCK STEP ROW (raid seam21 party_determinism_gate). Under
+# TORIRS_EMBED_PARTY_TRACE=1 (run.py sets it for every party run) the leader
+# AND every member print one line per world-tick boundary into their own
+# client.log, in one format (src/platform/net_transport_embed.c):
+#     net: party: boundary <k> -> tick <t> digest <8 hex>
+# The digest is ToriRSServer_EmbedWorldDigest (FNV-1a over the tick, then
+# pid/x/z/level/hitpoints of every active player in pid order, then the npc
+# count), computed by the leader and carried to each member in its TICK.
+# party_lockstep compares every member's trace with the leader's, line for
+# line: the same boundaries, each with the same tick and digest. The union
+# ledger carries the answer as its `party.lockstep` row, FAIL naming the first
+# boundary (and tick) that differs; run.py fails the run on it. No tolerance:
+# a member with fewer boundaries than the leader (it died, stalled or never
+# joined) is a FAIL too, naming the first boundary it is missing.
+PARTY_TRACE_RE = re.compile(r"(?m)^net: party: boundary (\d+) -> tick (-?\d+) digest ([0-9a-f]{8})\s*$")
+PARTY_LOCKSTEP_STEP = "party.lockstep"
+
+
+def party_trace(session):
+    """[(boundary, tick, digest)] from <session>/client.log, in log order, or
+    None when there is no client.log."""
+    assert session
+    path = os.path.join(session, "client.log")
+    if not os.path.isfile(path):
+        return None
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        text = handle.read()
+    return [(int(k), int(t), d) for k, t, d in PARTY_TRACE_RE.findall(text)]
+
+
+def party_lockstep(directory):
+    """("PASS"|"FAIL", detail) for a party run's boundary traces (see the
+    banner above), or None when `directory` is not a party run."""
+    seats = party_seats(directory)
+    if seats is None:
+        return None
+    traces = {}
+    for seat, account, session in seats:
+        trace = party_trace(session)
+        if not trace:
+            return "FAIL", ("p%d (%s): no `net: party: boundary` line in %s -- the run was not "
+                            "traced (TORIRS_EMBED_PARTY_TRACE=1) or the raider never reached a "
+                            "boundary" % (seat, account, os.path.join(session, "client.log")))
+        traces[seat] = trace
+    leader = traces[seats[0][0]]
+    for seat, account, session in seats[1:]:
+        mine = traces[seat]
+        for position in range(min(len(mine), len(leader))):
+            if mine[position] != leader[position]:
+                k, t, d = mine[position]
+                lk, lt, ld = leader[position]
+                return "FAIL", ("first difference at boundary %d (tick %d): p%d has boundary %d -> "
+                                "tick %d digest %s, the leader p1 boundary %d -> tick %d digest %s"
+                                % (lk, lt, seat, k, t, d, lk, lt, ld))
+        if len(mine) != len(leader):
+            longer, shorter = (leader, mine) if len(leader) > len(mine) else (mine, leader)
+            who = "p%d" % seat if shorter is mine else "the leader p1"
+            k, t, d = longer[len(shorter)]
+            return "FAIL", ("first difference at boundary %d (tick %d): %s stops after %d "
+                            "boundaries, p1 ran %d and p%d ran %d"
+                            % (k, t, who, len(shorter), len(leader), seat, len(mine)))
+    first, last = leader[0], leader[-1]
+    return "PASS", ("%s: %d boundaries each, %d -> tick %d .. %d -> tick %d, the same tick and "
+                    "digest on every raider at every boundary (last digest %s)"
+                    % (" ".join("p%d" % s for s, _a, _p in seats), len(leader), first[0], first[1],
+                       last[0], last[1], last[2]))
+
+
 def party_union(directory):
     """Write the union ledger and shots of a party run (see PARTY_MARKER).
     Returns the number of raiders, or 0 when `directory` is not a party run."""
@@ -320,6 +388,13 @@ def party_union(directory):
                     os.link(os.path.join(own_shots, entry), target)
                 except OSError:
                     shutil.copy2(os.path.join(own_shots, entry), target)
+    # The lock step row (PARTY_TRACE_RE's banner): one per party run, after
+    # every raider's rows, counted like any other.
+    lock_verdict, lock_detail = party_lockstep(directory)
+    index += 1
+    counts[lock_verdict] += 1
+    lines.append("%d\t%s\t%s\t0\t\t%s" % (index, PARTY_LOCKSTEP_STEP, lock_verdict,
+                                          lock_detail.replace("\t", " ")))
     verdict = "PASS" if counts["FAIL"] == 0 else "FAIL"
     summary = "SUMMARY\t%d\t%s\t%s\t%s\tpass=%d fail=%d" % (
         index, verdict, leader_ticks, leader_exit, counts["PASS"], counts["FAIL"])

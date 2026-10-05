@@ -70,6 +70,19 @@ struct NetTransportEmbed
      * instead of reading the wall clock. @see embed_poll_clock_ms. */
     int poll_clock_ms;
     unsigned long long poll_clock_now;
+    /* TORIRS_LOGIC_CYCLES_PER_FRAME (k): a frame is k logic cycles, so each
+     * clock step is k x 20 ms of game time. @see embed_clock_step. */
+    int cycles_per_frame;
+    /* The test clock's first reading and its last: the clock this transport
+     * runs on is origin + (test_now - origin) x k, which at k = 1 is
+     * test_now itself (a one-client run is byte-identical). */
+    int test_origin_set;
+    unsigned long long test_origin;
+    unsigned long long test_last;
+    /* Clock frames (polls that advanced the clock) since the last boundary:
+     * a member's READY carries it, the leader checks its own. */
+    int clock_frames;
+    int leader_boundaries;
 
     /*
      * The party (torirs_server_embed.h). A LEADER hosts the world as always
@@ -152,7 +165,14 @@ embed_poll_clock_ms(void)
  *                                     pids are the same every run
  *   TORIRS_EMBED_PARTY_WAIT_S=<s>     both: longest wait for the other end at
  *                                     a boundary (default 60)
- *   TORIRS_EMBED_PARTY_TRACE=1        member: log every boundary's tick
+ *   TORIRS_EMBED_PARTY_TRACE=1        both: log every boundary as
+ *                                     `net: party: boundary k -> tick t
+ *                                     digest d` (one format on the leader
+ *                                     and every member)
+ *   TORIRS_LOGIC_CYCLES_PER_FRAME=k   all: k logic cycles per frame, the
+ *                                     clock k x 20 ms per poll, F = 30/k
+ *                                     frames per tick; one k for the whole
+ *                                     party (SEAT carries it)
  *
  * Read once, at transport creation, so the leader is listening before its
  * loaders run (a member dialling during the leader's boot waits in the
@@ -232,16 +252,51 @@ embed_clock_step(struct NetTransportEmbed* self)
 {
     long now;
     int run_tick;
+    int stepped;
 
+    /*
+     * Which clock. In a quest run the content-test virtual clock
+     * (content_test.c: 20 ms per frame, held while a screenshot or async IO is
+     * in flight) wins over TORIRS_EMBED_CLOCK_MS; both are a pure function of
+     * the frame sequence. Under TORIRS_LOGIC_CYCLES_PER_FRAME=k a frame is k
+     * cycles of game time, so the clock moves k x its step and a 600 ms tick
+     * is 30/k frames (torirs_server_embed.h, "Lockstep, pinned").
+     */
     if( self->test_clock )
-        now = (long)self->test_now;
+    {
+        if( !self->test_origin_set )
+        {
+            self->test_origin_set = 1;
+            self->test_origin = self->test_now;
+            self->test_last = self->test_now;
+        }
+        stepped = self->test_now != self->test_last;
+        self->test_last = self->test_now;
+        now = (long)(self->test_origin +
+                     (self->test_now - self->test_origin) * (unsigned long long)self->cycles_per_frame);
+    }
     else if( self->poll_clock_ms > 0 )
     {
-        self->poll_clock_now += (unsigned long long)self->poll_clock_ms;
+        self->poll_clock_now +=
+            (unsigned long long)self->poll_clock_ms * (unsigned long long)self->cycles_per_frame;
         now = (long)self->poll_clock_now;
+        stepped = 1;
     }
     else
+    {
+        /* A party paced by the wall clock is a party whose boundaries fall
+         * wherever the host machine got to: no lock step at all. */
+        if( self->party_join_port > 0 || self->party_listener >= 0 )
+        {
+            TORIRS_ERR("net: party: a party client needs a frame clock (TORIRS_MAX_FRAMES with "
+                       "the quest driver, or TORIRS_EMBED_CLOCK_MS); refusing the wall clock\n");
+            abort();
+        }
         now = (long)PlatformWindow_Ticks64();
+        stepped = 1;
+    }
+    if( stepped )
+        self->clock_frames++;
     run_tick = self->next_tick_ms == 0 || now >= self->next_tick_ms;
     if( run_tick )
     {
@@ -273,6 +328,10 @@ embed_poll(
     int run_tick;
     int got;
 
+    /* One poll per frame, one frame per poll, while a party link is up
+     * (ToriRSServer_EmbedPartyAuditPoll aborts otherwise). */
+    ToriRSServer_EmbedPartyAuditPoll();
+
     if( self->party_join_port > 0 )
     {
         party_member_poll(self, net, bus);
@@ -300,9 +359,15 @@ embed_poll(
                     return;
                 }
                 if( self->party_listener >= 0 )
+                {
                     ToriRSServer_EmbedPartyAttach(self->embed, self->party_listener,
-                                                  self->party_size, self->party_wait_ms);
+                                                  self->party_size, self->party_wait_ms,
+                                                  self->party_trace);
+                    ToriRSServer_EmbedPartyAuditArm(1);
+                }
                 self->next_tick_ms = 0;
+                self->leader_boundaries = 0;
+                self->clock_frames = 0;
             }
             emit_status(self, bus, TORIRS_NET_STATUS_CONNECTED);
         }
@@ -323,6 +388,8 @@ embed_poll(
             ToriRSServer_EmbedStop(self->embed);
             self->embed = NULL;
             self->next_tick_ms = 0;
+            if( self->party_listener >= 0 )
+                ToriRSServer_EmbedPartyAuditArm(0);
             emit_status(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
         }
     }
@@ -332,6 +399,20 @@ embed_poll(
 
     /* 2. let the server act, and tick it on its own schedule */
     run_tick = embed_clock_step(self);
+    if( run_tick && self->party_listener >= 0 )
+    {
+        /* The leader holds itself to the F it holds its members to: its own
+         * clock frames since its last boundary (the first boundary follows
+         * the connect, which ticks at once). */
+        self->leader_boundaries++;
+        if( !ToriRSServer_EmbedPartyReadyCheck(
+                1, self->clock_frames,
+                ToriRSServer_EmbedPartyFramesPerTick(self->cycles_per_frame),
+                self->leader_boundaries == 1) )
+            abort();
+    }
+    if( run_tick )
+        self->clock_frames = 0;
 
     {
         int alive = 1;
@@ -400,6 +481,8 @@ party_close(struct NetTransportEmbed* self)
     if( self->party_fd >= 0 )
         close(self->party_fd);
 #endif
+    if( self->party_fd >= 0 )
+        ToriRSServer_EmbedPartyAuditArm(0);
     self->party_fd = -1;
     ToriRSServer_EmbedLinkReaderFree(&self->party_in);
 }
@@ -465,8 +548,14 @@ static void
 party_member_boundary(struct NetTransportEmbed* self)
 {
     long deadline = ToriRSServer_EmbedNowMs() + self->party_wait_ms;
+    uint8_t ready[TORIRSSERVER_EMBED_LINK_READY_LEN];
 
-    if( !ToriRSServer_EmbedLinkSend(self->party_fd, TORIRSSERVER_EMBED_LINK_READY, NULL, 0) )
+    /* READY carries this member's clock frames since its last TICK; the
+     * leader holds it to F (torirs_server_embed.h, "Lockstep, pinned"). */
+    ToriRSServer_EmbedLinkReadyEncode(ready, self->clock_frames);
+    self->clock_frames = 0;
+    if( !ToriRSServer_EmbedLinkSend(self->party_fd, TORIRSSERVER_EMBED_LINK_READY, ready,
+                                    TORIRSSERVER_EMBED_LINK_READY_LEN) )
     {
         party_member_lost(self, "closed");
         return;
@@ -483,16 +572,24 @@ party_member_boundary(struct NetTransportEmbed* self)
         {
             if( type == TORIRSSERVER_EMBED_LINK_DATA )
                 party_pending_append(self, payload, len);
-            else if( type == TORIRSSERVER_EMBED_LINK_TICK && len == 4 )
+            else if( type == TORIRSSERVER_EMBED_LINK_TICK )
             {
-                int tick = (int)(((uint32_t)payload[0] << 24) | ((uint32_t)payload[1] << 16) |
-                                 ((uint32_t)payload[2] << 8) | (uint32_t)payload[3]);
+                int tick = 0;
+                uint32_t digest = 0;
 
+                if( !ToriRSServer_EmbedLinkTickDecode(payload, len, &tick, &digest) )
+                {
+                    party_member_lost(self, "sent a TICK of the wrong length (link protocol)");
+                    return;
+                }
                 self->party_boundaries++;
+                /* The leader prints the same line (party_flush): the three
+                 * traces of one run compare line for line. */
                 if( self->party_trace )
-                    TORIRS_ERR("net: party: boundary %d -> server tick %d (pending %d bytes)\n",
-                               self->party_boundaries, tick, self->party_pending_len);
+                    TORIRS_ERR("net: party: boundary %d -> tick %d digest %08x\n",
+                               self->party_boundaries, tick, digest);
                 self->party_last_tick = tick;
+                ToriRSServer_EmbedLockstepNote(tick);
                 return;
             }
             else
@@ -537,7 +634,7 @@ party_member_poll(
         {
             if( self->party_fd < 0 )
             {
-                uint8_t seat[4];
+                uint8_t seat[TORIRSSERVER_EMBED_LINK_SEAT_LEN];
 
                 self->party_fd = ToriRSServer_EmbedPartyDial(
                     self->party_join_port, self->party_ever_joined ? 2000 : self->party_wait_ms);
@@ -546,12 +643,11 @@ party_member_poll(
                     emit_status(self, bus, TORIRS_NET_STATUS_FAILED);
                     return;
                 }
-                seat[0] = (uint8_t)(self->party_seat >> 24);
-                seat[1] = (uint8_t)(self->party_seat >> 16);
-                seat[2] = (uint8_t)(self->party_seat >> 8);
-                seat[3] = (uint8_t)self->party_seat;
+                /* SEAT carries the link protocol and this member's k: the
+                 * leader refuses a mismatch of either, loudly. */
+                ToriRSServer_EmbedLinkSeatEncode(seat, self->party_seat, self->cycles_per_frame);
                 if( !ToriRSServer_EmbedLinkSend(self->party_fd, TORIRSSERVER_EMBED_LINK_SEAT, seat,
-                                                4) )
+                                                TORIRSSERVER_EMBED_LINK_SEAT_LEN) )
                 {
                     party_close(self);
                     emit_status(self, bus, TORIRS_NET_STATUS_FAILED);
@@ -564,6 +660,8 @@ party_member_poll(
                 self->party_pending_len = 0;
                 self->party_boundaries = 0;
                 self->next_tick_ms = 0;
+                self->clock_frames = 0;
+                ToriRSServer_EmbedPartyAuditArm(1);
             }
             emit_status(self, bus, TORIRS_NET_STATUS_CONNECTED);
         }
@@ -642,6 +740,7 @@ NetTransport_NewEmbed(int default_port, char const* rev_name)
     self->rev_name = rev_name;
     self->last_status = -1;
     self->poll_clock_ms = embed_poll_clock_ms();
+    self->cycles_per_frame = ToriRSServer_EmbedLogicCyclesPerFrame();
     self->party_listener = -1;
     self->party_fd = -1;
     party_knobs(self);

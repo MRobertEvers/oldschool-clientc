@@ -1011,39 +1011,64 @@ end
 -- t.party.barrier(name, timeout_ticks): every raider writes
 -- <run dir>/barrier.<name>.p<n> (api_drive.barrier_mark) and waits until all
 -- N are there. Driver state, not game state: the world never sees the files.
--- In a party of one it answers ok at once.
+--
+-- FRAME-COUNTED (raid seam21 party_determinism_gate). A mark counts only from
+-- the lockstep boundary after it was written (torirs_plugin_drive.c
+-- lua_drive_barrier_present), so whether it is "there" is a fact of the lock
+-- step, and the wait below is counted in this client's own frames: the level
+-- is evaluated once when the await is armed and once per frame the await is
+-- held (torirs_plugin_drive.c drive_pump_once), so `frames` is the number of
+-- frames the raider spent inside the barrier. Nothing here reads a clock; the
+-- deadline is the client's world cycle (frames x k cycles). The detail names
+-- the frames and the ticks, and both are identical run to run
+-- (tools/raid_gate/party_repeat.py compares them).
+-- In a party of one it answers ok at once, having waited 0 frames.
+function QD.party._await_counted(level, timeout_ticks, note)
+    assert(type(level) == "function")
+    assert(type(note) == "string")
+    local start = api_drive.tick()
+    local evaluations = 0
+    local result = QD.await({
+        level = function()
+            evaluations = evaluations + 1
+            return level()
+        end,
+        note = note,
+    }, timeout_ticks)
+    -- The first evaluation is the arming check, in the frame the verb was
+    -- called from; each later one is one frame held.
+    local frames = evaluations > 0 and evaluations - 1 or 0
+    return result, frames, api_drive.tick() - start
+end
+
 function QD.party.barrier(name, timeout_ticks)
     assert(type(name) == "string")
     assert(string.match(name, "^[%w_%-%.]+$"))
     local size = QD.party.size()
     if size <= 1 then
-        return "ok", "party.barrier " .. name .. ": a party of one"
+        return "ok", "party.barrier " .. name .. ": a party of one, p1 waited 0 frame(s) (0 tick(s))"
     end
     local mine = string.format("barrier.%s.p%d", name, QD.party.role())
     local marked = api_drive.barrier_mark(mine)
     if marked ~= "ok" then
         return marked, "party.barrier " .. name .. ": could not write " .. mine .. " (" .. tostring(marked) .. ")"
     end
-    local start = api_drive.tick()
     local missing = {}
-    local result = QD.await({
-        level = function()
-            missing = {}
-            for n = 1, size do
-                if api_drive.barrier_present(string.format("barrier.%s.p%d", name, n)) ~= "ok" then
-                    missing[#missing + 1] = "p" .. n
-                end
+    local result, frames, ticks = QD.party._await_counted(function()
+        missing = {}
+        for n = 1, size do
+            if api_drive.barrier_present(string.format("barrier.%s.p%d", name, n)) ~= "ok" then
+                missing[#missing + 1] = "p" .. n
             end
-            return #missing == 0
-        end,
-        note = "party.barrier " .. name,
-    }, timeout_ticks or 200)
+        end
+        return #missing == 0
+    end, timeout_ticks or 200, "party.barrier " .. name)
     if result ~= "ok" then
-        return "timeout", string.format("party.barrier %s: p%d waited %d tick(s); still missing %s",
-            name, QD.party.role(), api_drive.tick() - start, table.concat(missing, ","))
+        return "timeout", string.format("party.barrier %s: p%d waited %d frame(s) (%d tick(s)); still missing %s",
+            name, QD.party.role(), frames, ticks, table.concat(missing, ","))
     end
-    return "ok", string.format("party.barrier %s: all %d raiders, p%d waited %d tick(s)",
-        name, size, QD.party.role(), api_drive.tick() - start)
+    return "ok", string.format("party.barrier %s: all %d raiders, p%d waited %d frame(s) (%d tick(s))",
+        name, size, QD.party.role(), frames, ticks)
 end
 
 function QD.party._rows_text(rows)

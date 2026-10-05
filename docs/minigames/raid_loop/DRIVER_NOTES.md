@@ -4166,14 +4166,132 @@ game's bytes untouched. A member sends 'R' (READY) at each of its own 600 ms bou
 and then blocks until the leader's 'T' (TICK, which carries `srv->tick`). The leader runs
 a boundary only after every member has said READY. At that boundary it feeds each
 member's input to the world in seat order, before the tick. So one world tick is one
-boundary on every client, and a member's trace reads `boundary k -> server tick k-1`.
+boundary on every client, and every trace reads `boundary k -> tick k-1 digest d`
+("Lockstep, pinned" below).
 'S' (SEAT) is a member's first frame: seat n is client id n-1, and so login order and
 pid. `TORIRS_EMBED_PARTY_SEAT` makes "who is pid 2" a fact of the command line, not a
 race between processes.
 
 The smoke's leader row `seam.three_clients_one_world` checks the whole run. From the
 first tick with all three logged in, every world tick carries exactly three `player_tile`
-rows. Measured: `ticks 4..166 (163 ticks): 3 player_tile rows on every tick`.
+rows. Measured: `ticks 4..166 (163 ticks): 3 player_tile rows on every tick` (seam17);
+`ticks 4..191 (188 ticks)` since seam21.
+
+### Lockstep, pinned: F frames per tick, READY carries the count, TICK carries the digest
+
+Seam21 (party_lockstep_frames, party_determinism_gate). The owner, 2026-10-04: "I don't
+want to introduce nondeterminism." A party run is now byte-identical run to run under the
+same run name: the tick log, every raider's ledger and every boundary trace.
+
+**The cause of the old one-tick shift.** It was `t.party.barrier`'s files, not the link.
+Between two boundaries the three clients run their frames at the same time, in three
+processes. So whether raider A's frame saw raider B's barrier file in that interval
+depended on the wall clock. Measured 2026-10-04 on the unmodified binary, five smokes:
+identical tick logs and member traces, but the leader's ledger came out three ways
+(`party.barrier.normal_out ... p1 waited 1 tick(s)` in one run and `0` in the next;
+`raid.enter.bloat_normal` 6 vs 7 ticks; SUMMARY 182 vs 183). A barrier passed one tick
+later puts the next typed command one boundary later. Everything else on a member was
+already a function of the frame sequence.
+
+**The fix: a mark is stamped with the lockstep tick.** `api_drive.barrier_mark` writes
+`lockstep=<t>` into the file, where t is `ToriRSServer_EmbedLockstepTick()`: on the
+leader, the tick its last party boundary ran; on a member, the tick of the last TICK it
+received. `barrier_present` counts a mark only when the reader's own lockstep tick is
+later than the stamp. A mark written before boundary t+1 was written before its writer's
+READY (or before the leader ran t+1), and every reader past t+1 got its TICK after that.
+So every raider passes a barrier on the same tick, in every run. The cost: a barrier now
+takes at least one boundary after the last raider's mark (the smoke went from 183 to 191
+ticks, 5561 to 5617 tick-log lines). Outside a party there is no lockstep tick, and a
+mark counts as soon as the file exists, as before.
+
+**The link protocol, version 2.**
+- A client frame pays k logic cycles (`TORIRS_LOGIC_CYCLES_PER_FRAME`, default 1) and moves
+  the link's clock k x 20 ms. A 600 ms tick is therefore F = 30/k clock frames on the
+  leader and on every member. A frame that the content-test clock holds (a screenshot in
+  flight, async IO) moves neither clock and is not counted. That is still a function of
+  the frame sequence.
+- SEAT carries (protocol version, seat, k). A member whose version or k differs from the
+  leader's aborts the run with a message naming both values. Build every client of a
+  party from one tree; run.py already uses one binary.
+- READY carries the member's clock frames since its last TICK. From a member's second
+  READY on, the leader requires exactly F. The first READY follows the join, which ticks
+  at once. The leader holds its own boundaries to the same F. A mismatch prints
+  `torirsserver: party: seat n ran k frames, expected F` and aborts. A member that drifts
+  is a loud failure, never a silent one-tick shift.
+- TICK carries the tick and `ToriRSServer_EmbedWorldDigest`. The digest is FNV-1a over the
+  tick, then pid, x, z, level and hitpoints of each active player in pid order, then the
+  active npc count.
+- With `TORIRS_EMBED_PARTY_TRACE=1` (run.py sets it on every party client) the leader and
+  every member print one line per boundary in one format:
+  `net: party: boundary k -> tick t digest d`. The old member line
+  `boundary k -> server tick t (pending n bytes)` is gone.
+- A frame audit aborts a party client when other than exactly one `App_RunOnce` runs
+  between two transport polls, or when a frame pays other than k cycles. A party client
+  needs a frame clock (`TORIRS_MAX_FRAMES` with the quest driver, or
+  `TORIRS_EMBED_CLOCK_MS`); a party on the wall clock is refused.
+- In a quest run the embed transport is clocked by content_test.c's virtual clock
+  (`NetTransport_TestClock`), not by `TORIRS_EMBED_CLOCK_MS`. That knob matters only for
+  headless runs outside the quest driver.
+
+`make -C src test-embed-party-link` covers the payloads, F accepted and F-1 refused (at
+k=1 and k=10), and the digest across two members. Three live mutants were built in a
+throwaway worktree (a READY short by one frame, a 2-cycle frame, a doubled `App_RunOnce`).
+Each one ended the party run with its message and signal 6.
+
+**The driver half: every wait is counted in frames.** `api_drive.await` evaluates its level
+once when it is armed and once per frame (`drive_pump_once`, called from on_frame_start).
+Its deadline is the client world cycle (frames x k), never wall time. `t.party.barrier`
+waits through `QD.party._await_counted` and reports what it counted:
+`party.barrier applied: all 3 raiders, p1 waited 1050 frame(s) (35 tick(s))`. That number
+is the same in every run. A party of one reads
+`a party of one, p1 waited 0 frame(s) (0 tick(s))`. Audit, 2026-10-04: raid.lua and
+core.lua contain no `os.*`, `io.*` or `math.random`. The heartbeat comes from the per-frame
+pump every 25 client ticks, and run.py only watches its mtime. `t.party.see` is a level
+await. Shots are requested by frame. Conformance row:
+`seam.party_barrier_frame_counted` (a two-tick deadline times out after exactly 60 frames
+at k=1).
+
+**The checks.**
+- Inside a run: `gate.party_lockstep` compares each member's boundary trace with the
+  leader's, line for line. The union ledger gains a `party.lockstep` row. It is PASS when
+  the traces are equal, and FAIL naming the first boundary and tick that differs (also
+  when a member has fewer boundaries, or a trace is missing). run.py fails the run on a
+  FAIL. Measured: `party.lockstep PASS p1 p2 p3: 193 boundaries each, 1 -> tick -1 ..
+  193 -> tick 192, the same tick and digest on every raider at every boundary`.
+- Across runs: `python3 tools/raid_gate/party_repeat.py <id> --runs 3 --load` runs the test
+  three times under one run name and compares the tick log, every ledger and every trace
+  byte for byte. Only a `run.unfinished` row's seconds are stripped. `--load` runs the
+  last of the three with p2 at nice 19 and one busy loop per CPU. This is the gate a
+  party room author runs before review (test/raids/README.md "Determinism").
+- Measured by the seam21 closer: `_party_smoke --runs 3 --load` AGREE (tick log sha
+  2054478152d0, 5617 lines, 193 boundaries, p1 SUMMARY 55 PASS 191); `--cycles default,1
+  --runs 3 --load` AGREE (six runs, one sha); a long Normal Bloat scratch (all three
+  attacking, eating and praying, 406 ticks in the fight) 3/3 AGREE under load (sha
+  3a6ea401b7a8, 548 boundaries). The long scratch runs under `::god 1`; without it Normal
+  Bloat's flies kill an unhidden raider in about 10 ticks.
+- The run name seeds the run (its accounts). A renamed run (`run.py --name` with a party
+  test id, `--no-publish` only) is a different run, and equally repeatable.
+
+**The frames-per-tick knob: `TORIRS_LOGIC_CYCLES_PER_FRAME=k`.** The owner, 2026-10-04: "30
+frames per tick seems like a lot of wasted compute per tick ... especially since you're
+running headlessly". k must divide 30 (1, 2, 3, 5, 6, 10, 15 or 30) and needs
+`TORIRS_MAX_FRAMES`; without it the client aborts. A headless frame then pays k logic
+cycles in a row, and the transport clock and the frame's ms clock stretch by k. Every
+clientscript clock, animation and timer still sees 50 Hz. A cycle the settle fence holds
+back is carried to the next frame. At k>1 a shot is of the frame's last cycle, and
+`TORIRS_SHOT_FRAME=N` is frame N, which is cycle N x k. k=1 is the default and changes
+nothing: cooks_assistant, druid and the six Entry rooms are byte-identical.
+
+**The party default stays k=1.** Each k is deterministic on its own, but k>1 is not the
+same run as k=1. The driver's verbs are written in frames: a pointer step, a chat page and
+a per-frame await each cost k cycles. So at k=10 the smoke takes 303 boundaries instead of
+193, and at k=30 it takes 631, with different ledgers: at k=10 and k=30 p2/p3
+`raidwide.chat.party_enter_line` FAIL, and at k=30 p1 `raid.left.bloat` too. k=2 keeps all three ledgers but moves three
+`npc_free` rows at tick 112 by a tile; the cause was not found. Wall time on `_party_smoke`
+(run.py total, closer's run): k=1 10.9 s, k=10 10.5 s, k=30 11.0 s. A tick costs about
+3x less at k=30, but the frame-granular driver spends that many more ticks on the same
+script. A room test keeps the default. Making k irrelevant means stepping the driver per
+cycle or rewriting those verbs in ticks; that is a later driver seam.
 
 ### Stalls and exits
 
@@ -4184,6 +4302,11 @@ that exits is logged out the same way (`closed its link`), so the leader's rows 
 departure. If the leader stalls, every member blocks and the leader's heartbeat ends the
 run. When the leader exits, run.py gives each member 20 s to finish its own script and
 then kills it. An unfinished member ledger gets its SUMMARY like any unfinished run.
+Open (seam21): a member does not stop when the leader's process ends. In the long Bloat
+scratch without `::god`, the leader died and the members ran about 1000 more client ticks
+on their own clocks, then timed out their `done` barrier. The run is still caught (run.py
+marks the death, and `party.lockstep` compares only the leader's boundaries), but a
+member's ledger after that point is not clocked by the world.
 
 ### Seats, accounts and directories
 
@@ -4256,8 +4379,11 @@ A member's part in a fight is its own clicks plus barrier sync with the leader.
 ### t.party.barrier: sync without a cheat
 
 `t.party.barrier(name, ticks)` writes `<run dir>/barrier.<name>.p<n>` (api_drive.barrier_mark)
-and waits until all N files exist. These files are driver state; the world never sees
-them. A barrier typically waits 0-22 ticks. A party of one answers ok at once.
+and waits until all N marks count. These files are driver state; the world never sees
+them. Since seam21 a mark is stamped with the lockstep tick and counts from the next
+boundary on, and the wait is counted in frames: the detail reads
+`p1 waited 1050 frame(s) (35 tick(s))`, the same in every run ("Lockstep, pinned").
+A barrier typically waits 0-35 ticks. A party of one answers ok at once.
 `QD.await` predicates cannot yield, so a predicate cannot click. A loop that presses
 Refresh while it waits has to be written out.
 
@@ -4386,14 +4512,14 @@ the three orbs at 27 on every raider.
   when a row reads the orbs.
 - **A member's entrance shot is dark.** It is taken while the room's title card is still
   fading (dark red with the card): the settle does not wait for the card. This is cosmetic.
-- **Time and determinism.** A three-client run costs about 70 ms of the leader's wall clock
-  per world tick. The smoke runs 183 ticks in 12-14 s, about 60 s for the whole `run.py`; an
-  opening (enter, cross, one read, out) takes 6-12 s. A full Normal room of ~700 ticks should
-  take about a minute; set `max_frames` from a measured run. Two runs' tick logs are equal
-  most of the time but not by guarantee: a member's typed command lands at its own
-  frame-timed boundary. The fixers measured one run in three shifted by one tick from tick
-  114-116; the closer's two runs were byte-identical (5561 lines). Compare runs by their
-  ledgers' verdicts and spec rows, and quote tick-log rows rather than requiring `cmp`.
+- **Time and determinism.** A three-client run costs about 35 ms of the leader's wall clock
+  per world tick at the default k=1. The smoke runs 191 ticks in about 11 s of run.py with
+  `--no-build`. A full Normal room of ~700 ticks should take well under a minute; set
+  `max_frames` from a measured run. Since seam21 a party run is byte-identical run to run
+  under the same run name: tick log, every ledger, every boundary trace. The old one-tick
+  shift (one run in three, from tick 114-116) was `t.party.barrier`'s cross-process file
+  race, now pinned ("Lockstep, pinned" under "Three raiders in one run"). Compare runs
+  with `cmp` or `tools/raid_gate/party_repeat.py`; no tolerance.
 
 ## A burst's freeze is in the tick log: one npc_spotanim per slot it hit
 

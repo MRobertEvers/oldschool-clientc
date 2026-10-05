@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 169
+-- @seam-count 170
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 177
-local SEAM_COUNT = 169
+local SEAM_COUNT = 170
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -11392,6 +11392,38 @@ return {
             local fn = verb("party", "barrier")
             if not fn then return missing("party", "barrier") end
             return fn("conformance", 5)
+        end)
+        -- seam21 party_determinism_gate (raid). NO verb added: one SEAM row,
+        -- SEAM_COUNT / @seam-count +1. t.party.barrier's wait is COUNTED IN FRAMES:
+        -- a party of one answers "waited 0 frame(s) (0 tick(s))", and the counter it
+        -- waits with (t.party._await_counted, raid.lua) reads exactly 60 frames for a
+        -- two-tick deadline at k = 1 (one evaluation when armed, then one per frame
+        -- held; a tick is 30 frames). The party behaviour (the same frames in every
+        -- run) is proved by tools/raid_gate/party_repeat.py _party_smoke --runs 3 --load.
+        seam("seam.party_barrier_frame_counted", function()
+            local barrier = verb("party", "barrier")
+            if not barrier then return missing("party", "barrier") end
+            if type(t.party._await_counted) ~= "function" then
+                return missing("party", "_await_counted")
+            end
+            if t.party.size() ~= 1 then
+                return "refused", "the conformance harness is not a party of one: size " .. describe(t.party.size())
+            end
+            local br, bd = barrier("conformance_frames", 5)
+            if br ~= "ok" or not string.find(tostring(bd), "p1 waited 0 frame(s) (0 tick(s))", 1, true) then
+                return "refused", "a party of one waits 0 frames; read " .. describe(br) .. " " .. describe(bd)
+            end
+            -- Let any shot of the row before land first: a frame the content-test
+            -- clock holds for a capture runs no cycle.
+            settle(1)
+            local cr, frames, ticks = t.party._await_counted(function() return false end, 2,
+                "conformance: two ticks counted in frames")
+            if cr ~= "timeout" or frames ~= 60 or ticks ~= 2 then
+                return "refused", string.format("a two-tick deadline at k=1 should time out after 60 frames "
+                    .. "(2 ticks); read %s after %s frame(s) (%s tick(s))", describe(cr), describe(frames), describe(ticks))
+            end
+            return "ok", describe(bd) .. "; a two-tick deadline timed out after " .. frames
+                .. " frame(s) (" .. ticks .. " tick(s)): 30 frames a tick at k=1"
         end)
         step("party.players", function()
             local fn = verb("party", "players")

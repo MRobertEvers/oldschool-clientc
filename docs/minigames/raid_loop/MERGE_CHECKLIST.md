@@ -138,6 +138,31 @@ the merge.
     (`sotetseg.ball_prayer_read_tick`, `verzik.p2_bomb_prayer_read_tick`), so the raid coverage
     gate reads 83 of 84 and 145 of 146. Both must be re-authored on this branch; neither is a
     merge blocker for v3.
+- seam21 (2026-10-04), a party run in true lock step. Solo runs are unchanged:
+  cooks_assistant, druid and the six Entry rooms are byte-identical, and the suite holds its
+  buckets (115 green, the same four RED with the same first failing rows).
+  - C (shared with v3's embed server and client): the party link is protocol 2
+    (`TORIRSSERVER_EMBED_PARTY_PROTOCOL`): SEAT(version, seat, k), READY(frames since the
+    last TICK), TICK(tick, world digest). A leader and members built from different trees
+    refuse each other at SEAT, so rebuild every party binary from one tree (run.py uses one
+    binary). New knob `TORIRS_LOGIC_CYCLES_PER_FRAME=k` (app_frame.c, net_transport_embed.c;
+    headless only, needs `TORIRS_MAX_FRAMES`; default 1 changes nothing). A frame audit
+    aborts a party client on a skipped or doubled frame. `api_drive.barrier_mark` writes a
+    `lockstep=` stamp and `barrier_present` honours it only from the next boundary
+    (torirs_plugin_drive.c). `make -C src test-embed-party-link` covers the payloads, F/F-1
+    and the digest.
+  - `tools/quest_gate/run.py`: sets `TORIRS_EMBED_PARTY_TRACE=1` on every party client; a
+    party run's ok requires `party.lockstep` PASS; `--name` renames ONE party test id's run
+    (needs `--no-publish`); reads `QUEST_PARTY_NICE_SEAT=<n>` (member n at nice 19).
+  - `tools/quest_gate/gate.py`: `party_lockstep` and `party_union` append a `party.lockstep`
+    row to every party union ledger (one more row in the union's count). Solo runs are
+    untouched.
+  - `test/quests/_conformance.lua`: one new seam row after `step("party.barrier")`,
+    `seam.party_barrier_frame_counted`: 177 verbs, 170 seam rows on the branch.
+    `tools/quest_gate/verb_list.py` unchanged.
+  - `script/plugins/quest_driver/raid.lua`: `t.party.barrier` counts its wait in frames
+    (`QD.party._await_counted`); its detail now reads `p<n> waited F frame(s) (T tick(s))`.
+  - Raid-only tooling: new `tools/raid_gate/party_repeat.py` (the cross-run determinism gate).
 
 ## 4. The owner's main checkout
 

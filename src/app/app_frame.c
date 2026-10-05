@@ -10,6 +10,79 @@
 #include "app/app_internal.h"
 #include "perf_audit.h"
 
+#ifdef TORIRS_EMBED_SERVER
+/* The party's frame audit and the one reader of TORIRS_LOGIC_CYCLES_PER_FRAME
+ * (raid seam21, "Lockstep, pinned"): the frame loop is the only place that
+ * knows a frame happened and how many cycles it paid. */
+#include "torirsserver/torirs_server_embed.h"
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
+
+/*
+ * TORIRS_LOGIC_CYCLES_PER_FRAME=k (headless only; raid seam21). A bounded
+ * headless frame (TORIRS_MAX_FRAMES) pays k 20 ms logic cycles in a row instead
+ * of one, and the embed transport's clock moves k x 20 ms per poll, so a 600 ms
+ * server tick is still 30 client cycles -- every clientscript clock, animation
+ * and timer sees the same 50 Hz -- while the frame loop (net poll, Lua driver
+ * step, plugin pump, bookkeeping) runs 30/k times per tick instead of 30. k
+ * must divide 30. 1 is the default and changes nothing. A shot taken at k > 1
+ * is of the frame's last cycle.
+ */
+static int
+app_logic_cycles_per_frame(void)
+{
+#ifdef TORIRS_EMBED_SERVER
+    return ToriRSServer_EmbedLogicCyclesPerFrame();
+#else
+    static int cached;
+
+    if( cached == 0 )
+    {
+        char const* env = getenv("TORIRS_LOGIC_CYCLES_PER_FRAME");
+        int k = env && env[0] ? atoi(env) : 1;
+
+        if( k < 1 || k > 30 || 30 % k != 0 )
+        {
+            fprintf(stderr, "app: TORIRS_LOGIC_CYCLES_PER_FRAME=%s must divide 30\n",
+                    env ? env : "");
+            abort();
+        }
+        cached = k;
+    }
+    return cached;
+#endif
+}
+
+/* Cycles a k > 1 frame was charged and did not run (the settle fence stopped
+ * it part way), paid by the next frame that reaches the logic step. Always 0 at
+ * k = 1, where the fence can only stop after the frame's one cycle. One App
+ * per process: file scope is the frame loop's. */
+static int s_cycles_owed;
+
+/* The ms clock a frame hands its timers. At k > 1 a frame is k x 20 ms of
+ * game time, so the frame clock (content_test.c's virtual clock steps 20 ms a
+ * frame) is stretched by k about its first reading, the same way the embed
+ * transport stretches its own (net_transport_embed.c embed_clock_step). k = 1
+ * returns `now_ms` untouched. */
+static uint64_t
+app_frame_clock(uint64_t now_ms)
+{
+    static int origin_set;
+    static uint64_t origin;
+    int const k = app_logic_cycles_per_frame();
+
+    if( k == 1 )
+        return now_ms;
+    if( !origin_set )
+    {
+        origin_set = 1;
+        origin = now_ms;
+    }
+    return now_ms >= origin ? origin + (now_ms - origin) * (uint64_t)k : now_ms;
+}
+
 /* Private to this unit, declared up front so definition order is free. */
 static void
 app_frame_latch_note(
@@ -551,6 +624,12 @@ App_RunOnce(
     assert(app);
     assert(input);
 
+#ifdef TORIRS_EMBED_SERVER
+    /* Exactly one frame per transport poll while a party link is up. */
+    ToriRSServer_EmbedPartyAuditFrame();
+#endif
+    now_ms = app_frame_clock(now_ms);
+
     /* The shell keeps this input frame intact when settlement returns before
      * interaction. Mark it consumed only after the stable-tree gate below; a
      * post-interaction async yield must not replay the same click. */
@@ -757,13 +836,34 @@ App_RunOnce(
          * the wall clock this exists to leave. The movers are handed exactly
          * that one tick for the same reason.
          */
+        /*
+         * TORIRS_LOGIC_CYCLES_PER_FRAME=k makes that k cycles in a row (see
+         * app_logic_cycles_per_frame), plus any a fence held back last frame.
+         * It is a headless knob: without TORIRS_MAX_FRAMES the accumulator
+         * pays whatever the wall clock says, and k would mean nothing.
+         */
+        int const cycles_per_frame = app_logic_cycles_per_frame();
+
         if( g_torirs_max_frames > 0 )
         {
-            ticks = 1;
+            ticks = cycles_per_frame + s_cycles_owed;
+            s_cycles_owed = 0;
             app->cycle_accum_ms = 0.0;
-            app->logic_frame_ms = APP_LOGIC_TICK_MS;
+            app->logic_frame_ms = (uint64_t)ticks * APP_LOGIC_TICK_MS;
+        }
+        else if( cycles_per_frame != 1 )
+        {
+            fprintf(stderr, "app: TORIRS_LOGIC_CYCLES_PER_FRAME=%d needs TORIRS_MAX_FRAMES "
+                            "(it is a headless knob)\n",
+                    cycles_per_frame);
+            abort();
         }
         int const ticks_paid = ticks;
+#ifdef TORIRS_EMBED_SERVER
+        /* A party client's frame pays exactly k cycles (a fence's carry is
+         * last frame's, not this one's); the accumulator's 0..N is refused. */
+        ToriRSServer_EmbedPartyAuditCycles(g_torirs_max_frames > 0 ? cycles_per_frame : ticks);
+#endif
 
         /*
          * The touch marker, advanced ONCE per rendered frame by the time that
@@ -842,7 +942,15 @@ App_RunOnce(
              * that stopped at the fence silently swallows simulation time and
              * the world falls behind the clock it is supposed to keep. */
             if( ticks < ticks_paid )
-                app->cycle_accum_ms += (double)(ticks_paid - ticks) * (double)APP_LOGIC_TICK_MS;
+            {
+                if( g_torirs_max_frames > 0 )
+                    /* The accumulator is emptied every frame on this path:
+                     * owe the cycles to the next frame instead. */
+                    s_cycles_owed = ticks_paid - ticks;
+                else
+                    app->cycle_accum_ms +=
+                        (double)(ticks_paid - ticks) * (double)APP_LOGIC_TICK_MS;
+            }
         }
         else
         {

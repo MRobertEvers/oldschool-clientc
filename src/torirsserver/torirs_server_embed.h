@@ -194,14 +194,19 @@ ToriRSServer_EmbedPlayer(
  *   'D' DATA   the game's own bytes, either direction, untouched
  *   'R' READY  member -> host: "my clock reached its next 600 ms boundary,
  *              and every byte I sent before this frame belongs to that tick"
+ *              (payload: the member's FRAME COUNT since its last TICK, u32
+ *              big-endian -- see "Lockstep, pinned" below)
  *   'T' TICK   host -> member: "the boundary has run" (payload: srv->tick,
- *              4 bytes big-endian, -1 before the world is built); every DATA
+ *              then the world digest after that tick, two u32 big-endian;
+ *              tick -1 and digest 0 before the world is built); every DATA
  *              frame before it is that tick's output
- *   'S' SEAT   member -> host, the link's first frame: the seat it takes
- *              (4 bytes; seat n is client id n-1, the leader is seat 1; 0 =
- *              the first free one). The client id is the login order and so
- *              the pid, so a seat makes "who is pid 1" a fact of the run's
- *              command line instead of a race between processes.
+ *   'S' SEAT   member -> host, the link's first frame (payload: three u32
+ *              big-endian: the link PROTOCOL version, the seat it takes, and
+ *              its TORIRS_LOGIC_CYCLES_PER_FRAME). Seat n is client id n-1,
+ *              the leader is seat 1; 0 = the first free one. The client id is
+ *              the login order and so the pid, so a seat makes "who is pid 1"
+ *              a fact of the run's command line instead of a race between
+ *              processes.
  *
  * which is what makes the three clients tick in LOCK STEP: the host runs a
  * boundary only once every member has sent READY for it, and a member does
@@ -212,6 +217,33 @@ ToriRSServer_EmbedPlayer(
  *
  * Native POSIX hosts only. A Windows or web build that is asked for a party
  * says so and aborts.
+ *
+ * ── Lockstep, pinned (raid seam21, party_lockstep_frames) ──
+ *
+ * F frames per tick, READY carries the count, TICK carries the digest.
+ *
+ *   - A client frame pays k logic cycles (TORIRS_LOGIC_CYCLES_PER_FRAME, 1 by
+ *     default, headless only) and advances the link's clock k x 20 ms, so a
+ *     600 ms tick is F = TORIRSSERVER_EMBED_PARTY_FRAMES_PER_TICK / k clock
+ *     frames on the leader and on every member. A frame the virtual clock
+ *     HOLDS (a screenshot in flight, async IO; content_test.c) advances
+ *     neither clock and is not counted.
+ *   - READY carries how many clock frames the member ran since its last TICK.
+ *     The leader requires exactly F from a member's second READY on (the
+ *     first follows the join, which ticks at once), and otherwise prints
+ *     `party: seat n ran k frames, expected F` and aborts the run: a member
+ *     that drifts is a loud failure, never a silent one-tick shift.
+ *   - TICK carries the tick and ToriRSServer_EmbedWorldDigest() after it. With
+ *     TORIRS_EMBED_PARTY_TRACE=1 the leader and every member print the same
+ *     `net: party: boundary k -> tick t digest d` line per boundary, so the
+ *     three traces of a run (and of two runs) compare line for line.
+ *   - SEAT carries TORIRSSERVER_EMBED_PARTY_PROTOCOL and the member's k; a
+ *     mismatch with the leader's aborts with a message.
+ *   - Driver state that crosses processes outside the link (t.party.barrier's
+ *     files) is stamped with ToriRSServer_EmbedLockstepTick() when written and
+ *     honoured only from the NEXT boundary on (torirs_plugin_drive.c): a file
+ *     written between two boundaries is then seen at the same tick by every
+ *     raider, never "whenever the other process got there".
  */
 enum
 {
@@ -221,7 +253,122 @@ enum
     TORIRSSERVER_EMBED_LINK_SEAT = 'S',
     /** type byte + 4-byte big-endian length */
     TORIRSSERVER_EMBED_LINK_HEADER = 5,
+    /** The link's protocol version, carried in SEAT. 2: SEAT(version, seat,
+     *  k), READY(frames), TICK(tick, digest). Bump it with any change to a
+     *  frame's payload. */
+    TORIRSSERVER_EMBED_PARTY_PROTOCOL = 2,
+    /** Frames per 600 ms tick at one 20 ms logic cycle per frame; divided by
+     *  TORIRS_LOGIC_CYCLES_PER_FRAME it is the F every client runs. */
+    TORIRSSERVER_EMBED_PARTY_FRAMES_PER_TICK = 30,
+    TORIRSSERVER_EMBED_LINK_SEAT_LEN = 12,
+    TORIRSSERVER_EMBED_LINK_READY_LEN = 4,
+    TORIRSSERVER_EMBED_LINK_TICK_LEN = 8,
 };
+
+/** "No lockstep tick yet": the process is not in a party, or no boundary
+ *  has run since it joined. */
+#define TORIRSSERVER_EMBED_LOCKSTEP_NONE (-2147483647 - 1)
+
+/** TORIRS_LOGIC_CYCLES_PER_FRAME, read once: 1 when unset. Aborts with a
+ *  message unless it divides TORIRSSERVER_EMBED_PARTY_FRAMES_PER_TICK (1, 2,
+ *  3, 5, 6, 10, 15, 30). The frame loop's own reader (app_frame.c) applies the
+ *  same rule; this one is the link's. */
+int
+ToriRSServer_EmbedLogicCyclesPerFrame(void);
+
+/** F: the clock frames a client runs per tick at `cycles_per_frame`. */
+int
+ToriRSServer_EmbedPartyFramesPerTick(int cycles_per_frame);
+
+/*
+ * The world digest a TICK carries: FNV-1a over the tick, then every active
+ * player in pid order (pid, x, z, level, hitpoints), then the number of
+ * active npcs. One function, so the leader that sends it and anything that
+ * logs or compares it agree on what it covers. An unbuilt world is 0; `srv` is
+ * asserted.
+ */
+uint32_t
+ToriRSServer_EmbedWorldDigest(const struct ToriRSServer* srv);
+
+/** SEAT, READY and TICK payloads: encoders write exactly *_LEN bytes; the
+ *  decoders return 0 when `len` is not the frame's length (a protocol break
+ *  the caller reports), 1 otherwise. */
+void
+ToriRSServer_EmbedLinkSeatEncode(
+    uint8_t* out,
+    int seat,
+    int cycles_per_frame);
+int
+ToriRSServer_EmbedLinkSeatDecode(
+    const uint8_t* payload,
+    int len,
+    int* out_version,
+    int* out_seat,
+    int* out_cycles_per_frame);
+void
+ToriRSServer_EmbedLinkReadyEncode(
+    uint8_t* out,
+    int frames);
+int
+ToriRSServer_EmbedLinkReadyDecode(
+    const uint8_t* payload,
+    int len,
+    int* out_frames);
+void
+ToriRSServer_EmbedLinkTickEncode(
+    uint8_t* out,
+    int tick,
+    uint32_t digest);
+int
+ToriRSServer_EmbedLinkTickDecode(
+    const uint8_t* payload,
+    int len,
+    int* out_tick,
+    uint32_t* out_digest);
+
+/**
+ * The leader's judgement of one READY: 1 when `frames` is `expected`, or when
+ * this is the seat's first READY since it joined (`first`); otherwise prints
+ * `party: seat n ran k frames, expected F` and returns 0. The leader aborts
+ * on 0 (ToriRSServer_EmbedPump); a test calls it directly.
+ */
+int
+ToriRSServer_EmbedPartyReadyCheck(
+    int seat,
+    int frames,
+    int expected,
+    int first);
+
+/**
+ * The lockstep tick of THIS process: on the leader, the tick its last party
+ * boundary ran; on a member, the tick of the last TICK it received.
+ * TORIRSSERVER_EMBED_LOCKSTEP_NONE outside a party. The member's transport
+ * records it with ToriRSServer_EmbedLockstepNote.
+ */
+int
+ToriRSServer_EmbedLockstepTick(void);
+void
+ToriRSServer_EmbedLockstepNote(int tick);
+
+/**
+ * The frame audit (seam21 item 5). A party client's transport calls
+ * ...AuditPoll once per poll; the frame loop calls ...AuditFrame once per
+ * App_RunOnce and ...AuditCycles with the logic cycles that frame paid.
+ * While a party link is up (ToriRSServer_EmbedPartyAuditArm), a poll that is
+ * not followed by exactly one frame before the next poll, or a logic step
+ * that pays other than TORIRS_LOGIC_CYCLES_PER_FRAME cycles, aborts with a
+ * message. Outside a party these only count.
+ */
+void
+ToriRSServer_EmbedPartyAuditArm(int armed);
+int
+ToriRSServer_EmbedPartyAuditArmed(void);
+void
+ToriRSServer_EmbedPartyAuditPoll(void);
+void
+ToriRSServer_EmbedPartyAuditFrame(void);
+void
+ToriRSServer_EmbedPartyAuditCycles(int cycles);
 
 /** Bytes read off a link and not yet taken as frames. */
 struct ToriRSServerEmbedLinkReader
@@ -252,13 +399,16 @@ ToriRSServer_EmbedPartyListen(int port);
  * they dial). `wait_ms` bounds every wait for a member; a member that
  * overruns it is named on stderr and dropped (a logout), so the leader's run
  * goes on and fails on whatever needed that member, instead of hanging.
+ * `trace` (TORIRS_EMBED_PARTY_TRACE) prints the leader's own
+ * `net: party: boundary k -> tick t digest d` line at every boundary.
  */
 void
 ToriRSServer_EmbedPartyAttach(
     struct ToriRSServerEmbed* embed,
     int listener,
     int party_size,
-    int wait_ms);
+    int wait_ms,
+    int trace);
 
 /** Members ever accepted, and members open now (client ids 1..). */
 int

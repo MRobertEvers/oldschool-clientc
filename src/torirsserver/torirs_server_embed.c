@@ -70,6 +70,11 @@ struct ToriRSServerEmbedClient
     struct ToriRSServerEmbedLinkReader link_in;
     /** READY seen for the boundary being assembled. */
     int link_ready;
+    /** READYs taken since this link was seated: the first is not judged
+     *  (a join ticks at once), every later one must carry F frames. */
+    int link_readies;
+    /** The frame count the last READY carried. */
+    int link_frames;
 };
 
 struct ToriRSServerEmbed
@@ -88,6 +93,10 @@ struct ToriRSServerEmbed
      *  party_size - 1, or once a wait for it timed out. */
     int party_joined;
     int party_assembled;
+    /** TORIRS_EMBED_PARTY_TRACE: the leader's boundary line. */
+    int party_trace;
+    /** Party boundaries run (flushed), for the trace's `boundary k`. */
+    int party_boundaries;
     /*
      * Accepted links that have not said their SEAT yet. A member is given
      * the client id its seat names rather than the next free one, because
@@ -411,6 +420,275 @@ link_get_u32(const uint8_t* in)
            (uint32_t)in[3];
 }
 
+/* ------------------------------------------------------------------ */
+/* Lockstep, pinned (torirs_server_embed.h): the payloads, the digest, */
+/* the READY judgement and the frame audit. Pure and host-independent, */
+/* so embed_party_link_test.c drives them with no world booted.        */
+/* ------------------------------------------------------------------ */
+
+int
+ToriRSServer_EmbedLogicCyclesPerFrame(void)
+{
+    static int cached;
+
+    if( cached == 0 )
+    {
+        char const* env = getenv("TORIRS_LOGIC_CYCLES_PER_FRAME");
+        int k = env && env[0] ? atoi(env) : 1;
+
+        if( k < 1 || k > TORIRSSERVER_EMBED_PARTY_FRAMES_PER_TICK ||
+            TORIRSSERVER_EMBED_PARTY_FRAMES_PER_TICK % k != 0 )
+        {
+            fprintf(stderr,
+                    "torirsserver: TORIRS_LOGIC_CYCLES_PER_FRAME=%s must divide %d "
+                    "(1, 2, 3, 5, 6, 10, 15 or 30)\n",
+                    env ? env : "", TORIRSSERVER_EMBED_PARTY_FRAMES_PER_TICK);
+            abort();
+        }
+        cached = k;
+    }
+    return cached;
+}
+
+int
+ToriRSServer_EmbedPartyFramesPerTick(int cycles_per_frame)
+{
+    assert(cycles_per_frame >= 1);
+    assert(TORIRSSERVER_EMBED_PARTY_FRAMES_PER_TICK % cycles_per_frame == 0);
+    return TORIRSSERVER_EMBED_PARTY_FRAMES_PER_TICK / cycles_per_frame;
+}
+
+static uint32_t
+digest_u32(
+    uint32_t hash,
+    uint32_t value)
+{
+    /* FNV-1a, a byte at a time, big-endian, so the digest does not depend on
+     * the host's byte order. */
+    for( int shift = 24; shift >= 0; shift -= 8 )
+    {
+        hash ^= (value >> shift) & 0xFFu;
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+uint32_t
+ToriRSServer_EmbedWorldDigest(const struct ToriRSServer* srv)
+{
+    uint32_t hash = 2166136261u;
+    uint32_t npcs = 0;
+
+    assert(srv);
+    if( !srv->world_built )
+        return 0;
+    hash = digest_u32(hash, (uint32_t)srv->tick);
+    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; pid++ )
+    {
+        const struct ToriRSServerPlayer* p = &srv->players[pid];
+
+        if( !p->active )
+            continue;
+        hash = digest_u32(hash, (uint32_t)pid);
+        hash = digest_u32(hash, (uint32_t)p->x);
+        hash = digest_u32(hash, (uint32_t)p->z);
+        hash = digest_u32(hash, (uint32_t)p->level);
+        hash = digest_u32(hash, (uint32_t)p->hitpoints);
+    }
+    for( int slot = 0; slot < srv->npc_slot_max && slot < TORIRSSERVER_NPC_MAX; slot++ )
+        if( srv->npcs[slot].active )
+            npcs++;
+    return digest_u32(hash, npcs);
+}
+
+void
+ToriRSServer_EmbedLinkSeatEncode(
+    uint8_t* out,
+    int seat,
+    int cycles_per_frame)
+{
+    assert(out);
+    link_put_u32(out, (uint32_t)TORIRSSERVER_EMBED_PARTY_PROTOCOL);
+    link_put_u32(out + 4, (uint32_t)seat);
+    link_put_u32(out + 8, (uint32_t)cycles_per_frame);
+}
+
+int
+ToriRSServer_EmbedLinkSeatDecode(
+    const uint8_t* payload,
+    int len,
+    int* out_version,
+    int* out_seat,
+    int* out_cycles_per_frame)
+{
+    assert(out_version);
+    assert(out_seat);
+    assert(out_cycles_per_frame);
+    /* A version-1 member sent its seat alone, in 4 bytes: say "version 1"
+     * so the leader's refusal names the mismatch, not a torn frame. */
+    if( len == 4 )
+    {
+        assert(payload);
+        *out_version = 1;
+        *out_seat = (int)link_get_u32(payload);
+        *out_cycles_per_frame = 1;
+        return 1;
+    }
+    if( len != TORIRSSERVER_EMBED_LINK_SEAT_LEN )
+        return 0;
+    assert(payload);
+    *out_version = (int)link_get_u32(payload);
+    *out_seat = (int)link_get_u32(payload + 4);
+    *out_cycles_per_frame = (int)link_get_u32(payload + 8);
+    return 1;
+}
+
+void
+ToriRSServer_EmbedLinkReadyEncode(
+    uint8_t* out,
+    int frames)
+{
+    assert(out);
+    assert(frames >= 0);
+    link_put_u32(out, (uint32_t)frames);
+}
+
+int
+ToriRSServer_EmbedLinkReadyDecode(
+    const uint8_t* payload,
+    int len,
+    int* out_frames)
+{
+    assert(out_frames);
+    if( len != TORIRSSERVER_EMBED_LINK_READY_LEN )
+        return 0;
+    assert(payload);
+    *out_frames = (int)link_get_u32(payload);
+    return 1;
+}
+
+void
+ToriRSServer_EmbedLinkTickEncode(
+    uint8_t* out,
+    int tick,
+    uint32_t digest)
+{
+    assert(out);
+    link_put_u32(out, (uint32_t)tick);
+    link_put_u32(out + 4, digest);
+}
+
+int
+ToriRSServer_EmbedLinkTickDecode(
+    const uint8_t* payload,
+    int len,
+    int* out_tick,
+    uint32_t* out_digest)
+{
+    assert(out_tick);
+    assert(out_digest);
+    if( len != TORIRSSERVER_EMBED_LINK_TICK_LEN )
+        return 0;
+    assert(payload);
+    *out_tick = (int)link_get_u32(payload);
+    *out_digest = link_get_u32(payload + 4);
+    return 1;
+}
+
+int
+ToriRSServer_EmbedPartyReadyCheck(
+    int seat,
+    int frames,
+    int expected,
+    int first)
+{
+    assert(expected > 0);
+    if( first || frames == expected )
+        return 1;
+    fprintf(stderr, "torirsserver: party: seat %d ran %d frames, expected %d\n", seat, frames,
+            expected);
+    return 0;
+}
+
+static int g_lockstep_tick = TORIRSSERVER_EMBED_LOCKSTEP_NONE;
+
+int
+ToriRSServer_EmbedLockstepTick(void)
+{
+    return g_lockstep_tick;
+}
+
+void
+ToriRSServer_EmbedLockstepNote(int tick)
+{
+    g_lockstep_tick = tick;
+}
+
+/* The frame audit. One process, one frame loop: file scope is the loop's. */
+static int g_audit_armed;
+static int g_audit_polls;
+static int g_audit_frames_since_poll;
+
+void
+ToriRSServer_EmbedPartyAuditArm(int armed)
+{
+    if( armed && !g_audit_armed )
+        fprintf(stderr, "torirsserver: party: frame audit armed (one poll per frame, %d logic "
+                        "cycle(s) per frame, %d frames per tick)\n",
+                ToriRSServer_EmbedLogicCyclesPerFrame(),
+                ToriRSServer_EmbedPartyFramesPerTick(ToriRSServer_EmbedLogicCyclesPerFrame()));
+    g_audit_armed = armed;
+    /* The poll that arms counts as the first: the next one checks the
+     * frame between them. */
+    g_audit_polls = armed ? 1 : 0;
+    g_audit_frames_since_poll = 0;
+}
+
+int
+ToriRSServer_EmbedPartyAuditArmed(void)
+{
+    return g_audit_armed;
+}
+
+void
+ToriRSServer_EmbedPartyAuditPoll(void)
+{
+    if( g_audit_armed && g_audit_polls > 0 && g_audit_frames_since_poll != 1 )
+    {
+        /* abort(), not assert(): the quest binary is OPT=1 (NDEBUG), and a
+         * skipped or doubled frame is exactly the silent shift this guards. */
+        fprintf(stderr,
+                "torirsserver: party: %d frame(s) ran between two transport polls, expected "
+                "exactly 1 -- a skipped or doubled frame breaks the lock step\n",
+                g_audit_frames_since_poll);
+        abort();
+    }
+    g_audit_polls++;
+    g_audit_frames_since_poll = 0;
+}
+
+void
+ToriRSServer_EmbedPartyAuditFrame(void)
+{
+    g_audit_frames_since_poll++;
+}
+
+void
+ToriRSServer_EmbedPartyAuditCycles(int cycles)
+{
+    int const k = ToriRSServer_EmbedLogicCyclesPerFrame();
+
+    if( g_audit_armed && cycles != k )
+    {
+        fprintf(stderr,
+                "torirsserver: party: a frame paid %d logic cycle(s), expected %d "
+                "(TORIRS_LOGIC_CYCLES_PER_FRAME); a party client needs TORIRS_MAX_FRAMES so "
+                "every frame pays exactly k\n",
+                cycles, k);
+        abort();
+    }
+}
+
 #if EMBED_PARTY_SOCKETS
 
 /*
@@ -707,7 +985,8 @@ ToriRSServer_EmbedPartyAttach(
     struct ToriRSServerEmbed* embed,
     int listener,
     int party_size,
-    int wait_ms)
+    int wait_ms,
+    int trace)
 {
     assert(embed);
     assert(listener >= 0);
@@ -719,8 +998,13 @@ ToriRSServer_EmbedPartyAttach(
     embed->party_size = party_size;
     embed->party_wait_ms = wait_ms;
     embed->party_assembled = party_size <= 1;
-    fprintf(stderr, "torirsserver: party: attached (party of %d, member wait %d ms)\n",
-            party_size, wait_ms);
+    embed->party_trace = trace;
+    fprintf(stderr,
+            "torirsserver: party: attached (party of %d, member wait %d ms, protocol %d, "
+            "%d logic cycle(s) per frame, %d frames per tick)\n",
+            party_size, wait_ms, TORIRSSERVER_EMBED_PARTY_PROTOCOL,
+            ToriRSServer_EmbedLogicCyclesPerFrame(),
+            ToriRSServer_EmbedPartyFramesPerTick(ToriRSServer_EmbedLogicCyclesPerFrame()));
 }
 
 int
@@ -829,7 +1113,38 @@ party_seat(struct ToriRSServerEmbed* embed)
             }
             continue;
         }
-        seat = type == TORIRSSERVER_EMBED_LINK_SEAT && len == 4 ? (int)link_get_u32(payload) : -1;
+        seat = -1;
+        if( type == TORIRSSERVER_EMBED_LINK_SEAT )
+        {
+            int version = 0;
+            int cycles = 0;
+
+            if( ToriRSServer_EmbedLinkSeatDecode(payload, len, &version, &seat, &cycles) )
+            {
+                /* A member built from another protocol, or told to run
+                 * another number of cycles per frame, cannot keep this
+                 * leader's lock step: say which, and stop the run. */
+                if( version != TORIRSSERVER_EMBED_PARTY_PROTOCOL )
+                {
+                    fprintf(stderr,
+                            "torirsserver: party: seat %d speaks link protocol %d, this leader "
+                            "%d -- rebuild both from one tree\n",
+                            seat, version, TORIRSSERVER_EMBED_PARTY_PROTOCOL);
+                    abort();
+                }
+                if( cycles != ToriRSServer_EmbedLogicCyclesPerFrame() )
+                {
+                    fprintf(stderr,
+                            "torirsserver: party: seat %d runs %d logic cycle(s) per frame, this "
+                            "leader %d -- TORIRS_LOGIC_CYCLES_PER_FRAME must be one value for "
+                            "the whole party\n",
+                            seat, cycles, ToriRSServer_EmbedLogicCyclesPerFrame());
+                    abort();
+                }
+            }
+            else
+                seat = -1;
+        }
         id = -1;
         if( seat == 0 )
         {
@@ -852,6 +1167,7 @@ party_seat(struct ToriRSServerEmbed* embed)
         }
         embed_connect_at(embed, id);
         embed->clients[id].link_fd = fd;
+        embed->clients[id].link_readies = 0;
         /* What followed the SEAT stays buffered for the session. */
         embed->clients[id].link_in = *in;
         memset(in, 0, sizeof(*in));
@@ -865,10 +1181,18 @@ party_seat(struct ToriRSServerEmbed* embed)
 /*
  * Move one member's buffered frames into its session, up to and including
  * its READY. Returns 0 if the member broke the protocol (a member never
- * sends TICK).
+ * sends TICK, and its READY carries its frame count).
+ *
+ * The READY's count is judged here (ToriRSServer_EmbedPartyReadyCheck): a
+ * member that ran other than F clock frames since its last TICK has drifted
+ * from the leader's clock, and every input it sent is about to land on a
+ * tick it did not mean. That aborts the run -- the loud failure the owner
+ * asked for ("I don't want to introduce nondeterminism"), never a shift.
  */
 static int
-party_take_frames(struct ToriRSServerEmbedClient* client)
+party_take_frames(
+    struct ToriRSServerEmbedClient* client,
+    int client_id)
 {
     int type;
     const uint8_t* payload;
@@ -880,7 +1204,20 @@ party_take_frames(struct ToriRSServerEmbedClient* client)
         if( type == TORIRSSERVER_EMBED_LINK_DATA )
             ToriRSServer_PipeWrite(&client->to_server, payload, len);
         else if( type == TORIRSSERVER_EMBED_LINK_READY )
+        {
+            int frames = 0;
+
+            if( !ToriRSServer_EmbedLinkReadyDecode(payload, len, &frames) )
+                return 0;
             client->link_ready = 1;
+            client->link_frames = frames;
+            client->link_readies++;
+            if( !ToriRSServer_EmbedPartyReadyCheck(
+                    client_id + 1, frames,
+                    ToriRSServer_EmbedPartyFramesPerTick(ToriRSServer_EmbedLogicCyclesPerFrame()),
+                    client->link_readies == 1) )
+                abort();
+        }
         else
             return 0;
     }
@@ -918,7 +1255,7 @@ party_barrier(struct ToriRSServerEmbed* embed)
 
             if( !client->open || client->link_fd < 0 )
                 continue;
-            if( !party_take_frames(client) )
+            if( !party_take_frames(client, i) )
             {
                 party_drop(embed, i, "sent a frame a member never sends");
                 continue;
@@ -975,7 +1312,7 @@ party_barrier(struct ToriRSServerEmbed* embed)
             if( ToriRSServer_EmbedLinkFill(pfds[k].fd, &embed->clients[ids[k]].link_in, 0) < 0 )
             {
                 /* Whatever it sent before closing still counts. */
-                party_take_frames(&embed->clients[ids[k]]);
+                party_take_frames(&embed->clients[ids[k]], ids[k]);
                 party_drop(embed, ids[k], "closed its link");
             }
         }
@@ -986,9 +1323,18 @@ party_barrier(struct ToriRSServerEmbed* embed)
 static void
 party_flush(struct ToriRSServerEmbed* embed)
 {
-    uint8_t tick[4];
+    uint8_t tick[TORIRSSERVER_EMBED_LINK_TICK_LEN];
+    int const tick_now = embed->srv.world_built ? embed->srv.tick : -1;
+    uint32_t const digest = ToriRSServer_EmbedWorldDigest(&embed->srv);
 
-    link_put_u32(tick, (uint32_t)(embed->srv.world_built ? embed->srv.tick : -1));
+    ToriRSServer_EmbedLinkTickEncode(tick, tick_now, digest);
+    embed->party_boundaries++;
+    /* This process's lockstep tick (driver state stamped with it is
+     * honoured from the next boundary on; torirs_plugin_drive.c). */
+    ToriRSServer_EmbedLockstepNote(tick_now);
+    if( embed->party_trace )
+        fprintf(stderr, "net: party: boundary %d -> tick %d digest %08x\n",
+                embed->party_boundaries, tick_now, digest);
     for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
     {
         struct ToriRSServerEmbedClient* client = &embed->clients[i];
@@ -1007,7 +1353,7 @@ party_flush(struct ToriRSServerEmbed* embed)
         }
         if( ok )
             ok = ToriRSServer_EmbedLinkSend(client->link_fd, TORIRSSERVER_EMBED_LINK_TICK,
-                                             tick, 4);
+                                             tick, TORIRSSERVER_EMBED_LINK_TICK_LEN);
         client->link_ready = 0;
         if( !ok )
             party_drop(embed, i, "stopped reading its link");

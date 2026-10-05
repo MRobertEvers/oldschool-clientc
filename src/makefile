@@ -6195,6 +6195,10 @@ test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)
 # frame byte-exact, frame order, a closed peer read as closed. Over a
 # socketpair, no world booted -- the three-client run in test/raids/README.md
 # ("A party run") is the end-to-end proof. Native POSIX only, like the link.
+# And the lock step's own rules (raid seam21, "Lockstep, pinned"): SEAT's
+# protocol version and k, a member running F frames per tick accepted and one
+# running F-1 refused (at k=1 and k=10), and one TICK's digest read the same
+# by two members and moved by a tile, a hitpoint or an npc.
 .PHONY: test-embed-party-link
 test-embed-party-link: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedPartyLinkTest \

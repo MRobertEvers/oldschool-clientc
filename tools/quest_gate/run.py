@@ -1868,11 +1868,19 @@ def run_party(name, source_file, fixture_name, binary, manifest_path, timeout, s
                 "TORIRS_EMBED_PARTY_JOIN": str(port),
                 "TORIRS_EMBED_PARTY_SEAT": str(seat),
                 "TORIRS_EMBED_PARTY_WAIT_S": wait_s,
+                "TORIRS_EMBED_PARTY_TRACE": "1",
             })
             print("+ [p%d] %s" % (seat, " ".join(command)), flush=True)
             log = open(os.path.join(session, "client.log"), "wb")
+            # QUEST_PARTY_NICE_SEAT=<n> (raid seam21, party_repeat.py --load):
+            # member n runs at nice 19, so under a load generator it is the
+            # slowest raider; the lock step must not care.
+            slow = os.environ.get("QUEST_PARTY_NICE_SEAT") == str(seat)
+            if slow:
+                print("run.py: p%d runs at nice 19 (QUEST_PARTY_NICE_SEAT)" % seat, flush=True)
             process = subprocess.Popen(command, env=environment, cwd=REPO_ROOT, stdout=log,
-                                       stderr=subprocess.STDOUT, start_new_session=True)
+                                       stderr=subprocess.STDOUT, start_new_session=True,
+                                       preexec_fn=(lambda: os.nice(19)) if slow else None)
             members.append((seat, session, process, log))
         started = time.monotonic()
         leader_session = seats[0][2]
@@ -1883,6 +1891,7 @@ def run_party(name, source_file, fixture_name, binary, manifest_path, timeout, s
                                             "TORIRS_EMBED_PARTY_LISTEN": str(port),
                                             "TORIRS_EMBED_PARTY_SIZE": str(size),
                                             "TORIRS_EMBED_PARTY_WAIT_S": wait_s,
+                                            "TORIRS_EMBED_PARTY_TRACE": "1",
                                         })
         stall = stall or None
         leader_seconds = time.monotonic() - started
@@ -1908,17 +1917,23 @@ def run_party(name, source_file, fixture_name, binary, manifest_path, timeout, s
             for seat, account, session, script in seats[1:]:
                 shutil.copy2(leader_ticklog, os.path.join(session, "ticklog.tsv"))
         gate.party_union(directory)
+        # raid seam21: every raider's boundary trace against the leader's
+        # (gate.party_lockstep); the union ledger carries it as party.lockstep.
+        lock_verdict, lock_detail = gate.party_lockstep(directory)
+        print("run.py: party %s: party.lockstep %s -- %s" % (name, lock_verdict, lock_detail),
+              flush=True)
         print("run.py: party %s: leader exit %s after %.1f s; members %s" % (
             name, "none" if code is None else code, leader_seconds,
             ", ".join("p%d exit %s" % (seat, "killed" if member_codes[seat] is None
                                        else member_codes[seat]) for seat in sorted(member_codes))),
             flush=True)
         has_ledger = os.path.isfile(os.path.join(directory, "ledger.tsv"))
-        ok = (not timed_out) and (not stall) and code == 0 and has_ledger and unfinished is None
+        ok = (not timed_out) and (not stall) and code == 0 and has_ledger and unfinished is None \
+            and lock_verdict == "PASS"
         return {
             "name": name, "exit_code": code, "timed_out": timed_out, "has_ledger": has_ledger,
             "directory": directory, "ok": ok, "unfinished": unfinished,
-            "stalled": stall is not None, "party": size,
+            "stalled": stall is not None, "party": size, "lockstep": lock_verdict,
         }
     finally:
         release_session_lock(name)
@@ -2476,7 +2491,8 @@ def main():
                              "(a non-empty setup list is run first, as for a quest) -- see the module "
                              "docstring")
     parser.add_argument("--name", default=None,
-                        help="artefact directory name for --script (default: its basename)")
+                        help="artefact directory name for --script (default: its basename), or "
+                             "for ONE party test id (needs --no-publish; raid seam21)")
     parser.add_argument("--from-leg", type=int, default=None, metavar="K",
                         help="a legs file only: log in from checkpoint K-1 (written by an "
                              "earlier run) and run legs K..end, under the run name <id>.leg<K>; "
@@ -2604,11 +2620,20 @@ def main():
 
     if any(party_of(n) > 1 for n in names):
         # A party run is N clients already: run them one at a time.
+        # --name gives ONE party test id its own run name (raid seam21:
+        # tools/raid_gate/party_repeat.py, scratch repeats beside the kept
+        # artefact). The name seeds the run (its accounts), and a renamed run
+        # is not the test's evidence, so it never publishes.
+        if arguments.name and (arguments.all or len(names) != 1):
+            parser.error("--name renames one run: give one test id, not --all")
+        if arguments.name and not arguments.no_publish:
+            parser.error("--name with a test id needs --no-publish (a renamed run is a scratch)")
         results = []
         for n in names:
             quest_file = quest_list.quest_path(REPO_ROOT, n)
             if party_of(n) > 1:
-                results.append(run_party(n, quest_file, read_fixture_name(quest_file), binary,
+                results.append(run_party(arguments.name or n, quest_file,
+                                         read_fixture_name(quest_file), binary,
                                          manifest_path, arguments.timeout, party_of(n), False))
             else:
                 results.append(run_quest(n, binary, manifest_path, arguments.timeout))
