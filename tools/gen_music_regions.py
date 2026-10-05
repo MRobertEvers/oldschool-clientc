@@ -12,8 +12,24 @@ sources, both checked in under docs/audio/:
   music_regions.tsv          region id -> track name, extracted from Kronos's
                              MusicPlayer.java (OSRS 184 era, 440 entries over
                              435 distinct map squares)
-  music_tracks_osrs239.tsv   track name -> song archive id + unlock (varp, bit),
-                             dumped from DBTable 44 of cache.osrs239
+  music_tracks_osrs239.tsv   track name -> song archive id + unlock (variable,
+                             bit), dumped from DBTable 44 of cache.osrs239
+
+and a third, read from the content tree at generation time:
+
+  interface_music/configs/music.varp
+                             music VARIABLE N -> the varp id that holds it,
+                             from the `[varp<id>_musicmulti_<N>]` declarations
+
+The DBTable's pair is NOT a varp id. Its first half is the music variable,
+1-27, the index CS2 7305/7306 and `[proc,music_unlock_var]` switch on;
+variable 5 lives in varp 24 (`%varp24_musicmulti_5`), not varp 5. Emitting
+the variable as a varp made every region unlock OR a bit into a quest varp:
+Draynor Village (square 48,50, "Unknown Land" = variable 5 bit 5) turned
+%varp5_grail's spoken_crone (4) into 36. So the table's `varp` column is
+the musicmulti varp id, mapped here, and the generator refuses to write a
+row whose variable has no musicmulti varp or whose varp lands below the
+first musicmulti varp.
 
 Names are matched case-insensitively and against both the display and sort
 forms, because the two sources disagree on the capitalisation of small words
@@ -24,13 +40,37 @@ The output is committed. Regenerate it when either input changes; do not hand
 edit it.
 """
 
+import argparse
 import csv
+import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 REGIONS = ROOT / "docs/audio/music_regions.tsv"
 TRACKS = ROOT / "docs/audio/music_tracks_osrs239.tsv"
+MUSIC_VARP = (
+    ROOT
+    / "OSRS-Content/osrs239-content/server/scripts/interface_music/configs/music.varp"
+)
+
+
+def load_musicmulti(path):
+    """Music variable N -> varp id, from `[varp<id>_musicmulti_<N>]` lines."""
+    pattern = re.compile(r"^\[varp(\d+)_musicmulti_(\d+)\]\s*$")
+    variable_to_varp = {}
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            m = pattern.match(line.strip())
+            if not m:
+                continue
+            varp, variable = int(m.group(1)), int(m.group(2))
+            if variable in variable_to_varp:
+                sys.exit("gen_music_regions: musicmulti_%d declared twice in %s" % (variable, path))
+            variable_to_varp[variable] = varp
+    if not variable_to_varp:
+        sys.exit("gen_music_regions: no [varp<id>_musicmulti_<N>] declarations in %s" % path)
+    return variable_to_varp
 
 
 def load(path):
@@ -47,8 +87,18 @@ def load(path):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument(
+        "--music-varp",
+        default=str(MUSIC_VARP),
+        help="the content tree's interface_music/configs/music.varp",
+    )
+    args = parser.parse_args()
+
     regions = load(REGIONS)
     tracks = load(TRACKS)
+    variable_to_varp = load_musicmulti(args.music_varp)
+    first_musicmulti_varp = min(variable_to_varp.values())
 
     by_name = {}
     for row in tracks:
@@ -67,7 +117,16 @@ def main():
         varp, bit = -1, -1
         pair = hit.get("unlock_varp,bit") or ""
         if "," in pair:
-            varp, bit = (int(x) for x in pair.split(",", 1))
+            variable, bit = (int(x) for x in pair.split(",", 1))
+            if variable not in variable_to_varp:
+                sys.exit(
+                    "gen_music_regions: %s unlocks music variable %d, which no "
+                    "[varp<id>_musicmulti_%d] in %s declares"
+                    % (name, variable, variable, args.music_varp)
+                )
+            varp = variable_to_varp[variable]
+            if varp < first_musicmulti_varp:
+                sys.exit("gen_music_regions: %s maps to varp %d, below musicmulti_1" % (name, varp))
         song = hit.get("song_archive_id")
         if not song:
             unmatched.append(name)
@@ -103,10 +162,14 @@ def main():
     out.write(" *\n")
     out.write(" * region id = ((tile_x >> 6) << 8) | (tile_z >> 6)\n")
     out.write(" * song      = js5 index 6 archive id, what MIDI_SONG names\n")
-    out.write(" * varp/bit  = the unlock flag the music player reads; -1 when unknown\n")
+    out.write(" * varp/bit  = the unlock flag the music player reads; -1 when unknown.\n")
+    out.write(" *             `varp` is the musicmulti VARP ID (music.varp), never the\n")
+    out.write(" *             DBTable's music variable index 1-27 -- variable 5 is varp 24.\n")
     out.write(" */\n\n")
     out.write("#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_MUSIC_REGIONS_GEN_H\n")
     out.write("#define SRC_TORIRSSERVER_TORIRS_SERVER_MUSIC_REGIONS_GEN_H\n\n")
+    out.write("/* The lowest musicmulti varp id (musicmulti_1); no row's varp is below it. */\n")
+    out.write("#define TORIRSSERVER_MUSIC_FIRST_UNLOCK_VARP %d\n\n" % first_musicmulti_varp)
     out.write("struct ToriRSServerMusicRegion\n{\n")
     out.write("    int region;\n    int song;\n    int varp;\n    int bit;\n")
     out.write("    const char* name;\n};\n\n")

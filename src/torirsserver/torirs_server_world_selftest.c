@@ -12506,6 +12506,60 @@ ToriRSServer_WorldSelftest(void)
                            "the region track should carry the 30-cycle in/out fade profile");
     }
 
+    fprintf(stderr, "ToriRSServer selftest: region music unlocks write musicmulti varps\n");
+    {
+        /*
+         * DBTable 44's unlock pair is (music VARIABLE 1-27, bit), and the
+         * table used to carry the variable as if it were a varp id. Draynor
+         * Village's square 48,50 ("Unknown Land", variable 5 bit 5) then
+         * OR'd bit 5 into %varp5_grail: spoken_crone 4 became 36 and the
+         * Grail whistle went to the restored realm. music.varp declares
+         * [varp24_musicmulti_5], which is where that bit belongs.
+         */
+        const struct ToriRSServerMusicRegion* draynor = ToriRSServer_MusicForRegion((48 << 8) | 50);
+        int below = 0;
+        int first_below = -1;
+
+        for( int i = 0; i < k_ToriRSServer_MusicRegionCount; i++ )
+        {
+            int varp = k_ToriRSServer_MusicRegions[i].varp;
+            if( varp >= 0 && (varp < TORIRSSERVER_MUSIC_FIRST_UNLOCK_VARP || varp >= TORIRSSERVER_VARP_COUNT) )
+            {
+                if( first_below < 0 )
+                    first_below = k_ToriRSServer_MusicRegions[i].region;
+                below++;
+            }
+        }
+        SELFTEST_CHECK(TORIRSSERVER_MUSIC_FIRST_UNLOCK_VARP == 20,
+                       "musicmulti_1 is varp 20 (music.varp), table says %d",
+                       TORIRSSERVER_MUSIC_FIRST_UNLOCK_VARP);
+        SELFTEST_CHECK(below == 0,
+                       "%d music rows unlock into a varp outside the musicmulti range (first square %d)",
+                       below, first_below);
+        SELFTEST_CHECK(draynor != NULL && draynor->varp == 24 && draynor->bit == 5,
+                       "Draynor Village (48,50) should unlock varp24 bit 5, got varp %d bit %d",
+                       draynor ? draynor->varp : -2, draynor ? draynor->bit : -2);
+        if( draynor )
+        {
+            int old_song = player->music_track;
+            int old_varp5 = player->varps[5];
+            int old_varp24 = player->varps[24];
+
+            player->varps[5] = 4;
+            player->varps[24] = 0;
+            ToriRSServer_MusicEnterRegion(player, 48, 50);
+            SELFTEST_CHECK(player->varps[5] == 4,
+                           "entering Draynor Village must leave varp5 (grail) at 4, got %d",
+                           player->varps[5]);
+            SELFTEST_CHECK(player->varps[24] == (1 << 5),
+                           "entering Draynor Village should set musicmulti_5 bit 5, varp24=%d",
+                           player->varps[24]);
+            player->varps[5] = old_varp5;
+            player->varps[24] = old_varp24;
+            player->music_track = old_song;
+        }
+    }
+
     fprintf(stderr, "ToriRSServer selftest: instanced music resolves the source square\n");
     {
         /*
