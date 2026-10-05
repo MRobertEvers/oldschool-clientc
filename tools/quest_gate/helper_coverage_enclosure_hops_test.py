@@ -20,6 +20,9 @@ steps. The rule each case proves, and what the seam-1 grader read:
      a tile at most 24 away (further may stand for a teleport out)
   D  sealed_entries: a goto into a pocket with no door and no climb, whose
      op locs (if any) were not pressed
+  E  sealed_exits: the mirror of D -- a goto OUT of such a pocket to a tile
+     outside it on the same level and map frame, at any distance, whose op
+     locs (if any) were not pressed in the DOOR_OPEN_TICKS before
 
   case                         rule  step(s)                          want
   afl_blocked_landing          A     takeHammer, makeEquipmentPile    CHEAT CHEAT
@@ -37,6 +40,22 @@ steps. The rule each case proves, and what the seam-1 grader read:
                                      stepping stone, whose pocket's only op loc (tog_cave_down) was
                                      never pressed                    CHEAT
   dream_sink_house             A     fillVialWithWater                CHEAT
+  asoh_sealed_departure        E     talkToTegdak: goto-talkToTegdak from the train platform
+                                     2488,5536 (296 tiles, only op loc the way back) to Tegdak
+                                     at 2512,5562                     CHEAT
+  asoh_sealed_departed_outside E     talkToTegdak (stamped 2520,5605, the dig, outside)  DRIVEN
+  asoh_sealed_op_pressed       E     talkToTegdak (slice_underground_wall_exit_goblin at
+                                     2489,5536 pressed the row before)  DRIVEN
+  asoh_run2_full_route         E     the b62 round-2 fixer's full-route probe run (its
+                                     PROBE.goto-talkToTegdak), which read FULL: TEST_GAP now.
+                                     Graded only while its files are still under
+                                     build/orchestrator/fix_b62/r2/ (build output, not git).
+                                     (The round-7 pair's own verdict is no witness: it reads
+                                     TEST_GAP without sealed_exits too, on talkToZanikRailway.)
+
+The anothersliceofham fixtures are its round-7 file at ab832b98d and the
+published ledger at OSRS-Content 58364738ca (green 149/0, graded FULL before
+sealed_exits).
 
 Writes only temporary files. Exit 0 when every case holds.
 """
@@ -55,14 +74,18 @@ import helper_coverage  # noqa: E402
 LUA_COMMIT = "7936d2d97"
 LEDGER_COMMIT = "994d64d507"
 LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_%s/play/ledger.tsv"
+# Another Slice of H.A.M. round 7 (green 149/0, graded FULL before sealed_exits)
+ASOH_LUA_COMMIT = "ab832b98d"
+ASOH_LEDGER_COMMIT = "58364738ca"
+ASOH_RUN2 = os.path.join(helper_coverage.REPO_ROOT, "build", "orchestrator", "fix_b62", "r2")
 
 
-def fixture(test_id):
+def fixture(test_id, lua_commit=LUA_COMMIT, ledger_commit=LEDGER_COMMIT):
     lua = subprocess.run(["git", "-C", helper_coverage.REPO_ROOT, "show",
-                          "%s:test/quests/%s.lua" % (LUA_COMMIT, test_id)],
+                          "%s:test/quests/%s.lua" % (lua_commit, test_id)],
                          capture_output=True, text=True, check=True).stdout
     ledger = subprocess.run(["git", "-C", os.path.join(helper_coverage.REPO_ROOT, "OSRS-Content"), "show",
-                             "%s:%s" % (LEDGER_COMMIT, LEDGER % test_id)],
+                             "%s:%s" % (ledger_commit, LEDGER % test_id)],
                             capture_output=True, text=True, check=True).stdout
     return lua, ledger
 
@@ -111,17 +134,20 @@ def cases():
     twp, twp_ledger = fixture("twilightspromise")
     wanted, wanted_ledger = fixture("wanted")
     dream, dream_ledger = fixture("dreammentor")
+    asoh, asoh_ledger = fixture("anothersliceofham", ASOH_LUA_COMMIT, ASOH_LEDGER_COMMIT)
     for text, rows in ((afl_ledger, ("goto-talkToAtza", "goto-takeHammer", "goto-makeEquipmentPile",
                                      "goto-talkToVerity", "goto-returnToFoxAfterTrim")),
                        (twp_ledger, ("goto-enterHQ",)), (wanted_ledger, ("pos2.goto", "goto-mage", "pos4.goto")),
-                       (dream_ledger, ("goto-fillVialWithWater",))):
+                       (dream_ledger, ("goto-fillVialWithWater",)), (asoh_ledger, ("goto-talkToTegdak",))):
         for row in rows:
             assert ("\t%s\tPASS\t" % row) in text, "the fixture ledger no longer carries %r" % row
     # the run's goto-returnToFoxAfterTrim left Atza's house (1698,3063) for
     # Fox, 83 tiles away (a teleport out may stand for that); landed just
     # outside the house's east door instead, it is a walk out past it
     out_of_house = land(afl_ledger, "goto-returnToFoxAfterTrim", "1701,3062,0")
-    return {
+    assert "\tgoto-talkToTegdak\tPASS\t" in asoh_ledger and "at 2512,5562,0 from 2488,5536,0" in asoh_ledger, \
+        "the anothersliceofham fixture no longer leaves the platform"
+    table = {
         "afl_blocked_landing": ("atfirstlight", afl, afl_ledger,
                                 {"takeHammer": "CHEAT:enclosure_entries", "makeEquipmentPile": "CHEAT:enclosure_entries"}),
         "afl_corner_next_reading": ("atfirstlight", afl, afl_ledger, {"talkToAtza": "CHEAT:enclosure_entries"}),
@@ -144,7 +170,31 @@ def cases():
         "wanted_op_pocket": ("wanted", wanted, wanted_ledger, {"(goto into a sealed pocket)": "CHEAT:sealed_entries"}),
         "dream_sink_house": ("dreammentor", dream, dream_ledger,
                        {"fillVialWithWater": "CHEAT:enclosure_entries"}),
+        "asoh_sealed_departure": ("anothersliceofham", asoh, asoh_ledger, {"talkToTegdak": "CHEAT:sealed_exits"}),
+        "asoh_sealed_departed_outside": ("anothersliceofham", asoh,
+                                         depart(asoh_ledger, "goto-talkToTegdak", "2520,5605,0"),
+                                         {"talkToTegdak": "DRIVEN"}),
+        "asoh_sealed_op_pressed": ("anothersliceofham", asoh,
+                                   press_before(asoh_ledger, "goto-talkToTegdak",
+                                                "slice_underground_wall_exit_goblin", "2489,5536,0"),
+                                   {"talkToTegdak": "DRIVEN"}),
     }
+    run2_lua = os.path.join(ASOH_RUN2, "anothersliceofham.fullroute.lua")
+    run2_ledger = os.path.join(ASOH_RUN2, "anothersliceofham.run2.fullroute.ledger.tsv")
+    if os.path.exists(run2_lua) and os.path.exists(run2_ledger):
+        with open(run2_lua, encoding="utf-8") as handle:
+            lua = handle.read()
+        with open(run2_ledger, encoding="utf-8") as handle:
+            ledger = handle.read()
+        table["asoh_run2_full_route"] = ("anothersliceofham", lua, ledger,
+                                         {VERDICT: "TEST_GAP", "talkToTegdak": "CHEAT:sealed_exits"})
+    else:
+        print("skip asoh_run2_full_route: %s is gone (build/ output, not a git fixture)" % ASOH_RUN2)
+    return table
+
+
+# the grade's own VERDICT line, checked like a step
+VERDICT = "(verdict)"
 
 
 def grade_case(test_id, lua, ledger_text):
@@ -155,7 +205,9 @@ def grade_case(test_id, lua, ledger_text):
         grader = helper_coverage.Grader(test_id, test_path=os.path.join(scratch, test_id + ".lua"),
                                         test_text=lua, ledger_file=ledger)
         report = grader.report()
-    return {s["step"]: (s["class"], s["reason"]) for s in report["steps"]}
+    by_name = {s["step"]: (s["class"], s["reason"]) for s in report["steps"]}
+    by_name[VERDICT] = (report["verdict"], "")
+    return by_name
 
 
 def main():
