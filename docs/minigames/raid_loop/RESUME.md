@@ -204,6 +204,20 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
   library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
   pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
+  OWNER, 2026-10-05 ~18:10, THE PRIORITY ABOVE EVERYTHING BELOW: "Ok before you do any more raid
+  work, that MUST be implemented. The full multi WorldView support". THE RAID ORCHESTRATOR TOOK
+  OVER THE CAMERA SPLIT (the camera session was idle since 14:34, its worktree clean): merged the
+  raid branch into `matthew-mbp-m4-camera-b1` (21079b994), wrote
+  `<camera>/docs/minigames/raid_loop/CAMERA_TRIAGE_seam2.md` (runner_view_split + watch_debug_aids,
+  c3837b69e) and launched pass `matthew-mbp-m4-camera-b1-seam2` at 18:15 (card args worktree =
+  worktrees/camera, branch = matthew-mbp-m4-camera-b1; state in `<camera>/build/seam_state/`).
+  NO NEW RAID PASS IS LAUNCHED UNTIL IT LANDS ON THE RAID BRANCH: seam30 (the room plans) WAITS.
+  Seam29 (worktrees/raid) and seam25 (worktrees/raid25) were already running and are left to
+  finish (never stop a running pass); merge each when it closes. WHEN THE SPLIT LANDS: merge
+  `origin/matthew-mbp-m4-camera-b1` into the raid branch (by hand where seam25 touched
+  torirs_plugin_drive_pointer.c, pointer.lua, script_runner.lua), re-run cooks_assistant, druid,
+  conformance, the six rooms and the Bloat five-name survey on the merged tree, push, move
+  raid-watch, tell the owner how to try it, THEN launch seam30.
   OWNER, 2026-10-05 ~18:00: "Can you just do those things? Do seam25." So SEAM25 RUNS NOW, IN ITS
   OWN WORKTREE, alongside seam29: `build/orchestrator/worktrees/raid25`, branch
   `matthew-mbp-m4-raid-b1-w25` (parent and OSRS-Content), cut at 2877bbe99; its triage is that
