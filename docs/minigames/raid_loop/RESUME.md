@@ -56,27 +56,24 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   fight watchdog runs only for the barrier-crosser; room music reaches only the builder. Three
   clients are NOT tick-deterministic run to run (a member's typed command lands at its own
   frame-timed boundary; one run in three shifted by a tick).
-- Room launch 14 (pass `matthew-mbp-m4-raid-b1-rooms-tob`, Entry solo; ledger 4fb49229b): KEPT
-  tob_maiden 1dffd5230 (65/65 FULL, 33 of 33 blackstorms landed, prayed hits match 36.5+3.5c),
-  tob_bloat abc53c18e (55/55, hand tiles 14-16 as Blert), tob_nylocas 116a1d938 (76/76, 41 brew
-  doses + 11 restores, Vasilias killed); tob_xarpus f417148e4 and tob_sotetseg 812267e7f kept.
-  tob_verzik: the retry (725620c00) passed its reviewer but the SAMPLER SENT IT BACK and reverted
-  it (41f0cd7e2; ledger e11c5856d): its p3_auto_miss_entry row counted five prayed magic autos as
-  unprayed (the test's pm/pg labels are swapped; Protect from Magic stayed on through tick 576),
-  leaving 7 unprayed ranged autos under the row's minimum of 12; fix: decide unprayed per hit
-  from t.prayer.read() on the landing tick for that hit's style (DRIVER_NOTES "Unprayed is the
-  prayer you read"). RUNNING: the second retry (same args). The other five rooms are green.
+- Room launch 14 DONE (pass `matthew-mbp-m4-raid-b1-rooms-tob`, Entry solo; ledger c1ca757e6):
+  ALL SIX ENTRY SOLO ROOMS KEPT and FULL on the current tree: tob_maiden 1dffd5230 (65 rows),
+  tob_bloat abc53c18e (55), tob_nylocas 116a1d938 (76), tob_xarpus f417148e4 (63), tob_sotetseg
+  812267e7f (83), tob_verzik 3d7589ff4 (145; deathless; P3 autos accuracy-rolled, prayers off at
+  P3 start so unprayed is proved by hits above the prayed max). Reviewers and samplers could not
+  open PNGs this session (Read hook timeout): kept by ledger and tick log.
+- OWNER RULINGS 2026-10-04 (CONTENT_BUGS.md "Owner rulings"): a protection prayer is read when
+  the attack is SENT (default); Verzik P3 reads it on hit (the exception, kept).
+- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam20` (triage `SEAM_TRIAGE_2026-10-04h.md`):
+  Sotetseg's ball/ricochets and the P2 urn bombs read the prayer on landing with no source and
+  move to the send tick (tob_sotetseg is expected to move); the audit of every prayer read goes
+  into CONTENT_BUGS.md.
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
   names seed on their first 12 characters, case folded (jbase37).
 
 ## Next, in order
 
-1. The tob_verzik retry lands (above). Then SEAM20 on `SEAM_TRIAGE_2026-10-04h.md` (27866fe39):
-   the owner's prayer-timing rule (a protection prayer is read when the attack is SENT; a
-   landing-tick read needs a pinned source naming the npc). Sotetseg's ball/ricochets and the
-   P2 urn bombs read on landing with no source and move to the send tick; Verzik P3's landing
-   read is NOT changed but its evidence is assembled for the owner's ruling (ask him; record it
-   in CONTENT_BUGS.md). Then re-author any room it moves. Then the NORMAL THREE-PLAYER ROOM PASS: card raid_author, pass
+1. Seam20 lands (above); re-author any room it moves (tob_sotetseg likely). Then the NORMAL THREE-PLAYER ROOM PASS: card raid_author, pass
    `matthew-mbp-m4-raid-b1-rooms-tob-normal`, raid tob, the six rooms, mode normal, party 3, width 1
    (ids tob_<room>_normal; sources: Strategies wiki per-room sections, the six trio transcripts,
    Blert guides and data; roles only from the sources) (same room pass, move each room's
