@@ -984,3 +984,58 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   test-embed-party-link and test-quest-cheats pass; lint clean on 127 files; spec_check clean;
   server selftest 11 failures (baseline). The smoke's PNG Read timed out in the editor hook
   and was not retried. The six untracked test/raids/tob_<room>_normal.lua stay uncommitted.
+
+## matthew-mbp-m4-raid-b1-seam23 (2026-10-05; parent 3ba1774cc, OSRS-Content fb292a9996 unchanged): a Scripts tab to watch a test play (triage SEAM_TRIAGE_2026-10-05b.md)
+
+- script_start_on_demand; LANDED. `TORIRS_DRIVE_ON_DEMAND=1` puts `api.drive` in an ordinary
+  client, idle until `api.drive.start(path, session_dir)`; `api.drive.stop()` ends a run at its
+  next non-shot yield (`run.unfinished` FAIL + `SUMMARY ... exit=none`); `api.drive.status()`
+  reads it. A finished script returns the driver to idle (the quest-driver is reloaded at the
+  frame boundary). `tools/raid_gate/prepare_scripts.py` writes run.py's own wrapper per solo
+  room and `index.tsv`. Conformance rows `drive.status`, `drive.start`, `drive.stop` PASS live
+  (a test run: status reads the run, start/stop refused naming the knob). Open: consecutive
+  runs share one account's world (Verzik after three rooms fails its backpack setup; no cheat
+  clears worn slots, a `::clearworn` would); `t.session.login` would relog as `watch_<id>`;
+  a script error during a `t.shot` can leave that shot's latch for the next run's first shot
+  (one PNG; `PluginDriveUi_ResetRun` would close it).
+- scripts_panel_and_profile; LANDED. `script/plugins/script_runner.lua` (the Scripts tab) and
+  `profiles/osrs239-scripts.ini`; the owner runs `python3 tools/raid_gate/prepare_scripts.py &&
+  ./launch run osrs239-scripts`, logs in, Confirms the Character Creator on a new name, opens
+  Scripts, searches, picks, Play. Open: `TORIRS_SCRIPTS_INDEX` is not implemented (a Lua plugin
+  cannot read the environment or a path; the list is a committed asset link to the default
+  `--out`; seam24 replaces it with a client-side query); the search box loses the keyboard when
+  the list follows (600 ms after the last key; the host carries no focus across a rebuild);
+  unavailable rows are plain labels, not greyed rows; a disabled button's caption draws orange
+  and an enabled one's white; the profile shares the checkout's plugin_prefs.ini.
+- NOT supported from the tab: party tests (listed unavailable: three clients in lock step),
+  quests (they need their fixture at login; not listed), determinism (wall clock, the
+  person's account, the world the last run left: a frame-locked watched tob_maiden left the
+  kept ledger at row 29 because the raid is entered on tick 62, not 37). A watched ledger
+  grades nothing.
+- Closer's headless proof on the final tree (`close1`: the profile's own `./src/torirs` built
+  by its command, its exact `[env]` from `./launch show osrs239-scripts` plus
+  `SDL_VIDEODRIVER=dummy`, a 3300-frame cap and the sim knobs; new name seam23close1): the
+  index listed 12 scripts, 6 playable; the panel opened at tick 650; typing `maid` gave
+  `search 'maid' -> 2 rows`; Play started tob_maiden (`on demand: start 1`), whose
+  `build/quest_gate/watch_tob_maiden/ledger.tsv` has rows 1-14 PASS (spec.scope through
+  boss.hp); Stop wrote `15 run.unfinished FAIL` and `SUMMARY 15 FAIL 69 exit=none pass=14
+  fail=1`; four backspaces gave 12 rows; Play started tob_bloat (`start 2`), rows 1-5 PASS.
+  The frame at present 3200 (fullscreen pane, read as a crop:
+  `build/seam_state/matthew-mbp-m4-raid-b1-seam23/close/tab/close1.png`) shows the title
+  "Scripts", Exit fullscreen, an empty Search box, "12 scripts, 6 playable here.", Selected
+  tob_bloat, Play (orange: disabled while running) and Stop (white: enabled), Driver "running
+  tob_bloat", Step "5. bloat.potion PASS", Rows "PASS 5 FAIL 0 BLOCKED 0", the note "Started
+  tob_bloat; ledger in build/quest_gate/watch_tob_bloat", then the rows tob_bloat ("selected:
+  Theatre of Blood, Bloat, Entry solo"), tob_maiden, tob_nylocas and tob_sotetseg, with a
+  scrollbar; nothing overlaps.
+- Gates on the final tree: with none of the new knobs set, cooks_assistant and druid are
+  byte-identical to build/merge17_check; the six Entry rooms re-ran with byte-identical
+  ledgers (maiden 112, bloat 94, nylocas 177, sotetseg 158, xarpus 120, verzik 259 PASS) and
+  raid_gate grades all six FULL (65, 55, 76, 84, 63, 145 in-scope rows); `_party_smoke` green
+  (157 PASS) and `party_repeat.py --runs 3 --load` AGREE (tick log sha 6cf6d25dd6a6, 230
+  boundaries); quest suite 115 green, deserttreasure, forgettabletale, regicide and troll RED
+  (baseline). Conformance 353/353 (181 verbs + 172 seam rows). check-drive-abi,
+  check-pt-switch, check-tree-walks, check-scan-meter (5 lanes), check-quest-verbs,
+  test-plugin-lua (now 18 bundled scripts: the closer added script_runner.lua) and
+  test-quest-cheats pass; lint clean on 127 files; spec_check clean; server selftest 11
+  failures (baseline). The six untracked test/raids/tob_<room>_normal.lua stay uncommitted.
