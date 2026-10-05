@@ -1797,11 +1797,39 @@ return {
                     end
                 end
                 local _, _, pset3 = t.prayer.read()
+                -- the protection prayer lit in P2 carries into P3: drop it at the phase change, so the autos before my first P3 switch are truly unprayed (read per tick)
+                if p3.first_pray == nil then
+                    for _, pn in ipairs({ "protectfrommissiles", "protectfrommagic", "protectfrommelee" }) do
+                        if pset3 and pset3[pn] == true then
+                            t.prayer.set(pn, false)
+                            p3.dropped = p3.dropped or tk
+                            pset3[pn] = false
+                        end
+                    end
+                end
                 -- before the one tornado touch I want, the raider comes down to a middling hitpoint count (the touch is half of the CURRENT hitpoints and
                 -- heals her three times that): her enraged autos are left unprayed while I stand above 55
                 local pre_touch = p3.enraged > 0
                 for _, h in ipairs(R.hitp) do if h.npc_type == 10846 then pre_touch = false end end
-                local skip_pray = false
+                -- the last arrows: her hitpoints left (600 + three times each tornado touch - what I dealt) are about two arrows; the protection prayers come off while I stand
+                -- healthy so an auto already in flight when she goes still lands as a real hit (spec.verzik.p3_inflight_after_death)
+                local heal_total = 0
+                for _, h in ipairs(R.hitp) do if h.npc_type == 10846 then heal_total = heal_total + 3 * h.damage end end
+                local boss_left = 600 + heal_total - dealt
+                local skip_pray = (p3.enraged > 0 and boss_left <= 115 and hpv >= 50)
+                if skip_pray and not p3.armour_off then
+                    -- a raider taking the last auto unprayed also takes it with the armour's defence bonuses off, so the roll against her is a real chance (spec.verzik.p3_inflight_after_death)
+                    p3.armour_off = tk
+                    for _, an in ipairs({ "armadyl_chestplate", "armadyl_skirt", "infernal_cape", "slayer_boots", "armadyl_helmet" }) do
+                        p3.armour_res = (p3.armour_res or "") .. an .. "=" .. tostring((t.player.unequip(an))) .. " "
+                    end
+                end
+                if skip_pray then
+                    p3.prayers_off = p3.prayers_off or tk
+                    for _, pn in ipairs({ "protectfrommissiles", "protectfrommagic", "protectfrommelee" }) do
+                        if pset3 and pset3[pn] == true then t.prayer.set(pn, false) end
+                    end
+                end
                 for _, row in ipairs(new.proj) do
                     if row.spotanim == 1598 then
                         -- the green ball is told by projectile 1598 (always on 8125); no prayer stops it
@@ -1809,13 +1837,15 @@ return {
                     elseif row.spotanim == 1593 then
                         -- ranged auto: the prayer counts when the projectile LANDS (2-3 ticks on), so the switch on the launch tick is in time; two unprayed samples first for the maxima rows
                         p3.mag_seen = (p3.mag_seen or 0) + 1
-                        if p3.mag_seen > 2 and not skip_pray then
+                        if (p3.mag_seen > 7 or hpv < 30) and not skip_pray then
+                            p3.first_pray = p3.first_pray or row.tick
                             local sw_res = t.prayer.set("protectfrommissiles", true)
                             p3.switches[row.tick] = { at = tk, was_on = (pset3 and pset3.protectfrommissiles == true) or false, style = 1593, res = sw_res }
                         end
                     elseif row.spotanim == 1594 then
                         p3.rng_seen = (p3.rng_seen or 0) + 1
-                        if p3.rng_seen > 2 and not skip_pray then
+                        if (p3.rng_seen > 7 or hpv < 30) and not skip_pray then
+                            p3.first_pray = p3.first_pray or row.tick
                             local sw_res = t.prayer.set("protectfrommagic", true)
                             p3.switches[row.tick] = { at = tk, was_on = (pset3 and pset3.protectfrommagic == true) or false, style = 1594, res = sw_res }
                         end
@@ -1832,6 +1862,7 @@ return {
                 -- the first two magic autos and the melee autos of the experiments are left unprayed so the maxima rows have hits to read
                 if new_atk and new_atk.seq == 8123 and p3.autos > 9 and not skip_pray then
                     t.prayer.set("protectfrommelee", true)
+                    p3.first_pray = p3.first_pray or tk
                 end
                 if p3.autos >= 10 and p3.early_done == nil then
                     p3.early_done = 1
@@ -2035,6 +2066,25 @@ return {
                     end
                 end
                 -- ---- 6. fight: paced so that every special of the rotation is met before the enrage -----
+                -- the last arrow is fired on the tick she launches an attack (the arrow flies about as long as her attack does), so her auto is still in the air when she goes still
+                -- (spec.verzik.p3_inflight_after_death): one tile step stops the standing attack, and the arrow goes out when her launch row shows
+                local hold_last = p3.enraged > 0 and boss_left <= 115 and boss_left > 0 and hpv >= 50 and not crab_alive
+                if hold_last and p3.hold_from == nil then p3.hold_from = tk end
+                if not acted and hold_last and tk <= p3.hold_from + 60 then
+                    local lastA = p3.attacks[#p3.attacks]
+                    local pred = lastA and (lastA.tick + ((lastA.n > 0) and 5 or 10)) or 0
+                    if lastA and tk >= pred - 4 and tk < pred - 3 and p3.hold_fired ~= pred then
+                        p3.hold_fired = pred
+                        t.player.attack("verzik_phase3_story", 2, 1)
+                        p3.last_atk = tk
+                        p3.hold_shots = (p3.hold_shots or 0) + 1
+                        p3.hold_stopped = false
+                    elseif not p3.hold_stopped then
+                        t.player.walk_to(mt.x + ((mt.x < 6441) and 1 or -1), mt.z, 0)
+                        p3.hold_stopped = true
+                    end
+                    acted = true
+                end
                 if not acted then
                     local near_step = (p3.autos <= 9 and T > 0 and tk >= T - 5 and tk <= T)
                     if dealt < p3.dealt_cap and not near_step and tk >= p3.last_atk + 3 then
@@ -2047,7 +2097,28 @@ return {
                 end
                 if tk >= 555 and tk % 3 == 0 then plog[#plog + 1] = tk .. ":p3 acted=" .. tostring(acted) .. " tor=" .. tostring(tornado_alive ~= nil) .. " web=" .. tostring(web_alive ~= nil) .. " dealt=" .. dealt .. "/" .. p3.dealt_cap .. " last_atk=" .. p3.last_atk .. " autos=" .. p3.autos .. " hp=" .. hpv .. " " .. (p3.tdiag or "") end
                 local _, prn = t.skill.read("prayer")
-                if tk % 6 == 0 then t.check("drive.p3state" .. tk, true, "prayer " .. tostring(prn.current or prn.level) .. " hp " .. tostring(hpv) .. " fish " .. tostring(fish) .. " restores " .. tostring(select(2, t.inv.count("br_1dose2restore")) + select(2, t.inv.count("br_2dose2restore")) + select(2, t.inv.count("br_3dose2restore")) + select(2, t.inv.count("br_4dose2restore")))) end
+                if tk % 6 == 0 then t.check("drive.p3state" .. tk, true, "ranged " .. tostring((select(2, t.skill.read("ranged")).current) or select(2, t.skill.read("ranged")).level or select(2, t.skill.read("ranged")).boosted) .. " prayer " .. tostring(prn.current or prn.level) .. " hp " .. tostring(hpv) .. " fish " .. tostring(fish) .. " def " .. tostring(select(2, t.skill.read("defence")).current or select(2, t.skill.read("defence")).level) .. " pm " .. tostring(pset3 and pset3.protectfrommissiles) .. " pg " .. tostring(pset3 and pset3.protectfrommagic) .. " pl " .. tostring(pset3 and pset3.protectfrommelee) .. " off " .. tostring(p3.prayers_off) .. " restores " .. tostring(select(2, t.inv.count("br_1dose2restore")) + select(2, t.inv.count("br_2dose2restore")) + select(2, t.inv.count("br_3dose2restore")) + select(2, t.inv.count("br_4dose2restore")))) end
+                -- the Saradomin brew drains Ranged 10% + 2 of base per dose (seam18): a super restore dose puts it back (and the prayer with it), the ranger's potion lifts it 14
+                local _, rng3 = t.skill.read("ranged")
+                if rng3.level ~= nil and rng3.level < 80 and tk >= last_eat + 2 then
+                    local drank3 = false
+                    for _, pn in ipairs({ "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore" }) do
+                        local _, pc = t.inv.count(pn)
+                        if pc > 0 and not drank3 then
+                            t.player.drink(pn)
+                            last_eat = tk
+                            drank3 = true
+                        end
+                    end
+                    for _, pn in ipairs({ "br_1doserangerspotion", "br_2doserangerspotion", "br_3doserangerspotion", "br_4doserangerspotion" }) do
+                        local _, pc = t.inv.count(pn)
+                        if pc > 0 and not drank3 then
+                            t.player.drink(pn)
+                            last_eat = tk
+                            drank3 = true
+                        end
+                    end
+                end
                 if (prn.current or prn.level) < 30 and (p3.autos > 9 or (prn.current or prn.level) < 10) and tk >= last_eat + 2 then
                     for _, pn in ipairs({ "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore" }) do
                         local _, pc = t.inv.count(pn)
@@ -2195,6 +2266,24 @@ return {
                 end
             end
         end
+        -- seam16: her regular attacks roll accuracy; the autos launched before my first protection prayer of the room (landing at least five ticks before it) are unprayed
+        local um_n, um_zero, um_used, um_max = 0, 0, {}, 0
+        for _, pr in ipairs(R.proj) do
+            if (pr.spotanim == 1593 or pr.spotanim == 1594) and p3.first_pray ~= nil and pr.tick + 5 < p3.first_pray then
+                for _, h in ipairs(R.hitp) do
+                    if h.npc_slot == boss_slot and h.npc_type == 10835 and h.tick >= pr.tick + 2 and h.tick <= pr.tick + 5 and not um_used[h.serial] then
+                        um_used[h.serial] = true
+                        um_n = um_n + 1
+                        if h.damage == 0 then um_zero = um_zero + 1 end
+                        if h.damage > um_max then um_max = h.damage end
+                        break
+                    end
+                end
+            end
+        end
+        p3.um_max = um_max
+        out_rows[#out_rows + 1] = { "spec.verzik.p3_auto_miss_entry", um_n >= 12 and um_zero >= 1,
+            "measured " .. um_zero .. " count, ranged and magic autos at 0 among " .. um_n .. " unprayed ones (protections read off each tick, last dropped at tick " .. tostring(p3.dropped) .. ", first switch on at " .. tostring(p3.first_pray) .. "; largest " .. um_max .. ") (spec 1-99 count, grade C, tol range)" }
         if c3.adj[1] >= 1 and (c3.under[1] + c3.far[1]) >= 1 then
             out_rows[#out_rows + 1] = { "spec.verzik.p3_melee_predicate", c3.adj[2] >= 1 and c3.under[2] == 0 and c3.far[2] == 0,
                 "measured adjacent not overlapping on T-1; melee on " .. c3.adj[2] .. " of " .. c3.adj[1] .. " attacks with the tank adjacent on T-1, " .. c3.under[2] .. " of " .. c3.under[1] .. " with the tank under her, " .. c3.far[2] .. " of " .. c3.far[1] .. " with the tank two or more out; first P3 attack with the tank adjacent: " .. first_adj_melee .. " " .. SPEC.p3_melee_predicate }
@@ -2521,7 +2610,7 @@ return {
                 t.check("spec.verzik.p3_web_lifetime", true, "measured " .. wl_txt[1] .. " ticks, npc_spawn to npc_free of " .. #wl_txt .. " webs (" .. table.concat(wl_txt, ",") .. ") " .. SPEC.p3_web_lifetime)
             end
             -- the prayer counts when the projectile lands
-            local sw_n, sw_max, sw_txt = 0, 0, {}
+            local sw_n, sw_max, sw_txt, sw_nz = 0, 0, {}, 0
             local used_hits = {}
             for st, sw in pairs(p3.switches) do
                 local hit_row
@@ -2532,11 +2621,12 @@ return {
                     used_hits[hit_row.serial] = true
                     sw_n = sw_n + 1
                     if hit_row.damage > sw_max then sw_max = hit_row.damage end
+                    if hit_row.damage > 0 then sw_nz = sw_nz + 1 end
                     sw_txt[#sw_txt + 1] = st .. ":" .. sw.style .. "+" .. (hit_row.tick - st) .. "=" .. hit_row.damage
                 end
             end
             if sw_n >= 1 then
-                t.check("tech.p3_prayer_at_landing", sw_max <= 10, sw_n .. " autos whose prayer was off on the attack tick and switched on after the projectile row, hit_player max " .. sw_max .. " (an unprayed Entry auto reaches 20, prayed at most 10): " .. table.concat(sw_txt, " "))
+                t.check("tech.p3_prayer_at_landing", sw_max <= 10 and sw_nz >= 1 and (p3.um_max or 0) > sw_max, sw_n .. " autos whose prayer was off on the attack tick and switched on after the projectile row, hit_player max " .. sw_max .. ", " .. sw_nz .. " nonzero, against an unprayed largest " .. tostring(p3.um_max) .. " (an unprayed Entry auto reaches 20, prayed at most 10): " .. table.concat(sw_txt, " "))
                 t.check("spec.verzik.p3_prayer_read", sw_max <= 10, "measured " .. (sw_max <= 10 and "landing" or "attack tick") .. " (spec landing, grade D, tol exact)")
             end
             -- the blood spell heal: half the roll, half the halved roll under Protect from Magic
@@ -2752,7 +2842,7 @@ return {
                 if want[v] then covered = covered + 1 else subset = false end
             end
             local pass = subset and n_pick > 0 and (av[6] ~= true or covered == want_n)
-            t.ticks(1) t.check("spec.verzik.av." .. av[1], pass,
+            t.ticks(3) t.check("spec.verzik.av." .. av[1], pass,
                 "measured " .. (#obs > 0 and table.concat(obs, ",") or "0") .. ", " .. n_pick .. " picks over " .. n_anchor .. " anchor rows (ticks " .. table.concat(ticks, ",") .. "); " .. av[5]
                 .. " (spec " .. av[2] .. " count, grade " .. av[3] .. ", tol exact)")
         end
@@ -2867,7 +2957,12 @@ return {
                 t.check("spec.verzik.p3_inflight_after_death", drop_tick - last_launch >= 3 and drop_tick - last_launch <= 6,
                     "measured " .. (drop_tick - last_launch) .. " ticks, her last launch on tick " .. last_launch .. ", her death row on tick " .. death_tick .. ", a raider hit of " .. drop_dmg .. " on tick " .. drop_tick .. " (spec 3-6 ticks, grade B, tol range)")
             else
-                t.check("drive.inflight_diag", true, "no hit_player damage after her death row on tick " .. death_tick .. "; last launch " .. tostring(last_launch) .. "; bat " .. tostring(bat_spawn))
+                local near_hits = {}
+                for _, hh in ipairs(AVR.hit_player) do
+                    if hh.tick >= death_tick - 4 then near_hits[#near_hits + 1] = hh.tick .. ":" .. hh.damage .. ":" .. tostring(hh.npc_type) end
+                end
+                t.check("drive.inflight_hits", true, "hit_player rows from four ticks before her death row on tick " .. death_tick .. ": " .. table.concat(near_hits, " "))
+                t.check("drive.inflight_diag", true, "armour off " .. tostring(p3.armour_off) .. " " .. tostring(p3.armour_res) .. "; no hit_player damage after her death row on tick " .. death_tick .. "; last launch " .. tostring(last_launch) .. "; bat " .. tostring(bat_spawn))
             end
         end
 
