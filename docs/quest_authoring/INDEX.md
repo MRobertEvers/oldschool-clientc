@@ -81,6 +81,10 @@ topic file with one line added here.
 - an npc's tile one behind when read right at the script's `mes()` line; an npc's `slot` changed after a teleport out of view and back -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (b), (c)
 - a goto from an underground room to a tile far beyond its wall reads FULL; the wall is a multiloc `Hole`/`Squeeze-through` (Lost Tribe cellar, Wanted! dk); a goto leaves a castle/base it walked into -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (a), (b)
 - `goto_table.py` prints `LEVEL CHANGE 1->0` (a goto from an upstairs room), or `reach.py` from a goto's DEPARTURE says NEEDS-DOOR after a `talk_to` walked you in -> sampler-findings: Sample matthew-mbp-m4-b56, round 4
+- `cross_gate` fails under a guard's page ("Nice observation guard"); "a page is up: ... pass spec.chat"; a door that speaks before it moves the player -> verbs-pointer: A GUARDED walk-through speaks first (`chat=`, `chat_optional=`)
+- `no_row ... nearest copies: x,z,1` from cross_trap/pass_door/cross_gate/climb on a bridge deck; loc_near `not_found` "one raw level up: a bridge-deck loc" -> verbs-pointer: A loc on another raw level: `loc_level` (b61-seam1)
+- "This door appears to be locked." from INSIDE the Khazard compound after the arena escape (FIXED b61-seam1: the inside opens at any stage) -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (a)
+
 
 ## Pressing and clicking
 
@@ -224,6 +228,8 @@ topic file with one line added here.
 - `journal_open` times out after early PASSes -> gaps-dialogue: `t.ui.journal_open` can degrade
 - `timeout first_line=nil` after a dialogue -> gaps-world: `t.player.use_on` waits
 - lint refuses a var name -> gaps-combat: What the ledger; `sscompile` contention
+- a quest varp 1-27 jumps by a power of two after a walk or goto (grail 4 -> 36 near Draynor) -- the region-music unlock wrote raw varps (FIXED b61-seam1; run on torirs_b61engine or newer) -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (d)
+
 
 ## Fights
 
@@ -279,6 +285,10 @@ topic file with one line added here.
 - a note says one more shark "cannot fit"; every rerun of a boss fight reads the same ticks and food; the margin row has no lowest hp (Swan Song round 6) -> gaps-combat: A note says one more food item cannot fit
 - how to turn on Protect from Magic/Missiles/Melee; a prayer `t.ui.invoke` that leaves its varbit 0 -> verbs-combat: Turning on a protection prayer
 - setup says the guide's light source or helmet "does not fit in 28 slots" while the run equips and spends items before the step that needs them -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (c)
+- an `[ai_queue3]` that queues a player script with `npc_uid` never runs its message (the Black Knight Titan's "Well done!"); the npc is gone or respawned under a new slot (FIXED b61-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (e)
+- a quest npc dies in two hits / fights at 10 hp, or lost its attack/death anims after a quest .npc block was added (first `[gameval]` block wins) -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (c)
+- `await_dead_engaged` times out at a few hp left after a seam raised the npc's hitpoints -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (c)
+
 
 ## Completion and rewards
 
@@ -508,6 +518,9 @@ topic file with one line added here.
 - the Temple of Light Low wall's Climb-over says "Nothing interesting happens."; `timeout settle_after_click` on the hop (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (h)
 - the Entrana monk: "NO WEAPONS OR ARMOUR are permitted on holy Entrana AT ALL"; a test that boarded armed (FIXED b59-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (j)
 - a quest trigger on a shared staircase kills it for everyone; a quest ladder with no maplink row (`~climb_ladder_to`) -> seam-facts: Seam pass matthew-mbp-m4-b59-seam1 (b), (f)
+- a weapon or armour carried through the Abyss Law rift; "The power of Saradomin prevents you ..." (b61-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (b)
+- `generate_quest_combat_manifest.py --check` says stale after a hand edit of quest_combat_manifest.json -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (c)
+
 
 ## Citations: resolving a number or a name
 
