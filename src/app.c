@@ -74,6 +74,7 @@ App_Init(
     assert(app);
     assert(cfg);
     memset(app, 0, sizeof(*app));
+    App_WorldViewsInit(app);
     app->cfg = *cfg;
     /* 0 is a legal component uid, so "nothing has mounted a modal yet" needs a
      * value of its own. */
@@ -450,31 +451,31 @@ App_Init(
     assert(app->painter_buffer);
     /* v1 GameRunescape camera defaults; repositioned on world load complete. */
     /* Both knobs are populated; projection_mode picks. See graphics/projection.h. */
-    app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
-    app->world_camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
-    app->world_camera.fov_rpi2048 = TORIDRAW_PROJECTION_FOV_DEFAULT;
+    app->frame_view->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    app->frame_view->world_camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
+    app->frame_view->world_camera.fov_rpi2048 = TORIDRAW_PROJECTION_FOV_DEFAULT;
     /* 50 also load-bearing for the raster, not just for what gets drawn: the
      * near plane is what keeps projected coordinates inside the kernels' 16.16
      * edge representation (+/-32,768 px). Lowering it moves the largest models
      * into overflow range -- see the note at the near clip in
      * graphics/projection.u.c before changing it or TORIRS_NEAR_PLANE. */
-    app->world_camera.near_plane_z =
+    app->frame_view->world_camera.near_plane_z =
         (getenv("TORIRS_NEAR_PLANE") ? atoi(getenv("TORIRS_NEAR_PLANE")) : 50);
-    app->world_camera.pitch = 148;
-    app->world_camera_pos.z = -800;
+    app->frame_view->world_camera.pitch = 148;
+    app->frame_view->world_camera_pos.z = -800;
     /* The flattest the profile allows: the reference's orbitCameraPitch
      * default IS its own lower bound, so a lane that states a different range
      * boots at the bottom of the range it stated rather than at a 128 that no
      * longer means anything there. */
-    app->orbit.pitch = app->revconfig_profile.camera.pitch_flattest;
-    app->orbit.yaw = 0;
+    app->frame_view->orbit.pitch = app->revconfig_profile.camera.pitch_flattest;
+    app->frame_view->orbit.yaw = 0;
     /* Where the profile says this camera sits before anyone touches it.
      * `[camera] rest=`, and the band is around it, not the other way up. */
-    app->world_cam_zoom = app->revconfig_profile.camera.rest;
-    app->world_hover_tile_x = -1;
-    app->world_hover_tile_z = -1;
-    app->world_hover_tile_level = 0;
-    app->world_hover_view = 0;
+    app->frame_view->world_cam_zoom = app->revconfig_profile.camera.rest;
+    app->frame_view->world_hover_tile_x = -1;
+    app->frame_view->world_hover_tile_z = -1;
+    app->frame_view->world_hover_tile_level = 0;
+    app->frame_view->world_hover_view = 0;
     /* -2, not -1: -1 is "no tile", a state the refreshers must still be run
      * for once, and seeding them equal to it would skip that first run. */
     app->highlight_last_hover_coord = -2;

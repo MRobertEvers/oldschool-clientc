@@ -448,10 +448,19 @@ static int peer_screen(struct App* app, const struct WorldEntity_Player* actor,
         ground_y = sailing_ground_height(app->world, fine_x, fine_z, level);
     }
     if( fine_x < 128 || fine_z < 128 ) return 0;
-    return ToriRS_WorldProjectPoint(&app->world_camera, &app->world_camera_pos,
-        app->world_emit_desc.x, app->world_emit_desc.y,
-        app->world_emit_desc.w, app->world_emit_desc.h, 50,
-        fine_x, ground_y - height, fine_z, out_x, out_y);
+    return ToriRS_WorldProjectPoint(
+        &app->frame_view->world_camera,
+        &app->frame_view->world_camera_pos,
+        app->world_emit_desc.x,
+        app->world_emit_desc.y,
+        app->world_emit_desc.w,
+        app->world_emit_desc.h,
+        50,
+        fine_x,
+        ground_y - height,
+        fine_z,
+        out_x,
+        out_y);
 }
 
 /* The client's own answer to "is that actor under the cursor?", from the last
@@ -459,9 +468,9 @@ static int peer_screen(struct App* app, const struct WorldEntity_Player* actor,
 static int peer_picked(struct App* app, int element_id)
 {
     assert(app);
-    for( int i = 0; i < app->world_pickset.count; ++i )
-        if( app->world_pickset.items[i].element_id == element_id &&
-            app->world_pickset.items[i].type == WORLD_PICK_PLAYER )
+    for( int i = 0; i < app->frame_view->world_pickset.count; ++i )
+        if( app->frame_view->world_pickset.items[i].element_id == element_id &&
+            app->frame_view->world_pickset.items[i].type == WORLD_PICK_PLAYER )
             return 1;
     return 0;
 }
@@ -647,17 +656,19 @@ int ContentTestSailing_Save(struct App* app, struct ToriRSServerEmbed* embed,
         assert(saved->cargo[i].items);
         memcpy(saved->cargo[i].items,cargo->items,(size_t)cargo->slots*sizeof(*cargo->items));
     }
-    saved->camera = app->world_camera;
-    saved->camera_position = app->world_camera_pos;
+    saved->camera = app->frame_view->world_camera;
+    saved->camera_position = app->frame_view->world_camera_pos;
     saved->base_x = app->world->_base_tile_x;
     saved->base_z = app->world->_base_tile_z;
-    saved->yaw = app->orbit.yaw; saved->pitch = app->orbit.pitch;
-    saved->yaw_velocity = app->orbit.yaw_velocity;
-    saved->pitch_velocity = app->orbit.pitch_velocity;
-    saved->orbit_x = app->orbit.anchor_x; saved->orbit_z = app->orbit.anchor_z;
-    saved->pitch_clamp = app->orbit.pitch_clamp;
-    saved->zoom = app->world_cam_zoom;
-    saved->unlocked = app->camera_unlocked;
+    saved->yaw = app->frame_view->orbit.yaw;
+    saved->pitch = app->frame_view->orbit.pitch;
+    saved->yaw_velocity = app->frame_view->orbit.yaw_velocity;
+    saved->pitch_velocity = app->frame_view->orbit.pitch_velocity;
+    saved->orbit_x = app->frame_view->orbit.anchor_x;
+    saved->orbit_z = app->frame_view->orbit.anchor_z;
+    saved->pitch_clamp = app->frame_view->orbit.pitch_clamp;
+    saved->zoom = app->frame_view->world_cam_zoom;
+    saved->unlocked = app->frame_view->camera_unlocked;
     saved->side_tab = app->slots.side_tab;
     saved->aboard_view = app->aboard_view;
     saved->selected_heading=app->sailing_selected_heading;
@@ -928,19 +939,21 @@ void ContentTestSailing_SettleRestore(struct App* app)
      * even when sailing has moved the root scene window since save. */
     int dx = (saved->base_x - app->world->_base_tile_x) * 128;
     int dz = (saved->base_z - app->world->_base_tile_z) * 128;
-    app->world_camera = saved->camera;
-    app->world_camera_pos = saved->camera_position;
-    app->world_camera_pos.x += dx;
-    app->world_camera_pos.z += dz;
-    app->orbit.yaw = saved->yaw; app->orbit.pitch = saved->pitch;
-    app->orbit.yaw_velocity = saved->yaw_velocity;
-    app->orbit.pitch_velocity = saved->pitch_velocity;
-    app->orbit.anchor_x = saved->orbit_x + dx; app->orbit.anchor_z = saved->orbit_z + dz;
-    app->orbit.pitch_clamp = saved->pitch_clamp;
-    app->world_cam_zoom = saved->zoom;
+    app->frame_view->world_camera = saved->camera;
+    app->frame_view->world_camera_pos = saved->camera_position;
+    app->frame_view->world_camera_pos.x += dx;
+    app->frame_view->world_camera_pos.z += dz;
+    app->frame_view->orbit.yaw = saved->yaw;
+    app->frame_view->orbit.pitch = saved->pitch;
+    app->frame_view->orbit.yaw_velocity = saved->yaw_velocity;
+    app->frame_view->orbit.pitch_velocity = saved->pitch_velocity;
+    app->frame_view->orbit.anchor_x = saved->orbit_x + dx;
+    app->frame_view->orbit.anchor_z = saved->orbit_z + dz;
+    app->frame_view->orbit.pitch_clamp = saved->pitch_clamp;
+    app->frame_view->world_cam_zoom = saved->zoom;
     app->sailing_selected_heading=saved->selected_heading;
     app->sailing_selected_until=app->logic_cycle+saved->selected_remaining;
-    app->camera_unlocked = saved->unlocked;
+    app->frame_view->camera_unlocked = saved->unlocked;
     app->slots.side_tab = saved->side_tab;
     app->need_redraw = 1;
     restore_slot = -1;

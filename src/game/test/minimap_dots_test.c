@@ -60,6 +60,7 @@ fixture_init(struct DotFixture* fx)
     int idx;
 
     memset(fx, 0, sizeof(*fx));
+    App_WorldViewsInit(&fx->app);
     ToriDraw_InitSinTable();
     ToriDraw_InitCosTable();
 

@@ -1351,7 +1351,7 @@ struct ToriRS_CmdBus* PluginDriveCore_CmdBus(void);
  * sets `active`, so that whole branch is dead there, and a world frame with
  * nothing else marking need_redraw (no animation, no camera drift) can go
  * an unbounded number of logic frames without ever rendering again --
- * measured B0 spike: exactly one render at boot, then app->world_pickset
+ * measured B0 spike: exactly one render at boot, then app->frame_view->world_pickset
  * frozen at that one frame's contents for the rest of the run. Forcing a
  * draw while this is true gives a level-await's next poll a current frame
  * to read, the same way `hover_requested` does for the mailbox. An

@@ -88,6 +88,7 @@ struct ToriRS_Frame;
 struct ToriRS_PickHits;
 struct PktRunClientScript;
 
+#include <assert.h>
 #include <limits.h>
 #include <stdint.h>
 
@@ -950,6 +951,120 @@ struct AppClientScale
     enum ClientScaleHighDpi high_dpi_auto;
 };
 
+/** The most world views struct App holds: a script's and a watcher's. */
+#define APP_WORLD_VIEW_MAX 2
+
+/**
+ * One WORLD VIEW: everything a camera looking at the shared world owns, and
+ * nothing it shares.
+ *
+ * The world, the character, the UI tree and its layout, the viewport
+ * rectangle and emit desc, and the game's scripted camera (`cam_script`) are
+ * SHARED and stay on struct App. A view holds the camera pose (the follow
+ * orbit, the eye it derives, the zoom, the reload hold, the projection scale
+ * inside `world_camera`), the camera's input latches, the pointer over the
+ * world, the pick results the last drawn frame left at that pointer, and the
+ * right-click menu.
+ *
+ * Today there is exactly ONE: App_Init points `frame_view` at `views[0]` and
+ * sets `view_count` to 1, and nothing ever changes either. Every reader and
+ * writer reaches these fields through a view pointer -- `app->frame_view`,
+ * the view of the frame being built -- so a second view (a script's camera
+ * beside the watcher's; docs/minigames/raid_loop/CAMERA_VIEW_TABLE.md names
+ * which view each site will take) is a choice made where a stage begins,
+ * never a global. A NULL view is a contract violation.
+ */
+struct App_WorldView
+{
+    struct ToriDraw_Camera world_camera;
+    struct ToriDraw_Position world_camera_pos;
+    /* Reference orbit camera (Client-TS followCamera): velocity-driven
+     * yaw/pitch, a 1/16-eased anchor that trails the player, and a terrain
+     * pitch clamp (cameraPitchClamp, 24.8 fixed) that keeps the eye above
+     * nearby ground. cam_key_* latch arrow-held state for the follow step,
+     * which runs before key sampling in the frame.
+     *
+     * orbit_x/orbit_z are FLOAT because the reference's are (rev-239
+     * client.field917/field879, eased in client.method1605). An integer
+     * `anchor += (target - anchor) / 16` never converges: once the gap drops
+     * to 15 the truncated step is 0, so the anchor parks a permanent ~15
+     * units short on each axis and the camera orbits a point beside the
+     * player instead of the player. */
+    /** The follow camera's anchor, angles and terrain clamp. See
+     *  render/world_camera_orbit.h. */
+    struct WorldCameraOrbit orbit;
+    int cam_key_left;
+    int cam_key_right;
+    int cam_key_up;
+    int cam_key_down;
+    /* Middle-button rotate (revconfig `[camera] controls=mmb`): the press
+     * latches inside the viewport rect and keeps the pointer until release, so
+     * a drag that wanders over the sidebar keeps rotating. cam_mmb_x/y is the
+     * pointer position the last delta was measured from. */
+    int cam_mmb_active;
+    int cam_mmb_x;
+    int cam_mmb_y;
+    /*
+     * The follow camera's live ZOOM: the eye sits `pitch * 3 + this` behind
+     * the player, in fine units, so this is the additive half of zoom. It
+     * starts at `[camera] rest=` (the reference's 600, Client-TS camFollow)
+     * and smaller is closer.
+     *
+     * The wheel and the pinch move it inside `[camera] zoom_closest=` ..
+     * `zoom_furthest=`, in `wheel_step=` notches; the settings page's
+     * REVCONFIG_CAMERA_WHEEL_PINNED stops them, which is how a player asks for
+     * the 2004 camera that does not zoom. The MULTIPLICATIVE half is
+     * `[camera] distance_scale=`, which this field knows nothing about. The
+     * free camera dollies along the view axis instead and ignores all of it.
+     */
+    int world_cam_zoom;
+    /** U toggles: 1 = the follow camera stands down and W/A/S/D + R/F fly
+     *  world_camera_pos freely; relocking eases back onto the player (the
+     *  follow's own >500-unit teleport snap handles the return). */
+    int camera_unlocked;
+    /** Camera hold across an offline world reload. See
+     *  render/world_camera_orbit.h. */
+    struct WorldCameraHold cam_hold;
+
+    /* World picking: the full pickset refreshes as part of every rendered
+     * frame (App_Render hittests visible models at world_mouse_x/y); click
+     * handlers consume the last rendered set. */
+    struct World_PickSet world_pickset;
+    int world_mouse_in_viewport;
+    int world_mouse_x; /* last input mouse, canvas coords */
+    int world_mouse_y;
+    /** No pointer is resting at world_mouse_x/y: the finger that was the
+     *  pointer lifted (LibToriRS_Input_PushMouseLeave). The position is kept,
+     *  because a popup the tap opened is anchored to it, but everything hover
+     *  means -- the tile under the pointer, the world pick, the mouseover line
+     *  -- goes quiet until something points at the canvas again. */
+    int pointer_absent;
+    int world_hover_tile_x; /* scene tile, -1 = none */
+    int world_hover_tile_z;
+    int world_hover_tile_level;
+    /** The hovered DECK tile (world-entity terrain under the pointer), or
+     *  view 0 when the pointer is over no deck. Deck-LOCAL tiles at the deck
+     *  MESH level. Kept beside — never instead of — the root hover latch
+     *  above: the click cross and spawn hotkeys speak root tiles; the
+     *  boat-aware consumers (the tile-indicator plugins' hover marker)
+     *  prefer this one when set. */
+    int world_hover_view;
+    int world_hover_view_x;
+    int world_hover_view_z;
+    int world_hover_view_level;
+
+    /**
+     * The right-click menu this view's clicks open and choose from.
+     *
+     * The STORAGE is still `interact.minimenu` on struct App: the UI layer's
+     * interaction step (ui/uitree_interact.c) opens, steers and closes the
+     * menu inside struct UIInteraction, which this seam does not reach into.
+     * The app layer reads and writes it only through this pointer, so a
+     * second view's menu is a second pointer, set where that view is made.
+     */
+    struct UIMinimenu* minimenu;
+};
+
 struct App
 {
     struct AppConfig cfg;
@@ -1144,34 +1259,16 @@ struct App
     /** Viewport size remembered for TORIRS_PAINTER_CULL=baked debounce (0 = none). */
     int painter_cullmap_bake_w;
     int painter_cullmap_bake_h;
-    struct ToriDraw_Camera world_camera;
-    struct ToriDraw_Position world_camera_pos;
-    /* Reference orbit camera (Client-TS followCamera): velocity-driven
-     * yaw/pitch, a 1/16-eased anchor that trails the player, and a terrain
-     * pitch clamp (cameraPitchClamp, 24.8 fixed) that keeps the eye above
-     * nearby ground. cam_key_* latch arrow-held state for the follow step,
-     * which runs before key sampling in the frame.
-     *
-     * orbit_x/orbit_z are FLOAT because the reference's are (rev-239
-     * client.field917/field879, eased in client.method1605). An integer
-     * `anchor += (target - anchor) / 16` never converges: once the gap drops
-     * to 15 the truncated step is 0, so the anchor parks a permanent ~15
-     * units short on each axis and the camera orbits a point beside the
-     * player instead of the player. */
-    /** The follow camera's anchor, angles and terrain clamp. See
-     *  render/world_camera_orbit.h. */
-    struct WorldCameraOrbit orbit;
-    int cam_key_left;
-    int cam_key_right;
-    int cam_key_up;
-    int cam_key_down;
-    /* Middle-button rotate (revconfig `[camera] controls=mmb`): the press
-     * latches inside the viewport rect and keeps the pointer until release, so
-     * a drag that wanders over the sidebar keeps rotating. cam_mmb_x/y is the
-     * pointer position the last delta was measured from. */
-    int cam_mmb_active;
-    int cam_mmb_x;
-    int cam_mmb_y;
+    /**
+     * The world views (see struct App_WorldView). `views[0]` always exists;
+     * `view_count` is how many are live (1 today, and 2 is the most there will
+     * be: a script's camera and the watcher's). `frame_view` is the view the
+     * frame being built reads and writes, chosen where a stage begins --
+     * App_Init points it at `views[0]` and nothing moves it yet.
+     */
+    struct App_WorldView views[APP_WORLD_VIEW_MAX];
+    int view_count;
+    struct App_WorldView* frame_view;
     /*
      * This platform aims the camera with a FINGER, so the revision's
      * `controls=` list does not decide whether it may.
@@ -1226,29 +1323,8 @@ struct App
      * code. Debug world hotkeys share the digit row with the rev-254 tab
      * bindings, so they check this and stand down rather than firing both. */
     uint8_t hotkey_consumed[TORIRS_OSRSKEY_COUNT];
-    /*
-     * The follow camera's live ZOOM: the eye sits `pitch * 3 + this` behind
-     * the player, in fine units, so this is the additive half of zoom. It
-     * starts at `[camera] rest=` (the reference's 600, Client-TS camFollow)
-     * and smaller is closer.
-     *
-     * The wheel and the pinch move it inside `[camera] zoom_closest=` ..
-     * `zoom_furthest=`, in `wheel_step=` notches; the settings page's
-     * REVCONFIG_CAMERA_WHEEL_PINNED stops them, which is how a player asks for
-     * the 2004 camera that does not zoom. The MULTIPLICATIVE half is
-     * `[camera] distance_scale=`, which this field knows nothing about. The
-     * free camera dollies along the view axis instead and ignores all of it.
-     */
-    int world_cam_zoom;
     int world_active; /* 1 once Task_WorldLoad completed */
-    /** U toggles: 1 = the follow camera stands down and W/A/S/D + R/F fly
-     *  world_camera_pos freely; relocking eases back onto the player (the
-     *  follow's own >500-unit teleport snap handles the return). */
-    int camera_unlocked;
 
-    /** Camera hold across an offline world reload. See
-     *  render/world_camera_orbit.h. */
-    struct WorldCameraHold cam_hold;
 
     /**
      * The Place-loc tool's hover ghost: a REAL loc placed at the hovered tile
@@ -1295,12 +1371,9 @@ struct App
      * minimapLevel); a mismatch with the local player's level rebakes it. */
     int world_map_level;
 
-    /* World picking: the full pickset refreshes as part of every rendered
-     * frame (App_Render hittests visible models at world_mouse_x/y); click
-     * handlers consume the last rendered set. world_emit_desc caches the
-     * WORLD node's emit desc — the gate rect and the exact viewport the
-     * render pass draws with. */
-    struct World_PickSet world_pickset;
+    /* The WORLD node's emit desc -- the gate rect and the exact viewport the
+     * render pass draws with. Shared by every view; the pickset each draw
+     * fills is the view's (struct App_WorldView). */
     struct UITreeEmitDesc world_emit_desc;
     int world_view_valid;
     /** Set when this frame reused the previous command list unchanged (PR #49's
@@ -1644,28 +1717,6 @@ struct App
         int gender;
         int built; /* 0 until the first successful composite */
     } player_model;
-    int world_mouse_in_viewport;
-    int world_mouse_x; /* last input mouse, canvas coords */
-    int world_mouse_y;
-    /** No pointer is resting at world_mouse_x/y: the finger that was the
-     *  pointer lifted (LibToriRS_Input_PushMouseLeave). The position is kept,
-     *  because a popup the tap opened is anchored to it, but everything hover
-     *  means -- the tile under the pointer, the world pick, the mouseover line
-     *  -- goes quiet until something points at the canvas again. */
-    int pointer_absent;
-    int world_hover_tile_x; /* scene tile, -1 = none */
-    int world_hover_tile_z;
-    int world_hover_tile_level;
-    /** The hovered DECK tile (world-entity terrain under the pointer), or
-     *  view 0 when the pointer is over no deck. Deck-LOCAL tiles at the deck
-     *  MESH level. Kept beside — never instead of — the root hover latch
-     *  above: the click cross and spawn hotkeys speak root tiles; the
-     *  boat-aware consumers (the tile-indicator plugins' hover marker)
-     *  prefer this one when set. */
-    int world_hover_view;
-    int world_hover_view_x;
-    int world_hover_view_z;
-    int world_hover_view_level;
 
     /* Projectile hotkey latch: first press = src tile, second = dst + fire. */
     /*
@@ -3147,6 +3198,23 @@ App_Init(
     struct App* app,
     struct AppConfig const* cfg);
 
+/**
+ * Make the one world view App_Init starts with: `views[0]`, `view_count` 1,
+ * `frame_view` pointing at it, and its minimenu pointer at the menu
+ * `interact` keeps. Touches nothing else, so App_Init calls it right after
+ * the memset and a test that builds a struct App by hand calls it the same
+ * way before reaching anything that reads a view. Inline, so a test that
+ * links none of src/app/ can still make one.
+ */
+static inline void
+App_WorldViewsInit(struct App* app)
+{
+    assert(app);
+    app->view_count = 1;
+    app->frame_view = &app->views[0];
+    app->frame_view->minimenu = &app->interact.minimenu;
+}
+
 /** Tear down in strict reverse of App_Init. */
 void
 App_Shutdown(struct App* app);
@@ -4064,7 +4132,7 @@ App_RenderSkipRequestDraw(
     int frames);
 
 /**
- * Make the render-time state (app->world_pickset and the hover tile, the
+ * Make the render-time state (app->frame_view->world_pickset and the hover tile, the
  * posed model bounds) what it would be with skip off, before something reads
  * it: when the most recent frame was committed but skipped, draw it NOW, late,
  * into a scratch buffer -- same emit list, scene, camera and pointer, so the

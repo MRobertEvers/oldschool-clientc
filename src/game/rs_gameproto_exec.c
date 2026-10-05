@@ -1728,8 +1728,8 @@ RS_GameProto_Exec(
             app->cam_script.look_rate2 = packet->_cam_lookat.rate2;
             if( !app->cam_script.scripted )
             {
-                app->cam_script.move_lx = app->world_camera_pos.x / 128;
-                app->cam_script.move_lz = app->world_camera_pos.z / 128;
+                app->cam_script.move_lx = app->frame_view->world_camera_pos.x / 128;
+                app->cam_script.move_lz = app->frame_view->world_camera_pos.z / 128;
             }
             app->cam_script.scripted = 1;
             if( packet->_cam_lookat.rate2 >= 100 )

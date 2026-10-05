@@ -64,10 +64,10 @@ app_camera_move_forward(
     struct App* app,
     int amount)
 {
-    int direction_x = ToriDraw_Sin(app->world_camera.yaw);
-    int direction_z = ToriDraw_Cos(app->world_camera.yaw);
-    app->world_camera_pos.x -= (direction_x * amount) >> 16;
-    app->world_camera_pos.z += (direction_z * amount) >> 16;
+    int direction_x = ToriDraw_Sin(app->frame_view->world_camera.yaw);
+    int direction_z = ToriDraw_Cos(app->frame_view->world_camera.yaw);
+    app->frame_view->world_camera_pos.x -= (direction_x * amount) >> 16;
+    app->frame_view->world_camera_pos.z += (direction_z * amount) >> 16;
 }
 
 static void
@@ -75,10 +75,10 @@ app_camera_move_left(
     struct App* app,
     int amount)
 {
-    int direction_x = ToriDraw_Cos(app->world_camera.yaw);
-    int direction_z = ToriDraw_Sin(app->world_camera.yaw);
-    app->world_camera_pos.x += (direction_x * amount) >> 16;
-    app->world_camera_pos.z += (direction_z * amount) >> 16;
+    int direction_x = ToriDraw_Cos(app->frame_view->world_camera.yaw);
+    int direction_z = ToriDraw_Sin(app->frame_view->world_camera.yaw);
+    app->frame_view->world_camera_pos.x += (direction_x * amount) >> 16;
+    app->frame_view->world_camera_pos.z += (direction_z * amount) >> 16;
 }
 
 /* Optional developer camera keys. All bindings come from `[debug:hotkeys]` and
@@ -122,10 +122,10 @@ app_world_camera_keys(
     {
         /* Do not leave held arrow ownership feeding the follow-camera tick
          * after its viewport became display:none. */
-        app->cam_key_left = 0;
-        app->cam_key_right = 0;
-        app->cam_key_up = 0;
-        app->cam_key_down = 0;
+        app->frame_view->cam_key_left = 0;
+        app->frame_view->cam_key_right = 0;
+        app->frame_view->cam_key_up = 0;
+        app->frame_view->cam_key_down = 0;
         return;
     }
     /* Suppressed while any text input has focus (the chat line, a modal
@@ -145,39 +145,43 @@ app_world_camera_keys(
     if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_RIGHT) )
         app_camera_move_left(app, move);
     if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_UP) )
-        app->world_camera_pos.y -= move;
+        app->frame_view->world_camera_pos.y -= move;
     if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_DOWN) )
-        app->world_camera_pos.y += move;
+        app->frame_view->world_camera_pos.y += move;
     /* Arrows drive the orbit camera (reference keyHeld[1..4]); the follow
      * step consumes these next frame. When the follow cam is off (offline or
      * scripted) fall back to the free-cam direct rotate. */
     if( app->revconfig_profile.camera.controls & REVCONFIG_CAMERA_CONTROL_ARROW_KEYS )
     {
-        app->cam_key_left = LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT);
-        app->cam_key_right = LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT);
-        app->cam_key_up = LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP);
-        app->cam_key_down = LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN);
+        app->frame_view->cam_key_left = LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT);
+        app->frame_view->cam_key_right = LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT);
+        app->frame_view->cam_key_up = LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP);
+        app->frame_view->cam_key_down = LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN);
     }
     else
     {
         /* Cleared, not merely left alone: the follow step reads these every
          * cycle and a latch held from before the profile said no would keep
          * accelerating the yaw for as long as the key stayed down. */
-        app->cam_key_left = 0;
-        app->cam_key_right = 0;
-        app->cam_key_up = 0;
-        app->cam_key_down = 0;
+        app->frame_view->cam_key_left = 0;
+        app->frame_view->cam_key_right = 0;
+        app->frame_view->cam_key_up = 0;
+        app->frame_view->cam_key_down = 0;
     }
-    if( app->cam_script.scripted || !app->net || app->camera_unlocked )
+    if( app->cam_script.scripted || !app->net || app->frame_view->camera_unlocked )
     {
-        if( app->cam_key_left )
-            app->world_camera.yaw = ToriDraw_AddAngle(app->world_camera.yaw, rotate);
-        if( app->cam_key_right )
-            app->world_camera.yaw = ToriDraw_AddAngle(app->world_camera.yaw, -rotate);
-        if( app->cam_key_up )
-            app->world_camera.pitch = ToriDraw_AddAngle(app->world_camera.pitch, rotate);
-        if( app->cam_key_down )
-            app->world_camera.pitch = ToriDraw_AddAngle(app->world_camera.pitch, -rotate);
+        if( app->frame_view->cam_key_left )
+            app->frame_view->world_camera.yaw =
+                ToriDraw_AddAngle(app->frame_view->world_camera.yaw, rotate);
+        if( app->frame_view->cam_key_right )
+            app->frame_view->world_camera.yaw =
+                ToriDraw_AddAngle(app->frame_view->world_camera.yaw, -rotate);
+        if( app->frame_view->cam_key_up )
+            app->frame_view->world_camera.pitch =
+                ToriDraw_AddAngle(app->frame_view->world_camera.pitch, rotate);
+        if( app->frame_view->cam_key_down )
+            app->frame_view->world_camera.pitch =
+                ToriDraw_AddAngle(app->frame_view->world_camera.pitch, -rotate);
     }
 
     /* Unlock / relock the camera. Unlocked, the follow update stands down
@@ -187,8 +191,8 @@ app_world_camera_keys(
      * Relocking snaps back through the follow's own teleport path. */
     if( app_debug_key_down(app, input, APP_DEBUG_HOTKEY_CAMERA_UNLOCK) )
     {
-        app->camera_unlocked = !app->camera_unlocked;
-        TORIRS_LOG("camera: %s\n", app->camera_unlocked ? "UNLOCKED" : "locked");
+        app->frame_view->camera_unlocked = !app->frame_view->camera_unlocked;
+        TORIRS_LOG("camera: %s\n", app->frame_view->camera_unlocked ? "UNLOCKED" : "locked");
         app->need_redraw = 1;
     }
 
@@ -298,12 +302,12 @@ app_debug_log_camera(
         "cam_%s: %s yaw=%d pitch=%d height=%d eye=%d,%d,%d\n",
         what,
         follow_cam ? "orbit" : "free",
-        follow_cam ? app->orbit.yaw : app->world_camera.yaw,
-        follow_cam ? app->orbit.pitch : app->world_camera.pitch,
-        app->world_cam_zoom,
-        app->world_camera_pos.x,
-        app->world_camera_pos.y,
-        app->world_camera_pos.z);
+        follow_cam ? app->frame_view->orbit.yaw : app->frame_view->world_camera.yaw,
+        follow_cam ? app->frame_view->orbit.pitch : app->frame_view->world_camera.pitch,
+        app->frame_view->world_cam_zoom,
+        app->frame_view->world_camera_pos.x,
+        app->frame_view->world_camera_pos.y,
+        app->frame_view->world_camera_pos.z);
 }
 
 /* Middle-button rotate and wheel zoom over the world viewport. Both gestures
@@ -332,7 +336,7 @@ app_world_camera_mouse(
 
     if( !app->world_active || !app_world_viewport_component_live(app) )
     {
-        app->cam_mmb_active = 0;
+        app->frame_view->cam_mmb_active = 0;
         return;
     }
     /* The same split app_world_camera_keys makes: online and out of a cutscene
@@ -348,21 +352,21 @@ app_world_camera_mouse(
         /* Only the press has to land on the scene; once latched the drag keeps
          * the pointer until release, so sweeping over the sidebar mid-rotate
          * does not stall the camera. */
-        if( !app->cam_mmb_active && input->curr.mouse_button_down[TORIRSM_MIDDLE] &&
-            !app->interact.minimenu.visible && app_world_mouse_gate(app, mouse_x, mouse_y) )
+        if( !app->frame_view->cam_mmb_active && input->curr.mouse_button_down[TORIRSM_MIDDLE] &&
+            !app->frame_view->minimenu->visible && app_world_mouse_gate(app, mouse_x, mouse_y) )
         {
-            app->cam_mmb_active = 1;
-            app->cam_mmb_x = mouse_x;
-            app->cam_mmb_y = mouse_y;
+            app->frame_view->cam_mmb_active = 1;
+            app->frame_view->cam_mmb_x = mouse_x;
+            app->frame_view->cam_mmb_y = mouse_y;
         }
 
-        if( app->cam_mmb_active )
+        if( app->frame_view->cam_mmb_active )
         {
-            int dx = mouse_x - app->cam_mmb_x;
-            int dy = mouse_y - app->cam_mmb_y;
+            int dx = mouse_x - app->frame_view->cam_mmb_x;
+            int dy = mouse_y - app->frame_view->cam_mmb_y;
 
-            app->cam_mmb_x = mouse_x;
-            app->cam_mmb_y = mouse_y;
+            app->frame_view->cam_mmb_x = mouse_x;
+            app->frame_view->cam_mmb_y = mouse_y;
 
             if( dx != 0 || dy != 0 )
             {
@@ -371,18 +375,19 @@ app_world_camera_mouse(
                     /* The key path eases through a velocity; a drag is already
                      * a position delta, so it writes the angle and zeroes the
                      * velocity rather than fighting the decay next frame. */
-                    app->orbit.yaw = (app->orbit.yaw - dx * APP_WORLD_MMB_YAW_PER_PX) & 0x7ff;
-                    app->orbit.pitch = app_world_clamp_pitch(
-                        app, app->orbit.pitch + dy * APP_WORLD_MMB_PITCH_PER_PX);
-                    app->orbit.yaw_velocity = 0;
-                    app->orbit.pitch_velocity = 0;
+                    app->frame_view->orbit.yaw =
+                        (app->frame_view->orbit.yaw - dx * APP_WORLD_MMB_YAW_PER_PX) & 0x7ff;
+                    app->frame_view->orbit.pitch = app_world_clamp_pitch(
+                        app, app->frame_view->orbit.pitch + dy * APP_WORLD_MMB_PITCH_PER_PX);
+                    app->frame_view->orbit.yaw_velocity = 0;
+                    app->frame_view->orbit.pitch_velocity = 0;
                 }
                 else
                 {
-                    app->world_camera.yaw =
-                        ToriDraw_AddAngle(app->world_camera.yaw, -dx * APP_WORLD_MMB_YAW_PER_PX);
-                    app->world_camera.pitch =
-                        ToriDraw_AddAngle(app->world_camera.pitch, dy * APP_WORLD_MMB_PITCH_PER_PX);
+                    app->frame_view->world_camera.yaw = ToriDraw_AddAngle(
+                        app->frame_view->world_camera.yaw, -dx * APP_WORLD_MMB_YAW_PER_PX);
+                    app->frame_view->world_camera.pitch = ToriDraw_AddAngle(
+                        app->frame_view->world_camera.pitch, dy * APP_WORLD_MMB_PITCH_PER_PX);
                 }
                 app_debug_log_camera(app, "rotate", follow_cam);
                 app->need_redraw = 1;
@@ -391,17 +396,18 @@ app_world_camera_mouse(
 
         if( !LibToriRS_Input_IsMouseHeld(input, TORIRSM_MIDDLE) ||
             input->curr.mouse_button_up[TORIRSM_MIDDLE] )
-            app->cam_mmb_active = 0;
+            app->frame_view->cam_mmb_active = 0;
     }
     else
-        app->cam_mmb_active = 0;
+        app->frame_view->cam_mmb_active = 0;
 
     /* Wheel up (positive) zooms in. Gated on the pointer being over the scene
      * and on no widget having already taken this notch, so a wheel over a
      * scroll pane drawn across the viewport still belongs to that pane —
      * app_world_mouse_gate alone only rejects *interactive* nodes, and an IF1
      * scroll layer is pass-through. */
-    if( input->curr.mouse_wheel_y != 0 && !out->wheel_consumed && !app->interact.minimenu.visible &&
+    if( input->curr.mouse_wheel_y != 0 && !out->wheel_consumed &&
+        !app->frame_view->minimenu->visible &&
         /* The chrome's claim is checked HERE, not inferred from consumed
          * flags: this runs long after the overlay handled input, when
          * input_frame_consumed is 1 on every frame. A wheel over a panel or
@@ -422,9 +428,9 @@ app_world_camera_mouse(
         }
         else if( app_world_camera_zooms(app) )
         {
-            app->world_cam_zoom = RevConfigProfile_CameraClampZoom(
+            app->frame_view->world_cam_zoom = RevConfigProfile_CameraClampZoom(
                 &app->revconfig_profile,
-                app->world_cam_zoom -
+                app->frame_view->world_cam_zoom -
                     input->curr.mouse_wheel_y * app->revconfig_profile.camera.wheel_step);
         }
         else
@@ -502,9 +508,9 @@ app_cinema_angles(
         &ty,
         &tz);
 
-    dx = tx - app->world_camera_pos.x;
-    dy = ty - app->world_camera_pos.y;
-    dz = tz - app->world_camera_pos.z;
+    dx = tx - app->frame_view->world_camera_pos.x;
+    dy = ty - app->frame_view->world_camera_pos.y;
+    dz = tz - app->frame_view->world_camera_pos.z;
     distance = (int)sqrt((double)dx * dx + (double)dz * dz);
 
     pitch = (int)(atan2((double)dy, (double)distance) * 325.949) & 0x7ff;
@@ -524,15 +530,16 @@ App_CinemaCameraSnapPosition(struct App* app)
         app->cam_script.move_lx,
         app->cam_script.move_lz,
         app->cam_script.move_height,
-        &app->world_camera_pos.x,
-        &app->world_camera_pos.y,
-        &app->world_camera_pos.z);
+        &app->frame_view->world_camera_pos.x,
+        &app->frame_view->world_camera_pos.y,
+        &app->frame_view->world_camera_pos.z);
 }
 
 void
 App_CinemaCameraSnapAngle(struct App* app)
 {
-    app_cinema_angles(app, &app->world_camera.pitch, &app->world_camera.yaw);
+    app_cinema_angles(
+        app, &app->frame_view->world_camera.pitch, &app->frame_view->world_camera.yaw);
 }
 
 /* Ease one axis toward its target: a flat `rate` plus `rate2`/1000 of what is
@@ -581,37 +588,43 @@ app_world_camera_cinema(struct App* app)
         &ty,
         &tz);
 
-    app->world_camera_pos.x = app_cinema_ease(app->world_camera_pos.x, tx, rate, rate2);
-    app->world_camera_pos.y = app_cinema_ease(app->world_camera_pos.y, ty, rate, rate2);
-    app->world_camera_pos.z = app_cinema_ease(app->world_camera_pos.z, tz, rate, rate2);
+    app->frame_view->world_camera_pos.x =
+        app_cinema_ease(app->frame_view->world_camera_pos.x, tx, rate, rate2);
+    app->frame_view->world_camera_pos.y =
+        app_cinema_ease(app->frame_view->world_camera_pos.y, ty, rate, rate2);
+    app->frame_view->world_camera_pos.z =
+        app_cinema_ease(app->frame_view->world_camera_pos.z, tz, rate, rate2);
 
     app_cinema_angles(app, &pitch, &yaw);
     rate = app->cam_script.look_rate;
     rate2 = app->cam_script.look_rate2;
-    app->world_camera.pitch = app_cinema_ease(app->world_camera.pitch, pitch, rate, rate2);
+    app->frame_view->world_camera.pitch =
+        app_cinema_ease(app->frame_view->world_camera.pitch, pitch, rate, rate2);
 
     /* Yaw wraps, so ease along the short way round and stop when the sign of
      * the remaining turn flips — the linear helper cannot see past the seam. */
-    delta = yaw - app->world_camera.yaw;
+    delta = yaw - app->frame_view->world_camera.yaw;
     if( delta > 1024 )
         delta -= 2048;
     else if( delta < -1024 )
         delta += 2048;
 
     if( delta > 0 )
-        app->world_camera.yaw = (app->world_camera.yaw + rate + delta * rate2 / 1000) & 0x7ff;
+        app->frame_view->world_camera.yaw =
+            (app->frame_view->world_camera.yaw + rate + delta * rate2 / 1000) & 0x7ff;
     else if( delta < 0 )
-        app->world_camera.yaw = (app->world_camera.yaw - rate - -delta * rate2 / 1000) & 0x7ff;
+        app->frame_view->world_camera.yaw =
+            (app->frame_view->world_camera.yaw - rate - -delta * rate2 / 1000) & 0x7ff;
 
     if( delta != 0 )
     {
-        int remaining = yaw - app->world_camera.yaw;
+        int remaining = yaw - app->frame_view->world_camera.yaw;
         if( remaining > 1024 )
             remaining -= 2048;
         else if( remaining < -1024 )
             remaining += 2048;
         if( (remaining < 0 && delta > 0) || (remaining > 0 && delta < 0) )
-            app->world_camera.yaw = yaw;
+            app->frame_view->world_camera.yaw = yaw;
     }
 
     /* TORIRS_CAM_DEBUG=1: trace the scripted camera. */
@@ -619,11 +632,11 @@ app_world_camera_cinema(struct App* app)
         TORIRS_LOG(
             "cam eye=%d,%d,%d pitch=%d yaw=%d -> move=%d,%d h=%d look=%d,%d h=%d "
             "shake=%d%d%d%d%d\n",
-            app->world_camera_pos.x,
-            app->world_camera_pos.y,
-            app->world_camera_pos.z,
-            app->world_camera.pitch,
-            app->world_camera.yaw,
+            app->frame_view->world_camera_pos.x,
+            app->frame_view->world_camera_pos.y,
+            app->frame_view->world_camera_pos.z,
+            app->frame_view->world_camera.pitch,
+            app->frame_view->world_camera.yaw,
             app->cam_script.move_lx,
             app->cam_script.move_lz,
             app->cam_script.move_height,
@@ -696,11 +709,11 @@ app_world_camera_limits(struct App const* app)
     limits.pitch_flattest = app->revconfig_profile.camera.pitch_flattest;
     limits.pitch_steepest = app->revconfig_profile.camera.pitch_steepest;
     limits.pitch_distance = app->revconfig_profile.camera.pitch_distance;
-    limits.rest_zoom = app->world_cam_zoom;
+    limits.rest_zoom = app->frame_view->world_cam_zoom;
     limits.viewport_zoom_256 =
         app->revconfig_profile.camera.viewport_zoom ? app_world_cam_dist_zoom((struct App*)app) : 0;
     limits.distance_scale_percent = app->revconfig_profile.camera.distance_scale;
-    limits.near_plane_z = app->world_camera.near_plane_z;
+    limits.near_plane_z = app->frame_view->world_camera.near_plane_z;
     return limits;
 }
 
@@ -718,7 +731,7 @@ app_world_camera_follow(struct App* app)
      * R/F debug keys own world_camera_pos until U relocks. Without this gate
      * the follow overwrites the eye every frame, which is why free flight only
      * ever worked offline. */
-    if( app->camera_unlocked )
+    if( app->frame_view->camera_unlocked )
         return;
     if( app->cam_script.scripted || !app->net )
         return;
@@ -765,12 +778,12 @@ app_world_camera_follow(struct App* app)
         cam_yaw += cam_spin;
         if( have )
         {
-            app->orbit.yaw = cam_yaw & 0x7ff;
-            app->orbit.yaw_velocity = 0;
+            app->frame_view->orbit.yaw = cam_yaw & 0x7ff;
+            app->frame_view->orbit.yaw_velocity = 0;
             if( cam_pitch >= 0 )
             {
-                app->orbit.pitch = app_world_clamp_pitch(app, cam_pitch);
-                app->orbit.pitch_velocity = 0;
+                app->frame_view->orbit.pitch = app_world_clamp_pitch(app, cam_pitch);
+                app->frame_view->orbit.pitch_velocity = 0;
             }
             if( cam_zoom > 0 )
                 /* A percentage of THIS revision's rest, not of the reference
@@ -778,7 +791,7 @@ app_world_camera_follow(struct App* app)
                  * and normal is wherever this camera rests -- reading it
                  * against a constant makes the same packet mean two different
                  * views on two lanes. */
-                app->world_cam_zoom = RevConfigProfile_CameraClampZoom(
+                app->frame_view->world_cam_zoom = RevConfigProfile_CameraClampZoom(
                     &app->revconfig_profile, app->revconfig_profile.camera.rest * cam_zoom / 100);
         }
     }
@@ -839,17 +852,18 @@ app_world_camera_follow(struct App* app)
      * direction the player last walked. The eye is built around that anchor, so
      * the player model swung round a point beside itself while orbiting — the
      * camera appeared to orbit the tile rather than the player. */
-    Wev_SmoothCameraFocus(&app->orbit.anchor_x, &app->orbit.anchor_z, target_x, target_z);
+    Wev_SmoothCameraFocus(
+        &app->frame_view->orbit.anchor_x, &app->frame_view->orbit.anchor_z, target_x, target_z);
 
     /* Arrow keys -> yaw/pitch velocity. @see WorldCameraOrbit_StepAngles. */
     {
         struct WorldCameraLimits const limits = app_world_camera_limits(app);
-        struct WorldCameraKeys const keys = { .left = app->cam_key_left != 0,
-                                              .right = app->cam_key_right != 0,
-                                              .up = app->cam_key_up != 0,
-                                              .down = app->cam_key_down != 0 };
+        struct WorldCameraKeys const keys = { .left = app->frame_view->cam_key_left != 0,
+                                              .right = app->frame_view->cam_key_right != 0,
+                                              .up = app->frame_view->cam_key_up != 0,
+                                              .down = app->frame_view->cam_key_down != 0 };
 
-        WorldCameraOrbit_StepAngles(&app->orbit, &keys, &limits);
+        WorldCameraOrbit_StepAngles(&app->frame_view->orbit, &keys, &limits);
     }
 
     /* Terrain pitch clamp: scan the 9x9 tile block around the anchor for
@@ -858,8 +872,8 @@ app_world_camera_follow(struct App* app)
     {
         struct Heightmap* hm = app->world ? app->world->heightmap : NULL;
         int level = player->grid_position.level;
-        int orbit_ix = (int)app->orbit.anchor_x;
-        int orbit_iz = (int)app->orbit.anchor_z;
+        int orbit_ix = (int)app->frame_view->orbit.anchor_x;
+        int orbit_iz = (int)app->frame_view->orbit.anchor_z;
         int orbit_tile_x = orbit_ix >> 7;
         int orbit_tile_z = orbit_iz >> 7;
         int orbit_y = app_world_height(app, orbit_ix, orbit_iz, level);
@@ -883,11 +897,11 @@ app_world_camera_follow(struct App* app)
         /* 192 pitch units per unit of height above the anchor -- the
          * reference's own figure, and the reason a ridge raises the eye
          * rather than the eye sinking into it. */
-        WorldCameraOrbit_EaseTerrainClamp(&app->orbit, &limits, max_y * 192 / 256);
+        WorldCameraOrbit_EaseTerrainClamp(&app->frame_view->orbit, &limits, max_y * 192 / 256);
     }
 
-    pitch = WorldCameraOrbit_EffectivePitch(&app->orbit);
-    yaw = app->orbit.yaw & 0x7ff;
+    pitch = WorldCameraOrbit_EffectivePitch(&app->frame_view->orbit);
+    yaw = app->frame_view->orbit.yaw & 0x7ff;
     /*
      * Reference distance is `pitch * 3 + 600` (Client-TS camFollow) -- here
      * `pitch * pitch_distance + rest`, both stated by the profile -- later
@@ -919,13 +933,13 @@ app_world_camera_follow(struct App* app)
         aboard_y_valid
             ? aboard_y
             : app_world_height(app, target_x, target_z, player->grid_position.level) - 8 - 50;
-    target_x = (int)app->orbit.anchor_x;
-    target_z = (int)app->orbit.anchor_z;
+    target_x = (int)app->frame_view->orbit.anchor_x;
+    target_z = (int)app->frame_view->orbit.anchor_z;
 
     ToriRS_OrbitCameraEye(
-        target_x, target_y, target_z, pitch, yaw, distance, &app->world_camera_pos);
-    app->world_camera.pitch = pitch;
-    app->world_camera.yaw = yaw;
+        target_x, target_y, target_z, pitch, yaw, distance, &app->frame_view->world_camera_pos);
+    app->frame_view->world_camera.pitch = pitch;
+    app->frame_view->world_camera.yaw = yaw;
 
     /* TORIRS_ORBIT_DEBUG: the anchor's residual against the player it follows.
      * The orbit point is what the whole eye is built around, and an offset one
@@ -936,17 +950,17 @@ app_world_camera_follow(struct App* app)
         TORIRS_LOG(
             "orbit: anchor=(%.3f,%.3f) player=(%d,%d) residual=(%.3f,%.3f) "
             "pitch=%d yaw=%d dist=%d look_y=%d eye=(%d,%d,%d)\n",
-            (double)app->orbit.anchor_x,
-            (double)app->orbit.anchor_z,
+            (double)app->frame_view->orbit.anchor_x,
+            (double)app->frame_view->orbit.anchor_z,
             (int)player->draw_position.x,
             (int)player->draw_position.z,
-            (double)((float)(int)player->draw_position.x - app->orbit.anchor_x),
-            (double)((float)(int)player->draw_position.z - app->orbit.anchor_z),
+            (double)((float)(int)player->draw_position.x - app->frame_view->orbit.anchor_x),
+            (double)((float)(int)player->draw_position.z - app->frame_view->orbit.anchor_z),
             pitch,
             yaw,
             distance,
             target_y,
-            app->world_camera_pos.x,
-            app->world_camera_pos.y,
-            app->world_camera_pos.z);
+            app->frame_view->world_camera_pos.x,
+            app->frame_view->world_camera_pos.y,
+            app->frame_view->world_camera_pos.z);
 }

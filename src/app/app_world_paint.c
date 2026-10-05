@@ -55,11 +55,11 @@ app_world_roof_check(struct App* app)
 
     if( app->cam_script.scripted )
     {
-        int cam_tx = app->world_camera_pos.x >> 7;
-        int cam_tz = app->world_camera_pos.z >> 7;
-        int ground_y =
-            app_world_height(app, app->world_camera_pos.x, app->world_camera_pos.z, level);
-        if( ground_y - app->world_camera_pos.y >= 800 ||
+        int cam_tx = app->frame_view->world_camera_pos.x >> 7;
+        int cam_tz = app->frame_view->world_camera_pos.z >> 7;
+        int ground_y = app_world_height(
+            app, app->frame_view->world_camera_pos.x, app->frame_view->world_camera_pos.z, level);
+        if( ground_y - app->frame_view->world_camera_pos.y >= 800 ||
             (World_TileFlagGet(world, cam_tx, cam_tz, level) & 0x4) == 0 )
             return 3;
         return level;
@@ -68,12 +68,12 @@ app_world_roof_check(struct App* app)
     /* Below this pitch the camera is low enough to be looking THROUGH the
      * scene rather than down onto it, so the sightline decides. Above it,
      * only the tile the player is standing on does. */
-    if( app->world_camera.pitch < 310 )
+    if( app->frame_view->world_camera.pitch < 310 )
         top = World_RoofLevelAlongLine(
             world,
             level,
-            app->world_camera_pos.x >> 7,
-            app->world_camera_pos.z >> 7,
+            app->frame_view->world_camera_pos.x >> 7,
+            app->frame_view->world_camera_pos.z >> 7,
             (int)player->draw_position.x >> 7,
             (int)player->draw_position.z >> 7);
 
@@ -166,18 +166,18 @@ app_update_painter_cull(
     {
         /* (int) then >>7, as the reference does: field2354 is `(int) field917`
          * and the camera tile is that mirror shifted (client.java:9373). */
-        center_sx = (int)app->orbit.anchor_x >> 7;
-        center_sz = (int)app->orbit.anchor_z >> 7;
-        anchor_x = (int)app->orbit.anchor_x;
-        anchor_z = (int)app->orbit.anchor_z;
+        center_sx = (int)app->frame_view->orbit.anchor_x >> 7;
+        center_sz = (int)app->frame_view->orbit.anchor_z >> 7;
+        anchor_x = (int)app->frame_view->orbit.anchor_x;
+        anchor_z = (int)app->frame_view->orbit.anchor_z;
         painter_set_draw_center(painter, center_sx, center_sz);
     }
     else
     {
         center_sx = cam_sx;
         center_sz = cam_sz;
-        anchor_x = app->world_camera_pos.x;
-        anchor_z = app->world_camera_pos.z;
+        anchor_x = app->frame_view->world_camera_pos.x;
+        anchor_z = app->frame_view->world_camera_pos.z;
         painter_set_draw_center(painter, -1, -1);
     }
 
@@ -187,9 +187,10 @@ app_update_painter_cull(
         if( player )
             level = player->grid_position.level;
     }
-    eye_height = app_world_height(app, anchor_x, anchor_z, level) - app->world_camera_pos.y;
+    eye_height =
+        app_world_height(app, anchor_x, anchor_z, level) - app->frame_view->world_camera_pos.y;
 
-    near_z = app->world_camera.near_plane_z;
+    near_z = app->frame_view->world_camera.near_plane_z;
     if( near_z < 1 )
         near_z = 50;
     /* Far clip = drawDistance * 210 (deob class243.method4457). Covers the
@@ -236,9 +237,9 @@ app_update_painter_cull(
                 vw,
                 vh,
                 toridraw_projection_cot16(
-                    app->world_camera.projection_mode,
-                    app->world_camera.projection_scale,
-                    app->world_camera.fov_rpi2048),
+                    app->frame_view->world_camera.projection_mode,
+                    app->frame_view->world_camera.projection_scale,
+                    app->frame_view->world_camera.fov_rpi2048),
                 &trig);
             clock_gettime(CLOCK_MONOTONIC, &t1);
         }
@@ -249,14 +250,14 @@ app_update_painter_cull(
             (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull + (uint64_t)(t1.tv_nsec - t0.tv_nsec);
 
         slice_n = painters_cullmap_slice_visible_count(
-            cm, app->world_camera.pitch, app->world_camera.yaw);
+            cm, app->frame_view->world_camera.pitch, app->frame_view->world_camera.yaw);
         if( slice_n <= 0 )
         {
             TORIRS_LOG(
                 "painter_cullmap: bake empty for pitch=%d yaw=%d near=%d %dx%d "
                 "(%.2f ms) — keeping nocull\n",
-                app->world_camera.pitch,
-                app->world_camera.yaw,
+                app->frame_view->world_camera.pitch,
+                app->frame_view->world_camera.yaw,
                 near_z,
                 vw,
                 vh,
@@ -302,8 +303,8 @@ app_update_painter_cull(
         painter_set_cullmap(painter, world->cullmap);
     }
 
-    params.pitch = app->world_camera.pitch;
-    params.yaw = app->world_camera.yaw & 0x7ff;
+    params.pitch = app->frame_view->world_camera.pitch;
+    params.yaw = app->frame_view->world_camera.yaw & 0x7ff;
     params.eye_height = eye_height;
     params.y_lo = PCULL_FRUSTUM_Y_START;
     params.y_hi = PCULL_FRUSTUM_Y_END;
@@ -313,9 +314,9 @@ app_update_painter_cull(
     params.screen_height = vh;
     /* Same values the frame will be drawn with; the cull frustum must not
      * assume a different projection scale than the rasterizer uses. */
-    params.projection_mode = app->world_camera.projection_mode;
-    params.projection_scale = app->world_camera.projection_scale;
-    params.fov_rpi2048 = app->world_camera.fov_rpi2048;
+    params.projection_mode = app->frame_view->world_camera.projection_mode;
+    params.projection_scale = app->frame_view->world_camera.projection_scale;
+    params.fov_rpi2048 = app->frame_view->world_camera.fov_rpi2048;
     /* Eye-relative row range covering the draw box around the orbit centre. */
     params.dz_min = (center_sz - radius) - cam_sz - 2;
     params.dz_max = (center_sz + radius) - cam_sz + 2;
@@ -375,19 +376,19 @@ app_world_paint(struct App* app)
         {
             struct ToriRS_WedgeCameraKey key;
             ToriRS_WedgeCameraPathEval(&path, g_torirs_frame_no, &key);
-            app->world_camera_pos.x = key.x;
-            app->world_camera_pos.y = key.y;
-            app->world_camera_pos.z = key.z;
-            app->world_camera.pitch = key.pitch;
-            app->world_camera.yaw = key.yaw;
+            app->frame_view->world_camera_pos.x = key.x;
+            app->frame_view->world_camera_pos.y = key.y;
+            app->frame_view->world_camera_pos.z = key.z;
+            app->frame_view->world_camera.pitch = key.pitch;
+            app->frame_view->world_camera.yaw = key.yaw;
         }
         else if( have )
         {
-            app->world_camera_pos.x = px;
-            app->world_camera_pos.y = py;
-            app->world_camera_pos.z = pz;
-            app->world_camera.pitch = ppitch;
-            app->world_camera.yaw = pyaw;
+            app->frame_view->world_camera_pos.x = px;
+            app->frame_view->world_camera_pos.y = py;
+            app->frame_view->world_camera_pos.z = pz;
+            app->frame_view->world_camera.pitch = ppitch;
+            app->frame_view->world_camera.yaw = pyaw;
         }
     }
 
@@ -395,8 +396,8 @@ app_world_paint(struct App* app)
      * edge, and truncation toward zero would mis-seed the bucket flood-fill
      * origin by a tile. Clamp into the scene — the bucket's distance metric
      * and adjacency tests assume an in-bounds origin. */
-    int cam_sx = app->world_camera_pos.x >> 7;
-    int cam_sz = app->world_camera_pos.z >> 7;
+    int cam_sx = app->frame_view->world_camera_pos.x >> 7;
+    int cam_sz = app->frame_view->world_camera_pos.z >> 7;
     int cam_slevel = 0; /* painter_paint_bucket ignores it (iterates levels) */
     if( app->world )
     {
@@ -437,11 +438,11 @@ app_world_paint(struct App* app)
      * random spread, and all five compound. It displaces the camera for this
      * frame's draw only — the base position is restored below, or the y axis
      * would ratchet the eye away a little more every frame. */
-    int shake_x = app->world_camera_pos.x;
-    int shake_y = app->world_camera_pos.y;
-    int shake_z = app->world_camera_pos.z;
-    int shake_pitch = app->world_camera.pitch;
-    int shake_yaw = app->world_camera.yaw;
+    int shake_x = app->frame_view->world_camera_pos.x;
+    int shake_y = app->frame_view->world_camera_pos.y;
+    int shake_z = app->frame_view->world_camera_pos.z;
+    int shake_pitch = app->frame_view->world_camera.pitch;
+    int shake_yaw = app->frame_view->world_camera.yaw;
     for( int axis = 0; axis < 5; axis++ )
     {
         int spread, jitter;
@@ -455,21 +456,23 @@ app_world_paint(struct App* app)
         switch( axis )
         {
         case 0:
-            app->world_camera_pos.x += jitter;
-            cam_sx = app->world_camera_pos.x >> 7;
+            app->frame_view->world_camera_pos.x += jitter;
+            cam_sx = app->frame_view->world_camera_pos.x >> 7;
             break;
         case 1:
-            app->world_camera_pos.y += jitter;
+            app->frame_view->world_camera_pos.y += jitter;
             break;
         case 2:
-            app->world_camera_pos.z += jitter;
-            cam_sz = app->world_camera_pos.z >> 7;
+            app->frame_view->world_camera_pos.z += jitter;
+            cam_sz = app->frame_view->world_camera_pos.z >> 7;
             break;
         case 3:
-            app->world_camera.yaw = (app->world_camera.yaw + jitter) & 0x7ff;
+            app->frame_view->world_camera.yaw =
+                (app->frame_view->world_camera.yaw + jitter) & 0x7ff;
             break;
         case 4:
-            app->world_camera.pitch = app_world_clamp_pitch(app, app->world_camera.pitch + jitter);
+            app->frame_view->world_camera.pitch =
+                app_world_clamp_pitch(app, app->frame_view->world_camera.pitch + jitter);
             break;
         default:
             break;
@@ -488,7 +491,10 @@ app_world_paint(struct App* app)
         if( cam_sz > max_tile )
             cam_sz = max_tile;
     }
-    painter_set_camera_angles(app->world->painter, app->world_camera.pitch, app->world_camera.yaw);
+    painter_set_camera_angles(
+        app->world->painter,
+        app->frame_view->world_camera.pitch,
+        app->frame_view->world_camera.yaw);
     painter_set_level_mask(app->world->painter, level_mask);
 
     /* World entities (SAILING_PLAN C3): the eye is only final here — WEDGE_CAM
@@ -497,11 +503,11 @@ app_world_paint(struct App* app)
      * Once per boat per frame, not once per descent. */
     app_wev_bind_view_cameras(
         app,
-        app->world_camera.pitch,
-        app->world_camera.yaw,
-        app->world_camera_pos.x,
-        app->world_camera_pos.y,
-        app->world_camera_pos.z);
+        app->frame_view->world_camera.pitch,
+        app->frame_view->world_camera.yaw,
+        app->frame_view->world_camera_pos.x,
+        app->frame_view->world_camera_pos.y,
+        app->frame_view->world_camera_pos.z);
 
     app_update_painter_cull(app, cam_sx, cam_sz);
 
@@ -533,15 +539,15 @@ app_world_paint(struct App* app)
              * select_for_camera so it lines up with the painter's cam_sx/sz. */
             scene_occluders_select_for_camera(
                 occ,
-                app->world_camera_pos.x,
-                app->world_camera_pos.y,
-                app->world_camera_pos.z,
+                app->frame_view->world_camera_pos.x,
+                app->frame_view->world_camera_pos.y,
+                app->frame_view->world_camera_pos.z,
                 top_level,
                 painter_get_draw_distance(app->world->painter),
                 painter_get_cullspan(app->world->painter),
                 NULL,
-                app->world_camera.pitch,
-                app->world_camera.yaw);
+                app->frame_view->world_camera.pitch,
+                app->frame_view->world_camera.yaw);
             if( torirs_env_occluders_debug() )
             {
                 static int s_logged;
@@ -566,9 +572,9 @@ app_world_paint(struct App* app)
                         n_wall,
                         n_floor,
                         occ->active_count,
-                        app->world_camera_pos.x,
-                        app->world_camera_pos.y,
-                        app->world_camera_pos.z,
+                        app->frame_view->world_camera_pos.x,
+                        app->frame_view->world_camera_pos.y,
+                        app->frame_view->world_camera_pos.z,
                         occ->camera_sx,
                         occ->camera_sz);
                 }
@@ -583,9 +589,9 @@ app_world_paint(struct App* app)
     /* Draw-order telemetry (TORIRS_WEDGELOG): hand the painter the eye and world
      * viewport it is about to paint with, for the log header. No-op otherwise. */
     PAINTER_DBG_WEDGE_SET_EYE(
-        app->world_camera_pos.x,
-        app->world_camera_pos.y,
-        app->world_camera_pos.z,
+        app->frame_view->world_camera_pos.x,
+        app->frame_view->world_camera_pos.y,
+        app->frame_view->world_camera_pos.z,
         app->world_view_valid ? app->world_emit_desc.w : 0,
         app->world_view_valid ? app->world_emit_desc.h : 0);
 
@@ -607,11 +613,11 @@ app_world_paint(struct App* app)
     if( app->world_render_mode != TORIRS_WORLD_DEPTH )
         app_wev_order_parent_ground(app);
 
-    app->world_camera_pos.x = shake_x;
-    app->world_camera_pos.y = shake_y;
-    app->world_camera_pos.z = shake_z;
-    app->world_camera.pitch = shake_pitch;
-    app->world_camera.yaw = shake_yaw;
+    app->frame_view->world_camera_pos.x = shake_x;
+    app->frame_view->world_camera_pos.y = shake_y;
+    app->frame_view->world_camera_pos.z = shake_z;
+    app->frame_view->world_camera.pitch = shake_pitch;
+    app->frame_view->world_camera.yaw = shake_yaw;
 
     /* TORIRS_PAINT_DEBUG: what the painter actually emitted this frame, by kind.
      * Scene elements existing is not the same as being painted — the bucket
@@ -626,11 +632,11 @@ app_world_paint(struct App* app)
             "commands=%d kinds:",
             cam_sx,
             cam_sz,
-            (int)app->world_camera_pos.x,
-            (int)app->world_camera_pos.y,
-            (int)app->world_camera_pos.z,
-            app->world_camera.pitch,
-            app->world_camera.yaw,
+            (int)app->frame_view->world_camera_pos.x,
+            (int)app->frame_view->world_camera_pos.y,
+            (int)app->frame_view->world_camera_pos.z,
+            app->frame_view->world_camera.pitch,
+            app->frame_view->world_camera.yaw,
             level_mask,
             app_world_roof_check(app),
             app->painter_buffer->command_count);
