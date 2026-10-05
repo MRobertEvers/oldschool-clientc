@@ -142,6 +142,15 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   `git -C <raid-watch> checkout -q --detach <commit>` after each watch-related landing, and
   rebuilds with `./launch run osrs239-scripts --no-client`). NEVER tell the owner to launch from
   worktrees/raid while a pass runs there: workers edit it (he ran a half-edited tree once).
+  THEN SEAM26 (`SEAM_TRIAGE_2026-10-05e.md`, 7252ddade): THE RUNNER CAMERA SPLIT, the owner's
+  feature (design published at https://claude.ai/artifact/FDWBxLAVmDPdt5PxR2erQu; a copy of the
+  page is not in the repo, the triage repeats everything): a view per role (AutomationRunner /
+  PlayerClient: camera + pointer + pickset + menu), the runner's pick and screenshot passes
+  offscreen on the software lane on demand, an Interact on/off switch always indicated, scripted
+  cameras take every view, the runner's menu tinted; three seams (gather = pure refactor, split,
+  debug aids). It supersedes seam25's camera-easing item (the runner's poses no longer show).
+  It is a wide client refactor on a branch 467 commits behind v3: say so to the owner before the
+  v3 merge grows harder (he has not ruled on where it lands).
   THEN relaunch the Normal three-player pass with the same args and the seam22 notes.
 - OWNER, 2026-10-05, Verzik P1 for a trio: "the players need to take the dawnbringer from the
   skeleton on the ground after xarpus. That weapon does not have the shield penalty and the
