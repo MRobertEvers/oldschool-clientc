@@ -23,25 +23,22 @@
 --     quest_shilovillage is completed in setup (a One Small Favour
 --     requirement, and hajedy.rs2:25's own gate).
 --   * Doors and gates by t.player.pass_door; the Taverley wall by
---     t.player.cross_gate; ladders, stairs, trapdoors, cave mouths and
---     gangplanks by a click on the exact tile and level, graded on the
---     landing (transit below).
+--     t.player.cross_gate; a ladder, stair or trapdoor that changes level
+--     by t.player.climb (graded on the new level and the landing); the
+--     ones that change only the map frame (the H.A.M. and Ice Mountain
+--     trapdoors and ladders, the goblin cave mouth) and the gangplanks by
+--     a click on the exact tile and level, graded on the landing (transit
+--     below).
 --
 -- Captain Bleemadge: gnome_glider.rs2:27-29 hands the One Small Favour
 -- window (stages 75..86 and 190) to onesmallfavour_relay.rs2's
 -- [label,osf_bleemadge_talk].
 --
--- BLOCKED (content_bug) at the weathervane: favour_seer_ladder (2715,3472,
--- level 1; ladders.loc:1327 category=climb_up_ladder -> ladders.rs2:199
--- ~climb_ladder(1) -> ladders.rs2:73-78, no maplink row) lands the player on
--- 2714,3472 PLANE 2, which the map blocks (maps/m42_54.jm2:9638 "2 26 16: f1",
--- every plane-2 tile of the house is f1); the roof and osf_weathervane are
--- PLANE 3 (m42_54.jl2:1639 "3 14 20: 5811", favour_roof_trapdoor
--- m42_54.jl2:4300 "3 27 16"), and favour_roof_trapdoor's climb_down_ladder
--- (ladders.loc:2909) drops to plane 2 the same way. Everything after the
--- block is the driven route the next author keeps once the two ladders land
--- on planes 3 and 1; build/orchestrator/fix_b60/onesmallfavour.fullroute.lua
--- (the same file with only the four roof climbs replaced) ran it.
+-- The Seers' roof (osf_weathervane 2702,3476, plane 3): favour_seer_ladder
+-- (2715,3472,1) climbs onto 2714,3472,3 and favour_roof_trapdoor
+-- (2715,3472,3) drops onto 2714,3472,1 (onesmallfavour_puzzles.rs2:115-117,
+-- ~climb_ladder_to); every roof trip climbs both by click with
+-- t.player.climb, graded on the level and the landing tile.
 
 -- Tile of a t.world.tile() read, or the status that came back instead.
 local function tile_text(r, tt)
@@ -80,7 +77,7 @@ end
 return {
     id = "onesmallfavour",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 360000,
+    max_frames = 420000,
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
         -- Levels first: the rune gear below is wielded in setup.
@@ -525,18 +522,21 @@ return {
         -- Sanfew's tower: the west doorway's leaf is placed OPEN by the map
         -- (poordooropen 2895,3428), so pass_door reads it standing open and
         -- does not press it; the spiral staircase (2898,3428) climbs to
-        -- 2898,3427,1 (maplink rows) and spiralstairstop comes back down.
+        -- 2898,3427,1 (maplink rows) and spiralstairstop comes back down to
+        -- 2897,3428,0; both by t.player.climb.
         local function in_sanfew_upstairs(tt) return within(tt, 2895, 2901, 3424, 3432, 1) end
         local function in_sanfew_ground(tt) return within(tt, 2895, 2901, 3425, 3431, 0) end
         local function sanfew_up(p, climb_name)
             t.exec("goto-" .. p, t.player.goto_tile, 2892, 3428, 0)
             door(p .. ".doorIn", "poordoor", "poordooropen", { 2895, 3428, 0 }, { 2894, 3428 }, { 2896, 3428 })
-            transit(climb_name, "spiralstairs", 1, { 2898, 3428, 0 }, in_sanfew_upstairs,
-                "upstairs in Sanfew's tower, level 1")
+            t.exec(climb_name, t.player.climb, { loc = "spiralstairs", op = 1, op_name = "Climb-up",
+                at = { 2898, 3428, 0 }, dest = { 2898, 3427, 1 }, slack = 1, landed_ok = in_sanfew_upstairs,
+                landed_desc = "upstairs in Sanfew's tower, level 1" })
         end
         local function sanfew_down(p)
-            transit(p .. ".stairsDown", "spiralstairstop", 1, { 2898, 3428, 1 }, in_sanfew_ground,
-                "back on the ground floor of the tower, level 0")
+            t.exec(p .. ".stairsDown", t.player.climb, { loc = "spiralstairstop", op = 1, op_name = "Climb-down",
+                at = { 2898, 3428, 1 }, dest = { 2897, 3428, 0 }, slack = 1, landed_ok = in_sanfew_ground,
+                landed_desc = "back on the ground floor of the tower, level 0" })
             door(p .. ".doorOut", "poordoor", "poordooropen", { 2895, 3428, 0 }, { 2896, 3428 }, { 2893, 3428 })
         end
 
@@ -551,7 +551,7 @@ return {
         end
 
         -- The house's ladder (kr_ladder_directional 2699,3476, no maplink:
-        -- one plane), the two level-1 doors east (kr_poordoor 2706,3472 and
+        -- one plane, landing on the approach tile 2699,3475), the two level-1 doors east (kr_poordoor 2706,3472 and
         -- 2709,3472) and the roof ladder (favour_seer_ladder 2715,3472,1) /
         -- trapdoor (favour_roof_trapdoor 2715,3472,3).
         local function on_roof(tt) return within(tt, 2700, 2714, 3470, 3475, 3) end
@@ -559,17 +559,32 @@ return {
         local function in_house_ground(tt) return within(tt, 2698, 2706, 3469, 3476, 0) end
         local function by_roof_ladder(tt) return within(tt, 2710, 2715, 3469, 3473, 1) end
         local function house_up(name)
-            transit(name, "kr_ladder_directional", 1, { 2699, 3476, 0 }, in_house_upstairs,
-                "upstairs in Phantuwti's house, level 1")
+            t.exec(name, t.player.climb, { loc = "kr_ladder_directional", op = 1, op_name = "Climb-up",
+                at = { 2699, 3476, 0 }, dest = { 2699, 3475, 1 }, slack = 1, landed_ok = in_house_upstairs,
+                landed_desc = "upstairs in Phantuwti's house, level 1" })
         end
         local function house_down(name)
-            transit(name, "kr_laddertop_directional", 1, { 2699, 3476, 1 }, in_house_ground,
-                "back on the ground floor of the house, level 0")
+            t.exec(name, t.player.climb, { loc = "kr_laddertop_directional", op = 1, op_name = "Climb-down",
+                at = { 2699, 3476, 1 }, dest = { 2699, 3475, 0 }, slack = 1, landed_ok = in_house_ground,
+                landed_desc = "back on the ground floor of the house, level 0" })
         end
         local function to_roof_ladder(p)
             door(p .. ".eastDoor1", "kr_poordoor", "kr_poordooropen", { 2706, 3472, 1 }, { 2705, 3472 }, { 2707, 3472 })
             door(p .. ".eastDoor2", "kr_poordoor", "kr_poordooropen", { 2709, 3472, 1 }, { 2709, 3472 }, { 2711, 3472 })
             t.exec(p .. ".walkToRoofLadder", t.player.walk_route, { { 2714, 3472 } }, { level = 1 })
+        end
+        -- The roof ladder and trapdoor (onesmallfavour_puzzles.rs2:115-117,
+        -- ~climb_ladder_to: both land on the ladder's west tile 2714,3472,
+        -- the ladder onto plane 3, the trapdoor onto plane 1).
+        local function roof_up(name)
+            t.exec(name, t.player.climb, { loc = "favour_seer_ladder", op = 1, op_name = "Climb-up",
+                at = { 2715, 3472, 1 }, dest = { 2714, 3472, 3 }, landed_ok = on_roof,
+                landed_desc = "on the roof, plane 3, x 2700-2714 z 3470-3475" })
+        end
+        local function roof_down(name)
+            t.exec(name, t.player.climb, { loc = "favour_roof_trapdoor", op = 1, op_name = "Climb-down",
+                at = { 2715, 3472, 3 }, dest = { 2714, 3472, 1 }, landed_ok = by_roof_ladder,
+                landed_desc = "back on level 1 by the roof ladder, x 2710-2715 z 3469-3473" })
         end
         local function from_roof_ladder(p)
             t.exec(p .. ".walkFromRoofLadder", t.player.walk_route, { { 2711, 3472 } }, { level = 1 })
@@ -1095,33 +1110,7 @@ return {
         -- ladder, the two level-1 doors, the roof ladder.
         house_up("goUpLadder")
         to_roof_ladder("goUpToRoof")
-        local roof = press_and_land("favour_seer_ladder", 1, { 2715, 3472, 1 }, on_roof, 12)
-        if not roof.ok then
-            -- The ladder's landing, recorded: it is the content's, see the
-            -- block below and the header. The row still fails unless the
-            -- press fired a climb (off level 1, on the ladder's column), so
-            -- a ladder that did nothing is not reported as the content gap.
-            local climbed = roof.tile_r == "ok" and type(roof.tile) == "table"
-                and roof.tile.level ~= 1 and roof.tile.x == 2714 and roof.tile.z == 3472
-            t.check("goUpToRoof.recorded", climbed, roof.detail
-                .. " -- the roof (osf_weathervane 2702,3476) is plane 3; favour_seer_ladder climbs one plane")
-            t.blocked("content_bug: the roof guide steps (searchVane, useHammerOnVane, searchVaneAgain, "
-                .. "goDownFromRoof, goBackUpToRoof, useVane1, useVane2, useVane3, goBackUpLadder, goFromRoofToPhantuwti) "
-                .. "cannot start: favour_seer_ladder (2715,3472, level 1; "
-                .. "OSRS-Content/osrs239-content/server/scripts/ladders_stairs/configs/ladders.loc:1327-1328 "
-                .. "category=climb_up_ladder -> ladders_stairs/scripts/ladders.rs2:199 ~climb_ladder(1) -> ladders.rs2:69-78 "
-                .. "~climb: no maplink row, p_teleport one plane up) lands the player on 2714,3472 PLANE 2, which the map "
-                .. "blocks (maps/m42_54.jm2:9638 '2 26 16: f1'; no plane-2 tile of the house is walkable), so the walk "
-                .. "to the weathervane cannot start: the roof and osf_weathervane are PLANE 3 (maps/m42_54.jl2:1639 "
-                .. "'3 14 20: 5811' = osf_weathervane 2702,3476,3; favour_roof_trapdoor m42_54.jl2:4300 '3 27 16'), and "
-                .. "favour_roof_trapdoor (ladders.loc:2909 category=climb_down_ladder) drops one plane to the same "
-                .. "blocked plane 2. Needed: favour_seer_ladder -> 2714,3472,3 and favour_roof_trapdoor -> 2714,3472,1 "
-                .. "(a maplink row each, or [oploc1] overrides with ~climb_ladder_to); the full route below runs once "
-                .. "the ladder lands on plane 3. This run landed "
-                .. tile_text(roof.tile_r, roof.tile) .. ".")
-            do return end
-        end
-        t.check("goUpToRoof", roof.ok, roof.detail .. " (want on the roof, plane 3, x 2700-2714 z 3470-3475)")
+        roof_up("goUpToRoof")
 
         -- The weathervane (onesmallfavour_puzzles.rs2): search it (op 5,
         -- "Search"), use the hammer on it, search it again for the three
@@ -1149,8 +1138,7 @@ return {
         -- goDownLadderToSeers): the roof trapdoor, the doors, the house
         -- ladder, the front door.
         t.exec("goDownFromRoof.walk", t.player.walk_route, { { 2706, 3472 }, { 2714, 3472 } }, { level = 3 })
-        transit("goDownFromRoof", "favour_roof_trapdoor", 1, { 2715, 3472, 3 }, by_roof_ladder,
-            "back on level 1 by the roof ladder, x 2710-2715 z 3469-3473")
+        roof_down("goDownFromRoof")
         from_roof_ladder("goDownFromRoof")
         t.exec("goDownLadderToSeers.walk", t.player.walk_route, { { 2700, 3475 } }, { level = 1 })
         house_down("goDownLadderToSeers")
@@ -1174,8 +1162,7 @@ return {
         phantuwti_in("goBackUpToRoof")
         house_up("goBackUpToRoof.houseLadder")
         to_roof_ladder("goBackUpToRoof")
-        transit("goBackUpToRoof", "favour_seer_ladder", 1, { 2715, 3472, 1 }, on_roof,
-            "on the roof, plane 3, x 2700-2714 z 3470-3475")
+        roof_up("goBackUpToRoof")
         t.exec("goBackUpToRoof.walk", t.player.walk_route, { { 2706, 3472 }, { 2702, 3474 } }, { level = 3 })
         local vane = t.player.by_symbol("loc", "osf_weathervane")
         t.exec("useVane1", t.player.use_on, "favour_ornament_fixed", vane)
@@ -1194,8 +1181,7 @@ return {
         -- Down to Phantuwti (Quest Helper goFromRoofToPhantuwti,
         -- goDownLadderToPhantuwti).
         t.exec("goFromRoofToPhantuwti.walk", t.player.walk_route, { { 2706, 3472 }, { 2714, 3472 } }, { level = 3 })
-        transit("goFromRoofToPhantuwti", "favour_roof_trapdoor", 1, { 2715, 3472, 3 }, by_roof_ladder,
-            "back on level 1 by the roof ladder, x 2710-2715 z 3469-3473")
+        roof_down("goFromRoofToPhantuwti")
         from_roof_ladder("goFromRoofToPhantuwti")
         t.exec("goDownLadderToPhantuwti.walk", t.player.walk_route, { { 2700, 3475 } }, { level = 1 })
         house_down("goDownLadderToPhantuwti")
