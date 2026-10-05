@@ -108,6 +108,14 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   harness gaps (a dead member stays in lockstep, t.tick on a member, budget, readers, README), then
   the four content findings settled from sources. Then relaunch the Normal pass with the same args
   (the state directory resumes; rejected rooms get their findings).
+- OWNER, 2026-10-05, Verzik P1 for a trio: "the players need to take the dawnbringer from the
+  skeleton on the ground after xarpus. That weapon does not have the shield penalty and the
+  players should share it using their special attack." Our content agrees (tob_xarpus.rs2:1817-1850
+  the skeleton with the sword, one per raid; verzik.tsv p1_cap 10/3/3 Dawnbringer exempt (A),
+  p1_dawn_damage 75-150 ignoring the cap (C)). The Normal Verzik author's P1 recipe is therefore:
+  take the Dawnbringer at the skeleton, every raider uses BOTH specials on the shield, pass it by
+  dropping and picking up (a drop/pick-up recipe for the driver if none exists), hide behind the
+  pillars between bolts. Put this in the Normal relaunch context and in DRIVER_NOTES.
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
   names seed on their first 12 characters, case folded (jbase37).
 
