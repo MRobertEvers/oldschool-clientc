@@ -120,6 +120,11 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   TORIRS_DRIVE_ON_DEMAND=1, tools/raid_gate/prepare_scripts.py, a `script_runner` panel plugin,
   profile `osrs239-scripts`; the owner will run `python3 tools/raid_gate/prepare_scripts.py &&
   ./launch run osrs239-scripts`. Proved headless only; never open a window from a worker.
+  THEN SEAM24 (`SEAM_TRIAGE_2026-10-05c.md`, 7d0890cc3; owner: "This will show all the scripts
+  used for quests and others right? I just want to be able to watch all the automated scripts
+  we've been making"): the tab lists EVERY script (123 quests + the raid rooms; all use
+  fresh_lumbridge), a fresh account per Play (stage the fixture, relog), legs files in one
+  sitting, a suite filter; pass `matthew-mbp-m4-raid-b1-seam24`, same card, width 1.
   THEN relaunch the Normal three-player pass with the same args and the seam22 notes.
 - OWNER, 2026-10-05, Verzik P1 for a trio: "the players need to take the dawnbringer from the
   skeleton on the ground after xarpus. That weapon does not have the shield penalty and the
