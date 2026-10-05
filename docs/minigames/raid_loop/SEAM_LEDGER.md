@@ -1039,3 +1039,61 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   test-plugin-lua (now 18 bundled scripts: the closer added script_runner.lua) and
   test-quest-cheats pass; lint clean on 127 files; spec_check clean; server selftest 11
   failures (baseline). The six untracked test/raids/tob_<room>_normal.lua stay uncommitted.
+
+## matthew-mbp-m4-raid-b1-seam24 (2026-10-05; parent 473097e5e, merged with the camera seam1 refactor in 9e946b5a0; OSRS-Content fb292a9996 unchanged): the Scripts tab lists every automated script (triage SEAM_TRIAGE_2026-10-05c.md)
+
+- scripts_tab_every_script; LANDED. The client ASKS for the list: `api.drive.tests` reads the
+  scripts manifest `tests/tests.ini` as ONE script item through the IO layer
+  (`CreateTask_PluginScriptRead`, the kind `plugins/plugins.ini` is), written on every
+  `./launch run osrs239-scripts` by the profile's `[derived:tests]` block
+  (tools/launcher/profiles.py `run_profile_derived` -> tools/raid_gate/prepare_scripts.py,
+  one `TEST_SUITES` table). It lists 119 quests (all playable; the tree has 123
+  test/quests/*.lua, four are `_` harnesses, so the triage's 123 was a miscount) and 12 raid
+  files (the six Entry rooms playable, the six untracked `*_normal` party tests unavailable,
+  "needs 3 clients"). Sources are read where they live through committed links
+  `script/tests/{quests,raids}`. `api.drive.play` re-reads the source and fixture on every
+  Play (hot reload), writes a fresh account's save from the fixture (id letters + a number,
+  at most 12 characters), logs out and in, zeroes the client's varps
+  (`api.drive.forget_varps`), restores the first Play's camera pose and runs the raw test
+  through `QD.core_run_test` (run.py's wrapper `QUEST.run`, copied; legs in one sitting).
+  The panel keeps the search focus while typing (fixed row set: suite select, search, status,
+  12 slots, "n more"). Conformance rows `drive.tests`, `drive.play` PASS live (183 verbs,
+  172 seam rows). The closer's own proof on the final tree: the manifest landed (131
+  tests); `cooks_as` typed one key per 80 frames after one click, every key reached the box;
+  cooks_assistant (a 3-leg file) on cooksass6 and, after the camera merge, cooksass7 to
+  `SUMMARY 48 PASS`, leg 3 of 3, steps and verdicts identical to merge17's; hot reload on a
+  scratch copy of tob_maiden (Play read 112690 bytes and reached barrier.click, Stop, edit,
+  Play read 112702 bytes, row 1 `mode=entry party=1 HOTRELOAD-2`). THE CROP (frame 2300 of
+  panel/close_a, read through OCR because the editor's image hook timed out, plus pixel
+  counts): the Scripts pane shows Suite "Quests", Search holding `cooks_as` inside a yellow
+  focus border (yellow rows 166-181), "1 of 119 quests match 'cooks_as' (1 playable)",
+  Selected "none (pick a row)", Play and Stop buttons, Driver "idle"; the chat box below
+  reads the mock-world welcome lines and `closera1: *`. The fixer's rooms1 (final C) played
+  five rooms in a row in one client on fresh accounts: tob_maiden 113 FAIL (pass=108),
+  tob_bloat 91 FAIL (pass=79), tob_sotetseg 158 PASS, tob_xarpus died at row 30, tob_verzik
+  as the fifth room with setup PASS and verzik.talk/begin PASS (no `::clearworn` needed),
+  256 FAIL (pass=240); tob_nylocas was skipped there (bloat overran its slot in the fixed
+  schedule) and played in fin3 (171 FAIL, pass=170).
+  Test runs unchanged, on the pass tree and again on the merged tree: cooks_assistant and
+  druid byte-identical to build/merge17_check; the six Entry rooms byte-identical ledgers,
+  all FULL (65/55/76/84/63/145); `_party_smoke` 157 PASS and party_repeat --runs 3 --load
+  AGREE (sha 6cf6d25dd6a6); suite 115 green + deserttreasure forgettabletale regicide troll
+  RED, buckets identical before and after the merge; check-drive-abi, check-pt-switch,
+  check-tree-walks, check-scan-meter (5 lanes), check-quest-verbs, test-plugin-lua (18),
+  test-quest-cheats pass; lint clean (127); server selftest 11 failures, the same set.
+  NOT supported / still open: unavailable rows are not GREY (the host has no disabled
+  ACTION_ROW; one line in torirs_plugin_panel.u.c); disabled captions draw orange and enabled
+  white (the OSRS theme's `text_dim`); party tests (three clients in lock step); a test file
+  created after launch needs `prepare_scripts.py` then Refresh (the client cannot re-derive);
+  no "Reload driver" (the plugin host reloads retained bytes, so verb edits need a restart);
+  a watched room cannot reproduce its kept ledger (each account's random stream follows its
+  name: tob_bloat as `tobbloat1` under run.py gave 87 FAIL vs the kept 94 PASS);
+  `core_run_test_wrapped` is a copy kept in step with run.py by a comment only; the client
+  keeping varps across a logout is an engine question (no VARP_RESET at login), worked around
+  in the driver; the shot-latch drain runs every Play but its stale branch was never
+  exercised; a watched ledger's row 1 carries the idle ticks since the session began;
+  Play with the watcher's Character Creator open is unmeasured; the script/tests links need
+  `core.symlinks` on Windows; `PluginLua_TestThreadCreate` is declared in
+  torirs_plugin_drive.h until someone owns torirs_plugin_lua.h. The merged-tree quest suite
+  overlapped a concurrent seam27 pass's uncommitted driver Lua edits from 15:51 on (prayer,
+  pointer, combat); its buckets matched the clean pre-merge suite exactly.
