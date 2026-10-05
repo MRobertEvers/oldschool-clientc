@@ -3363,7 +3363,16 @@ class Grader:
                     if why:
                         refused.append(why)
                         continue
-                    return "ledger row %s %r names %s" % (row["index"], row["step"], hit[0])
+                    # A row NAMED after the npc is not a row that reached
+                    # him: Death Plateau's `goToHaroldStairs1.castleDoorOut`
+                    # (a pass_door) is no talk to Harold (seam
+                    # npc_step_credited_by_a_row_that_only_names_the_npc).
+                    reached = self.row_reaches_npc(step, row, hit[0])
+                    if not reached:
+                        refused.append("ledger row %s %r names %s, but its own action does not reach that "
+                                       "npc" % (row["index"], row["step"], hit[0]))
+                        continue
+                    return "ledger row %s %r names %s and %s" % (row["index"], row["step"], hit[0], reached)
         for row in self.action_rows:
             tokens = set(re.findall(r"[a-z][a-z0-9_]+", (row["detail"] + " " + row["step"]).lower()))
             for kind, symbol in step.targets:
@@ -3397,6 +3406,42 @@ class Grader:
             return None
         return "state already set: line %d (row %r) pressed %r on %s, and the guide's ConditionalStep " \
             "shows this step only while it is not" % (line, self.test.row_name_at(line), pressed_name, text)
+
+    def row_reaches_npc(self, step, row, noun):
+        """How the ledger row `row` reached the npc an NpcStep targets, or
+        None. The row's detail names one of the step's npc symbols (an
+        accepted press reports its target), or the source line that writes
+        the row presses an npc -- talk_to/click_npc/npc_op, attack, use_on,
+        or an emote for an NpcEmoteStep -- and names one of the step's npc
+        symbols (with no npc symbol in the guide, an npc string carrying
+        `noun`). A pass_door, a walk, a varbit read, a leg checkpoint or a
+        dialogue page row only names him."""
+        npcs = [symbol for kind, symbol in step.targets if kind == "npc"]
+        detail = row.get("detail") or ""
+        for token in sorted(set(re.findall(r"[a-z][a-z0-9_]+", detail.lower()))):
+            if any(same_thing("npc", symbol, token, loose=False) for symbol in npcs):
+                return "its detail names %r" % token
+        first = self.row_line(row["step"])
+        if first is None:
+            return None
+        last = next((span_last for span_first, span_last, name in self.test.row_spans
+                     if span_first == first and name == row["step"]), first)
+        for number, named in self.test.action_lines:
+            if not first <= number <= last:
+                continue
+            pressed = self.test.pressed_op(number, "npc")
+            if pressed is None and step.kind == "NpcEmoteStep" and \
+                    re.search(r"\bemote\b", self.test.code_lines[number - 1]):
+                pressed = "emote"
+            if pressed is None:
+                continue
+            for text in sorted(named):
+                if npcs and any(same_thing("npc", symbol, text) or shown_by("npc", symbol, text)
+                                for symbol in npcs):
+                    return "line %d presses %r (%s)" % (number, text, pressed)
+                if not npcs and noun in re.split(r"[^a-z0-9]+", text.lower()):
+                    return "line %d presses %r (%s)" % (number, text, pressed)
+        return None
 
     def row_refused(self, step, row, kind=None, symbol=None, text=None):
         """line_refused for a ledger row found by what it mentions: named after

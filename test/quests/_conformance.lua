@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 108
+-- @seam-count 109
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 153
-local SEAM_COUNT = 108
+local SEAM_COUNT = 109
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -1253,8 +1253,15 @@ return {
             if not player_tile or type(player_tile.x) ~= "number" then
                 return "no_subject", "world.tile() answered no tile to walk one step from"
             end
-            local result, detail = fn(player_tile.x + 1, player_tile.z)
-            return result, "one tile east -> " .. describe(detail)
+            -- SEAM walk_to_answers_ok_with_no_detail (matthew-mbp-m4-b62-seam1):
+            -- an arrival answers `walk_to x,z: reached x,z,level from a,b in N
+            -- tick(s)`, never (ok, nil) -- t.exec grades that hollow.
+            local want_x, want_z = player_tile.x + 1, player_tile.z
+            local result, detail = fn(want_x, want_z)
+            return names_reading(result, detail, "one tile east -> ",
+                { "walk_to " .. want_x .. "," .. want_z .. ": reached " .. want_x .. "," .. want_z .. ",",
+                  " tick(s)" },
+                "the tile the walk reached, read back, and its tick count")
         end)
 
         step("player.walk_near", function()
@@ -9894,6 +9901,74 @@ return {
             text = text .. "; world.tile " .. tostring(down_text)
             if down_at == nil or down_at.x ~= 3205 or down_at.z ~= 3228 or down_at.level ~= 0 then
                 return leave("hollow", text .. " -- ok, but world.tile is not 3205,3228,0")
+            end
+            return leave("ok", text)
+        end)
+
+        -- b62 seam1 climb_refuses_a_same_level_landing_into_another_map_frame:
+        -- A CLIMB THAT CHANGES NO LEVEL.  Most of the underground is level 0
+        -- in the map frame z+6400, so a manhole ladder between it and the
+        -- street lands on the level it was pressed from, and climb raised
+        -- "climb spec.dest is on the press's own level" (Demon Slayer's
+        -- sewer, Plague City's basement, Family Crest's trapdoors and
+        -- Vampire Slayer's crypt were each graded through cross_trap or a
+        -- hand-written helper instead).  Varrock's sewer ladder,
+        -- maplink.dbrow [maplink_0_50_154_37_2_up] 0_50_154_37_2 ->
+        -- 0_50_54_36_2: 3237,9858,0 -> 3236,3458,0, keyed on the PLAYER's
+        -- tile (maplink.rs2), so the press is taken standing on 3237,9858.
+        -- Graded on the answer naming the frame change and the landing, on
+        -- world.tile after it, and on a second call from the landing itself
+        -- being refused unpressed (a same-level landing is graded by tile).
+        stage(function()
+            setup_cheat("::goto 3236 9858 0")                   -- setup
+            settle(3)
+        end)
+        seam("seam.climb_lands_on_its_own_level_in_another_map_frame", function()
+            local tile = verb("world", "tile")
+            local fn = verb("player", "climb")
+            if not tile then return missing("world", "tile") end
+            if not fn then return missing("player", "climb") end
+            local function leave(result, text)
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return result, text
+            end
+            local function at_text()
+                local result, at = tile()
+                if result ~= "ok" or not is_table(at) then
+                    return nil, describe(result)
+                end
+                return at, at.x .. "," .. at.z .. "," .. at.level
+            end
+            local start, start_text = at_text()
+            if start == nil or start.level ~= 0 or start.z < 6400 then
+                return leave("no_subject", "::goto 3236 9858 0 left the player at " .. tostring(start_text)
+                    .. ", not in the sewer")
+            end
+            local up_result, up_detail = fn({ loc = "fai_varrock_manhole_ladder", op = 1, op_name = "Climb-up",
+                at = { 3237, 9858, 0 }, src = { 3237, 9858 }, dest = { 3236, 3458, 0 } })
+            local text = "from " .. tostring(start_text) .. ", up -> " .. describe(up_result) .. " " .. tostring(up_detail)
+            if up_result ~= "ok" then
+                return leave(up_result, text)
+            end
+            local up_at, up_text = at_text()
+            text = text .. "; world.tile " .. tostring(up_text)
+            if string.find(tostring(up_detail), "same level 0, map frame 1 -> 0", 1, true) == nil
+                or string.find(tostring(up_detail), "landed on level 0 at 3236,3458,0", 1, true) == nil
+                or string.find(tostring(up_detail), "click_loc ->", 1, true) == nil then
+                return leave("hollow", text .. " -- ok, but the detail names no press, frame change or landing")
+            end
+            if up_at == nil or up_at.x ~= 3236 or up_at.z ~= 3458 or up_at.level ~= 0 then
+                return leave("hollow", text .. " -- ok, but world.tile is not 3236,3458,0")
+            end
+            local again_result, again_detail = fn({ loc = "fai_varrock_manhole_ladder", op = 1, op_name = "Climb-up",
+                at = { 3237, 9858, 0 }, dest = { 3236, 3458, 0 } })
+            local still, still_text = at_text()
+            text = text .. " | again from the landing -> " .. describe(again_result) .. " " .. tostring(again_detail)
+            if again_result ~= "refused" or string.find(tostring(again_detail), "on the landing -- not pressed", 1, true) == nil
+                or still == nil or still.x ~= 3236 or still.z ~= 3458 or still.level ~= 0 then
+                return leave("hollow", text .. " -- a call from the landing itself must be refused unpressed; at "
+                    .. tostring(still_text))
             end
             return leave("ok", text)
         end)

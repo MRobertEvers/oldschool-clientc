@@ -2008,7 +2008,19 @@ end
 -- not sufficient (a route can be replaced mid-walk -- docs/QUEST_DRIVER_PLAN
 -- .md S5.2), so this awaits the destination tile on the server_tick event
 -- rather than trusting a single settle.
+--
+-- -> (ok, "walk_to x,z: reached x,z,level from a,b in N tick(s)") on the
+-- exact tile, or (timeout|refused, "walk_to x,z from a,b stalled at c,d ...").
+-- SEAM walk_to_answers_ok_with_no_detail (matthew-mbp-m4-b62-seam1): the
+-- success used to answer (ok, nil), which t.exec grades FAIL `hollow`
+-- (core.lua's hollow rule), so a plain `t.exec("walk", t.player.walk_to, x, z)`
+-- could never PASS -- four b62 fixers (elena, grandtree, forgettabletale,
+-- dragon) wrapped it and rewrote each walk as a one-hop walk_route.  The
+-- detail names the tile READ back after the await (with its level), the start
+-- tile and the server ticks the walk took, so the row says where the player
+-- stands, not only that a wait was met.
 function QD.player.walk_to(x, z, ticks)
+    local start_tick = api_drive.tick()
     local start_result, start = QD.world.tile()
     -- The deadline is the DISTANCE plus slack, not a flat 20.  One tile per
     -- server tick is the walking rate, so a flat deadline is a bet that no
@@ -2056,10 +2068,16 @@ function QD.player.walk_to(x, z, ticks)
         end,
         note = "walk_to",
     }, ticks)
-    if result == "ok" then
-        return "ok", nil
-    end
     local now_result, now = QD.world.tile()
+    if result == "ok" then
+        return "ok", string.format(
+            "walk_to %d,%d: reached %s from %s in %d tick(s)",
+            x, z,
+            (now_result == "ok" and now) and (now.x .. "," .. now.z .. "," .. tostring(now.level))
+                or (x .. "," .. z .. ",?"),
+            (start_result == "ok" and start) and (start.x .. "," .. start.z) or "?",
+            api_drive.tick() - start_tick)
+    end
     local text = string.format(
         "walk_to %d,%d from %s stalled at %s",
         x, z,
