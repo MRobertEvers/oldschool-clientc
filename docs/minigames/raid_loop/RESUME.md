@@ -152,8 +152,11 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   "The scripts should also attempt to turn the camera, rather than snap to the camera for a
   screenshot." Seam25's `watched_camera_and_shots` now makes a watched driver TURN the camera
   through the arrow keys' own path at their rate (never an instant pose), not blocking inputs
-  that need no camera; test runs stay on the instant pose there, with the cost of turning measured
-  for the owner to rule on.
+  that need no camera. OWNER'S RULING (2026-10-05): "Only the watched client should turn the
+  camera, headless can just snap, but make sure they both work and that the tests don't rely on
+  the snapping behavior - that should be handled by the code in a single call." So one driver
+  call owns every camera move (snap headless, turn watched, its own deadline per mode); no test
+  writes a pose itself (conformance check); the same scripts proved in both modes.
   SEAM26 IS NOT RUN HERE ANY MORE (2026-10-05): the owner started a separate camera session from
   the orchestrator's prompt; it works in `build/orchestrator/worktrees/camera` on branch
   `matthew-mbp-m4-camera-b1` (cut from this branch), does the gather seam first, and merges this
