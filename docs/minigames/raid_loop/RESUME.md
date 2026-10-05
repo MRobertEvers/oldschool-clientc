@@ -64,16 +64,24 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   open PNGs this session (Read hook timeout): kept by ledger and tick log.
 - OWNER RULINGS 2026-10-04 (CONTENT_BUGS.md "Owner rulings"): a protection prayer is read when
   the attack is SENT (default); Verzik P3 reads it on hit (the exception, kept).
-- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam20` (triage `SEAM_TRIAGE_2026-10-04h.md`):
-  Sotetseg's ball/ricochets and the P2 urn bombs read the prayer on landing with no source and
-  move to the send tick (tob_sotetseg is expected to move); the audit of every prayer read goes
-  into CONTENT_BUGS.md.
+- Seam20 LANDED (parent 4bfaff1b6, ledger 8cb03d5be; pack byte-identical): the prayer-read audit.
+  Sotetseg's ball (Blert: 23 of 30 balls thrown with Magic off and prayed within 4 ticks cost
+  nothing) and the P2 urn bombs (Verzik wiki :394/:397, Strategies :907) are SOURCED landing-tick
+  reads and stay; Verzik P3 on hit is the owner's ruling AND now Blert-sourced (the orchestrator's
+  analysis, pinned under sources/blert_api/spec_pass_verzik/: prayer off at the throw but on at the
+  landing gives the prayed profile, max 16 of 33, n=28). Every other ToB prayer read is on the
+  send tick (the list is in CONTENT_BUGS.md "From seam20"). Rooms: all six green; tob_sotetseg
+  and tob_verzik must be re-authored only to MEASURE the two new spec rows
+  (sotetseg.ball_prayer_read_tick, verzik.p2_bomb_prayer_read_tick); coverage, not behaviour.
+- NEXT TO RUN: seam21 (`SEAM_TRIAGE_2026-10-04i.md`: lockstep pinned, F frames per tick, the
+  digest, party_repeat.py, TORIRS_LOGIC_CYCLES_PER_FRAME); then room launch 15 (tob_sotetseg,
+  tob_verzik coverage rows, plus anything seam21 moves); then the Normal three-player pass.
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
   names seed on their first 12 characters, case folded (jbase37).
 
 ## Next, in order
 
-1. Seam20 lands (above); re-author any room it moves (tob_sotetseg likely). Then SEAM21 on
+1. SEAM21 on
    `SEAM_TRIAGE_2026-10-04i.md` (owner, 2026-10-04: "I don't want to introduce nondeterminism.
    The server and clients should be able to run in lockstep"): a member runs exactly F frames
    per tick, READY carries the frame count (the leader refuses a mismatch), TICK carries a world
