@@ -234,6 +234,8 @@ banners: the topic file named in each group heading.
 - `t.player.cross_trap{loc=, at=, src=, dest=[, attempts=4, vitals=]}` -> a trap/obstacle by its own op, ON src before and ON dest after; re-pressed on a slipped roll.
 - `t.player.walk_route({{x,z},...}[, opts])` -> hops of <=10 tiles (a longer one raises), graded on the exact end tile.
 - `t.player.teleport_cast(spell, {x,z,level}, {name=, runes=})` -> writes `<name>.cast/.runes/.landed` itself; call directly, never through t.exec.
+- `t.player.climb{loc=, at={x,z,level}, dest={x,z,level}[, src=, slack=, landed_ok=, landed_desc=]}` -> one stair, ladder or trapdoor, graded on the new level and the landing, never the press.
+- `t.player.cancel_selection(why)` -> `(ok, detail, was_armed)`; drops a spell or Use left armed (`covered ... menu rows: <Cancel>`). The driver calls it after a cast fight and a missed cast press.
 - `t.drive.screen_position(target)`, `t.drive.click_minimenu(target, option)`, `t.drive.camera(yaw, pitch, zoom)`.
 - `t.drive.op(target, option)` -> the logged bypass, never the default and never evidence of reach.
 

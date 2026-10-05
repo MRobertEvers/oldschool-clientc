@@ -2026,3 +2026,78 @@ on every idle tick until the player dies, so never walk across one: press it wit
 (op 1; no level gate, the roll is `stat_random(agility, 30, 155)`, so stage Agility to fail less) and grade the tile; a failed roll from the west lands on the east side,
 crossed with damage. The committed regicide.lua walks over the 2235,3181 spring in leg 3 and now
 dies there (row 119 `walk-climbThroughForest`); its fixer passes the trap before the walk.
+
+## Seam pass matthew-mbp-m4-b60-seam1 (2026-10-04, batch matthew-mbp-m4-b60)
+
+Content in the OSRS-Content commit tagged `[seam:matthew-mbp-m4-b60-seam1]`; the driver verbs and
+their conformance rows in the parent commit with the same tag. Five b60 door-rule reopens ended
+`content_bug` on a place no walk could reach; each fix below makes the real branch reachable.
+
+(a) **Spirits of the Elid: the Water Ravine Dungeon is reached and left on foot** -- FIXED,
+`quest_spiritsoftheelid/scripts/elid_dungeon.rs2`, `.constant`, `doors/configs/doors.loc`. No
+LostCity source; the wiki walkthrough has the rope used on the root "on the east bank". Three faults.
+(1) `desert_water_cave_root` (3369-3371,3132) stands over the waterfall pool, and every tile beside
+it is pool or cliff, so `[oplocu]` answered `I can't reach that!` from every bank tile. It is now
+`[aplocu]`, which narrows with `p_aprange(3)` until `distance(coord, loc_coord) <= 4` (the shape of
+LostCity `quest_waterfall.rs2:213` and this tree's `[aplocu,mdaughter_polerocks]`). A loc used across
+water needs this shape. The engine measures ap range to the loc's rectangle and the script to
+`loc_coord`, so the script check allows the loc's width. (2) `^elid_cave_exit_coord` was the pool
+(3370,3131), with no walk out; it is now the east bank 3372,3130 (inferred from the wiki's "east
+bank"; no source names the tile). (3) The robe door, the three golem doors and the lake door each had
+a quest `[oploc1]` that shadows doors.rs2's `[oploc1,_door_closed]` and never swung the leaf. Each
+now ends in `~door_open_active` after its checks (before the golem spawns). A door with no `_open`
+sibling in the cache can take a nameless, op-less sibling of the same model as its
+`next_loc_stage`: the golem doors open to `elid_underground_inactive_door` (model 10174, mirror=1),
+which nothing can close; the 500-tick revert shuts it. The pack does not require a reciprocal
+pair (`torirs_server_pack.c:1180`). A test crossing back past it names `open=` in `pass_door`.
+Proved on a copy of the committed test with 4 test-side edits: 138/0, helper_coverage FULL.
+
+(b) **Draynor Manor's crypt stairs go down and come back up** -- FIXED, new
+`quest_vampire/scripts/vampire_crypt_stairs.rs2`, ported from LostCity
+`ladders+stairs/scripts/stairs.rs2:408-424`. `cryptstairsdown`/`cryptstairsup` carried only the
+climb categories and no maplink row, so the generic `~climb` moved one plane below level 0:
+`You can't go any further.` Down now lands on 3077,9771,0 and up on 3115,3356,0. A climb-category
+loc whose real destination is in another region is fixed with a name rung `[oploc1,<sym>]` in the
+quest's own scripts (it beats the category rung); bind only the ops the record has (`all.loc`).
+
+(c) **Mountain Daughter: the rockslide is two-way and the rock tent has a door** -- FIXED,
+`quest_mountaindaughter/scripts/mountaindaughter_camp.rs2` + `.constant`. No LostCity source; wiki
+"Rockslide (Mountain Camp)" oldid 15360533 (the camp's entrance, Climb-over), Mountain Camp oldid
+15351048, Mountain Daughter oldid 15292291. The rockslide used to teleport to 2768,3668, a cliff tile
+walled on four sides, and only inward. Pressed from z < 3658 it now lands on 2760,3660 inside the
+camp, otherwise on 2760,3657 outside. The rock tent's double door (`mdaughter_rocktent_door`
+2799,3665 and `_doorl` 2800,3665) had no op1; Go-through now walks the player through
+(`open_and_close_door2` shape): from outside onto the door tile 2799,3665, which IS inside the tent;
+from inside to 2799,3666. The leaf is gone for only 3 ticks, so grade the entry with `pass_door`
+`far_ok` (inside the tent, x 2797-2802 z 3661-3665), not on the leaf's absence or a tile deeper in.
+Not ported yet: the wiki gates the rockslide on starting the quest (before it, a rope on the boulder
+climbs you down); the boulder still only prints a line, so the rockslide stays ungated.
+
+(d) **The Tourist Trap mine door lands on the door tile** -- FIXED,
+`quest_desertrescue/scripts/quest_desertrescue.rs2`, from LostCity
+`quest_desertrescue.rs2:433-440`. It used to land on 3278,9425, a walled pocket south of the exit
+door. It now lands on 3278,9426 for one tick (`p_delay(0)`) and steps through `thttmineexitl` to
+3278,9427, the mine side. A test reads the tile after the door with an await on 3278,9427, not at
+once. Not ported: LostCity's double-door swing (no `open_and_close_double_door2`, no open stages
+for `thttmineexitl/r`).
+
+(e) **One Small Favour: the Seers' roof ladder reaches the roof** -- FIXED,
+`quest_onesmallfavour/scripts/onesmallfavour_puzzles.rs2`. `favour_seer_ladder` (2715,3472,1) and
+`favour_roof_trapdoor` (2715,3472,3) used the generic one-plane climb categories, landing on plane 2,
+which the map blocks. Name rungs now call `~climb_ladder_to`: up to 2714,3472,3, down to
+2714,3472,1 (Quest Helper `OneSmallFavour.java:745,753`, roof zone `:365`; placements
+`m42_54.jl2:4299-4300`). A copy of the committed test without its block ran 468/0.
+
+(f) **A spell left armed after a fight, and a climb verb** -- driver. A re-cast whose presses all
+answered `covered` left Fire Blast armed after Family Crest's Chronozon. After that, every world
+press read `covered ... menu rows: <Cancel>`. `t.player.cancel_selection` drops it, and the driver
+calls it itself after a cast press that missed on every try and when `npc.await_dead_engaged`'s cast
+wrap ends. `t.player.climb` grades a level change on the level and the landing. Both are in
+verbs-pointer.md. Conformance `player.climb`, `player.cancel_selection` and
+`seam.cast_fight_ends_with_nothing_armed` (153 verbs / 104 seams).
+
+(g) **Two seam-pass traps, again** -- `run.py <quest id> --name X` does NOT rename a run started by
+quest id, and without `--no-publish` it rewrites `OSRS-Content/.../selftest/quests/<dir>/play`. Two
+fixers in this pass did so for cooks_assistant and druid, and a hand restore then zeroed 72 tracked
+files. When you read a file back with `git show HEAD:<path>`, remember that OSRS-Content's git root
+is `OSRS-Content/`, not `osrs239-content/`: the path needs the `osrs239-content/` prefix.

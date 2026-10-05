@@ -55,6 +55,11 @@ t.exec("vargas1.castleGate", t.player.pass_door, { closed = "castledoor", open =
    tile, walks back to `far` and grades it (a door the client lost after its 500-tick revert while
    you were away is the reason misc_astrid closes doors behind it).
 
+Name `open=` whenever the door's open leaf is a different symbol, even one with no name or op (the
+Water Ravine golem doors open to `elid_underground_inactive_door`): the way back finds that leaf
+standing open, and without `open` the return row fails `no <closed>: none within 0 ... and no open
+leaf named (spec.open)` (b60-seam1; seam-facts: Seam pass matthew-mbp-m4-b60-seam1 (a)).
+
 `level` defaults to the player's level at `near`. The press's own word (`ok`, or `timeout` for a door
 that says nothing) is in the detail; the grade is the loc reads and the tiles. Proved on Miscellania
 castle's stacked `castledoor` 2506,3851 (levels 0 and 1): conformance `player.pass_door` and
@@ -165,6 +170,64 @@ t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = "camelotT
 
 It answers `ok` only when all three passed, else `refused` naming the rows that did not. A step the
 guide does with a teleport is done with this, not with `goto_tile` or `::tele`.
+
+### `t.player.climb(spec)` -- a staircase, ladder or trapdoor, graded on the level and the landing (b60-seam1)
+
+`t.player.climb{ loc=, at={x,z,level}, dest={x,z,level} [, op=1, op_name="Climb-up", slack=0,
+src={x,z}, landed_ok=fn, landed_desc=, presses=2, ticks=10] }` -> `(ok, detail)` `refused` `covered`
+`not_visible` `timeout` ...
+
+```lua
+-- No maplink row: ladders.rs2 [proc,climb] moves the player one plane on the tile it stands on.
+t.exec("talkToDuke.stairsUp", t.player.climb, { loc = "spiralstairsbottom_3", op = 1, op_name = "Climb-up",
+    at = { 3204, 3229, 0 }, src = { 3205, 3228 }, dest = { 3205, 3228, 1 } })
+t.exec("talkToGillieAgain.stairsDown", t.player.climb, { loc = "spiralstairsmiddle", op = 3,
+    op_name = "Climb-down", at = { 3204, 3229, 1 }, dest = { 3205, 3228, 0 } })
+-- A maplink row telejumps to its dest from any approach tile; a room test narrows the landing.
+t.exec("goUpToJohnathon", t.player.climb, { loc = "fai_varrock_stairs_taller", at = { 3285, 3493, 0 },
+    dest = { 3285, 3496, 1 }, slack = 2, landed_ok = in_inn_upstairs, landed_desc = "the inn's upper floor" })
+```
+
+`goto_tile` is a teleport and `walk_to` never changes floor, so every level change past a staircase
+is this verb (b60: crest, idesofmilk, vampire and fenkenstrain each hand-wrote a `climb()` for it).
+`at` names the copy pressed AND the floor it is pressed from; `dest` names the landing and its NEW
+level (a dest on `at`'s level raises: a one-floor crossing is `pass_door`/`cross_trap`/`walk_route`).
+The verdict is the world: the player on `at`'s level before the press (else `refused ... not
+pressed`), on `src` exactly when `src` is given (walked there first; else `refused ... not pressed`),
+and after the press on `dest`'s level within `slack` (Chebyshev) of its x,z with `landed_ok(tile)`
+true, awaited `ticks`. Which `dest`: a stair with a `maplink.dbrow` row lands on the row's dest tile
+whatever tile it was pressed from; one with no row (`[proc,climb]`, ladders.rs2:69-78) lands on the
+approach tile one plane up or down -- give `src` and the same x,z, or a `slack`. A press the client
+could not land (`covered`, `not_visible`) from the start floor is pressed once more (`presses`,
+vampire b60 run 2's stairstop); a press the server answered is never repeated. The detail names
+every press, its landing and the chat it caused: `You can't go any further.` with the player still
+on `at`'s level is a stair whose route the port does not have -- a content seam (Draynor Manor's
+crypt stairs, vampire b60), stop at `t.blocked("content_bug: ...")`. `reached level N but not the
+landing` is the wrong `dest`. Conformance `player.climb` climbs Lumbridge castle's stairs up and
+down and refuses a press from the wrong floor.
+
+### `t.player.cancel_selection(why)` -- drop a spell or Use left armed (b60-seam1)
+
+`t.player.cancel_selection([why])` -> `(ok, detail, was_armed)` `refused` `not_visible` `timeout`.
+`why` is only echoed at the head of the detail, and is what lets it go through `t.exec` (a nil first
+argument is `bad verb/target`).
+
+```lua
+t.exec("dropSpell", t.player.cancel_selection, "fire blast left by the Chronozon kill")
+```
+
+An armed spell (or held-item Use) survives everything but a menu row's doAction tail or a left click
+off any target: not a closed menu, a teleport, an `if_click`, a tick. While it is armed every world
+press reads `covered ... menu rows: <Cancel>` (crest b60 run 1 rows 138 and 147: a click_obj and a
+gate). The verb right-clicks the world beside the player and reads the menu: "Walk here" is offered
+on every world right-click EXCEPT while a selection is armed (rs_minimenu_world.c), so no Walk here
+IS an armed selection; it presses Cancel and reads the menu again -- `ok` with `was_armed` true only
+when Walk here is back. Nothing armed: `ok`, `was_armed` false, the menu closed with Cancel. Nothing
+walks. The driver now calls it itself in two places, so a test rarely needs it: a cast press that
+missed on every try (`covered` x3) cancels the arming it made, and `npc.await_dead_engaged`'s cast
+wrap cancels whatever is armed when the wait ends -- its detail ends `fight over with nothing armed`
+or `fight over with a selection still armed -- cancel_selection: a selection WAS armed ...` (seam
+`seam.cast_fight_ends_with_nothing_armed`). Use it by hand after a spell you armed and did not spend.
 
 ### `t.world.tile()` -- also `t.world.level`
 
