@@ -90,9 +90,13 @@ return {
         -- p_teleports between the camp (thttmineentrancel 3301,3036 r1) and
         -- the mine (thttmineexitl 3278,9426 r1; its mine side is z >= 9427).
         local MINE_IN = { loc = "thttmineentrancel", at = { 3301, 3036, 0 }, near = { 3301, 3036 },
-            far_ok = function(tile) return tile.z > 6400 end, far_desc = "underground in the mine (z > 6400)" }
+            far_ok = function(tile) return tile.x == 3278 and (tile.z == 9426 or tile.z == 9427) end,
+            far_desc = "the mine door's tile 3278,9426 or its mine side 3278,9427" }
+        -- The way out (quest_desertrescue.rs2:262-265): p_teleport(0_51_47_37_28)
+        -- = 3301,3036, the entrance door's own tile in the camp.
         local MINE_OUT = { loc = "thttmineexitl", at = { 3278, 9426, 0 }, near = { 3278, 9427 },
-            far_ok = function(tile) return tile.z < 6400 end, far_desc = "the camp on the surface (z < 6400)" }
+            far_ok = function(tile) return tile.x == 3301 and tile.z == 3036 end,
+            far_desc = "the camp side of the mine entrance, 3301,3036" }
         -- The mine caves (thminecaver 3281,9414 r0 / thminecavel 3283,9414 r2,
         -- [label,desertrescue_minecave]): the upper tunnels are x <= 3280,
         -- the deep mine x >= 3284; each side p_teleports to the other.
@@ -122,48 +126,25 @@ return {
         end
 
         -- The mine door's landing. [label,desertrescue_open_mine_door]
-        -- p_teleport(0_51_147_14_17) (quest_desertrescue.rs2:267) is 3278,9425:
-        -- SOUTH of the door, in a 20-tile pocket the map walls in (x 3276-3281,
-        -- z 9421-9426, maps/m51_147; comp.py: its only edge is the door), and
-        -- the door's own op from inside goes back to the surface (:262-265,
-        -- coordz(loc) > 6400 is always true underground). LostCity
-        -- (LostCity_Server content/scripts/quests/quest_desertrescue/scripts/
-        -- quest_desertrescue.rs2:433-440) lands on the door tile 0_51_147_14_18
-        -- and opens the double door onto the mine side (z 9427). Walk out of
-        -- the landing first; if the pocket holds the player, the rest of the
-        -- quest is behind it and the run stops at an honest content_bug.
-        local function in_mine_pocket(tile)
-            return tile ~= nil and tile.level == 0 and tile.x >= 3276 and tile.x <= 3281 and tile.z >= 9421 and tile.z <= 9426
-        end
-        local function sealed_mine_landing(row)
-            local _, land = t.world.tile()
-            if not in_mine_pocket(land) then
-                return false
-            end
-            local southR, southD = t.player.walk_to(3277, 9415, 30)
-            local _, south = t.world.tile()
-            local northR, northD = t.player.walk_to(3278, 9427, 15)
-            local _, north = t.world.tile()
-            if not (in_mine_pocket(south) and in_mine_pocket(north)) then
-                return false
-            end
-            local reading = string.format("landed %d,%d,%d; walk_to 3277,9415 (the guard) -> %s %s, at %d,%d; "
-                    .. "walk_to 3278,9427 (the mine side of the door) -> %s %s, at %d,%d",
-                land.x, land.z, land.level, tostring(southR), tostring(southD), south.x, south.z,
-                tostring(northR), tostring(northD), north.x, north.z)
-            t.check(row .. "-sealedLanding", true, "recorded: " .. reading)
-            t.blocked("content_bug: the mine door drops the player into a sealed pocket. "
-                .. "[label,desertrescue_open_mine_door] p_teleport(0_51_147_14_17) "
-                .. "(OSRS-Content/osrs239-content/server/scripts/quests/quest_desertrescue/scripts/quest_desertrescue.rs2:267) "
-                .. "lands on 3278,9425, south of the thttmineexitl/thttmineexitr door (3278-3279,9426, wall on the tile's north edge), "
-                .. "inside the 20 tiles x 3276-3281 z 9421-9426 that the map walls in (maps/m51_147; comp.py: the door is its only edge); "
-                .. "the door's op1 from inside teleports back to the surface (quest_desertrescue.rs2:262-265). This run: " .. reading
-                .. ". LostCity_Server content/scripts/quests/quest_desertrescue/scripts/quest_desertrescue.rs2:433-440 "
-                .. "p_teleports to 0_51_147_14_18 (the door tile) and opens the double door onto the mine side (3278,9427), from which "
-                .. "the guard at 3277,9415 is a 95-tile walk (reach.py REACH closed-doors len=95). Needed: the landing on the mine "
-                .. "side of the door. The guard, the deep mine, Ana and the rest of the quest are behind it; the committed test "
-                .. "goto'd out of the pocket (the reopen's talkToGuard CHEAT).")
-            return true
+        -- (OSRS-Content quest_desertrescue.rs2:254-289, seam b60-seam1, as
+        -- LostCity quest_desertrescue.rs2:433-440) p_teleports onto the exit
+        -- door's own tile 0_51_147_14_18 = 3278,9426, then through the door
+        -- (~door_open on thttmineexitl r1) onto the mine side 3278,9427. The 20
+        -- tiles south of the door (x 3276-3281, z 9421-9426, maps/m51_147) are
+        -- a pocket the map walls in (comp.py: the door is its only edge): the
+        -- old landing 0_51_147_14_17 put the player there. MINE_IN passes on
+        -- the door tile or the mine side (whichever the poll sees first); this
+        -- row then holds the player to the mine side exactly, never the pocket.
+        local function mine_side(row)
+            local aw = t.await({ level = function()
+                local tr, tile = t.world.tile()
+                return tr == "ok" and tile.level == 0 and tile.x == 3278 and tile.z == 9427
+            end, note = row .. ": through the door onto the mine side 3278,9427" }, 6)
+            local _, tile = t.world.tile()
+            t.check(row, aw == "ok" and tile ~= nil and tile.level == 0 and tile.x == 3278 and tile.z == 9427,
+                "after the mine door: " .. tostring(tile and tile.x) .. "," .. tostring(tile and tile.z) .. ","
+                    .. tostring(tile and tile.level) .. " (want 3278,9427,0, the mine side of thttmineexitl; await "
+                    .. tostring(aw) .. ")")
         end
 
         -- ================= Al Kharid: Shantay's pass, through the gate =================
@@ -374,10 +355,8 @@ return {
         -- In-camp travel to the mine door (reach.py REACH closed-doors len=15).
         t.exec("goto-enterMine", t.player.goto_tile, 3301, 3035, 0)
         t.exec("enterMine", t.player.cross_gate, MINE_IN)
+        mine_side("enterMine-mineSide")
         t.exec("quest.stage.entered_mine", t.var.await_server, "varp197_desertrescue", 9, 15)
-        if sealed_mine_landing("enterMine") then
-            return
-        end
 
         t.exec("talkToGuard-route", t.player.walk_route, DOOR_TO_GUARD, { level = 0 })
         t.exec("talkToGuard", t.player.talk_to, "tourtrap_qip_desert_mining_guard_still_2", 1)
@@ -459,16 +438,10 @@ return {
         t.exec("goto-goUpToSiad", t.player.goto_tile, 3291, 3028, 0)
         t.exec("goUpToSiad-curtain", t.player.pass_door, { closed = "desertdoorclosed", open = "desertdooropen",
             at = { 3291, 3030, 0 }, near = { 3291, 3030 }, far = { 3291, 3031 } })
-        t.exec("goUpToSiad", t.player.click_loc, "tourtrap_qip_ladder", 1, { at = { 3290, 3036, 0 } })
-        local siadUp = t.await({ level = function()
-            local tres, tile = t.world.tile()
-            return tres == "ok" and tile.level == 1
-        end, note = "goUpToSiad: the climb to level 1" }, 8)
-        local _, siadUpTile = t.world.tile()
-        t.check("goUpToSiad-landed", siadUp == "ok" and siadUpTile ~= nil and siadUpTile.level == 1
-                and math.abs(siadUpTile.x - 3290) <= 2 and math.abs(siadUpTile.z - 3036) <= 2,
-            "after the ladder: " .. tostring(siadUpTile and siadUpTile.x) .. "," .. tostring(siadUpTile and siadUpTile.z) .. ","
-                .. tostring(siadUpTile and siadUpTile.level) .. " (want level 1 within 2 of 3290,3036; await " .. tostring(siadUp) .. ")")
+        -- tourtrap_qip_ladder (ladders.loc:1627) has no maplink row: ladders.rs2
+        -- [proc,climb] lifts the player one plane on the approach tile.
+        t.exec("goUpToSiad", t.player.climb, { loc = "tourtrap_qip_ladder", op = 1, op_name = "Climb-up",
+            at = { 3290, 3036, 0 }, src = { 3290, 3035 }, dest = { 3290, 3035, 1 } })
         t.exec("searchBookcase", t.player.click_loc, "capt_siad_bookcase", 2)
         t.exec("searchBookcase-note", t.chat.drain, { shots = true, max_pages = 10 })
 
@@ -504,16 +477,8 @@ return {
         -- ================= Al Shabim: show the plans =================
         -- Down the ladder, out through the curtain (pass_door walks through
         -- it when it still stands open from the way in), the gate.
-        t.exec("leaveSiad", t.player.click_loc, "tourtrap_qip_ladder_top", 1, { at = { 3290, 3036, 1 } })
-        local siadDown = t.await({ level = function()
-            local tres, tile = t.world.tile()
-            return tres == "ok" and tile.level == 0
-        end, note = "leaveSiad: the climb down to level 0" }, 8)
-        local _, siadDownTile = t.world.tile()
-        t.check("leaveSiad-landed", siadDown == "ok" and siadDownTile ~= nil and siadDownTile.level == 0
-                and math.abs(siadDownTile.x - 3290) <= 2 and math.abs(siadDownTile.z - 3036) <= 2,
-            "after the ladder: " .. tostring(siadDownTile and siadDownTile.x) .. "," .. tostring(siadDownTile and siadDownTile.z) .. ","
-                .. tostring(siadDownTile and siadDownTile.level) .. " (want level 0 within 2 of 3290,3036; await " .. tostring(siadDown) .. ")")
+        t.exec("leaveSiad", t.player.climb, { loc = "tourtrap_qip_ladder_top", op = 1, op_name = "Climb-down",
+            at = { 3290, 3036, 1 }, src = { 3290, 3037 }, dest = { 3290, 3037, 0 } })
         t.exec("leaveSiad-curtain", t.player.pass_door, { closed = "desertdoorclosed", open = "desertdooropen",
             at = { 3291, 3030, 0 }, near = { 3291, 3031 }, far = { 3291, 3029 } })
         t.exec("goto-leaveCamp2", t.player.goto_tile, 3275, 3029, 0)
@@ -673,10 +638,7 @@ return {
         t.ticks(2)
         t.exec("goto-enterMineWithPineapple", t.player.goto_tile, 3301, 3035, 0)
         t.exec("enterMineWithPineapple", t.player.cross_gate, MINE_IN)
-        t.ticks(2)
-        if sealed_mine_landing("enterMineWithPineapple") then
-            return
-        end
+        mine_side("enterMineWithPineapple-mineSide")
 
         t.exec("talkToGuardWithPineapple-route", t.player.walk_route, DOOR_TO_GUARD, { level = 0 })
         t.exec("talkToGuardWithPineapple", t.player.talk_to, "tourtrap_qip_desert_mining_guard_still_2", 1)
