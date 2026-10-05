@@ -1340,11 +1340,11 @@ app_overlay_build_hover_footprint(struct App* app)
          * know what kind of entity it found beyond where to read the id.
          */
         struct World_Picked const* hit = NULL;
-        for( int i = 0; i < app->world_pickset.count && !hit; i++ )
+        for( int i = 0; i < app->frame_view->world_pickset.count && !hit; i++ )
         {
-            enum World_PickType const type = app->world_pickset.items[i].type;
+            enum World_PickType const type = app->frame_view->world_pickset.items[i].type;
             if( type == WORLD_PICK_SCENERY || type == WORLD_PICK_NPC )
-                hit = &app->world_pickset.items[i];
+                hit = &app->frame_view->world_pickset.items[i];
         }
         if( !hit )
             return;

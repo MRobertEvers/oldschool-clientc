@@ -339,10 +339,10 @@ app_capture_fallback_render(
      * publish a second pickset for the same frame would make a screenshot a
      * thing that can affect what a click does.
      */
-    saved_pick = app->world_mouse_in_viewport;
-    app->world_mouse_in_viewport = 0;
+    saved_pick = app->frame_view->world_mouse_in_viewport;
+    app->frame_view->world_mouse_in_viewport = 0;
     App_Render(app, pixels, width, height);
-    app->world_mouse_in_viewport = saved_pick;
+    app->frame_view->world_mouse_in_viewport = saved_pick;
     return 1;
 }
 

@@ -205,18 +205,19 @@ app_world_frame(
     /* Publish the orbit angles to the CS2 host (CAM_GETANGLE_XA/YA, CAM_GETYAW)
      * and take back anything CAM_FORCEANGLE snapped since the last tick. Both
      * sides speak the reference's orbitCameraPitch/Yaw units, which is what
-     * app->orbit.pitch and app->orbit.yaw already hold, so no conversion is involved.
-     * Order matters: mirror first, then apply a force, so a snap issued this
-     * tick is not read back as "the camera moved there on its own". */
-    RS_CS2Host_SetCameraAngles(&app->host, app->orbit.pitch, app->orbit.yaw);
+     * app->frame_view->orbit.pitch and app->frame_view->orbit.yaw already hold, so no conversion is
+     * involved. Order matters: mirror first, then apply a force, so a snap issued this tick is not
+     * read back as "the camera moved there on its own". */
+    RS_CS2Host_SetCameraAngles(
+        &app->host, app->frame_view->orbit.pitch, app->frame_view->orbit.yaw);
     {
         int forced_pitch, forced_yaw;
         if( RS_CS2Host_TakeCameraForce(&app->host, &forced_pitch, &forced_yaw) )
         {
-            app->orbit.pitch = forced_pitch;
-            app->orbit.yaw = forced_yaw & 0x7ff;
-            app->orbit.pitch_velocity = 0;
-            app->orbit.yaw_velocity = 0;
+            app->frame_view->orbit.pitch = forced_pitch;
+            app->frame_view->orbit.yaw = forced_yaw & 0x7ff;
+            app->frame_view->orbit.pitch_velocity = 0;
+            app->frame_view->orbit.yaw_velocity = 0;
         }
     }
     app_world_sync_entity_animations(app);

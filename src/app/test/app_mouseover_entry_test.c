@@ -126,6 +126,7 @@ test_entry_subject_is_the_acting_row(void)
 
     app = calloc(1, sizeof(*app));
     TEST_ASSERT(app != NULL, "app fixture allocated");
+    App_WorldViewsInit(app);
     app->world = world;
     RS_ClientOpReset(&app->host.clientop);
 

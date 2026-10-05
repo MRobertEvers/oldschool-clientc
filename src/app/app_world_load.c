@@ -38,7 +38,7 @@ app_world_load_finish_cb(void* userdata);
 void
 app_bind_configured_overlays(struct App* app)
 {
-    app->interact.minimenu.font_id = -1;
+    app->frame_view->minimenu->font_id = -1;
     app->hover_text.font_id = -1;
     UITREE_SCAN_METER(app->tree);
     for( uint32_t i = 0; i < app->tree->component_count; i++ )
@@ -47,7 +47,7 @@ app_bind_configured_overlays(struct App* app)
         if( node->freed )
             continue;
         if( node->type == UIELEM_BUILTIN_MINIMENU )
-            app->interact.minimenu.font_id = node->u.minimenu.font_id;
+            app->frame_view->minimenu->font_id = node->u.minimenu.font_id;
         else if( node->type == UIELEM_BUILTIN_HOVERTEXT )
             app->hover_text.font_id = node->u.hovertext.font_id;
     }
@@ -320,14 +320,14 @@ app_world_load_begin(
     if( app->world && app->world_active )
     {
         WorldCameraHold_Capture(
-            &app->cam_hold,
+            &app->frame_view->cam_hold,
             app->world->_base_tile_x,
             app->world->_base_tile_z,
-            app->world_camera_pos.x,
-            app->world_camera_pos.y,
-            app->world_camera_pos.z,
-            app->world_camera.pitch,
-            app->world_camera.yaw);
+            app->frame_view->world_camera_pos.x,
+            app->frame_view->world_camera_pos.y,
+            app->frame_view->world_camera_pos.z,
+            app->frame_view->world_camera.pitch,
+            app->frame_view->world_camera.yaw);
     }
 
     app->world_load_attempted = 1;
@@ -428,35 +428,35 @@ App_WorldLoadFinish(struct App* app)
              * somewhere distant) the hold is meaningless and the first-look
              * centre below is correct. */
             restored = WorldCameraHold_Restore(
-                &app->cam_hold,
+                &app->frame_view->cam_hold,
                 app->world->_base_tile_x,
                 app->world->_base_tile_z,
                 app->world->_scene_size,
-                &app->world_camera_pos.x,
-                &app->world_camera_pos.y,
-                &app->world_camera_pos.z,
-                &app->world_camera.pitch,
-                &app->world_camera.yaw);
+                &app->frame_view->world_camera_pos.x,
+                &app->frame_view->world_camera_pos.y,
+                &app->frame_view->world_camera_pos.z,
+                &app->frame_view->world_camera.pitch,
+                &app->frame_view->world_camera.yaw);
 
             if( !restored )
             {
                 /* Offline/hotkey load: place the camera at scene centre. */
-                app->world_camera_pos.x = app->world->_scene_size / 2 * 128 + 64;
-                app->world_camera_pos.z = app->world->_scene_size / 2 * 128 + 64;
-                app->world_camera_pos.y = -2000;
-                app->world_camera.pitch = 450;
-                app->world_camera.yaw = 0;
+                app->frame_view->world_camera_pos.x = app->world->_scene_size / 2 * 128 + 64;
+                app->frame_view->world_camera_pos.z = app->world->_scene_size / 2 * 128 + 64;
+                app->frame_view->world_camera_pos.y = -2000;
+                app->frame_view->world_camera.pitch = 450;
+                app->frame_view->world_camera.yaw = 0;
             }
             {
                 char const* cam = getenv("TORIRS_WORLD_CAM");
                 int cx, cy, cz, cpitch, cyaw;
                 if( cam && sscanf(cam, "%d,%d,%d,%d,%d", &cx, &cy, &cz, &cpitch, &cyaw) == 5 )
                 {
-                    app->world_camera_pos.x = cx;
-                    app->world_camera_pos.y = cy;
-                    app->world_camera_pos.z = cz;
-                    app->world_camera.pitch = cpitch;
-                    app->world_camera.yaw = cyaw;
+                    app->frame_view->world_camera_pos.x = cx;
+                    app->frame_view->world_camera_pos.y = cy;
+                    app->frame_view->world_camera_pos.z = cz;
+                    app->frame_view->world_camera.pitch = cpitch;
+                    app->frame_view->world_camera.yaw = cyaw;
                 }
             }
         }

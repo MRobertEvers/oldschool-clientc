@@ -114,7 +114,7 @@ int ContentTest_DrawRequested(struct App* app)
          * Measured (B0 spike, a throwaway click_minimenu run traced frame by
          * frame): a quest-mode world renders exactly ONCE, early after
          * login, and then never again once nothing else marks need_redraw
-         * (no animation, no camera drift) -- app->world_pickset and the
+         * (no animation, no camera drift) -- app->frame_view->world_pickset and the
          * per-entity screen-position caches freeze at that one frame's
          * contents for the rest of the run. A click verb that lands after
          * that point waits out its whole deadline against a pickset that
@@ -143,9 +143,14 @@ int ContentTest_DrawRequested(struct App* app)
          * showing the pickset actually staying current instead of freezing.
          * Remove once B1-B3 are green and this stops earning its keep. */
         if( getenv("TORIRS_QD_PICKSET_TRACE") )
-            fprintf(stderr,
+            fprintf(
+                stderr,
                 "pickset_trace: now=%llu forced=%d active=%d running=%d pickset_count=%d\n",
-                (unsigned long long)test_now, forced, active, running, app->world_pickset.count);
+                (unsigned long long)test_now,
+                forced,
+                active,
+                running,
+                app->frame_view->world_pickset.count);
         return forced;
     }
 }
@@ -195,21 +200,38 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
     char result[16384];
     struct ToriRSServerPlayer* server = embed ? ToriRSServer_EmbedPlayer(embed, 0) : NULL;
 
-        snprintf(result, sizeof(result),
-            "{\"ok\":true,\"online\":%s,\"paused\":%s,\"time_ms\":%llu,\"server_x\":%d,\"server_z\":%d,\"level\":%d,\"aboard_view\":%d,\"logic_cycle\":%llu,\"server_tick\":%d,\"camera_yaw\":%d,\"camera_pitch\":%d,\"camera_zoom\":%d,\"world_ready\":%d,\"renderer\":%d}",
-            server ? "true" : "false", running ? "false" : "true", (unsigned long long)test_now,
-            server ? server->x : -1, server ? server->z : -1, server ? server->level : -1,
-            app->aboard_view, (unsigned long long)app->logic_cycle,
-            server ? ToriRSServer_EmbedWorld(embed)->tick : -1,
-            app->orbit.yaw, app->orbit.pitch, app->world_cam_zoom,
-            app->world ? app->world->load_complete : 0, app->world_render_mode);
-        struct WorldEntity_Player* player = app->world ? World_PlayerGetByServerPid(app->world, app->esync.local_pid) : NULL;
-        int base_x=app->world ? app->world->_base_tile_x : 0;
-        int base_z=app->world ? app->world->_base_tile_z : 0;
-        if( app->aboard_view>0 )
+    snprintf(
+        result,
+        sizeof(result),
+        "{\"ok\":true,\"online\":%s,\"paused\":%s,\"time_ms\":%llu,\"server_x\":%d,\"server_z\":%d,"
+        "\"level\":%d,\"aboard_view\":%d,\"logic_cycle\":%llu,\"server_tick\":%d,\"camera_yaw\":%d,"
+        "\"camera_pitch\":%d,\"camera_zoom\":%d,\"world_ready\":%d,\"renderer\":%d}",
+        server ? "true" : "false",
+        running ? "false" : "true",
+        (unsigned long long)test_now,
+        server ? server->x : -1,
+        server ? server->z : -1,
+        server ? server->level : -1,
+        app->aboard_view,
+        (unsigned long long)app->logic_cycle,
+        server ? ToriRSServer_EmbedWorld(embed)->tick : -1,
+        app->frame_view->orbit.yaw,
+        app->frame_view->orbit.pitch,
+        app->frame_view->world_cam_zoom,
+        app->world ? app->world->load_complete : 0,
+        app->world_render_mode);
+    struct WorldEntity_Player* player =
+        app->world ? World_PlayerGetByServerPid(app->world, app->esync.local_pid) : NULL;
+    int base_x = app->world ? app->world->_base_tile_x : 0;
+    int base_z = app->world ? app->world->_base_tile_z : 0;
+    if( app->aboard_view > 0 )
+    {
+        struct Worldview* view = WorldviewRegistry_Get(&app->worldviews, app->aboard_view);
+        if( view )
         {
-            struct Worldview* view=WorldviewRegistry_Get(&app->worldviews,app->aboard_view);
-            if( view ) { base_x=view->base_x; base_z=view->base_z; }
+            base_x = view->base_x;
+            base_z = view->base_z;
+        }
         }
         size_t client_end = strlen(result);
         snprintf(result + client_end - 1, sizeof(result) - client_end + 1,
@@ -239,17 +261,27 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
                     ++visible_orbs;
         }
         size_t camera_end = strlen(result);
-        snprintf(result + camera_end - 1, sizeof(result) - camera_end + 1,
+        snprintf(
+            result + camera_end - 1,
+            sizeof(result) - camera_end + 1,
             ",\"cinematic\":{\"eye_x\":%d,\"eye_z\":%d,\"eye_height\":%d,"
             "\"look_x\":%d,\"look_z\":%d,\"look_height\":%d,"
             "\"render_yaw\":%d,\"render_pitch\":%d,\"render_x\":%d,\"render_y\":%d,\"render_z\":%d,"
             "\"hide_panels\":%d,\"fov_mode\":%d,\"visible_orbs\":%d}}",
-            app->cam_script.move_lx + base_x, app->cam_script.move_lz + base_z, app->cam_script.move_height,
-            app->cam_script.look_lx + base_x, app->cam_script.look_lz + base_z, app->cam_script.look_height,
-            app->world_camera.yaw, app->world_camera.pitch, app->world_camera_pos.x + base_x * 128,
-            app->world_camera_pos.y, app->world_camera_pos.z + base_z * 128,
+            app->cam_script.move_lx + base_x,
+            app->cam_script.move_lz + base_z,
+            app->cam_script.move_height,
+            app->cam_script.look_lx + base_x,
+            app->cam_script.look_lz + base_z,
+            app->cam_script.look_height,
+            app->frame_view->world_camera.yaw,
+            app->frame_view->world_camera.pitch,
+            app->frame_view->world_camera_pos.x + base_x * 128,
+            app->frame_view->world_camera_pos.y,
+            app->frame_view->world_camera_pos.z + base_z * 128,
             cutscene_bit >= 0 ? VarPManager_GetVarbit(&app->varps, cutscene_bit) : -1,
-            fov_bit >= 0 ? VarPManager_GetVarbit(&app->varps, fov_bit) : -1, visible_orbs);
+            fov_bit >= 0 ? VarPManager_GetVarbit(&app->varps, fov_bit) : -1,
+            visible_orbs);
         char rig[256];
         geometry_json(app, player ? player->element_id : -1, rig, sizeof(rig));
         size_t rig_end = strlen(result);
@@ -447,9 +479,9 @@ static void wev_json(struct App* app, char* out, size_t capacity)
             }
         }
     assert(depth==0);
-    for( int n=0; n<app->world_pickset.count; ++n )
+    for( int n = 0; n < app->frame_view->world_pickset.count; ++n )
     {
-        int id=app->world_pickset.items[n].view_id;
+        int id = app->frame_view->world_pickset.items[n].view_id;
         if( id>=0 && id<WORLDVIEW_MAX ) ++picks[id];
     }
     int used=snprintf(out,capacity,"{\"ok\":true,\"limit\":%d,\"aboard\":%d,\"views\":[",
@@ -598,10 +630,10 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                     error("camera pitch must be 128..383; zoom -1000..10000");
                 else
                 {
-                    app->orbit.yaw = app->world_camera.yaw = x & 2047;
-                    app->orbit.pitch = app->world_camera.pitch = z;
-                    app->world_cam_zoom = sub;
-                    app->orbit.yaw_velocity = app->orbit.pitch_velocity = 0;
+                    app->frame_view->orbit.yaw = app->frame_view->world_camera.yaw = x & 2047;
+                    app->frame_view->orbit.pitch = app->frame_view->world_camera.pitch = z;
+                    app->frame_view->world_cam_zoom = sub;
+                    app->frame_view->orbit.yaw_velocity = app->frame_view->orbit.pitch_velocity = 0;
                     app->need_redraw = 1;
                 }
             }

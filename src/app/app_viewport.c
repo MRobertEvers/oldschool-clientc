@@ -112,8 +112,8 @@ app_apply_wedge_scale(struct App* app)
         return;
 
     case TORIRS_VIEWPORT_PROJECTION_FOV:
-        app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_FOV;
-        app->world_camera.fov_rpi2048 = projection.fov_rpi2048;
+        app->frame_view->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_FOV;
+        app->frame_view->world_camera.fov_rpi2048 = projection.fov_rpi2048;
         if( torirs_env_wedge_fov_debug() )
         {
             static int logged = 0;
@@ -131,8 +131,8 @@ app_apply_wedge_scale(struct App* app)
 
     case TORIRS_VIEWPORT_PROJECTION_SCALE:
         /* Exact: the kernels multiply by projection_scale directly. */
-        app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
-        app->world_camera.projection_scale = projection.scale;
+        app->frame_view->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+        app->frame_view->world_camera.projection_scale = projection.scale;
         if( torirs_env_wedge_fov_debug() )
         {
             static int last = -1;
@@ -147,9 +147,9 @@ app_apply_wedge_scale(struct App* app)
                     projection.zoom,
                     projection.scale,
                     toridraw_projection_scale_from_cot16(toridraw_projection_cot16(
-                        app->world_camera.projection_mode,
-                        app->world_camera.projection_scale,
-                        app->world_camera.fov_rpi2048)));
+                        app->frame_view->world_camera.projection_mode,
+                        app->frame_view->world_camera.projection_scale,
+                        app->frame_view->world_camera.fov_rpi2048)));
             }
         }
         return;

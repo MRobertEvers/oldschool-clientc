@@ -893,9 +893,9 @@ App_RunOnce(
 
         /* The chosen minimenu row's afterimage: the same clock as the marker,
          * for the same reason -- it exists to be looked at. */
-        if( UIMinimenu_AfterimageActive(&app->interact.minimenu) )
+        if( UIMinimenu_AfterimageActive(app->frame_view->minimenu) )
         {
-            UIMinimenu_AfterimageTick(&app->interact.minimenu, (int)app->logic_frame_ms);
+            UIMinimenu_AfterimageTick(app->frame_view->minimenu, (int)app->logic_frame_ms);
             app->need_redraw = 1;
         }
 
@@ -1167,17 +1167,18 @@ App_RunOnce(
      * tile of the last tap for as long as the client runs, and the world pick
      * keeps re-answering it every frame.
      */
-    app->pointer_absent = input->mouse_pointer_absent;
-    app->world_mouse_in_viewport =
-        !app->pointer_absent && app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y);
-    app->world_mouse_x = input->curr.mouse_x;
-    app->world_mouse_y = input->curr.mouse_y;
-    if( !app->world_mouse_in_viewport )
+    app->frame_view->pointer_absent = input->mouse_pointer_absent;
+    app->frame_view->world_mouse_in_viewport =
+        !app->frame_view->pointer_absent &&
+        app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y);
+    app->frame_view->world_mouse_x = input->curr.mouse_x;
+    app->frame_view->world_mouse_y = input->curr.mouse_y;
+    if( !app->frame_view->world_mouse_in_viewport )
     {
-        app->world_hover_tile_x = -1;
-        app->world_hover_tile_z = -1;
-        app->world_hover_view = 0;
-        World_PickSetReset(&app->world_pickset);
+        app->frame_view->world_hover_tile_x = -1;
+        app->frame_view->world_hover_tile_z = -1;
+        app->frame_view->world_hover_view = 0;
+        World_PickSetReset(&app->frame_view->world_pickset);
     }
 
     /* Mouseover text before any click handling: the reference recomputes it
@@ -1210,18 +1211,18 @@ App_RunOnce(
          * popup's geometry. Only where the pointer is a finger -- a mouse has
          * the hover it watched turn yellow, and the reference shows nothing. */
         if( app->touch_ui )
-            UIMinimenu_AfterimageShow(&app->interact.minimenu, out.minimenu_select);
+            UIMinimenu_AfterimageShow(app->frame_view->minimenu, out.minimenu_select);
         if( app_minimenu_use_option(
                 app, out.minimenu_select, input->curr.mouse_x, input->curr.mouse_y) )
             ran_cs2 = 1;
     }
     if( out.right_click )
     {
-        /* The menu ctx reads app->world_pickset — the set the last rendered
+        /* The menu ctx reads app->frame_view->world_pickset — the set the last rendered
          * frame hittested at the hover point (v1-style pickset-during-draw). */
         int click_in_world = app_world_mouse_gate(app, out.right_click_x, out.right_click_y);
         if( !click_in_world || !app_world_drawable(app) )
-            World_PickSetReset(&app->world_pickset);
+            World_PickSetReset(&app->frame_view->world_pickset);
         app_minimenu_open(app, out.right_click_x, out.right_click_y, click_in_world);
     }
 
@@ -1337,7 +1338,7 @@ App_RunOnce(
         int default_idx;
 
         UIMinimenu_Reset(&scratch);
-        scratch.font_id = app->interact.minimenu.font_id;
+        scratch.font_id = app->frame_view->minimenu->font_id;
         app_sailing_menu_context(app, &mctx, out.clicked_x, out.clicked_y);
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
         app_minimenu_stamp_node_identities(app, &scratch);
@@ -1373,11 +1374,11 @@ App_RunOnce(
         if( default_idx >= 0 )
         {
             /* Steal the row set: use_option consumes interact.minimenu. */
-            struct UIMinimenu saved = app->interact.minimenu;
-            app->interact.minimenu = scratch;
+            struct UIMinimenu saved = *app->frame_view->minimenu;
+            *app->frame_view->minimenu = scratch;
             if( app_minimenu_use_option(app, default_idx, out.clicked_x, out.clicked_y) )
                 ran_cs2 = 1;
-            app->interact.minimenu = saved;
+            *app->frame_view->minimenu = saved;
 
             /* Drop the legacy click intent so the hook does not run twice;
              * hover/wheel/hold intents pass through untouched. Clicks carry
@@ -1425,7 +1426,7 @@ App_RunOnce(
                 ? app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y)
                 : -1,
             app_world_drawable(app),
-            app->world_pickset.count);
+            app->frame_view->world_pickset.count);
     if( app->inv_drag.component_id < 0 && out.left_click_miss && !out.minimenu_closed &&
         out.minimenu_select < 0 &&
         app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y) &&
@@ -1446,7 +1447,7 @@ App_RunOnce(
             .npc_attack_option = app->npc_attack_option,
             .attack_option_model = app->features->attack_option_model,
             .world = app->world,
-            .world_pickset = &app->world_pickset,
+            .world_pickset = &app->frame_view->world_pickset,
             .click_in_world = true,
             /* Honour an armed "Use"/spell selection so a left-click on a world
              * target casts/uses (the TGT and USEHELD_ON rows) instead of
@@ -1465,7 +1466,7 @@ App_RunOnce(
         int default_idx;
 
         UIMinimenu_Reset(&scratch);
-        scratch.font_id = app->interact.minimenu.font_id;
+        scratch.font_id = app->frame_view->minimenu->font_id;
         app_minimenu_ctx_ground_fallback(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         app_sailing_menu_context(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
@@ -1474,12 +1475,12 @@ App_RunOnce(
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         if( default_idx >= 0 )
         {
-            struct UIMinimenu saved = app->interact.minimenu;
-            app->interact.minimenu = scratch;
+            struct UIMinimenu saved = *app->frame_view->minimenu;
+            *app->frame_view->minimenu = scratch;
             if( app_minimenu_use_option(
                     app, default_idx, out.left_click_miss_x, out.left_click_miss_y) )
                 ran_cs2 = 1;
-            app->interact.minimenu = saved;
+            *app->frame_view->minimenu = saved;
         }
         else if( app->objsel.active || app->targetsel.active )
         {

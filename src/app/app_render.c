@@ -106,10 +106,10 @@ App_BuildFrame(
                 frame,
                 app->world,
                 app->painter_buffer,
-                &app->world_camera,
-                app->world_camera_pos.x,
-                app->world_camera_pos.y,
-                app->world_camera_pos.z);
+                &app->frame_view->world_camera,
+                app->frame_view->world_camera_pos.x,
+                app->frame_view->world_camera_pos.y,
+                app->frame_view->world_camera_pos.z);
             /* Must follow SetWorld: it resets slot 0 to the root identity. */
             app_wev_bind_frame_xforms(app, frame);
             /* Must follow the paint: a tile marker that belongs in the scene
@@ -159,7 +159,7 @@ App_PickFinish(
  *
  * What the draw itself produces, and so what goes stale on a skipped frame:
  *
- *   1. app->world_pickset and the hover tile -- App_PickFinish, from the pick
+ *   1. app->frame_view->world_pickset and the hover tile -- App_PickFinish, from the pick
  *      the rasteriser runs at the pointer as each model projects. Read by the
  *      right-click menu build, the left-click default action, the mouseover
  *      text, and api.drive.pick_holds / pick_point.
@@ -705,8 +705,9 @@ App_Render(
      * the mouse point right after it projects (the only window where the
      * scene scratch holds its projection), then the raw hits classify into
      * the pickset + hover tile the click/hotkey paths consume next frame. */
-    if( app_world_drawable(app) && app->world_mouse_in_viewport )
-        ToriPlatform_Renderer_Soft3D_SetPick(app->soft, app->world_mouse_x, app->world_mouse_y);
+    if( app_world_drawable(app) && app->frame_view->world_mouse_in_viewport )
+        ToriPlatform_Renderer_Soft3D_SetPick(
+            app->soft, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
     {

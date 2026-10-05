@@ -593,6 +593,7 @@ test_root_rebuild_drains_entity_removed(void)
      * no-plugins client, and the drain's own guard covers it. */
     app = calloc(1, sizeof(*app));
     TEST_WEVR_ASSERT(app != NULL, "App stub allocates");
+    App_WorldViewsInit(app);
     app->scene = scene;
     App_WorldDrainEntityRemovedFor(app, world);
 

@@ -171,8 +171,8 @@ drive_pointer_project_point(
     if( fine_x < 128 || fine_z < 128 )
         return 0;
     return ToriRS_WorldProjectPoint(
-        &app->world_camera,
-        &app->world_camera_pos,
+        &app->frame_view->world_camera,
+        &app->frame_view->world_camera_pos,
         app->world_emit_desc.x,
         app->world_emit_desc.y,
         app->world_emit_desc.w,
@@ -619,9 +619,9 @@ DrivePointer_PickHolds(struct App* app, int element_id, int* out_held)
      * round once more. */
     if( !App_RenderSkipCatchUp(app) )
         return DRIVE_OK;
-    for( i = 0; i < app->world_pickset.count; i++ )
+    for( i = 0; i < app->frame_view->world_pickset.count; i++ )
     {
-        if( app->world_pickset.items[i].element_id == element_id )
+        if( app->frame_view->world_pickset.items[i].element_id == element_id )
         {
             *out_held = 1;
             break;
@@ -640,9 +640,9 @@ DrivePointer_PickPoint(struct App* app, struct DrivePickPoint* out_point)
     assert(out_point);
     /* Render skip: as DrivePointer_PickHolds above -- caught up first, and a
      * stamp that cannot be reads as no stamp (valid 0). */
-    out_point->valid = App_RenderSkipCatchUp(app) ? app->world_pickset.mouse_valid : 0;
-    out_point->x = app->world_pickset.mouse_x;
-    out_point->y = app->world_pickset.mouse_y;
+    out_point->valid = App_RenderSkipCatchUp(app) ? app->frame_view->world_pickset.mouse_valid : 0;
+    out_point->x = app->frame_view->world_pickset.mouse_x;
+    out_point->y = app->frame_view->world_pickset.mouse_y;
     /* `world_emit_desc` is only a rectangle once a frame has emitted the world
      * into one -- every other reader in this tree gates on world_view_valid
      * (app_camera.c, app_overlay_entities.c) and this one must too, or a
@@ -732,7 +732,7 @@ drive_pointer_world_gate(
     /* Not a rule of the gate's own -- the open menu reaches it as a tree layer
      * -- but the reason a reader needs: a covered press leaves its menu up, and
      * while it is up no pixel anywhere is the world's. */
-    if( app->interact.minimenu.visible )
+    if( app->frame_view->minimenu->visible )
     {
         *out_why = "menu";
         return DRIVE_OK;
@@ -792,7 +792,7 @@ DrivePointer_MenuVisible(struct App* app, int* out_visible)
 {
     assert(app);
     assert(out_visible);
-    *out_visible = app->interact.minimenu.visible ? 1 : 0;
+    *out_visible = app->frame_view->minimenu->visible ? 1 : 0;
     return DRIVE_OK;
 }
 
@@ -807,7 +807,7 @@ DrivePointer_MenuRows(struct App* app, struct DriveMenuRow* out, int cap, int* o
     assert(out);
     assert(cap > 0);
     assert(out_count);
-    menu = &app->interact.minimenu;
+    menu = app->frame_view->minimenu;
     if( !menu->visible )
     {
         *out_count = 0;
@@ -867,7 +867,7 @@ DrivePointer_MenuRowFind(
     assert(app);
     assert(out_row);
     memset(out_row, 0, sizeof(*out_row));
-    menu = &app->interact.minimenu;
+    menu = app->frame_view->minimenu;
     if( !menu->visible )
         return DRIVE_NOT_VISIBLE;
     ui_kind = drive_pointer_ui_kind(kind);
@@ -1457,16 +1457,16 @@ drive_pointer_spell_arm(
         app_selection_clear(app);
 
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->interact.minimenu.font_id;
+    scratch.font_id = app->frame_view->minimenu->font_id;
     if( !UIMinimenu_AddOption(&scratch, "", REVCONFIG_MINIMENU_TGT_BUTTON, -1, pick) )
     {
         *out_reason = "the scratch minimenu would not take the row";
         return DRIVE_REFUSED;
     }
-    saved = app->interact.minimenu;
-    app->interact.minimenu = scratch;
+    saved = *app->frame_view->minimenu;
+    *app->frame_view->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    app->interact.minimenu = saved;
+    *app->frame_view->minimenu = saved;
 
     if( !app->targetsel.active || app->targetsel.component_id != component_id )
     {
@@ -1563,17 +1563,17 @@ drive_pointer_inv_cast(
     }
 
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->interact.minimenu.font_id;
+    scratch.font_id = app->frame_view->minimenu->font_id;
     if( !UIMinimenu_AddOption(&scratch, "", REVCONFIG_MINIMENU_TGT_HELD, 0, pick) )
     {
         app_selection_clear(app);
         *out_reason = "the scratch minimenu would not take the row";
         return DRIVE_REFUSED;
     }
-    saved = app->interact.minimenu;
-    app->interact.minimenu = scratch;
+    saved = *app->frame_view->minimenu;
+    *app->frame_view->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    app->interact.minimenu = saved;
+    *app->frame_view->minimenu = saved;
 
     if( app->targetsel.active )
     {
@@ -1627,11 +1627,11 @@ DrivePointer_Camera(struct App* app, int yaw, int pitch, int zoom)
      * pick) the previous frame through the NEW camera, which no frame with
      * skip off ever does. */
     (void)App_RenderSkipCatchUp(app);
-    app->orbit.yaw = app->world_camera.yaw = yaw & 2047;
-    app->orbit.pitch = app->world_camera.pitch = pitch;
-    app->world_cam_zoom = zoom;
-    app->orbit.yaw_velocity = 0;
-    app->orbit.pitch_velocity = 0;
+    app->frame_view->orbit.yaw = app->frame_view->world_camera.yaw = yaw & 2047;
+    app->frame_view->orbit.pitch = app->frame_view->world_camera.pitch = pitch;
+    app->frame_view->world_cam_zoom = zoom;
+    app->frame_view->orbit.yaw_velocity = 0;
+    app->frame_view->orbit.pitch_velocity = 0;
     app->need_redraw = 1;
     return DRIVE_OK;
 }
@@ -1647,12 +1647,12 @@ DrivePointer_CameraPose(
     assert(out_owned);
     /* The same three fields DrivePointer_Camera writes, so a pose read here
      * and written back through it is a no-op on the next follow step. */
-    *out_yaw = app->orbit.yaw & 2047;
-    *out_pitch = app->orbit.pitch;
-    *out_zoom = app->world_cam_zoom;
+    *out_yaw = app->frame_view->orbit.yaw & 2047;
+    *out_pitch = app->frame_view->orbit.pitch;
+    *out_zoom = app->frame_view->world_cam_zoom;
     /* app_world_camera_follow's own early returns, in its own order: while
      * either holds, the follow step never reads the orbit angles. */
-    *out_owned = !app->camera_unlocked && !app->cam_script.scripted && app->net;
+    *out_owned = !app->frame_view->camera_unlocked && !app->cam_script.scripted && app->net;
     return DRIVE_OK;
 }
 
@@ -2226,17 +2226,17 @@ lua_drive_camera_state(struct lua_State* L)
 
     lua_pushstring(L, DriveResultName(DRIVE_OK));
     lua_newtable(L);
-    lua_pushinteger(L, (app->world_camera_pos.x >> 7) + base_x);
+    lua_pushinteger(L, (app->frame_view->world_camera_pos.x >> 7) + base_x);
     lua_setfield(L, -2, "x");
-    lua_pushinteger(L, (app->world_camera_pos.z >> 7) + base_z);
+    lua_pushinteger(L, (app->frame_view->world_camera_pos.z >> 7) + base_z);
     lua_setfield(L, -2, "z");
     lua_pushinteger(L, level);
     lua_setfield(L, -2, "level");
-    lua_pushinteger(L, app->world_camera.yaw & 2047);
+    lua_pushinteger(L, app->frame_view->world_camera.yaw & 2047);
     lua_setfield(L, -2, "yaw");
-    lua_pushinteger(L, app->world_camera.pitch);
+    lua_pushinteger(L, app->frame_view->world_camera.pitch);
     lua_setfield(L, -2, "pitch");
-    lua_pushinteger(L, app->world_cam_zoom);
+    lua_pushinteger(L, app->frame_view->world_cam_zoom);
     lua_setfield(L, -2, "zoom");
     lua_pushboolean(L, cam->scripted != 0);
     lua_setfield(L, -2, "server_driven");

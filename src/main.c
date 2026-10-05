@@ -759,9 +759,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->world_mouse_in_viewport )
+            if( app->frame_view->world_mouse_in_viewport )
             {
-                ToriPlatformWin32_Renderer_D3D9_SetPick(d3d9, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformWin32_Renderer_D3D9_SetPick(
+                    d3d9, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -829,9 +830,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->world_mouse_in_viewport )
+            if( app->frame_view->world_mouse_in_viewport )
             {
-                ToriPlatformAndroid_Renderer_GLES2_SetPick(gles2, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformAndroid_Renderer_GLES2_SetPick(
+                    gles2, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -909,9 +911,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->world_mouse_in_viewport )
+            if( app->frame_view->world_mouse_in_viewport )
             {
-                ToriPlatformWeb_Renderer_WebGL2_SetPick(webgl2, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformWeb_Renderer_WebGL2_SetPick(
+                    webgl2, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -980,9 +983,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->world_mouse_in_viewport )
+            if( app->frame_view->world_mouse_in_viewport )
             {
-                ToriPlatformWeb_Renderer_WebGL1_SetPick(webgl1, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformWeb_Renderer_WebGL1_SetPick(
+                    webgl1, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -1052,9 +1056,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->world_mouse_in_viewport )
+            if( app->frame_view->world_mouse_in_viewport )
             {
-                ToriPlatformAndroid_Renderer_GLES3_SetPick(gles3, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformAndroid_Renderer_GLES3_SetPick(
+                    gles3, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -1127,9 +1132,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->world_mouse_in_viewport )
+            if( app->frame_view->world_mouse_in_viewport )
             {
-                ToriPlatformSDL2_Renderer_GL3_SetPick(gl3, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformSDL2_Renderer_GL3_SetPick(
+                    gl3, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -3715,9 +3721,9 @@ frame_loop_step(void)
                     getenv("TORIRS_SIM_CAMERA_YAW_FRAME") && frame_count >= yaw_frame )
                 {
                     yaw_done = 1;
-                    app.orbit.yaw = ToriDraw_NormalizeAngle(
+                    app.frame_view->orbit.yaw = ToriDraw_NormalizeAngle(
                         (int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
-                    app.orbit.yaw_velocity = 0;
+                    app.frame_view->orbit.yaw_velocity = 0;
                     /*
                      * Yaw only, and the pitch is deliberately NOT a second
                      * knob beside it. Measured on this lane: the reset pitch
@@ -3735,7 +3741,7 @@ frame_loop_step(void)
                     TORIRS_REPORT(
                         "sim_camera_yaw: frame %ld parked at %d\n",
                         (long)frame_count,
-                        app.orbit.yaw);
+                        app.frame_view->orbit.yaw);
                 }
             }
 
@@ -7126,11 +7132,11 @@ main(
                  * only to world_camera is gone by the next cycle. This path
                  * renders immediately and never saw that, which is exactly why
                  * the in-loop twin above could not reuse it. */
-                app.orbit.yaw =
+                app.frame_view->orbit.yaw =
                     ToriDraw_NormalizeAngle((int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
-                app.orbit.yaw_velocity = 0;
-                app.world_camera.yaw = app.orbit.yaw;
-                TORIRS_LOG("sim_camera_yaw: %d\n", app.world_camera.yaw);
+                app.frame_view->orbit.yaw_velocity = 0;
+                app.frame_view->world_camera.yaw = app.frame_view->orbit.yaw;
+                TORIRS_LOG("sim_camera_yaw: %d\n", app.frame_view->world_camera.yaw);
             }
             LibToriRS_Input_Begin(yaw_input, yaw_ms);
             LibToriRS_Input_End(yaw_input);

@@ -50,7 +50,11 @@
 # (App::render_skip) that the counter does not add to. Recorded so the number
 # means "today", not forgiven: each of the sixteen is a candidate for the
 # subsystem that owns it.
-struct-App-fields: 354
+# Lowered from 354 to 332 on 2026-10-05 (camera seam world_view_gather): the
+# camera pose, camera input latches, world pointer and pick results -- 25
+# fields -- moved into struct App_WorldView, and App holds views[2],
+# view_count and frame_view in their place.
+struct-App-fields: 332
 
 src/main.c
 src/executor_config.c
@@ -104,4 +108,9 @@ src/plugin/torirs_plugin_drive_ui.c
 # check was already red), plus render skip's four -- its init beside the
 # other TORIRS_* boot knobs in App_Init and its report + free in App_Shutdown;
 # the subsystem itself is in src/app/app_render.c.
-app.c-lines: 1328
+# Raised from 1328 to 1331 on 2026-10-05 (camera seam world_view_gather):
+# 1330 at matthew-mbp-m4-raid-b1 e502128c9 (the check was already red), plus
+# the one App_WorldViewsInit call App_Init makes right after its memset --
+# construction, which is what the composition root is for; the initialiser
+# itself is static inline in src/app.h beside struct App_WorldView.
+app.c-lines: 1331

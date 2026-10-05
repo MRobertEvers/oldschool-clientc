@@ -157,15 +157,16 @@ app_ui_host_publish_inputs(struct App* app)
      * local player is the minimap anchor when present; free camera position is
      * the fallback. */
     signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
-        signature[UITREE_HOST_INPUT_CAMERA], ToriDraw_NormalizeAngle(app->world_camera.yaw));
-    signature[UITREE_HOST_INPUT_CAMERA] =
-        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera.pitch);
-    signature[UITREE_HOST_INPUT_CAMERA] =
-        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.x);
-    signature[UITREE_HOST_INPUT_CAMERA] =
-        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.y);
-    signature[UITREE_HOST_INPUT_CAMERA] =
-        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.z);
+        signature[UITREE_HOST_INPUT_CAMERA],
+        ToriDraw_NormalizeAngle(app->frame_view->world_camera.yaw));
+    signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
+        signature[UITREE_HOST_INPUT_CAMERA], app->frame_view->world_camera.pitch);
+    signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
+        signature[UITREE_HOST_INPUT_CAMERA], app->frame_view->world_camera_pos.x);
+    signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
+        signature[UITREE_HOST_INPUT_CAMERA], app->frame_view->world_camera_pos.y);
+    signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
+        signature[UITREE_HOST_INPUT_CAMERA], app->frame_view->world_camera_pos.z);
     local = app_local_player(app);
     signature[UITREE_HOST_INPUT_CAMERA] =
         UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], local != NULL);
@@ -191,7 +192,7 @@ app_ui_host_publish_inputs(struct App* app)
         signature[UITREE_HOST_INPUT_POINTER] = UITree_InputSignatureInt(
             signature[UITREE_HOST_INPUT_POINTER], UICross_AtlasFrame(&app->cross));
     }
-    menu = &app->interact.minimenu;
+    menu = app->frame_view->minimenu;
     signature[UITREE_HOST_INPUT_POINTER] =
         UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], menu->visible);
     if( menu->visible )

@@ -230,7 +230,7 @@ DriveUi_MenuRect(
     assert(out_width);
     assert(out_height);
     assert(out_hit);
-    menu = &app->interact.minimenu;
+    menu = app->frame_view->minimenu;
     *out_visible = menu->visible ? 1 : 0;
     if( !menu->visible )
         return DRIVE_OK;
