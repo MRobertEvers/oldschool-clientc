@@ -1,6 +1,6 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure	claimed_at	claim_prev
 quest_animalmagnetism	animalmagnetism	animalmagnetism		4	todo	matthew-mbp-m4-b50	RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: talkToOldCrone (row 33 goto-talkToOldCrone -> 3461,3557,0, door ahoy_harbour_door 3461,3555,0); talkToWitch (row 53 goto-talkToWitch -> 3099,3368,0, door draynor_panelled_door 3099,3366,0). Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')		
-quest_anothersliceofham	anothersliceofham	anothersliceofham		4	green	matthew-mbp-m4-b56			
+quest_anothersliceofham	anothersliceofham	anothersliceofham		4	claimed	matthew-mbp-m4-b62@matthew-mbp-m4		2026-10-05T14:57:51Z	green|matthew-mbp-m4-b56
 quest_arena	arena	fightarena		3	green	matthew-mbp-m4-b61			
 quest_arthur	arthur	merlinscrystal		3	green	matthew-mbp-m4-b61			
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	green	matthew-mbp-m4-b55			
@@ -186,5 +186,5 @@ quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo	matthew-mbp-m4-b53	RE-AU
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo				
 quest_xmarksthespot	xmarksthespot	xmarksthespot		4	todo	matthew-mbp-m4-b52	RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: startQuest (row 1 goto-startQuest -> 3229,3242,0, door poordoor 3225,3240,0). Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')		
 quest_zanaris	zanaris	lostcity		3	green	sonnet-b41			
-quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	green	matthew-mbp-m4-b61			
+quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	claimed	matthew-mbp-m4-b62@matthew-mbp-m4		2026-10-05T14:57:51Z	green|matthew-mbp-m4-b61
 quest_zombiequeen	zombiequeen	shilovillage		3	green	sonnet-b42			
