@@ -167,6 +167,14 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   raid rooms in a real-time client.) Put it in every work order and every card context: proofs run
   on the virtual clock; a script is played only as far as the claim needs and never twice for one
   claim; 30 minutes of proof after the gates are green, then the report says what is not proved.
+  OWNER, 2026-10-05, ON SPEED: "Perhaps instead of watching, you can use something like what blert
+  does and just look at the log and see where you went wrong. I want you to be faster, you are
+  being incredibly innefficient." and "Save the visual verification for afterwards." So: a failed
+  run is DIAGNOSED FROM ITS TICK LOG with `tools/raid_gate/raid_report.py <run dir>...` (the
+  orchestrator's first cut; seam27's gate seam adds the raider's state and inputs to the log and a
+  mistakes list), never replayed or watched; no screenshots, crops or frame dumps in a pass:
+  what needs eyes is listed for a later visual pass. The orchestrator does small tools and
+  analyses itself instead of waiting on a pass.
   ORDER AFTER SEAM24 (owner, 2026-10-05, after watching the whole Entry raid: "I noticed that the
   driver is not very fast or good. That is not going to work in normal mode. You will need to code
   up the agents a lot smarter using the actual strategies. Did you also fix the single action
