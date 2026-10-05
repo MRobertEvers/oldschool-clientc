@@ -179,6 +179,15 @@ at all. `ok` means the worn count fell AND the backpack count rose, both, and th
 alternates worn and carried state -- Mourning's End Part I's paint device must be WORN to fire and
 CARRIED to reload.
 
+#### After `t.player.unequip`, a `-held` shot shows the Equipment tab
+
+`unequip` leaves the side panel on the worn tab, and nothing in the following rows switches it
+back. Desert Treasure (b61) unequipped its rune kit at the Draynor bank (rows 239-242), and every
+shot from there to the Entrana blessing (439-475) showed the empty Equipment tab: the rows
+`talkToRuantun-pot`, `talkToRuantun-bar` and `blessPot-blessed` were right by their counts, but
+their shots could not show the pot or the bar. Call `t.ui.tab("inventory")` after the last
+`unequip` so the next item row's shot shows the backpack it claims.
+
 ### `t.player.drop(item)` -- also `t.player.emote`
 
 `t.player.drop(item)` -> `ok` `timeout`. It is graded on the BACKPACK falling, with at least one of
