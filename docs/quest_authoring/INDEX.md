@@ -86,6 +86,8 @@ topic file with one line added here.
 - "This door appears to be locked." from INSIDE the Khazard compound after the arena escape (FIXED b61-seam1: the inside opens at any stage) -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (a)
 - `climb spec.dest is on the press's own level` for a manhole, cellar ladder or cave rope (the underground is level 0 at z+6400) -> verbs-pointer: A climb that changes no level (b62-seam1)
 - `walk_to` timed out from 2895,10210,0 under the Consortium wide stairs; a Varrock Teleport + GE trapdoor detour after every Consortium descent (FIXED b62-seam1: the stairs land by maplink) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (b)
+- Another Slice of H.A.M.: the Dorgesh-Kaan station doorway lands on the train platform 2488,5536 and `walk_to` Tegdak stalls; a maplink lands in an area's FINISHED state mid-quest (FIXED b62-seam2: the dig at 2520,5607 until state 11) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam2 (a)
+- `helper_coverage` CHEAT "leaves a pocket the map closes on every side ... no walk leaves it (sealed_exits)"; a goto off a platform, an island or a boss's landing with no door -> coverage-and-gate: A goto onto a table, a stair or a bar's back reads FULL (the `sealed_exits` bullet)
 
 
 ## Pressing and clicking

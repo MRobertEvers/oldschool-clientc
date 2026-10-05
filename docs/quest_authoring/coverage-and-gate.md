@@ -705,8 +705,8 @@ Why each missed, and what grades it now:
 - **No guide step to charge.** `goto-mage`, `pos2.goto` (Wanted!) and `goto-enterHQ` (no
   `enterHQ` step) were dropped because `_hop_step` found no leaf. Such a hop is now charged to the
   next guide row before the next goto (`goUpHQ`), else reported as a step of its own, CHEAT:
-  `(goto past <door>)`, `(goto out past <door>)`, `(goto into a sealed pocket)` with "no guide step
-  to charge: ...".
+  `(goto past <door>)`, `(goto out past <door>)`, `(goto into a sealed pocket)`, `(goto out of a
+  sealed pocket)` with "no guide step to charge: ...".
 - **`enclosure_exits`: "leaves a room the map walls in ... it went out past the closed door".**
   The mirror: the departure's flood is a room with a closed door, the landing is outside it on the
   same level at most 24 tiles away (`ENCLOSURE_EXIT_TILES`, `room_exits`' policy: further may stand
@@ -720,6 +720,18 @@ Why each missed, and what grades it now:
   the 500 ticks before (Wanted!'s `pos4.goto` past the swamp cave's stepping stone), and not at all
   when the run uses one right after the goto (it stood the player AT that loc: Spirits of the Elid's
   root, Twilight's Promise's Colosseum entrance).
+- **`sealed_exits`: "leaves a pocket the map closes on every side ... no walk leaves it"**
+  (matthew-mbp-m4-b62-seam2). The mirror of `sealed_entries`: the DEPARTURE's flood closes within
+  400 tiles with no door, no climb and no climb down from level 0, and the landing is outside it on
+  the same level of the same map frame, at ANY distance (a pocket has no door to walk out of, so
+  `enclosure_exits`' 24-tile cap does not apply). It is charged unless a PASS row pressed one of the
+  pocket's op locs in the 500 ticks before. Another Slice of H.A.M.'s `goto-talkToTegdak` left the
+  train platform (2488,5536, 296 tiles, its only op loc the way back to the city) for Tegdak in the
+  dig and read FULL. Landing it reopened Holy Grail's `goto-talkToFisherman` (out of the pocket
+  past the Black Knight Titan, where `defeat_titan` lands the player) and Watchtower's
+  `goto-leaveGrewIsland` (over the water from Grew's island instead of the rope swing). Fixtures:
+  `asoh_sealed_departure`, `asoh_sealed_departed_outside`, `asoh_sealed_op_pressed`,
+  `asoh_run2_full_route`.
 - **Deliberately not graded:** a goto across a climb the guide names in an ObjectStep (the White
   Knights' Castle stairs, the Taverley Dungeon ladder, the Lumbridge cellar trapdoor). Plain climbs
   are travel; a prototype charging them moved 24 more tests (8 greens) and reverses that policy.
@@ -735,7 +747,10 @@ commits 7936d2d97 and OSRS-Content 994d64d507): 12/12, 4/12 with all four change
 change off fails its own cases. Landing it moved 15 committed greens of b56 (blackknight,
 cooks_assistant, eadgar, enlightenedjourney, hauntedmine, hero, hunt, ikov, itgronigen, murder,
 queenofthieves, recruitmentdrive, seaslug, shadowsofcustodia, totem) and 25 of the 71 seam-1
-reopened rows; the list is build/seam_state/matthew-mbp-m4-b56-grader2/movers.tsv.
+reopened rows; the list is build/seam_state/matthew-mbp-m4-b56-grader2/movers.tsv. Since
+matthew-mbp-m4-b62-seam2 the same file holds 16 cases (the four `asoh_*` `sealed_exits` cases on
+Another Slice of H.A.M.'s round-7 pair ab832b98d / OSRS-Content 58364738ca; `asoh_run2_full_route`
+is graded only while its build/orchestrator/fix_b62/r2/ files exist, else 15): 16/16.
 
 ### `reach.py` says NEEDS-OP; a goto over a trap, a log or climbing rocks reads CHEAT (matthew-mbp-m4-b60-seam0)
 
@@ -770,7 +785,7 @@ Now, by default:
   Pass `--allow-op-locs` to get the old flood back. `goto_table.py` tries margins 30, 100 and 250
   until a hop reads REACH. A charge is the widest box's. `comp.py` prints the doors and op locs on the
   edge of its component.
-- **`MapWalls` (`enclosure_entries`, `enclosure_exits`, `sealed_entries`) agrees.** Op tiles and
+- **`MapWalls` (`enclosure_entries`, `enclosure_exits`, `sealed_entries`, `sealed_exits`) agrees.** Op tiles and
   trigger tiles stop its flood as blocked tiles do (`MapWalls.OP_LOCS_BLOCK`). The loc becomes one of
   the room's `ops`.
 
