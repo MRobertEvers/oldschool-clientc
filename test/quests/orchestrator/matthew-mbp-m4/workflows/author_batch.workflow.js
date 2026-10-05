@@ -36,7 +36,7 @@ export const meta = {
 // sampler (or the closer when nothing was accepted) commits wip/, syncs both
 // repos with origin before pushing, and releases the batch's leftover claims.
 
-const WT = '/Users/matthewevers/Documents/git_repos/3draster'
+const WT = (args && args.wt) || '/Users/matthewevers/Documents/git_repos/3draster'
 const batch = args && args.batch
 // The batch branch (docs/QUEST_ORCHESTRATOR.md): <host>-b<N>, the pass name without its -parity / -seamN suffix, or args.branch.
 const BATCH = (args && args.branch) || String(batch || '').replace(/-(parity|seam\d+)$/, '')
@@ -55,7 +55,7 @@ if (!tests.length) throw new Error('args.tests is empty: pick test_ids with tool
 const STATE = `${WT}/build/author_state/${batch}`
 const WIP = (id) => `${WT}/test/quests/wip/${id}`   // tracked: relay legs, notebooks, hand-off, parked file
 
-const COMMON = `Work ONLY inside ${WT} (branch v3). (the owner's checkout; the 2026-09-25 disk cleanup deleted the old worktree, so this checkout IS the working tree now -- never delete build or cache directories, never run git clean/checkout/reset on paths you did not change). Absolute paths under ${WT} for every command. Never git stash/checkout/reset/clean/amend, never git add -A or -u. Never commit saves/, build*, cache*, manifests/.*.ini, preferences.ini, plugin_prefs.ini. Run every run.py in the FOREGROUND and wait for it; never background it or wait on a monitor/notification. run.py refuses a second concurrent run of one quest id. BATCH STATE DIR: ${STATE} (mkdir -p it); every worker persists its result there so a paused or killed batch resumes from disk.${extraContext}`
+const COMMON = `Work ONLY inside ${WT} (branch ${BATCH}, the batch branch the SYNC block names). (the owner's checkout; the 2026-09-25 disk cleanup deleted the old worktree, so this checkout IS the working tree now -- never delete build or cache directories, never run git clean/checkout/reset on paths you did not change). Absolute paths under ${WT} for every command. Never git stash/checkout/reset/clean/amend, never git add -A or -u. Never commit saves/, build*, cache*, manifests/.*.ini, preferences.ini, plugin_prefs.ini. Run every run.py in the FOREGROUND and wait for it; never background it or wait on a monitor/notification. run.py refuses a second concurrent run of one quest id. BATCH STATE DIR: ${STATE} (mkdir -p it); every worker persists its result there so a paused or killed batch resumes from disk.${extraContext}`
 
 const SYNC = `BATCH-BRANCH MODEL (docs/QUEST_ORCHESTRATOR.md): this pass runs on the batch branch ${BATCH} in BOTH repos (git -C ${WT} branch --show-current and git -C ${WT}/OSRS-Content branch --show-current must both print ${BATCH}; if not, stop and report). Never merge origin/v3 into the branch and never push to v3: v3 carries only the claim ledger and the batch reaches it through one PR at the end (claim.py done). Commit the submodule, stage the OSRS-Content gitlink in the parent, commit, then push BOTH branches: git -C ${WT}/OSRS-Content push -u origin ${BATCH} ; git -C ${WT} push -u origin ${BATCH}. A rejected push on the batch branch means another agent of THIS batch pushed first: git pull --no-rebase origin ${BATCH} in that repo, then push again. Never force, rebase, reset or stash.`
 const CLAIM_SCHEMA = { type: 'object', properties: { exit: { type: 'integer' }, claimed: { type: 'array', items: { type: 'string' } }, dropped: { type: 'array', items: { type: 'string' } }, output: { type: 'string' } }, required: ['exit', 'claimed', 'dropped', 'output'] }
