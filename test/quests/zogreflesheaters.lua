@@ -14,6 +14,39 @@
 -- the bow and brutal arrows live after Grish's "easier way" unlock, from
 -- pre-quest materials given in setup (Quest Helper combatGear: "Either
 -- brutal arrows or Crumble Undead for fighting Slash Bash").
+--
+-- Travel (b61 door rule: no goto_tile into or out of a closed space; every
+-- door, stair, ladder and barricade clicked on every visit, both ways):
+--  * Lumbridge (the fixture) -> Jiggig, and the tomb -> Grish after Slash
+--    Bash, are real Camelot Teleports (magic_spells.dbrow
+--    [magic_spell_teleport_camelot]: level 45, 5 air + 1 law, 2757,3478)
+--    plus an overland goto: reach.py finds Camelot -> Yanille 2597,3084
+--    (len 554) and Yanille -> Grish 2447,3049 (len 291) with every door
+--    closed. Yanille <-> Jiggig is the same open overland hop.
+--  * Jiggig's ceremonial ground east of the barricade is a 250-tile pocket
+--    (comp.py 2485,3045: no door, no other way out), so the crushed
+--    barricade (zogreflesheaters.rs2 [oploc1,ogre_barricade_collapsedl]:
+--    2455,3048 <-> 2457,3048) is climbed by t.player.cross_trap every
+--    crossing, in and out.
+--  * The tomb is entered and left only by its stairs (zogreflesheaters.rs2
+--    [oploc1,ogre_stairs_down]/[oploc1,ogre_stairs]: 2485,3042,0 ->
+--    2477,9437,2 and 2478,9437,2 -> 2485,3045,0), t.player.climb both ways.
+--    The tomb doors (zogre_finish.rs2 [proc,zfe_tomb_door]) teleport to
+--    ^zfe_tomb_past_door 2480,9446,0 from either pair and either side, and
+--    the floor beyond (comp.py: 853 tiles) leaves only by the stairs
+--    2443,9417,0 to a 122-tile pocket whose only exits are those doors (back
+--    to 2480,9446,0) and the stairs down: there is no walk out after Slash
+--    Bash, so the player teleports, as a player would.
+--  * Yanille: the Magic Guild's east door (magic_guild.rs2
+--    [label,open_mageguild_door], a walk-through door) by cross_gate both
+--    ways; Sithik's house door (xbows_castle_door 2594,3102), the ladder
+--    (2597,3107: ladder/laddertop2, on-tile climb), Sithik's room door
+--    (poordoor 2591,3105,1) and the Dragon Inn door (poshdoor 2551,3082) by
+--    pass_door / climb on every visit.
+
+-- Camelot Teleport cost, magic_spells.dbrow [magic_spell_teleport_camelot].
+local CAMELOT_RUNES = { { "airrune", 5 }, { "lawrune", 1 } }
+local CAMELOT = { 2757, 3478, 0 }
 
 return {
     id = "zogreflesheaters",
@@ -24,7 +57,7 @@ return {
         "::setlevel herblore 8",
         "::setlevel ranged 75", -- 30 is the quest's; the comp ogre bow fight (seam25)
         "::setlevel fletching 30", -- comp ogre bow (ogre_arrows.rs2 make_unstrung_comp_bow)
-        "::setlevel magic 70", -- Crumble Undead needs 39; Yanille guild gate needs 66 to enter
+        "::setlevel magic 70", -- Yanille guild door needs 66 to enter (magic_guild.rs2:16); Camelot Teleport 45
         "::setlevel hitpoints 99", -- Slash Bash: wiki infobox atk100/str120 -- survive the grind
         "::setlevel defence 75",
         "::setlevel attack 60",
@@ -39,7 +72,7 @@ return {
         "::setvar varp293_chompybird 65",
         "::complete quest_junglepotion",
         "::give rune_scimitar 1", -- combat prerequisite for the Brentle zombie fight
-        "::give shark 6", -- combat prerequisite: food for the Slash Bash grind (few: the backpack must also hold the quest's clue items)
+        "::give shark 6", -- combat prerequisite: food for the Slash Bash fight (few: the backpack must also hold the quest's clue items)
         -- seam25: Crumble Undead alone drove Slash Bash to 3/30 in 490 ticks and
         -- he left at his 500-tick stay (s25sithik2/4). The wiki's full-damage
         -- weapon is the comp ogre bow + brutal arrows, which the player may
@@ -52,9 +85,9 @@ return {
         "::give bow_string 1",
         "::give ogre_headless_arrow 60",
         "::give nails_iron 60",
-        "::give chaosrune 300", -- Crumble Undead: 1 chaos + 2 air + 2 earth per cast
-        "::give airrune 300",
-        "::give earthrune 300",
+        -- Two Camelot Teleports (Lumbridge -> Jiggig, the sealed tomb -> Grish).
+        "::give airrune 10",
+        "::give lawrune 2",
     },
 
     run = function(t)
@@ -80,9 +113,106 @@ return {
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         t.check("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
+        local function count(sym)
+            local r, n = t.inv.count(sym)
+            if r ~= "ok" then
+                return nil
+            end
+            return n or 0
+        end
+
+        -- A walk on one floor, graded on the exact tile it ends on.
+        local function walk(name, x, z, ticks)
+            local wr, wd = t.player.walk_to(x, z, ticks)
+            local tr, tile = t.world.tile()
+            local on = tr == "ok" and type(tile) == "table" and tile.x == x and tile.z == z
+            t.check(name, on, "walk_to " .. x .. "," .. z .. " -> " .. tostring(wr) .. " " .. tostring(wd) .. "; at "
+                .. (type(tile) == "table" and (tile.x .. "," .. tile.z .. "," .. tostring(tile.level)) or tostring(tr)))
+        end
+
+        -- ---- The crossings, each one verb call per crossing -------------
+        local function camelot(name)
+            t.player.teleport_cast("camelot_teleport", CAMELOT, { name = name, runes = CAMELOT_RUNES,
+                where = "Camelot" })
+        end
+        -- The crushed barricade: [oploc1,ogre_barricade_collapsedl] teleports
+        -- west of x 2457 to ^zfe_barricade_east_s 2457,3048, else to
+        -- ^zfe_barricade_west_s 2455,3048.
+        local function barricade_east(name)
+            t.exec(name, t.player.cross_trap, { loc = "zogre_multi_blocking_barricade_l", op_name = "Climb-over",
+                at = { 2456, 3048, 0 }, src = { 2455, 3048 }, dest = { 2457, 3048 } })
+        end
+        local function barricade_west(name)
+            t.exec(name, t.player.cross_trap, { loc = "zogre_multi_blocking_barricade_l", op_name = "Climb-over",
+                at = { 2456, 3048, 0 }, src = { 2457, 3048 }, dest = { 2455, 3048 } })
+        end
+        local function tomb_down(name)
+            walk(name .. ".walk", 2485, 3045, 50)
+            t.exec(name, t.player.climb, { loc = "ogre_stairs_down", op = 1, op_name = "Climb-down",
+                at = { 2485, 3042, 0 }, dest = { 2477, 9437, 2 } })
+        end
+        local function tomb_up(name)
+            walk(name .. ".walk", 2477, 9437, 90)
+            t.exec(name, t.player.climb, { loc = "ogre_stairs", op = 1, op_name = "Climb-up",
+                at = { 2478, 9437, 2 }, dest = { 2485, 3045, 0 } })
+        end
+        -- The Magic Guild's east door is a walk-through door (no open leaf):
+        -- entering lands one tile west of the door tile, leaving lands on it.
+        local function guild_in(name)
+            t.exec(name, t.player.cross_gate, { loc = "magicguild_door_r", at = { 2597, 3088, 0 },
+                near = { 2598, 3088 }, far_ok = function(tile) return tile.x <= 2596 end,
+                far_desc = "inside the Magic Guild, x <= 2596" })
+        end
+        local function guild_out(name)
+            t.exec(name, t.player.cross_gate, { loc = "magicguild_door_r", at = { 2597, 3088, 0 },
+                near = { 2596, 3088 }, far_ok = function(tile) return tile.x >= 2597 end,
+                far_desc = "outside the Magic Guild, x >= 2597" })
+        end
+        local HOUSE_DOOR = { 2594, 3102, 0 }
+        local function house_in(name)
+            t.exec(name, t.player.pass_door, { closed = "xbows_castle_door", open = "xbowscastledoor_open",
+                at = HOUSE_DOOR, near = { 2594, 3102 }, far = { 2594, 3104 }, ticks = 40 })
+        end
+        local function house_out(name)
+            t.exec(name, t.player.pass_door, { closed = "xbows_castle_door", open = "xbowscastledoor_open",
+                at = HOUSE_DOOR, near = { 2594, 3103 }, far = { 2594, 3101 } })
+        end
+        -- ladder/laddertop2 at 2597,3107 have no maplink row: ~climb_ladder
+        -- moves the player one plane on the tile he stands on (measured
+        -- 2596,3107,0 <-> 2596,3107,1).
+        local function ladder_up(name)
+            t.exec(name, t.player.climb, { loc = "ladder", op = 1, op_name = "Climb-up",
+                at = { 2597, 3107, 0 }, src = { 2596, 3107 }, dest = { 2596, 3107, 1 } })
+        end
+        local function ladder_down(name)
+            t.exec(name, t.player.climb, { loc = "laddertop2", op = 1, op_name = "Climb-down",
+                at = { 2597, 3107, 1 }, src = { 2596, 3107 }, dest = { 2596, 3107, 0 } })
+        end
+        local ROOM_DOOR = { 2591, 3105, 1 }
+        local function room_in(name)
+            t.exec(name, t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = ROOM_DOOR, near = { 2591, 3106 }, far = { 2591, 3105 } })
+        end
+        local function room_out(name)
+            t.exec(name, t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = ROOM_DOOR, near = { 2591, 3105 }, far = { 2591, 3106 } })
+        end
+        -- Sithik's room from the guild's door step and back out to the street.
+        local function up_to_sithik(prefix, climb_name)
+            house_in(prefix .. ".houseDoor")
+            ladder_up(climb_name)
+            room_in(prefix .. ".roomDoor")
+        end
+        local function out_of_sithiks(prefix)
+            room_out(prefix .. ".roomDoor")
+            ladder_down(prefix .. ".ladderDown")
+            house_out(prefix .. ".houseDoor")
+        end
+
         t.exec("prep.equip_scimitar", t.player.equip, "rune_scimitar")
 
         -- ---- Starting off: Grish, the guard, the barricade -------------
+        camelot("talkToGrish.camelotTeleport")
         t.exec("goto-talkToGrish", t.player.goto_tile, 2447, 3049, 0)
         t.exec("talkToGrish", t.player.talk_to, "zogre_ogre_shaman", 1)
         t.exec("talkToGrish-dialog", t.chat.play, {
@@ -123,29 +253,40 @@ return {
         })
         t.check("quest.stage.crypt", t.quest.expect_stage("crypt"))
 
-        -- The collapsed barricade's p_teleport is a 2-tile hop (barricade
-        -- east_n/west_n are 2 tiles apart) -- too short to trip
-        -- _settle_after_click's teleport arm, so the click regrades
-        -- "refused: settle_after_click" even though it landed (trap: "A
-        -- SHORT hop does not trip that arm... grade the row on a
-        -- t.world.tile() read of the far side"). Grade on the tile move.
-        local _, barricade_before = t.world.tile()
-        local cb_r, cb_d = t.player.click_loc("zogre_multi_blocking_barricade_l", 1)
-        t.ticks(1)
-        local _, barricade_after = t.world.tile()
-        t.check("climbBarricade", barricade_after.x ~= barricade_before.x or barricade_after.z ~= barricade_before.z,
-            tostring(cb_r) .. " " .. tostring(cb_d) .. " -- tile " .. barricade_before.x .. "," .. barricade_before.z
-                .. " -> " .. barricade_after.x .. "," .. barricade_after.z)
+        barricade_east("climbBarricade")
+        tomb_down("goDownStairs")
 
         -- ---- Starting off: crypt (tomb F2) clues ------------------------
-        t.exec("goto-goDownStairs", t.player.goto_tile, 2442, 9459, 2)
-        t.ticks(2)
-
+        walk("searchSkeleton.walk", 2442, 9457, 90)
         t.exec("searchSkeleton", t.player.click_loc, "zogre_brentle_skeleton", 1)
         local kz_present = t.npc.await_present("zogre_human_brentle_vahn", 5, 10)
         t.check("killZombie.present", kz_present == "ok", tostring(kz_present))
+        -- BLOCKED (b61): the guide's killZombie target has no combat block, so
+        -- the fight is not a fight. Everything below is the driven quest,
+        -- proven end to end in b61 run 2 (159/0, gate green, coverage FULL:
+        -- build/orchestrator/fix_b61/zogreflesheaters.fullroute.lua); the next
+        -- author deletes only this block once the zombie has a combat block.
+        t.blocked("content_bug: the Brentle Vahn zombie (zogre_human_brentle_vahn, npc_add at "
+            .. "OSRS-Content/osrs239-content/server/scripts/quests/quest_zogreflesheaters/scripts/zogreflesheaters.rs2:286, "
+            .. "guide step killZombie) has no server .npc combat block: it exists only in "
+            .. "server/scripts/npc/configs/npc_anims.generated.npc:52424 (death/attack/defend anims and attackrate, "
+            .. "no hitpoints, attack, strength or defence) and quest_zogreflesheaters/configs/zogreflesheaters.npc "
+            .. "holds only [zogre_slash_bash] (line 18). It spawns with the engine defaults (10 hitpoints, attack/"
+            .. "strength/defence 1; docs/quest_authoring/gaps-combat.md 'npc_def_seed_from_cache copies only the "
+            .. "bonuses'): b61 runs 1-2 read the bar 9/30 after one 7 hitsplat and the zombie died 12 ticks after the "
+            .. "first swing. The cache gives it level 39 and stat1-4 30/30/30/50 (attack, defence, strength, "
+            .. "hitpoints: osrs239-content/configs/all.npc:23564-23578). Needed: a [zogre_human_brentle_vahn] block in "
+            .. "zogreflesheaters.npc (hitpoints=50, attack=30, strength=30, defence=30) and its entry in "
+            .. "docs/bosses/quest_combat_manifest.json quest-zogre-flesh-eaters (line 4828, npc_gamevals empty).")
+        do return end
+
         t.exec("killZombie.attack", t.player.attack, "zogre_human_brentle_vahn", 2, 15)
-        t.exec("killZombie", t.npc.await_dead_engaged, 60, 10)
+        local kz_r, kz_d = t.exec("killZombie", t.npc.await_dead_engaged, 60, 10, { eat = { item = "shark", below = 50 } })
+        local kz_low = tonumber(string.match(tostring(kz_d), "lowest hp (%d+)/"))
+        local kz_sharks = count("shark")
+        t.check("killZombie.margin", kz_r == "ok" and kz_low ~= nil and kz_low >= 25 and kz_sharks ~= nil and kz_sharks >= 1,
+            "Brentle zombie: lowest hp " .. tostring(kz_low) .. "/99 (the kill's eater), sharks left " .. tostring(kz_sharks)
+                .. " of 6 (margin: lowest hp >= 25, a quarter of 99, AND food left)")
 
         t.exec("openBackpack", t.player.inv_op, "zogre_brentle_vahn_backpack", 1)
         t.exec("openBackpack-dialog", t.chat.play, {
@@ -155,6 +296,7 @@ return {
             "end",
         })
         t.exec("openBackpack.knife", t.inv.await, "knife", 1, 10)
+        t.exec("openBackpack.tankard", t.inv.await, "zogre_dragon_tankard", 1, 10)
         -- rotten food is dead weight; the backpack must hold the later clue items
         t.exec("dropRottenFood", t.player.drop, "rotten_food")
 
@@ -168,11 +310,18 @@ return {
             "end",
         })
 
+        -- [oplocu,zogre_coffin_special] (zogreflesheaters.rs2:234-240): the
+        -- knife springs the lock (%thzfe_prismsearch 0 -> 1) and is kept.
         t.exec("useKnifeOnCoffin", t.player.use_on, "knife", t.player.by_symbol("loc", "zogre_coffin_special_entity"))
         t.exec("useKnifeOnCoffin-dialog", t.chat.play, {
             "mesbox:With some skill you manage to slide the blade",
             "end",
         })
+        local ps_r, ps_v = t.var.server("varb488_thzfe_prismsearch")
+        local knife_after = count("knife")
+        t.check("useKnifeOnCoffin.unlocked", ps_r == "ok" and ps_v == 1 and knife_after == 1,
+            "thzfe_prismsearch=" .. tostring(ps_v) .. " (want 1, unlocked); knife held " .. tostring(knife_after)
+                .. " (the content keeps it)")
 
         t.exec("openCoffin", t.player.click_loc, "zogre_coffin_special_entity", 1)
         t.exec("openCoffin-dialog", t.chat.play, {
@@ -190,42 +339,14 @@ return {
         })
         t.exec("searchCoffinProperly.prism", t.inv.await, "zogre_black_prism", 1, 10)
 
-        -- ---- Investigating: Zavistic, Sithik's house, the Dragon Inn ---
-        -- Guild magic level is 66 to enter (measured run 4: "I can't reach
-        -- that!" at 62 magic). The guide's alternate -- ring the bell
-        -- outside instead of entering -- turned out to be a content gap:
-        -- zogre_outdoor_bell's [oploc1,...] calls ~zfe_zavistic_talk with no
-        -- npc bound (a bare loc trigger), and that proc's crypt-stage branch
-        -- opens with ~chatplayer/~mesbox (no npc needed) then ~chatnpc
-        -- (needs one) -- the exact chatnpc-without-npc shape trap 22
-        -- documents (measured run 5: dialogue silently closed after the
-        -- mesbox, no npc page, matching check-chatnpc-without-npc's "10
-        -- known open" case count). Raised magic to 70 (>=66) and talk to
-        -- Zavistic directly instead, which binds him as speaker naturally.
-        --
-        -- Still "I can't reach that!" at 70 magic (measured run 6): the real
-        -- blocker is area_yanille/scripts/magic_guild.rs2's own entrance --
-        -- magicguild_door_l/r (map m40_48.jl2: two door pairs, one at
-        -- localx37 z15/16 = worldx 2597, worldz 3087/3088, almost exactly
-        -- our goto tile) is a closed door the ::goto teleport walks the
-        -- PLAYER through but the route-finder to the npc still treats as
-        -- blocking. Back off outside it, probe which leaf is near (l or r --
-        -- two separate objects, not a multiloc pair), and click it before
-        -- talking; its own p_teleport (a door-width hop) is graded on the
-        -- tile actually moving, same short-hop reasoning as the barricade.
-        t.exec("goto-talkToZavistic", t.player.goto_tile, 2597, 3084, 0)
-        t.ticks(2)
-        local dl_probe = t.world.loc_near("magicguild_door_l", 6)
-        local door_sym = (dl_probe == "ok") and "magicguild_door_l" or "magicguild_door_r"
-        local _, guild_door_before = t.world.tile()
-        local gd_r, gd_d = t.player.click_loc(door_sym, 1)
-        t.ticks(1)
-        local _, guild_door_after = t.world.tile()
-        t.check("openGuildDoor",
-            gd_r == "ok" or guild_door_after.x ~= guild_door_before.x or guild_door_after.z ~= guild_door_before.z,
-            door_sym .. ": " .. tostring(gd_r) .. " " .. tostring(gd_d) .. " -- tile "
-                .. guild_door_before.x .. "," .. guild_door_before.z .. " -> " .. guild_door_after.x .. "," .. guild_door_after.z)
-        t.ticks(1)
+        -- ---- Investigating: out of the tomb, Zavistic -------------------
+        tomb_up("leaveTomb.stairs")
+        walk("leaveTomb.walkToBarricade", 2457, 3048, 50)
+        barricade_west("leaveTomb.barricade")
+        -- Overland: Jiggig's open ground west of the barricade to the street
+        -- outside the Magic Guild's east door (reach.py: REACH, no door).
+        t.exec("goto-talkToZavistic", t.player.goto_tile, 2599, 3088, 0)
+        guild_in("talkToZavistic.guildDoor")
         t.exec("talkToZavistic", t.player.talk_to, "zogre_human_zavistic_rarve", 1)
         t.exec("talkToZavistic-dialog", t.chat.play, {
             "player:There's some undead ogre activity over at Jiggig",
@@ -239,30 +360,13 @@ return {
             "end",
         })
         t.check("quest.stage.zavistic", t.quest.expect_stage("zavistic"))
+        guild_out("talkToZavistic.leaveGuild")
 
-        t.exec("goto-goUpToSith", t.player.goto_tile, 2591, 3104, 1)
-        t.ticks(2)
-        -- The bed sits crowded against the wardrobe/cupboard/drawers
-        -- (measured run 7: first press hovered "Search Cupboard" instead --
-        -- a covered/mis-hover pixel-hunt miss, trap 21) -- retry once if no
-        -- dialogue actually opened, rather than trusting one settle.
-        -- zogre_sithik_bed_entity IS placed here: maps/m40_48.jl2 line 3902,
-        -- "1 31 31: 6887 10 2" decodes to level 1, worldx 2591, worldz 3103
-        -- (40*64+31, 48*64+31), shape 10 (a centrepiece, per pointer.lua's
-        -- own WALL/CENTREPIECE list) -- an EXACT match for the symbol
-        -- click_loc resolves, not a multiloc indirection (ogre_bedman_loc/
-        -- ogre_bedogre_loc, 6888/6889, are never placed directly; they are
-        -- the multiloc children this wrapper swaps between). So this is not
-        -- an unplaced-symbol content_bug (trap 29): the loc is really there,
-        -- one tile from the goto, and two live presses this run (run 8, the
-        -- last of the budget) both timed out with no hittest at all -- not
-        -- "covered", not "menu has no row", a bare timeout -- across two
-        -- attempts three ticks apart. A driver seam on this shape-10
-        -- centrepiece in a room crowded with the wardrobe/cupboard/drawers,
-        -- not a content gap and not a click op guess: click_loc's own retry
-        -- (walk to another side, re-aim) already ran inside each attempt.
-        -- seam24: [oploc1,ogre_bedman_loc] names Sithik (~chatnpc_specific), so the
-        -- click opens his page instead of aborting on npc_type.
+        -- ---- Sithik's house: door, ladder, room door -------------------
+        up_to_sithik("goUpToSith", "goUpToSith")
+        -- zogre_sithik_bed_entity is placed at 2591,3103,1 (maps/m40_48.jl2
+        -- "1 31 31: 6887 10 2"); seam24: [oploc1,ogre_bedman_loc] names
+        -- Sithik (~chatnpc_specific), so the click opens his page.
         t.exec("talkToSith.press", t.player.click_loc, "zogre_sithik_bed_entity", 1)
         t.exec("talkToSith", t.chat.play, {
             "npc:who gave you permission",
@@ -296,6 +400,8 @@ return {
         t.exec("searchDrawers.papyrus", t.inv.await, "papyrus", 1, 10)
         t.exec("searchDrawers.charcoal", t.inv.await, "charcoal", 1, 10)
 
+        -- [oplocu,ogre_bedman_loc] (zogre_finish.rs2:255-270): the papyrus is
+        -- used up, the charcoal kept, a portrait added.
         t.exec("usePapyrusOnSith", t.player.use_on, "papyrus", t.player.by_symbol("loc", "zogre_sithik_bed_entity"))
         t.exec("usePapyrusOnSith-dialog", t.chat.play, {
             "npc:Oh lovely",
@@ -304,9 +410,15 @@ return {
             "end",
         })
         t.exec("usePapyrusOnSith.portrait", t.inv.await, "zogre_sithik_portrait_good", 1, 10)
+        local papyrus_left = count("papyrus")
+        t.check("usePapyrusOnSith.papyrusUsed", papyrus_left == 0, "papyrus held " .. tostring(papyrus_left) .. " (want 0)")
 
-        t.exec("goto-useTankardOnBartender", t.player.goto_tile, 2555, 3080, 0)
-        t.ticks(2)
+        out_of_sithiks("useTankardOnBartender.leaveSith")
+        walk("useTankardOnBartender.walk", 2551, 3083, 80)
+        t.exec("useTankardOnBartender.innDoor", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+            at = { 2551, 3082, 0 }, near = { 2551, 3083 }, far = { 2551, 3081 } })
+        -- [opnpcu,dragon_bartender] (zogre_finish.rs2:291-305): the tankard is
+        -- shown, not given (%zfe_asked_tankard 0 -> 1).
         t.exec("useTankardOnBartender", t.player.use_on, "zogre_dragon_tankard", t.player.by_symbol("npc", "dragon_bartender"))
         t.exec("useTankardOnBartender-dialog", t.chat.play, {
             "player:I found this tankard",
@@ -317,6 +429,11 @@ return {
             "npc:Noooo",
             "end",
         })
+        local at_r, at_v = t.var.server("varp5977_zfe_asked_tankard")
+        t.check("useTankardOnBartender.asked", at_r == "ok" and at_v == 1,
+            "zfe_asked_tankard=" .. tostring(at_v) .. " (want 1); tankard held " .. tostring(count("zogre_dragon_tankard"))
+                .. " (the content keeps it)")
+        -- The good portrait is swapped for the signed one (zogre_finish.rs2:307-316).
         t.exec("usePortraitOnBartender", t.player.use_on, "zogre_sithik_portrait_good", t.player.by_symbol("npc", "dragon_bartender"))
         t.exec("usePortraitOnBartender-dialog", t.chat.play, {
             "mesbox:You show the portrait to the Inn keeper",
@@ -327,14 +444,14 @@ return {
             "end",
         })
         t.exec("usePortraitOnBartender.signed", t.inv.await, "zogre_sithik_portrait_signed", 1, 10)
+        local good_left = count("zogre_sithik_portrait_good")
+        t.check("usePortraitOnBartender.goodUsed", good_left == 0, "zogre_sithik_portrait_good held " .. tostring(good_left) .. " (want 0)")
+        t.exec("usePortraitOnBartender.leaveInn", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+            at = { 2551, 3082, 0 }, near = { 2551, 3081 }, far = { 2551, 3083 } })
 
         -- ---- Zavistic again: the four pieces of evidence -> the potion ---
-        t.exec("goto-bringSignedPortraitToZavistic", t.player.goto_tile, 2597, 3084, 0)
-        t.ticks(2)
-        local bs_probe = t.world.loc_near("magicguild_door_l", 6)
-        local bs_door = (bs_probe == "ok") and "magicguild_door_l" or "magicguild_door_r"
-        t.exec("openGuildDoorAgain", t.player.click_loc, bs_door, 1)
-        t.ticks(2)
+        walk("bringSignedPortraitToZavistic.walk", 2598, 3088, 80)
+        guild_in("bringSignedPortraitToZavistic.guildDoor")
         local bs_r, bs_d = t.player.talk_to("zogre_human_zavistic_rarve", 1)
         t.check("bringSignedPortraitToZavistic", bs_r == "ok", tostring(bs_r) .. " " .. tostring(bs_d))
         t.exec("bringSignedPortraitToZavistic-dialog", t.chat.play, {
@@ -348,36 +465,29 @@ return {
         })
         t.exec("bringSignedPortraitToZavistic.potion", t.inv.await, "zogre_ogre_trans_potion", 1, 10)
         t.check("quest.stage.potion", t.quest.expect_stage("potion"))
+        guild_out("bringSignedPortraitToZavistic.leaveGuild")
 
         -- ---- Discover the truth: potion in the tea, leave, come back ----
-        t.exec("goto-goUpToSithAgain", t.player.goto_tile, 2593, 3104, 1)
-        t.ticks(2)
+        up_to_sithik("goUpToSithAgain", "goUpToSithAgain")
+        -- [opobju,zogre_cup_of_tea_sithix] (zogre_finish.rs2:326-336): the
+        -- potion becomes an empty bottle.
         t.exec("usePotionOnTea", t.player.use_on, "zogre_ogre_trans_potion", t.player.by_symbol("obj", "zogre_cup_of_tea_sithix"))
         t.exec("usePotionOnTea-dialog", t.chat.play, { "mesbox:You pour some of the potion into the cup", "end" })
         t.check("quest.stage.potion_tea", t.quest.expect_stage("potion_tea"))
+        local potion_left = count("zogre_ogre_trans_potion")
+        t.check("usePotionOnTea.potionUsed", potion_left == 0, "zogre_ogre_trans_potion held " .. tostring(potion_left) .. " (want 0)")
 
-        -- seam25 sithik_ladder_stage: the guide's "go down the ladder and
-        -- back up" (docs/quests/zogre_flesh_eaters.md stage 6 -> 7), both
-        -- climbs real clicks. Down: laddertop2 (16681, m40_48.jl2:4087
-        -- "1 37 35"); up: ladder (16683, m40_48.jl2:4088 "0 37 35").
-        -- Sithik's room opens north onto the ladder landing through a
-        -- poordoor (1535, m40_48.jl2:1938 "1 31 33" = 2591,3105).
-        t.exec("openSithDoor", t.player.click_loc, "poordoor", 1)
-        t.ticks(2)
-        local down_r, down_d = t.player.click_loc("laddertop2", 1)
-        t.ticks(3)
-        local _, down_tile = t.world.tile()
-        t.check("goDownstairsFromSith", down_tile.level == 0,
-            tostring(down_r) .. " " .. tostring(down_d) .. " -- tile " .. down_tile.x .. "," .. down_tile.z .. "," .. down_tile.level)
+        -- The guide's "go down the ladder and back up" (docs/quests/
+        -- zogre_flesh_eaters.md stage 6 -> 7): [oploc1,ladder] at
+        -- ^zfe_sithik_ladder turns %zogre potion_tea -> sithik_ogre.
+        room_out("goDownstairsFromSith.roomDoor")
+        ladder_down("goDownstairsFromSith")
         t.check("goDownstairsFromSith.stage_still_potion_tea", t.quest.expect_stage("potion_tea"))
-        local lad_r, lad_d = t.player.click_loc("ladder", 1)
-        t.ticks(3)
-        local _, lad_tile = t.world.tile()
-        t.check("goUpToOgreSith.climbed", lad_tile.level == 1,
-            tostring(lad_r) .. " " .. tostring(lad_d) .. " -- tile " .. lad_tile.x .. "," .. lad_tile.z .. "," .. lad_tile.level)
+        ladder_up("goUpToOgreSith")
         t.check("quest.stage.sithik_ogre", t.quest.expect_stage("sithik_ogre"))
         local tr_r, tr_v = t.var.server("varb495_thzfe_sithik_transformed")
         t.check("goUpToOgreSith.transformed", tr_r == "ok" and tr_v == 1, "thzfe_sithik_transformed=" .. tostring(tr_v))
+        room_in("goUpToOgreSith.roomDoor")
 
         -- ---- askSithQuestions / askAboutDiseaseAndOgres -----------------
         t.exec("talkToOgreSith.press", t.player.click_loc, "zogre_sithik_bed_entity", 1)
@@ -405,10 +515,12 @@ return {
         })
         local ba_r, ba_v = t.var.server("varb499_thzfe_makebrutalarrow")
         local cd_r, cd_v = t.var.server("varb498_thzfe_makecuredisease")
-        t.check("askAboutDiseaseAndOgres.bits", ba_v == 1 and cd_v == 1,
+        t.check("askAboutDiseaseAndOgres.bits", ba_r == "ok" and cd_r == "ok" and ba_v == 1 and cd_v == 1,
             "thzfe_makebrutalarrow=" .. tostring(ba_v) .. " thzfe_makecuredisease=" .. tostring(cd_v))
+        out_of_sithiks("talkToGrishAgain.leaveSith")
 
         -- ---- Tell Grish; the key; the easier way -------------------------
+        -- Overland: the street outside Sithik's house to Grish (open ground).
         t.exec("goto-talkToGrishAgain", t.player.goto_tile, 2447, 3049, 0)
         t.exec("talkToGrishAgain", t.player.talk_to, "zogre_ogre_shaman", 1)
         t.exec("talkToGrishAgain-dialog", t.chat.play, {
@@ -437,7 +549,7 @@ return {
             "end",
         })
         local bow_r, bow_v = t.var.server("varb500_thzfe_makecompozogrebow")
-        t.check("talkToGrishForBow.bit", bow_v == 1, "thzfe_makecompozogrebow=" .. tostring(bow_v))
+        t.check("talkToGrishForBow.bit", bow_r == "ok" and bow_v == 1, "thzfe_makecompozogrebow=" .. tostring(bow_v))
 
         -- ---- Fletch the comp ogre bow + brutal arrows (now unlocked) -----
         t.exec("fletchBow", t.player.use_item_on_item, "achey_tree_logs", "wolf_bones")
@@ -448,33 +560,26 @@ return {
             t.exec("fletchBrutal." .. i, t.player.use_item_on_item, "ogre_headless_arrow", "nails_iron")
             t.ticks(2)
         end
-        local br_r, br_c = t.inv.count("zogre_brutal_iron")
-        t.check("fletchBrutal.count", br_r == "ok" and (br_c or 0) >= 30, "zogre_brutal_iron=" .. tostring(br_c))
+        local br_c = count("zogre_brutal_iron")
+        t.check("fletchBrutal.count", br_c ~= nil and br_c >= 30, "zogre_brutal_iron=" .. tostring(br_c))
         t.exec("equip.bow", t.player.equip, "zogre_bow")
         t.exec("equip.brutal", t.player.equip, "zogre_brutal_iron")
 
-        -- ---- goKillBash: the locked tomb door, the stand, Slash Bash -----
-        -- The barricade is already down (%thzfe_blocking_barricade); plain
-        -- travel back to the crypt floor, then the real door click.
-        -- climbBarricadeForBoss: back over the crushed barricade, a real
-        -- click graded on the tile move exactly as the first crossing above.
-        t.exec("goto-climbBarricadeForBoss", t.player.goto_tile, 2454, 3048, 0)
-        local _, bb_before = t.world.tile()
-        local bb_r, bb_d = t.player.click_loc("zogre_multi_blocking_barricade_l", 1)
-        t.ticks(1)
-        local _, bb_after = t.world.tile()
-        t.check("climbBarricadeForBoss", bb_after.x ~= bb_before.x or bb_after.z ~= bb_before.z,
-            tostring(bb_r) .. " " .. tostring(bb_d) .. " -- tile " .. bb_before.x .. "," .. bb_before.z
-                .. " -> " .. bb_after.x .. "," .. bb_after.z)
+        -- ---- goKillBash: the barricade, the stairs, the locked tomb door --
+        t.exec("goto-climbBarricadeForBoss", t.player.goto_tile, 2455, 3048, 0)
+        barricade_east("climbBarricadeForBoss")
+        tomb_down("goDownStairsForBoss")
         -- North of the first pair of tomb doors (m38_147.jl2:6408/6410,
         -- ogre_cavedoorr/l at 2441/2442,9433 level 2): the key opens them.
-        t.exec("goto-goDownStairsForBoss", t.player.goto_tile, 2441, 9435, 2)
-        t.ticks(2)
-        local door_r, door_d = t.player.click_loc("ogre_cavedoorl", 1)
+        -- [proc,zfe_tomb_door] teleports straight to ^zfe_tomb_past_door
+        -- 2480,9446,0 (the guide's goDownToBoss stairs are folded into it).
+        walk("enterDoors.walk", 2442, 9434, 90)
+        local door_r, door_d = t.player.click_loc("ogre_cavedoorl", 1, { at = { 2442, 9433, 2 } })
         t.ticks(3)
         local _, door_tile = t.world.tile()
         t.check("enterDoors", door_tile.level == 0 and door_tile.x == 2480 and door_tile.z == 9446,
-            tostring(door_r) .. " " .. tostring(door_d) .. " -- tile " .. door_tile.x .. "," .. door_tile.z .. "," .. door_tile.level)
+            tostring(door_r) .. " " .. tostring(door_d) .. " -- tile " .. door_tile.x .. "," .. door_tile.z .. "," .. door_tile.level
+                .. " (want ^zfe_tomb_past_door 2480,9446,0)")
         t.exec("openTombDoor.mes", t.msg.expect, "You use the Ogre Tomb Key to unlock the door.")
 
         t.exec("searchStand", t.player.click_loc, "zogre_stand", 1)
@@ -488,20 +593,29 @@ return {
             t.ticks(5)
         end
         t.check("slashBash.attack", atk_r == "ok", "comp ogre bow + brutal: " .. tostring(atk_r) .. " " .. tostring(atk_d))
-        t.exec("slashBash.dead", t.npc.await_dead_engaged, 480, 60)
+        local sharks_before = count("shark")
+        local kd_r, kd_d = t.exec("slashBash.dead", t.npc.await_dead_engaged, 480, 60, { eat = { item = "shark", below = 50 } })
+        local fight_low = tonumber(string.match(tostring(kd_d), "lowest hp (%d+)/"))
+        local sharks_left = count("shark")
+        t.check("slashBash.margin", kd_r == "ok" and fight_low ~= nil and fight_low >= 25 and sharks_left ~= nil and sharks_left >= 1,
+            "Slash Bash (zogreflesheaters.npc: 100 hp, atk 100, str 120, def 60): lowest hp " .. tostring(fight_low)
+                .. "/99 (the kill's eater), sharks " .. tostring(sharks_before) .. " -> " .. tostring(sharks_left)
+                .. " (margin: lowest hp >= 25, a quarter of 99, AND food left)")
         t.check("quest.stage.slash_bash", t.quest.expect_stage("slash_bash"))
         -- He drops the artefact (zogre_finish.rs2 [ai_queue3,zogre_slash_bash],
         -- Quest Helper pickUpOgreArtefact): take it off the floor.
         t.ticks(2)
-        local art0 = select(2, t.inv.count("zogre_artifacts")) or 0
+        local art0 = count("zogre_artifacts") or 0
         local pk_r, pk_d = t.player.click_obj("zogre_artifacts")
         t.ticks(1)
-        local art1 = select(2, t.inv.count("zogre_artifacts")) or 0
-        t.check("pickUpOgreArtefact", pk_r == "ok" and art0 == 0 and art1 == 1,
+        local art1 = count("zogre_artifacts") or 0
+        t.check("pickUpOgreArtefact", art0 == 0 and art1 == 1,
             string.format("click_obj(zogre_artifacts) -> %s (%s); zogre_artifacts %d -> %d",
                 tostring(pk_r), tostring(pk_d), art0, art1))
 
-        -- ---- returnRelic ------------------------------------------------
+        -- ---- returnRelic: no walk out of the sealed boss floor (see the
+        -- header), so a real teleport, then the overland hop to Grish.
+        camelot("returnRelic.camelotTeleport")
         t.exec("goto-returnRelic", t.player.goto_tile, 2447, 3049, 0)
         t.exec("returnRelic", t.player.talk_to, "zogre_ogre_shaman", 1)
         t.exec("returnRelic-dialog", t.chat.play, {
