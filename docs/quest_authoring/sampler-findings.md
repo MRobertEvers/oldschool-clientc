@@ -825,3 +825,24 @@ FIXED (OSRS-Content 4b4cc88be6, seam-facts "Seam pass matthew-mbp-m4-b60-seam0" 
 not the client and not the rebuild. A slipped pitfall played `human_death` and never ended it, and
 the client holds every walk while that pose plays. With the content fix the relog has nothing to
 correct; a new test must not add one.
+
+## Sample matthew-mbp-m4-b60 (2026-10-04)
+
+The Ides of Milk, Creature of Fenkenstrain and Family Crest all passed, and none went back. The
+sampler opened every shot (630, on 2x2 contact sheets; running.md: "The image Read fails"). It
+also re-ran every goto through goto_table.py with the doors closed. Crest's 443-tile hop from Avan
+to the Dwarven Mine reads REACH len=521 at margin 160.
+
+(a) BRUTUS'S FIGHT IS REAL, BUT ITS MARGIN ROW CANNOT SHOW IT. A probe copy (`--script`,
+`--no-publish`) read three dodged charges while the player stood still (gaps-combat: "A margin row
+reads full hp after a real fight").
+
+(b) THE COW-FIELD GATE OPEN LONG AFTER ITS PRESS IS NOT A CHEAT. `fencegate_l` was pressed at
+client tick 22 and read open at ticks 238, 312 and 328 (client.log `row-begin`). That is inside
+`~open_gate`'s 500. Every later crossing still walked through the gate tile.
+
+(c) THE JUDGEMENT CALLS STAND. Crest's `repairCrest.needsThree` uses one piece on another to clear a
+selected spell. Its detail is the real content line `You still need one more piece of the crest.`,
+so the row checks something the press caused. The Jolly Boar stair is a `click_loc` press graded
+on its landing. Fenkenstrain's toll reads `ectotoken 2 -> 0`, and the shot shows "You pay the toll"
+before "You cast a silver lightning conductor" at the Port Phasmatys furnace.
