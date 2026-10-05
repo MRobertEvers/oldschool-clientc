@@ -10,7 +10,7 @@ reaches the raid branch only by a merge the raid orchestrator makes.
 
 | Seam | Pass | State |
 |---|---|---|
-| world_view_gather | matthew-mbp-m4-camera-b1-seam1 | LANDED 325c57690 (pushed; gates in CAMERA_LEDGER.md) |
+| world_view_gather | matthew-mbp-m4-camera-b1-seam1 | LANDED 325c57690 (gates in CAMERA_LEDGER.md); on origin/matthew-mbp-m4-raid-b1 via cd6eae16d (owner asked, 2026-10-05) |
 | runner_view_split | seam2 (planned) | waits for raid seam24 + seam25 |
 | watch_debug_aids | seam3 (planned) | after the split |
 
@@ -45,6 +45,11 @@ no stop-after option, so each pass gets a one-seam triage file).
   snaps, one driver call owns every camera move. Read it before triaging the split.
 
 ## Next steps
+
+0. Owner, 2026-10-05: "merge everything" was scoped to the raid branch family: the camera
+   branch was pushed to origin/matthew-mbp-m4-raid-b1 (fast-forward to cd6eae16d) and
+   raid-watch checked out there. v3, waves, b63 and the other worktrees get it with the
+   raid branch's PR (it carries 241 raid commits).
 
 1. (done) seam1 landed.
 2. Watch `docs/minigames/raid_loop/SEAM_LEDGER.md` on origin/matthew-mbp-m4-raid-b1 for
