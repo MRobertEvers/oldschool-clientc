@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 104
+-- @seam-count 108
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 153
-local SEAM_COUNT = 104
+local SEAM_COUNT = 108
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -9317,6 +9317,146 @@ return {
             return leave("ok", text)
         end)
 
+        -- A GUARDED WALK-THROUGH SPEAKS BEFORE IT MOVES THE PLAYER
+        -- (matthew-mbp-m4-b61-seam1
+        -- cross_gate_needs_a_chat_option_for_a_guarded_walk_through).  Fight
+        -- Arena's north fightarena_door1 2617,3171,0 (arena_locs.rs2
+        -- [oploc1,fightarena_door1]): in the Khazard disguise at
+        -- ^arena_obtained_armour, an arena_guard1 within 5 tiles (m40_49.spawn
+        -- puts one on 2617,3172) says "Nice observation guard..." and the
+        -- p_telejump into the prison corridor lands only after that page is
+        -- continued; cross_gate without `chat` waited 12 ticks under the page
+        -- and failed the crossing (b61 arena run 1; scratch b61gc_reproA).
+        -- First the subject: the guard by the near tile, and a walk from
+        -- 2617,3172 to 2617,3170 that does NOT get in.  Then in with
+        -- chat = { "npc:Nice observation guard" }: graded on ok, on the detail
+        -- carrying the guard's whole line and chat.play's ok, and on world.tile
+        -- reading z <= 3171.  Then the two other answers on Taverley's members'
+        -- gate, which never speaks: `chat` with no page is `refused` although
+        -- the press landed, and `chat_optional` turns that into an ok that
+        -- says "no page opened".
+        seam("seam.cross_gate_plays_a_guards_page", function()
+            local goto_tile = verb("player", "goto_tile")
+            local walk_to = verb("player", "walk_to")
+            local equip = verb("player", "equip")
+            local unequip = verb("player", "unequip")
+            local drop = verb("player", "drop")
+            local nearest = verb("npc", "nearest")
+            local tile = verb("world", "tile")
+            local fn = verb("player", "cross_gate")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not equip then return missing("player", "equip") end
+            if not unequip then return missing("player", "unequip") end
+            if not drop then return missing("player", "drop") end
+            if not nearest then return missing("npc", "nearest") end
+            if not tile then return missing("world", "tile") end
+            if not fn then return missing("player", "cross_gate") end
+            local armour = { "khazard_helmet", "khazard_platemail" }
+            local function leave(result, text)
+                for _, item in ipairs(armour) do
+                    unequip(item)
+                    drop(item)
+                end
+                setup_cheat("::setvar varp17_arenaquest 0")
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return result, text
+            end
+            local function tile_text()
+                local result, at = tile()
+                if result ~= "ok" or not is_table(at) then
+                    return nil, describe(result)
+                end
+                return at, at.x .. "," .. at.z .. "," .. at.level
+            end
+            setup_cheat("::setvar varp17_arenaquest ^arena_obtained_armour")
+            for _, item in ipairs(armour) do
+                setup_cheat("::give " .. item .. " 1")
+            end
+            local goto_result, goto_detail = goto_tile(2617, 3174, 0)
+            if goto_result ~= "ok" then
+                return leave("no_subject", "goto outside the north door 2617,3174,0 -> " .. describe(goto_result)
+                    .. " " .. describe(goto_detail))
+            end
+            for _, item in ipairs(armour) do
+                local worn_result, worn_detail = equip(item)
+                if worn_result ~= "ok" then
+                    return leave("no_subject", "equip " .. item .. " -> " .. describe(worn_result) .. " "
+                        .. describe(worn_detail) .. " -- no disguise, so the guard refuses")
+                end
+            end
+            local probe_result = walk_to(2617, 3170, 8)
+            local probe, probe_text = tile_text()
+            local text = "disguised at ^arena_obtained_armour; walk_to 2617,3170 from 2617,3174 (no press) -> "
+                .. describe(probe_result) .. " at " .. tostring(probe_text)
+            if probe == nil or probe.z <= 3171 then
+                return leave("no_subject", text .. " -- the walk got in without a press: not an only-way door")
+            end
+            walk_to(2617, 3172, 8)
+            local guard_result, guard = "not_found", nil
+            for _ = 1, 10 do
+                guard_result, guard = nearest("arena_guard1", 5)
+                if guard_result == "ok" and is_table(guard) then
+                    break
+                end
+                settle(1)
+            end
+            if guard_result ~= "ok" or not is_table(guard) then
+                return leave("no_subject", text .. "; no arena_guard1 within 5 of 2617,3172 in 10 ticks ("
+                    .. describe(guard_result) .. ") -- the door would not speak")
+            end
+            text = text .. "; arena_guard1 at " .. tostring(guard.x) .. "," .. tostring(guard.z)
+            local in_result, in_detail = fn({ loc = "fightarena_door1", at = { 2617, 3171, 0 }, near = { 2617, 3172 },
+                far_ok = function(at) return at.z <= 3171 and at.x >= 2613 and at.x <= 2619 end,
+                far_desc = "in the prison corridor, z <= 3171",
+                chat = { "npc:Nice observation guard" } })
+            text = text .. " | in -> " .. describe(in_result) .. " " .. tostring(in_detail)
+            if in_result ~= "ok" then
+                return leave(in_result, text)
+            end
+            local line = "the press opened npc 'Nice observation guard. You could have just asked to be let in"
+                .. " like a normal person.'"
+            if string.find(tostring(in_detail), line, 1, true) == nil
+                or string.find(tostring(in_detail), "chat.play -> ok", 1, true) == nil then
+                return leave("hollow", text .. " -- ok, but the detail carries no guard's line or no chat.play ok")
+            end
+            local inside, inside_text = tile_text()
+            text = text .. "; world.tile " .. tostring(inside_text)
+            if inside == nil or inside.z > 3171 or inside.level ~= 0 then
+                return leave("hollow", text .. " -- ok, but world.tile is not in the corridor")
+            end
+            goto_result, goto_detail = goto_tile(2936, 3450, 0)
+            if goto_result ~= "ok" then
+                return leave("no_subject", text .. " | goto the members' gate's east side 2936,3450,0 -> "
+                    .. describe(goto_result) .. " " .. describe(goto_detail))
+            end
+            local mute_result, mute_detail = fn({ loc = "membergater", at = { 2935, 3450, 0 }, near = { 2936, 3450 },
+                far_ok = function(at) return at.x <= 2935 end, far_desc = "inside Taverley, x <= 2935",
+                chat = { "npc:*" } })
+            text = text .. " | silent gate, chat -> " .. describe(mute_result) .. " " .. tostring(mute_detail)
+            if mute_result ~= "refused"
+                or string.find(tostring(mute_detail), "no page opened", 1, true) == nil
+                or string.find(tostring(mute_detail), "the press landed inside Taverley", 1, true) == nil then
+                return leave("hollow", text .. " -- want refused: chat= named a page the press never opened")
+            end
+            local quiet_result, quiet_detail = fn({ loc = "membergater", at = { 2935, 3450, 0 }, near = { 2934, 3450 },
+                far_ok = function(at) return at.x >= 2936 end, far_desc = "out of Taverley, x >= 2936",
+                chat = { "npc:*" }, chat_optional = "conformance: the members' gate never speaks" })
+            text = text .. " | silent gate, chat_optional -> " .. describe(quiet_result) .. " " .. tostring(quiet_detail)
+            if quiet_result ~= "ok"
+                or string.find(tostring(quiet_detail), "no page opened", 1, true) == nil
+                or string.find(tostring(quiet_detail), "chat_optional: conformance", 1, true) == nil then
+                return leave(quiet_result == "ok" and "hollow" or quiet_result,
+                    text .. " -- want ok with 'no page opened' and the chat_optional reason")
+            end
+            local out, out_text = tile_text()
+            if out == nil or out.x < 2936 then
+                return leave("hollow", text .. " -- ok, but world.tile reads " .. tostring(out_text))
+            end
+            return leave("ok", text)
+        end)
+
         -- The Isafdar rows' stage: Hitpoints 99 (the fixture's 10 is one
         -- slipped pitfall from dead) and Agility 70 -- the Agility the b59
         -- Isafdar tests stage, at which regicide_traps.rs2's
@@ -9430,6 +9570,92 @@ return {
             end
             if hooks < 1 then
                 return leave("hollow", text .. " -- the vitals hook never ran")
+            end
+            return leave("ok", text)
+        end)
+
+        -- SEAM cross_trap_cannot_name_a_loc_on_another_raw_level
+        -- (matthew-mbp-m4-b61-seam1): A BRIDGE-DECK LOC NAMED BY loc_level.
+        -- The Waterfall ledge's barrel_waterfall_quest stands at 2512,3463 on
+        -- RAW level 1 of a bridge column (maps/m39_54.jl2; LostCity places it
+        -- identically, LostCity_Content2/maps/m39_54.jm2) while the player
+        -- stands on the ledge 2511,3463 on plane 0; its op1 is unconditional:
+        -- "You climb in the barrel and start rocking." then
+        -- p_teleport(^waterfall_fail_coord) = 2527,3413,0
+        -- (quest_waterfall_locs.rs2 [oploc1,barrel_waterfall_quest]).  Before
+        -- the seam, cross_trap's `at` level was both the copy's and the
+        -- player's: at = {2512,3463,0} pressed nothing ("nearest copies:
+        -- 2512,3463,1") and {..,1} refused the plane-0 player
+        -- (build/quest_gate/b61s1_bridge_before rows 4-6).  Graded: loc_near
+        -- {level="here"} is not_found and names the copy one raw level up;
+        -- {level="here", deck=true} answers 2512,3463,1; cross_trap without
+        -- loc_level presses nothing and leaves the player on the ledge; with
+        -- loc_level = 1 it presses the raw-level-1 copy, the server's barrel
+        -- line is in the detail, and world.tile reads 2527,3413,0.  The goto
+        -- is the ledge itself, a starting point (rovingelves reaches it
+        -- through the falls).
+        seam("seam.bridge_deck_loc_named_by_loc_level", function()
+            local goto_tile = verb("player", "goto_tile")
+            local tile = verb("world", "tile")
+            local loc_near = verb("world", "loc_near")
+            local fn = verb("player", "cross_trap")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not tile then return missing("world", "tile") end
+            if not loc_near then return missing("world", "loc_near") end
+            if not fn then return missing("player", "cross_trap") end
+            local function leave(result, text)
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return result, text
+            end
+            local goto_result, goto_detail = goto_tile(2511, 3463, 0)
+            if goto_result ~= "ok" then
+                return leave("no_subject", "goto the ledge 2511,3463,0 -> " .. describe(goto_result) .. " "
+                    .. describe(goto_detail))
+            end
+            settle(2)
+            local here_result, here_detail = loc_near("barrel_waterfall_quest", 5, { level = "here" })
+            local text = "loc_near(level=here) -> " .. describe(here_result) .. " " .. tostring(here_detail)
+            if here_result == "ok" then
+                return leave("refused", text .. " -- a plane-0 filter answered a raw-level-1 copy")
+            end
+            if string.find(tostring(here_detail), "the copy at 2512,3463,1 is one raw level up", 1, true) == nil then
+                return leave("refused", text .. " -- the not_found does not name the deck copy one raw level up")
+            end
+            local deck_result, deck_row = loc_near("barrel_waterfall_quest", 5, { level = "here", deck = true })
+            text = text .. "; {level=here, deck=true} -> " .. describe(deck_result) .. " "
+                .. (deck_result == "ok" and (deck_row.tile_x .. "," .. deck_row.tile_z .. "," .. deck_row.level)
+                    or describe(deck_row))
+            if deck_result ~= "ok" or deck_row.tile_x ~= 2512 or deck_row.tile_z ~= 3463 or deck_row.level ~= 1 then
+                return leave("refused", text .. " -- want the barrel at 2512,3463,1")
+            end
+            local plain_result, plain_detail = fn({ loc = "barrel_waterfall_quest", at = { 2512, 3463, 0 },
+                src = { 2511, 3463 }, dest = { 2527, 3413 }, attempts = 1 })
+            local still_result, still = tile()
+            text = text .. "; cross_trap without loc_level -> " .. describe(plain_result) .. " (player "
+                .. describe(still) .. ")"
+            if plain_result == "ok" or still_result ~= "ok" or not is_table(still) or still.x ~= 2511
+                or still.z ~= 3463 or still.level ~= 0 then
+                return leave("refused", text .. " -- " .. tostring(plain_detail)
+                    .. " -- a plane-0 `at` must name no raw-level-1 copy and press nothing")
+            end
+            local result, detail = fn({ loc = "barrel_waterfall_quest", op_name = "Get in",
+                at = { 2512, 3463, 0 }, loc_level = 1, src = { 2511, 3463 }, dest = { 2527, 3413 }, attempts = 1 })
+            text = text .. "; with loc_level=1 -> " .. describe(result) .. " " .. tostring(detail)
+            if result ~= "ok" then
+                return leave(result, text)
+            end
+            if string.find(text, "click_loc(barrel_waterfall_quest at 2512,3463,1 (raw level; the player on plane 0)",
+                    1, true) == nil or string.find(text, "landed 2527,3413,0", 1, true) == nil then
+                return leave("hollow", text .. " -- ok, but the detail names no raw-level-1 press or no landing")
+            end
+            if string.find(text, "You climb in the barrel and start rocking.", 1, true) == nil then
+                return leave("hollow", text .. " -- ok, but the server's barrel line is not in the detail")
+            end
+            local end_result, finish = tile()
+            if end_result ~= "ok" or not is_table(finish) or finish.x ~= 2527 or finish.z ~= 3413
+                or finish.level ~= 0 then
+                return leave("hollow", text .. " -- ok, but world.tile reads " .. describe(finish))
             end
             return leave("ok", text)
         end)
@@ -9787,6 +10013,117 @@ return {
             text = text .. " | then cancel_selection -> " .. describe(last_result) .. " " .. tostring(last_detail)
             if last_result ~= "ok" or last_armed ~= false then
                 return leave("refused", text .. " -- something is still armed after the missed press")
+            end
+            return leave("ok", text)
+        end)
+
+        -- SEAM region_music_unlock_writes_the_music_variable_index_into_raw_varps
+        -- (b61-seam1): DBTable 44's unlock pair is (music VARIABLE 1-27, bit),
+        -- and the engine's region-music table carried the variable as if it
+        -- were a varp id, so walking into Draynor Village (square 48,50,
+        -- "Unknown Land" = variable 5 bit 5) OR'd bit 5 into %varp5_grail
+        -- (spoken_crone 4 -> 36, the Grail whistle then went to the restored
+        -- realm).  music.varp: variable 5 is [varp24_musicmulti_5].  Walked,
+        -- not teleported: from square 49,50 over the open road west.
+        stage(function()
+            setup_cheat("::clearinv")                           -- setup
+            setup_cheat("::goto 3150 3228 0")                   -- square 49,50 (Dream)
+            settle(2)
+            setup_cheat("::setvar varp5_grail 4")               -- setup: spoken_crone
+            setup_cheat("::setvar varp24_musicmulti_5 0")       -- setup
+            settle(2)
+        end)
+        seam("seam.region_music_unlock_writes_the_musicmulti_varp", function()
+            local walk_route = verb("player", "walk_route")
+            local server = verb("var", "server")
+            if not walk_route then return missing("player", "walk_route") end
+            if not server then return missing("var", "server") end
+            local _, grail_before = server("varp5_grail")
+            local _, music_before = server("varp24_musicmulti_5")
+            if grail_before ~= 4 or music_before ~= 0 then
+                return "no_subject", "staging read varp5_grail=" .. tostring(grail_before)
+                    .. " varp24_musicmulti_5=" .. tostring(music_before) .. " (wanted 4 and 0)"
+            end
+            local walk_result, walk_detail = walk_route({ { 3141, 3228 }, { 3133, 3228 }, { 3125, 3228 } })
+            settle(3)
+            local _, grail_after = server("varp5_grail")
+            local _, music_after = server("varp24_musicmulti_5")
+            local text = "walk_route into square 48,50 -> " .. describe(walk_result) .. " "
+                .. tostring(walk_detail) .. " | varp5_grail 4 -> " .. tostring(grail_after)
+                .. ", varp24_musicmulti_5 0 -> " .. tostring(music_after)
+            setup_cheat("::setvar varp5_grail 0")
+            setup_cheat("::tele lumbridge")
+            settle(2)
+            if walk_result ~= "ok" then
+                return "no_subject", text
+            end
+            if grail_after ~= 4 then
+                return "refused", text .. " -- the region unlock wrote the music VARIABLE index as a varp id"
+            end
+            if type(music_after) ~= "number" or (music_after // 32) % 2 ~= 1 then
+                return "refused", text .. " -- musicmulti_5 bit 5 (Unknown Land) was not set"
+            end
+            return "ok", text
+        end)
+
+        -- seam.npc_death_waits_for_its_queue (seam pass matthew-mbp-m4-b61-seam1):
+        -- [ai_queue3,black_knight_titan] hands the death to queue_defeat_titan(npc_uid)
+        -- (quest_grail/scripts/black_knight_titan.rs2). The engine must keep the
+        -- titan until that queue has decided (LostCity: NpcOps.ts NPC_DEL is the
+        -- only removal). Without Excalibur: the message, %varp5_grail 4 -> 7 and
+        -- the SAME titan (pool slot) standing; with it: "Well done!".
+        seam("seam.npc_death_waits_for_its_queue", function()
+            local await_msg = verb("msg", "await")
+            local read_var = verb("var", "server")
+            local present = verb("npc", "await_present")
+            if not await_msg then return missing("msg", "await") end
+            if not read_var then return missing("var", "server") end
+            if not present then return missing("npc", "await_present") end
+            local unequip = verb("player", "unequip")
+            local drop = verb("player", "drop")
+            local function leave(result, text)
+                if unequip then unequip("excalibur") end
+                if drop then drop("excalibur") end
+                setup_cheat("::setvar varp5_grail 0")
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return result, text
+            end
+            local function titan_slot()
+                local r, d = present("black_knight_titan", 15, 1)
+                return tonumber(string.match(tostring(d), "slot (%d+)") or ""), tostring(r) .. " " .. tostring(d)
+            end
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::give excalibur 1")
+            setup_cheat("::setvar varp5_grail 4")
+            setup_cheat("::~tele 0_43_73_37_50")
+            settle(3)
+            local slot0, before = titan_slot()
+            if slot0 == nil then
+                return leave("hollow", "no black_knight_titan within 15 of 2789,4722: " .. before)
+            end
+            setup_cheat("::kill black_knight_titan")
+            local ar, ad = await_msg("Maybe you need something more to beat the titan?", 20)
+            settle(3)
+            local vr, vd = read_var("varp5_grail")
+            local slotA, after = titan_slot()
+            local text = "no Excalibur: msg " .. tostring(ar) .. "; varp5_grail " .. tostring(vr) .. " "
+                .. tostring(vd) .. "; titan slot " .. tostring(slot0) .. " -> " .. after
+            if ar ~= "ok" or vr ~= "ok" or tonumber(vd) ~= 7 or slotA ~= slot0 then
+                return leave("hollow", text .. " -- queue_defeat_titan must find the SAME titan, say so and "
+                    .. "downgrade spoken_crone(4) -> failed_defeat_titan(7)")
+            end
+            local chat_play = verb("chat", "play")
+            if chat_play then
+                chat_play({ "npc:Puny mortal...", "npc:I..." })
+            end
+            setup_cheat("::wield excalibur")
+            settle(2)
+            setup_cheat("::kill black_knight_titan")
+            local br, bd = await_msg("Well done! You have defeated the Black Knight Titan!", 20)
+            text = text .. " | Excalibur: msg " .. tostring(br) .. " " .. tostring(bd)
+            if br ~= "ok" then
+                return leave("hollow", text .. " -- with Excalibur worn the queue must run its win branch")
             end
             return leave("ok", text)
         end)

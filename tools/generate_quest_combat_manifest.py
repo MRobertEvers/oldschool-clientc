@@ -2378,6 +2378,46 @@ def payload(rows: list[dict[str, object]], digest: str) -> dict[str, object]:
     }
 
 
+# Zogre Flesh Eaters (matthew-mbp-m4-b61-seam1, seam
+# brentle_vahn_zombie_has_no_combat_block): the Brentle Vahn zombie and Slash
+# Bash. Added as its own statement so it does not share a merge point with the
+# ones above.
+AUDITED_OVERRIDES["Zogre Flesh Eaters"] = {
+    "source_audits": [
+        {"url": "https://oldschool.runescape.wiki/w/Zombie_(Zogre_Flesh_Eaters)?oldid=15272404", "revision": 15272404, "retrieved": "2026-10-05"},
+        {"url": "https://oldschool.runescape.wiki/w/Slash_Bash?oldid=15355748", "revision": 15355748, "retrieved": "2026-10-05"},
+    ],
+    "npc_gamevals": [
+        "zogre_human_brentle_vahn: the Zombie (npc 880, level 39), 50 hitpoints, 30/30/30/1/1 attack/strength/defence/magic/ranged, every bonus and defence 0, crush, attack speed 6, aggressive, undead, 50% fire weakness (wiki infobox; cache stat1-4 30/30/30/50) (quest_zogreflesheaters/configs/zogreflesheaters.npc)",
+        "zogre_slash_bash: Slash Bash (npc 882, level 111), 100 hitpoints, 100/120/60/1/100 attack/strength/defence/magic/ranged, dstab/dslash/dcrush 30, dmagic/drange 0, attack speed 6, undead (wiki infobox) (quest_zogreflesheaters/configs/zogreflesheaters.npc)",
+    ],
+    "item_gamevals": [
+        "zogre_brentle_vahn_backpack: the ruined backpack the zombie's death hands over",
+        "zogre_artifacts: the ogre artefact Slash Bash's death drops",
+        "zogre_bow, zogre_brutal_iron and the other brutal arrows: full damage against Slash Bash",
+    ],
+    "loc_gamevals": [
+        "zogre_brentle_skeleton: searching it raises the zombie",
+        "zogre_stand: searching it at the grish-key stage raises Slash Bash",
+    ],
+    "trigger_handlers": [
+        "oploc1:zogre_brentle_skeleton (npc_add zogre_human_brentle_vahn, opplayer2; zogreflesheaters.rs2)",
+        "ai_queue3:zogre_human_brentle_vahn (sets zfe_fought_zombie and adds the ruined backpack; zogreflesheaters.rs2)",
+        "oploc1:zogre_stand (npc_add zogre_slash_bash, opplayer2; zogre_finish.rs2)",
+        "ai_queue3:zogre_slash_bash (stage zfe_slash_bash and the ogre artefact; zogre_finish.rs2)",
+        "proc:zfe_slash_bash_prepare_hit (a quarter of ordinary damage, half capped 7 from Crumble Undead, full from brutal arrows off the comp ogre bow; zogre_finish.rs2)",
+    ],
+    "loot_contract": "The zombie drops no bones: its only drop is the ruined backpack, handed over by its ai_queue3 (death_drop null). Slash Bash drops the ogre artefact through his ai_queue3, plus the default death_drop.",
+    "test_ids": [
+        "quest:zogreflesheaters",
+    ],
+    "known_gaps": [
+        "The zombie's Disease (10) from the infobox is not modelled.",
+        "Slash Bash's wiki drops (2 zogre bones and 3 ourg bones, always) are not ported; his death_drop is the default bones.",
+        "Tertiary drops (zombie/zogre bone during Rag and Bone Man II, the zombie champion scroll) are not ported.",
+    ],
+}
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
