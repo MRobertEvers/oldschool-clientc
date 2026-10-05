@@ -85,9 +85,13 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   DIFFERENT run from k=1 because the driver's verbs are frame-granular (k=10 fails a chat row),
   and it saved nothing (smoke 10.9/10.5/11.0 s at k=1/10/30: the frame loop is not the cost).
   Party default stays k=1; making the driver tick-granular is a later seam if the owner wants it.
-- RUNNING: room launch 15 (pass `matthew-mbp-m4-raid-b1-rooms-tob`, Entry solo): tob_sotetseg and
-  tob_verzik re-authored to MEASURE sotetseg.ball_prayer_read_tick and
-  verzik.p2_bomb_prayer_read_tick (coverage only; both run green); four rooms kept.
+- Room launch 15 (ledger 146987813): tob_sotetseg KEPT at 1c86bf153 (84/84 FULL; the ball's
+  prayer read at the impact proved both ways in the tick log: raised after the throw -> blocked,
+  dropped after the throw -> 22). tob_verzik's re-author reached FULL 145/145 but the reviewer
+  rejected it on the gate's duplicate-shot rule (rows at tob_verzik.lua:2827 and :2829 shot the
+  same tick); the author's file is on disk uncommitted. RUNNING: the retry (same args).
+  Kept: tob_maiden 1dffd5230, tob_bloat abc53c18e, tob_nylocas 116a1d938, tob_xarpus f417148e4,
+  tob_sotetseg 1c86bf153, tob_verzik 3d7589ff4 (green, one coverage row short until the retry).
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
   names seed on their first 12 characters, case folded (jbase37).
 
