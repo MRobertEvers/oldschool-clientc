@@ -90,20 +90,30 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   tob_sotetseg 1c86bf153 (84; the ball's impact read proved both ways), tob_xarpus f417148e4 (63),
   tob_verzik d3ff92400 (145; the urn bomb's landing read proved by a reverse trial: prayer
   dropped after the throw, hit 12 > prayed max 8, eight prayed bombs 0-7).
-- RUNNING: THE NORMAL THREE-PLAYER ROOM PASS, pass `matthew-mbp-m4-raid-b1-rooms-tob-normal`
-  (card raid_author, raid tob, the six rooms, mode normal, party 3, width 1; ids
-  tob_<room>_normal; state build/author_state/matthew-mbp-m4-raid-b1-rooms-tob-normal/). The
-  first party play ever authored. Relaunch with the same args; the context names the sources per
-  room (Strategies wiki sections, Patyfatycake's and 10Boot's chapters, Blert's trio Nylocas
-  guide, S2L's Verzik P3 tanking), the determinism gate (party_repeat.py --runs 2 must AGREE
-  before review), the scale (750 permille), the prayer rulings, and that content findings are
-  written, never fixed, by an author.
+- THE NORMAL THREE-PLAYER ROOM PASS, first launch (pass `matthew-mbp-m4-raid-b1-rooms-tob-normal`,
+  3.7 h, six authors x 6-19 runs): ALL SIX REJECTED, nothing committed; the six
+  test/raids/tob_<room>_normal.lua files are uncommitted author attempts (read-only; the next
+  launch's authors continue from them). Its sampler stopped on a card bug (the pass name did not
+  strip to the branch; fixed e7eb5ebbd), so no ROOM_LEDGER section and the 12 doc gaps are
+  unfolded (they are in the *.review.json files). What it found: (a) HARNESS: a member that dies
+  ends its script and party.lockstep fails the run (Maiden and Sotetseg wiped on this); no member
+  t.tick; the Lua instruction budget undocumented; t.prayer.points broken; pid mapping wrong in
+  README. (b) CONTENT: no tornado for a trio at Sotetseg (tob_sotetseg.rs2:1470 + the seam19
+  watchdog gap) and 99 prayer drained in 165 ticks; Xarpus P2 orbs per landing 1,2,3 vs spec
+  "1,2" (both weakly sourced); Verzik P1 at three not survivable by the authors (shield 1500,
+  hides 5 tiles out); nylocas spawn_aggro 34 of 35. (c) STRATEGY: Maiden with one freezer
+  leaks 11 crabs; Bloat trio deals ~30 per down. Closest: tob_nylocas_normal 81/85, tob_xarpus_normal 62/63,
+  tob_maiden_normal 47/70 with a survived run.
+- RUNNING: seam pass `matthew-mbp-m4-raid-b1-seam22` (triage `SEAM_TRIAGE_2026-10-05a.md`): the
+  harness gaps (a dead member stays in lockstep, t.tick on a member, budget, readers, README), then
+  the four content findings settled from sources. Then relaunch the Normal pass with the same args
+  (the state directory resumes; rejected rooms get their findings).
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
   names seed on their first 12 characters, case folded (jbase37).
 
 ## Next, in order
 
-1. The Normal pass lands (above); re-launch for rejected or sent-back rooms with the same args. (Seam21 landed.) SEAM21 was on
+1. Seam22 lands (above); then relaunch the Normal pass with the same args (its rejected rooms get the findings); re-launch for rejected or sent-back rooms until kept. (Seam21 landed.) SEAM21 was on
    `SEAM_TRIAGE_2026-10-04i.md` (owner, 2026-10-04: "I don't want to introduce nondeterminism.
    The server and clients should be able to run in lockstep"): a member runs exactly F frames
    per tick, READY carries the frame count (the leader refuses a mismatch), TICK carries a world
