@@ -20,9 +20,10 @@
 --  * Lumbridge (the fixture) -> Jiggig, and the tomb -> Grish after Slash
 --    Bash, are real Camelot Teleports (magic_spells.dbrow
 --    [magic_spell_teleport_camelot]: level 45, 5 air + 1 law, 2757,3478)
---    plus an overland goto: reach.py finds Camelot -> Yanille 2597,3084
---    (len 554) and Yanille -> Grish 2447,3049 (len 291) with every door
---    closed. Yanille <-> Jiggig is the same open overland hop.
+--    plus an overland goto: reach.py finds Camelot -> Grish 2448,3049
+--    (len 750) and Yanille 2594,3101 -> Grish (len 276) with every door
+--    closed, at margins 30/80/160/300. Yanille <-> Jiggig is the same open
+--    overland hop. (2447,3049, the old landing, is a solid map tile.)
 --  * Jiggig's ceremonial ground east of the barricade is a 250-tile pocket
 --    (comp.py 2485,3045: no door, no other way out), so the crushed
 --    barricade (zogreflesheaters.rs2 [oploc1,ogre_barricade_collapsedl]:
@@ -213,7 +214,7 @@ return {
 
         -- ---- Starting off: Grish, the guard, the barricade -------------
         camelot("talkToGrish.camelotTeleport")
-        t.exec("goto-talkToGrish", t.player.goto_tile, 2447, 3049, 0)
+        t.exec("goto-talkToGrish", t.player.goto_tile, 2448, 3049, 0)
         t.exec("talkToGrish", t.player.talk_to, "zogre_ogre_shaman", 1)
         t.exec("talkToGrish-dialog", t.chat.play, {
             "player:Hello there, what's going on here?",
@@ -261,31 +262,12 @@ return {
         t.exec("searchSkeleton", t.player.click_loc, "zogre_brentle_skeleton", 1)
         local kz_present = t.npc.await_present("zogre_human_brentle_vahn", 5, 10)
         t.check("killZombie.present", kz_present == "ok", tostring(kz_present))
-        -- BLOCKED (b61): the guide's killZombie target has no combat block, so
-        -- the fight is not a fight. Everything below is the driven quest,
-        -- proven end to end in b61 run 2 (159/0, gate green, coverage FULL:
-        -- build/orchestrator/fix_b61/zogreflesheaters.fullroute.lua); the next
-        -- author deletes only this block once the zombie has a combat block.
-        t.blocked("content_bug: the Brentle Vahn zombie (zogre_human_brentle_vahn, npc_add at "
-            .. "OSRS-Content/osrs239-content/server/scripts/quests/quest_zogreflesheaters/scripts/zogreflesheaters.rs2:286, "
-            .. "guide step killZombie) has no server .npc combat block: it exists only in "
-            .. "server/scripts/npc/configs/npc_anims.generated.npc:52424 (death/attack/defend anims and attackrate, "
-            .. "no hitpoints, attack, strength or defence) and quest_zogreflesheaters/configs/zogreflesheaters.npc "
-            .. "holds only [zogre_slash_bash] (line 18). It spawns with the engine defaults (10 hitpoints, attack/"
-            .. "strength/defence 1; docs/quest_authoring/gaps-combat.md 'npc_def_seed_from_cache copies only the "
-            .. "bonuses'): b61 runs 1-2 read the bar 9/30 after one 7 hitsplat and the zombie died 12 ticks after the "
-            .. "first swing. The cache gives it level 39 and stat1-4 30/30/30/50 (attack, defence, strength, "
-            .. "hitpoints: osrs239-content/configs/all.npc:23564-23578). Needed: a [zogre_human_brentle_vahn] block in "
-            .. "zogreflesheaters.npc (hitpoints=50, attack=30, strength=30, defence=30) and its entry in "
-            .. "docs/bosses/quest_combat_manifest.json quest-zogre-flesh-eaters (line 4828, npc_gamevals empty).")
-        do return end
-
         t.exec("killZombie.attack", t.player.attack, "zogre_human_brentle_vahn", 2, 15)
-        local kz_r, kz_d = t.exec("killZombie", t.npc.await_dead_engaged, 60, 10, { eat = { item = "shark", below = 50 } })
+        local kz_r, kz_d = t.exec("killZombie", t.npc.await_dead_engaged, 200, 10, { eat = { item = "shark", below = 50 } })
         local kz_low = tonumber(string.match(tostring(kz_d), "lowest hp (%d+)/"))
         local kz_sharks = count("shark")
         t.check("killZombie.margin", kz_r == "ok" and kz_low ~= nil and kz_low >= 25 and kz_sharks ~= nil and kz_sharks >= 1,
-            "Brentle zombie: lowest hp " .. tostring(kz_low) .. "/99 (the kill's eater), sharks left " .. tostring(kz_sharks)
+            "Brentle zombie (zogreflesheaters.npc: 50 hp, atk 30, str 30, def 30): lowest hp " .. tostring(kz_low) .. "/99 (the kill's eater), sharks left " .. tostring(kz_sharks)
                 .. " of 6 (margin: lowest hp >= 25, a quarter of 99, AND food left)")
 
         t.exec("openBackpack", t.player.inv_op, "zogre_brentle_vahn_backpack", 1)
@@ -521,7 +503,7 @@ return {
 
         -- ---- Tell Grish; the key; the easier way -------------------------
         -- Overland: the street outside Sithik's house to Grish (open ground).
-        t.exec("goto-talkToGrishAgain", t.player.goto_tile, 2447, 3049, 0)
+        t.exec("goto-talkToGrishAgain", t.player.goto_tile, 2448, 3049, 0)
         t.exec("talkToGrishAgain", t.player.talk_to, "zogre_ogre_shaman", 1)
         t.exec("talkToGrishAgain-dialog", t.chat.play, {
             "npc:Yous creature dun da fing yet?",
@@ -616,7 +598,19 @@ return {
         -- ---- returnRelic: no walk out of the sealed boss floor (see the
         -- header), so a real teleport, then the overland hop to Grish.
         camelot("returnRelic.camelotTeleport")
-        t.exec("goto-returnRelic", t.player.goto_tile, 2447, 3049, 0)
+        t.exec("goto-returnRelic", t.player.goto_tile, 2448, 3049, 0)
+        -- Reward rows measure from here: zogreflesheaters.rs2 [queue,zfe_quest_complete]
+        -- stat_advance(ranged|fletching|herblore, 20000) (tenths: 2000 XP each),
+        -- inv_add(zogre_bones, 2), inv_add(zogre_ancestral_bones_ourg, 3).
+        local snapshot_result, snapshot = t.skill.snapshot()
+        local zbones_before = count("zogre_bones")
+        local obones_before = count("zogre_ancestral_bones_ourg")
+        t.check("reward.snapshot", snapshot_result == "ok" and zbones_before == 0 and obones_before == 0,
+            "skill.snapshot before hand-in -> " .. tostring(snapshot_result)
+                .. "; zogre_bones " .. tostring(zbones_before) .. ", zogre_ancestral_bones_ourg " .. tostring(obones_before)
+                .. "; ranged xp=" .. tostring(snapshot and snapshot.ranged and snapshot.ranged.experience)
+                .. " fletching xp=" .. tostring(snapshot and snapshot.fletching and snapshot.fletching.experience)
+                .. " herblore xp=" .. tostring(snapshot and snapshot.herblore and snapshot.herblore.experience))
         t.exec("returnRelic", t.player.talk_to, "zogre_ogre_shaman", 1)
         t.exec("returnRelic-dialog", t.chat.play, {
             "npc:Hey, you's creature got da old fings?",
@@ -627,6 +621,15 @@ return {
         })
         t.ticks(3)
         t.quest.expect_complete()
+        t.check("reward.ranged_xp", t.skill.expect_gain("ranged", 2000, snapshot))
+        t.check("reward.fletching_xp", t.skill.expect_gain("fletching", 2000, snapshot))
+        t.check("reward.herblore_xp", t.skill.expect_gain("herblore", 2000, snapshot))
+        local zbones_after = count("zogre_bones")
+        local obones_after = count("zogre_ancestral_bones_ourg")
+        t.check("reward.zogre_bones", zbones_after ~= nil and zbones_before ~= nil and zbones_after - zbones_before == 2,
+            "zogre_bones " .. tostring(zbones_before) .. " -> " .. tostring(zbones_after) .. " (expected +2)")
+        t.check("reward.ourg_bones", obones_after ~= nil and obones_before ~= nil and obones_after - obones_before == 3,
+            "zogre_ancestral_bones_ourg " .. tostring(obones_before) .. " -> " .. tostring(obones_after) .. " (expected +3)")
         t.finish(0)
         return
     end,
