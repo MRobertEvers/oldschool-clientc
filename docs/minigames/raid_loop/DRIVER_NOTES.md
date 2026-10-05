@@ -4634,3 +4634,25 @@ behaviour: the three landing reads are each sourced or ruled.
   runs 1-3 to this; its kept sample is the ball at 279, whose successor at 284 is a death
   ball). Take the "dropped in flight" sample on a ball whose successor is a death ball, or
   right before a maze.
+
+## Verzik's urnbomb read: one bomb under 8 does not tell the landing from the throw (launch 15b)
+
+- An Entry urnbomb is a successful hit of 0..16, halved to 0..8 by Protect from Missiles. One
+  forward trial (off at the throw, on before the landing) that takes 1..8 is what a THROW read
+  would also give about 8 times in 17 (seam20's "prayed only at the throw" sample has 2, 1, 3
+  among 14, 10, 13, 11). The sampled launch-15 room passed `spec.verzik.p2_bomb_prayer_read_tick`
+  on one such hit (throw 277 at 6427,91, landing 280, 4 at 281) and was reverted.
+- Grade on a sample the other rule cannot produce. The strong one is the reverse trial: a bomb
+  thrown at your tile while Protect from Missiles is up, the prayer dropped before it lands, and
+  a hit over 8 (unprayed at the landing, impossible under a throw read). The same run had one by
+  accident and the row ignored it: thrown 257 under the prayer, drop pressed 259, landing 260,
+  9 at 261. Otherwise repeat the forward trial; five hits all at most 8 is (9/17)^5, about 4%,
+  under a throw read.
+- Prove each set, do not narrate it: keep the detail `t.prayer.set` returns (the
+  `varb..._prayer_protectfrommissiles 1 -> 0 (server) read on drive tick N` line), or print a
+  fresh `t.prayer.read()` after the press. A drive line saying "dropped" is not a witness.
+- `hit_player.raw` equals the damage for a bomb (4 = 4, 9 = 9): the halving is already inside
+  it, so the raw column cannot show the prayer either. Only the size can.
+- "No bomb in the air" is not `new_atk == nil`: that is only "no new throw this tick". A bomb
+  thrown a tick or two earlier is still in flight; label every bomb hit by the prayer at its
+  own landing (`spec.verzik.entry_p2_bomb_max` called the 9 above "Protect from Missiles on").
