@@ -681,24 +681,34 @@ function QD.player._run_vitals(vitals)
 end
 
 -- cross_gate's spec.chat, after the press (its banner, "A GUARDED
--- walk-through").  `landed()` reads the far test.  Answers (result, text):
--- result nil when the crossing goes on to be graded on the landing, else the
--- word the row ends on; text is what the page(s) said and chat.play's answer.
-function QD.player._cross_gate_chat(spec, landed, far_desc)
+-- walk-through"), and climb's (its banner, "A GUARDED ladder").  `landed()`
+-- reads the far test.  `verb` names the caller in the await notes (default
+-- "cross_gate") and `land_ticks` is how long the landing is awaited, both
+-- before a page opens and after it is played (default
+-- QD.player._cross_gate_land_ticks).  Answers (result, text): result nil
+-- when the crossing goes on to be graded on the landing, else the word the
+-- row ends on; text is what the page(s) said and chat.play's answer.
+function QD.player._cross_gate_chat(spec, landed, far_desc, verb, land_ticks)
+    assert(type(spec) == "table", "_cross_gate_chat takes the verb's spec")
+    assert(type(spec.chat) == "table", "_cross_gate_chat needs spec.chat")
+    assert(type(landed) == "function", "_cross_gate_chat takes landed(), the far test")
+    assert(type(far_desc) == "string", "_cross_gate_chat takes far_desc, what landed() accepts")
+    verb = verb or "cross_gate"
+    land_ticks = land_ticks or QD.player._cross_gate_land_ticks
     local start = api_drive.tick()
     QD.await({
         level = function()
             return QD.chat.kind() ~= "none" or landed()
         end,
-        note = "cross_gate: the press opens a page or lands " .. far_desc,
-    }, QD.player._cross_gate_land_ticks)
+        note = verb .. ": the press opens a page or lands " .. far_desc,
+    }, land_ticks)
     if QD.chat.kind() == "none" and landed() then
         -- a page the content opens only after the move
         QD.await({
             level = function()
                 return QD.chat.kind() ~= "none"
             end,
-            note = "cross_gate: a page after the landing",
+            note = verb .. ": a page after the landing",
         }, QD.player._cross_gate_late_page_ticks)
     end
     local kind = QD.chat.kind()
@@ -726,7 +736,7 @@ function QD.player._cross_gate_chat(spec, landed, far_desc)
     if play_result ~= "ok" then
         return play_result, said
     end
-    QD.await({ level = landed, note = "cross_gate: the landing after the page" }, QD.player._cross_gate_land_ticks)
+    QD.await({ level = landed, note = verb .. ": the landing after the page" }, land_ticks)
     return nil, said
 end
 
@@ -1089,7 +1099,9 @@ end
 --       -- optional: slack = 2 (Chebyshev tiles of dest that count; default 0),
 --       --   src = { x, z } (walked to and stood on before the press),
 --       --   landed_ok = function(tile) ... end, landed_desc = "the inn's upper floor",
---       --   presses = 2, ticks = 10
+--       --   presses = 2, ticks = 10,
+--       --   chat = { <chat.play list> }, chat_optional = "<why>"
+--       --   (a GUARDED ladder, below)
 --   })
 --
 -- goto_tile is a teleport and walk_to never changes floor, so before this
@@ -1131,6 +1143,28 @@ end
 -- the start tile, in the start's frame) or "reached the landing's map frame
 -- but not the landing".  A same-level dest in the press's own frame with no
 -- `same_level` still raises: that is pass_door / cross_trap / walk_route.
+--
+-- A GUARDED ladder (b63-seam1 climb_has_no_chat_for_a_guarded_ladder).
+-- Some climbs speak before they move the player: the Watchtower's
+-- towerladder (quest_itwatchtower.rs2 [oploc1,towerladder]) shows the tower
+-- guard's ~chatnpc page "It is the wizards' helping hand - let 'em up." and
+-- only after it is continued reaches if_close + ~climb_ladder(1), so a climb
+-- that just awaited the landing waited `ticks` under the page and failed (the
+-- b62 itwatchtower test hand-graded this one climb with click_loc).  `chat`
+-- is the chat.play list for the page(s) the press opens, with cross_gate's
+-- semantics (QD.player._cross_gate_chat): after a press the server received,
+-- the landing OR a page is awaited up to `ticks`; a page is played with the
+-- list (its kind and full text and chat.play's answer go in the detail), and
+-- only then is the landing awaited and graded -- the landing is still the
+-- verdict.  A list that does not match is chat.play's `mismatch`, the climb
+-- unpressed past it.  `chat` says a page WILL open: a press that lands (or
+-- stays put) with no page is `refused` -- unless `chat_optional` says why
+-- the page depends on the world (the guard turns you away before the quest
+-- starts), when "no page opened" is in the detail and the landing alone
+-- grades it.  A press the client could not land (`covered`, `not_visible`)
+-- reached no server, so no page is awaited for it and it is pressed again as
+-- usual.  Without `chat`, a climb that did not land with a page up names the
+-- page and says to pass spec.chat.
 QD.player._climb_land_ticks = 10
 QD.player._climb_presses = 2
 QD.player._climb_start_reach = 15
@@ -1158,6 +1192,11 @@ function QD.player.climb(spec)
     if spec.landed_ok ~= nil then
         assert(type(spec.landed_desc) == "string", "climb spec.landed_ok needs spec.landed_desc")
     end
+    assert(spec.chat == nil or type(spec.chat) == "table", "climb spec.chat must be a chat.play list")
+    assert(spec.chat == nil or #spec.chat > 0, "climb spec.chat must name at least one page")
+    assert(spec.chat_optional == nil or type(spec.chat_optional) == "string",
+        "climb spec.chat_optional must say why the page may not open")
+    assert(spec.chat_optional == nil or spec.chat ~= nil, "climb spec.chat_optional needs spec.chat")
     local at_x, at_z, level = QD.player._spec_tile(spec.at, "climb spec.at")
     assert(level ~= nil, "climb spec.at must name the level the press is taken on: {x, z, level}")
     local dest_x, dest_z, dest_level = QD.player._spec_tile(spec.dest, "climb spec.dest")
@@ -1254,38 +1293,63 @@ function QD.player.climb(spec)
             .. ", on the landing -- not pressed (a same-level landing is graded by tile)"
     end
 
+    local function landed_now()
+        local tile_result, tile = QD.world.tile()
+        return tile_result == "ok" and landed_on(tile)
+    end
     local trail = {}
     local presses, landed = 0, false
     local press_result = nil
     local after = nil
+    -- spec.chat: the word a played (or missing) page ends the row on, nil
+    -- when the landing grades it.
+    local chat_result = nil
     while presses < presses_max and not landed do
         presses = presses + 1
         local since = QD.player._message_serial()
         local press_detail
         press_result, press_detail = QD.player.click_loc(loc, op, { at = { at_x, at_z, loc_level } })
-        QD.await({
-            level = function()
-                local tile_result, tile = QD.world.tile()
-                return tile_result == "ok" and landed_on(tile)
-            end,
-            note = "climb: " .. loc .. " lands " .. want,
-        }, land_ticks)
+        local chat_text = nil
+        if spec.chat ~= nil and press_result ~= "covered" and press_result ~= "not_visible" then
+            -- A GUARDED ladder: the page(s) the press opens are played
+            -- before the landing is graded (the banner).
+            chat_result, chat_text = QD.player._cross_gate_chat(spec, landed_now, want, "climb", land_ticks)
+        else
+            QD.await({ level = landed_now, note = "climb: " .. loc .. " lands " .. want }, land_ticks)
+        end
         local after_result
         after_result, after = QD.world.tile()
         landed = after_result == "ok" and landed_on(after)
         local said = QD.player._lines_since_text(since)
         trail[#trail + 1] = "press " .. presses .. ": click_loc -> " .. tostring(press_result) .. " "
-            .. tostring(press_detail) .. "; landed " .. tile_text(after) .. (said ~= "" and ("; " .. said) or "")
+            .. tostring(press_detail) .. (chat_text ~= nil and ("; " .. chat_text) or "")
+            .. "; landed " .. tile_text(after) .. (said ~= "" and ("; " .. said) or "")
         -- Only a press the client could not land is taken again, and only
         -- from the floor it started on (a press the server answered moved
         -- the player or said why not; repeating it is a second climb).
-        if landed or (press_result ~= "covered" and press_result ~= "not_visible")
+        if landed or chat_result ~= nil or (press_result ~= "covered" and press_result ~= "not_visible")
             or not at_start(after, from) then
             break
         end
     end
     local text = head .. ": from " .. tile_text(from) .. " | " .. table.concat(trail, " | ")
+    if chat_result ~= nil then
+        return chat_result, text
+    end
     if not landed then
+        local page_hint = ""
+        local kind = QD.chat.kind()
+        if spec.chat == nil and kind ~= "none" then
+            local page = QD.chat._play_page_name(kind)
+            if kind == "npc" or kind == "player" or kind == "mesbox" then
+                local text_result, line = QD.chat.text()
+                if text_result == "ok" and type(line) == "string" then
+                    page = kind .. " '" .. QD.read._strip_tags(line) .. "'"
+                end
+            end
+            page_hint = "; a page is up: " .. page .. " -- the press spoke before it moved the player"
+                .. " (pass spec.chat, the chat.play list for that page)"
+        end
         local word = press_result
         if word == nil or word == "ok" or word == "timeout" then
             word = "refused"
@@ -1307,7 +1371,7 @@ function QD.player.climb(spec)
                 reason = " -- reached level " .. dest_level .. " but not the landing"
             end
         end
-        return word, text .. reason
+        return word, text .. reason .. page_hint
     end
     return "ok", text .. " -- landed on level " .. dest_level .. " at " .. tile_text(after)
         .. " on press " .. presses .. (same_text ~= nil and (" (" .. same_text .. ")") or "")

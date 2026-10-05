@@ -258,9 +258,9 @@ end
 -- press instead (QD.drive._press_quick on the "select" row, re-armed before
 -- its one re-press) -- one aim, one press, one re-aim, one more press, no
 -- walk; a fifth return carries its account.
-function QD.player._cast_press(target, label, element, arm, quick)
+function QD.player._cast_press(target, label, element, arm, quick, eater)
     assert(element ~= nil, "cast press names no npc copy")
-    if quick then
+    local press_quick = function()
         target.reach_element = element
         local quick_result, quick_click, account, quick_presses =
             QD.drive._press_quick(target, "select", arm)
@@ -278,6 +278,9 @@ function QD.player._cast_press(target, label, element, arm, quick)
                 quick_click, quick_presses, account
         end
         return "ok", nil, quick_click, quick_presses, account
+    end
+    if quick then
+        return press_quick()
     end
     local click_result, click
     local presses = 0
@@ -301,7 +304,55 @@ function QD.player._cast_press(target, label, element, arm, quick)
             level = function() return api_drive.tick() >= next_tick end,
             note = "player.cast re-press",
         }, 3)
-        local arm_result, arm_detail = arm()
+        -- b63-seam1: a re-cast inside a kill wait eats between its presses
+        -- (combat.lua QD._combat_press_eat).  The spell may still be armed
+        -- from the press that missed, and an Eat pressed in target mode is a
+        -- cast on the food, so the selection is cancelled first and re-armed
+        -- below as every re-press already is.  Still under the eat line
+        -- after the eat, the rest of this press is the fast one.
+        local rearm = arm
+        if QD._combat_eat_due(eater) then
+            local cancel_result, cancel_detail = QD.player.cancel_selection("eat between two cast presses")
+            QD.note("player.cast: " .. tostring(cancel_result) .. " " .. tostring(cancel_detail))
+            local under = QD._combat_press_eat(eater, "before cast press " .. tostring(presses + 1))
+            -- The Eat opened the backpack, and a spell is armed only from a
+            -- DISPLAYED magic tab: without this every re-arm after an eat
+            -- answered "the node or an ancestor of it is display-hidden"
+            -- (build/quest_gate/b63s1_eatcast1 row 3, 0 of 3 re-casts armed).
+            rearm = function()
+                local tab_result, tab_detail = QD.ui.tab("magic")
+                if tab_result ~= "ok" then
+                    return tab_result, label .. ": the magic tab after an eat -- " .. tostring(tab_detail)
+                end
+                local arm_result, arm_detail
+                for _ = 1, 3 do
+                    arm_result, arm_detail = arm()
+                    if arm_result == "ok" then
+                        return arm_result, arm_detail
+                    end
+                    local tab_tick = api_drive.tick() + 1
+                    QD.await({
+                        level = function() return api_drive.tick() >= tab_tick end,
+                        note = "player.cast magic tab after an eat",
+                    }, 3)
+                end
+                return arm_result, arm_detail
+            end
+            if under then
+                eater.press_quick = eater.press_quick + 1
+                local arm_result, arm_detail = rearm()
+                if arm_result ~= "ok" then
+                    return arm_result, arm_detail, nil, presses
+                end
+                local quick_result, quick_detail, quick_click, quick_presses, quick_account = press_quick()
+                QD.note("player.cast: hp under the eat line (" .. tostring(eater.below)
+                    .. ") before press " .. tostring(presses + 1) .. " -- the fast press: "
+                    .. tostring(quick_result) .. " " .. tostring(quick_account))
+                return quick_result, quick_detail, quick_click, presses + (quick_presses or 0),
+                    quick_account
+            end
+        end
+        local arm_result, arm_detail = rearm()
         if arm_result ~= "ok" then
             return arm_result, arm_detail, nil, presses
         end
@@ -348,6 +399,10 @@ function QD.player.cast(spell, npc_symbol, ticks, attack_op, opts)
     -- seam5 attack_fast_path: `ticks` <= 2 or opts.quick -> the fast press
     -- (combat.lua QD._combat_quick; the attack verb's banner).
     local quick = QD._combat_quick(ticks, opts)
+    -- t.player.attack takes opts.eat (b63-seam1); the cast verb does not, and
+    -- the selector below would drop it unread -- so it is a bug here, not food.
+    assert(type(opts) ~= "table" or opts.eat == nil,
+        "t.player.cast takes no opts.eat: eat in the kill wait (await_dead_engaged opts.eat)")
     opts = QD._combat_selector(opts)
     ticks = ticks or 10
     attack_op = attack_op or 2
@@ -616,9 +671,16 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
         idle_moving = idle_moving + 1
         return result, idle
     end
-    QD._combat_press_attack = function(target, label, op, element, quick)
+    QD._combat_press_attack = function(target, label, op, element, quick, eater)
+        -- b63-seam1: the wait's eater eats before the re-cast arms anything
+        -- (combat.lua QD._combat_press_eat); under the eat line after it the
+        -- re-cast is the fast press.  _cast_press eats between its presses.
+        if QD._combat_press_eat(eater, "before the re-cast") and not quick then
+            quick = true
+            eater.press_quick = eater.press_quick + 1
+        end
         local result, fail_detail, row_text, presses, account = QD.player._recast_press(spell,
-            target, label, element, quick)
+            target, label, element, quick, eater)
         if result == "ok" then
             recast_ok = recast_ok + 1
         else
@@ -665,7 +727,7 @@ end
 -- the stand-in for QD._combat_press_attack while a cast fight is waited out.
 -- Returns that function's four values: (result, fail_detail, row_text,
 -- presses).
-function QD.player._recast_press(spell, target, label, element, quick)
+function QD.player._recast_press(spell, target, label, element, quick, eater)
     local cast_label = "re-cast " .. spell .. " on " .. tostring(label)
     local component_result, component_id = QD.player._spell_component(spell)
     if component_result ~= "ok" then
@@ -685,7 +747,7 @@ function QD.player._recast_press(spell, target, label, element, quick)
         return arm_result, arm_detail, nil, 0
     end
     local result, fail_detail, click, presses, account = QD.player._cast_press(target,
-        cast_label, element, arm, quick)
+        cast_label, element, arm, quick, eater)
     QD.player._show_backpack()
     if result ~= "ok" then
         return result, fail_detail, nil, presses

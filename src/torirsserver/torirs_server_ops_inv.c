@@ -63,6 +63,7 @@
 #include "ss_opcode.h"
 #include "ssvm.h"
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -274,26 +275,55 @@ ToriRSServer_OpsInv(
             return 1;
         }
         ToriRSServer_ContainerSet(row, (int)slot, -1, 0);
+        /* A floor add that fails is loud, not a deleted stack. This used to
+         * empty the slot and ignore the -1 from ToriRSServer_WorldObjAdd, so a
+         * full ground table made the stack vanish while the script carried on
+         * as if it had been dropped. The slot gets back whatever did not land,
+         * then the script aborts naming the drop. (Seam
+         * matthew-mbp-m4-b63-seam1 noted_essence_drop_leaves_no_ground_obj: the
+         * noted essence it was opened for DID land on the server -- the lost
+         * half was the client's, app_obj_stack_build_model -- but nothing here
+         * could have said so.) */
         if( !ToriRSServer_ObjInfo(obj_id)->stackable && count > 1 )
         {
             for( int i = 0; i < count; i++ )
+            {
                 last = ToriRSServer_WorldObjAdd(srv, obj_id, 1, ToriRSServer_CoordX(coord),
                                              ToriRSServer_CoordZ(coord), ToriRSServer_CoordLevel(coord),
                                              (int)duration);
+                if( last < 0 )
+                {
+                    ToriRSServer_ContainerSet(row, (int)slot, obj_id, count - i);
+                    SSVM_Abort(state,
+                               "inv_dropslot: the floor refused obj %d (%d of %d not dropped) at "
+                               "%d,%d,%d",
+                               obj_id, count - i, count, ToriRSServer_CoordX(coord),
+                               ToriRSServer_CoordZ(coord), ToriRSServer_CoordLevel(coord));
+                    return 1;
+                }
+            }
         }
         else
         {
             last = ToriRSServer_WorldObjAdd(srv, obj_id, count, ToriRSServer_CoordX(coord),
                                          ToriRSServer_CoordZ(coord), ToriRSServer_CoordLevel(coord),
                                          (int)duration);
+            if( last < 0 )
+            {
+                ToriRSServer_ContainerSet(row, (int)slot, obj_id, count);
+                SSVM_Abort(state, "inv_dropslot: the floor refused obj %d x%d at %d,%d,%d", obj_id,
+                           count, ToriRSServer_CoordX(coord), ToriRSServer_CoordZ(coord),
+                           ToriRSServer_CoordLevel(coord));
+                return 1;
+            }
         }
         /* `state.activeObj = floorObj; state.pointerAdd(ActiveObj)` — the last
          * pile, because the reference's loop assigns on every iteration. The
          * handle rather than the slot, for the reason torirs_server_ops_obj.c's
-         * header gives. */
-        if( last >= 0 )
-            SSVM_SetActive(state, SSVM_ENT_OBJ, SSVM_PRIMARY,
-                           (void*)ToriRSServer_WorldObjHandle(srv, last));
+         * header gives. Every add above landed, so `last` is a live slot. */
+        assert(last >= 0);
+        SSVM_SetActive(state, SSVM_ENT_OBJ, SSVM_PRIMARY,
+                       (void*)ToriRSServer_WorldObjHandle(srv, last));
         return 1;
     }
 

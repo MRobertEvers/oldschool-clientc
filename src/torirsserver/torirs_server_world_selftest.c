@@ -36072,6 +36072,54 @@ ToriRSServer_WorldSelftest(void)
             }
         }
 
+        /*
+         * 5b. A stack of NOTES dropped underground is ONE pile of the whole
+         * stack on the tile.
+         *
+         * Priest in Peril drops five noted Rune essence under Paterdomus
+         * (3441,9898,0, priestperil dropNotes). A note's own cache record
+         * states no stackability -- `[cert_blankrune]` is `certlink` plus
+         * `certtemplate` -- so this is the obj table's genCert rule
+         * (torirs_server_objinfo.c: a note is stackable) carried through
+         * inv_dropslot: one pile of 5, not five piles of 1 and not nothing.
+         * Seam matthew-mbp-m4-b63-seam1 noted_essence_drop_leaves_no_ground_obj.
+         */
+        {
+            const int note = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "cert_blankrune");
+            const int note_x = 3441;
+            const int note_z = 9898;
+            int saved_x = player->x;
+            int saved_z = player->z;
+            int saved_level = player->level;
+            int note_slot = inv_first_free(player);
+            int ground = -1;
+
+            SELFTEST_CHECK(note >= 0, "cert_blankrune resolves (%d)", note);
+            SELFTEST_CHECK(note_slot >= 0, "a free backpack cell for the notes");
+            if( note >= 0 && note_slot >= 0 )
+            {
+                SELFTEST_CHECK(ToriRSServer_ObjInfo(note)->stackable,
+                               "a note is stackable though its record says nothing");
+                ToriRSServer_WorldTeleport(srv, 0, note_x, note_z);
+                inv_set(player, note_slot, note, 5);
+                selftest_opheld(srv, 5, note_slot);
+                SELFTEST_CHECK(player->inv[note_slot].obj_id == -1,
+                               "~dropslot empties the notes' cell (holds %d x%d)",
+                               player->inv[note_slot].obj_id, player->inv[note_slot].count);
+                ground = ToriRSServer_WorldGroundFind(srv, note_x, note_z, 0, note);
+                SELFTEST_CHECK(ground >= 0 && srv->ground[ground].count == 5,
+                               "and ONE pile of 5 notes lies on %d,%d,0 (slot %d, count %d)",
+                               note_x, note_z, ground,
+                               ground >= 0 ? srv->ground[ground].count : -1);
+                if( ground >= 0 )
+                    ToriRSServer_WorldGroundTake(srv, ground);
+                SELFTEST_CHECK(ToriRSServer_WorldGroundFind(srv, note_x, note_z, 0, note) < 0,
+                               "and no second pile of the notes is on that tile");
+                ToriRSServer_WorldTeleport(srv, saved_level, saved_x, saved_z);
+                selftest_ack_scene(srv);
+            }
+        }
+
         for( int i = 0; i < TORIRSSERVER_STAT_COUNT; i++ )
             player->stat_level[i] = saved_stat_level[i];
 

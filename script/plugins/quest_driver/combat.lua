@@ -605,11 +605,13 @@ function QD._combat_quick(ticks, opts)
     return type(ticks) == "number" and ticks <= QD.COMBAT_QUICK_TICKS
 end
 
--- The copy selector inside `opts`: `{ quick = true }` alone names no copy
--- (nil, the nearest); anything else is handed to QD._combat_pick_copy as it
--- was, so a malformed selector still raises there.
+-- The copy selector inside `opts`: `{ quick = true }` or `{ eat = {...} }`
+-- (b63-seam1: t.player.attack's eater) alone names no copy (nil, the
+-- nearest); anything else is handed to QD._combat_pick_copy as it was, so a
+-- malformed selector still raises there.
 function QD._combat_selector(opts)
-    if type(opts) == "table" and opts.quick ~= nil and opts.slot == nil and opts.at == nil then
+    if type(opts) == "table" and (opts.quick ~= nil or opts.eat ~= nil)
+        and opts.slot == nil and opts.at == nil then
         return nil
     end
     return opts
@@ -712,7 +714,30 @@ end
 -- the menus offered by slot ("press one of those instead").  `opts` may then
 -- carry `quick` beside the selector (`{ slot = n, quick = true }`); the stamp
 -- remembers it, so npc.await_dead_engaged re-presses the same way.
+--
+-- EATING -- SEAM no_eating_inside_attack_and_re_engage_presses (b63-seam1).
+-- `opts.eat = { item =, below =, op = 1 }` is the await verbs' eater (same
+-- table, same asserts, QD._combat_eater_new), and it eats at every point this
+-- verb can: before each press attempt and after each cover recovery and walk
+-- inside the press loop (QD._combat_press_attack), and every tick of the
+-- settle.  A press made while the hitpoints still read under `below` after
+-- that eat is the bounded fast press, never the pose-and-probe hunt, because
+-- the hunt (pointer.lua) cannot stop to eat: Haunted Mine runs 12, 15 and 18
+-- died inside it, hp 95 -> 0 while one press probed pixels.  The detail gains
+-- the await verbs' eat tag (`; eat shark below 85: ... lowest hp x/y`).
+-- `opts` may then be `{ eat = ... }` alone (the nearest copy) or carry a
+-- selector beside it.
 function QD.player.attack(npc_symbol, op, ticks, opts)
+    local eater = nil
+    if type(opts) == "table" then
+        eater = QD._combat_eater_new(opts)
+    end
+    return QD.player._attack(npc_symbol, op, ticks, opts, eater)
+end
+
+-- t.player.attack with an eater already made: npc.await_dead's re-engagement
+-- passes its own, so its eats and its lowest hp stay one account.
+function QD.player._attack(npc_symbol, op, ticks, opts, eater)
     op = op or 2
     local quick = QD._combat_quick(ticks, opts)
     opts = QD._combat_selector(opts)
@@ -799,32 +824,66 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
     -- lookup cannot build, and one press loop answering for both keeps the
     -- retry count, the row check and their two sentences in one place.
     local press_result, press_detail, row_text, presses, quick_account =
-        QD._combat_press_attack(target, tostring(npc_symbol), op, element, quick)
+        QD._combat_press_attack(target, tostring(npc_symbol), op, element, quick, eater)
     if press_result ~= "ok" then
         return press_result, press_detail .. " -- the copy named " .. copy_text .. dropped
+            .. QD._combat_eat_text(eater)
     end
 
     local refusal = nil
-    local settle_result = QD.await({
-        level = function()
-            -- The refusal ends the settle at once: there is no swing coming,
-            -- and spending the caller's whole deadline waiting for one is how
-            -- a hunt loop spends 82 ticks a round on a fight it never had.
-            refusal = QD._combat_refusal_since(since)
-            if refusal then
-                return true
+    local settled = function()
+        -- The refusal ends the settle at once: there is no swing coming,
+        -- and spending the caller's whole deadline waiting for one is how
+        -- a hunt loop spends 82 ticks a round on a fight it never had.
+        refusal = QD._combat_refusal_since(since)
+        if refusal then
+            return true
+        end
+        local result, row = QD._combat_row_by_slot(slot)
+        if result ~= "ok" or not row then
+            -- `no_row` is a one-shot kill; any other non-ok is a failed
+            -- read, and neither is a hit, so neither ends this settle
+            -- early except the kill.
+            return result == "no_row"
+        end
+        return row.hit_cycle > before_hit or QD._combat_health_text(row) ~= before_health
+    end
+    local settle_result
+    if eater == nil then
+        settle_result = QD.await({
+            level = settled,
+            note = "player.attack " .. tostring(npc_symbol),
+        }, ticks)
+    else
+        -- b63-seam1: with an eater the settle is waited a server tick at a
+        -- time and eats between them (food.rs2: no p_stopaction, the fight
+        -- goes on through an eat).
+        settle_result = "timeout"
+        local deadline = api_drive.tick() + ticks
+        while api_drive.tick() < deadline do
+            local met = false
+            local next_tick = api_drive.tick() + 1
+            QD.await({
+                level = function()
+                    if settled() then
+                        met = true
+                        return true
+                    end
+                    return api_drive.tick() >= next_tick
+                end,
+                note = "player.attack " .. tostring(npc_symbol),
+            }, 3)
+            if met then
+                settle_result = "ok"
+                break
             end
-            local result, row = QD._combat_row_by_slot(slot)
-            if result ~= "ok" or not row then
-                -- `no_row` is a one-shot kill; any other non-ok is a failed
-                -- read, and neither is a hit, so neither ends this settle
-                -- early except the kill.
-                return result == "no_row"
+            if QD.player._death_fence("t.player.attack " .. tostring(npc_symbol)
+                .. ", inside the settle") then
+                return "refused", QD.player._death_text(QD._death)
             end
-            return row.hit_cycle > before_hit or QD._combat_health_text(row) ~= before_health
-        end,
-        note = "player.attack " .. tostring(npc_symbol),
-    }, ticks)
+            QD._combat_eat_tick(eater)
+        end
+    end
 
     local after_result, after = QD._combat_row_by_slot(slot)
     local detail = "attack " .. tostring(npc_symbol) .. " op" .. tostring(op)
@@ -835,6 +894,7 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
     if after_result == "ok" and after and after.hit_damage >= 0 and after.hit_cycle > before_hit then
         detail = detail .. ", hitsplat " .. tostring(after.hit_damage)
     end
+    detail = detail .. QD._combat_eat_text(eater)
 
     -- THE SERVER REFUSED THE SWING, and nothing here is a fight.
     --
@@ -984,15 +1044,20 @@ function QD._combat_eater_new(opts)
         next_tick = 0,
         lowest = nil,
         base = nil,
+        -- b63-seam1: eats made inside an attack press (QD._combat_press_eat)
+        -- and the presses the eat line sent down the fast path.
+        press_eats = 0,
+        press_where = {},
+        press_quick = 0,
     }
 end
 
--- One tick's worth: eat once if hitpoints are under the threshold.
+-- One tick's worth: eat once if hitpoints are under the threshold.  The
+-- reading feeds `lowest` on every call, inside the food delay too, so the
+-- row's "lowest hp" is the lowest this eater ever read (b63-seam1: a press
+-- that ate on its way through still names the low it ate at).
 function QD._combat_eat_tick(eater)
-    if eater == nil or eater.out then
-        return
-    end
-    if api_drive.tick() < eater.next_tick then
+    if eater == nil then
         return
     end
     local hp_result, hp = QD.skill.read("hitpoints")
@@ -1002,6 +1067,9 @@ function QD._combat_eat_tick(eater)
     eater.base = hp.base_level
     if eater.lowest == nil or hp.level < eater.lowest then
         eater.lowest = hp.level
+    end
+    if eater.out or api_drive.tick() < eater.next_tick then
+        return
     end
     -- 0 is the death fence's reading, never a meal.
     if hp.level <= 0 or hp.level >= eater.below then
@@ -1047,10 +1115,72 @@ function QD._combat_eat_text(eater)
         text = text .. ", " .. tostring(eater.failed) .. " eat press(es) failed (last: "
             .. tostring(eater.last_fail) .. ")"
     end
+    if eater.press_eats > 0 then
+        text = text .. ", " .. tostring(eater.press_eats) .. " of them inside an attack press ("
+            .. table.concat(eater.press_where, ", ") .. ")"
+    end
+    if eater.press_quick > 0 then
+        text = text .. ", " .. tostring(eater.press_quick)
+            .. " press(es) made by the fast path because hp was under " .. tostring(eater.below)
+    end
     if eater.out then
         text = text .. ", OUT OF " .. eater.item
     end
     return text
+end
+
+-- ------------------------------------------------- eating inside a press
+--
+-- SEAM no_eating_inside_attack_and_re_engage_presses (b63-seam1).  The eater
+-- above ran only between the await verbs' wait ticks, and an attack press is
+-- not a wait tick: QD._combat_press_attack's first press, its cover recovery
+-- (settled camera, poses), its walk_near and its two re-presses -- each
+-- click_minimenu a pose-and-probe hunt -- can spend tens of server ticks in
+-- one call with nothing eating.  Haunted Mine's Treus Dayth fight died there
+-- three runs in a row (build/orchestrator/fix_b63/hauntedmine.progress.md
+-- runs 12, 15, 18: "the player stood at 2783,4452 from hp 95 to 0 while the
+-- verb probed"; run 15 "95 -> 33 between two eats inside one leg").
+--
+-- One eat tick at a point the press loop owns -- before a press, after the
+-- cover recovery, after the walk -- named `where` for the row, then the
+-- hitpoints read again: true when they are STILL under the eat line (the
+-- food delay, an empty backpack, a burst bigger than a meal), which is the
+-- caller's cue to take the bounded fast press instead of a hunt that cannot
+-- stop to eat.  No eater, no eat, false.
+-- Would QD._combat_eat_tick eat now?  One hitpoints read, nothing pressed:
+-- a cast press asks before it eats, because an eat pressed while a spell is
+-- armed is a cast on the food (spell.lua QD.player._cast_press).
+function QD._combat_eat_due(eater)
+    if eater == nil or eater.out or api_drive.tick() < eater.next_tick then
+        return false
+    end
+    local hp_result, hp = QD.skill.read("hitpoints")
+    if hp_result ~= "ok" or type(hp) ~= "table" or not hp.stated then
+        return false
+    end
+    return hp.level > 0 and hp.level < eater.below
+end
+
+function QD._combat_press_eat(eater, where)
+    if eater == nil then
+        return false
+    end
+    local eaten = eater.eaten
+    QD._combat_eat_tick(eater)
+    if eater.eaten > eaten then
+        eater.press_eats = eater.press_eats + 1
+        if #eater.press_where < QD.COMBAT_PROGRESS_KEEP then
+            eater.press_where[#eater.press_where + 1] = where .. " " .. eater.eats[#eater.eats]
+        end
+    end
+    local hp_result, hp = QD.skill.read("hitpoints")
+    if hp_result ~= "ok" or type(hp) ~= "table" or not hp.stated then
+        return false
+    end
+    if eater.lowest == nil or hp.level < eater.lowest then
+        eater.lowest = hp.level
+    end
+    return hp.level > 0 and hp.level < eater.below
 end
 
 -- ------------------------------------------------------- kill-wait progress
@@ -1256,8 +1386,10 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
                     -- By SLOT (seam21): a bare symbol would re-resolve the
                     -- nearest copy, which with two about is not the one this
                     -- wait is holding.
-                    local attack_result, attack_detail = QD.player.attack(npc_symbol, nil, nil,
-                        { slot = slot })
+                    -- b63-seam1: with this wait's eater, so the re-attack
+                    -- eats inside its press and settle.
+                    local attack_result, attack_detail = QD.player._attack(npc_symbol, nil, nil,
+                        { slot = slot }, eater)
                     QD.note("await_dead re-engage " .. tostring(reengaged) .. ": "
                         .. tostring(attack_result) .. " " .. tostring(attack_detail))
                 end
@@ -1318,8 +1450,22 @@ end
 -- a step between aim and press re-aims that copy (QD.drive._npc_reaim) -- and
 -- is taken off again after each, whatever it answered, so the caller's target
 -- is left as it was handed in.
-function QD._combat_press_attack(target, label, op, element, quick)
+--
+-- `eater` (b63-seam1, optional: QD._combat_eater_new's table or nil) eats
+-- before every press attempt, after a failed cover recovery and after the
+-- walk; a press due while the hitpoints still read under its line after that
+-- eat is the fast press (QD._combat_press_quick), which then answers for the
+-- rest of the call -- QD._combat_press_eat's banner, above.
+function QD._combat_press_attack(target, label, op, element, quick, eater)
     assert(element ~= nil, "attack press names no npc copy")
+    -- b63-seam1 (QD._combat_press_eat's banner): eat before the first press,
+    -- and a press made under the eat line after that eat is the fast one.
+    if QD._combat_press_eat(eater, "before the press") and not quick then
+        quick = true
+        eater.press_quick = eater.press_quick + 1
+        QD.note("player.attack: hp under the eat line (" .. tostring(eater.below)
+            .. ") after eating -- the fast press, not the pose-and-probe hunt")
+    end
     if quick then
         -- seam5: the fast press (QD._combat_press_quick, above player.attack).
         return QD._combat_press_quick(target, label, op, element)
@@ -1329,6 +1475,18 @@ function QD._combat_press_attack(target, label, op, element, quick)
     local walked = false
     while true do
         presses = presses + 1
+        if presses > 1 and QD._combat_press_eat(eater, "before press " .. tostring(presses)) then
+            -- Still under the eat line after eating between two presses: the
+            -- rest of this press is the bounded fast one (b63-seam1).
+            eater.press_quick = eater.press_quick + 1
+            local quick_result, quick_detail, quick_row, quick_presses, quick_account =
+                QD._combat_press_quick(target, label, op, element)
+            QD.note("player.attack: hp under the eat line (" .. tostring(eater.below)
+                .. ") before press " .. tostring(presses) .. " -- the fast press: "
+                .. tostring(quick_result) .. " " .. tostring(quick_account))
+            return quick_result, quick_detail, quick_row,
+                presses - 1 + (quick_presses or 0), quick_account
+        end
         target.reach_element = element
         if presses == 1 then
             -- seam35 (QD.player._npc_cover_recovery's banner, end of
@@ -1345,6 +1503,9 @@ function QD._combat_press_attack(target, label, op, element, quick)
                 click_result, click, recovery =
                     QD.player._npc_cover_recovery(target, op, click)
                 QD.note("player.attack: " .. tostring(recovery))
+                if click_result ~= "ok" then
+                    QD._combat_press_eat(eater, "after the cover recovery")
+                end
             end
         else
             click_result, click = QD.drive.click_minimenu(target, op)
@@ -1360,6 +1521,7 @@ function QD._combat_press_attack(target, label, op, element, quick)
             local walk_result, walk_detail = QD.player.walk_near(target, nil, 1)
             QD.note("player.attack: the copy's press answered covered; walk_near it -> "
                 .. tostring(walk_result) .. " " .. tostring(walk_detail))
+            QD._combat_press_eat(eater, "after walk_near")
         end
         target.reach_element = nil
         if click_result == "ok" or presses >= 3 then
@@ -1787,7 +1949,7 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
                     local press_result, press_detail, press_row, _, press_account =
                         QD._combat_press_attack(
                         { kind = "npc", id = row.npc_id, symbol = row.name }, form, op,
-                        row.element_id, quick)
+                        row.element_id, quick, eater)
                     QD.note("await_dead_engaged re-engage " .. tostring(reengaged) .. " on "
                         .. form .. ": " .. tostring(press_result) .. " "
                         .. tostring(press_detail or press_row)
