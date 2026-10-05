@@ -2794,6 +2794,22 @@ struct ToriRSServerNpc
      *  alone stay correct. */
     int death_stage;
     /**
+     * The player queue entries this npc's `[ai_queue3]` handed its death to,
+     * one bitmask of `ToriRSServerPlayer.queue` indices per pid.
+     *
+     * `[ai_queue3,black_knight_titan]` is the shape: it does not decide the
+     * death itself, it `queue`s a player script with `npc_uid` and lets that
+     * script decide -- heal him (no Excalibur) or let him go. The reference's
+     * engine never removes a dead npc on its own (`npc_del`, NpcOps.ts, is the
+     * only removal), so the npc is still there when that queue runs and
+     * `npc_finduid` finds it. Here the engine owns the reap, so the reap has to
+     * wait for the decision: while the npc is still at zero hitpoints, an
+     * entry recorded here holds it in TORIRSSERVER_DEATH_REAP until the entry
+     * has run and any script it left parked on this npc has finished. Written
+     * at CORPSE, read and cleared at REAP.
+     */
+    uint64_t death_handoff_queues[TORIRSSERVER_PLAYER_MAX];
+    /**
      * Who was fighting this npc when it died, by pool slot.
      *
      * The drop table runs on `npc_del`'s tick, three or more ticks after the

@@ -16588,10 +16588,21 @@ ToriRSServer_MusicEnterRegion(
      * Unlock first. `varp` is -1 for a track whose DBTable row carried no
      * unlock pair, which is a handful of them -- those play without ever
      * becoming selectable, which is better than writing varp -1.
+     *
+     * `varp` is the musicmulti VARP ID the generator mapped from the
+     * DBTable's music variable (`[proc,music_unlock_var]`: variable 5 is
+     * %varp24_musicmulti_5). It used to be the variable itself, so every
+     * region unlock OR'd a bit into quest varps 1-27: Draynor Village's
+     * "Unknown Land" (variable 5, bit 5) turned %varp5_grail 4 into 36 and
+     * sent the whistle to the restored realm. A row below musicmulti_1 is
+     * that bug again, not a track to skip.
      */
-    if( track->varp >= 0 && track->bit >= 0 && track->varp < TORIRSSERVER_VARP_COUNT )
+    if( track->varp >= 0 && track->bit >= 0 )
     {
-        int mask = 1 << track->bit;
+        assert(track->varp >= TORIRSSERVER_MUSIC_FIRST_UNLOCK_VARP);
+        assert(track->varp < TORIRSSERVER_VARP_COUNT);
+        assert(track->bit < 32);
+        int mask = (int)(1u << track->bit);
         if( (player->varps[track->varp] & mask) == 0 )
         {
             char line[128];

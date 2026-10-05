@@ -10,46 +10,12 @@
 # with a count, not a line number; `lines` is where they sat at the measure.
 # The list only shrinks: a row whose give is gone is a lint finding.
 test_id	count	cheat	lines
-deserttreasure	1	::give 4dose2restore 2	701
-deserttreasure	1	::give abyssal_whip 1	701
-deserttreasure	1	::give airrune 400	249
-deserttreasure	1	::give ashes 1	186
-deserttreasure	1	::give bloodrune 1	186
-deserttreasure	1	::give bones 1	185
-deserttreasure	1	::give cake 1	530
-deserttreasure	1	::give charcoal 1	186
-deserttreasure	1	::give death_spikedboots 1	700
-deserttreasure	1	::give deathrune 100	700
-deserttreasure	1	::give deathrune 150	250
-deserttreasure	1	::give fd_crushed_garlic 1	529
-deserttreasure	1	::give firerune 400	700
-deserttreasure	1	::give gasmask 1	251
-deserttreasure	1	::give ice_gloves 1	251
-deserttreasure	1	::give lockpick 1	345
-deserttreasure	1	::give lockpick 6	254
-deserttreasure	1	::give magic_logs 12	185
-deserttreasure	1	::give molten_glass 6	200
-deserttreasure	1	::give rune_chainbody 1	252
-deserttreasure	1	::give rune_kiteshield 1	253
-deserttreasure	1	::give rune_platelegs 1	253
-deserttreasure	1	::give rune_scimitar 1	252
-deserttreasure	1	::give shark	530
-deserttreasure	1	::give shark 10	395
-deserttreasure	1	::give shark 12	897
-deserttreasure	1	::give shark 15	254
-deserttreasure	3	::give shark 16	705,752,805
-deserttreasure	1	::give silver_bar 1	462
-deserttreasure	1	::give spicespot 1	529
-deserttreasure	1	::give steel_bar 6	200
-deserttreasure	1	::give tinderbox 1	250
-deserttreasure	1	::give waterrune 400	249
 doric	1	::give clay 6	75
 doric	1	::give copper_ore 4	80
 doric	1	::give iron_ore 2	85
 elena	1	::give lawrune 4	361
 elena	1	::give waterrune 4	362
 forgettabletale	1	::give	129
-ghostsahoy	1	::give	411
 icthlarin	1	::give ics_little_bookofembalming 1	319
 icthlarin	1	::give tinderbox 1	55
 icthlarin	1	::give water_skin4 1	56

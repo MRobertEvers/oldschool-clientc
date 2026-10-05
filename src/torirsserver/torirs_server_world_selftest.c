@@ -12506,6 +12506,60 @@ ToriRSServer_WorldSelftest(void)
                            "the region track should carry the 30-cycle in/out fade profile");
     }
 
+    fprintf(stderr, "ToriRSServer selftest: region music unlocks write musicmulti varps\n");
+    {
+        /*
+         * DBTable 44's unlock pair is (music VARIABLE 1-27, bit), and the
+         * table used to carry the variable as if it were a varp id. Draynor
+         * Village's square 48,50 ("Unknown Land", variable 5 bit 5) then
+         * OR'd bit 5 into %varp5_grail: spoken_crone 4 became 36 and the
+         * Grail whistle went to the restored realm. music.varp declares
+         * [varp24_musicmulti_5], which is where that bit belongs.
+         */
+        const struct ToriRSServerMusicRegion* draynor = ToriRSServer_MusicForRegion((48 << 8) | 50);
+        int below = 0;
+        int first_below = -1;
+
+        for( int i = 0; i < k_ToriRSServer_MusicRegionCount; i++ )
+        {
+            int varp = k_ToriRSServer_MusicRegions[i].varp;
+            if( varp >= 0 && (varp < TORIRSSERVER_MUSIC_FIRST_UNLOCK_VARP || varp >= TORIRSSERVER_VARP_COUNT) )
+            {
+                if( first_below < 0 )
+                    first_below = k_ToriRSServer_MusicRegions[i].region;
+                below++;
+            }
+        }
+        SELFTEST_CHECK(TORIRSSERVER_MUSIC_FIRST_UNLOCK_VARP == 20,
+                       "musicmulti_1 is varp 20 (music.varp), table says %d",
+                       TORIRSSERVER_MUSIC_FIRST_UNLOCK_VARP);
+        SELFTEST_CHECK(below == 0,
+                       "%d music rows unlock into a varp outside the musicmulti range (first square %d)",
+                       below, first_below);
+        SELFTEST_CHECK(draynor != NULL && draynor->varp == 24 && draynor->bit == 5,
+                       "Draynor Village (48,50) should unlock varp24 bit 5, got varp %d bit %d",
+                       draynor ? draynor->varp : -2, draynor ? draynor->bit : -2);
+        if( draynor )
+        {
+            int old_song = player->music_track;
+            int old_varp5 = player->varps[5];
+            int old_varp24 = player->varps[24];
+
+            player->varps[5] = 4;
+            player->varps[24] = 0;
+            ToriRSServer_MusicEnterRegion(player, 48, 50);
+            SELFTEST_CHECK(player->varps[5] == 4,
+                           "entering Draynor Village must leave varp5 (grail) at 4, got %d",
+                           player->varps[5]);
+            SELFTEST_CHECK(player->varps[24] == (1 << 5),
+                           "entering Draynor Village should set musicmulti_5 bit 5, varp24=%d",
+                           player->varps[24]);
+            player->varps[5] = old_varp5;
+            player->varps[24] = old_varp24;
+            player->music_track = old_song;
+        }
+    }
+
     fprintf(stderr, "ToriRSServer selftest: instanced music resolves the source square\n");
     {
         /*
@@ -54616,6 +54670,206 @@ ToriRSServer_WorldSelftest(void)
                         if( npc->active )
                             ToriRSServer_WorldNpcFree(srv, slot);
                     }
+                }
+            }
+
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: a death handed to a player queue waits for it\n");
+    {
+        /*
+         * `[ai_queue3,black_knight_titan]` (quest_grail/scripts/
+         * black_knight_titan.rs2) does not decide the death: it `queue`s
+         * `queue_defeat_titan` on the hero with `npc_uid`, and that script
+         * either heals him ("Maybe you need something more to beat the
+         * titan?", %grail spoken_crone -> failed_defeat_titan) or, Excalibur
+         * worn, says "Well done!" and lets him go. LostCity never removes a
+         * dead npc on its own (NpcOps.ts NPC_DEL is the only removal), so the
+         * queue finds him. Here the engine reaps, and it used to reap on the
+         * tick `[ai_queue3]` returned: `npc_finduid` missed, neither branch
+         * ran, the grail stage never moved and the titan simply respawned.
+         *
+         * MUTATION TARGET: drop the `death_handoff_pending` hold in
+         * `npc_death_step` and the no-Excalibur kill leaves %grail at 4 with
+         * a NEW titan (generation bumped) in the slot.
+         *
+         * This harness's player does not drain its normal queue (see the
+         * ::vampirerun note above), so the hold is checked first with the
+         * entry pending, and the entry is then run by hand through the same
+         * queue drain once access is restored.
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int npc_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "black_knight_titan");
+            int obj_excalibur = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "excalibur");
+            int varp_grail = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5_grail");
+
+            SELFTEST_CHECK(npc_type >= 0 && obj_excalibur >= 0 && varp_grail >= 0,
+                           "the titan names should resolve: npc=%d excalibur=%d varp5_grail=%d",
+                           npc_type, obj_excalibur, varp_grail);
+            if( npc_type >= 0 && obj_excalibur >= 0 && varp_grail >= 0 )
+            {
+                int slot = npc_spawn(srv, npc_type, player->x + 2, player->z, player->level);
+
+                SELFTEST_CHECK(slot >= 0, "black_knight_titan should spawn");
+                if( slot >= 0 )
+                {
+                    struct ToriRSServerNpc* npc = &srv->npcs[slot];
+                    uint16_t const generation = npc->generation;
+                    int32_t const uid = (int32_t)(((uint32_t)generation << 16) | (uint32_t)slot);
+                    struct ToriRSServerItem const saved_weapon =
+                        player->worn[TORIRSSERVER_WEAR_WEAPON];
+                    int const saved_grail = player->varps[varp_grail];
+                    int const saved_delayed_until = player->delayed_until;
+                    struct ToriRSServerQueued saved_queue[TORIRSSERVER_QUEUE_MAX];
+                    int pending = -1;
+                    int said_well_done = 0;
+                    static struct ToriRSServerCapture titan_capture;
+
+                    /* Only the titan's entry in the queue, so the hand drain
+                     * below runs nothing else. */
+                    memcpy(saved_queue, player->queue, sizeof(saved_queue));
+                    memset(player->queue, 0, sizeof(player->queue));
+                    worn_set(player, TORIRSSERVER_WEAR_WEAPON, -1, 0);
+                    player->varps[varp_grail] = 4; /* ^grail_spoken_crone */
+                    ToriRSServer_WorldSetActive(srv, player);
+
+                    /* A: no Excalibur. */
+                    npc->last_movement = (int)srv->tick - 5;
+                    ToriRSServer_CombatHitNpc(srv, slot, 0, npc->hitpoints);
+                    for( int t = 0; t < 10; t++ )
+                    {
+                        if( player->rebuild_scene_pending )
+                            selftest_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                        selftest_tick(srv);
+                    }
+                    for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
+                    {
+                        if( player->queue[i].active && player->queue[i].argc >= 1 &&
+                            player->queue[i].args[0] == uid )
+                            pending = i;
+                    }
+                    SELFTEST_CHECK(npc->active && npc->generation == generation,
+                                   "MUTATION TARGET: the titan must still be the SAME npc while "
+                                   "queue_defeat_titan decides -- active=%d generation %u -> %u "
+                                   "(queue entry %s)",
+                                   npc->active, (unsigned)generation, (unsigned)npc->generation,
+                                   pending >= 0 ? "pending" : "gone");
+                    if( pending >= 0 )
+                    {
+                        SELFTEST_CHECK(npc->death_tick >= 0 &&
+                                           npc->death_stage == TORIRSSERVER_DEATH_REAP,
+                                       "a held titan is still dying (death_tick=%d stage=%d), "
+                                       "so nothing can engage it meanwhile",
+                                       npc->death_tick, npc->death_stage);
+                        /* Give the harness player access and drain by hand. */
+                        player->delayed_until = 0;
+                        player->mainmodal_group = 0;
+                        player->chatmodal_group = 0;
+                        player->queue[pending].delay = 1;
+                        ToriRSServer_WorldSetActive(srv, player);
+                        ToriRSServer_ScriptsProcessQueues(srv);
+                    }
+                    for( int t = 0; t < 3; t++ )
+                    {
+                        if( player->rebuild_scene_pending )
+                            selftest_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                        selftest_tick(srv);
+                    }
+                    SELFTEST_CHECK(player->varps[varp_grail] == 7,
+                                   "MUTATION TARGET: without Excalibur defeat_titan must run and "
+                                   "downgrade %%grail spoken_crone(4) -> failed_defeat_titan(7), got %d",
+                                   player->varps[varp_grail]);
+                    SELFTEST_CHECK(npc->active && npc->generation == generation &&
+                                       npc->hitpoints > 0 && npc->death_tick < 0,
+                                   "and he is healed and alive, the same life: active=%d "
+                                   "generation %u -> %u hp=%d death_tick=%d",
+                                   npc->active, (unsigned)generation, (unsigned)npc->generation,
+                                   npc->hitpoints, npc->death_tick);
+                    SELFTEST_CHECK(!npc->death_seq_sent,
+                                   "a revived npc's next death is owed its own animation "
+                                   "(death_seq_sent=%d)", npc->death_seq_sent);
+
+                    /* B: Excalibur worn. Close whatever A's dialogue left up. */
+                    ToriRSServer_WorldCloseModal(srv);
+                    if( player->active_script )
+                        ToriRSServer_ScriptsReleaseState(srv, player->active_script);
+                    player->active_script = NULL;
+                    memset(player->queue, 0, sizeof(player->queue));
+                    worn_set(player, TORIRSSERVER_WEAR_WEAPON, obj_excalibur, 1);
+                    player->varps[varp_grail] = 4;
+                    pending = -1;
+                    ToriRSServer_CaptureBegin(srv, &titan_capture);
+                    npc->last_movement = (int)srv->tick - 5;
+                    ToriRSServer_CombatHitNpc(srv, slot, 0, npc->hitpoints);
+                    for( int t = 0; t < 10; t++ )
+                    {
+                        if( player->rebuild_scene_pending )
+                            selftest_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                        selftest_tick(srv);
+                    }
+                    for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
+                    {
+                        if( player->queue[i].active && player->queue[i].argc >= 1 &&
+                            player->queue[i].args[0] == uid )
+                            pending = i;
+                    }
+                    if( pending >= 0 )
+                    {
+                        player->delayed_until = 0;
+                        player->mainmodal_group = 0;
+                        player->chatmodal_group = 0;
+                        player->queue[pending].delay = 1;
+                        ToriRSServer_WorldSetActive(srv, player);
+                        ToriRSServer_ScriptsProcessQueues(srv);
+                    }
+                    for( int t = 0; t < 3; t++ )
+                    {
+                        if( player->rebuild_scene_pending )
+                            selftest_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                        selftest_tick(srv);
+                    }
+                    ToriRSServer_CaptureEnd(srv);
+                    for( int i = ToriRSServer_CaptureFindNamed(&titan_capture, PKT_NAME_MESSAGE_GAME, 0);
+                         i >= 0;
+                         i = ToriRSServer_CaptureFindNamed(&titan_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
+                    {
+                        const char* text = selftest_message_text(srv, &titan_capture.packets[i]);
+
+                        if( text && strstr(text, "Well done! You have defeated the Black Knight Titan!") )
+                            said_well_done = 1;
+                    }
+                    SELFTEST_CHECK(said_well_done,
+                                   "MUTATION TARGET: with Excalibur worn defeat_titan must run "
+                                   "and say \"Well done! You have defeated the Black Knight Titan!\"");
+                    SELFTEST_CHECK(!npc->active || npc->generation != generation,
+                                   "and then the titan is reaped: active=%d generation %u -> %u",
+                                   npc->active, (unsigned)generation, (unsigned)npc->generation);
+                    SELFTEST_CHECK(player->varps[varp_grail] == 4,
+                                   "a won fight leaves %%grail at spoken_crone, got %d",
+                                   player->varps[varp_grail]);
+
+                    if( npc->active )
+                        ToriRSServer_WorldNpcFree(srv, slot);
+                    ToriRSServer_WorldCloseModal(srv);
+                    if( player->active_script )
+                        ToriRSServer_ScriptsReleaseState(srv, player->active_script);
+                    player->active_script = NULL;
+                    player->worn[TORIRSSERVER_WEAR_WEAPON] = saved_weapon;
+                    player->varps[varp_grail] = saved_grail;
+                    player->delayed_until = saved_delayed_until;
+                    memcpy(player->queue, saved_queue, sizeof(saved_queue));
                 }
             }
 

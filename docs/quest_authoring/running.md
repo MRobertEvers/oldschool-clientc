@@ -300,3 +300,11 @@ Write each sheet's finding (the shot numbers and what they show) into your noteb
 after reading it, before the next Read. A later "media removed" then costs nothing, and the
 notebook is the record of the visual pass. Six sheets per message worked for the b60 round-2
 sampler (1,058 shots, 265 sheets).
+
+### The reviewer opened only a few shots ("5 of 725")
+
+A reviewer who opened a handful of shots has not made a visual pass, however good those shots
+were. Round 2 of matthew-mbp-m4-b61 committed Desert Treasure with 5 of 725 shots opened and said
+so; the sampler then opened all 1,129 shots of that round's three quests on contact sheets (284
+sheets, six per message, one notebook line after each message). Write the number you opened in
+`shots_checked`, never the total, and name the sampler as owing the rest.
