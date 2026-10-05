@@ -192,3 +192,15 @@ Sampler: the reviewers accepted tob_maiden, tob_bloat and tob_nylocas, re-author
   - Finding: spec.verzik.p3_auto_miss_entry ("6 zeros among 12 unprayed, no protection prayer up before tick 585") is not what the log says. Protect from Magic was on from P2 through tick 576: drive.p3state426..576 read `protectfrommagic` true, and those rows label it "pg". So the five magic autos (1594) landed prayed (0, 6, 10, 0, 0). The unprayed sample is the seven ranged autos (1593: 10, 0, 9, 15, 10, 0, 0), with 3 zeros among 7, below the row's own 12.
   - Fix: judge "unprayed" per hit from `t.prayer.read()` on the landing tick for that hit's style, or turn the prayers off at the P3 transition. Secondary: tech.p3_prayer_at_landing proves the landing-tick prayer with four raw-0 hits, which cannot tell the prayer from a miss. Show a halved nonzero hit, or a prayed maximum under the unprayed one.
   - Sampled file: build/author_state/.../tob_verzik.sampled_l14_725620c00.lua. DRIVER_NOTES: 6231bf019.
+
+## matthew-mbp-m4-raid-b1-rooms-tob, fourteenth launch, Verzik second retry (Theatre of Blood, Entry mode, solo; 2026-10-04)
+
+- tob_maiden: KEPT (1dffd5230, OSRS 73241bbf8d), sampled in the fourteenth launch. 112 rows, coverage FULL 65/65.
+- tob_bloat: KEPT (abc53c18e, OSRS 785100ce92), sampled in the fourteenth launch. 94/94, coverage FULL 55/55.
+- tob_nylocas: KEPT (116a1d938, OSRS fcf7ca91b1), sampled in the fourteenth launch. 177/177, coverage FULL 76/76. Remains: tech.style_kills' text says "Fire Strike" though every cast is Ice Burst.
+- tob_xarpus: KEPT from earlier launches (f417148e4). Not re-sampled.
+- tob_sotetseg: KEPT from earlier launches (812267e7f). Not re-sampled. Remains: seam20 may move its ball's prayer read to the throw tick, and then this room must be re-authored.
+- tob_verzik: KEPT (3d7589ff4, OSRS 8279545f29). 257/257 PASS, coverage FULL 145/145, lint clean, deathless (deaths=0), kill on tick 739, chest opened. Every hit_npc row's dealer is pid 0. Cheats in the run are read-only (::tobboss, ::tobpillars).
+  - Re-derived OK: p3_cadence 7 (cache attackrate 7, Strategies :937; anims every 7 ticks). p3_enrage_threshold 20 (Strategies :981; the log's P3 damage is 508 by tick 619, leaving 92 of 600 = 15.3%; the tick before, 139 = 23.2%; tornado at 620). p3_tornado_respawn 16 (Strategies :981; hit 633, respawn 649). entry_athanatos_hp 30 (cache stat4=30).
+  - The launch-14 finding is resolved. The test drops every protection prayer at the P3 transition (tick 416) and keeps them off until its first switch at 585. The damage proves they were off: magic 13 and 20 and ranged 15 are over the halved ceiling of 10. So 7 zeros among 12 unprayed autos is what the log says.
+  - Remains: tech.p3_prayer_at_landing is still weak evidence. It rests on 5 switches with a max of 8, and 9 of the 12 unprayed autos were also 10 or under. The owner has since ruled that P3 reads the prayer on hit (6fdb8c54a), so the row stands. The PNGs were not checked by picture: the Read hook times out on images, so the check was 237 distinct 807x503 frames. DRIVER_NOTES: dff56de04.
