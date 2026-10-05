@@ -4656,3 +4656,20 @@ behaviour: the three landing reads are each sourced or ruled.
 - "No bomb in the air" is not `new_atk == nil`: that is only "no new throw this tick". A bomb
   thrown a tick or two earlier is still in flight; label every bomb hit by the prayer at its
   own landing (`spec.verzik.entry_p2_bomb_max` called the 9 above "Protect from Missiles on").
+
+## Verzik's urnbomb reverse trial: one hit over 8 settles the read, if the prayed bombs show the halving (launch 15c)
+
+- The kept room (d3ff92400) arms the trial on the locked tile 6427,91 with Protect from Missiles
+  up and read back (`t.prayer.read()` true on tick 259), waits for the next `projectile` 1583 row
+  at its own tile (thrown 261), drops the prayer on that same drive tick and reads it back false,
+  then holds the tile until land+2. The `map_spotanim` 1584 lands on 264 at 105300059
+  (6427 << 14 | 91 = the raider's tile) and `hit_player` 12 on 265: over the prayed 8, so not a
+  throw read. A press made on the drive tick that FIRST shows the projectile row is after the
+  throw (the row is the server's finished tick), as for Sotetseg's ball.
+- One reverse hit over 8 alone would also pass if the prayer never touched the bomb at all. The
+  witness for "the prayer halves it" is the rest of the log: the room keeps Protect from Missiles
+  up through P2, and its 8 other clean bomb hits (hit_player one tick after a 1584 on the
+  raider's tile, no zap that tick) were 7, 4, 2, 6, 6, 0, 4, 5: all within the halved 8. A grader that wants both halves in its own row counts those.
+- A bomb hit is the `hit_player` on the tick after a 1584 landing on your packed tile; the
+  lightning ball's hits (projectile 1585 plus `player_spotanim` 560 on the same tick) are the
+  other P2 hits over 8 (10, 18, 14, 9 in this run) and are not bombs.
