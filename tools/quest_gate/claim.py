@@ -111,7 +111,10 @@ REMOTE = "origin"
 BRANCH = "v3"
 WORKTREE_REL = "build/claim_v3_worktree"
 PUSH_ROUNDS = 4
-BATCH_NAME = re.compile(r"^[A-Za-z0-9_.]+-b\d+$")
+# Hyphens are allowed before the -bN suffix: a host named matthew-mbp-m4
+# runs matthew-mbp-m4-b62, and the old [A-Za-z0-9_.]+ made status/pr-sync
+# skip every one of its batch branches.
+BATCH_NAME = re.compile(r"^[A-Za-z0-9_.-]+-b\d+$")
 
 EXIT_OK, EXIT_REFUSED, EXIT_NOTHING = 0, 2, 3
 

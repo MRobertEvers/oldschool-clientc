@@ -30,6 +30,10 @@ transaction applies to origin/v3's copy, so no git, no ledger, no push.
   release_restores_green       release_row() puts green|<old owner> back
   asserts                      reopened_on_branch(None, ...) and an id not in
                                the rows abort, not return
+  batch_name_hyphenated        BATCH_NAME matches matthew-mbp-m4-b62 and
+                               remote_batch_branches() lists it (it used to
+                               skip every hyphenated host's batches); v3,
+                               feature branches and a bare -bN do not match
 
 Exit 0 when every case holds.
 """
@@ -132,6 +136,25 @@ def main():
             check(name, False, "returned instead of asserting")
         except AssertionError:
             check(name, True)
+
+    for name in ("matthew-mbp-m4-b62", "mac1-b61", "host.local-b7", "a_b-c-b1"):
+        check("batch_name " + name, bool(claim.BATCH_NAME.match(name)))
+    for name in ("v3", "-b62", "matthew-mbp-m4", "fix/foo-b3", "matthew-mbp-m4-b62x"):
+        check("not_batch_name " + name, not claim.BATCH_NAME.match(name))
+
+    class Proc:
+        stdout = ("aaa\trefs/heads/v3\n"
+                  "bbb\trefs/heads/matthew-mbp-m4-b62\n"
+                  "ccc\trefs/heads/mac1-b61\n"
+                  "ddd\trefs/heads/codex/plugin-engine\n")
+    real_git = claim.git
+    claim.git = lambda *a, **k: Proc()
+    try:
+        branches = claim.remote_batch_branches()
+    finally:
+        claim.git = real_git
+    check("batch_name_hyphenated", branches == {"matthew-mbp-m4-b62": "bbb", "mac1-b61": "ccc"},
+          repr(branches))
 
     print("%d failure(s)" % len(FAILS))
     return 1 if FAILS else 0
