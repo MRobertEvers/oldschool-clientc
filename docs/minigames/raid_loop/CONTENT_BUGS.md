@@ -782,3 +782,18 @@ Open:
   `music 0 570` at tick 98 on entry, no music row for the two members who joined at tick 111.
   Found by seam19 tob_party_room_bring_along (tick log read; not fixed: the music pages'
   "upon entering" sentences were not re-read for a party).
+
+## Owner rulings (2026-10-04)
+
+- Tree-wide, protection prayers: the DEFAULT is that an npc attack reads the target's protection
+  prayer on the attack's animation tick, when the projectile is SENT ("Jad prayer protection is
+  checked on the animation. In fact MOST things in OSRS ARE. It is the EXCEPTION that damage is
+  calculated on it."). A landing-tick read needs a pinned source naming that npc. Never grade a
+  send-tick read as a defect; never move a read to the landing tick without the source.
+- ToB, Verzik P3: RULED the exception. "You are correct about p3 Verzik on hit" (owner,
+  2026-10-04): her P3 ranged and magic autos read the prayer when the projectile hits
+  (`[queue,tob_verzik_p3_auto_land]`, seam12; Entry Mode :243 "damage is calculated upon impact",
+  transcripts/yt_oGPT3sZMnd8.md:51). The seam12 conformance row, verzik.tsv `p3_prayer_read` and
+  the room test's landing-tick technique stand. Sotetseg's ball and the P2 urn bombs are NOT
+  covered by this ruling: seam20 (SEAM_TRIAGE_2026-10-04h.md) sources them or moves them.
+
