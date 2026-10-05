@@ -16,9 +16,6 @@
 --     the Dwarven Boatman (gdwarf_start.rs2:64: the first trip lands in Veldaban's HQ).
 --   * The way back in from the surface: the Grand Exchange trapdoor
 --     (forget_keldagrim.rs2:9-19, lands in Veldaban's HQ), the HQ door out.
---   * Out of the consortium stairs' sealed landing (CONTENT SEAM, see
---     down_from_consortium): Varrock Teleport (1 fire + 3 air + 1 law each), the
---     street to the GE trapdoor, the trapdoor back into Veldaban's HQ.
 --   * Closed rooms in the city, each door pressed in and out: Veldaban's HQ
 --     (dwarf_keldagrim_door 2827,10218), Blasidar's house with Riki
 --     (dwarf_keldagrim_door_ornate 2906,10200), the library (dwarf_keldagrim_door
@@ -34,8 +31,14 @@
 --     (keldagrim_travel.rs2 keldagrim_cart_ride, 2923,10171 -> 3141,3504); Varrock
 --     palace's east door (fai_varrock_castle_door 3217,3492) and Reldo's library
 --     door (3210,3490), in and out.
---   * The consortium floor: dwarf_keldagrim_wide_stairs_lower / _upper by climb on
---     every visit (gdwarf_consortium.rs2:229 / :240), including every ore run.
+--   * The consortium floor: the west-south wide stairs (dwarf_keldagrim_wide_stairs_lower
+--     2863,10209,0 / _upper 2863,10209,1) by climb on every visit, up and down, including
+--     every ore run. gdwarf_consortium.rs2:240-251 call ~climb(1)/~climb(-1), which lands on
+--     the stair's maplink row: 2865,10209,0 <-> 2862,10209,1 (maplink.dbrow
+--     maplink_0_44_159_49_33_up / maplink_1_44_159_46_33_down). The foot of the stairs is
+--     the open street, walked off and graded after every descent.
+--   * Runes: 5 air + 1 law for the one Camelot Teleport, 1 air + 1 law for each of at
+--     most 12 Telekinetic Grab casts at the right boot.
 return {
     id = "giantdwarf",
     fixture = "fresh_lumbridge.ini",
@@ -53,9 +56,8 @@ return {
         "::give logs 1",
         "::give tinderbox 1",
         "::give coins 2000",
-        "::give lawrune 30",
-        "::give airrune 70",
-        "::give firerune 14",
+        "::give lawrune 13",
+        "::give airrune 17",
         "::give redberry_pie 1",
     },
 
@@ -272,12 +274,13 @@ return {
                 near = d.in_tile, far = d.out_far })
         end
 
-        -- The consortium floor: up any lower wide stair lands 2869,10205,1, down any
-        -- upper one lands 2895,10210,0 (gdwarf_consortium.rs2:229-245).
+        -- The consortium floor by the west-south wide stairs: ~climb on the maplink row
+        -- (gdwarf_consortium.rs2:240-251; maplink.dbrow maplink_0_44_159_49_33_up lands
+        -- 2862,10209,1, maplink_1_44_159_46_33_down lands 2865,10209,0, the open street).
         local function up_to_consortium(name)
-            t.exec("goto-" .. name, t.player.goto_tile, 2893, 10209, 0)
+            t.exec("goto-" .. name, t.player.goto_tile, 2865, 10209, 0)
             t.exec(name, t.player.climb, { loc = "dwarf_keldagrim_wide_stairs_lower", op = 1, op_name = "Climb-up",
-                at = { 2894, 10209, 0 }, src = { 2893, 10209 }, dest = { 2869, 10205, 1 } })
+                at = { 2863, 10209, 0 }, src = { 2865, 10209 }, dest = { 2862, 10209, 1 } })
         end
         local function in_hq(tl) return tl.level == 0 and tl.x >= 2825 and tl.x <= 2829 and tl.z >= 10208 and tl.z <= 10217 end
         -- The Grand Exchange trapdoor (forget_keldagrim.rs2:9-19) lands in Veldaban's HQ.
@@ -287,25 +290,11 @@ return {
                 far_ok = in_hq, far_desc = "Veldaban's HQ x 2825-2829 z 10208-10217 (forget_keldagrim.rs2:19 ^forget_veldaban_coord)",
                 chat = { "mesbox:The trapdoor leads down", "choose:Yes please.", "player:Yes please." } })
         end
-        -- CONTENT SEAM: gdwarf_consortium.rs2:240-242 ([oploc1,dwarf_keldagrim_wide_stairs_upper])
-        -- lands every descent on ^gdwarf_consortium_lower_coord = 0_45_159_15_34 = 2895,10210,0
-        -- (giantdwarf.constant:148), a tile of the 2x2 dwarf_keldagrim_wide_stairs_lower footprint
-        -- (2894,10209) boxed in by the chopping board (2894-2895,10211), crates and sacks (2896,
-        -- 10209-10211) (maps/m45_159.jl2): comp.py size 1, and run 2 timed out walking off it on
-        -- all seven descents. A goto out of it would leave a sealed pocket, so the player does what
-        -- a player there does: Varrock Teleport, the street to the Grand Exchange trapdoor, and the
-        -- trapdoor back down into Veldaban's HQ. The walk off is still tried first and noted.
         local function down_from_consortium(name)
-            walk(name .. ".toStairs", 2865, 10209, 1, 0)
+            walk(name .. ".toStairs", 2862, 10209, 1, 0)
             t.exec(name, t.player.climb, { loc = "dwarf_keldagrim_wide_stairs_upper", op = 1, op_name = "Climb-down",
-                at = { 2863, 10209, 1 }, src = { 2865, 10209 }, dest = { 2895, 10210, 0 } })
-            local wr, wd = t.player.walk_to(2893, 10210, 12)
-            local r, tl = t.world.tile()
-            t.note(name .. ": stepping off the stairs' landing: walk_to 2893,10210 -> " .. tostring(wr) .. " "
-                .. tostring(wd) .. "; at " .. tile_text(r, tl) .. " (content seam: gdwarf_consortium.rs2:242 landing is sealed)")
-            t.player.teleport_cast("varrock_teleport", { 3213, 3424, 0 }, { name = name .. ".varrockTeleport",
-                runes = { { "firerune", 1 }, { "airrune", 3 }, { "lawrune", 1 } }, where = "Varrock" })
-            trapdoor_to_hq(name .. ".trapdoor")
+                at = { 2863, 10209, 1 }, src = { 2862, 10209 }, dest = { 2865, 10209, 0 } })
+            walk(name .. ".offStairs", 2870, 10209, 0, 0)
         end
 
         -- ============================================================
@@ -453,34 +442,46 @@ return {
         t.ticks(2)
         t.expect("quest.stage.dromund_asked", t.quest.expect_stage("dromund_asked"))
 
-        local got = false
+        -- Dromund catches a grab while he watches (gdwarf_boots.rs2): retry, each press a note;
+        -- the boot in the pack is the graded row.
+        local got, tries = false, 0
         for i = 1, 12 do
+            tries = i
             local r, d = t.player.click_obj("dwarf_perfect_left_boot", 3)
-            t.step("leftBootAttempt-" .. i, (r == "ok" or r == "timeout" or r == "refused") and "PASS" or "FAIL", tostring(r) .. " " .. tostring(d))
+            t.note("leftBootAttempt-" .. i .. ": take -> " .. tostring(r) .. " " .. tostring(d))
             t.ticks(2)
             local n = count("dwarf_perfect_left_boot")
             if n and n > 0 then got = true break end
             t.chat.close()
             t.ticks(6)
         end
-        t.check("takeLeftBoot", got, "left boot in backpack after waiting for Dromund to look away")
+        t.check("takeLeftBoot", got, "left boot in backpack after " .. tries
+            .. " press(es), waiting for Dromund to look away")
         t.ticks(2)
         t.expect("quest.stage.left_boot", t.quest.expect_stage("left_boot"))
         door_out("takeLeftBoot.doorOut", "dromund")
 
         -- the right boot: through the window, from the street north of the house
         t.exec("goto-takeRightBoot", t.player.goto_tile, 2836, 10229, 0)
-        local pair = false
+        local pair, casts = false, 0
+        local law0, air0 = count("lawrune"), count("airrune")
         for i = 1, 12 do
+            casts = i
             local r, d = t.player.cast("telegrab", { kind = "obj", id = "dwarf_perfect_right_boot" })
-            t.step("rightBootAttempt-" .. i, (r == "ok" or r == "refused" or r == "timeout") and "PASS" or "FAIL", tostring(r) .. " " .. tostring(d))
+            t.note("rightBootAttempt-" .. i .. ": telegrab -> " .. tostring(r) .. " " .. tostring(d))
             t.ticks(4)
             local nn = count("dwarf_perfect_pair_of_boots")
             if nn and nn > 0 then pair = true break end
             t.chat.close()
             t.ticks(4)
         end
-        t.check("takeRightBoot", pair, "exquisite pair in backpack after telekinetic grab")
+        local law1, air1 = count("lawrune"), count("airrune")
+        local spent = (law0 and law1) and (law0 - law1) or nil
+        t.check("takeRightBoot", pair and spent ~= nil and spent >= 1 and spent <= casts
+            and air0 ~= nil and air1 ~= nil and air0 - air1 == spent,
+            "exquisite pair in backpack: " .. tostring(pair) .. " after " .. casts .. " telegrab press(es); law "
+                .. tostring(law0) .. " -> " .. tostring(law1) .. ", air " .. tostring(air0) .. " -> " .. tostring(air1)
+                .. " (want 1 law + 1 air per grab that went off, at least one)")
         t.expect("quest.stage.boots_done", t.quest.expect_stage("boots_done"))
 
         t.exec("goto-talkToSantiri", t.player.goto_tile, 2828, 10228, 0)
@@ -633,7 +634,6 @@ return {
                 if (count(ore) or 0) < n then
                     local p = "secretaryTrip-" .. i
                     down_from_consortium(p .. ".down")
-                    door_out(p .. ".hqDoorOut", "veldaban")
                     gather(p, { [ore] = n })
                     up_to_consortium(p .. ".up")
                 end
@@ -663,7 +663,6 @@ return {
                 if (count(bar) or 0) < n then
                     local p = "directorTrip-" .. i
                     down_from_consortium(p .. ".down")
-                    door_out(p .. ".hqDoorOut", "veldaban")
                     if task == 1 then
                         gather(p, { copper_ore = n, tin_ore = n })
                     else
@@ -715,7 +714,8 @@ return {
         t.expect("quest.stage.ready_to_finish", t.quest.expect_stage("ready_to_finish"))
 
         local _, before = t.skill.snapshot()
-        -- the trapdoor out of the stairs' pocket lands in Veldaban's HQ itself
+        t.exec("goto-talkToVeldabanAfterJoining", t.player.goto_tile, 2827, 10219, 0)
+        door_in("talkToVeldabanAfterJoining.doorIn", "veldaban")
         t.exec("talkToVeldabanAfterJoining.present", t.npc.await_present, "dwarf_city_black_guard_leader", 8, 15)
         t.exec("talkToVeldabanAfterJoining", t.player.talk_to, "dwarf_city_black_guard_leader")
         t.exec("talkToVeldabanAfterJoining.chat", t.chat.play, {
