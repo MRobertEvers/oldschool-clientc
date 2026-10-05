@@ -1097,3 +1097,33 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   torirs_plugin_drive.h until someone owns torirs_plugin_lua.h. The merged-tree quest suite
   overlapped a concurrent seam27 pass's uncommitted driver Lua edits from 15:51 on (prayer,
   pointer, combat); its buckets matched the clean pre-merge suite exactly.
+
+## matthew-mbp-m4-raid-b1-seam27 (2026-10-05; parent 0b9633ed2, OSRS-Content fb292a9996 unchanged): several inputs in one tick, and the play library
+
+Closer gates on the final tree, each run once: conformance 358/358 PASS (185 verbs, 173 seam
+rows; build/quest_gate/_conformance/attempt-01 rows 198, 296, 364); the six Entry rooms
+byte-identical to the seam24 baseline; cooks_assistant and druid byte-identical to
+build/merge17_check; gate.py with QUEST_HELPER_ROOT set at 115 green plus the same 4 RED
+(deserttreasure, forgettabletale, regicide, troll), so nothing moved; _party_smoke
+party_repeat --runs 3 AGREE (sha 6cf6d25dd6a6, 230 boundaries); check-quest-verbs,
+check-drive-abi, check-pt-switch, test-plugin-lua, test-quest-cheats and lint (127 files)
+all clean. No C and no content changed.
+
+- several_inputs_one_tick: LANDED. `t.together` (pointer.lua, prayer.lua) sends six inputs on
+  one tick and confirms them all within 1 tick. The quick eater (`opts.eat.quick`, combat.lua)
+  bites every 3 ticks. OPEN: our server has no per-tick input cap, where LostCity's is 5 user
+  events (an engine row; OSRS's own number is unsourced). The quick eater is opt-in until the
+  36 kept quests that pass `opts.eat` are re-run. Each settle needs a line naming its verb
+  before any default is changed.
+- raid_play_by_tick_intent: LANDED. `t.raid.play` and the tob_bloat plan (raid.lua banner
+  block, PLAY_NOTES.md, test/raids/_play_smoke.lua). Entry Bloat is green on five names
+  (svabloat, svbbloat, svcbloat, svdbloat, playbloat; 13/13 each) in 196-267 ticks. OPEN: the
+  Normal trio dies (no Defence drain run-by, and the hazard skill is not applied to the
+  attack path). Maiden is a table only, so it answers `unsupported`. A member's swings are
+  counted, not seen. The library lives in raid.lua rather than its own file, because the
+  driver is one C-listed chunk. The kept tob_*.lua rooms still use their old one-seed plays.
+- seed_survey_gate: NOT LANDED by this pass. No fixer report. The orchestrator committed
+  tools/raid_gate/seed_survey.py itself (c7d273792), outside this close. Parts (b) to (d)
+  were not built here and nothing in this close verified them: `run.py --name` honoured or
+  refused, the author workflow keeping a room only on a green survey, and the README and
+  DRIVER_NOTES rule.
