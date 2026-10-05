@@ -68,6 +68,13 @@
 -- quarter crosses it), Guidor's front door and bedroom door, and Ardougne
 -- castle's double door, stairs and King Lathas's door. The goto audit is
 -- in build/orchestrator/fix_b58/biohazard.progress.md.
+-- RE-DRIVEN b64 (gate_crossings, and the owner's 2026-10-05 ruling that
+-- the first goto obeys the door rule): no goto crosses a members' gate.
+-- Lumbridge -> Ardougne and Varrock -> Ardougne are real Ardougne
+-- Teleports (Plague City's scroll read by click); Ardougne -> Rimmington,
+-- carrying the plague sample a teleport would destroy, walks through the
+-- members' gate south of Taverley (membergatel 2934,3320) by its verb.
+-- Audit: build/orchestrator/fix_b64/biohazard.progress.md.
 
 return {
     id = "biohazard",
@@ -87,6 +94,15 @@ return {
         "::setlevel attack 70",
         "::setlevel strength 70",
         "::setlevel defence 70",
+        -- Two Ardougne Teleports (Lumbridge -> Ardougne at the start, Varrock ->
+        -- Ardougne after Guidor): magic_spells.dbrow [magic_spell_teleport_ardougne]
+        -- levelrequired 51, waterrune 2 + lawrune 2 each. The spell is gated on
+        -- Plague City's scroll being READ (teleport.rs2:16-22); the scroll is
+        -- Plague City's own reward (edmond.rs2), staged here and read by click.
+        "::setlevel magic 51",
+        "::give ardougnescroll 1",
+        "::give lawrune 4",
+        "::give waterrune 4",
     },
 
     run = function(t)
@@ -238,7 +254,32 @@ return {
         -- in (trap 18); it is skipped here with the '*' wildcard rather
         -- than guessed, since the interpolated name is not literal source
         -- text (chat.play matches plain substrings, elena.rs2:97).
-        elena_in("talkToElena") -- first goto: leaves the fixture's open courtyard for Elena's street
+        -- Lumbridge to Ardougne has no walk on foot that skips a members'
+        -- gate, so the trip is a real Ardougne Teleport (owner 2026-10-05:
+        -- the first goto obeys the door rule). Read Plague City's scroll
+        -- first: elena_teleport_scroll.rs2 [opheld1,ardougnescroll] at
+        -- %varp165_elenaquest = ^elena_complete (29, ::complete
+        -- quest_plaguecity) writes ^elena_complete_read_scroll (30).
+        local scroll_before_result, scroll_before = t.var.server("varp165_elenaquest")
+        t.exec("talkToElena.readArdougneScroll", t.player.inv_op, "ardougnescroll", 1)
+        t.exec("talkToElena.readArdougneScroll-dialog", t.chat.play, {
+            "mesbox:You memorise what is written on the scroll.",
+            "mesbox:You can now cast the Ardougne Teleport spell",
+            "end",
+        })
+        t.ticks(2)
+        local scroll_after_result, scroll_after = t.var.server("varp165_elenaquest")
+        local scroll_left_result, scroll_left = t.inv.count("ardougnescroll")
+        t.check("talkToElena.scrollRead",
+            scroll_before_result == "ok" and scroll_before == 29 and scroll_after_result == "ok" and scroll_after == 30
+                and scroll_left_result == "ok" and scroll_left == 0,
+            "varp165_elenaquest " .. tostring(scroll_before) .. " (" .. tostring(scroll_before_result) .. ") -> " .. tostring(scroll_after)
+                .. " (" .. tostring(scroll_after_result) .. "), want 29 = ^elena_complete -> 30 = ^elena_complete_read_scroll; ardougnescroll left "
+                .. tostring(scroll_left) .. " (" .. tostring(scroll_left_result) .. "), want 0 (inv_del)")
+        -- tele_coord 0_41_51_37_37 = 2661,3301 (East Ardougne market)
+        t.player.teleport_cast("ardougne_teleport", { 2661, 3301, 0 }, { name = "talkToElena.ardougneTeleport",
+            runes = { { "waterrune", 2 }, { "lawrune", 2 } }, where = "East Ardougne market" })
+        elena_in("talkToElena") -- an overland hop on East Ardougne's streets from the teleport landing (reach.py REACH 138, doors shut)
         t.exec("talkToElena", t.player.talk_to, "elena2_vis", 1)
         t.exec("talkToElena-dialog", t.chat.play, {
             "*", -- page 1: player "Good day to you <nc_name(elena2)>." (elena.rs2:96)
@@ -694,6 +735,21 @@ return {
         -- can't wait, I'm carrying a plague sample." runs straight into
         -- @chemist_touchpaperguidor, granting touch_paper and writing
         -- ^biohazard_spoken_chemist (chemist.rs2:39-48,84-97).
+        --
+        -- Ardougne to Rimmington is WALKED, not teleported: the plague
+        -- sample is carried, and a teleport destroys it (LostCity
+        -- skill_magic/scripts/spells/teleport.rs2:94-96, "The plague sample
+        -- is too delicate...it disintegrates in the crossing."; this pack's
+        -- teleport.rs2:5 dropped that post-check, so a teleport here would
+        -- lean on a missing rule). reach.py 2592,3340 -> 2932,3215 at margin
+        -- 300: NEEDS-DOOR via membergatel@2934,3320 -- the members' gate
+        -- south of Taverley is the way on foot. Overland to its north side
+        -- (REACH 774 at 300, doors shut), the gate pressed north to south,
+        -- then overland to the chemist's door (REACH 125).
+        t.exec("goto-chemist.memberGate", t.player.goto_tile, 2934, 3322, 0)
+        t.exec("talkToTheChemist.memberGate", t.player.cross_gate, { loc = "membergatel", at = { 2934, 3320, 0 },
+            near = { 2934, 3321 }, far_ok = function(tile) return tile.z <= 3319 and math.abs(tile.x - 2934) <= 2 end,
+            far_desc = "south of the members' gate, z <= 3319", far = { 2934, 3318 } })
         local function in_chemist(tt) return tt.x >= 2929 and tt.x <= 2939 and tt.z >= 3207 and tt.z <= 3213 end
         t.exec("goto-chemist", t.player.goto_tile, 2932, 3215, 0)
         pass_door("talkToTheChemist.doorIn", "poshdoor", "poshdooropen", 2932, 3214, 0, 2932, 3215, 2932, 3212,
@@ -992,6 +1048,15 @@ return {
             function(tt) return tt.x <= 3263 and tt.level == 0 end, "west of the gate, x <= 3263")
 
         -- ==== Report to Elena -- no choices, auto-advances ====
+        -- Varrock to Ardougne: every walk on foot opens a members' gate
+        -- (membergater 2935,3450 at margin 160, the b63 grader's charge), so
+        -- the trip is a real Ardougne Teleport. Guidor consumed the plague
+        -- sample (guidor.itemsConsumed above), so nothing is lost to it.
+        local sample_result, sample_count = t.inv.count("plaguesample")
+        t.check("returnToElenaAfterSampling.noSampleCarried", sample_result == "ok" and sample_count == 0,
+            "inv.count(plaguesample) -> " .. tostring(sample_result) .. " (" .. tostring(sample_count) .. "), want 0 before teleporting")
+        t.player.teleport_cast("ardougne_teleport", { 2661, 3301, 0 }, { name = "returnToElenaAfterSampling.ardougneTeleport",
+            runes = { { "waterrune", 2 }, { "lawrune", 2 } }, where = "East Ardougne market" })
         elena_in("returnToElenaAfterSampling")
         t.exec("talkToElenaReport", t.player.talk_to, "elena2_vis", 1)
         t.exec("elenaReport-dialog", t.chat.play, {
