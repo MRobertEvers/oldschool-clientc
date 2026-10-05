@@ -204,6 +204,17 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
   library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
   pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
+  OWNER, 2026-10-05 ~18:00: "Can you just do those things? Do seam25." So SEAM25 RUNS NOW, IN ITS
+  OWN WORKTREE, alongside seam29: `build/orchestrator/worktrees/raid25`, branch
+  `matthew-mbp-m4-raid-b1-w25` (parent and OSRS-Content), cut at 2877bbe99; its triage is that
+  worktree's copy of `SEAM_TRIAGE_2026-10-05d.md` (paths rewritten; proofs by state, not
+  pictures); pass `matthew-mbp-m4-raid-b1-seam25` with card args worktree + branch; state in
+  `<raid25>/build/seam_state/`. WHEN IT LANDS: merge `origin/matthew-mbp-m4-raid-b1-w25` into the
+  raid branch by hand (pointer.lua, _conformance.lua, DRIVER_NOTES.md will overlap with seam29/30),
+  re-run cooks_assistant, druid, conformance and the Bloat five-name survey on the merged tree,
+  push, move raid-watch, remove the raid25 worktree (and its content worktree and branches), and
+  tell the camera session's owner that seam24 + seam25 are both on the raid branch (its split
+  waits on exactly that). Also done directly (50a346343): the Scripts tab lists `_play_*` harnesses.
   NEXT = SEAM29 (`SEAM_TRIAGE_2026-10-05h.md`): the library into its own files (one plan file per
   room) and the hazard fix; the raider's state and inputs into the tick log and a mistakes list in
   raid_report.py; then a sourced Entry plan per room (maiden, nylocas, sotetseg, xarpus, verzik),
