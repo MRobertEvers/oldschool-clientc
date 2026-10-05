@@ -89,7 +89,7 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   prayer read at the impact proved both ways in the tick log: raised after the throw -> blocked,
   dropped after the throw -> 22). tob_verzik's re-author reached FULL 145/145 but the reviewer
   rejected it on the gate's duplicate-shot rule (rows at tob_verzik.lua:2827 and :2829 shot the
-  same tick); the author's file is on disk uncommitted. RUNNING: the retry (same args).
+  same tick); the author's file is on disk uncommitted. The retry (5d53ddd57) passed its reviewer but the SAMPLER SENT IT BACK and reverted it (0f18f21db; ledger befac048e): its bomb row's one prayed hit of 4 cannot tell a landing read from a throw read (an unprayed Entry bomb rolls 0-16) and the prayer switch was never read back; the deciding hit is in its own log (a bomb thrown under the prayer, dropped before landing, hit 9 > the prayed max 8). RUNNING: the second retry (same args), the author told to prove each switch and grade on a sample a throw-time read cannot give.
   Kept: tob_maiden 1dffd5230, tob_bloat abc53c18e, tob_nylocas 116a1d938, tob_xarpus f417148e4,
   tob_sotetseg 1c86bf153, tob_verzik 3d7589ff4 (green, one coverage row short until the retry).
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
