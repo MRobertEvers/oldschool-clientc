@@ -7,6 +7,10 @@ topic file with one line added here.
 
 ## Travel and finding things
 
+- a stair or ladder graded by hand (`climb()` helper in the test); a level change needs a row graded on the level and the landing -> verbs-pointer: `t.player.climb(spec)`
+- `You can't go any further.` from a stair with the player still on its floor (Draynor crypt stairs, FIXED b60-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b60-seam1 (b); verbs-pointer: `t.player.climb(spec)`
+- a ladder lands on a blocked plane one up, not the roof (Seers' roof, `favour_seer_ladder`, FIXED b60-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b60-seam1 (e)
+- `no <door>: none within 0 ... and no open leaf named (spec.open)` on the way BACK through a door -> verbs-pointer: `t.player.pass_door(spec)` (name `open=`)
 - `talk_to` walks around or answers "I can't reach that!" after a goto beside an npc behind a counter or wall -> start-and-travel: An npc behind a counter or wall
 - `talk_to` answers "I can't reach that!" from every tile in front of a bar, the npc two tiles back (At First Light's Verity, FIXED b56-seam2 by `[apnpc1,hg_verity]`; talk from 1559,9462) -> start-and-travel: An npc TWO tiles behind a counter
 - the guide says "Charter at a cost of 3000 coins" and no verb opens the charter map -> start-and-travel: No charter verb
@@ -223,6 +227,7 @@ topic file with one line added here.
 
 ## Fights
 
+- every world press reads `covered ... menu rows: <Cancel>` after a spell fight; a spell left armed (FIXED b60-seam1: the driver cancels it) -> verbs-pointer: `t.player.cancel_selection(why)`
 - `t.player.attack` never answers on an "Attack" npc with no hitpoints (Tale of the Righteous' Strange Device); does `click_minimenu` take "Attack" or 2? -> gaps-combat: `t.player.attack` never answers on an npc with no hitpoints
 - `slot N left the pool ... came back as slot M ... -- followed it`; a teleporting boss graded dead `corroborated by ABSENCE` while alive -> verbs-combat: A covered Attack press, a boss that teleports, a timed walk (seam35)
 - a Haunted Mine `t.drive.op` for Dayth's Attack or the lift -> gaps-world: A timed lift or a `covered` boss press (both real presses since seam35)
@@ -349,6 +354,7 @@ topic file with one line added here.
 
 ## Harness and runs
 
+- `run.py <quest> --name X` wrote into `build/quest_gate/<quest>/` and changed `selftest/quests/<dir>/play`; `git -C OSRS-Content show HEAD:server/scripts/...` says no such path -> seam-facts: Seam pass matthew-mbp-m4-b60-seam1 (g)
 - `run.unfinished FAIL run ended without finishing`; exit 0 with no SUMMARY; `at the frame budget` -> running: A run that ended unfinished
 - `QUEST row-begin` / `QUEST progress` lines in client.log; where a slow run spends its ticks -> running: A run that ended unfinished
 - a `--script` rerun blocks on the same random roll every time -> running: `--script` runs are deterministic
@@ -382,6 +388,10 @@ topic file with one line added here.
 - a mooring op 1 moves the stage but opens the Board Boat window instead of boarding; the stage stays put with the hull far off; aground leaving a berth -> verbs-sail-session: A mooring that moves the stage; Aground on every heading
 
 ## Content-side facts (content_bug reports, reviewers)
+- `I can't reach that!` using an item on a loc across water (a root over a waterfall, a rock across a river) -> seam-facts: Seam pass matthew-mbp-m4-b60-seam1 (a) (`[aplocu]` + `p_aprange`)
+- a quest door's `[oploc1]` prints its line but the leaf never moves (Water Ravine Dungeon, FIXED b60-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b60-seam1 (a) (`~door_open_active`)
+- Mountain Camp: the rockslide lands on a walled cliff tile / only goes in; the rock tent door `Nothing interesting happens.` (FIXED b60-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b60-seam1 (c)
+- Tourist Trap: the mine door lands in a sealed pocket at 3278,9425 (FIXED b60-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b60-seam1 (d)
 - two of three `npc_add` trolls never appear, a kill counter stuck below 3 (Swan Song ambush, `swansong_colony.rs2:119-123`) -> content-gaps: Only one of three `npc_add` ambush trolls (FIXED OSRS-Content f2902a94dd: `movecoord`'s middle argument is the level; seam-facts: Seam pass matthew-mbp-m4-b54-seam1 (a))
 - the wiki says 8 Sea trolls at the Swan Song colony entrance and the port spawns 3; the ambush trolls vanish mid-fight and stage 40 never moves -> content-gaps: Swan Song's entrance ambush: 3 trolls (despawn FIXED b54-seam3, OSRS-Content 1ef7c1e7b9)
 - Heroes' Quest: no partner to lure Grip or trade the candlestick (`killGrip`, `getCandlestick`); Grip stops short of the cabinet room after `::hero_partner_lure` -> seam-facts: Seam pass matthew-mbp-m4-b51-seam2 (a), (c); the client one tile short of the server (FIXED b52-seam1 (b))
