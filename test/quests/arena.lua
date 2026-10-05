@@ -8,6 +8,15 @@
 -- khazard_barman, arena_locs, arena_encounter, hengrad, general_khazard).
 -- Brought along: coins for the brew, and the recommended combat gear (weapon, food,
 -- stats) -- both listed by the guide (getItemRequirements / getItemRecommended).
+--
+-- The walls (maps/m40_49.jl2; reach.py / comp.py, doors closed): Lady Servil, the chest
+-- (2613,3189, against the OUTSIDE of the guards' house wall), and the roads to the bar and the
+-- compound are one open component. The Khazard compound is closed: its only ways in on foot are
+-- the two fightarena_door1 leaves (north 2617,3171 into the prison corridor, west 2585,3141 into
+-- the yard). Inside it the corridor, the guard room (poshdoor 2616,3147 / poordoor 2609,3143)
+-- and the yard are three rooms; the bar is a room behind poordoor 2569,3150. Every one of those
+-- doors is pressed (or found standing open) on every crossing, both ways; the only gotos left
+-- are open ground to open ground.
 
 return {
     id = "arena",
@@ -50,7 +59,96 @@ return {
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-        -- startQuest: Lady Servil, lady_servil.rs2 case ^arena_not_started
+        local function tile_text(tile)
+            if type(tile) ~= "table" then
+                return tostring(tile)
+            end
+            return tile.x .. "," .. tile.z .. "," .. tile.level
+        end
+
+        -- fightarena_door1 (arena_locs.rs2:85-118): a wall door with no open leaf. The disguise
+        -- (stage obtained_armour..defeated_ogre, helmet AND platemail worn) is carried two tiles
+        -- across by [label,arena_pass_door1]'s p_telejump; when an arena_guard1 stands within 5
+        -- tiles (m40_49.spawn places one outside each leaf, 2584,3141 and 2617,3172) he first says
+        -- one chatnpc page and the telejump lands only after it is continued. t.player.cross_gate
+        -- awaits the landing for 12 ticks with that page still up and grades the crossing failed,
+        -- so this is cross_gate's own grade with the page between: near tile before, press on the
+        -- exact leaf tile, the guard's line read when he speaks, landing graded on far_ok.
+        -- may_refuse: a crossing the content may refuse is returned, not graded, so the caller
+        -- can stop at an honest t.blocked naming the refusal.
+        local function compound_door(name, at, near, far_ok, far_desc, may_refuse)
+            local walk_result, walk_detail = t.player.walk_to(near[1], near[2])
+            local before_result, before = t.world.tile()
+            local on_near = before_result == "ok" and before.level == at[3]
+                and before.x == near[1] and before.z == near[2] and not far_ok(before)
+            t.check(name .. ".nearSide", on_near, "walk_to " .. near[1] .. "," .. near[2] .. " -> "
+                .. tostring(walk_result) .. " " .. tostring(walk_detail) .. "; at " .. tile_text(before)
+                .. " (want exactly " .. near[1] .. "," .. near[2] .. "," .. at[3] .. ", NOT " .. far_desc .. ")")
+            t.exec(name, t.player.click_loc, "fightarena_door1", 1, { at = at })
+            local spoke = false
+            for _ = 1, 12 do
+                local tile_result, tile = t.world.tile()
+                if tile_result == "ok" and tile.level == at[3] and far_ok(tile) then
+                    break
+                end
+                if t.chat.kind() ~= "none" then
+                    spoke = true
+                    break
+                end
+                t.ticks(1)
+            end
+            local drained = ""
+            if spoke and may_refuse then
+                -- the refusal at freed_servils with arena_guard1 by the door is his
+                -- @khazard_guard_generals_pet page (arena_locs.rs2:96-98, khazard_guard.rs2:138-142;
+                -- run 3 shot 161-npc); a crossing the content allows never reaches here
+                local play_result, play_detail = t.exec(name .. "-guard", t.chat.play, { "npc:You're him. The one who murdered" })
+                drained = "; the guard's page: chat.play -> " .. tostring(play_result) .. " " .. tostring(play_detail)
+                t.ticks(2)
+            elseif spoke then
+                t.exec(name .. "-guard", t.chat.play, { "npc:Nice observation guard" })
+                t.ticks(2)
+            end
+            local after_result, after = t.world.tile()
+            local crossed = after_result == "ok" and after.level == at[3] and far_ok(after)
+            local detail = "fightarena_door1 at " .. at[1] .. "," .. at[2] .. "," .. at[3] .. ": "
+                .. tile_text(before) .. " -> " .. tile_text(after) .. " (want " .. far_desc .. "; the guard "
+                .. (spoke and "spoke first" or "was not within 5 tiles") .. ")" .. drained
+            if crossed or not may_refuse then
+                t.check(name .. ".across", crossed, detail)
+            end
+            return crossed, detail
+        end
+
+        -- A plain door: t.player.pass_door presses the closed leaf on its exact tile and level, or
+        -- finds the open leaf standing and walks through; graded on the far tile.
+        local function door(name, closed, at, near, far)
+            t.exec(name, t.player.pass_door, { closed = closed, open = closed .. "open",
+                at = at, near = near, far = far })
+        end
+
+        -- A fight's margin (brief: lowest hp at least a quarter of the maximum AND food left).
+        local function fight_margin(name, detail, food_before)
+            local lowest = tonumber(tostring(detail):match("lowest hp (%d+)/"))
+            local _, hitpoints = t.skill.read("hitpoints")
+            local max_hp = type(hitpoints) == "table" and hitpoints.base_level or nil
+            local food_result, food_left = t.inv.count("shark")
+            t.check(name, lowest ~= nil and max_hp ~= nil and food_result == "ok"
+                and lowest * 4 >= max_hp and food_left >= 1,
+                "lowest hp " .. tostring(lowest) .. "/" .. tostring(max_hp) .. ", sharks "
+                .. tostring(food_before) .. " -> " .. tostring(food_left)
+                .. " (margin: lowest hp >= a quarter of max AND at least one shark left)")
+        end
+
+        -- startQuest: Lady Servil, lady_servil.rs2 case ^arena_not_started. From the Lumbridge
+        -- fixture the only way on foot to Kandarin is the members' gate south of Taverley
+        -- (reach.py 3206,3233 -> 2565,3199: UNREACHABLE at margin 160, NEEDS-DOOR via
+        -- membergater@2933,3320 at 300), so: overland to its south side (REACH 387, doors shut),
+        -- the gate pressed, then overland from its north side to Lady Servil (REACH 921 at 300).
+        t.exec("goto-startQuest.memberGate", t.player.goto_tile, 2934, 3318, 0)
+        t.exec("startQuest.memberGate", t.player.cross_gate, { loc = "membergatel", at = { 2934, 3320, 0 },
+            near = { 2934, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2934) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320" })
         t.exec("goto-startQuest", t.player.goto_tile, 2565, 3199, 0)
         t.exec("startQuest", t.player.talk_to, "lady_servil", 1)
         t.exec("startQuest-dialog", t.chat.play, {
@@ -71,21 +169,32 @@ return {
         })
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
-        -- searchChest: arena_guard_chest_shut op1 (Search), arena_locs.rs2
-        t.exec("goto-searchChest", t.player.goto_tile, 2613, 3190, 0)
+        -- searchChest: arena_guard_chest_shut op1 (Search), arena_locs.rs2:10. The chest (2613,3189)
+        -- is reached only from inside the guards' house (run 1: "I can't reach that!" from every
+        -- outside approach tile), whose one door is poordoor 2609,3191 (comp.py: a 30-tile room).
+        t.exec("goto-searchChest", t.player.goto_tile, 2609, 3189, 0)
+        door("searchChest.houseIn", "poordoor", { 2609, 3191, 0 }, { 2609, 3190 }, { 2609, 3191 })
         t.exec("searchChest", t.player.click_loc, "arena_guard_chest_shut", 1)
+        -- the press answers map_flag while the player still walks round the table to the chest
+        -- (run 2): wait for the search's own result before reading its page
+        t.exec("searchChest.helmet", t.inv.await, "khazard_helmet", 1, 15)
         t.exec("searchChest-dialog", t.chat.play, { "mesbox:helmet and" })
-        t.exec("searchChest.helmet", t.inv.expect_has, "khazard_helmet", 1)
         t.exec("searchChest.platemail", t.inv.expect_has, "khazard_platemail", 1)
         t.expect("quest.stage.obtained_armour", t.quest.expect_stage("obtained_armour"))
+        door("searchChest.houseOut", "poordoor", { 2609, 3191, 0 }, { 2609, 3191 }, { 2609, 3190 })
 
         -- the guide's talkToGuard step lists the armour as EQUIPPED
         t.exec("equip.helmet", t.player.equip, "khazard_helmet")
         t.exec("equip.platemail", t.player.equip, "khazard_platemail")
         t.exec("equip.weapon", t.player.equip, "rune_scimitar")
 
-        -- talkToGuard: arena_guard2 case ^arena_obtained_armour, disguise worn
-        t.exec("goto-talkToGuard", t.player.goto_tile, 2615, 3143, 0)
+        -- talkToGuard: arena_guard2 case ^arena_obtained_armour, disguise worn. Walked from the
+        -- chest to the compound's north door, through it into the prison corridor, down the
+        -- corridor and through the guard room's poshdoor.
+        compound_door("talkToGuard.northDoorIn", { 2617, 3171, 0 }, { 2617, 3172 },
+            function(tile) return tile.z <= 3171 and tile.x >= 2613 and tile.x <= 2619 end,
+            "in the prison corridor, z <= 3171")
+        door("talkToGuard.guardRoomIn", "poshdoor", { 2616, 3147, 0 }, { 2616, 3147 }, { 2616, 3146 })
         t.exec("talkToGuard", t.player.talk_to, "arena_guard2", 1)
         t.exec("talkToGuard-dialog", t.chat.play, {
             "player:Long live General Khazard!",
@@ -95,8 +204,14 @@ return {
         })
         t.expect("quest.stage.spoken_drunkguard", t.quest.expect_stage("spoken_drunkguard"))
 
-        -- buyKhaliBrew: khazard_barman option 3 (only offered from stage 3)
-        t.exec("goto-buyKhaliBrew", t.player.goto_tile, 2567, 3140, 0)
+        -- buyKhaliBrew: khazard_barman option 3 (only offered from stage 3). Out of the guard room
+        -- by its west poordoor into the yard, out of the compound by the west fightarena_door1, and
+        -- into the bar by its poordoor.
+        door("buyKhaliBrew.guardRoomOut", "poordoor", { 2609, 3143, 0 }, { 2609, 3143 }, { 2608, 3143 })
+        compound_door("buyKhaliBrew.westDoorOut", { 2585, 3141, 0 }, { 2585, 3141 },
+            function(tile) return tile.x <= 2584 end, "outside the compound, x <= 2584")
+        door("buyKhaliBrew.barIn", "poordoor", { 2569, 3150, 0 }, { 2569, 3151 }, { 2569, 3150 })
+        local _, coins_before_brew = t.inv.count("coins")
         t.exec("buyKhaliBrew", t.player.talk_to, "khazard_barman", 1)
         t.exec("buyKhaliBrew-dialog", t.chat.play, {
             "player:Hello.",
@@ -106,9 +221,18 @@ return {
             "npc:There you go, that's five gold coins",
         })
         t.exec("buyKhaliBrew.brew", t.inv.await, "khali_brew", 1, 10)
+        local coins_after_brew_result, coins_after_brew = t.inv.count("coins")
+        t.check("buyKhaliBrew.paid", coins_after_brew_result == "ok" and coins_before_brew ~= nil
+            and coins_before_brew - coins_after_brew == 5,
+            "coins " .. tostring(coins_before_brew) .. " -> " .. tostring(coins_after_brew)
+            .. " (khazard_barman.rs2: the brew costs 5)")
 
-        -- giveKhaliBrew: arena_guard2 case ^arena_spoken_drunkguard + brew in hand
-        t.exec("goto-giveKhaliBrew", t.player.goto_tile, 2615, 3143, 0)
+        -- giveKhaliBrew: arena_guard2 case ^arena_spoken_drunkguard + brew in hand. Out of the bar,
+        -- back into the compound by the west door, across the yard, into the guard room.
+        door("giveKhaliBrew.barOut", "poordoor", { 2569, 3150, 0 }, { 2569, 3150 }, { 2569, 3151 })
+        compound_door("giveKhaliBrew.westDoorIn", { 2585, 3141, 0 }, { 2584, 3141 },
+            function(tile) return tile.x >= 2585 end, "inside the compound yard, x >= 2585")
+        door("giveKhaliBrew.guardRoomIn", "poordoor", { 2609, 3143, 0 }, { 2608, 3143 }, { 2609, 3143 })
         t.exec("giveKhaliBrew", t.player.talk_to, "arena_guard2", 1)
         t.exec("giveKhaliBrew-dialog", t.chat.play, {
             "player:Hello again.",
@@ -128,6 +252,10 @@ return {
         })
         t.expect("quest.stage.given_khali_brew", t.quest.expect_stage("given_khali_brew"))
         t.exec("giveKhaliBrew.keys", t.inv.await, "khazard_cellkeys", 1, 10)
+        local brew_result, brew_left = t.inv.count("khali_brew")
+        t.check("giveKhaliBrew.brewHandedOver", brew_result == "ok" and brew_left == 0,
+            "khali_brew in the backpack after the handover: " .. tostring(brew_left)
+            .. " (want 0: khazard_guard.rs2:122 inv_del khali_brew)")
 
         -- getCellKeys: the guide's step for a player without the keys -- drop the set the
         -- brew handover gave and ask the guard for another (khazard_guard.rs2 "I lost the keys")
@@ -142,8 +270,16 @@ return {
         })
         t.exec("getCellKeys.keys", t.inv.await, "khazard_cellkeys", 1, 10)
 
-        -- openCell: the cell keys used on arena_jeremydoor (oplocu, arena_locs.rs2)
-        t.exec("goto-openCell", t.player.goto_tile, 2617, 3166, 0)
+        -- openCell: the cell keys used on arena_jeremydoor (oplocu, arena_locs.rs2:53). Out of the
+        -- guard room by its poshdoor into the prison corridor, then up it to Sammy's cell.
+        door("openCell.guardRoomOut", "poshdoor", { 2616, 3147, 0 }, { 2616, 3146 }, { 2616, 3147 })
+        do
+            local walk_result, walk_detail = t.player.walk_to(2617, 3166)
+            local tile_result, tile = t.world.tile()
+            t.check("openCell.walk", tile_result == "ok" and tile.x == 2617 and tile.z == 3166 and tile.level == 0,
+                "walk_to 2617,3166 -> " .. tostring(walk_result) .. " " .. tostring(walk_detail)
+                .. "; at " .. tile_text(tile) .. " (want 2617,3166,0 beside Sammy's cell, in the corridor)")
+        end
         local cell_gate = t.player.by_symbol("loc", "arena_jeremydoor")
         t.exec("openCell", t.player.use_on, "khazard_cellkeys", cell_gate)
         t.exec("openCell-dialog", t.chat.play, {
@@ -192,8 +328,14 @@ return {
         })
         t.expect("quest.stage.entered_ogre_fight-2", t.quest.expect_stage("entered_ogre_fight"))
         -- killOgre: the round already began when the gate opened (the ogre is private to the player)
+        -- The three rounds' fighters are owner-private actors (arena_encounter.rs2) with real combat
+        -- blocks in quest_arena.npc: arena_ogre hp 60 att 54 str 53 def 53, arena_scorpion hp 40
+        -- att 40 str 39 def 34, arena_bouncer hp 116 att/str/def 120; all in
+        -- docs/bosses/quest_combat_manifest.json "quest-fight-arena".
         t.exec("killOgre", t.player.attack, "arena_ogre", 2, 20)
-        t.exec("killOgre.dead", t.npc.await_dead_engaged, 240, 40, { eat = { item = "shark", below = 50 } })
+        local _, ogre_food = t.inv.count("shark")
+        local _, ogre_detail = t.exec("killOgre.dead", t.npc.await_dead_engaged, 240, 40, { eat = { item = "shark", below = 60 } })
+        fight_margin("killOgre.margin", ogre_detail, ogre_food)
         -- talkToKhazard: the General's speech opens the tick the ogre falls
         t.exec("talkToKhazard-dialog", t.chat.play, {
             "npc:Haha, well done",
@@ -237,7 +379,9 @@ return {
             { op = "reset" },
         } })
         t.exec("killScorpion", t.player.attack, "arena_scorpion", 2, 20)
-        t.exec("killScorpion.dead", t.npc.await_dead_engaged, 240, 40, { eat = { item = "shark", below = 50 } })
+        local _, scorpion_food = t.inv.count("shark")
+        local _, scorpion_detail = t.exec("killScorpion.dead", t.npc.await_dead_engaged, 240, 40, { eat = { item = "shark", below = 60 } })
+        fight_margin("killScorpion.margin", scorpion_detail, scorpion_food)
         t.exec("killScorpion-dialog", t.chat.play, {
             "npc:Impressive, but now for a proper challenge",
             "mesbox:Today's second round of battle",
@@ -252,7 +396,9 @@ return {
         t.expect("quest.stage.defeated_scorpion", t.quest.expect_stage("defeated_scorpion"))
 
         t.exec("killBouncer", t.player.attack, "arena_bouncer", 2, 20)
-        t.exec("killBouncer.dead", t.npc.await_dead_engaged, 400, 60, { eat = { item = "shark", below = 50 } })
+        local _, bouncer_food = t.inv.count("shark")
+        local _, bouncer_detail = t.exec("killBouncer.dead", t.npc.await_dead_engaged, 400, 60, { eat = { item = "shark", below = 60 } })
+        fight_margin("killBouncer.margin", bouncer_detail, bouncer_food)
         t.exec("killBouncer-dialog", t.chat.play, {
             "npc:Bouncer! No!",
             "player:You agreed to let the Servils go",
@@ -261,19 +407,38 @@ return {
         })
         t.expect("quest.stage.freed_servils", t.quest.expect_stage("freed_servils"))
 
-        -- leaveArena: fightarena_door2 op1 from inside (General ignored)
+        -- leaveArena: fightarena_door2 op1 from inside (General ignored): [label,arena_escape]
+        -- (arena_locs.rs2:163-167) telejumps the player to 2608,3151, the compound yard.
         t.exec("leaveArena", t.player.click_loc, "fightarena_door2", 1)
         local exit_result, exit_tile = t.world.tile()
-        t.check("leaveArena.outside", exit_result == "ok" and exit_tile.x >= 2607, "landed at " .. tostring(exit_tile and exit_tile.x) .. "," .. tostring(exit_tile and exit_tile.z))
+        t.check("leaveArena.outside", exit_result == "ok" and exit_tile.x == 2608 and exit_tile.z == 3151
+            and exit_tile.level == 0, "landed at " .. tile_text(exit_tile) .. " (want 2608,3151,0: arena_escape)")
 
-        -- endQuest: back to Lady Servil
+        -- endQuest: out of the compound on foot. The yard's only way out is the west
+        -- fightarena_door1 (reach.py 2608,3151 -> 2565,3199 at margin 160: NEEDS-DOOR via
+        -- fightarena_door1@2585,3141; the corridor's north leaf is the same loc).
+        local left_compound, left_detail = compound_door("leaveCompound.westDoorOut", { 2585, 3141, 0 }, { 2585, 3141 },
+            function(tile) return tile.x <= 2584 end, "outside the compound, x <= 2584", true)
+        if not left_compound then
+            local said = t.chat.kind()
+            t.blocked("content_bug: arena_locs.rs2:85-93 [oploc1,fightarena_door1] lets a player "
+                .. "through only at stage obtained_armour..defeated_ogre with the disguise worn, from "
+                .. "either side; at freed_servils (12) it answers 'This door appears to be locked.' to a "
+                .. "player INSIDE the compound (and arena_guard1 within 5 runs @khazard_guard_generals_pet, "
+                .. "arena_locs.rs2:96-98). arena_escape (arena_locs.rs2:163-167) puts the player in the "
+                .. "yard at 2608,3151, whose only exits on foot are fightarena_door1 (2585,3141 and, via "
+                .. "the corridor, 2617,3171), so the quest cannot be walked back to Lady Servil. LostCity "
+                .. "quest_arena.rs2:32-35 opens the door for anyone standing on its own axis (check_axis: "
+                .. "inside) before any stage check. " .. left_detail .. "; chat page now: " .. tostring(said))
+            return
+        end
         t.exec("goto-endQuest", t.player.goto_tile, 2565, 3199, 0)
         local snapshot_result, snapshot = t.skill.snapshot()
         local coins_result, coins_before = t.inv.count("coins")
-        t.check("endQuest.snapshot", snapshot_result == "ok" and coins_result == "ok",
-            "attack xp=" .. tostring(snapshot and snapshot.attack and snapshot.attack.experience)
-            .. " thieving xp=" .. tostring(snapshot and snapshot.thieving and snapshot.thieving.experience)
-            .. " coins=" .. tostring(coins_before))
+        t.check("endQuest.coinsBefore", snapshot_result == "ok" and coins_result == "ok" and coins_before == 0,
+            "coins=" .. tostring(coins_before) .. " (want 0: the 5 staged went on the brew)"
+            .. " attack xp=" .. tostring(snapshot and snapshot.attack and snapshot.attack.experience)
+            .. " thieving xp=" .. tostring(snapshot and snapshot.thieving and snapshot.thieving.experience))
         t.exec("endQuest", t.player.talk_to, "lady_servil", 1)
         t.exec("endQuest-dialog", t.chat.play, {
             "player:Lady Servil.",
