@@ -149,9 +149,26 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   offscreen on the software lane on demand, an Interact on/off switch always indicated, scripted
   cameras take every view, the runner's menu tinted; three seams (gather = pure refactor, split,
   debug aids). It supersedes seam25's camera-easing item (the runner's poses no longer show).
-  It is a wide client refactor on a branch 467 commits behind v3: say so to the owner before the
-  v3 merge grows harder (he has not ruled on where it lands).
-  THEN relaunch the Normal three-player pass with the same args and the seam22 notes.
+  SEAM26 IS NOT RUN HERE ANY MORE (2026-10-05): the owner started a separate camera session from
+  the orchestrator's prompt; it works in `build/orchestrator/worktrees/camera` on branch
+  `matthew-mbp-m4-camera-b1` (cut from this branch), does the gather seam first, and merges this
+  branch in for seam24 and seam25 before the split. This session never touches that worktree.
+  Its work comes back by a merge the raid orchestrator makes when the owner asks.
+  THEN SEAM27 (`SEAM_TRIAGE_2026-10-05f.md`): THE KEPT ENTRY ROOMS HOLD ON ONE SEED ONLY. The
+  account name seeds the random numbers; each room was kept under its own name alone. The
+  orchestrator's survey (`SEED_SURVEY_2026-10-05.md`; evidence in `build/seed_survey_2026-10-05/`):
+  each kept room replayed unchanged under four other names, 7 of 24 green (Xarpus 4 of 4; Maiden,
+  Bloat, Sotetseg 1 of 4; Nylocas and Verzik 0 of 4). Seam24's fixer met it first (Bloat died in
+  the watched client). Six seams: `seed_survey_gate` (tools/raid_gate/seed_survey.py; the author
+  card keeps a room only when it is green on five names), then one per fragile room classifying
+  every failing row as play / measurement / content and fixing or writing it. Fixers do not edit
+  the kept tests: they leave `notes.tob_<room>.md` in the state dir.
+  THEN the ENTRY RE-AUTHOR pass for the five fragile rooms (card raid_author, pass
+  `matthew-mbp-m4-raid-b1-rooms-tob-entry2`, raid tob, rooms maiden bloat nylocas sotetseg verzik,
+  mode entry, party 1, width 1, context = the seam27 notes; kept = the five-name survey green).
+  UNTIL THEN say it plainly in every report: ToB Entry solo is tested ON ONE SEED PER ROOM.
+  THEN relaunch the Normal three-player pass with the same args and the seam22 notes (it now
+  gets the five-name survey too).
 - OWNER, 2026-10-05, Verzik P1 for a trio: "the players need to take the dawnbringer from the
   skeleton on the ground after xarpus. That weapon does not have the shield penalty and the
   players should share it using their special attack." Our content agrees (tob_xarpus.rs2:1817-1850
