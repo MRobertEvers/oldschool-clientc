@@ -1127,3 +1127,32 @@ all clean. No C and no content changed.
   were not built here and nothing in this close verified them: `run.py --name` honoured or
   refused, the author workflow keeping a room only on a green survey, and the README and
   DRIVER_NOTES rule.
+
+## matthew-mbp-m4-raid-b1-seam29 (2026-10-05; parent 01c1810e9, OSRS-Content fb292a9996 unchanged): the play library in its own files, and the raider in the tick log (triage SEAM_TRIAGE_2026-10-05i.md)
+
+- play_library_own_files: LANDED. The loop and skills are in raid_play.lua, and each ToB room
+  plan is its own part (raid_play_tob_<room>.lua, QD.raid._play_plan). The five unplayed rooms
+  answer unsupported and name their seam30 row. _play_safe_step and _play_reach guard every
+  move. Proved: conformance raid.play PASS, _play_smoke 5 of 5 names green, and the six Entry
+  rooms plus cooks_assistant and druid have identical ledgers. OPEN: the Normal trio still
+  takes Bloat hands on pathed tiles (s29n3e: 5 hands, each 2 ticks after its shadow; a
+  suspected visibility lag that the logs cannot show yet). _play_reach leaves the diagonal
+  corners out with no source. _play_smoke's protect_from_missiles window now covers the fly's
+  flight (tob_bloat.rs2 ~tob_bloat_fly_damage); the kept tob_bloat.lua row keeps the old
+  window.
+- raid_log_raider_state: LANDED. The tick log gains file-only raider, input and consume rows
+  for every logged-in player, so the leader's log covers the whole party. raid_report.py has a
+  MISTAKES block, seed_survey.py prints the first three mistakes of a red name, run.py
+  <id> --name X applies the name or refuses, and the sampler keeps a room only on a green
+  survey. Proved: conformance seam.ticklog_raider_rows_file_only PASS, svabloat lists the
+  t437-454 stall and the t458 death, and _play_smoke lists no missed attack. Ledgers are
+  byte-identical, and _party_smoke agrees over 3 runs. OPEN: PINNED_PRAYER judges every 10812
+  hit as a fly, so the hits at _play_smoke t148 (38) and t224 (21), each above the fly maximum
+  of 8, are listed as prayer mistakes. HAZARD_SPOTANIMS holds only the Bloat hand (1576). The
+  Normal and Hard Bloat ids are not pinned. The sampler prompt still asks for PNGs (step 3),
+  which is the orchestrator's call. The loop's own decisions are not yet in the log.
+- Not run by the closer: the full quest suite and gate.py. No quest-facing behaviour changed:
+  the new Lua parts define only QD.raid plans, and the server rows are gated on the tick log and
+  stay file-only (cooks_assistant and druid identical). The server selftest showed 11 failures,
+  the same 11 as HEAD (from the fixer's own run). lint_quest on the committed test/quests has
+  34 ANY-OF findings in 9 untouched files, all from before this pass.
