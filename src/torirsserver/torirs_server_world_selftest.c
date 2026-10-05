@@ -45328,6 +45328,16 @@ ToriRSServer_WorldSelftest(void)
             const int rocks_r = ToriRSServer_ContentSymbol(
                 TORIRSSERVER_PACK_LOC, "inferno_collapsing_wall_side_right_state3");
             int rocks_tick = -1;
+            /* ::zuk stands the player on ^inferno_player_zuk_lz, and the seal's
+             * locs sit at ^inferno_rock_w_lz (the flanks) and
+             * ^inferno_glyph_loc_lz (the slab): read all three rather than pin
+             * the start tile, which moved from local z 40 to 44 with Blert's
+             * wave-69 start (zuk_glyph_shield.player_start, WZ-START). */
+            int const zuk_lz = ToriRSServer_ContentConstantInt("inferno_player_zuk_lz", -1);
+            int const rock_dz =
+                ToriRSServer_ContentConstantInt("inferno_rock_w_lz", -1) - zuk_lz;
+            int const slab_dz =
+                ToriRSServer_ContentConstantInt("inferno_glyph_loc_lz", -1) - zuk_lz;
             int change_tick = -1;
             int anim_tick = -1;
             int removal_tick = -1;
@@ -45469,7 +45479,7 @@ ToriRSServer_WorldSelftest(void)
                  * instead made the measurement report change_tick whenever the
                  * wall went first, which is exactly the case under test. */
                 if( ToriRSServer_SceneFindLocId(
-                        player->x - 1, player->z + 11, player->level, middle) >= 0 )
+                        player->x - 1, player->z + slab_dz, player->level, middle) >= 0 )
                     mid_seen = 1;
                 else if( mid_seen && mid_removal_tick < 0 )
                     mid_removal_tick = tick;
@@ -45501,16 +45511,16 @@ ToriRSServer_WorldSelftest(void)
                  * content now uses `~inferno_coord`, so the rubble lands where
                  * the wall it replaces was rather than a storey above it. */
                 if( rocks_tick < 0 &&
-                    ToriRSServer_SceneFindLocId(player->x - 3, player->z + 12,
+                    ToriRSServer_SceneFindLocId(player->x - 3, player->z + rock_dz,
                                               player->level, rocks_l) >= 0 &&
-                    ToriRSServer_SceneFindLocId(player->x + 2, player->z + 12,
+                    ToriRSServer_SceneFindLocId(player->x + 2, player->z + rock_dz,
                                               player->level, rocks_r) >= 0 )
                     rocks_tick = tick;
                 if( anim_tick >= 0 && removal_tick < 0 &&
                     ToriRSServer_SceneFindLocId(
-                        player->x - 3, player->z + 12, player->level, left) < 0 &&
+                        player->x - 3, player->z + rock_dz, player->level, left) < 0 &&
                     ToriRSServer_SceneFindLocId(
-                        player->x + 2, player->z + 12, player->level, right) < 0 )
+                        player->x + 2, player->z + rock_dz, player->level, right) < 0 )
                     removal_tick = tick;
 
                 SELFTEST_CHECK(!(tick_left && (tick_left_seq || tick_right_seq)) &&
@@ -45644,9 +45654,9 @@ ToriRSServer_WorldSelftest(void)
                            cam_reset_tick, rocks_tick);
             {
                 int west_slot = ToriRSServer_SceneFindLocId(
-                    player->x - 3, player->z + 12, player->level, rocks_l);
+                    player->x - 3, player->z + rock_dz, player->level, rocks_l);
                 int east_slot = ToriRSServer_SceneFindLocId(
-                    player->x + 2, player->z + 12, player->level, rocks_r);
+                    player->x + 2, player->z + rock_dz, player->level, rocks_r);
                 struct ToriRSServerSceneLoc* west = ToriRSServer_SceneLoc(west_slot);
                 struct ToriRSServerSceneLoc* east = ToriRSServer_SceneLoc(east_slot);
                 SELFTEST_CHECK(west && west->angle == 3,
@@ -46155,7 +46165,8 @@ ToriRSServer_WorldSelftest(void)
                             { "north-east", 39, 40 },
                         };
                         int base_x = player->x - 31; /* ^inferno_player_zuk_lx */
-                        int base_z = player->z - 40; /* ^inferno_player_zuk_lz */
+                        int base_z = player->z - ToriRSServer_ContentConstantInt(
+                                                     "inferno_player_zuk_lz", -1);
                         int home_x = xil->x;
                         int home_z = xil->z;
                         int glyph_hp;
