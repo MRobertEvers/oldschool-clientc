@@ -130,6 +130,18 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   the wrapping moves into the driver's Lua); searchable; a test's source is reloaded on every
   Play (hot reload); a fresh account per Play; legs files in one sitting; seam23's open list.
   The owner then runs just `./launch run osrs239-scripts`.
+  THEN SEAM25 (`SEAM_TRIAGE_2026-10-05d.md`, bfeb3cc68): what the owner hit when he first
+  watched (2026-10-05): the mouse landed far from the pointer at the login screen in the default
+  window (fixed for him by `TORIRS_HIDPI=0 ./launch run osrs239-scripts -- --soft3d --window
+  765x503`, both together); the camera flickered while a script ran (first cause fixed by the
+  orchestrator, 63ea41d39: a watched client never re-aims for a photograph). Seam23's proof missed
+  the mouse fault: injected clicks enter after the window-to-game mapping. RULE: a watch
+  feature's proof goes through the real SDL event path.
+  THE OWNER WATCHES FROM `build/orchestrator/worktrees/raid-watch` (detached, with its own
+  OSRS-Content worktree and cache link; the orchestrator moves it to a landed commit with
+  `git -C <raid-watch> checkout -q --detach <commit>` after each watch-related landing, and
+  rebuilds with `./launch run osrs239-scripts --no-client`). NEVER tell the owner to launch from
+  worktrees/raid while a pass runs there: workers edit it (he ran a half-edited tree once).
   THEN relaunch the Normal three-player pass with the same args and the seam22 notes.
 - OWNER, 2026-10-05, Verzik P1 for a trio: "the players need to take the dawnbringer from the
   skeleton on the ground after xarpus. That weapon does not have the shield penalty and the
