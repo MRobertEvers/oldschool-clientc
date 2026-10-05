@@ -98,7 +98,7 @@ return {
 
         local xb_launches = {}
         local melee_splat_ticks = {}
-        local proc_ball_tick, mazes_done, maze, H, hit_dmg, off_launch, refused_n, ok_issue, prayer_disable, potions_drunk, sharks_eaten, death_tick, death_msg_raw, fguard, tb_pending, def_last, def_floor, vuln_casts, def_reads_text, last_anim_tick, cursor_anim, eat_ticks
+                local proc_ball_tick, mazes_done, maze, H, hit_dmg, off_launch, refused_n, ok_issue, prayer_disable, potions_drunk, sharks_eaten, death_tick, death_msg_raw, fguard, tb_pending, def_last, def_floor, vuln_casts, def_reads_text, last_anim_tick, cursor_anim, eat_ticks
         do
             ------------------------------------------------------------------
             -- 2. the fight: phases 1..3 by mazes done
@@ -124,6 +124,62 @@ return {
             tb_pending, def_last, def_floor, vuln_casts = false, nil, nil, 0
             def_reads_text, last_anim_tick, cursor_anim = "none", -100, 0
             eat_ticks = {}                 -- ticks a food or potion was sent: it delays the player's queued hits
+            -- sotetseg.ball_prayer_read_tick (Blert, seam20): the ordinary ball reads the protection prayer at the LANDING.
+            -- (the other half, prayed at the throw and dropped in flight, is the tenth ball of the main loop below.)
+            -- Trial 1: Protect from Magic OFF when the ball leaves, switched ON in flight -> blocked on the landing tick.
+            local rp_lines, rp_verdicts, rp_lock = {}, {}, "n/a"
+            for trial_n = 1, 1 do
+                local before, after = (trial_n == 2), (trial_n == 1)
+                local tries, got = 0, nil
+                while tries < 4 and got == nil do
+                    tries = tries + 1
+                    local r0 = t.prayer.set("protectfrommagic", before)
+                    for w = 1, 8 do
+                        if r0 == "ok" then break end
+                        t.ticks(1)
+                        r0 = t.prayer.set("protectfrommagic", before)
+                    end
+                    t.ticklog.mark("ball read trial " .. trial_n .. " before=" .. tostring(before))
+                    local _, rpm = t.ticklog.rows({ kind = "mark" })
+                    local rp_m0 = rpm[#rpm]
+                    local rp_throw = nil
+                    for w = 1, 30 do
+                        local _, rpj = t.ticklog.rows({ kind = "projectile", since = rp_m0.serial })
+                        for _, r in ipairs(rpj) do
+                            if r.spotanim == PLAIN_BALL and rp_throw == nil then rp_throw = r end
+                        end
+                        if rp_throw then break end
+                        t.ticks(1)
+                    end
+                    if rp_throw == nil then break end
+                    -- the ball thrown five ticks earlier lands two ticks after this throw and is read then: let it land first
+                    while trial_n == 2 and select(2, t.tick()) < rp_throw.tick + 3 do t.ticks(1) end
+                    local r1 = t.prayer.set("protectfrommagic", after)
+                    t.ticklog.mark("ball read switched " .. tostring(after))
+                    local _, rpm1 = t.ticklog.rows({ kind = "mark" })
+                    local rp_m1 = rpm1[#rpm1]
+                    local land = rp_throw.tick + math.floor(rp_throw.end_cycle / 30)
+                    local verdict, hit = "none", nil
+                    for w = 1, 15 do
+                        local _, rph = t.ticklog.rows({ kind = "hit_player", since = rp_throw.serial })
+                        for _, r in ipairs(rph) do
+                            if hit == nil and r.tick == land and r.hitsplat == 26 and r.damage == 0 then verdict, hit = "prayed", r end
+                            if hit == nil and r.tick == land + 1 and r.npc_slot == wslot and r.damage > 0 then verdict, hit = "unprayed", r end
+                        end
+                        if hit then break end
+                        t.ticks(1)
+                    end
+                    if hit and r1 == "ok" and rp_throw.tick <= rp_m1.tick and rp_m1.tick < land then
+                        got = verdict
+                        rp_lines[#rp_lines + 1] = "throw " .. rp_throw.tick .. " (prayer " .. tostring(before) .. ", switched " .. tostring(after) .. " at tick " .. rp_m1.tick .. "), landing " .. land .. " -> " .. verdict .. " (splat tick " .. hit.tick .. ", damage " .. hit.damage .. ")"
+                    end
+                end
+                rp_verdicts[trial_n] = got or "none"
+            end
+            t.ball_read_on = rp_verdicts[1] == "prayed"
+            t.ball_read_text = table.concat(rp_lines, " | ")
+            t.check("technique.ball_prayer_raised_in_flight", rp_verdicts[1] == "prayed",
+                "Protect from Magic off when the ball left, on in flight: " .. rp_verdicts[1] .. "; " .. t.ball_read_text)
             -- THE PROC-TICK BALL (sotetseg.magic_per_ball_proc_tick), driven: a 5-tick bow (bow_of_faerdhinen) fired without a
             -- break lands every hit at one phase of his 5-tick cycle; that phase is put on "one tick before his attack", so the
             -- hit that crosses the first maze threshold lands on B-1 and the maze procs on B, a tick he throws a ball on. Inside
@@ -456,6 +512,7 @@ return {
                     and hp >= 60 and phase_set < 3 then
                     local dr0, dd0 = t.prayer.set("protectfrommagic", false)
                     t.check("prayer.drop", dr0 == "ok", "prayer off after the tenth ball launched at tick " .. tostring(launch_tick) .. ": " .. tostring(dd0))
+                    t.rp_drop = select(2, t.tick())
                     prayer_dropped = true
                     off_launch = launch_tick
                     -- wait for the unprayed splat right here, a tick at a time: the press that follows is measured from it, so no other work of the loop may run in between
@@ -1138,6 +1195,20 @@ return {
         for _, d in ipairs(ball_dmg) do if d > bmax then bmax = d end end
         t.expect("spec.sotetseg.ball_max_entry", #ball_dmg > 0 and "ok" or "none",
             "measured " .. bmax .. " hp, largest of " .. #ball_dmg .. " unprayed ball splats " .. table.concat(ball_dmg, "/") .. " (spec 22 hp, grade D, tol range)")
+        -- the ball that hurt was thrown at H - 8 (landing H - 1): find its projectile row and the tick the prayer went off
+        t.rp_throw = nil
+        do
+            local _, rp_pj = t.ticklog.rows({ kind = "projectile", since = mark_serial })
+            for _, r in ipairs(rp_pj) do
+                if H ~= nil and r.spotanim == PLAIN_BALL and r.tick == H - 1 - math.floor(r.end_cycle / 30) then t.rp_throw = r end
+            end
+        end
+        t.rp_in_flight = t.rp_throw ~= nil and t.rp_drop ~= nil and t.rp_throw.tick <= t.rp_drop and t.rp_drop < H - 1
+        t.rp_unprayed = t.rp_in_flight and (hit_dmg or 0) > 0
+        t.check("technique.ball_prayer_dropped_in_flight", t.rp_unprayed == true and refused_n >= 1,
+            "ball thrown at tick " .. tostring(t.rp_throw and t.rp_throw.tick) .. " with the prayer up, dropped at tick " .. tostring(t.rp_drop) .. ", landing " .. tostring(H and H - 1) .. ": unprayed splat of " .. tostring(hit_dmg) .. " at tick " .. tostring(H) .. ", then " .. refused_n .. " refused presses; and the first ball, prayer off at the throw and on in flight: " .. tostring(t.ball_read_text))
+        t.check("spec.sotetseg.ball_prayer_read_tick", t.ball_read_on == true and t.rp_unprayed == true and refused_n >= 1,
+            "measured landing (spec landing, grade B, tol exact)")
         t.expect("spec.sotetseg.prayer_disable", prayer_disable > 0 and "ok" or "none",
             "measured " .. prayer_disable .. " ticks, first accepted press issued at tick " .. tostring(ok_issue) .. " after " .. refused_n .. " refused presses following the splat at tick " .. tostring(H) .. " (spec 5 ticks, grade C, tol exact)")
         local fl = {}
