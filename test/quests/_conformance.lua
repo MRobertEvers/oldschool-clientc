@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 181
+-- @verb-count 183
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -161,7 +161,7 @@
 -- @seam-count 172
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 181
+local VERB_COUNT = 183
 local SEAM_COUNT = 172
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
@@ -1371,6 +1371,40 @@ return {
             end
             if result == "ok" then
                 return "hollow", "a test run accepted a stop of its own script: " .. describe(detail)
+            end
+            return result, describe(detail)
+        end)
+
+        -- raid seam24 scripts_tab_every_script: t.drive.tests and t.drive.play
+        -- (VERB_COUNT +2).  On this TEST run both are refused with the reason
+        -- naming the on-demand knob: a test run never reads the scripts
+        -- manifest and its own script is never replaced.  The on-demand path
+        -- (the manifest read, a Play on a fresh account, the reload on every
+        -- Play) is proved headless under TORIRS_DRIVE_ON_DEMAND=1
+        -- (DRIVER_NOTES.md, "Watching a test: the Scripts tab").
+        step("drive.tests", function()
+            local fn = verb("drive", "tests")
+            if not fn then return missing("drive", "tests") end
+            local result, detail = fn(false)
+            if result == "refused" and string.find(tostring(detail), "not an on-demand client", 1, true) then
+                return "ok", "refused on a test run, as it must be: " .. tostring(detail)
+            end
+            if result == "ok" or result == "timeout" then
+                return "hollow", "a test run asked for the scripts manifest: " .. describe(result)
+            end
+            return result, describe(detail)
+        end)
+
+        step("drive.play", function()
+            local fn = verb("drive", "play")
+            if not fn then return missing("drive", "play") end
+            local result, detail = fn({ id = "seam24_probe", source = "tests/raids/nonexistent.lua",
+                fixture = "tests/raids/fixtures/fresh_lumbridge.ini" })
+            if result == "refused" and string.find(tostring(detail), "not an on-demand client", 1, true) then
+                return "ok", "refused on a test run, as it must be: " .. tostring(detail)
+            end
+            if result == "ok" then
+                return "hollow", "a test run accepted a Play: " .. describe(detail)
             end
             return result, describe(detail)
         end)

@@ -26,10 +26,21 @@ struct ToriRS_PluginHost;
 #define PLUGIN_ASSET_SHIPPED_DIR "plugins/assets"
 #define PLUGIN_ASSET_SAVED_DIR "plugin_assets"
 
+/* The scripts manifest the Scripts tab asks for (script/plugins/script_runner.lua
+ * through api.drive.tests): resolved under the script dir by the IO layer like
+ * the plugin manifest, `[test:<id>]` sections. Written by the launcher
+ * (tools/raid_gate/prepare_scripts.py, the osrs239-scripts profile's
+ * [derived:tests] block). */
+#define TESTS_MANIFEST_DEFAULT_PATH "tests/tests.ini"
+
 /** TORIRS_PLUGIN_PREFS overrides; empty disables persistence entirely. */
 char const* PluginPrefs_Path(void);
 /** TORIRS_PLUGIN_MANIFEST overrides; empty loads no scripts. */
 char const* PluginManifest_Path(void);
+
+/** TORIRS_TESTS_MANIFEST overrides (a script-dir-relative path, the
+ *  TORIRS_PLUGIN_MANIFEST convention); never NULL. */
+char const* TestsManifest_Path(void);
 
 /** Read the manifest, register each script, decode saved settings, then start
  *  every enabled plugin. One task because the order between those steps is
@@ -55,6 +66,30 @@ struct ToriRS_Task* CreateTask_PluginAssetWrite(
     char const* saved_path,
     void const* data,
     int size);
+
+/**
+ * Where a script read lands. `data` is the file's bytes (OWNED by the callee,
+ * which frees them) or NULL when there is no such script; `size` is 0 then.
+ * `serial` is the caller's own, handed back so a reply to a superseded request
+ * can be told from the current one.
+ */
+typedef void (*PluginScriptReadDeliver)(
+    void* user,
+    int serial,
+    char const* path,
+    void* data,
+    int size);
+
+/** Read one SCRIPT item -- a path under the script dir, exactly as the plugin
+ *  manifest and the plugin sources are read -- and hand it to `deliver`.
+ *  Every call is a fresh read of the file: nothing is cached, which is what
+ *  makes a test source edited between two Plays the one the second Play runs
+ *  (the Scripts tab, api.drive.play). */
+struct ToriRS_Task* CreateTask_PluginScriptRead(
+    char const* path,
+    int serial,
+    PluginScriptReadDeliver deliver,
+    void* user);
 
 /** Encode the config store now and write it. */
 struct ToriRS_Task* CreateTask_PluginSave(

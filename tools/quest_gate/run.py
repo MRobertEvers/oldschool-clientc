@@ -410,6 +410,10 @@ def write_wrapper_script(quest_file, out_path, pass_through_without_setup=False,
     hitpoints still `stated=false level=10`, the client had not even been
     sent stats) when no setup line had been issued at all.
     """
+    # KEEP IN STEP: the Scripts tab runs a test without this file, through
+    # QD.core_run_test (script/plugins/quest_driver/core.lua), whose
+    # core_run_test_wrapped is a copy of the QUEST.run below (raid seam24). A
+    # change to the setup loop here is the same change there.
     with open(quest_file, "r", encoding="utf-8") as handle:
         source = handle.read()
     if leg_mode:

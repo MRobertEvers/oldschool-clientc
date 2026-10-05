@@ -64,6 +64,14 @@ PluginManifest_Path(void)
     return *configured ? configured : NULL;
 }
 
+char const*
+TestsManifest_Path(void)
+{
+    char const* configured = getenv("TORIRS_TESTS_MANIFEST");
+
+    return configured && *configured ? configured : TESTS_MANIFEST_DEFAULT_PATH;
+}
+
 struct PluginBootEntry
 {
     char name[PLUGIN_BOOT_NAME_MAX];
@@ -531,6 +539,86 @@ CreateTask_PluginAssetRead(
         PLUGIN_ASSET_SHIPPED_DIR,
         plugin_name,
         asset_name);
+    PT_INIT(&task->pt);
+    return &task->task;
+}
+
+/*
+ * One script item, read and handed over. The Scripts tab's manifest and a
+ * chosen test's source and fixture travel this way (torirs_plugin_drive.c,
+ * api.drive.tests / api.drive.play): the same SCRIPT kind the plugin manifest
+ * is, so whatever serves plugins/plugins.ini -- the filesystem natively, the
+ * served script directory on the browser lane -- serves these too.
+ */
+struct Task_PluginScriptRead
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    char path[TORIRS_IOITEM_MAX_PATH];
+    int serial;
+    PluginScriptReadDeliver deliver;
+    void* user;
+};
+
+static int
+Task_PluginScriptRead_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
+{
+    struct Task_PluginScriptRead* task = (struct Task_PluginScriptRead*)task_base;
+    struct ToriRS_IOItem* item;
+
+    PT_BEGIN(&task->pt);
+
+    ToriRS_IO_QueueScript(io, PLUGIN_IO_SLOT, task->path);
+    PT_YIELD(&task->pt);
+
+    item = ToriRS_IO_TaskSlot(io, PLUGIN_IO_SLOT);
+    if( IOITEM_ERROR_CODE(item) == 0 && IOITEM_DATA(item) )
+    {
+        /* Detached: the deliverer owns the buffer now, and the ClearItem
+         * below must not free it. */
+        void* data = IOITEM_DATA(item);
+        int const size = IOITEM_DATA_SIZE(item);
+        IOITEM_DATA(item) = NULL;
+        IOITEM_DATA_SIZE(item) = 0;
+        task->deliver(task->user, task->serial, task->path, data, size);
+    }
+    else
+    {
+        TORIRS_REPORT("plugin: script item '%s' not found\n", task->path);
+        task->deliver(task->user, task->serial, task->path, NULL, 0);
+    }
+    ToriRS_IO_ClearItem(item);
+
+    PT_END(&task->pt);
+}
+
+static struct ToriRS_TaskVTable Task_PluginScriptRead_VTable = {
+    .run = Task_PluginScriptRead_Run,
+    .free = NULL,
+};
+
+struct ToriRS_Task*
+CreateTask_PluginScriptRead(
+    char const* path,
+    int serial,
+    PluginScriptReadDeliver deliver,
+    void* user)
+{
+    struct Task_PluginScriptRead* task;
+
+    assert(path);
+    assert(path[0]);
+    assert(strlen(path) < TORIRS_IOITEM_MAX_PATH);
+    assert(deliver);
+
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_PluginScriptRead_VTable;
+    strcpy(task->task.name, "PluginScriptRead");
+    snprintf(task->path, sizeof(task->path), "%s", path);
+    task->serial = serial;
+    task->deliver = deliver;
+    task->user = user;
     PT_INIT(&task->pt);
     return &task->task;
 }

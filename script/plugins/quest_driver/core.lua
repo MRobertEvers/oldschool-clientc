@@ -711,8 +711,9 @@ end
 --
 -- A client started with TORIRS_DRIVE_ON_DEMAND=1 (profiles/
 -- osrs239-scripts.ini, the Scripts tab) runs no script at world-ready: start
--- names a prepared script (tools/raid_gate/prepare_scripts.py writes them,
--- the same wrapped file run.py runs) and the session directory its ledger and
+-- names an already-wrapped script file (run.py's write_wrapper_script output;
+-- the tab itself uses t.drive.play below since seam24) and the session
+-- directory its ledger and
 -- shots go to, and the coroutine begins on the next frame the world is ready;
 -- stop ends it at its next yield with a `run.unfinished` FAIL row and a
 -- SUMMARY (exit=none), the two lines run.py writes for a run that never
@@ -737,6 +738,22 @@ end
 
 function QD.drive.status()
     return api_drive.status()
+end
+
+-- t.drive.tests([refresh]) / t.drive.play(test) (raid seam24,
+-- scripts_tab_every_script): the Scripts tab's two questions. tests reads the
+-- scripts manifest (tests/tests.ini, [test:<id>] sections) through the IO
+-- layer the way the plugin host reads plugins/plugins.ini, answering
+-- "timeout" while the read is in flight and the text once it lands; refresh
+-- asks again. play({id, source, fixture, suite, title, legs}) plays the test
+-- file as it sits in the tree on a fresh account (QD.core_run_test below) and
+-- answers the account. On a TEST run both answer `refused`.
+function QD.drive.tests(refresh)
+    return api_drive.tests(refresh)
+end
+
+function QD.drive.play(test)
+    return api_drive.play(test)
 end
 
 -- t.finish(code): write the ledger's SUMMARY row and END THE RUN.
@@ -968,4 +985,311 @@ function QD.core_legs_drive(quest, opts)
         QD.finish(0)
     end
     return report
+end
+
+-- QD.core_run_test(loader, options): THE SCRIPTS TAB'S RUNNER (raid seam24,
+-- scripts_tab_every_script). Not a verb: the coroutine a Play starts
+-- (torirs_plugin_drive.c api.drive.play -> PluginLua_TestThreadCreate) calls
+-- it with the RAW test file compiled as `loader` and the Play's options
+-- {id, suite, title, account, password, source, legs}.
+--
+-- run.py runs a test through a wrapper it writes (tools/quest_gate/run.py
+-- write_wrapper_script): the test's source embedded verbatim, the legs shim,
+-- then a QUEST.run that waits for the login grant and runs the setup list.
+-- A watched Play has no such file -- nothing is pre-generated and the source
+-- is read again on every Play -- so this does the same here, in this order:
+--
+--   1. the test's table, built and checked exactly as the wrapper does (a
+--      legs file becomes the one run that calls t.core_legs_drive with no
+--      checkpoint: run.py's FULL run, every leg in one sitting, no relog);
+--   2. the shot latch is settled (below);
+--   3. the account: log out of whoever is in the world (t.session.logout's
+--      click path) and log in as options.account, whose save the C side
+--      wrote from the test's fixture -- a fresh account per Play, as every
+--      test assumes; a failure is ONE FAIL row, watch.account, and the end;
+--   4. core_run_test_wrapped below: write_wrapper_script's QUEST.run, copied
+--      from the Lua run.py generates (every comment dropped; run.py's
+--      docstring and the generated file carry them), so the login-grant wait
+--      and the setup list are the ones a test run gets.
+--
+-- Nothing here runs on a test run: the bootstrap that calls it exists only in
+-- an on-demand client. KEEP core_run_test_wrapped IN STEP with
+-- write_wrapper_script: a change there is a change here.
+local function core_run_test_wrapped(quest_setup, quest_run)
+    return function(t)
+        t.await({ level = function()
+            for slot = 0, 27 do
+                local slot_result, cell = t.inv.slot(slot)
+                if slot_result == "ok" and cell.name ~= "" and cell.count ~= 0 then
+                    return true
+                end
+            end
+            return false
+        end, note = "setup: the login grant" }, 10)
+        t.settle()
+        local function setup_give(text)
+            local name, count = string.match(text, "^%s*:*give%s+([%w_]+)%s*(%d*)")
+            if not name then
+                return nil
+            end
+            local wanted = tonumber(count)
+            if not wanted or wanted < 1 then
+                wanted = 1
+            end
+            return name, wanted
+        end
+        local function setup_backpack_mark()
+            local mark = 0
+            for slot = 0, 27 do
+                local slot_result, cell = t.inv.slot(slot)
+                if slot_result == "ok" and cell.name ~= "" and cell.count ~= 0 then
+                    mark = mark + cell.count + 1
+                end
+            end
+            return mark
+        end
+        local function setup_backpack_empty()
+            for slot = 0, 27 do
+                local slot_result, cell = t.inv.slot(slot)
+                if slot_result == "ok" and cell.name ~= "" and cell.count ~= 0 then
+                    return false
+                end
+            end
+            return true
+        end
+        local function setup_setlevel(text)
+            if not string.match(text, "^%s*:*setlevel") then
+                return nil
+            end
+            local stat, level = string.match(text, "^%s*:*setlevel%s+(%a[%w_]*)%s+(%d+)%s*$")
+            if not stat then
+                return "", nil
+            end
+            return stat, tonumber(level)
+        end
+        local function setup_wield(text)
+            return string.match(text, "^%s*:*wield%s+([%w_]+)%s*$")
+        end
+        local function setup_last_lines(n)
+            local lines_result, rows = t.msg.last(n)
+            if lines_result ~= "ok" or type(rows) ~= "table" then
+                return "(no chat lines)"
+            end
+            local texts = {}
+            for i = 1, #rows do
+                texts[#texts + 1] = "'" .. tostring(rows[i].text) .. "'"
+            end
+            return table.concat(texts, " / ")
+        end
+        local function setup_failed(cheat, why)
+            t.step("setup." .. cheat, "FAIL",
+                why .. " -- the world this quest assumes was never stated")
+            t.finish(1)
+        end
+        if type(quest_setup) == "table" then
+            for _, cheat in ipairs(quest_setup) do
+                local give_name, give_count = setup_give(cheat)
+                local before = nil
+                local before_mark = nil
+                if give_name then
+                    local count_result, count_total = t.inv.count(give_name)
+                    if count_result == "ok" then
+                        before = count_total
+                    else
+                        before_mark = setup_backpack_mark()
+                    end
+                end
+                local wield_name = setup_wield(cheat)
+                local worn_before = nil
+                if wield_name then
+                    local worn_result, worn_count = t.ui._worn_count(wield_name)
+                    if worn_result ~= "ok" then
+                        setup_failed(cheat, "cannot read the worn container for "
+                            .. wield_name .. " (" .. tostring(worn_result) .. " "
+                            .. tostring(worn_count) .. "), so a wield could never be"
+                            .. " proved")
+                        return
+                    end
+                    worn_before = worn_count
+                elseif string.match(cheat, "^%s*:*wield") then
+                    setup_failed(cheat, "not `::wield <item_name>`: a line the"
+                        .. " read-back cannot name is a wield nobody can prove")
+                    return
+                end
+                local level_stat, level_wanted = setup_setlevel(cheat)
+                if level_stat == "" then
+                    setup_failed(cheat, "not `::setlevel <stat name> <level>`: the"
+                        .. " engine answers ok to it and sets nothing, and a numeric"
+                        .. " stat id cannot be read back to prove it landed")
+                    return
+                end
+                local setup_result, setup_detail = t.cheat(cheat)
+                if setup_result ~= "ok" then
+                    setup_failed(cheat, "setup cheat answered "
+                        .. tostring(setup_result)
+                        .. " (" .. tostring(setup_detail) .. "); last lines: "
+                        .. setup_last_lines(2))
+                    return
+                end
+                if before ~= nil then
+                    local landed = t.inv.await(give_name, before + give_count, 10)
+                    if landed ~= "ok" then
+                        local after_result, after_total = t.inv.count(give_name)
+                        if after_result ~= "ok" or after_total <= before then
+                            setup_failed(cheat, "the cheat answered ok and no "
+                                .. give_name
+                                .. " reached the backpack within 10 ticks (held "
+                                .. tostring(before) .. " before, "
+                                .. tostring(after_total) .. " after)")
+                            return
+                        end
+                    end
+                elseif before_mark ~= nil then
+                    local moved = t.await({ level = function()
+                        return setup_backpack_mark() ~= before_mark
+                    end, note = "setup: ::give reaching the backpack" }, 10)
+                    if moved ~= "ok" then
+                        setup_failed(cheat, "the cheat answered ok and the backpack"
+                            .. " did not change within 10 ticks (" .. give_name
+                            .. " is not an obj this client can count, so every"
+                            .. " slot was watched instead)")
+                        return
+                    end
+                elseif worn_before ~= nil then
+                    local worn_last = worn_before
+                    local worn_landed = t.await({ level = function()
+                        local read_result, reading = t.ui._worn_count(wield_name)
+                        if read_result == "ok" then
+                            worn_last = reading
+                        end
+                        return read_result == "ok" and reading > worn_before
+                    end, note = "setup: ::wield reaching the worn container" }, 10)
+                    if worn_landed ~= "ok" then
+                        setup_failed(cheat, "the cheat answered ok and " .. wield_name
+                            .. " is not worn 10 ticks later (worn " .. tostring(worn_before)
+                            .. " before, " .. tostring(worn_last) .. " after); last lines: "
+                            .. setup_last_lines(3))
+                        return
+                    end
+                elseif level_stat ~= nil then
+                    local level_last = "unread"
+                    local level_landed = t.await({ level = function()
+                        local read_result, reading = t.skill.read(level_stat)
+                        if read_result ~= "ok" then
+                            level_last = tostring(read_result) .. " " .. tostring(reading)
+                            return false
+                        end
+                        level_last = "stated=" .. tostring(reading.stated)
+                            .. " base_level=" .. tostring(reading.base_level)
+                        return reading.stated and reading.base_level == level_wanted
+                    end, note = "setup: ::setlevel reaching the client" }, 10)
+                    if level_landed ~= "ok" then
+                        setup_failed(cheat, "the cheat answered ok and " .. level_stat
+                            .. " never read base_level " .. tostring(level_wanted)
+                            .. " within 10 ticks (last reading: " .. level_last .. ")")
+                        return
+                    end
+                elseif string.match(cheat, "^%s*:*clearinv") then
+                    local cleared = t.await({ level = setup_backpack_empty,
+                        note = "setup: ::clearinv reaching the client" }, 10)
+                    if cleared ~= "ok" then
+                        setup_failed(cheat, "the cheat answered ok and the"
+                            .. " backpack still holds items 10 ticks later")
+                        return
+                    end
+                end
+            end
+            t.ticks(1)
+            t.settle()
+        end
+        return quest_run(t)
+    end
+end
+
+local CORE_RUN_TEST_SHOT = "watch-start"
+
+-- The shot latch (torirs_plugin_drive_ui.c, one capture outstanding at a
+-- time) is C state that outlives the run that requested it: a run that ended
+-- with a capture still in flight -- a t.shot whose await timed out, a script
+-- error during one -- left it for this run's FIRST t.shot to collect, which
+-- then names the last run's picture (seam23, tob_bloat's 001 row naming
+-- maiden's 006). One capture here, before anything else, settles it: if a
+-- stale request is pending this poll collects it (its file lands in the OLD
+-- session's shots/), otherwise it photographs the world as Play found it.
+-- Either way the latch is empty when the test's own first t.shot asks.
+local function core_run_test_settle_shot()
+    local result, detail = api_drive.shot(CORE_RUN_TEST_SHOT, false)
+    if result == "timeout" then
+        await({ level = function()
+            result, detail = api_drive.shot(CORE_RUN_TEST_SHOT, false)
+            return result ~= "timeout"
+        end, note = "watch: the shot latch" }, 10)
+    end
+    api_drive.report("watch: shot latch settled: " .. tostring(result) .. " " .. tostring(detail))
+end
+
+function QD.core_run_test(loader, options)
+    assert(type(loader) == "function", "core_run_test: loader is not the compiled test")
+    assert(type(options) == "table", "core_run_test: no options table")
+    local QUEST = loader()
+    if type(QUEST) == "table" and QUEST.legs ~= nil then
+        local legs_quest = QUEST
+        QUEST = { setup = legs_quest.setup, run = function(t)
+            return t.core_legs_drive(legs_quest, { from = nil, only = false, tile = nil })
+        end }
+    end
+    if type(QUEST) ~= "table" or type(QUEST.run) ~= "function" then
+        error("quest file did not return { run = function(t) ... end }"
+            .. " or { legs = { { name =, run = function(t) ... end }, ... } }")
+    end
+    local quest_setup = QUEST.setup
+    if quest_setup ~= nil and type(quest_setup) ~= "table" then
+        error("quest file's setup is a " .. type(quest_setup)
+            .. ", not a table of cheat lines")
+    end
+    core_run_test_settle_shot()
+    local out_result, out_detail = QD.session.logout()
+    if out_result ~= "ok" then
+        QD.step("watch.account", "FAIL", "logging the watcher's account out answered "
+            .. tostring(out_result) .. ": " .. tostring(out_detail))
+        QD.finish(1)
+        return
+    end
+    -- The client's varps outlive the logout (torirs_plugin_drive.c
+    -- lua_drive_forget_varps says what that broke); forget them before the
+    -- fresh account's arrive, as a fresh process would have none.
+    local forget_result, forget_detail = api_drive.forget_varps()
+    if forget_result ~= "ok" then
+        QD.step("watch.account", "FAIL", "forgetting the last account's varps answered "
+            .. tostring(forget_result) .. ": " .. tostring(forget_detail))
+        QD.finish(1)
+        return
+    end
+    local in_result, in_detail = QD.session.login(options.account, options.password)
+    if in_result ~= "ok" then
+        QD.step("watch.account", "FAIL", "logging in as the fresh account " .. tostring(options.account)
+            .. " answered " .. tostring(in_result) .. ": " .. tostring(in_detail))
+        QD.finish(1)
+        return
+    end
+    -- The camera as the first Play found it (torirs_plugin_drive.c
+    -- g_demand_camera_*): the last test's camera verbs and a logout leave the
+    -- pose where they put it, and a fresh process would start from the
+    -- client's own.
+    local camera = options.camera
+    local camera_result = "none"
+    if type(camera) == "table" then
+        camera_result = api_drive.camera(camera.yaw, camera.pitch, camera.zoom)
+        if camera_result ~= "ok" then
+            QD.step("watch.account", "FAIL", "putting the camera back to yaw=" .. tostring(camera.yaw)
+                .. " pitch=" .. tostring(camera.pitch) .. " zoom=" .. tostring(camera.zoom)
+                .. " answered " .. tostring(camera_result))
+            QD.finish(1)
+            return
+        end
+    end
+    api_drive.report(string.format("watch: camera %s; %s (%s) on %s: %s; %s", tostring(camera_result),
+        tostring(options.id),
+        tostring(options.suite), tostring(options.account), tostring(out_detail), tostring(in_detail)))
+    return core_run_test_wrapped(quest_setup, QUEST.run)(QD)
 end

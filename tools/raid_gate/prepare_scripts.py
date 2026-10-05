@@ -1,39 +1,56 @@
 #!/usr/bin/env python3
-"""Write the driver scripts a WATCHED client can play, and their index.
+"""Write the scripts manifest a WATCHED client asks for: script/tests/tests.ini.
 
-    python3 tools/raid_gate/prepare_scripts.py [--out build/quest_gate/_scripts]
+    python3 tools/raid_gate/prepare_scripts.py [--out script/tests/tests.ini]
+                                               [--suite <name>=<directory> ...]
 
-A watched client (TORIRS_DRIVE_ON_DEMAND=1, profiles/osrs239-scripts.ini, the
-Scripts tab) starts a script with api.drive.start(path, session_dir). The path
-it is handed must be what run.py itself would run: the test file wrapped by
-run.py's own write_wrapper_script, so the setup cheats, the login-grant wait,
-the give/count checks and the legs harness are the ones a test run gets. This
-writes one such file per test under test/raids/ and an index the tab reads:
+The Scripts tab (script/plugins/script_runner.lua) asks for this file through
+the IO layer exactly the way the plugin host asks for plugins/plugins.ini
+(src/plugin/task_plugin_io.c: one SCRIPT item, resolved under the script
+directory; natively the filesystem, on the browser lane the served script
+directory), and when Play is pressed it asks for the chosen test's source and
+its fixture the same way. Nothing is pre-generated per test: the source is the
+test file itself, read where it lives, again on every Play (hot reload).
 
-    index.tsv   id  title  path  max_frames  fixture  available  reason
+Nobody runs this by hand. The launcher runs it on every `./launch run
+osrs239-scripts` from the profile's `[derived:tests]` block
+(tools/launcher/profiles.py, run_profile_derived), so the list is never older
+than the launch. Run it yourself, then press Refresh in the tab, to list a test
+file you created after the client started.
 
-  - A file whose name starts with `_` is a harness, not a test, and is skipped
-    (_party_smoke).
-  - A test that declares `party = <n>` needs n clients in lock step
-    (run.py run_party); one watched client cannot play it. It is listed with
-    available=0 and that reason, and no script is written for it.
-  - A test whose fixture is not fresh_lumbridge.ini needs a character the
-    watch account does not have (the watch account is whoever logged in; a
-    fixture is staged by run.py before login, never by the driver). It is
-    listed with available=0 and the fixture named. Every raid room today is
-    on fresh_lumbridge.ini and its setup is bring-alongs plus t.raid.enter,
-    so a prepared room runs on any account at staff level 2.
-  - Quests (test/quests/) are not listed yet: a quest needs its fixture at
-    login (a later pass).
+THE MANIFEST, one section per test, in TEST_SUITES order then by id:
 
-`max_frames` is the test's own frame budget as run.py reads it. A watched run
-is not bounded by it (the client runs until its person closes it); the tab
-may show it as the run's expected length.
+    [test:<id>]
+    suite=quest|raid
+    title=<a human title>
+    source=tests/quests/<id>.lua        ; resolved under the script directory
+    fixture=tests/quests/fixtures/<fixture>.ini
+    legs=<n>                            ; 0 for a run = function(t) file
+    party=<n>                           ; 1 for a solo test
+    max_frames=<n>                      ; run.py's budget; a watched run is not bounded by it
+    available=1|0
+    reason=<why not, when 0>
 
-Nothing here changes what run.py does: it only imports run.py's readers and
-its wrapper writer.
+HOW A SOURCE IS READABLE AS A SCRIPT ITEM. The IO layer resolves a script path
+under ONE root (script/, or TORIRS_SCRIPT_DIR), and io_server refuses a path
+containing `..` (src/ioserver/io_server_main.c), so `../test/quests/x.lua` would
+work natively and fail when the script directory is served. The tests
+directories are therefore reached through two committed directory links,
+script/tests/quests -> ../../test/quests and script/tests/raids ->
+../../test/raids: a read through the link IS a read of the file in the tree
+(no copy, nothing to go stale), and io_server's fopen follows it the same way.
+A suite given with --suite and a directory outside script/ (a scratch tests
+root for a proof) is named by its path relative to the script directory, which
+only the native lane can read.
+
+`_` files are harnesses, not tests (_conformance, _party_smoke, ...) and are
+skipped. A test that declares `party = <n>` needs n clients in lock step (run.py
+run_party): listed, available=0. A test whose fixture file is absent: listed,
+available=0. Everything else is available: Play gives it a fresh account made
+from its own fixture (src/plugin/torirs_plugin_drive.c, api.drive.play).
+
+Nothing here changes what run.py does: it only imports run.py's readers.
 """
-
 import argparse
 import os
 import re
@@ -52,10 +69,16 @@ _spec = importlib.util.spec_from_file_location("quest_gate_run", os.path.join(QU
 quest_run = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(quest_run)
 
-DEFAULT_OUT = os.path.join(REPO_ROOT, "build", "quest_gate", "_scripts")
-TESTS_DIR = os.path.join(REPO_ROOT, "test", "raids")
-INDEX_NAME = "index.tsv"
-INDEX_HEADER = ("id", "title", "path", "max_frames", "fixture", "available", "reason")
+SCRIPT_ROOT = os.path.join(REPO_ROOT, "script")
+DEFAULT_OUT = os.path.join(SCRIPT_ROOT, "tests", "tests.ini")
+
+# THE ONE TABLE OF TESTS DIRECTORIES. A new suite (the waves tests, when that
+# branch merges) is one line here plus its link under script/tests/:
+#   (suite name, directory in the tree, the same directory under the script root)
+TEST_SUITES = [
+    ("quest", "test/quests", "tests/quests"),
+    ("raid", "test/raids", "tests/raids"),
+]
 
 RAID_NAMES = {
     "tob": "Theatre of Blood",
@@ -64,6 +87,11 @@ RAID_NAMES = {
 }
 ENTER_RE = re.compile(
     r'raid\.enter\(\s*"(?P<raid>\w+)"\s*,\s*"(?P<room>\w+)"\s*,\s*\{\s*mode\s*=\s*"(?P<mode>\w+)"')
+# The first line of a quest file is, by habit, `-- <Quest name>[: , -- ( .] ...`.
+TITLE_LINE_RE = re.compile(r"^--\s*(?P<text>.+)$")
+TITLE_CUT_RE = re.compile(r"\s+--\s+|[:.,(]|\s+-\s+")
+TITLE_TAIL_RE = re.compile(r"\s+(quest test|quest|test)$", re.IGNORECASE)
+TITLE_MAX = 40
 
 
 def words(name):
@@ -71,79 +99,144 @@ def words(name):
     return " ".join(part.capitalize() for part in name.split("_"))
 
 
-def title_for(test_id, source, party):
+def quest_title(test_id, source):
+    """The quest's display name off the file's first comment line (`-- Cook's
+    Assistant, end to end ...` -> `Cook's Assistant`), else the id with
+    underscores as spaces."""
+    first = source.lstrip("﻿").split("\n", 1)[0].strip()
+    match = TITLE_LINE_RE.match(first)
+    if match:
+        text = TITLE_CUT_RE.split(match.group("text"), 1)[0].strip()
+        text = TITLE_TAIL_RE.sub("", text).strip()
+        if 2 <= len(text) <= TITLE_MAX:
+            return text
+    return test_id.replace("_", " ")
+
+
+def raid_title(test_id, source, party):
     """`Theatre of Blood, Maiden, Entry solo` from the test's own first
-    t.raid.enter(raid, room, {mode = ...}); the id when it has none."""
+    t.raid.enter(raid, room, {mode = ...}); the id with spaces when it has none."""
     match = ENTER_RE.search(source)
     if not match:
-        return test_id
+        return test_id.replace("_", " ")
     raid = RAID_NAMES.get(match.group("raid"), match.group("raid").upper())
     who = "solo" if party == 1 else ("trio" if party == 3 else "party of %d" % party)
     return "%s, %s, %s %s" % (raid, words(match.group("room")), words(match.group("mode")), who)
 
 
 def clean(text):
-    """One TSV cell: no tab, no newline."""
-    return " ".join(str(text).split())
+    """One ini value: one line, no `;` (the reader would take it as a comment)."""
+    return " ".join(str(text).replace(";", ",").split())
 
 
-def prepare(out_dir, tests_dir):
-    assert out_dir
-    assert tests_dir
-    os.makedirs(out_dir, exist_ok=True)
-    rows = []
-    for name in sorted(os.listdir(tests_dir)):
+def script_path(directory_script_path, *parts):
+    """A path under the script root, with forward slashes (io_server refuses a
+    backslash)."""
+    return "/".join([directory_script_path.rstrip("/")] + list(parts))
+
+
+def describe(suite, directory, directory_script_path):
+    """One manifest entry per test file in `directory`, sorted by id."""
+    assert suite
+    assert directory
+    entries = []
+    if not os.path.isdir(directory):
+        return entries
+    for name in sorted(os.listdir(directory)):
         if not name.endswith(".lua") or name.startswith("_"):
             continue
-        test_file = os.path.join(tests_dir, name)
+        test_file = os.path.join(directory, name)
         test_id = name[:-len(".lua")]
         with open(test_file, "r", encoding="utf-8") as handle:
             source = handle.read()
         party = quest_run.read_party_size(test_file)
         fixture = quest_run.read_fixture_name(test_file)
         max_frames = quest_run.read_max_frames(test_file)
+        _, layout = quest_run.legs_source(test_file)
+        legs = len(layout["legs"]) if layout else 0
+        title = raid_title(test_id, source, party) if suite == "raid" else quest_title(test_id, source)
         reason = ""
         if party > 1:
-            reason = ("party of %d: needs %d clients in lock step (run.py runs it); "
-                      "one watched client cannot" % (party, party))
-        elif fixture != quest_run.DEFAULT_FIXTURE:
-            reason = ("needs fixture %s at login, which the watch account (whoever logged "
-                      "in) does not have" % fixture)
-        script_path = ""
-        stale = os.path.join(out_dir, "%s.lua" % test_id)
-        if not reason:
-            script_path = stale
-            quest_run.write_wrapper_script(test_file, script_path)
-        elif os.path.exists(stale):
-            # A test that WAS playable and no longer is must not leave a
-            # script behind that the index no longer vouches for.
-            os.unlink(stale)
-        rows.append((test_id, title_for(test_id, source, party), script_path, max_frames,
-                     fixture, 0 if reason else 1, reason))
-    index_path = os.path.join(out_dir, INDEX_NAME)
-    temporary = index_path + ".tmp"
-    with open(temporary, "w", encoding="utf-8") as handle:
-        handle.write("\t".join(INDEX_HEADER) + "\n")
-        for row in rows:
-            handle.write("\t".join(clean(cell) for cell in row) + "\n")
-    os.replace(temporary, index_path)
-    return index_path, rows
+            reason = "needs %d clients (a party of %d plays in lock step under run.py)" % (party, party)
+        elif not os.path.isfile(os.path.join(directory, "fixtures", fixture)):
+            reason = "no fixture %s beside it" % fixture
+        entries.append({
+            "id": test_id,
+            "suite": suite,
+            "title": title,
+            "source": script_path(directory_script_path, name),
+            "fixture": script_path(directory_script_path, "fixtures", fixture),
+            "legs": legs,
+            "party": party,
+            "max_frames": max_frames,
+            "available": 0 if reason else 1,
+            "reason": reason,
+        })
+    return entries
+
+
+FIELDS = ("suite", "title", "source", "fixture", "legs", "party", "max_frames", "available", "reason")
+
+
+def write_manifest(out_path, suites):
+    """Write the manifest for `suites` [(name, directory, script path)];
+    returns the entries. Atomic: a client reading it mid-write sees the old
+    one or the new one, never half."""
+    assert out_path
+    entries = []
+    for suite, directory, directory_script_path in suites:
+        entries.extend(describe(suite, directory, directory_script_path))
+    lines = [
+        "; GENERATED by tools/raid_gate/prepare_scripts.py (the osrs239-scripts profile's",
+        "; [derived:tests] block runs it on every launch). Edits here are overwritten.",
+        "; One [test:<id>] per test file; paths are under the script directory.",
+        "",
+    ]
+    for entry in entries:
+        lines.append("[test:%s]" % entry["id"])
+        for field in FIELDS:
+            lines.append("%s=%s" % (field, clean(entry[field])))
+        lines.append("")
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    temporary = out_path + ".tmp"
+    with open(temporary, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write("\n".join(lines))
+    os.replace(temporary, out_path)
+    return entries
+
+
+def parse_suite(text):
+    """`--suite raid=<directory>`: that suite read from <directory> instead,
+    named by its path relative to the script root."""
+    name, separator, directory = text.partition("=")
+    if not separator or not name or not directory:
+        raise argparse.ArgumentTypeError("--suite wants <name>=<directory>, got %r" % text)
+    directory = os.path.abspath(directory)
+    relative = os.path.relpath(directory, SCRIPT_ROOT).replace(os.sep, "/")
+    return name, directory, relative
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--out", default=DEFAULT_OUT,
-                        help="where the scripts and index.tsv go (default %(default)s)")
-    parser.add_argument("--tests", default=TESTS_DIR,
-                        help="the test directory to prepare (default %(default)s)")
+                        help="where the manifest goes (default %(default)s)")
+    parser.add_argument("--suite", action="append", type=parse_suite, default=[],
+                        help="<name>=<directory>: read that suite from another directory "
+                             "(a scratch tests root); only the suites named are written")
     arguments = parser.parse_args()
-    out_dir = os.path.abspath(arguments.out)
-    index_path, rows = prepare(out_dir, os.path.abspath(arguments.tests))
-    available = sum(1 for row in rows if row[5])
-    print("prepare_scripts: %d script(s) playable, %d listed unavailable -> %s"
-          % (available, len(rows) - available, index_path))
-    for row in rows:
-        print("  %-22s %s%s" % (row[0], "ok " if row[5] else "-- ", row[6] or row[1]))
+    if arguments.suite:
+        suites = arguments.suite
+    else:
+        suites = [(name, os.path.join(REPO_ROOT, directory), directory_script_path)
+                  for name, directory, directory_script_path in TEST_SUITES]
+    out_path = os.path.abspath(arguments.out)
+    entries = write_manifest(out_path, suites)
+    counts = []
+    for suite, _, _ in suites:
+        listed = [entry for entry in entries if entry["suite"] == suite]
+        available = sum(1 for entry in listed if entry["available"])
+        counts.append("%s %d listed, %d available" % (suite, len(listed), available))
+    print("tests manifest: %s: %s" % (os.path.relpath(out_path, REPO_ROOT), "; ".join(counts)))
     return 0
 
 

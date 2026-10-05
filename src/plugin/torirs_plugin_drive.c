@@ -25,10 +25,13 @@
 #include "game/rs_entity_sync.h"
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_lua.h"
+#include "plugin/task_plugin_io.h"
 #include "torirsserver/torirs_server.h"
 #include "torirsserver/torirs_server_boot.h"
 #include "torirsserver/torirs_server_content.h"
 #include "torirsserver/torirs_server_embed.h"
+#include "torirsserver/torirs_server_save.h"
+#include "varp/varp_manager.h"
 
 #include "lauxlib.h"
 #include "lua.h"
@@ -36,6 +39,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
 #ifdef _WIN32
@@ -241,6 +245,55 @@ static int g_demand_runs;
 static char g_last_row_step[128];
 static char g_last_row_verdict[16];
 static char g_summary_line[256];
+
+/* THE SCRIPTS TAB (raid seam24, scripts_tab_every_script). A script item read
+ * through the IO layer (task_plugin_io.c CreateTask_PluginScriptRead): none,
+ * in flight, landed, or absent. */
+enum DriveFetch
+{
+    DRIVE_FETCH_NONE,
+    DRIVE_FETCH_PENDING,
+    DRIVE_FETCH_READY,
+    DRIVE_FETCH_MISSING,
+};
+
+/* The scripts manifest (tests/tests.ini), as the tab last asked for it. */
+static enum DriveFetch g_tests_state = DRIVE_FETCH_NONE;
+static char* g_tests_bytes;
+static int g_tests_size;
+static int g_tests_serial;
+
+/* A Play (api.drive.play): the test, the fresh account it plays on, and its
+ * source and fixture as the IO layer delivered them for THIS Play. The serial
+ * drops a late reply to a Play that was stopped before it landed. */
+static int g_demand_play;
+static char g_demand_id[64];
+static char g_demand_suite[16];
+static char g_demand_title[192];
+static char g_demand_fixture_path[TORIRS_IOITEM_MAX_PATH];
+static char g_demand_account[16];
+static int g_demand_legs;
+static int g_demand_leg;
+static int g_demand_fetch_serial;
+static enum DriveFetch g_demand_source_state;
+static enum DriveFetch g_demand_fixture_state;
+static char* g_demand_source_bytes;
+static int g_demand_source_size;
+static char* g_demand_fixture_bytes;
+static int g_demand_fixture_size;
+/* Why the last Play never began (a missing source, a fixture that could not
+ * be written): read back by api.drive.status, cleared by the next Play. */
+static char g_demand_refusal[600];
+/* The camera pose the client had when the FIRST Play was pressed: what every
+ * later Play's fresh account starts with (QD.core_run_test puts it back after
+ * the log-in). A test's camera verbs leave the pose where they put it, and a
+ * logout does not reset it -- measured, seam24 fin3: tob_verzik after five
+ * rooms started top-down and its click on Verzik found nothing, while the same
+ * Play as the first of a client passed verzik.talk. */
+static int g_demand_camera_saved;
+static int g_demand_camera_yaw;
+static int g_demand_camera_pitch;
+static int g_demand_camera_zoom;
 
 char const*
 PluginDrive_QuestScriptPath(void)
@@ -684,6 +737,10 @@ drive_ledger_write(char const* step, char const* verdict, int ticks, char const*
     g_ledger_total_ticks += ticks;
     snprintf(g_last_row_step, sizeof(g_last_row_step), "%s", step);
     snprintf(g_last_row_verdict, sizeof(g_last_row_verdict), "%s", verdict);
+    /* A legs file's rows are `leg.<k>.<name>` (QD.core_legs_drive): the tab's
+     * "leg k of n". Status bookkeeping only; nothing written changes. */
+    if( PluginDrive_OnDemand() && strncmp(step, "leg.", 4) == 0 && atoi(step + 4) > 0 )
+        g_demand_leg = atoi(step + 4);
     if( strcmp(verdict, "PASS") == 0 )
         g_ledger_pass++;
     else if( strcmp(verdict, "BLOCKED") == 0 )
@@ -1200,8 +1257,11 @@ drive_heartbeat(void)
 
 #ifdef _WIN32
 #define DRIVE_MKDIR(path) _mkdir(path)
+#define DRIVE_GETCWD(buffer, capacity) _getcwd((buffer), (int)(capacity))
 #else
+#include <unistd.h>
 #define DRIVE_MKDIR(path) mkdir((path), 0755)
+#define DRIVE_GETCWD(buffer, capacity) getcwd((buffer), (capacity))
 #endif
 
 /* `mkdir -p`. 0 when the directory exists afterwards. */
@@ -1261,6 +1321,299 @@ drive_demand_reset_run(void)
     g_await.active = 0;
     g_await.level_ref = LUA_NOREF;
     g_await.match_ref = LUA_NOREF;
+    g_demand_leg = 0;
+}
+
+/* ------------------------------------------------------------ the Scripts tab
+ *
+ * Raid seam24 (scripts_tab_every_script; torirs_plugin_drive.h,
+ * PluginDrive_OnDemand). The tab asks for the scripts manifest and for a
+ * chosen test's source and fixture through the IO layer -- SCRIPT items, the
+ * kind plugins/plugins.ini is (task_plugin_io.c CreateTask_PluginScriptRead)
+ * -- and a Play runs the test file itself on a FRESH account:
+ *
+ *   api.drive.play(test)  validates, picks the account (the id's letters and
+ *                         a number, the first whose save file does not
+ *                         exist yet), makes its session dir
+ *                         build/quest_gate/watch/<account>/ and queues the two
+ *                         reads. Every Play reads the source again: nothing
+ *                         is cached, which is the hot reload.
+ *   the deliveries        land in g_demand_source/fixture_bytes.
+ *   the next pump         the world is ready and both have landed:
+ *                         drive_demand_begin_play writes the fixture as the
+ *                         account's save (run.py's write_session_fixture, in
+ *                         C because the sandbox has no io and C holds the
+ *                         bytes) and starts the coroutine on the RAW test
+ *                         (PluginLua_TestThreadCreate), whose bootstrap calls
+ *                         QD.core_run_test: log out, log in as the account,
+ *                         then what run.py's wrapper does (the login-grant
+ *                         wait, the setup list, a legs table in one sitting).
+ */
+
+#define DRIVE_WATCH_ROOT "build/quest_gate/watch"
+#define DRIVE_WATCH_PASSWORD "test"
+
+static void
+drive_tests_deliver(void* user, int serial, char const* path, void* data, int size)
+{
+    (void)user;
+    assert(path);
+    if( serial != g_tests_serial )
+    {
+        free(data); /* a Refresh superseded this read */
+        return;
+    }
+    free(g_tests_bytes);
+    g_tests_bytes = (char*)data;
+    g_tests_size = data ? size : 0;
+    g_tests_state = data ? DRIVE_FETCH_READY : DRIVE_FETCH_MISSING;
+    fprintf(stderr, "quest-driver: tests manifest %s: %s (%d bytes, read %d)\n", path,
+        data ? "landed" : "absent", g_tests_size, serial);
+}
+
+/* `user` is 1 for the source, 2 for the fixture. */
+static void
+drive_play_deliver(void* user, int serial, char const* path, void* data, int size)
+{
+    int const which = (int)(intptr_t)user;
+
+    assert(path);
+    assert(which == 1 || which == 2);
+    if( serial != g_demand_fetch_serial )
+    {
+        free(data); /* the Play that asked was stopped before this landed */
+        return;
+    }
+    if( which == 1 )
+    {
+        free(g_demand_source_bytes);
+        g_demand_source_bytes = (char*)data;
+        g_demand_source_size = data ? size : 0;
+        g_demand_source_state = data ? DRIVE_FETCH_READY : DRIVE_FETCH_MISSING;
+    }
+    else
+    {
+        free(g_demand_fixture_bytes);
+        g_demand_fixture_bytes = (char*)data;
+        g_demand_fixture_size = data ? size : 0;
+        g_demand_fixture_state = data ? DRIVE_FETCH_READY : DRIVE_FETCH_MISSING;
+    }
+    fprintf(stderr, "quest-driver: on demand: play %d %s %s: %s (%d bytes)\n", serial,
+        which == 1 ? "source" : "fixture", path, data ? "landed" : "absent", data ? size : 0);
+}
+
+/* Forget a Play's reads: its bytes, and any reply still in flight. */
+static void
+drive_play_discard(void)
+{
+    g_demand_fetch_serial++;
+    free(g_demand_source_bytes);
+    g_demand_source_bytes = NULL;
+    g_demand_source_size = 0;
+    free(g_demand_fixture_bytes);
+    g_demand_fixture_bytes = NULL;
+    g_demand_fixture_size = 0;
+    g_demand_source_state = DRIVE_FETCH_NONE;
+    g_demand_fixture_state = DRIVE_FETCH_NONE;
+}
+
+/* A Play that cannot begin: back to idle with the reason the status shows. */
+static void
+drive_play_refuse(char const* reason)
+{
+    assert(reason);
+    snprintf(g_demand_refusal, sizeof(g_demand_refusal), "%s", reason);
+    fprintf(stderr, "quest-driver: on demand: play %s refused: %s\n", g_demand_id, reason);
+    drive_play_discard();
+    g_demand_start_pending = 0;
+    g_demand_state = DRIVE_DEMAND_IDLE;
+}
+
+/* The fresh account for a Play of `id`: up to eight of its letters and digits
+ * and the first number whose save file and session dir do not exist yet, so a
+ * name is never reused -- not across Plays and not across client restarts --
+ * and is at most 12 characters (the login form's limit). */
+static int
+drive_play_pick_account(char const* id, char* out, size_t capacity)
+{
+    char prefix[9];
+    int length = 0;
+    int number;
+    struct stat info;
+    char session[1100];
+    char const* save;
+
+    assert(id);
+    assert(out);
+    assert(capacity >= 13);
+    for( ; *id && length < 8; id++ )
+    {
+        unsigned char const ch = (unsigned char)*id;
+        if( (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') )
+            prefix[length++] = (char)ch;
+        else if( ch >= 'A' && ch <= 'Z' )
+            prefix[length++] = (char)(ch - 'A' + 'a');
+    }
+    if( length == 0 )
+    {
+        memcpy(prefix, "watch", 5);
+        length = 5;
+    }
+    prefix[length] = '\0';
+    for( number = 1; number <= 9999; number++ )
+    {
+        snprintf(out, capacity, "%s%d", prefix, number);
+        save = ToriRSServer_SavePath(out);
+        if( !save[0] )
+            return -1;
+        snprintf(session, sizeof(session), "%s/%s", DRIVE_WATCH_ROOT, out);
+        if( stat(save, &info) != 0 && stat(session, &info) != 0 )
+            return 0;
+    }
+    return -1;
+}
+
+/* run.py's write_session_fixture: the fixture with its first `name = ...` line
+ * naming the account, written where the embedded server reads that account's
+ * save. 0 on success, else `reason` says why. */
+static int
+drive_play_write_fixture(char* reason, size_t capacity)
+{
+    char const* save;
+    char directory[1024];
+    char* slash;
+    FILE* f;
+    char const* text = g_demand_fixture_bytes;
+    int const size = g_demand_fixture_size;
+    int line = 0;
+    int name_start = -1;
+    int name_end = -1;
+
+    assert(reason);
+    assert(text);
+    while( line < size )
+    {
+        int end = line;
+        int at;
+        while( end < size && text[end] != '\n' )
+            end++;
+        at = line;
+        if( end - at >= 4 && strncmp(text + at, "name", 4) == 0 )
+        {
+            at += 4;
+            while( at < end && (text[at] == ' ' || text[at] == '\t') )
+                at++;
+            if( at < end && text[at] == '=' )
+            {
+                name_start = line;
+                name_end = end;
+                break;
+            }
+        }
+        line = end + 1;
+    }
+    if( name_start < 0 )
+    {
+        snprintf(reason, capacity, "play: the fixture %s has no `name = ...` line to rewrite",
+            g_demand_fixture_path);
+        return -1;
+    }
+    save = ToriRSServer_SavePath(g_demand_account);
+    snprintf(directory, sizeof(directory), "%s", save);
+    slash = strrchr(directory, '/');
+    if( slash )
+    {
+        *slash = '\0';
+        if( drive_make_directories(directory) != 0 )
+        {
+            snprintf(reason, capacity, "play: cannot create the saves directory %s", directory);
+            return -1;
+        }
+    }
+    f = fopen(save, "wb");
+    if( !f )
+    {
+        snprintf(reason, capacity, "play: cannot write the account's save %s", save);
+        return -1;
+    }
+    fwrite(text, 1, (size_t)name_start, f);
+    fprintf(f, "name = %s", g_demand_account);
+    fwrite(text + name_end, 1, (size_t)(size - name_end), f);
+    fclose(f);
+    fprintf(stderr, "quest-driver: on demand: play %s: account %s from %s -> %s\n", g_demand_id,
+        g_demand_account, g_demand_fixture_path, save);
+    return 0;
+}
+
+/* The pump's half of a Play, once the world is ready and both reads landed. */
+static void
+drive_demand_begin_play(void)
+{
+    char reason[600];
+    char chunk_name[TORIRS_IOITEM_MAX_PATH + 2];
+    int status;
+    int nresults;
+    char error[256];
+
+    assert(g_demand_play);
+    if( g_demand_source_state == DRIVE_FETCH_MISSING )
+    {
+        snprintf(reason, sizeof(reason), "play: no test source at script item %s", g_demand_script);
+        drive_play_refuse(reason);
+        return;
+    }
+    if( g_demand_fixture_state == DRIVE_FETCH_MISSING )
+    {
+        snprintf(reason, sizeof(reason), "play: no fixture at script item %s", g_demand_fixture_path);
+        drive_play_refuse(reason);
+        return;
+    }
+    if( drive_play_write_fixture(reason, sizeof(reason)) != 0 )
+    {
+        drive_play_refuse(reason);
+        return;
+    }
+
+    g_demand_start_pending = 0;
+    g_event_cursor = g_app->drive_events.newest_serial;
+    g_started = 1;
+    drive_quest_name_from_path(g_demand_script);
+    fprintf(stderr, "quest-driver: on demand: start %d: play %s (%s) as %s (session %s)\n",
+        g_demand_runs, g_demand_id, g_demand_script, g_demand_account, g_demand_session);
+
+    snprintf(chunk_name, sizeof(chunk_name), "@%s", g_demand_script);
+    g_thread = PluginLua_TestThreadCreate(DRIVE_PLUGIN_NAME, chunk_name, g_demand_source_bytes,
+        g_demand_source_size, &g_thread_ref);
+    assert(g_thread);
+    /* The coroutine holds the compiled chunk; the bytes are done with. */
+    drive_play_discard();
+
+    lua_getglobal(g_thread, "QD_ROOT");
+    lua_createtable(g_thread, 0, 8);
+    lua_pushstring(g_thread, g_demand_id);
+    lua_setfield(g_thread, -2, "id");
+    lua_pushstring(g_thread, g_demand_suite);
+    lua_setfield(g_thread, -2, "suite");
+    lua_pushstring(g_thread, g_demand_title);
+    lua_setfield(g_thread, -2, "title");
+    lua_pushstring(g_thread, g_demand_account);
+    lua_setfield(g_thread, -2, "account");
+    lua_pushstring(g_thread, DRIVE_WATCH_PASSWORD);
+    lua_setfield(g_thread, -2, "password");
+    lua_pushstring(g_thread, g_demand_script);
+    lua_setfield(g_thread, -2, "source");
+    lua_pushinteger(g_thread, g_demand_legs);
+    lua_setfield(g_thread, -2, "legs");
+    lua_createtable(g_thread, 0, 3);
+    lua_pushinteger(g_thread, g_demand_camera_yaw);
+    lua_setfield(g_thread, -2, "yaw");
+    lua_pushinteger(g_thread, g_demand_camera_pitch);
+    lua_setfield(g_thread, -2, "pitch");
+    lua_pushinteger(g_thread, g_demand_camera_zoom);
+    lua_setfield(g_thread, -2, "zoom");
+    lua_setfield(g_thread, -2, "camera");
+    status = PluginLua_ThreadResume(g_thread, 3, &nresults, error, sizeof(error));
+    drive_scheduler_handle_status(status, error);
 }
 
 static void
@@ -1347,6 +1700,9 @@ PluginDrive_FrameBoundary(void)
              * ledger, so there is nothing to finish. */
             g_demand_start_pending = 0;
             g_demand_state = DRIVE_DEMAND_IDLE;
+            /* A Play's reads may still be in flight: their replies are
+             * dropped by serial, and what landed is freed. */
+            drive_play_discard();
             fprintf(stderr, "quest-driver: on demand: %s stopped before it began\n", g_demand_script);
             return;
         }
@@ -1391,7 +1747,15 @@ lua_drive_pump(struct lua_State* L)
          * accepted begins here, on the first pump the world is ready for
          * (a relog in between holds it), with every piece of per-script
          * state of the run before it reset. */
-        if( g_demand_start_pending && drive_world_ready() )
+        if( g_demand_start_pending && g_demand_play )
+        {
+            /* A Play begins once both of its reads have answered (landed or
+             * absent: an absent one is refused there, with its name). */
+            if( g_demand_source_state != DRIVE_FETCH_PENDING &&
+                g_demand_fixture_state != DRIVE_FETCH_PENDING && drive_world_ready() )
+                drive_demand_begin_play();
+        }
+        else if( g_demand_start_pending && drive_world_ready() )
         {
             g_demand_start_pending = 0;
             drive_demand_begin();
@@ -1666,6 +2030,11 @@ lua_drive_start(struct lua_State* L)
 
     snprintf(g_demand_script, sizeof(g_demand_script), "%s", path);
     snprintf(g_demand_session, sizeof(g_demand_session), "%s", session);
+    g_demand_play = 0;
+    g_demand_id[0] = '\0';
+    g_demand_account[0] = '\0';
+    g_demand_refusal[0] = '\0';
+    g_demand_legs = 0;
     g_demand_state = DRIVE_DEMAND_RUNNING;
     g_demand_start_pending = 1;
     g_demand_runs++;
@@ -1746,7 +2115,234 @@ lua_drive_status(struct lua_State* L)
     lua_setfield(L, -2, "starting");
     lua_pushboolean(L, g_demand_stop_pending);
     lua_setfield(L, -2, "stopping");
+    /* Raid seam24 (the Scripts tab): what a Play started -- the test, its
+     * suite, the fresh account, "leg k of n" -- and why the last Play never
+     * began. Empty/0 for a start and on a test run. */
+    lua_pushboolean(L, g_demand_play);
+    lua_setfield(L, -2, "play");
+    lua_pushstring(L, g_demand_id);
+    lua_setfield(L, -2, "id");
+    lua_pushstring(L, g_demand_suite);
+    lua_setfield(L, -2, "suite");
+    lua_pushstring(L, g_demand_account);
+    lua_setfield(L, -2, "account");
+    lua_pushinteger(L, g_demand_leg);
+    lua_setfield(L, -2, "leg");
+    lua_pushinteger(L, g_demand_legs);
+    lua_setfield(L, -2, "legs");
+    lua_pushstring(L, g_demand_refusal);
+    lua_setfield(L, -2, "refusal");
     return 2;
+}
+
+/*
+ * api.drive.tests([refresh]) -> "ok", <the manifest's text>
+ *                             | "timeout", "pending" (asked; ask again later)
+ *                             | "refused", reason
+ *
+ * The scripts manifest (TestsManifest_Path: tests/tests.ini under the script
+ * dir) read through the IO layer as one SCRIPT item, the way the plugin host
+ * reads plugins/plugins.ini. The first call asks; `refresh` asks again (the
+ * tab's Refresh), so a manifest rewritten after the client started is seen.
+ * Only in an on-demand client: a test run never reads it.
+ */
+static int
+lua_drive_tests(struct lua_State* L)
+{
+    int const refresh = lua_toboolean(L, 1);
+    char reason[400];
+
+    if( !PluginDrive_OnDemand() )
+        return PluginDrive_PushResult(L, DRIVE_REFUSED,
+            "drive.tests: not an on-demand client (TORIRS_DRIVE_ON_DEMAND=1 is unset)");
+    if( g_tests_state != DRIVE_FETCH_PENDING && (refresh || g_tests_state == DRIVE_FETCH_NONE) )
+    {
+        g_tests_serial++;
+        g_tests_state = DRIVE_FETCH_PENDING;
+        fprintf(stderr, "quest-driver: tests manifest: asking for script item %s (read %d)\n",
+            TestsManifest_Path(), g_tests_serial);
+        ToriRS_TaskQueue_Add(g_app->runner.queue,
+            CreateTask_PluginScriptRead(TestsManifest_Path(), g_tests_serial, drive_tests_deliver, NULL));
+    }
+    if( g_tests_state == DRIVE_FETCH_PENDING )
+        return PluginDrive_PushResult(L, DRIVE_TIMEOUT, "pending");
+    if( g_tests_state == DRIVE_FETCH_MISSING )
+    {
+        snprintf(reason, sizeof(reason), "drive.tests: no scripts manifest at script item %s "
+            "(./launch run osrs239-scripts writes it; or python3 tools/raid_gate/prepare_scripts.py)",
+            TestsManifest_Path());
+        return PluginDrive_PushResult(L, DRIVE_REFUSED, reason);
+    }
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_pushlstring(L, g_tests_bytes, (size_t)g_tests_size);
+    return 2;
+}
+
+/*
+ * api.drive.forget_varps() -> "ok", detail | "refused", reason
+ *
+ * QD.core_run_test's step between the log-out and the fresh account's log-in
+ * (seam24). The client's varps outlive a logout -- nothing in this engine
+ * clears them, and the embedded server's login sends only the new account's
+ * non-zero varps -- so a fresh account read the LAST account's values for
+ * every varp it holds at 0: measured, seaslug1 played after cooksass2 in one
+ * session read `qp (varp) 1 -> 1` and failed quest.points, PASS in the suite.
+ * A test run never meets this (one account per process). This zeroes the
+ * client's copy (VarPManager_ResetAll, what a VARP_RESET packet does), which
+ * is the state a fresh process logs in with. Only while a Play runs, and only
+ * on the title screen (logged out), so no live account's varps are touched.
+ */
+static int
+lua_drive_forget_varps(struct lua_State* L)
+{
+    if( !PluginDrive_OnDemand() || !g_demand_play || g_demand_state != DRIVE_DEMAND_RUNNING )
+        return PluginDrive_PushResult(L, DRIVE_REFUSED,
+            "drive.forget_varps: only a running Play (api.drive.play) forgets the last account's varps");
+    if( g_app->screen != APP_SCREEN_TITLE )
+        return PluginDrive_PushResult(L, DRIVE_REFUSED,
+            "drive.forget_varps: not on the title screen (log out first)");
+    VarPManager_ResetAll(&g_app->varps);
+    fprintf(stderr, "quest-driver: on demand: play %s: the last account's client varps forgotten\n",
+        g_demand_id);
+    return PluginDrive_PushResult(L, DRIVE_OK, "client varps zeroed");
+}
+
+/* A string field of the Play table, copied; refused (returns the reason) when
+ * absent or too long. */
+static char const*
+drive_play_field(struct lua_State* L, char const* name, int required, char* out, size_t capacity,
+    char* reason, size_t reason_capacity)
+{
+    char const* value;
+    size_t length = 0;
+
+    lua_getfield(L, 1, name);
+    value = lua_type(L, -1) == LUA_TSTRING ? lua_tolstring(L, -1, &length) : NULL;
+    out[0] = '\0';
+    if( !value || length == 0 )
+    {
+        lua_pop(L, 1);
+        if( !required )
+            return NULL;
+        snprintf(reason, reason_capacity, "drive.play: the test table has no `%s`", name);
+        return reason;
+    }
+    if( length >= capacity )
+    {
+        lua_pop(L, 1);
+        snprintf(reason, reason_capacity, "drive.play: `%s` is too long (%d bytes)", name, (int)length);
+        return reason;
+    }
+    memcpy(out, value, length + 1);
+    lua_pop(L, 1);
+    return NULL;
+}
+
+/*
+ * api.drive.play({id =, source =, fixture =, suite =, title =, legs =})
+ *   -> "ok", <the account it will play on> | "refused", reason
+ *
+ * The Scripts tab's Play (seam24): the test at script item `source` (a test
+ * file as it sits in the tree, read again now), on a fresh account made from
+ * the script item `fixture`, with its ledger and shots in
+ * build/quest_gate/watch/<account>/. Refused, with the reason, exactly where
+ * api.drive.start would be (not on demand, a script running or still ending,
+ * no driver, the world not ready). The section banner above says what happens
+ * next; api.drive.status follows it.
+ */
+static int
+lua_drive_play(struct lua_State* L)
+{
+    char reason[600];
+    char source[TORIRS_IOITEM_MAX_PATH];
+    char session[1100];
+    char shots[1200];
+    int index;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    reason[0] = '\0';
+    if( !PluginDrive_OnDemand() )
+        snprintf(reason, sizeof(reason), "drive.play: not an on-demand client (TORIRS_DRIVE_ON_DEMAND=1 is "
+            "unset); this run's script is TORIRS_QUEST_SCRIPT");
+    else if( g_demand_release_pending || g_demand_stop_pending )
+        snprintf(reason, sizeof(reason), "drive.play: the last script is still ending (ask again next "
+            "frame): %s", g_demand_script);
+    else if( g_demand_state == DRIVE_DEMAND_RUNNING )
+        snprintf(reason, sizeof(reason), "drive.play: a script is running: %s", g_demand_script);
+    else if( (index = drive_driver_plugin_index()) < 0 || !PluginHost_IsRunning(g_app->plugins, index) )
+        snprintf(reason, sizeof(reason), "drive.play: the quest-driver plugin is not running in this client");
+    else if( !drive_world_ready() )
+        snprintf(reason, sizeof(reason), "drive.play: the world is not ready (log in first)");
+    if( reason[0] )
+        return PluginDrive_PushResult(L, DRIVE_REFUSED, reason);
+
+    if( drive_play_field(L, "id", 1, g_demand_id, sizeof(g_demand_id), reason, sizeof(reason)) ||
+        drive_play_field(L, "source", 1, source, sizeof(source), reason, sizeof(reason)) ||
+        drive_play_field(L, "fixture", 1, g_demand_fixture_path, sizeof(g_demand_fixture_path), reason,
+            sizeof(reason)) ||
+        drive_play_field(L, "suite", 0, g_demand_suite, sizeof(g_demand_suite), reason, sizeof(reason)) ||
+        drive_play_field(L, "title", 0, g_demand_title, sizeof(g_demand_title), reason, sizeof(reason)) )
+    {
+        g_demand_id[0] = '\0';
+        return PluginDrive_PushResult(L, DRIVE_REFUSED, reason);
+    }
+    lua_getfield(L, 1, "legs");
+    g_demand_legs = lua_isinteger(L, -1) ? (int)lua_tointeger(L, -1) : 0;
+    lua_pop(L, 1);
+
+    if( drive_play_pick_account(g_demand_id, g_demand_account, sizeof(g_demand_account)) != 0 )
+    {
+        g_demand_account[0] = '\0';
+        snprintf(reason, sizeof(reason), "drive.play: no free account name for %s", g_demand_id);
+        return PluginDrive_PushResult(L, DRIVE_REFUSED, reason);
+    }
+    /* ABSOLUTE, as run.py's TORIRS_CONTENT_TEST is: App_RequestScreenshot
+     * puts a relative capture dir under the plugin prefs' asset directory, so
+     * a relative session dir sent every shot to
+     * <prefs dir>/plugin_assets/client/build/quest_gate/watch/... (measured,
+     * seam24 p1) while the ledger landed here. */
+    {
+        char cwd[600];
+        if( !DRIVE_GETCWD(cwd, sizeof(cwd)) )
+            return PluginDrive_PushResult(L, DRIVE_REFUSED, "drive.play: cannot read the working directory");
+        snprintf(session, sizeof(session), "%s/%s/%s", cwd, DRIVE_WATCH_ROOT, g_demand_account);
+    }
+    snprintf(shots, sizeof(shots), "%s/shots", session);
+    if( strlen(session) >= sizeof(g_demand_session) || drive_make_directories(shots) != 0 )
+    {
+        snprintf(reason, sizeof(reason), "drive.play: cannot create the session directory %s", session);
+        return PluginDrive_PushResult(L, DRIVE_REFUSED, reason);
+    }
+
+    if( !g_demand_camera_saved )
+    {
+        int owned = 0;
+        (void)DrivePointer_CameraPose(g_app, &g_demand_camera_yaw, &g_demand_camera_pitch,
+            &g_demand_camera_zoom, &owned);
+        g_demand_camera_saved = 1;
+        fprintf(stderr, "quest-driver: on demand: the first Play's camera pose yaw=%d pitch=%d zoom=%d "
+            "is every Play's starting pose\n", g_demand_camera_yaw, g_demand_camera_pitch,
+            g_demand_camera_zoom);
+    }
+    drive_play_discard();
+    snprintf(g_demand_script, sizeof(g_demand_script), "%s", source);
+    snprintf(g_demand_session, sizeof(g_demand_session), "%s", session);
+    g_demand_refusal[0] = '\0';
+    g_demand_play = 1;
+    g_demand_state = DRIVE_DEMAND_RUNNING;
+    g_demand_start_pending = 1;
+    g_demand_runs++;
+    drive_demand_reset_run();
+    g_demand_source_state = DRIVE_FETCH_PENDING;
+    g_demand_fixture_state = DRIVE_FETCH_PENDING;
+    fprintf(stderr, "quest-driver: on demand: play %d: %s: asking for %s and %s; account %s\n",
+        g_demand_fetch_serial, g_demand_id, source, g_demand_fixture_path, g_demand_account);
+    ToriRS_TaskQueue_Add(g_app->runner.queue,
+        CreateTask_PluginScriptRead(source, g_demand_fetch_serial, drive_play_deliver, (void*)(intptr_t)1));
+    ToriRS_TaskQueue_Add(g_app->runner.queue,
+        CreateTask_PluginScriptRead(g_demand_fixture_path, g_demand_fetch_serial, drive_play_deliver,
+            (void*)(intptr_t)2));
+    return PluginDrive_PushResult(L, DRIVE_OK, g_demand_account);
 }
 
 /* ------------------------------------------------------------ party barrier
@@ -1985,6 +2581,9 @@ static struct LuaFn const LUA_DRIVE_CORE_FNS[] = {
     {"start", lua_drive_start},
     {"stop", lua_drive_stop},
     {"status", lua_drive_status},
+    {"tests", lua_drive_tests},
+    {"play", lua_drive_play},
+    {"forget_varps", lua_drive_forget_varps},
     {"barrier_mark", lua_drive_barrier_mark},
     {"barrier_present", lua_drive_barrier_present},
     {"players", lua_drive_players},
