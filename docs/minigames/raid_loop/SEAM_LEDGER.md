@@ -948,3 +948,39 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   on 127 files. The server selftest has 11 failures (baseline); `make test-torirsserver`
   stops earlier, at the servpack membership check, on unchanged content. No PNG was viewed:
   the editor's Read hook timed out. The shots decode at 807x503.
+
+## matthew-mbp-m4-raid-b1-seam22 (2026-10-05; parent 1b22d51c9, OSRS-Content fb292a9996): what the first Normal trio pass hit (triage SEAM_TRIAGE_2026-10-05a.md)
+
+- `party_death_and_member_readers`: LANDED. A member's death is a `player.died` row (PASS
+  after `t.party.allow_death(reason)`, FAIL otherwise; the leader's death still ends the run),
+  and the dead member runs on caged, in lock step to the leader's end. `party.lockstep`
+  compares a member's trace up to the leader's last boundary and names the dead. A member
+  whose leader is gone now exits at its boundary (seam21's open item). Member readers:
+  `t.tick()` reads the lockstep tick, `t.prayer.points()` answers `("ok", reading, detail)`,
+  `t.ticklog.rows` takes an `area`. Closer fix: the Theatre death-line latch fires only in a
+  party (`t.party.size() > 1`); latched solo, conformance's
+  `seam.tob_death_cage_then_entry_restart` ended at `player.died` eleven times in a row.
+  Proof: `_party_smoke` green, 157 PASS, p3 died on tick 220 and stayed in step
+  (`party.lockstep PASS ... 230 boundaries`); `party_repeat.py _party_smoke --runs 3 --load`
+  AGREE (sha 6cf6d25dd6a6, 5817 lines, 230 boundaries). Conformance rows `prayer.points`
+  (rewritten), `party.allow_death`, `seam.party_member_readers_solo`, `seam.ticklog_rows_area`
+  PASS live. Open: `t.player.step_tick` on a member answers unsupported (walk instead).
+- `tob_normal_trio_findings`: LANDED (content). Every raider of a party is judged by the
+  room's per-tick watchdog; Sotetseg's arena tornado spawns for arena raiders on the fourth
+  row (Strategies :803); Xarpus's party splat chains 1 then 2 orbs to the next raiders' tiles
+  (Strategies :836/:838, Blert 115/117 trio). Settled with no content change, as recipes in
+  DRIVER_NOTES: prayer drain (wiki Prayer :459-463), Verzik P1 at three (Blert's 10 trio
+  rooms; the owner's Dawnbringer quote), Nylocas spawn_aggro (count table aggros). Open:
+  Xarpus SOLO chain count unsettled (Open content row); stale comments in tob_hud.rs2:250-260
+  and tob_spectate.rs2:295-297; tob_xarpus_normal, tob_sotetseg_normal, tob_verzik_normal and
+  tob_nylocas_normal must be re-authored (their recipes were fitted to the coin, to members
+  off the maze grid, to one Dawnbringer holder, and to a swap count).
+- Regressions: none. cooks_assistant and druid byte-identical to build/merge17_check. The six
+  Entry rooms keep their step columns row for row and raid_gate grades all six green and FULL
+  (maiden 65, bloat 55, nylocas 76, sotetseg 84, xarpus 63, verzik 145 in-scope rows); no room
+  needs re-authoring. Quest suite: 115 green, deserttreasure, forgettabletale, regicide and
+  troll RED (baseline). Conformance 350/350 (178 verbs + 172 seam rows).
+  check-drive-abi, check-pt-switch, check-quest-verbs, test-plugin-lua,
+  test-embed-party-link and test-quest-cheats pass; lint clean on 127 files; spec_check clean;
+  server selftest 11 failures (baseline). The smoke's PNG Read timed out in the editor hook
+  and was not retried. The six untracked test/raids/tob_<room>_normal.lua stay uncommitted.
