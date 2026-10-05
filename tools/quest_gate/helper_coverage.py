@@ -1511,6 +1511,36 @@ MAPS_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "maps")
 # name, or an Open op (a closed door/gate shows Open).
 DOOR_NAME_RE = re.compile(r"\b(door|doors|gate|gates|portcullis|doorway)\b")
 CLIMB_NAME_RE = re.compile(r"\b(ladder|stairs|staircase|stairway|trapdoor|trap door|steps)\b")
+# Ops that never gate a walk (the sample tools' reach.py PASS_THROUGH_OPS): an open door's leaf and a crop.
+PASS_THROUGH_OPS = {"close", "pick"}
+# The zone-trigger tiles (a [zone]/[mapzone] timer that hurts a player standing on them: Regicide's
+# tripwires and pitfalls, the Underground Pass spear traps), shared with reach.py.
+ZONE_TRIGGERS_TSV = os.path.join(REPO_ROOT, "test", "quests", "orchestrator", "matthew-mbp-m4", "reports",
+                                 "sample_tools", "zone_triggers.tsv")
+
+
+def zone_triggers():
+    """[(timer, {loc symbols}, [(dx, dz)], {(zone x, zone z, level)}, source)] from ZONE_TRIGGERS_TSV."""
+    out = []
+    if not os.path.isfile(ZONE_TRIGGERS_TSV):
+        return out
+    with open(ZONE_TRIGGERS_TSV, "r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip() or line.startswith("#"):
+                continue
+            timer, locs, offsets, zones, source = line.rstrip("\n").split("\t")[:5]
+            boxes = set()
+            for zone in zones.split(","):
+                parts = [int(v) for v in zone.split("_")]
+                if len(parts) == 3:
+                    level, mx, mz = parts
+                    boxes.update((mx * 8 + a, mz * 8 + b, level) for a in range(8) for b in range(8))
+                else:
+                    level, mx, mz, lx, lz = parts
+                    boxes.add(((mx * 64 + lx) >> 3, (mz * 64 + lz) >> 3, level))
+            out.append((timer, set(locs.split(",")),
+                        [tuple(int(v) for v in o.split(":")) for o in offsets.split(",")], boxes, source))
+    return out
 
 
 class MapWalls:
@@ -1530,6 +1560,11 @@ class MapWalls:
     content adds or removes at run time are not seen."""
 
     WEST, NORTH, EAST, SOUTH = 1, 2, 4, 8
+    # A loc with an op on a tile the map leaves walkable (a trap, a stepping stone, a log: blockwalk=0, or
+    # a ground decoration that does not block) and a zone-trigger tile stop the flood like a blocked
+    # tile: the walk must CLICK it (reach.py's NEEDS-OP; matthew-mbp-m4-b60-seam0). False is the old
+    # reading that walked over Regicide's traps, kept for the fixtures.
+    OP_LOCS_BLOCK = True
     # enclosure() floods from a blocked start tile (a landing on furniture);
     # False is the seam-1 reading (no room at all), kept for the fixtures.
     START_ON_BLOCKED = True
@@ -1545,7 +1580,9 @@ class MapWalls:
         self.climb_at = {}    # (x, z, level) -> [(symbol, origin)]: climbs whose footprint or ring holds it
         self.climb_ring = {}  # (symbol, origin) -> [(x, z, footprint x, footprint z, side)]: the 4-way ring
         self.locs_at = {}     # (x, z, level) -> [(symbol, origin)]: every loc on the tile (an object's footprint)
+        self.op_tiles = {}    # (x, z, level) -> (symbol, origin): a walkable tile an op loc or zone trigger holds
         self._names = None
+        self._triggers = None
 
     def names(self):
         if self._names is None:
@@ -1590,6 +1627,18 @@ class MapWalls:
         if not up and not down:
             return True, True
         return up, down
+
+    @staticmethod
+    def is_op_loc(symbol, shape, blockwalk, active):
+        """Does a placement leave its tile walkable while carrying an op the walk must click?"""
+        if 4 <= shape <= 8:
+            return False
+        ops = list(OPS.get(("loc", symbol), {}).values())   # lowercased whole op names
+        if not ops or all(op in PASS_THROUGH_OPS for op in ops):
+            return False
+        if shape == 22:
+            return not (blockwalk == 1 and active)
+        return blockwalk == 0
 
     def _add_wall(self, x, z, level, side, symbol, at):
         dx, dz, opposite = self.STEP[side]
@@ -1641,6 +1690,18 @@ class MapWalls:
                         self.locs_at.setdefault((wx + ox, wz + oz, real), []).append((symbol, (wx, wz, real)))
             else:
                 self.locs_at.setdefault((wx, wz, real), []).append((symbol, (wx, wz, real)))
+            if self.OP_LOCS_BLOCK:
+                if self._triggers is None:
+                    self._triggers = zone_triggers()
+                for timer, symbols, offsets, boxes, source in self._triggers:
+                    if symbol in symbols:
+                        for dx, dz in offsets:
+                            if ((wx + dx) >> 3, (wz + dz) >> 3, level) in boxes:
+                                self.op_tiles.setdefault((wx + dx, wz + dz, real), (timer, (wx, wz, real)))
+                if self.is_op_loc(symbol, shape, blockwalk, active):
+                    for ox in range(size[0] if 9 <= shape <= 21 else 1):
+                        for oz in range(size[1] if 9 <= shape <= 21 else 1):
+                            self.op_tiles[(wx + ox, wz + oz, real)] = (symbol, (wx, wz, real))
             if self.is_climb(symbol):
                 size = (length, width) if rotation in (1, 3) else (width, length)
                 key = (symbol, (wx, wz, real))
@@ -1705,7 +1766,8 @@ class MapWalls:
                     continue
                 if not self._ready(nx, nz):
                     continue
-                if (nx, nz, level) in self.blocked and (through is None or (nx, nz, level) not in through):
+                if ((nx, nz, level) in self.blocked or (nx, nz, level) in self.op_tiles) and \
+                        (through is None or (nx, nz, level) not in through):
                     if touched is not None:
                         touched[(nx, nz, level)] = True
                     continue

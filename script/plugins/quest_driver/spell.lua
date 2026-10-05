@@ -283,8 +283,14 @@ function QD.player._cast_press(target, label, element, arm)
         end
     end
     if click_result ~= "ok" then
+        -- The spell was re-armed before this press and nothing spent it: a
+        -- player whose click missed cancels the spell before anything else
+        -- (seam spell_left_selected_after_a_fight, the banner over
+        -- QD.player.cancel_selection at the end of this file).  Left armed,
+        -- every later press -- the eater's shark included -- meets target mode.
+        local cancel_result, cancel_detail = QD.player.cancel_selection()
         return click_result, label .. ": " .. tostring(click) .. " (" .. tostring(presses)
-            .. " press(es))", nil, presses
+            .. " press(es)); " .. tostring(cancel_result) .. " " .. tostring(cancel_detail), nil, presses
     end
     -- _press_row matched its row on the named element, so an `ok` for any
     -- other copy is this file's bug, not the world's (the attack press's
@@ -584,6 +590,21 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
     local result, detail = QD.npc._await_dead_engaged_by_attack(ticks, attempts, opts)
     QD._combat_press_attack = press_by_attack
     api_drive.player_idle = idle_by_route
+    -- The fight is over (or the wait is): nothing the caller does next is a
+    -- cast on this npc, so no spell may be left armed for it to meet
+    -- (seam spell_left_selected_after_a_fight; QD.player.cancel_selection).
+    -- A dead player's run is already ending at the death fence.
+    local selection_text = ""
+    if QD._death == nil then
+        local cancel_result, cancel_detail, was_armed = QD.player.cancel_selection()
+        if cancel_result ~= "ok" then
+            selection_text = "; SELECTION NOT CLEARED: " .. tostring(cancel_result) .. " " .. tostring(cancel_detail)
+        elseif was_armed then
+            selection_text = "; fight over with a selection still armed -- " .. tostring(cancel_detail)
+        else
+            selection_text = "; fight over with nothing armed"
+        end
+    end
     local tag = " [re-engagements re-CAST " .. spell .. ": " .. tostring(recast_ok)
         .. " press(es) ok, " .. tostring(recast_not) .. " not"
     if idle_stale_flag > 0 or idle_moving > 0 then
@@ -597,7 +618,7 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
     if refusal_word then
         tag = tag .. "; the server refused a re-cast: '" .. tostring(refusal_line) .. "'"
     end
-    return result, tostring(detail) .. tag .. "]"
+    return result, tostring(detail) .. tag .. selection_text .. "]"
 end
 
 -- One re-cast of `spell` on the copy whose client element is `element` --
@@ -1490,4 +1511,225 @@ function QD.player._cast_self(spell, ticks)
         .. "no move and no Magic XP inside " .. tostring(ticks) .. " ticks after "
         .. tostring(presses) .. " press(es): the cast never ran"
         .. " (a target spell's cell arms target mode instead -- give it a target)"
+end
+
+-- ------------------------------------------- a live selection, cancelled
+--
+-- SEAM spell_left_selected_after_a_fight (seam pass matthew-mbp-m4-b60-seam1).
+-- A spell armed and never spent stays armed: the client drops app->targetsel
+-- (and a held item's app->objsel) only at the doAction tail of a menu row or
+-- a left click off anything targetable (app_minimenu_use_option,
+-- app_frame.c's Cancel-only branches) -- never on a menu that closes because
+-- the pointer left it, a teleport, an if_click, or a tick going by.  A
+-- re-cast whose three presses all answer `covered` (the npc dying, or
+-- re-added under another element) left Fire Blast armed after Family
+-- Crest's Chronozon, and every later world press read `covered ... menu
+-- rows: <Cancel>` (crest run 1 rows 138 and 147, build/orchestrator/fix_b60/
+-- crest.progress.md; the kill row's tag "re-CAST fire_blast: 2 press(es) ok,
+-- 1 not; last: covered").  The test had to spend a quest item use to retire
+-- it.
+--
+-- t.player.cancel_selection(why) -> (ok, detail, was_armed) `refused`
+-- `not_visible` `timeout`
+--
+--   t.exec("dropFireBlast", t.player.cancel_selection, "the kill's last re-cast")
+--
+-- `why` (text, optional) is only echoed at the head of the detail: it is what
+-- lets the call go through t.exec, which grades a nil first argument `bad
+-- verb/target`.  Called directly, it may be left out.
+--
+-- What a player does: right-click the world and pick Cancel.  The READING
+-- comes first and is the client's own: rs_minimenu_world.c offers "Walk
+-- here" on every world right-click EXCEPT while a use or target mode is
+-- armed (the reference gates it on useMode==0 && targetMode==0), so a menu
+-- with no Walk here row IS an armed selection.  The pixel is the player's
+-- own, or 40px off it, the first one the client's world gate takes.  Armed:
+-- Cancel is pressed (its doAction tail clears both modes), and the menu is
+-- read again at the same pixel -- `ok` only when Walk here is back.  Nothing
+-- armed: the menu is closed with Cancel and the answer is `ok` too, saying
+-- so (`was_armed` false).  `refused` = still no Walk here after Cancel;
+-- `not_visible` = no candidate pixel is on the world; `timeout` = the menu
+-- never opened.  Nothing walks: Cancel is the only row ever pressed.
+QD.player.SELECTION_MENU_TICKS = 3
+QD.player.SELECTION_PIXEL_OFFSETS = { { 0, 0 }, { 0, 40 }, { 0, -40 }, { 40, 0 }, { -40, 0 } }
+
+-- The menu rows' plain text as one line: "<Cancel> <Walk here>".
+function QD.player._selection_rows_text(rows)
+    local parts = {}
+    for i = 1, #rows do
+        parts[#parts + 1] = "<" .. QD.player._plain_line(tostring(rows[i].text or "")) .. ">"
+    end
+    return table.concat(parts, " ")
+end
+
+-- The first row whose plain text starts with `prefix`, or nil.
+function QD.player._selection_row(rows, prefix)
+    for i = 1, #rows do
+        local plain = QD.player._plain_line(tostring(rows[i].text or ""))
+        if string.sub(plain, 1, #prefix) == prefix then
+            return rows[i]
+        end
+    end
+    return nil
+end
+
+-- A world pixel to read the menu at: the player's own, or the first offset
+-- the client's world gate takes.  Answers {x=, y=} or nil, why.
+function QD.player._selection_pixel()
+    local result, pos = api_drive.screen_position("player", -1)
+    if result ~= "ok" or type(pos) ~= "table" then
+        return nil, "the player has no screen position (" .. tostring(result) .. ")"
+    end
+    -- An open menu owns the whole canvas and the gate refuses every pixel
+    -- under it (QD.drive._dismiss_menu's banner): close it first.
+    QD.drive._dismiss_menu({ x = pos.x, y = pos.y })
+    local refused = {}
+    for i = 1, #QD.player.SELECTION_PIXEL_OFFSETS do
+        local offset = QD.player.SELECTION_PIXEL_OFFSETS[i]
+        local at = { x = pos.x + offset[1], y = pos.y + offset[2] }
+        local on_world, why = QD.drive._world_gate(at.x, at.y)
+        if on_world ~= false then
+            return at
+        end
+        refused[#refused + 1] = at.x .. "," .. at.y .. " " .. tostring(why)
+    end
+    return nil, "no pixel around the player is on the world: " .. table.concat(refused, "; ")
+end
+
+-- Right-click `at` and read the menu that opens: (ok, rows) or
+-- (timeout, why).
+function QD.player._selection_menu(at)
+    QD.drive._dismiss_menu(at)
+    api_drive.mouse_move(at.x, at.y)
+    QD.drive._pick_settled(at.x, at.y, 2)
+    api_drive.mouse_button("right", 1, at.x, at.y)
+    api_drive.mouse_button("right", 0, at.x, at.y)
+    local open = QD.await({
+        level = function()
+            local r, visible = api_drive.menu_visible()
+            return r == "ok" and visible
+        end,
+        note = "cancel_selection: menu at " .. at.x .. "," .. at.y,
+    }, QD.player.SELECTION_MENU_TICKS)
+    if open ~= "ok" then
+        return "timeout", "the right-click at " .. at.x .. "," .. at.y .. " opened no menu"
+    end
+    local rows_result, rows = api_drive.menu_rows()
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        QD.drive._dismiss_menu(at)
+        return "timeout", "the menu at " .. at.x .. "," .. at.y .. " gave no rows (" .. tostring(rows_result) .. ")"
+    end
+    return "ok", rows
+end
+
+-- Left-press one open-menu row and wait for the menu to close.
+function QD.player._selection_press_row(row)
+    api_drive.mouse_button("left", 1, row.centre_x, row.centre_y)
+    api_drive.mouse_button("left", 0, row.centre_x, row.centre_y)
+    return QD.await({
+        level = function()
+            local r, visible = api_drive.menu_visible()
+            return r == "ok" and not visible
+        end,
+        note = "cancel_selection: menu closed",
+    }, QD.player.SELECTION_MENU_TICKS)
+end
+
+function QD.player.cancel_selection(why)
+    assert(why == nil or type(why) == "string", "cancel_selection(why): why must be text")
+    local result, detail, was_armed = QD.player._cancel_selection()
+    if why ~= nil then
+        detail = "(" .. why .. ") " .. tostring(detail)
+    end
+    return result, detail, was_armed
+end
+
+function QD.player._cancel_selection()
+    local at, why = QD.player._selection_pixel()
+    if at == nil then
+        return "not_visible", "cancel_selection: " .. tostring(why), nil
+    end
+    local read_result, rows = QD.player._selection_menu(at)
+    if read_result ~= "ok" then
+        return read_result, "cancel_selection: " .. tostring(rows), nil
+    end
+    local first_text = QD.player._selection_rows_text(rows)
+    local cancel = QD.player._selection_row(rows, "Cancel")
+    if cancel == nil then
+        QD.drive._dismiss_menu(at)
+        return "refused", "cancel_selection: the menu at " .. at.x .. "," .. at.y .. " has no Cancel row: "
+            .. first_text, nil
+    end
+    if QD.player._selection_row(rows, "Walk here") ~= nil then
+        QD.player._selection_press_row(cancel)
+        return "ok", "cancel_selection: nothing was armed -- the menu at " .. at.x .. "," .. at.y
+            .. " offered " .. first_text .. " (Walk here is offered only with no selection); closed it with Cancel",
+            false
+    end
+    QD.player._selection_press_row(cancel)
+    local again_result, again = QD.player._selection_menu(at)
+    if again_result ~= "ok" then
+        return again_result, "cancel_selection: a selection was armed (menu at " .. at.x .. "," .. at.y
+            .. ": " .. first_text .. ", no Walk here); pressed Cancel; the re-read: " .. tostring(again), true
+    end
+    local again_text = QD.player._selection_rows_text(again)
+    local again_cancel = QD.player._selection_row(again, "Cancel")
+    local walk_back = QD.player._selection_row(again, "Walk here") ~= nil
+    if again_cancel ~= nil then
+        QD.player._selection_press_row(again_cancel)
+    else
+        QD.drive._dismiss_menu(at)
+    end
+    if not walk_back then
+        return "refused", "cancel_selection: a selection was armed (menu at " .. at.x .. "," .. at.y .. ": "
+            .. first_text .. ", no Walk here); pressed Cancel and the menu there STILL offers no Walk here: "
+            .. again_text, true
+    end
+    return "ok", "cancel_selection: a selection WAS armed -- the menu at " .. at.x .. "," .. at.y .. " offered "
+        .. first_text .. " and no Walk here; pressed Cancel (the doAction tail clears it); the menu there now"
+        .. " offers " .. again_text, true
+end
+
+-- Arm `spell` and leave it armed -- the state a re-cast whose presses all
+-- answered `covered` used to leave behind.  For the conformance rows that
+-- prove cancel_selection and the fight's end clear it; no quest step arms a
+-- spell without casting it.  Answers (ok, detail) with spell_arm's own word.
+function QD.player._arm_spell(spell)
+    local symbol = QD.player._spell_symbol(spell)
+    local component_result, component_id = QD.player._spell_component(symbol)
+    if component_result ~= "ok" then
+        return component_result, tostring(component_id)
+    end
+    local arm_result, arm_detail = api_drive.spell_arm(component_id)
+    QD.player._show_backpack()
+    return arm_result, "spell_arm " .. symbol .. " (component " .. tostring(component_id) .. ") -> "
+        .. tostring(arm_result) .. " " .. tostring(arm_detail)
+end
+
+-- The press half of a cast with `element` as the copy to aim at and the
+-- spell re-armed before every press: for the conformance row that proves a
+-- missed press leaves nothing armed (an element no npc carries is `covered`
+-- on every press).  Answers _cast_press's first two values.
+function QD.player._cast_press_on_element(spell, npc_symbol, element)
+    local symbol = QD.player._spell_symbol(spell)
+    local target, target_result = QD.player.by_symbol("npc", npc_symbol)
+    if not target then
+        return target_result, "no target " .. tostring(npc_symbol)
+    end
+    local component_result, component_id = QD.player._spell_component(symbol)
+    if component_result ~= "ok" then
+        return component_result, tostring(component_id)
+    end
+    local arm = function()
+        return api_drive.spell_arm(component_id)
+    end
+    local arm_result, arm_detail = arm()
+    if arm_result ~= "ok" then
+        QD.player._show_backpack()
+        return arm_result, tostring(arm_detail)
+    end
+    local result, detail = QD.player._cast_press(target, "cast " .. symbol .. " on element " .. tostring(element),
+        element, arm)
+    QD.player._show_backpack()
+    return result, detail
 end

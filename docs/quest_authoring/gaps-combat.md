@@ -720,3 +720,35 @@ entry is FIXED in matthew-mbp-m4-b56-seam2 (next section).
   (`build/seam_state/matthew-mbp-m4-b56-seam2/a2probe/`).
 - **Not fixed:** `aggressive_melee` huntmode never aggroes (`torirs_server_content.c:1851` maps
   only `aggressive`), and the Slagilith's and Kendal's attackrate is 6 where the wiki says 4.
+
+## A margin row reads full hp after a real fight: prove the npc swung (Ides of Milk's Brutus, b60 sampler)
+
+`killBrutus.margin` read `lowest hp 99/99, eaten 0` in all three fixer runs. That looks like a
+fight that never threatened anyone. It was a real fight. Brutus's melee has attack 12
+(idesofmilk.npc:31), so it cannot land on 99 Defence and rune armour. His specials ignore defence
+(`~cowboss_special_damage`, idesofmilk_locs.rs2), but each one rolls `randominc(19)`.
+The sampler's probe run read the chat ring after the kill with `t.msg.last(40)`. It found three
+`You dodge out of the way of Brutus's charge.` lines while the player stood still, attacking.
+
+Most likely the growl lane (`~cowboss_growl_hit`) is measured from `npc_coord`, which is a
+multi-tile npc's south-west tile. A player beside his east side at z+2 is then outside the
+lane's `abs(cz - oz) <= 1`, so a stationary attacker on that side dodges every charge. This is a
+content seam and not a test defect.
+
+When a margin row reads full hp, put the npc's own attack evidence in the detail: its attack or
+special chat lines from `t.msg.last`, or a block hitsplat. A reviewer can then tell "it swung and
+missed" from "it never swung" (see "Three more quest monsters never swung" above).
+
+## A margin at 99 Defence and 99 Hitpoints proves nothing when the guide names no levels (Vampyre Slayer, b60)
+
+The committed Vampyre Slayer stages 99 Attack, Strength, Defence and Hitpoints. Count Draynor
+then never hits, so `killDraynor.margin` reads `lowest hp 99/99` and the margin row checks nothing.
+Quest Helper names no combat levels for the fight. A copy staged at the gear's own minimum levels
+(Attack 40, Strength 40, Defence 30, Hitpoints 40 for the committed weapon and armour) still
+passed 60/60. Its lowest hp was 39/40 with no food eaten, because the garlic weakens him
+(`build/orchestrator/fix_b60/r2/vampire_guidelevels.lua`, `vampire.run2-guidelevels.log`).
+
+When the guide names no levels, stage the lowest levels the staged gear needs to be worn, not 99.
+The fight is then a real one, and a full-hp margin row is evidence and not an artefact of
+staging. Spirits of the Elid's golems read 60/60 at Defence 50 for the same reason. A probe at
+Defence 1 showed them landing hits.

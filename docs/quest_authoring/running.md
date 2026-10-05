@@ -281,3 +281,22 @@ The scaffold it writes is a single `run = function(t)`, not the `legs = { ... }`
 `relay.md` and `run.py --from-leg` need. For a quest over 30 steps, split it into legs by hand
 before the first run: one `{ name =, run = function(t) ... end }` per leg of the ladder, with the
 setup list kept at the top.
+
+## The image Read fails with "PreToolUse hook did not respond before its timeout"
+
+On 2026-10-04 every fixer and reviewer of matthew-mbp-m4-b60 hit this on every shot, so none of
+them made a visual pass. The sampler hit it twice, and then it cleared, without any change on our
+side. It is a host hook, not the file. Retry a few minutes later before you report "no visual
+pass". Never claim a visual pass you did not make.
+
+When it works, 600+ shots take one Read each. Paste four shots into one labelled 2x2 contact sheet
+instead (PIL: an 1614x1046 canvas, each 807x503 shot under a 20 px strip with its file name). Then
+Read one sheet at a time into the scratchpad, never into `play/`. Each shot is still opened at
+full resolution, and its name is on the sheet beside it.
+
+After a few dozen image Reads, the earlier results come back as `[media removed: request limit]`.
+The image was shown when it was read; the host drops old images from the context afterwards.
+Write each sheet's finding (the shot numbers and what they show) into your notebook straight
+after reading it, before the next Read. A later "media removed" then costs nothing, and the
+notebook is the record of the visual pass. Six sheets per message worked for the b60 round-2
+sampler (1,058 shots, 265 sheets).
