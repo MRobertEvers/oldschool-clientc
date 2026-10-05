@@ -195,6 +195,10 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   THE OWNER'S TWO STEPS (2026-10-05): "1. Add multiple actions per tick to the runner 2. Prefer
   using the log to iterate on a program that can be TOB - save visual verification for the end
   when you're succeeding." So the order below is superseded:
+  OWNER, 2026-10-05: "Keep going. Do not stop until you can beat the theater of blood. If you need
+  a feature in the client automation runner to make things faster (watch for events, add
+  callbacks and triggers or whatever, then do so)". He did not answer whether the room plans may
+  run in parallel worktrees: they run ONE AT A TIME until he says otherwise.
   NEXT = SEAM29 (`SEAM_TRIAGE_2026-10-05h.md`): the library into its own files (one plan file per
   room) and the hazard fix; the raider's state and inputs into the tick log and a mistakes list in
   raid_report.py; then a sourced Entry plan per room (maiden, nylocas, sotetseg, xarpus, verzik),
