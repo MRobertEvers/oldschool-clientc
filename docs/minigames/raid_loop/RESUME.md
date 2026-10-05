@@ -73,7 +73,12 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
 
 ## Next, in order
 
-1. Seam20 lands (above); re-author any room it moves (tob_sotetseg likely). Then the NORMAL THREE-PLAYER ROOM PASS: card raid_author, pass
+1. Seam20 lands (above); re-author any room it moves (tob_sotetseg likely). Then SEAM21 on
+   `SEAM_TRIAGE_2026-10-04i.md` (owner, 2026-10-04: "I don't want to introduce nondeterminism.
+   The server and clients should be able to run in lockstep"): a member runs exactly F frames
+   per tick, READY carries the frame count (the leader refuses a mismatch), TICK carries a world
+   digest, SEAT a protocol version; `party_repeat.py` runs a party test N times (one under CPU
+   load) and passes only when tick logs, member ledgers and boundary traces are identical. Then the NORMAL THREE-PLAYER ROOM PASS: card raid_author, pass
    `matthew-mbp-m4-raid-b1-rooms-tob-normal`, raid tob, the six rooms, mode normal, party 3, width 1
    (ids tob_<room>_normal; sources: Strategies wiki per-room sections, the six trio transcripts,
    Blert guides and data; roles only from the sources) (same room pass, move each room's
