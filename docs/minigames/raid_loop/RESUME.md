@@ -73,15 +73,27 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   send tick (the list is in CONTENT_BUGS.md "From seam20"). Rooms: all six green; tob_sotetseg
   and tob_verzik must be re-authored only to MEASURE the two new spec rows
   (sotetseg.ball_prayer_read_tick, verzik.p2_bomb_prayer_read_tick); coverage, not behaviour.
-- NEXT TO RUN: seam21 (`SEAM_TRIAGE_2026-10-04i.md`: lockstep pinned, F frames per tick, the
-  digest, party_repeat.py, TORIRS_LOGIC_CYCLES_PER_FRAME); then room launch 15 (tob_sotetseg,
-  tob_verzik coverage rows, plus anything seam21 moves); then the Normal three-player pass.
+- Seam21 LANDED (parent af629f4e3, ledger c430ecece): the party lockstep is PINNED. The one-tick
+  shift was `t.party.barrier`'s cross-process file race (marks now stamped with the lockstep
+  tick). Link protocol 2: SEAT(version, seat, k), READY(frame count, checked against F = 30/k),
+  TICK(tick, world digest), a frame audit; every mismatch aborts loudly. `tools/raid_gate/
+  party_repeat.py <id> --runs N --load [--cycles k]` is the determinism gate: AGREE on the smoke
+  (3 runs under load) and on a 406-tick Normal Bloat fight; gate.py fails a run whose traces differ
+  (`party.lockstep`). The raid_author party brief tells authors to run it. Open: a member keeps
+  running after the leader exits (should abort); gate.py asserts on a scratch run name.
+  FRAMES PER TICK: `TORIRS_LOGIC_CYCLES_PER_FRAME=k` exists; k>1 is deterministic but is a
+  DIFFERENT run from k=1 because the driver's verbs are frame-granular (k=10 fails a chat row),
+  and it saved nothing (smoke 10.9/10.5/11.0 s at k=1/10/30: the frame loop is not the cost).
+  Party default stays k=1; making the driver tick-granular is a later seam if the owner wants it.
+- RUNNING: room launch 15 (pass `matthew-mbp-m4-raid-b1-rooms-tob`, Entry solo): tob_sotetseg and
+  tob_verzik re-authored to MEASURE sotetseg.ball_prayer_read_tick and
+  verzik.p2_bomb_prayer_read_tick (coverage only; both run green); four rooms kept.
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
   names seed on their first 12 characters, case folded (jbase37).
 
 ## Next, in order
 
-1. SEAM21 on
+1. Room launch 15 lands (above). (Seam21 landed.) SEAM21 was on
    `SEAM_TRIAGE_2026-10-04i.md` (owner, 2026-10-04: "I don't want to introduce nondeterminism.
    The server and clients should be able to run in lockstep"): a member runs exactly F frames
    per tick, READY carries the frame count (the leader refuses a mismatch), TICK carries a world
