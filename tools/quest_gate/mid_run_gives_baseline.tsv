@@ -13,9 +13,6 @@ test_id	count	cheat	lines
 doric	1	::give clay 6	75
 doric	1	::give copper_ore 4	80
 doric	1	::give iron_ore 2	85
-elena	1	::give lawrune 4	361
-elena	1	::give waterrune 4	362
-forgettabletale	1	::give	129
 icthlarin	1	::give ics_little_bookofembalming 1	319
 icthlarin	1	::give tinderbox 1	55
 icthlarin	1	::give water_skin4 1	56
