@@ -148,7 +148,12 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   PlayerClient: camera + pointer + pickset + menu), the runner's pick and screenshot passes
   offscreen on the software lane on demand, an Interact on/off switch always indicated, scripted
   cameras take every view, the runner's menu tinted; three seams (gather = pure refactor, split,
-  debug aids). It supersedes seam25's camera-easing item (the runner's poses no longer show).
+  debug aids). It was to supersede seam25's camera item; the OWNER REINSTATED IT (2026-10-05):
+  "The scripts should also attempt to turn the camera, rather than snap to the camera for a
+  screenshot." Seam25's `watched_camera_and_shots` now makes a watched driver TURN the camera
+  through the arrow keys' own path at their rate (never an instant pose), not blocking inputs
+  that need no camera; test runs stay on the instant pose there, with the cost of turning measured
+  for the owner to rule on.
   SEAM26 IS NOT RUN HERE ANY MORE (2026-10-05): the owner started a separate camera session from
   the orchestrator's prompt; it works in `build/orchestrator/worktrees/camera` on branch
   `matthew-mbp-m4-camera-b1` (cut from this branch), does the gather seam first, and merges this
@@ -159,13 +164,20 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   orchestrator's survey (`SEED_SURVEY_2026-10-05.md`; evidence in `build/seed_survey_2026-10-05/`):
   each kept room replayed unchanged under four other names, 7 of 24 green (Xarpus 4 of 4; Maiden,
   Bloat, Sotetseg 1 of 4; Nylocas and Verzik 0 of 4). Seam24's fixer met it first (Bloat died in
-  the watched client). Six seams: `seed_survey_gate` (tools/raid_gate/seed_survey.py; the author
-  card keeps a room only when it is green on five names), then one per fragile room classifying
+  the watched client). Seven seams: `seed_survey_gate` (tools/raid_gate/seed_survey.py; the author
+  card keeps a room only when it is green on five names); `several_inputs_one_tick` (OWNER,
+  2026-10-05: "update the script runner so that it can do multiple things at once ... it's really
+  slow to equip, eat move around ... Are you sure you're writing scripts well enough?" -- he is
+  right: no driver verb lands two inputs in one tick, Verzik's bow-and-arrows swap takes two
+  ticks, Bloat eats through the slow 3-tick press, the eater eats every 6 ticks where the server
+  allows 3; the seam sources what OSRS takes in a tick, makes the server match, adds a
+  send-together block, fixes the eater, and writes the authors' rule); then one per fragile room classifying
   every failing row as play / measurement / content and fixing or writing it. Fixers do not edit
   the kept tests: they leave `notes.tob_<room>.md` in the state dir.
   THEN the ENTRY RE-AUTHOR pass for the five fragile rooms (card raid_author, pass
   `matthew-mbp-m4-raid-b1-rooms-tob-entry2`, raid tob, rooms maiden bloat nylocas sotetseg verzik,
-  mode entry, party 1, width 1, context = the seam27 notes; kept = the five-name survey green).
+  mode entry, party 1, width 1, context = the seam27 notes and the rule that a fight loop sends a
+  tick's whole intent together; kept = the five-name survey green).
   UNTIL THEN say it plainly in every report: ToB Entry solo is tested ON ONE SEED PER ROOM.
   THEN relaunch the Normal three-player pass with the same args and the seam22 notes (it now
   gets the five-name survey too).
