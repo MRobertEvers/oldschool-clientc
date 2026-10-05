@@ -233,3 +233,16 @@ Sampler: the reviewers accepted tob_maiden, tob_bloat and tob_nylocas, re-author
   - Fix: prove each set with the press detail or a fresh t.prayer.read(), then grade on a sample a throw read cannot give. Either a bomb thrown under the prayer that lands after a proved drop and hits over 8, or five or more forward hits all at most 8. Label each bomb hit by the prayer at its own landing.
   - Shot 052 is a P3 frame (boss bar 43.5%); no frame shows the trial. Shot 184 shows the exit ("Verzik Vitur has fallen").
   - Sampled files: build/author_state/.../tob_verzik.sampled_l15_*. DRIVER_NOTES 858688efb: "one bomb under 8 does not tell the landing from the throw".
+
+## matthew-mbp-m4-raid-b1-rooms-tob, fifteenth launch, Verzik second retry (Theatre of Blood, Entry mode, solo; 2026-10-05)
+
+- tob_maiden: KEPT (1dffd5230, OSRS 73241bbf8d), sampled in the fourteenth launch, not touched. 112 rows, coverage FULL 65/65.
+- tob_xarpus: KEPT from earlier launches (f417148e4), not touched. Remains: technique.exhumed_cover / stomp_skip / lag_step have no frame of their own (log-proved).
+- tob_bloat: KEPT (abc53c18e, OSRS 785100ce92), sampled in the fourteenth launch, not touched. 94/94, coverage FULL 55/55.
+- tob_nylocas: KEPT (116a1d938, OSRS fcf7ca91b1), sampled in the fourteenth launch, not touched. 177/177, coverage FULL 76/76. Remains: tech.style_kills' text says "Fire Strike" though every cast is Ice Burst.
+- tob_sotetseg: KEPT (1c86bf153, OSRS 7c2b2521bb), sampled earlier in this launch, not touched. 158/158, coverage FULL 84/84, ball_prayer_read_tick proved by two discriminating trials.
+- tob_verzik: KEPT (d3ff92400, OSRS fce87b9680). 259/259 PASS, coverage FULL 145/145 (p2_bomb_prayer_read_tick now measured), lint clean; deathless, boss npc_death on tick 728; all 74 boss hit_npc rows dealt by the player (sum 1665 = 1300 pool + 365 heals); cheats ::tobboss, ::tobpillars, ::tobjail, ::tobvault (read-only).
+  - Re-derived OK: entry_p2_bomb_max 16 (wiki :36 Entry Phase 2 bucket, :56 max hit2 16). p3_cadence 7 (cache verzik_phase3_story 10835 attackrate 7, cache_npc_attackrates :893; Strategies :937). reds_threshold 35 (Strategies :928; log hit 52 on 366, summon 367, npc_heal 33 [tob_prepare_player_hit] on 368 to 754 of 1000, so 121 of 400 = 30.2% at the summon, 43.2% before). p2_bomb_prayer_read_tick landing (wiki :397, Strategies :907).
+  - The launch-15b finding is answered: a reverse trial, Protect from Missiles read back up on 259, bomb thrown 261 at the raider's tile, drop pressed after the projectile row and read back off, landing 264 on 6427,91, hit 12 on 265: over the prayed 8, impossible under a throw read. The halving itself is witnessed by the room's 8 other clean bomb hits under the prayer (7,4,2,6,6,0,4,5).
+  - Remains: the row grades the reverse hit alone; a content that ignored the prayer entirely would also pass it (the halving is only in the log, not in the row). Shot 055 is a P3 frame (the row is filed at the end); the trial is shown by 039 (prayer off in the book, splat 4 of the 257 bomb) and 040 (back on).
+  - DRIVER_NOTES 6ab72506c: "Verzik's urnbomb reverse trial: one hit over 8 settles the read, if the prayed bombs show the halving".
