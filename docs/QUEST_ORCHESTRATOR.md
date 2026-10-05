@@ -98,7 +98,12 @@ records under `build/` and cannot be resumed elsewhere. After the update,
    python3 tools/quest_gate/claim.py batch <batch> <ids...>
    ```
    `claim.py` tells you which rows it kept; a row another machine took in between is
-   dropped and named. Launch only with the rows it kept.
+   dropped and named. Launch only with the rows it kept. A row green on `v3` is never
+   claimable, except a seam reopen: once the batch branch's `QUEUE.tsv` reopens it (non-green,
+   owner `<batch>`), claim it with `claim.py batch <batch> --reopened <ids...>` -- the tool
+   reads the branch's copy (origin's when pushed, else the local ref), claims only rows that
+   copy shows reopened by this batch, and records `green|<old owner>` in claim_prev so
+   `release` restores the green unchanged.
 5. **Run the flow on the branch** with the Workflow tool and the repo's scripts (saved
    copies with the `WT` constant set to this checkout): `content_parity.workflow.js` as pass
    `<batch>-parity`; `seam_pass.workflow.js` as `<batch>-seamN` for the seams parity or an
@@ -126,7 +131,9 @@ The parity closer, the seam closer and the batch's sampler commit on the batch b
    "Changing the protocol or shared tooling"), committed in a `v3` worktree and then
    cherry-picked onto the branch. `QUEUE.tsv` rows the pass writes (`queue.py set`,
    the reopen of a row after parity) are the batch's view and ride the branch; `v3`'s claim
-   stays until the PR merges and merge-tsv lets the verdict beat the claim.
+   stays until the PR merges and merge-tsv lets the verdict beat the claim. A reopen of a
+   row that is green on `v3` has no `v3` claim yet: push the branch, then claim it with
+   `claim.py batch <batch> --reopened <ids...>`, so another machine cannot take it.
 
 ## Finishing a batch
 
@@ -235,7 +242,7 @@ every other machine. What another machine needs to resume a quest is tracked her
 
 | file | writers |
 |---|---|
-| `test/quests/QUEUE.tsv` | on `v3`: `claim.py` only (claim, release, pr-sync, done --pr). On a batch branch: the batch's Queue phase and sampler, the seam closer and parity closer (reopen); the PR brings those rows to `v3` |
+| `test/quests/QUEUE.tsv` | on `v3`: `claim.py` only (claim, release, pr-sync, done --pr). On a batch branch: the batch's Queue phase and sampler, the seam closer and parity closer (reopen); the PR brings those rows to `v3`. A reopen of a row green on `v3` is claimed there with `claim.py batch <batch> --reopened <ids>` |
 | `test/quests/BATCHES.tsv` | the orchestrator, one row per batch after publishing its contact sheet |
 | `tools/quest_gate/PARITY.tsv` | the parity closer |
 | `test/quests/CONTENT_LOCK` | `claim.py` only; unused by the batch-branch model (empty when free, else `<pass>@<host> <UTC ISO time>`) |

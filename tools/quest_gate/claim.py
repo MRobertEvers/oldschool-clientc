@@ -19,6 +19,8 @@ Usage
                                               whose branch is merged into origin/v3
                      [--closed <batch>...]    ... and of batches whose PR was closed unmerged
     claim.py batch <batch> <test_id>...       claim rows for a batch
+                     [--reopened]             ... and rows green on v3 that the batch branch
+                                              reopened (seam pass after a content/grader fix)
     claim.py release <batch> [<test_id>...]   put the batch's still-claimed rows back
                      [--stale] [--note TEXT]  (another host's batch, claim > 24 h old; the
                                               note lands in last_failure for the next taker)
@@ -59,6 +61,17 @@ with the batch's PR and merge-tsv lets a verdict beat the claim.
 Claimable statuses: todo, blocked, content_bug (never green, never a row
 another batch holds). Batch names are unique across machines (mac1-b47); a
 batch name another host already holds rows under is refused.
+
+`batch --reopened`: a seam pass that reopens a row green on v3 (after a
+content or grader fix) does so on the batch branch, where the row reads
+non-green with owner `<batch>` (or `<batch>@<host>`). With --reopened the
+tool reads the branch's QUEUE.tsv (origin/<batch> when the branch is on
+origin, else the local ref) and a v3 row that is `green` becomes claimable
+ONLY when the branch shows that row non-green and owned by this batch; it is
+claimed the ordinary way, so claim_prev records `green|<old owner>` and
+`release` puts the green back unchanged. A green row the branch did not
+reopen, or another batch reopened, is still dropped. Without --reopened the
+branch is not read and green is never claimable.
 
 `merge-tsv`: for a file git left conflicted in a merge (stages 1/2/3 in the
 index), writes one row per key (test_id when the header has it, else the
@@ -230,9 +243,74 @@ def origin_queue():
     return [dict(r) for r in reader]
 
 
+def batch_branch_queue(batch: str):
+    """QUEUE.tsv as the batch branch has it: origin/<batch> when the branch is
+    on origin (fetched first), else the local ref <batch>. Refused when
+    neither exists -- --reopened has nothing to read then."""
+    assert batch
+    ref = None
+    if git("ls-remote", "--heads", REMOTE, batch).stdout.strip():
+        git("fetch", REMOTE, batch)
+        ref = "%s/%s" % (REMOTE, batch)
+    elif git("rev-parse", "--verify", "--quiet", "refs/heads/%s" % batch, check=False).returncode == 0:
+        ref = "refs/heads/%s" % batch
+    if ref is None:
+        raise Refused("--reopened: no branch %s on %s and no local ref of that name" % (batch, REMOTE))
+    text = git("show", "%s:%s" % (ref, QUEUE_REL)).stdout
+    reader = csv.DictReader(io.StringIO(text), delimiter="\t")
+    return ref, [dict(r) for r in reader]
+
+
+def reopened_on_branch(branch_rows, test_id: str, batch: str) -> bool:
+    """True when the batch branch's copy of the row is non-green and owned by
+    `batch` (as `<batch>` or `<batch>@<host>`): the branch reopened it."""
+    assert branch_rows is not None
+    assert test_id
+    assert batch
+    row = quest_queue.find_row(branch_rows, test_id)
+    if row is None:
+        return False
+    return row.get("status") != "green" and quest_queue.claim_batch(row.get("owner", "")) == batch
+
+
+def claim_rows(rows, test_ids, owner: str, branch_rows=None):
+    """Claim each of test_ids in `rows` (v3's ledger) for `owner`; returns
+    (claimed, dropped). branch_rows is the batch branch's QUEUE.tsv, given
+    only with --reopened: then a green row the branch reopened is claimable
+    too. Every id must be in `rows` (cmd_batch refuses unknown ids first)."""
+    assert rows is not None
+    assert test_ids
+    assert owner
+    batch = quest_queue.claim_batch(owner)
+    claimed, dropped = [], []
+    for test_id in test_ids:
+        row = quest_queue.find_row(rows, test_id)
+        assert row is not None, test_id
+        if row.get("status") == "claimed" and row.get("owner") == owner:
+            claimed.append(test_id)
+        elif row.get("status") in quest_queue.CLAIMABLE:
+            quest_queue.claim_row(row, owner)
+            claimed.append(test_id)
+        elif (row.get("status") == "green" and branch_rows is not None
+              and reopened_on_branch(branch_rows, test_id, batch)):
+            quest_queue.claim_row(row, owner)
+            claimed.append(test_id)
+        else:
+            why = ""
+            if row.get("status") == "green" and branch_rows is not None:
+                why = "; not reopened by %s on its branch" % batch
+            dropped.append("%s (%s%s%s)" % (test_id, row.get("status"),
+                                            " by " + row["owner"] if row.get("owner") else "", why))
+    return claimed, dropped
+
+
 def cmd_batch(args) -> int:
     owner = "%s@%s" % (args.batch, host_name(args))
     rows = origin_queue()
+    branch_rows = None
+    if args.reopened:
+        ref, branch_rows = batch_branch_queue(args.batch)
+        print("--reopened: reading %s's %s" % (ref, QUEUE_REL))
     unknown = [t for t in args.test_ids if quest_queue.find_row(rows, t) is None]
     if unknown:
         raise Refused("unknown test_id(s) in %s: %s" % (QUEUE_REL, ", ".join(unknown)))
@@ -246,17 +324,7 @@ def cmd_batch(args) -> int:
 
     def apply(wt):
         rows = load_queue(wt)
-        claimed, dropped = [], []
-        for test_id in args.test_ids:
-            row = quest_queue.find_row(rows, test_id)
-            if row.get("status") == "claimed" and row.get("owner") == owner:
-                claimed.append(test_id)
-            elif row.get("status") in quest_queue.CLAIMABLE:
-                quest_queue.claim_row(row, owner)
-                claimed.append(test_id)
-            else:
-                dropped.append("%s (%s%s)" % (test_id, row.get("status"),
-                                              " by " + row["owner"] if row.get("owner") else ""))
+        claimed, dropped = claim_rows(rows, args.test_ids, owner, branch_rows)
         if claimed:
             save_queue(wt, rows)
         outcome["claimed"], outcome["dropped"] = claimed, dropped
@@ -682,6 +750,9 @@ def main() -> int:
     p = sub.add_parser("batch", help="claim rows for a batch")
     p.add_argument("batch")
     p.add_argument("test_ids", nargs="+")
+    p.add_argument("--reopened", action="store_true",
+                   help="also claim rows green on v3 that the batch branch's QUEUE.tsv reopened "
+                        "(non-green, owner = this batch): a seam reopen after a content/grader fix")
     p.set_defaults(func=cmd_batch)
     p = sub.add_parser("release", help="restore the batch's still-claimed rows")
     p.add_argument("batch")
