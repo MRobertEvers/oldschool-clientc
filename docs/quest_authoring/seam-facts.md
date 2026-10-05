@@ -2273,3 +2273,40 @@ copy 178/0, helper_coverage FULL.
 (traps-01-12, verbs-pointer); `helper_coverage.py` no longer credits an NpcStep to a row only
 named after the npc (coverage-and-gate); `run.py` takes one quest id per call and honours
 `TORIRS_QUEST_NO_PUBLISH` (running).
+
+## Seam pass matthew-mbp-m4-b62-seam2 (2026-10-05, batch matthew-mbp-m4-b62)
+
+Content in the OSRS-Content commit tagged `[seam:matthew-mbp-m4-b62-seam2]`; the grader change in
+the parent commit with the same tag. Every run used
+`build/orchestrator/worktrees/b61-engine/src/torirs_b61engine` (no engine change this pass).
+
+(a) **The Dorgesh-Kaan station doorway lands on a walled-off train platform; `walk_to` Tegdak
+stalls at 2488,5536** -- FIXED, `quest_anothersliceofham/scripts/slice_zanik.rs2`.
+`slice_goblin_station_entrance` (2695,5277,1) had one maplink row, `[maplink_1_42_82_8_29]`, dest
+2488,5536,0: the FINISHED station's platform, a 296-tile room the static map walls off from the
+dig where Tegdak works (2512,5562), with no quest-state test. A new name binding
+`[oploc1,slice_goblin_station_entrance]` lands at `^slice_railway_dig_landing_coord` 2520,5607,0
+(the tile in front of the dig's own exit doorway, which blocks its own tile) while
+`%varb3550_slice_quest < ^slice_complete`, and falls through to `~maplink_transition` after, so the
+platform landing is unchanged at state 11; `maplink.dbrow` is untouched. Sources: Quest Helper
+`AnotherSliceOfHam.java:197` (the railway zone 2505..2523 x 5527..5630 is the dig) and
+:272/:275 (enterRailway -> talkToTegdak 2512,5564); the wiki quick guide (oldid 14458352,
+Excavation: "Walk south on the tracks and talk to Tegdak"). The pattern: a maplink row whose
+destination is an area's post-quest state needs a quest-state name binding that shadows
+`[oploc1,_maplink_transition]` and falls through to it (gaps-world: A cave or tunnel click answers
+a chat line; `curseofarrav.rs2:223-235`). Proof: `seam2_dorgesh_before` landed 2488,5536 and the
+walk stalled; `seam2_dorgesh_after` 10/10 (lands 2520,5607, walk reaches Tegdak in 23 ticks,
+`::complete` then lands 2488,5536); a copy of the fixer's test with the climb dest changed and the
+platform block deleted, `seam2_dorgesh_slice_copy`, 140/0. OPEN (not changed): the return doorway
+lands on 2695,5277,1, the station doorway's own tile; the reverse maplink row says 2696,5277.
+
+(b) **`helper_coverage` charges a goto OUT of a sealed pocket** (`sealed_exits`,
+coverage-and-gate). Before it, Another Slice of H.A.M.'s `goto-talkToTegdak` off the train
+platform read FULL. Landing it reopened Holy Grail (`goto-talkToFisherman` out of the 320-tile
+pocket east of the Black Knight Titan, where `defeat_titan`'s `p_teleport(movecoord(npc_coord, 1,
+0, 0))` lands the player; from the titan's near side the walk reaches the fisherman in 11 ticks,
+so the landing side may be the content bug -- check LostCity and the wiki first) and Watchtower
+(`goto-leaveGrewIsland` over the water instead of `tree_ropeswing3`). OPEN: the exemption accepts
+any press of a pocket op loc in the 500 ticks before, so a test that swings INTO a pocket and gotos
+out within 500 ticks is not charged (Watchtower's `goto-leaveGrewIsland2`); a tighter rule needs
+to know which op locs leave a passage open.
