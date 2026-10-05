@@ -162,6 +162,11 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   `matthew-mbp-m4-camera-b1` (cut from this branch), does the gather seam first, and merges this
   branch in for seam24 and seam25 before the split. This session never touches that worktree.
   Its work comes back by a merge the raid orchestrator makes when the owner asks.
+  OWNER'S RULE, 2026-10-05, FOR EVERY PASS FROM NOW ON: "Never do a real time play through. That
+  was a huge waste." "Unless I ask." (Seam24's one fixer ran 3.5 hours, the last 1.5 replaying
+  raid rooms in a real-time client.) Put it in every work order and every card context: proofs run
+  on the virtual clock; a script is played only as far as the claim needs and never twice for one
+  claim; 30 minutes of proof after the gates are green, then the report says what is not proved.
   THEN SEAM27 (`SEAM_TRIAGE_2026-10-05f.md`): THE KEPT ENTRY ROOMS HOLD ON ONE SEED ONLY. The
   account name seeds the random numbers; each room was kept under its own name alone. The
   orchestrator's survey (`SEED_SURVEY_2026-10-05.md`; evidence in `build/seed_survey_2026-10-05/`):
