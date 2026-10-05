@@ -10,9 +10,6 @@
 # with a count, not a line number; `lines` is where they sat at the measure.
 # The list only shrinks: a row whose give is gone is a lint finding.
 test_id	count	cheat	lines
-doric	1	::give clay 6	75
-doric	1	::give copper_ore 4	80
-doric	1	::give iron_ore 2	85
 icthlarin	1	::give ics_little_bookofembalming 1	319
 icthlarin	1	::give tinderbox 1	55
 icthlarin	1	::give water_skin4 1	56
