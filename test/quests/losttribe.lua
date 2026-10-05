@@ -169,6 +169,22 @@ return {
         walk("grabBrooch.walk", { { 3222, 9618 }, { 3224, 9618 }, { 3229, 9610 } })
         t.exec("grabBrooch", t.player.click_obj, "lost_tribe_brooch", 3)
         t.exec("brooch.have", t.inv.await, "lost_tribe_brooch", 1, 6)
+        -- the dig and both squeezes through the hole lay the brooch ONCE
+        -- (losttribe.rs2 [proc,lost_tribe_lay_brooch]), so the floor is bare once it is taken
+        do
+            local brooch_obj = t.player.by_symbol("obj", "lost_tribe_brooch")
+            local hr, h = t.world.hazard_at(3230, 9610, 0)
+            local left = 0
+            if hr == "ok" then
+                for i = 1, #h.objs do
+                    if h.objs[i].obj_id == brooch_obj.id then left = left + 1 end
+                end
+            end
+            local _, held = t.inv.count("lost_tribe_brooch")
+            t.check("brooch.single", hr == "ok" and left == 0 and held == 1,
+                "backpack " .. tostring(held) .. ", left on 3230,9610,0: " .. left .. " (want 1 and 0); "
+                    .. tostring(hr) .. " " .. tostring(hr == "ok" and h.text))
+        end
         -- the maze: a floor trap (lost_tribe_trap_floor 3238,9622, maps/m50_150.jl2) drops the
         -- player into the swamp caves and puts the light out. The walk is cut short by the fall,
         -- so its answer is a note; the landing is the check.
