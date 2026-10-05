@@ -910,3 +910,41 @@ conformance.py MAX_FRAMES 120000 -> 160000; raid_coverage.py parses tol bracket<
   seam19. test-quest-cheats, check-quest-verbs, check-drive-abi, check-pt-switch and
   test-plugin-lua pass. Lint is clean on 127 files and spec_check is clean. No C changed, so
   the server selftest was not re-run (baseline 11).
+
+## matthew-mbp-m4-raid-b1-seam21 (2026-10-04; parent af629f4e3, OSRS-Content 123b17c26c unchanged): a party run in true lock step, and fewer frames per tick (triage SEAM_TRIAGE_2026-10-04i.md)
+
+- `party_lockstep_frames`: LANDED. The one-tick shift was `t.party.barrier`'s cross-process
+  file race: on the unmodified binary, five smokes gave the leader's ledger three ways
+  (`party.barrier.normal_out ... waited 1 tick(s)` vs `0`, SUMMARY 182 vs 183). Marks are
+  now stamped with the lockstep tick and count from the next boundary. Link protocol 2:
+  SEAT(version, seat, k), READY(frames, checked against F = 30/k), TICK(tick, world digest),
+  plus a frame audit; each mismatch is a loud abort (three live mutants in a throwaway
+  worktree each ended the run with its message). `TORIRS_LOGIC_CYCLES_PER_FRAME=k` added.
+  Open: the party default stays k=1. k>1 is deterministic within each k but is a different
+  run from k=1, because the driver's verbs are frame-granular (k=10: 303 boundaries, p2/p3
+  `raidwide.chat.party_enter_line` FAIL; k=30: 631). k=2 moves three `npc_free` rows at tick
+  112 by a tile, cause not found. Wall time on `_party_smoke` (run.py total) at k=1/10/30:
+  10.9 / 10.5 / 11.0 s.
+- `party_determinism_gate`: LANDED. `t.party.barrier` counts its wait in frames
+  (`p1 waited 1050 frame(s) (35 tick(s))`). run.py traces every party client, and a
+  `party.lockstep` row (gate.py) fails a run whose traces differ. New
+  `tools/raid_gate/party_repeat.py`. Closer's proof: `_party_smoke --runs 3 --load` AGREE
+  (sha 2054478152d0, 5617 lines, 193 boundaries); `--cycles default,1 --runs 3 --load`
+  AGREE (6 runs, one sha); the long Normal Bloat scratch 3/3 AGREE under load (sha
+  3a6ea401b7a8, 548 boundaries, `fight.long PASS world ticks 123..529 (406 in the fight)`).
+  Conformance `seam.party_barrier_frame_counted` merged (SEAM_COUNT 169 -> 170). The
+  raid_author party brief gained its DETERMINISM GATE line. Open: a member keeps running on
+  its own clock after the leader's process ends (it should abort); the long scratch needs
+  `::god 1` because Normal Bloat's flies kill an unhidden raider in about 10 ticks;
+  `tools/raid_gate/gate.py` asserts on a scratch run name (`unknown raid prefix`);
+  tob_entry_trio and tob_maiden_normal have no test file yet.
+- Regressions: none. cooks_assistant and druid are byte-identical to
+  build/merge17_check. All six Entry room ledgers are byte-identical to their pre-seam21
+  ledgers; raid_gate: maiden, bloat, nylocas and xarpus green, and sotetseg and verzik only on
+  the two known seam20 unmeasured rows. Quest suite: 115 green, with deserttreasure,
+  forgettabletale, regicide and troll RED on the same first failing rows as seam20.
+  Conformance is 347/347. check-drive-abi, check-pt-switch, check-quest-verbs,
+  test-embed-party-link (25 ok), test-plugin-lua and test-quest-cheats pass. Lint is clean
+  on 127 files. The server selftest has 11 failures (baseline); `make test-torirsserver`
+  stops earlier, at the servpack membership check, on unchanged content. No PNG was viewed:
+  the editor's Read hook timed out. The shots decode at 807x503.
