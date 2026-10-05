@@ -88,7 +88,8 @@ topic file with one line added here.
 - `walk_to` timed out from 2895,10210,0 under the Consortium wide stairs; a Varrock Teleport + GE trapdoor detour after every Consortium descent (FIXED b62-seam1: the stairs land by maplink) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (b)
 - Another Slice of H.A.M.: the Dorgesh-Kaan station doorway lands on the train platform 2488,5536 and `walk_to` Tegdak stalls; a maplink lands in an area's FINISHED state mid-quest (FIXED b62-seam2: the dig at 2520,5607 until state 11) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam2 (a)
 - `helper_coverage` CHEAT "leaves a pocket the map closes on every side ... no walk leaves it (sealed_exits)"; a goto off a platform, an island or a boss's landing with no door -> coverage-and-gate: A goto onto a table, a stair or a bar's back reads FULL (the `sealed_exits` bullet)
-
+- Haunted Mine: after the lift `walk_to 2725,4452 ... stalled at 2725,4454` in the flooded pool; `useKeyOnValve` answers "Nothing interesting happens." (FIXED b63-seam1: wade to the south shore, a real key use) -> seam-facts: Seam pass matthew-mbp-m4-b63-seam1 (a)
+- Ratcatchers: reading the party directions moves nobody; the trellis lands on 2844,5105,1 and every walk stalls; the Port Sarim manhole lands 3018,9631 (FIXED b63-seam1: teleport to the garden, trellis top, cache maplink rows) -> seam-facts: Seam pass matthew-mbp-m4-b63-seam1 (b)
 
 ## Pressing and clicking
 
@@ -144,6 +145,10 @@ topic file with one line added here.
 - a door "is securely locked" from INSIDE yet opens from outside without the key (Shield of Arrav `phoenixdoor2`, FIXED b58-seam1): the cache placed the door on the other tile from LostCity's -> seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (b)
 - a door says it unlocks/opens, its open leaf appears, and the player still cannot pass either way (Eadgar's storeroom, FIXED b58-seam1: walk-through like `open_and_close_door2`) -> seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (d)
 - `covered ... none of N pixels hittested` on an npc the shot shows nobody at (Biohazard's Chancy / Da Vinci, all-hidden model; FIXED b58-seam1, never `t.drive.op`) -> traps-13-22: Trap 21; seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (h)
+- `pass_door` on a Gu'Tanoth gate (or any LostCity `~open_and_close_double_door*` gate) reads "the closed leaf is still at ... (player ...)" after the player was carried through -> verbs-pointer: A gate ported from LostCity's `~open_and_close_double_door*` is a WALK-THROUGH
+- `climb` answers `refused ... a page is up: npc '...' -- the press spoke before it moved the player (pass spec.chat ...)`; the Watchtower's towerladder guard ("It is the wizards' helping hand") -> verbs-pointer: A GUARDED ladder speaks first: `chat=`, `chat_optional=`
+- `covered ... element E at 382,102 ... none of 99 pixels` on a named npc copy (`{slot=}`/`{at=}`) one tile away, every try, every camera (FIXED b63-seam1) -> verbs-pointer: A named npc copy is pressed at its OWN pose's pixel
+
 ## Dialogue and chat
 
 - `chat.choose("Yes.")` answers stale on a choice that reopens a name prompt (`p_choice2` then `p_namedialog`, The Garden of Death) -> gaps-dialogue: A choice that reopens as a name prompt
@@ -216,6 +221,9 @@ topic file with one line added here.
 - the guide says an npc gives the hammer (Swan Song's Franklin) but the colony hole refuses without one; Malignius wants 7 bones and the trolls drop 4 -> content-gaps: Swan Song: Franklin gives no hammer (hammer FIXED b54-seam3, OSRS-Content 1ef7c1e7b9)
 - `use_item_on_item(a, b)` says `Nothing interesting happens.` but the reverse order works; which of `[opheldu,a]`/`[opheldu,b]` fires -> gaps-combat: `use_item_on_item` order (`[opheldu,b]`, the clicked item, first; corrected matthew-mbp-m4-b49-seam1)
 - `no_row zembo` at Musa Point; Karamjan rum for Tai Bwo Wannai Trio -> content-gaps: `no_row <npc>` for a world npc the guide names
+- `use_on` answers `timeout settle_after_click` with no chat after a long walk, and the next click cancels the pending use (Haunted Mine valve from the chisel crate) -> verbs-inventory-shops: `use_on` answers `timeout settle_after_click` when its walk outlasts the settle
+- `t.player.drop("cert_...")` empties the pack but `timeout`s with no ground obj; a dropped note is invisible (FIXED b63-seam1: the client drew no model for a note) -> seam-facts: Seam pass matthew-mbp-m4-b63-seam1 (e)
+- two or more copies of a quest item on one tile after re-entering a room (Lost Tribe's brooch); an `obj_add(..., 0)` stacks forever (FIXED b63-seam1 for the brooch) -> seam-facts: Seam pass matthew-mbp-m4-b63-seam1 (c)
 
 ## Vars, stages and the journal
 
@@ -294,7 +302,7 @@ topic file with one line added here.
 - `await_dead_engaged` times out at a few hp left after a seam raised the npc's hitpoints -> seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (c)
 - a stationary attacker reads `You dodge out of the way of Brutus's charge.`; a sidestep never dodges a telegraphed special (FIXED b62-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (d); gaps-combat: A margin row reads full hp
 - "I can't reach that!" right after a teleport out of a fight (crest's Varrock Teleport after Chronozon respawned): Auto Retaliate, LostCity-faithful -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (f)
-
+- the player died inside a re-attack or re-engage press while hp fell and no food was eaten; `inside an attack press`, `made by the fast path because hp was under` in a fight row (b63-seam1: `t.player.attack` takes `opts.eat`) -> verbs-combat: Eating inside an attack press and a re-engagement
 
 ## Completion and rewards
 
@@ -369,6 +377,8 @@ topic file with one line added here.
 - lint "... outside setup: a mid-run ::give" / "::bankgive is a SETUP cheat" / "`-- lint: kit-give` ..."; a note "mid-run ::give BASELINED"; a setup `::bankgive` of a guide-obtained item graded CHEAT like `::give` -> verbs-state-and-vars: lint: "outside setup: a mid-run ::give"
 - `ledger row N 'X' names <noun>, but its own action does not reach that npc`; a talk step credited by a pass_door named after the npc (b62-seam1) -> coverage-and-gate: "names <npc>, but its own action does not reach that npc"
 - a `walk_to` row FAILs `hollow -- ok with no detail` (FIXED b62-seam1: walk_to answers `walk_to x,z: reached x,z,level from a,b in N tick(s)`) -> traps-01-12: Trap 12; verbs-pointer: `t.player.walk_to`
+- helper_coverage CHEAT "with every door shut no walk joins them ... every walk on foot opens <gate> ... (gate_crossings)", a `(goto onto <loc>)` step "on a solid tile ... (solid_landings)", UNMATCHED "line N is a bare use_on" / "shows no effect" -> coverage-and-gate: A goto through the only gate, onto a solid tile, or off an island it swung onto; a use that did nothing
+- a quest queued green reads RED on a fresh run with its FIRST goto charged (membergater, a house door, a solid landing): the owner's open first-goto question; 8 tests wait on it (b63-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b63-seam1 (f)
 
 ## Harness and runs
 

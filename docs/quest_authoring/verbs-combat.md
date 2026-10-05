@@ -85,6 +85,37 @@ and `OUT OF <food>`. A malformed `opts.eat` or unknown food symbol ends the run.
 cast/attack-and-eat loop:
 `t.exec('boss.dead', t.npc.await_dead_engaged, 240, 40, { eat = { item = 'shark', below = 70 } })`.
 
+#### Eating inside an attack press and a re-engagement (b63-seam1)
+
+The kill waits used to eat only BETWEEN their wait ticks, and an Attack press is not a wait tick: a
+`covered` first press, its cover recovery (settled camera, poses), its `walk_near` and two more
+pose-and-probe presses can spend tens of ticks inside one call. Haunted Mine's Treus Dayth fight
+died there in runs 12, 15 and 18 (hp 95 -> 0 while one re-attack probed). Now:
+
+- `t.player.attack(npc, op, ticks, opts)` takes `opts.eat` (the kill waits' table and asserts;
+  `{ eat = ... }` alone means the nearest copy, or put it beside `slot=`/`at=`). Its detail gains the
+  same `; eat <food> below N: ...` tag, and it eats every tick of its settle.
+- With an eater, every attack press -- `t.player.attack`'s, `await_dead`'s re-attack and
+  `await_dead_engaged`'s re-engagement (and the cast fight's re-cast) -- eats before each press
+  attempt, after a failed cover recovery and after the walk. A press due while hp still reads under
+  `below` AFTER that eat (food delay, out of food, a burst bigger than a meal) is the bounded fast
+  press (seam5's `quick`, about two ticks), never the hunt.
+- The tag says where: `, 4 of them inside an attack press (after the cover recovery 68->88, before
+  press 3 69->89, ...)` and `, N press(es) made by the fast path because hp was under 80`. `lowest hp`
+  is now the lowest the eater ever READ (inside the food delay too).
+- `t.player.cast` takes no `opts.eat` (it raises); eat in the kill wait that follows it. A re-cast
+  that must eat between presses cancels the armed spell first, so the Eat is never a cast on the
+  food.
+
+So a re-attack after a kill wait that ended with the boss alive is
+`t.player.attack(boss, 2, 12, { eat = { item = "shark", below = 85 } })`, not a hand-written
+eat-then-attack. Proof: `build/quest_gate/b63s1_eatpress1` (a hellhound on a defence-1 player, every
+npc press forced `covered` for ~25 ticks): without `opts.eat` hp 93 -> 41 with 18 sharks untouched;
+with it two eats inside the press, lowest 67/99; the re-engage wait ate 4 of its 5 sharks inside its
+two forced re-engagements. Conformance: `seam.attack_eats_inside_its_press` (99/99 hp, `below = 100`:
+the eat before the press, the fast press, a shark gone; the same press without `opts.eat` eats
+nothing).
+
 #### Cast fights re-cast (seam27)
 
 A CAST fight (after `t.player.cast`) now judges its stall on the health reading alone, so it

@@ -273,6 +273,17 @@ the loc before it presses, so it leaves the doorway and gets that mesbox. `handi
 range holds the tile, and a `doorway.tile` row records where the player stood. The two helpers
 are private. Asking `use_on` to press without walking is a driver seam.
 
+#### `use_on` answers `timeout settle_after_click` when its walk outlasts the settle (b63-seam1)
+
+`use_on` waits a fixed settle for the server's answer and does not follow a long walk the way
+`click_loc` does ("the walk outlasted the 20-tick settle; followed it N more tick(s)"). From
+Haunted Mine's chisel crate (2801,4501) the walk to the lift valve is about 50 ticks: the use timed
+out with no chat line, and the next click (the guarded Turn) replaced the still-pending use. Walk
+beside the target first (`t.player.walk_to(2807, 4496, 60)`), then
+`t.exec("useKeyOnValve", t.player.use_on, ...)` and read its effect on the next row (the varbit,
+the line, the key kept). helper_coverage now refuses a use step with no effect row (coverage-and-gate:
+A goto through the only gate ... a use that did nothing).
+
 ### `t.player.use_item_on_item(item_a, item_b)`
 
 `t.player.use_item_on_item(item_a, item_b)` -> `ok` `not_found` `refused` `no_row` `timeout`
