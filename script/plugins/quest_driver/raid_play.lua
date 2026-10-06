@@ -59,9 +59,17 @@ QD.RAID_PLAY_WEAPONS = {
 -- consume_shared.rs2:49), so it combos with a food in one tick ("marlin,
 -- Saradomin brew, and halibut - in that order", wiki Food/Fast foods).
 -- Saradomin brew heals 2 + 15% = 16 at 99 (wiki Saradomin brew).
+-- The Theatre's bandages (raid seam35e play_tob_entry_relay): a food that
+-- "not only heals 20 Hitpoints" (Entry Mode page, wiki_Theatre_of_Blood_
+-- Entry_Mode.wikitext:151; tob_spectate.rs2 [opheld1,tob_bandages]
+-- stat_heal(hitpoints, 20, 0) and ~consume_food_taken).  Last, so a pack
+-- with fish eats the fish first as before; a raider whose fish are gone
+-- after the supply chest eats them (the relay's Xarpus died at 14 hp with
+-- ten bandages in the pack because this table did not know them).
 QD.RAID_PLAY_FOOD = {
     { item = "anglerfish", heal = 22 },
     { item = "shark", heal = 20 },
+    { item = "tob_bandages", heal = 20 },
 }
 QD.RAID_PLAY_BREWS = { "br_1dosepotionofsaradomin", "br_2dosepotionofsaradomin",
     "br_3dosepotionofsaradomin", "br_4dosepotionofsaradomin" }
@@ -149,6 +157,21 @@ function QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
     -- The tick log is the leader's; a member reads none (README "A party run").
     local lr = QD.ticklog.rows({ kind = "mark" })
     st.log = (lr == "ok")
+    -- raid seam35e play_tob_entry_relay: the swings this room's loop counts
+    -- start NOW.  A room test starts its tick log at the room, so serial 0
+    -- was the room's start; a whole-raid relay's log starts in the lobby, and
+    -- the first read took every earlier room's player_anim rows whose seq is
+    -- the weapon row's as this room's swings.  Verzik's first read ran on the
+    -- default row (the scythe, 8056) before her plan put on its own, counted
+    -- the 60 scythe swings of Bloat, Sotetseg and Xarpus as P1 punches, and
+    -- swapped to the bow fifteen ticks in (svdplayentry, the five-name survey:
+    -- a P1 that outlasted the food).
+    if st.log then
+        local ar, rows = QD.ticklog.rows({ kind = "player_anim" })
+        if ar == "ok" then
+            for _, row in ipairs(rows) do st.anim_serial = math.max(st.anim_serial, row.serial) end
+        end
+    end
     local pr, rows = api_drive.players()
     if pr == "ok" then
         for _, r in ipairs(rows) do

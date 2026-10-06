@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 187
+-- @seam-count 189
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 195
-local SEAM_COUNT = 187
+local SEAM_COUNT = 189
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -12232,6 +12232,87 @@ return {
             end
             return "ok", "east, west, north-west (W:791): " .. table.concat(parts, "; ")
                 .. "; every seat on an edge, 3+ tiles from his centre and from each other"
+        end)
+
+        -- conformance.play_tob_entry_relay (raid seam35e).  TWO seam rows, no verb added.
+        -- PLACE: test/quests/_conformance.lua, right after
+        -- seam("seam.raid_play_sotetseg_trio_seats", ...) (it starts at line 12202 on 60bdce4b5),
+        -- before step("party.role", ...).  SEAM_COUNT +2 (187 -> 189, @seam-count).
+        -- Merged by the seam35e closer: SEAM_COUNT 187 -> 189, @seam-count likewise.
+        --
+        -- What they prove, on no boss: the two LIBRARY changes the whole-raid relay
+        -- (test/raids/_play_entry.lua) needed and no room test showed
+        -- (docs/minigames/raid_loop/PLAY_NOTES.md "The whole raid, Entry solo").  Proved first
+        -- as a scratch script: build/seam_state/matthew-mbp-m4-raid-b1-seam35e/scratch/conf_rows.lua,
+        -- run e35confrows (both PASS: "hp 30 under a threat of 50 gave tob_bandages/nil; hp 80 gave
+        -- nil/nil"; "newest player_anim serial 2; _play_state started anim_serial at 2").  Before the
+        -- fix the first gives nil/nil (the food table held no bandages) and the second 0.
+        --
+        -- (1) The Theatre's bandages are food to the play library (QD.RAID_PLAY_FOOD, last row,
+        -- heal 20: wiki_Theatre_of_Blood_Entry_Mode.wikitext:151; tob_spectate.rs2
+        -- [opheld1,tob_bandages]).  The pick is the first of anglerfish, shark, tob_bandages
+        -- the pack holds, so a pack an earlier row left fish in still grades.
+        seam("seam.raid_play_supplies_bandages", function()
+            local sup = verb("raid", "_play_supplies")
+            if not sup then return missing("raid", "_play_supplies") end
+            local count = verb("inv", "count")
+            if not count then return missing("inv", "count") end
+            setup_cheat("::give tob_bandages 1")
+            settle(3)
+            local want = "tob_bandages"
+            for _, fish in ipairs({ "shark", "anglerfish" }) do
+                local cr, n = count(fish)
+                if cr == "ok" and n > 0 then want = fish end
+            end
+            local function run(hp, need)
+                local st = { engaged = false, last_eat = -1000, last_drink = -1000, last_swing = -1000,
+                    engaged_tick = -1000, weapon = { speed = 4 }, swings = {} }
+                local v = { tick = 100, hp = hp, hp_base = 99, prayer = 99, prayer_base = 99 }
+                local eat, drink = sup(st, v, function() return need end)
+                return tostring(eat), tostring(drink)
+            end
+            local e1 = run(30, 50)
+            local e2 = run(80, 50)
+            if e1 ~= want or e2 ~= "nil" then
+                return "fail", "QD.raid._play_supplies: hp 30 under a threat of 50 ate " .. e1 .. " (want " .. want
+                    .. "), hp 80 ate " .. e2 .. " (want nil)"
+            end
+            return "ok", "QD.raid._play_supplies: hp 30 under a threat of 50 eats " .. e1 .. " (the first of anglerfish, shark, "
+                .. "tob_bandages held), hp 80 eats nothing"
+        end)
+
+        -- (2) A play's swings start at the play (QD.raid._play_state seeds st.anim_serial at the
+        -- newest player_anim row).  A room test's tick log starts at its room; the relay's starts
+        -- in the lobby, and the first _play_see used to count every earlier player_anim row whose
+        -- seq was the weapon row's as this play's swings (Verzik's plan read 60 scythe swings
+        -- from Bloat, Sotetseg and Xarpus as its P1 punches and swapped to the bow 15 ticks in).
+        seam("seam.raid_play_swings_start_at_play", function()
+            local state = verb("raid", "_play_state")
+            if not state then return missing("raid", "_play_state") end
+            local start = verb("ticklog", "start")
+            if not start then return missing("ticklog", "start") end
+            local rows_fn = verb("ticklog", "rows")
+            if not rows_fn then return missing("ticklog", "rows") end
+            local eat = verb("player", "eat")
+            if not eat then return missing("player", "eat") end
+            setup_cheat("::give tob_bandages 1")
+            settle(3)
+            local lr = start()
+            eat("tob_bandages")
+            settle(3)
+            local _, rows = rows_fn({ kind = "player_anim" })
+            local newest, seen = 0, false
+            for _, r in ipairs(rows or {}) do
+                newest = math.max(newest, r.serial)
+                if r.seq == 829 then seen = true end
+            end
+            local st = state({ boss = { entry = "man" } }, "conformance", "entry", {}, { speed = 4, seqs = { [829] = true } }, {})
+            if lr ~= "ok" or not seen or newest <= 0 or st.anim_serial ~= newest then
+                return "fail", "tick log " .. tostring(lr) .. ", seq 829 logged " .. tostring(seen) .. ", newest player_anim serial "
+                    .. newest .. ", _play_state anim_serial " .. tostring(st.anim_serial)
+            end
+            return "ok", "the eat (seq 829) is player_anim serial " .. newest .. " and _play_state starts anim_serial there: "
+                .. "it is not this play's swing"
         end)
 
         -- seam17 party_run_and_verbs: conformance rows for t.party.* (script/plugins/

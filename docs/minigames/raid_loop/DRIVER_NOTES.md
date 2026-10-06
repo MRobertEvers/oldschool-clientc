@@ -6242,3 +6242,51 @@ pattern over about 140 ticks.
 `party_repeat.py _play_xarpus --runs 3` runs the harness solo and then fails on the missing
 party.tsv. The trio's repeat proof ran on a copy of the harness with `party = 3,` added
 (`build/xn34_repeat/_play_xarpus_trio.lua`, `--script ... --name _play_xarpus --runs 3`).
+
+## A play's tick-log reads start at the play, not at serial 0 (seam35e)
+
+A room test's tick log starts at its room; the whole-raid relay's starts in the lobby.
+Anything the play library reads "since serial 0" must start at the play.
+`QD.raid._play_state` now seeds `st.anim_serial` at the newest `player_anim` row, so a
+room's swing count no longer includes the earlier rooms' swings. Before this, Verzik's
+plan read 60 scythe swings from Bloat, Sotetseg and Xarpus as P1 punches and switched to
+the bow 15 ticks in. Row: `seam.raid_play_swings_start_at_play`.
+
+## A plan with absolute tiles only works in the room test's instance (seam35e)
+
+When the Theatre is entered by its door, each room is built in the next free instance.
+On the relay's first run Maiden stood at 6426,156, not at the room test's 6426,92. Base
+every tile on the boss's tile or on `st.origin`, for a solo plan as well as a party plan.
+`raid_play_tob_maiden.lua` now does this for solo; the offset is 0 in the room test.
+
+## Turn prayers off after each kill (seam35e)
+
+Plans turn prayers on and never turn them off. A relay turns off every active prayer
+after each kill (`t.prayer.read`, then `t.prayer.set` off for each one). Otherwise Piety
+drains prayer through the corridor and into the next room.
+
+## Verzik P1: eat for the bolt's launch tick (seam35e)
+
+Verzik's P1 bolt damage and its lethal verdict are settled on the launch tick
+(`tob_verzik.rs2` ~tob_verzik_p1_attack), not on the landing. Eat for the launch tick.
+`raid_play_tob_verzik.lua` `bolt_lands` now counts verdicts.
+
+## Leaving a ToB room (seam35e)
+
+The cleared barrier is a gate: press it once, then check the tile, because a second press
+steps back. A support or the chamber can cover the passage clickbox. Walking to within
+one tile of the passage takes the passage (`tob_raid.rs2` ~tob_exit_walked), so a walk
+into it is the fallback.
+
+## Bandages are play-library food (seam35e)
+
+`QD.RAID_PLAY_FOOD` lists `tob_bandages` last (heal 20, Entry Mode page :151). A pack that
+still holds fish eats the fish first. Content bandages restore no prayer (CONTENT_BUGS
+"From seam13", open), so in a whole raid the prayer potions are the limit. Row:
+`seam.raid_play_supplies_bandages`.
+
+## Rune symbols in the backpack have no underscore (seam35e)
+
+The backpack symbols are `bloodrune`, `chaosrune`, `waterrune` and `deathrune`.
+`::give water_rune` is accepted, but `t.player.drop` and `t.inv.count` need the backpack
+symbol.
