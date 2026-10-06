@@ -6883,3 +6883,25 @@ by the delay (play.potion row).
 
 P.trace_seat = <role> in the Nylocas plan traces one party seat without turning on the whole
 trace; leave it nil in committed code.
+
+## Zero hitsplats on a wave nylocas are nulling, not misses (seam46)
+
+A run of 0 hitsplats (type 26) on a wave nylocas that the seat's correct-style weapon should
+kill is NULLING: after one wrong-style hit, "the player that attacked them can no longer
+damage them" (wiki Theatre_of_Blood/Strategies:724; content tob_damage.rs2
+~tob_nylo_nulled_here). Look at the seat's weapon on the swing BEFORE the zeros (the raider
+row's weapon column in the ticklog). ny40j: raider 2 fired its blowpipe at a grey on t154,
+then its whip hit 0 four times. A plan must equip the colour's weapon before the attack click
+on a new target.
+
+## Blert's magic level 112 is the saturated heart (seam46)
+
+Blert's mage at 112 Magic is the saturated heart (stat_boost(magic, 4, 10) on 99); 109 is the
+imbued heart, 103 a magic potion. Both hearts exist in content
+(skill_slayer/scripts/imbued_heart.rs2, opheld1), so a plan can invigorate at the door.
+
+## A Nylocas wave stall is slow kills, not a different cap (seam46)
+
+The alive cap (12 to wave 20, 24 after; Hard 15) is the wiki's and blert's, counted per copy
+until it despawns, tested on the due tick. A room that stalls earlier than Blert is killing
+slower: look at attacks per kill and nulled copies before the spawn loop.
