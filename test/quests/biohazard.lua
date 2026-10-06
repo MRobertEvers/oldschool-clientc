@@ -71,9 +71,11 @@
 -- RE-DRIVEN b64 (gate_crossings, and the owner's 2026-10-05 ruling that
 -- the first goto obeys the door rule): no goto crosses a members' gate.
 -- Lumbridge -> Ardougne and Varrock -> Ardougne are real Ardougne
--- Teleports (Plague City's scroll read by click); Ardougne -> Rimmington,
--- carrying the plague sample a teleport would destroy, walks through the
--- members' gate south of Taverley (membergatel 2934,3320) by its verb.
+-- Teleports (Plague City's scroll read by click); Ardougne -> Rimmington
+-- is walked by choice, through the members' gate south of Taverley
+-- (membergatel 2934,3320) by its verb. (OSRS keeps the plague sample
+-- across a teleport since 25 July 2019: wiki Biohazard oldid 15256425;
+-- docs/quests/biohazard.md:58-64.)
 -- Audit: build/orchestrator/fix_b64/biohazard.progress.md.
 
 return {
@@ -736,12 +738,11 @@ return {
         -- @chemist_touchpaperguidor, granting touch_paper and writing
         -- ^biohazard_spoken_chemist (chemist.rs2:39-48,84-97).
         --
-        -- Ardougne to Rimmington is WALKED, not teleported: the plague
-        -- sample is carried, and a teleport destroys it (LostCity
-        -- skill_magic/scripts/spells/teleport.rs2:94-96, "The plague sample
-        -- is too delicate...it disintegrates in the crossing."; this pack's
-        -- teleport.rs2:5 dropped that post-check, so a teleport here would
-        -- lean on a missing rule). reach.py 2592,3340 -> 2932,3215 at margin
+        -- Ardougne to Rimmington is WALKED by choice, not forced: OSRS keeps
+        -- the plague sample across a teleport since 25 July 2019 (wiki
+        -- Biohazard oldid 15256425; docs/quests/biohazard.md:58-64; the old
+        -- LostCity "it disintegrates in the crossing" rule is pre-2019 and
+        -- this pack's teleport.rs2 does not carry it). reach.py 2592,3340 -> 2932,3215 at margin
         -- 300: NEEDS-DOOR via membergatel@2934,3320 -- the members' gate
         -- south of Taverley is the way on foot. Overland to its north side
         -- (REACH 774 at 300, doors shut), the gate pressed north to south,
