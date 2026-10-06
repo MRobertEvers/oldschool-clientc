@@ -127,6 +127,10 @@ SHADOWSTORM_CONSTANT = CONTENT / "quests/quest_shadowstorm/configs/shadowstorm.c
 SHADOWSTORM_RITUAL = CONTENT / "quests/quest_shadowstorm/scripts/shadowstorm_ritual.rs2"
 BETWEENAROCK_NPC = CONTENT / "quests/quest_betweenarock/configs/betweenarock.npc"
 BETWEENAROCK_REALM = CONTENT / "quests/quest_betweenarock/scripts/betweenarock_realm.rs2"
+RUMDEAL_NPC = CONTENT / "quests/quest_rumdeal/configs/rumdeal.npc"
+RUMDEAL_COMBAT = CONTENT / "quests/quest_rumdeal/scripts/deal_combat.rs2"
+WANTED_NPC = CONTENT / "quests/quest_wanted/configs/wanted.npc"
+WANTED_HUNT = CONTENT / "quests/quest_wanted/scripts/wanted_hunt.rs2"
 SCORPION_STATS_NPC = CONTENT / "npc/configs/combat_stats.generated.npc"
 DREAMMENTOR_DREAM = CONTENT / "quests/quest_dreammentor/scripts/dreammentor_dream.rs2"
 ASCENT_NPC = CONTENT / "quests/quest_ascentofarceuus/configs/ascentofarceuus.npc"
@@ -5106,6 +5110,89 @@ def check_between_a_rock() -> None:
             "Between a Rock...: the Avatar of Strength is Crush, it stays on the melee default")
 
 
+def _audited_row(row_id: str, scope: str, revisions: tuple[int, ...],
+                 evidence: tuple[str, ...]) -> None:
+    manifest = json.loads(MANIFEST.read_text())
+    rows = [row for row in manifest["encounters"] if row["id"] == row_id]
+    require(len(rows) == 1, f"manifest: expected exactly one {scope} row")
+    require(rows[0]["implementation_status"] == "implementation-in-progress",
+            f"{scope}: status drift")
+    for key in evidence:
+        require(bool(rows[0][key]), f"{scope}: empty evidence field {key}")
+    pinned = {audit["revision"] for audit in rows[0]["source_audits"]}
+    for revision in revisions:
+        require(revision in pinned, f"{scope}: pinned Wiki audit {revision} drifted")
+
+
+def _require_npc_lines(text: str, name: str, hitpoints: int, lines: tuple[str, ...],
+                       scope: str) -> None:
+    block = _npc_block(text, name)
+    require(bool(block), f"{scope}: no [{name}] block")
+    hitpoint_lines = [line for line in block if line.startswith("hitpoints=")]
+    require(hitpoint_lines == [f"hitpoints={hitpoints}"],
+            f"{scope}: [{name}] hitpoints {hitpoint_lines} (want {hitpoints})")
+    for line in lines:
+        require(line in block, f"{scope}: [{name}] lacks `{line}`")
+
+
+def check_rum_deal() -> None:
+    """Rum Deal's Evil spirit is a real fight (with no block it fought on the
+    engine default's 10 hp: the committed ledger's `hp no bar -> 24/30` after
+    one hit, dead in 16 ticks). Wiki Evil_spirit oldid 15199641; cache all.npc
+    stat1..4 170/100/146/90 agrees."""
+    _audited_row("quest-rum-deal", "Rum Deal", (15199641, 15275482),
+                 ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                  "trigger_handlers", "loot_contract", "test_ids", "known_gaps"))
+    _require_npc_lines(RUMDEAL_NPC.read_text(), "deal_evil_spirit", 90,
+                       ("attack=170", "strength=146", "defence=100", "magic=1", "ranged=1",
+                        "huntmode=aggressive", "param=huntrange,5", "param=attackrate,4",
+                        "param=damagetype,^crush_style", "param=crushattack,0",
+                        "param=strengthbonus,0", "param=stabdefence,0", "param=slashdefence,0",
+                        "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0",
+                        "param=elemental_weakness,^element_air",
+                        "param=elemental_weakness_percent,30", "param=death_drop,ashes"),
+                       "Rum Deal")
+    spider = _npc_block(SCORPION_STATS_NPC.read_text(), "deal_fever_spiders1")
+    require("hitpoints=40" in spider, "Rum Deal: the level-49 fever spider lost its block")
+    require_text(RUMDEAL_COMBAT.read_text(), (
+        "npc_add(^deal_multicontrol_coord, deal_evil_spirit, 1000);",
+        "[opnpc2,deal_evil_spirit]\n~npc_retaliate(0);\n@player_combat_start;",
+        "[ai_queue3,deal_evil_spirit]\nif (npc_findhero = true) {",
+        "%varp600_deal_quest = ^deal_told_kill_spider;",
+    ), "Rum Deal Evil spirit fight")
+
+
+def check_wanted() -> None:
+    """Wanted!'s Solus Dellagar is a real fight (with no block he fought on the
+    engine default's 10 hp: the committed ledger's `hp no bar -> 18/30,
+    hitsplat 4`, dead in 8 ticks). Wiki Solus_Dellagar oldid 15204754; cache
+    all.npc stat1..4 25/25/25/40 and its bonus params agree. The summoned
+    Black Knight's block (wiki oldid 15324646) is pinned beside it."""
+    _audited_row("quest-wanted", "Wanted!", (15204754, 15324646),
+                 ("source_audits", "npc_gamevals", "item_gamevals", "trigger_handlers",
+                  "loot_contract", "test_ids", "known_gaps"))
+    text = WANTED_NPC.read_text()
+    _require_npc_lines(text, "wanted_solus_attackable", 40,
+                       ("attack=25", "strength=25", "defence=25", "magic=1", "ranged=1",
+                        "huntmode=aggressive", "param=huntrange,5", "param=attackrate,3",
+                        "param=damagetype,^crush_style", "param=strengthbonus,16",
+                        "param=stabdefence,5", "param=slashdefence,5", "param=crushdefence,5",
+                        "param=magicdefence,72", "param=death_drop,null"),
+                       "Wanted!")
+    _require_npc_lines(text, "wanted_summoned_black_knight", 42,
+                       ("attack=25", "strength=25", "defence=25", "param=attackrate,5",
+                        "param=slashattack,18", "param=strengthbonus,16",
+                        "param=death_drop,null"),
+                       "Wanted!")
+    require_text(WANTED_HUNT.read_text(), (
+        "npc_add(^wanted_essence_mine_coord, wanted_solus_attackable, 100);",
+        "[opnpc2,wanted_solus_attackable]\n~npc_retaliate(0);\n@player_combat_start;",
+        "[ai_queue3,wanted_solus_attackable]\nif (npc_findhero = ^true & %varb1051_wanted_main = ^wanted_hunt) {",
+        "%varb1051_wanted_main = ^wanted_final_battle;",
+        "npc_add($knight_spot, wanted_summoned_black_knight, 200);",
+    ), "Wanted! Solus fight")
+
+
 def check_taleoftherighteous() -> None:
     """Tale of the Righteous' Corrupt Lizardman is a real fight (with no block it
     fought on npc_default.npc's 10 hp). Wiki Corrupt_Lizardman oldid 15200061
@@ -5238,13 +5325,15 @@ def main() -> int:
         check_taleoftherighteous()
         check_shadow_of_the_storm()
         check_between_a_rock()
+        check_rum_deal()
+        check_wanted()
         check_opnpc2_combat_start()
         check_apnpc2_twins()
         check_quest_progress_varps()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact!, Swan Song, Troubled Tortugans, The Ascent of Arceuus, Another Slice of H.A.M., Meat and Greet, Twilight's Promise, The Eyes of Glouphrie, Dream Mentor, Tale of the Righteous, Shadow of the Storm and Between a Rock..., plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact!, Swan Song, Troubled Tortugans, The Ascent of Arceuus, Another Slice of H.A.M., Meat and Greet, Twilight's Promise, The Eyes of Glouphrie, Dream Mentor, Tale of the Righteous, Shadow of the Storm, Between a Rock..., Rum Deal and Wanted!, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
     return 0
 
 
