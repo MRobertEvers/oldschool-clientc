@@ -68,8 +68,11 @@ if role == 2 then
     }
     for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
 else
-    local more = { "::blowpipe dragon_dart 2000 2000",
-        "::give br_4dosepotionofsaradomin 8", "::give br_4dose2restore 6", "::give anglerfish 12" }
+    -- The real trios' crab weapon is the scythe (Blert, 26 Regular trio rooms:
+    -- sources/blert_api/maiden_trio_crabs/README.md); the pipe stays as the plan's
+    -- fallback and for strays out of melee reach.
+    local more = { "::blowpipe dragon_dart 2000 2000", "::fullscythe",
+        "::give br_4dosepotionofsaradomin 8", "::give br_4dose2restore 5", "::give anglerfish 12" }
     for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
 end
 -- THE TRIO'S RUN (raid seam32): every seat enters Normal, the leader starts

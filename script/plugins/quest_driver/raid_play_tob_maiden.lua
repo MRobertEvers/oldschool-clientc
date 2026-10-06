@@ -143,6 +143,12 @@ QD.raid._play_plan("tob_maiden", {
     -- the toxic blowpipe: PvM speed 3, rapid 2, reach 5 (wiki_Toxic_blowpipe
     -- .wikitext:41, :78); its swing seq 5061 (raid_play_tob_nylocas.lua)
     pipe = { item = "toxic_blowpipe_loaded", reach = 5 },
+    -- The crab weapon of a real trio is the SCYTHE (Blert, 26 Regular scale-3
+    -- Maiden rooms: the scythe on crabs in 25 / 25 / 19 of 26 rooms per
+    -- threshold, the blowpipe in 6 / 7 / 4; sources/blert_api/maiden_trio_crabs/
+    -- README.md). Darts land 0-15 on a 75 hp Matomenos (seam35m); the scythe
+    -- kills it. The pipe stays as the fallback when the kit has no scythe.
+    crab_weapon = { item = "scythe_of_vitur", reach = 1 },
     bow = "twisted_bow",
     -- her spawn tile (south-west of her 6x6 footprint): the origin the homes,
     -- the floor and the reach are written against
@@ -1236,6 +1242,12 @@ function QD.raid._play_maiden_decide(st, v)
     local add = nil
     if R ~= nil then
         add = QD.raid._play_maiden_party_wave(st, v, m, R, mg, moving, gap_to_her, cheb)
+        -- The rangers stay on HER through the 30 percent wave (Blert, 26 trio
+        -- rooms: 0 crabs killed at 30 percent, she dies about 12 ticks after
+        -- that spawn); the freezer still barrages.
+        if add ~= nil and not R.freezer and st.boss_symbol ~= nil and st.boss_symbol:find("_30", 1, true) ~= nil then
+            add = nil
+        end
         -- raid seam33 THE HALT: a weapon swap does not end an attack, so the
         -- freezer that put the wand on while its bow was on her walked to her
         -- side and swung the wand there (svdplaymaide t168-202: 6441,94 to
@@ -1319,13 +1331,27 @@ function QD.raid._play_maiden_decide(st, v)
     -- comes back when none is left ("DPS roles should kill the stray nylocas
     -- before getting back on Maiden", W:639).
     if R ~= nil and R.pipe and P.pipe ~= nil then
-        if #v.crabs > 0 and m.gear ~= "pipe" then
-            QD.raid._play_maiden_block(st, v, "pipe", { P.pipe.item })
+        -- The scythe when the kit holds one (the real trios' crab weapon),
+        -- else the pipe.
+        if m.crab_item == nil then
+            local has_result, has = false, false
+            if P.crab_weapon ~= nil then has_result, has = QD.inv.has(P.crab_weapon.item) end
+            m.crab_item = (has_result == "ok" and has) and P.crab_weapon.item or P.pipe.item
+        end
+        local crab_item = m.crab_item
+        -- At the 30 percent wave the real trios IGNORE the crabs and kill her:
+        -- Blert's 26 rooms show a median of 0 crabs killed at 30 percent and
+        -- her death about 12 ticks after that spawn (sources/blert_api/
+        -- maiden_trio_crabs/README.md). So the crab weapon goes on only for
+        -- the first two waves; the last wave is spent on her.
+        local last_wave = (st.boss_symbol ~= nil and st.boss_symbol:find("_30", 1, true) ~= nil)
+        if #v.crabs > 0 and m.gear ~= "pipe" and not last_wave then
+            QD.raid._play_maiden_block(st, v, "pipe", { crab_item })
             m.gear = "pipe"
             m.pipe_swaps = (m.pipe_swaps or 0) + 1
             st.engaged = false
             m.add_slot = nil
-        elseif #v.crabs == 0 and m.gear == "pipe" then
+        elseif (#v.crabs == 0 or last_wave) and m.gear == "pipe" then
             QD.raid._play_maiden_block(st, v, "bow", { P.bow })
             m.gear = nil
             st.engaged = false
