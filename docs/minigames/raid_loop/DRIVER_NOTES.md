@@ -6471,3 +6471,72 @@ living 2-3 ticks.
 A party plan's trace (`P.trace_seat = N`) prints one `nyplay` line a tick into that
 seat's own client.log (`build/quest_gate/<run>/pN/client.log`). It is in the plan file,
 not the harness: set it back to nil before any survey or repeat.
+
+## p_* script commands act on the script's bound player (seam38)
+
+`p_stopaction`, `p_walk`, `p_opnpc`, `p_opnpct`, `p_logout` and `p_countdialog` now act on
+the player the script bound (SSVM_Active PLAYER, falling back to `srv->active_player`),
+not on `srv->active_player` directly (LostCity PlayerOps.ts: `state.activePlayer`). An npc
+script can `p_finduid`/`huntnext` a raider and stop, walk or op that raider: Vasilias'
+turn cancel (tob_nylocas_boss.rs2 `~tob_vasilias_act`) now reaches every raider in a
+party. Still on `srv->active_player`: `p_oploc`/`p_opobj`/`p_opplayer`
+(torirs_server_ops_player.c) and the `if_*` / hint-arrow commands (CONTENT_BUGS seam38).
+
+## Overheal decays one level a minute (seam38)
+
+A Saradomin brew's (or an anglerfish's) overheal decays one level at a time on
+`[timer,health_regen]` (health_regen.rs2; wiki Hitpoints:95 "decay at a rate of one per
+minute"). Drinking does not restart the timer, so the first decay lands 1..100 ticks
+after the drink and each later one exactly 100 ticks apart; Rapid Heal toggles and login
+restart it. A plan that counts on a brew's overheal should read hitpoints, not assume it
+holds. Conformance row: `seam.overheal_decays_one_a_minute`.
+
+## Reading hitpoints over time from the tick log
+
+`awk -F'\t' '$3=="raider"' ticklog.tsv`: `$5` is the boosted hitpoints, and the label
+(`$10`) carries `hpmax H ... tgt S`. `tgt` says whether the raider is still interacting
+with an npc on that tick.
+
+## `t.ticklog.rows` opts.since is a serial, not a tick (seam38)
+
+To keep only the rows after a tick, read `t.tick()` and filter `r.tick > that` in Lua.
+Passing a tick as `since` silently keeps rows from earlier phases.
+
+## Laying three npcs out for the scythe arc (seam38)
+
+`::spawn <npc> 3` lays three copies east-west at (x+1..x+3, z+1) of the player. `::goto`
+to (x+2, z) stands the player under the middle one facing north: the Scythe of vitur
+arc's layout. A multi-way tile for it: Barbarian Village 3104..3107, 3418..3419
+(multiway.csv 0_48_53). Conformance row: `seam.scythe_arc_three_in_a_row`.
+
+## What a scythe swing logs (seam38)
+
+On a large npc one swing logs hit2 (at most floor(M/2)), hit3 (at most floor(M/4)), then
+the primary, all on one tick: `~scythe_of_vitur_swing` queues the extra hits before
+`~player_melee_swing` queues the first. Size 2 takes two hits, size 3 and up three.
+The 1x3 arc fires only for a size-1 primary in a multi-way area or a map instance; its
+secondaries land on the primary's tick on their own slots (left side 50%, right 25%).
+No ToB boss qualifies (Athanatos is size 3, Matomenos 2), so a ToB room's scythe rows
+are the large-target rows; the arc matters for 1x1 Nylocas.
+
+## Measuring the salve amulet's accuracy (seam38)
+
+kourend_spectre (undead), `::maxmelee` then `::setlevel attack 1` (hit chance about A/2D,
+linear in the attack roll), whip, `::god 1`, auto-retaliate off; count `hit_npc` rows with
+damage > 0 over about 300 swings each, without and with `::wield nzone_salve_amulet_e`.
+s38salve1 read 1.44 (95% CI 1.10..1.89), which contains the page's 6/5.
+
+## The account name seeds a kept room: compare under its own name (seam38 closer)
+
+`tools/raid_gate/run.py <room> --no-publish --name X` runs the room under account X, and
+the name seeds the server's random numbers. A renamed run of a kept room is a different
+roll of the dice (c38_tob_sotetseg died in the maze, c38_tob_xarpus raised a script error,
+while the own-name runs on the same tree were 158/158 and 116/116). To compare a kept
+room against its saved ledger, run it under its own name with `--no-publish`.
+
+## The urnbomb conformance row samples until a bomb shows (seam38 closer)
+
+`seam.verzik_p2_urnbomb_prayer_read_at_landing` asked six unprayed-at-landing bombs for
+one raw over the halved max 8. On the conformance seed of this tree all six rolled 8 or
+less (6,5,2,3,6,7), while a 14-bomb scratch (c38urn1) read 5 over 8. The row now draws
+up to eight more ON->OFF bombs until one exceeds 8; the OFF->ON half is unchanged.

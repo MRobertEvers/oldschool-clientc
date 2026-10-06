@@ -4752,6 +4752,39 @@ player_by_uid(struct ToriRSServer* srv, int32_t uid)
     return &srv->players[pid];
 }
 
+/*
+ * The world helpers that take only `srv` (`WorldWalkTo`, `WorldInteractionSet`,
+ * `WorldWalkToApproach`) act on `srv->active_player`, which is the player the
+ * dispatcher selected for this phase -- not the player the script bound. An
+ * npc script that walks `huntnext`/`p_finduid` over a party binds each raider
+ * in turn while `srv->active_player` stays whoever ran last, so a `p_*` op
+ * that reaches one of those helpers has to point the world at the bound player
+ * first, and put it back after (the shape `p_overhit` has always used).
+ * In a player's own script the two are the same player and this is a no-op.
+ */
+static struct ToriRSServerPlayer*
+script_world_bind_player(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServerPlayer* saved = srv->active_player;
+
+    assert(player);
+    if( saved != player )
+        ToriRSServer_WorldSetActive(srv, player);
+    return saved;
+}
+
+static void
+script_world_unbind_player(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerPlayer* saved)
+{
+    if( saved != player )
+        ToriRSServer_WorldSetActive(srv, saved);
+}
+
 /* Sailing cargo remains the captain's persistent inventory. The hull keeps
  * its slot, and every rider uses the same owner row through invother_transmit. */
 static struct ToriRSServerContainer*
@@ -5440,7 +5473,13 @@ ToriRSServer_ScriptCommand(
             player->clear_map_flag = 1;
         }
         else
+        {
+            /* `WorldWalkTo` walks `srv->active_player`; the branch above reads
+             * the bound `player`. Point the world at the same one. */
+            struct ToriRSServerPlayer* saved = script_world_bind_player(srv, player);
             ToriRSServer_WorldWalkTo(srv, x, z);
+            script_world_unbind_player(srv, player, saved);
+        }
         return 1;
     }
 
@@ -9568,8 +9607,12 @@ ToriRSServer_ScriptCommand(
         struct ToriRSServerNpc* npc;
         const struct ToriRSServerNpcInfo* info;
         const char* verb;
-        struct ToriRSServerPlayer* player = srv->active_player;
+        struct ToriRSServerPlayer* saved_player;
 
+        /* The bound player, as every other `p_*` op reads it (LostCity
+         * PlayerOps.P_OPNPC: `state.activePlayer`). This used to shadow it
+         * with `srv->active_player`. */
+        assert(player);
         if( !SSVM_PopInt(state, &op_num) )
             return 1;
         if( op_num < 1 || op_num > 5 )
@@ -9611,7 +9654,7 @@ ToriRSServer_ScriptCommand(
          */
         if( strcmp(verb, "Attack") == 0 && ToriRSServer_CombatPlayerAfk(player) )
         {
-            ToriRSServer_CombatStopPlayer(srv);
+            ToriRSServer_CombatStopPlayerAt(player);
             return 1;
         }
         /*
@@ -9633,8 +9676,9 @@ ToriRSServer_ScriptCommand(
         if( strcmp(verb, "Attack") == 0 &&
             ToriRSServer_CombatSinglewayRefuses(srv, player, slot) )
             return 1;
-        ToriRSServer_WorldInteractionClear(srv);
+        ToriRSServer_WorldInteractionClearAt(player);
         ToriRSServer_WorldStepsClear(player);
+        saved_player = script_world_bind_player(srv, player);
         ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, (int)op_num, slot,
                                       npc->type, npc->x, npc->z, npc->level,
                                       info->size, info->size);
@@ -9643,6 +9687,7 @@ ToriRSServer_ScriptCommand(
             ToriRSServer_SceneNpcApproach(info->size, &approach);
             ToriRSServer_WorldWalkToApproach(srv, npc->x, npc->z, &approach);
         }
+        script_world_unbind_player(srv, player, saved_player);
         /* Attack keeps the engine face/approach latch; other ops do not. */
         if( strcmp(verb, "Attack") == 0 )
         {
@@ -9683,7 +9728,9 @@ ToriRSServer_ScriptCommand(
         int slot = (int)state->host_tag - 1;
         struct ToriRSServerNpc* npc;
         const struct ToriRSServerNpcInfo* info;
+        struct ToriRSServerPlayer* saved_player;
 
+        assert(player);
         if( !SSVM_PopInt(state, &spell) )
             return 1;
         if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX || !srv->npcs[slot].active )
@@ -9698,8 +9745,9 @@ ToriRSServer_ScriptCommand(
         }
         npc = &srv->npcs[slot];
         info = ToriRSServer_NpcInfo(npc->type);
-        ToriRSServer_WorldInteractionClear(srv);
+        ToriRSServer_WorldInteractionClearAt(player);
         ToriRSServer_WorldStepsClear(player);
+        saved_player = script_world_bind_player(srv, player);
         ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, 1, slot, npc->type, npc->x,
                                       npc->z, npc->level, info->size, info->size);
         player->interaction.spell = (int)spell;
@@ -9708,6 +9756,7 @@ ToriRSServer_ScriptCommand(
             ToriRSServer_SceneNpcApproach(info->size, &approach);
             ToriRSServer_WorldWalkToApproach(srv, npc->x, npc->z, &approach);
         }
+        script_world_unbind_player(srv, player, saved_player);
         return 1;
     }
 
@@ -12461,8 +12510,12 @@ ToriRSServer_ScriptCommand(
      * saves the player. Doing anything more here would duplicate that path.
      */
     case SS_OP_P_LOGOUT:
-        if( srv->active_player && srv->active_player->session )
-            ToriRSServer_SessionKill(srv->active_player->session);
+        /* The bound player (LostCity PlayerOps.P_LOGOUT: `state.activePlayer`).
+         * A selftest player has no session; that is a real state, not a
+         * contract violation. */
+        assert(player);
+        if( player->session )
+            ToriRSServer_SessionKill(player->session);
         return 1;
 
     case SS_OP_STAT_HEAL:
@@ -13326,7 +13379,7 @@ ToriRSServer_ScriptCommand(
      */
     case SS_OP_P_COUNTDIALOG:
         player->last_int = 0;
-        ToriRSServer_SendIfOpencountdialog(srv->active_player);
+        ToriRSServer_SendIfOpencountdialog(player);
         SSVM_Suspend(state, SSVM_COUNTDIALOG);
         return 1;
 
@@ -13457,9 +13510,17 @@ ToriRSServer_ScriptCommand(
      * walk queue is not one, because a click that starts a script has already
      * replaced it — so that is the whole implementation rather than a partial
      * one.
+     *
+     * The player is the script's bound one (LostCity PlayerOps.ts P_STOPACTION:
+     * `state.activePlayer.stopAction()`), never `srv->active_player`: Vasilias'
+     * turn (tob_nylocas_boss.rs2 `~tob_vasilias_act`) binds each raider with
+     * `p_finduid(uid)` inside a `huntnext` loop, and stopping the phase's
+     * leftover player instead let every other raider's swing land on her
+     * retype tick.
      */
     case SS_OP_P_STOPACTION:
-        ToriRSServer_CombatStopPlayer(srv);
+        assert(player);
+        ToriRSServer_CombatStopPlayerAt(player);
         return 1;
 
     case SS_OP_P_LOCMERGE:

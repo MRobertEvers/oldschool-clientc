@@ -1457,3 +1457,38 @@ all clean. No C and no content changed.
   run without --no-publish (46 deleted pngs, 46 untracked, ledger.tsv modified); the
   restore was refused by the permission classifier and is left for the owner; it is not
   committed.
+
+## matthew-mbp-m4-raid-b1-seam38 (2026-10-06; the commit that carries this heading): p_stopaction, overheal decay, the scythe arc
+
+- stopaction_and_stat_rows: LANDED. ENGINE: `p_stopaction` stops the bound player
+  (LostCity PlayerOps.ts:431), and the same active-vs-bound fix in `p_opnpc`, `p_opnpct`,
+  `p_walk`, `p_logout`, `p_countdialog`. CONTENT: overheal decays one a minute on
+  `[timer,health_regen]` (wiki Hitpoints:95); seam36's "no regen in 240 ticks" not
+  reproduced (85@t101, 86@t201; the timer is armed at login); M165 in the PLAN open
+  table and tagged in tob_sotetseg.constant. Row `seam.overheal_decays_one_a_minute`.
+  OPEN: `p_oploc`/`p_opobj`/`p_opplayer` (torirs_server_ops_player.c) and the `if_*` /
+  hint-arrow commands still use `srv->active_player`; the p_stopaction fix has no
+  before/after through the play library (the plan's turn holds mask it): a two-player
+  C selftest stanza would pin it.
+- scythe_arc_and_salve_accuracy: LANDED. CONTENT: the Scythe of vitur 1x3 arc on 1x1
+  targets in multi-way areas and map instances (wiki Scythe_of_vitur:81/83/85,
+  Multicombat_area:68/95; tiles from Near-Reality ScytheOfViturCombat.java:139-159);
+  large-target hits unchanged. Salve accuracy (seam36's line) measured 1.44 (CI
+  1.10..1.89, contains 6/5). Chinchompa heavy defence: no ToB npc differs, row written.
+  Row `seam.scythe_arc_three_in_a_row`. OPEN: M, M/2, M/4 bounded not read back; arc side
+  order (left 50%) stated, unsourced; a large npc on an arc side takes one hit;
+  chinchompa light/standard/heavy split tree-wide.
+- Closer: conformance 386/386 (195 verbs + 191 seams) after the urnbomb row was given up
+  to eight more unprayed bombs (the seed's six all rolled 8 or less; scratch c38urn1 read
+  5 of 14 over 8). check-quest-verbs, check-drive-abi, check-pt-switch, test-quest-cheats,
+  test-plugin-lua PASS; lint: the 11 pre-existing quest-file findings. Server selftest 11
+  failures (baseline; no gear rows; `make test-torirsserver` stops at the pre-existing
+  servpack Membership check, so the binary was run directly). cooks_assistant and druid
+  byte-identical. Quest gate 115 green + deserttreasure forgettabletale regicide troll red
+  (baseline, nothing moved). Kept rooms under their own names: bloat 94, sotetseg 158
+  identical; xarpus 116 PASS (trace rows only); verzik `spec.verzik.reds_attacks_between`
+  8 FAIL and nylocas `spec.nylocas.vasilias_spawn_delay` 41 FAIL are seam36's recorded
+  re-author notes (she spawned 17 ticks after the last nylocas free, t665 -> t682);
+  verzik `spec.verzik.reds_absorb_window` fell back to `drive.absorb_diag` (no +5 arrow
+  this run). Surveys 5 of 5: _play_smoke _play_sotetseg _play_xarpus _play_verzik
+  _play_nylocas, and `_play_bloat --party 3`.

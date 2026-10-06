@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 189
+-- @seam-count 191
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 195
-local SEAM_COUNT = 189
+local SEAM_COUNT = 191
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -15808,6 +15808,19 @@ return {
                 dropped[#dropped + 1] = b
                 lines[#lines + 1] = "OFF->ON " .. ad .. ", ON->OFF " .. bd
             end
+            -- Six unprayed bombs can all roll 8 or less (seam38 closer: 6,5,2,3,6,7 on the
+            -- conformance seed, while a 14-bomb scratch on the same tree, c38urn1, read
+            -- 1,6,14,6,3,1,15,7,12,3,2,11,1,11).  The claim is that SOME bomb dropped in
+            -- flight deals over the halved max, so keep sampling, up to eight more.
+            for _ = 1, 8 do
+                local over = false
+                for _, v in ipairs(dropped) do if v > PRAYED_MAX then over = true end end
+                if over then break end
+                local b, bd = trial(true, false)
+                if b == nil then break end
+                dropped[#dropped + 1] = b
+                lines[#lines + 1] = "extra ON->OFF " .. bd
+            end
             teardown()
             local raised_max, dropped_max = 0, 0
             for _, v in ipairs(raised) do if v > raised_max then raised_max = v end end
@@ -17991,6 +18004,102 @@ return {
             t.drive._camera_turn_forced = false
             return result == "refused" and "ok" or "hollow",
                 tostring(result) .. " " .. tostring(detail and detail.why)
+        end)
+
+        -- raid seam38 stopaction_and_stat_rows. PLACE: directly AFTER
+        -- seam("seam.camera_aim_photograph_refused_when_watched", ...) (the last
+        -- seam row in PLAN). No verb was added or changed by this seam; this row
+        -- pins the content fix it made: a Saradomin brew's overheal decays one
+        -- level a minute on [timer,health_regen] (health_regen.rs2; wiki
+        -- Hitpoints:95 "decay at a rate of one per minute"). A server that holds
+        -- the overheal (the old stat_heal clamp) reads 115 after 101 ticks:
+        -- hollow. Proved by scratch s38_hp1: 115 at t255, 114 at t301, 113 at t401.
+        seam("seam.overheal_decays_one_a_minute", function()
+            local cheat = verb("cheat")
+            local read = verb("skill", "read")
+            local inv_op = verb("player", "inv_op")
+            if not cheat then return missing("cheat") end
+            if not read then return missing("skill", "read") end
+            if not inv_op then return missing("player", "inv_op") end
+            local r0, before = read("hitpoints")
+            if r0 ~= "ok" then return "hollow", "skill.read hitpoints " .. tostring(r0) end
+            cheat("::setlevel hitpoints 99")
+            cheat("::give br_4dosepotionofsaradomin 1")
+            t.ticks(2)
+            local pr = inv_op("br_4dosepotionofsaradomin", 1, { quick = true })
+            t.ticks(1)
+            local r1, drunk = read("hitpoints")
+            local first_decay = nil
+            for i = 1, 101 do
+                t.ticks(1)
+                local r2, now = read("hitpoints")
+                if r2 == "ok" and now.level == 114 then first_decay = i break end
+            end
+            cheat("::setlevel hitpoints " .. tostring(before.base_level or before.level))
+            t.ticks(2)
+            local ok = r1 == "ok" and drunk.level == 115 and first_decay ~= nil
+            return ok and "ok" or "hollow",
+                "brew " .. tostring(pr) .. " -> " .. tostring(drunk and drunk.level)
+                .. ", 114 after " .. tostring(first_decay) .. " tick(s) (need <= 101)"
+        end)
+
+        -- seam38 scythe_arc_and_salve_accuracy. No driver verb added or changed: the seam
+        -- is content (gear/scythe_of_vitur.rs2). One seam row, so the conformance pass
+        -- keeps the arc proved on ordinary npcs. PLAN placement: after
+        -- seam("seam.attack_exact_copy_on_one_tile") (it reuses that row's goblin and its
+        -- teardown shape). Bring-alongs: ::fullscythe, ::wield scythe_of_vitur,
+        -- ::setvar varp172_option_nodef 1, ::god 1; put the character's weapon back after.
+        -- Proof run: build/quest_gate/s38arc_after2 (arc.multiway_three PASS).
+        -- Merged by the seam38 closer HERE, not after seam.attack_exact_copy_on_one_tile:
+        -- the row wields the scythe, and every row between there and here was authored
+        -- against the stage weapon; at the end of the PLAN no later row swings one.
+        seam("seam.scythe_arc_three_in_a_row", function()
+            local GOB = "goblin_unarmed_melee_1"
+            setup_cheat("::fullscythe")
+            setup_cheat("::wield scythe_of_vitur")
+            setup_cheat("::setvar varp172_option_nodef 1")
+            local function teardown()
+                setup_cheat("::kill " .. GOB .. " 10")
+                setup_cheat("::kill " .. GOB .. " 10")
+                settle(2)
+            end
+            -- multiway.csv 0_48_53 (Barbarian Village): the arc is multi-way only.
+            setup_cheat("::goto 3104 3418 0")
+            settle(2)
+            setup_cheat("::spawn " .. GOB .. " 3")
+            settle(1)
+            setup_cheat("::goto 3106 3418 0")
+            settle(1)
+            local _, _, rows = t.npc.tiles(GOB, 3)
+            local mid = nil
+            for _, r in ipairs(rows or {}) do
+                if r.x == 3106 and r.z == 3419 then mid = r end
+            end
+            if mid == nil then
+                teardown()
+                return "no_subject", "no goblin on 3106,3419 after ::spawn " .. GOB .. " 3"
+            end
+            t.ticklog.start()
+            local _, since = t.tick()
+            local result, detail = t.player.attack(GOB, 2, 2, { slot = mid.slot, quick = true })
+            settle(6)
+            local _, hits = t.ticklog.rows({ kind = "hit_npc" })
+            local first, slots = nil, {}
+            for _, r in ipairs(hits or {}) do
+                if r.tick > since and (first == nil or r.tick == first) then
+                    first = r.tick
+                    slots[r.slot] = true
+                end
+            end
+            local n = 0
+            for _ in pairs(slots) do n = n + 1 end
+            teardown()
+            local text = "attack " .. tostring(result) .. "; first swing tick " .. tostring(first)
+                .. ": hit_npc on " .. n .. " slot(s)"
+            if n ~= 3 then
+                return "refused", text .. " -- want three goblins hit by one swing (wiki_Scythe_of_vitur:81)"
+            end
+            return "ok", text
         end)
 
         -- raid seam33 kit_loaded_blowpipe: t.inv.blowpipe() reads the toxic
