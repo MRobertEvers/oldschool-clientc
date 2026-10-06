@@ -105,6 +105,13 @@ end
 --   opts.mode    "entry" | "normal" | "hard" (default "entry")
 --   opts.weapon  the worn weapon's symbol (default scythe_of_vitur)
 --   opts.max_ticks (default 1500)
+--   opts.role    the plan's role number this raider plays (default its party
+--                seat, t.party.role()).  raid seam39 play_tob_normal_relay: a
+--                seat is not a role.  The whole-raid relay carries ONE kit per
+--                seat, and the seat whose pack has room for the most food
+--                tanks Maiden (the plan's role 1 is the tank: 26 of 27
+--                blackstorms on the harness's p1) though it is seat 3.  A
+--                party of one ignores it (no roles).
 -- Returns result, detail, record (PLAY_NOTES.md "The record").
 function QD.raid.play(plan_id, opts)
     opts = opts or {}
@@ -145,7 +152,7 @@ function QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
     local _, me = QD.world.tile()
     local st = {
         plan = plan, plan_id = plan_id, mode = mode, numbers = numbers, weapon = weapon,
-        boss_symbol = plan.boss[mode], role = QD.party.role(), party = QD.party.size(),
+        boss_symbol = plan.boss[mode], role = opts.role or QD.party.role(), party = QD.party.size(),
         start_tick = now, origin = { x = math.floor(me.x / 64) * 64, z = math.floor(me.z / 64) * 64 },
         -- what happened, per server tick (the room test's rows read these)
         inputs = {}, hp_at = {}, prayer_at = {}, tile_at = {}, swings = {}, eats = {}, drinks = {},

@@ -542,3 +542,39 @@ python3 tools/raid_gate/seed_survey.py _play_entry --names 3     # KEPT bar (5 l
 
 Kit, the drop rule, the measured table and the seven relay-only faults it found are in
 `docs/minigames/raid_loop/PLAY_NOTES.md` "The whole raid, Entry solo".
+
+## The whole raid, Normal trio: `_play_normal` (raid seam39), NOT KEPT
+
+`test/raids/_play_normal.lua` is `_play_entry` for three raiders in lockstep, Normal Mode. Run it
+with `--party 3`: it declares no `party` field (as `_play_verzik`), so `party_repeat.py` runs a
+copy that adds `party = 3,`. The lobby is `_party_smoke`'s phase B (`t.party.form("normal")`,
+`apply`, `accept`, `ready`, `follow_in`). Each room is barrier-synced: `<room>_arrived` (the
+leader reads `t.raid.state`), `<room>_entrance`, `<room>_started` (the starting seat answers the
+barrier's question, the others cross), then ONE `t.raid.play` per raider, then `<room>_done`.
+The leader walks every way out. Its walk into the passage carries everyone standing in the old
+room's square (`tob_raid.rs2 ~tob_carry_party`). Every raider goes down Verzik's trapdoor.
+
+- **A seat is not a role.** `t.raid.play(plan, {role = n})` (raid_play.lua, seam39) plays the
+  plan's role n on whichever seat calls it. The relay's `ROLE_IN` gives each room its own map:
+  Maiden by seat (seat 1 tanks), Nylocas seat 1 ranger, 2 meleer, 3 mage, and Bloat's role 1
+  (the first walk) on seat 3. Without `role` the seat is the role, as before.
+- **The kit is one pack per seat.** It is the Maiden trio's worn ranged set plus each seat's
+  later switches, then the supplies (the kit comment cites every item). The Ayak and the
+  Sanguinesti staff are charged by their own Charge op in `run()`. The supplies go in with
+  `t.cheat` after the charge, because the Sanguinesti staff takes every blood rune in the pack.
+- **Between rooms the members eat up** (`top_up`). This content's `~tob_restore` heals only the
+  raider the room's watchdog runs for, the leader, so a member reaches Bloat on 34-57 hitpoints
+  with its run and special energy where Maiden left them.
+- Rows per room, every raider: `<room>.start`, `.top_up`, the pre-fight rows, `.fight`,
+  `.supplies`. The leader adds `.complete_line`, `.deathless` (read-only `::tobjail`) and
+  `.measure` (damage taken by pid). At the end: `raid.reward_room` and `raid.complete`,
+  `raid.deathless` and `raid.measure`.
+
+```sh
+python3 tools/raid_gate/run.py _play_normal --party 3 --no-publish --name <run>   # ~30-60 s
+python3 tools/raid_gate/seed_survey.py _play_normal --party 3 --names 3          # the KEPT bar
+python3 tools/raid_gate/party_repeat.py --script <copy with party = 3,> --name <run> --runs 2 --allow-red
+```
+
+State at seam39: 0 of 3 names; `party_repeat` AGREE. The first cause on every name is the
+supply budget. See `docs/minigames/raid_loop/PLAY_NOTES.md` "The whole raid, Normal trio".
