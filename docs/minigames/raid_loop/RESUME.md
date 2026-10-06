@@ -204,6 +204,17 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
   library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
   pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
+  STATE 2026-10-06 ~01:40. SEAM31 LANDED 89146dbf1 (pushed): the two library faults fixed (prayer
+  groups from prayers.dbrow; death_serial seeded; quick-press answers made true; boss-gone = dead),
+  Nylocas 5 of 5 (and 10 of 10), Verzik 5 of 5: ALL SIX ENTRY ROOMS are played through the library
+  and green on five names. Entry Vasilias' prayed max: unsourced, CONTENT_BUGS row, no change.
+  NEXT = SEAM32 (`SEAM_TRIAGE_2026-10-06b.md`): the NORMAL TRIO plans for Bloat (Defence-drain
+  run-by, roles), Maiden (the freezer), Nylocas (lanes); kept = `seed_survey.py <harness> --party 3`
+  5 of 5 leaders AND `party_repeat.py --runs 3` AGREE. THEN SEAM33: Sotetseg (maze runner, ball
+  soak), Xarpus, Verzik (P1 Dawnbringer shared by special: the owner's recipe) in Normal. THEN the
+  whole-raid relay in Entry solo and Normal trio (`tob_entry`, `tob_normal`), the re-author of the
+  kept tests on the library, Hard, ToA, CoX. Honest state: six Entry rooms green on five names
+  through the library; nothing in Normal is green.
   STATE 2026-10-06 ~00:00. SEAM30 LANDED a1c03f6ae (pushed): Entry plans through the library --
   Maiden, Sotetseg, Xarpus GREEN on five names (with Bloat: FOUR of six rooms); Nylocas 1 of 5
   (supply budget at Vasilias), Verzik 4 of 5 (svd dies in P3 after a 273-tick reds phase). Two
