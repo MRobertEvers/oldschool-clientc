@@ -3059,7 +3059,8 @@ def check_fremennik_trials() -> None:
     constants = VIKING_CONSTANT.read_text()
     require_text(
         constants,
-        ("^viking_koschei_phase_timeout = 1000", "^viking_draugen_spot_count = 12",
+        ("^viking_koschei_phase_timeout = 1000", "^viking_draugen_spot_count = 4",
+         "^viking_draugen_spot_radius = 20",
          "^viking_draugen_move_delay = 80", "^viking_draugen_lifetime = 1000",
          "^viking_draugen_reveal_range = 3"),
         "The Fremennik Trials encounter constants",
@@ -3076,7 +3077,8 @@ def check_fremennik_trials() -> None:
         sigli,
         ("[opheld1,viking_draugen_talisman_uncharged]",
          "distance(coord, $target) <= ^viking_draugen_reveal_range",
-         "npc_add($target, viking_draugen, ^viking_draugen_lifetime);",
+         "npc_add(map_findsquare(coord, 1, 2, ^map_findsquare_lineofwalk), viking_draugen, ^viking_draugen_lifetime);",
+         "map_findsquare($anchor, 0, ^viking_draugen_spot_radius, ^map_findsquare_lineofwalk)",
          "npc_setowner;", "settimer(viking_draugen_move, ^viking_draugen_move_delay);",
          "[timer,viking_draugen_timeout]", "[ai_queue3,viking_draugen]",
          "if (npc_findhero = ^false)", "inv_del(inv, viking_draugen_talisman_uncharged, 1);",
@@ -3086,8 +3088,11 @@ def check_fremennik_trials() -> None:
          "north-east", "north-west", "south-east", "south-west"),
         "The Fremennik Trials Sigli and Draugen controller",
     )
-    require(sigli.count("case ") == 12,
-            "The Fremennik Trials: Draugen must have twelve moving anchors")
+    # LostCity viking_sigil.rs2 [proc,spawn_draugen_butterfly]: four forest
+    # anchors, each searched within radius 20 for the spot.
+    for anchor in ("0_42_55_0_52", "0_42_56_32_32", "0_41_56_32_32", "0_42_57_32_32"):
+        require(f"return({anchor});" in sigli,
+                f"The Fremennik Trials: Draugen anchor {anchor} (LostCity) missing")
 
     thorvald = VIKING_THORVALD.read_text()
     require_text(
