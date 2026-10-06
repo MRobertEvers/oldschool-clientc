@@ -204,6 +204,17 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
   library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
   pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
+  STATE 2026-10-06 ~00:00. SEAM30 LANDED a1c03f6ae (pushed): Entry plans through the library --
+  Maiden, Sotetseg, Xarpus GREEN on five names (with Bloat: FOUR of six rooms); Nylocas 1 of 5
+  (supply budget at Vasilias), Verzik 4 of 5 (svd dies in P3 after a 273-tick reds phase). Two
+  LIBRARY FAULTS found and worked around (prayer switch re-lights the old prayer; death_serial 0
+  ends the play on a boss spawn into a reused slot). NEXT = SEAM31 (`SEAM_TRIAGE_2026-10-06a.md`):
+  the library faults, Nylocas and Verzik to five names, the Entry Vasilias prayed-max content
+  question. THEN SEAM32: the Normal three-player plans on the library (Bloat's Defence drain
+  run-by and roles first; then the other rooms), measured with `--party 3` surveys. THEN the
+  re-author of the kept tests on the library (the `_play_<room>` harnesses become the rooms) and
+  Hard; `tob_entry`; ToA; CoX. Honest state: four Entry rooms green on five names through the
+  library; Nylocas and Verzik not; nothing in Normal is green.
   STATE 2026-10-05 ~20:30. THE CAMERA SPLIT IS ON THE RAID BRANCH: camera pass seam2 landed
   d4dac4338 (runner_view_split + watch_debug_aids; CAMERA_LEDGER.md / CAMERA_RESUME.md hold the
   proofs, the lanes -- software and GL3 carry it, D3D9/GLES/WebGL gated off -- and
