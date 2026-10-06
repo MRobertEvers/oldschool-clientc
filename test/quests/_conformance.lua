@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 125
+-- @seam-count 126
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 186
-local SEAM_COUNT = 125
+local SEAM_COUNT = 126
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -4302,6 +4302,171 @@ return {
                 .. tostring(slot) .. ", absent from the npc pool, is a kill ONLY after a health bar "
                 .. "(" .. describe(bar_result) .. ") and `no_row` without one ("
                 .. describe(no_bar_result) .. ", stamp not consumed)"
+        end)
+
+        -- AN ABSENCE AFTER A HIGH BAR IS A DESPAWN, NOT A KILL (b68-seam2,
+        -- await_dead_engaged_grades_a_despawn_as_a_kill_by_absence).
+        --
+        -- The row above settles WHETHER an absent slot may be a kill (only
+        -- after a health bar); this one settles WHICH absences are.  A vouched
+        -- absence is also what an npc_add running out, an npc_del or a player
+        -- walking off looks like, and the watch credited every one of them:
+        -- Spirits of the Elid's 50-tick golems read `whiteGolem.dead PASS ...
+        -- last hp 29/30 ... corroborated by ABSENCE` (build/quest_gate/
+        -- spiritsoftheelid row 56), and a Hill Giant hit once to 29/30 and
+        -- left behind by a ::goto read `ok ... dead after 3 tick(s)` while it
+        -- stood alive (build/quest_gate/s2abs_before row 6).  The rule
+        -- (combat.lua, the banner over QD.COMBAT_ABSENT_POLLS): the watch keeps
+        -- the last bar it or its stamp read; an absence from a last bar at
+        -- most a quarter of the bar's width is a kill, from above a quarter it
+        -- is `despawned`, and with no bar ever known it stays a kill.
+        --
+        -- Stated the way the row above states it, on a SLOT NUMBER THE POOL
+        -- DOES NOT HOLD and synthetic stamps, so no fight and no despawn is
+        -- needed: (a) 29/30 answers `despawned`, consumes the stamp and names
+        -- the bar; (b) 1/30 is still a kill; (c) the boundary 7/30 (a kill)
+        -- against 8/30 (despawned), and a wait's written-back bar beats the
+        -- attack's older one; (d) no bar ever known stays a kill, and the
+        -- shared watch arm -- the one t.npc.await_dead answers from too --
+        -- names the same two kinds when it is read directly.
+        seam("seam.absence_after_a_high_bar_is_a_despawn", function()
+            local row_by_slot = verb("_combat_row_by_slot")
+            local watch_new = verb("_combat_watch_new")
+            local watch_read = verb("_combat_watch_read")
+            local await_engaged = verb("npc", "await_dead_engaged")
+            if not row_by_slot then return missing("_combat_row_by_slot") end
+            if not watch_new then return missing("_combat_watch_new") end
+            if not watch_read then return missing("_combat_watch_read") end
+            if not await_engaged then return missing("npc", "await_dead_engaged") end
+
+            local held = t._combat_last
+            local slot = nil
+            local absent = { 65535, 65534, 65533, 65532 }
+            for i = 1, #absent do
+                local result = row_by_slot(absent[i])
+                if result == "no_row" then
+                    slot = absent[i]
+                    break
+                end
+            end
+            if slot == nil then
+                return "hollow", "no slot number could be found that the npc pool does not hold, "
+                    .. "so the absence arbitration cannot be stated"
+            end
+
+            -- One wait on a synthetic stamp for the absent slot; the stamp is
+            -- returned so its consumption and write-back can be read.  SIX
+            -- ticks, not the row above's one: the verdict still comes at the
+            -- second poll the pool vouches for, and the cap only matters when
+            -- the pool here sits at its 64 rows and cannot vouch for a slot
+            -- with no last tile (the full-pool note before the wave rows) --
+            -- the first run of this row read 8/30 as `timeout` on one tick.
+            local function wait_on(health, last_ratio, last_scale)
+                local stamp = {
+                    symbol = "conformance_absent_slot",
+                    slot = slot,
+                    op = 2,
+                    npc_id = -1,
+                    name = "a slot the npc pool does not hold",
+                    health_before = "no bar",
+                    health = health,
+                    bar_seen = true,
+                    tick = 0,
+                    consumed = false,
+                    last_ratio = last_ratio,
+                    last_scale = last_scale,
+                }
+                t._combat_last = stamp
+                local result, detail = await_engaged(6)
+                return result, detail, stamp
+            end
+
+            local high_result, high_detail, high_stamp = wait_on("29/30")
+            local low_result, low_detail, low_stamp = wait_on("1/30")
+            local edge_kill_result, edge_kill_detail = wait_on("7/30")
+            local edge_gone_result, edge_gone_detail = wait_on("8/30")
+            local newer_result, newer_detail = wait_on("1/30", 29, 30)
+            local none_result, none_detail, none_stamp = wait_on("no bar")
+            t._combat_last = held
+
+            -- The shared arm, read directly: two vouched polls of the absent
+            -- slot, once with a high bar seeded and once with none.
+            local function arm_kind(stamp)
+                local watch = watch_new(nil, stamp)
+                local kind, verdict = nil, nil
+                for _ = 1, 6 do
+                    local _r, _row, v, _s, _st, k = watch_read(watch, slot)
+                    verdict, kind = v, k
+                    if verdict ~= nil then
+                        break
+                    end
+                    t.ticks(1)
+                end
+                return kind, verdict
+            end
+            local arm_high, arm_high_verdict = arm_kind({ health = "29/30" })
+            local arm_none, arm_none_verdict = arm_kind(nil)
+
+            -- (a)
+            if high_result ~= "despawned" then
+                return "refused", "a slot that left the pool with its last bar at 29/30 is answered "
+                    .. describe(high_result) .. " / " .. describe(high_detail)
+                    .. " -- an npc taken away alive is credited as a kill"
+            end
+            if not high_stamp.consumed then
+                return "refused", "a `despawned` answer did not consume its stamp, so a second wait "
+                    .. "would watch an engagement that is over"
+            end
+            if not is_text(high_detail) or not string.find(high_detail, "29/30", 1, true) then
+                return "refused", "the `despawned` detail does not name the last bar 29/30: "
+                    .. describe(high_detail)
+            end
+            -- (b)
+            if low_result ~= "ok" or not low_stamp.consumed then
+                return "refused", "a slot that left the pool from a last bar of 1/30 is no longer a "
+                    .. "kill: " .. describe(low_result) .. " / " .. describe(low_detail)
+                    .. " (stamp consumed " .. describe(low_stamp.consumed) .. ")"
+            end
+            -- (c)
+            if edge_kill_result ~= "ok" then
+                return "refused", "7/30 -- at most a quarter -- is not a kill: "
+                    .. describe(edge_kill_result) .. " / " .. describe(edge_kill_detail)
+            end
+            if edge_gone_result ~= "despawned" then
+                return "refused", "8/30 -- above a quarter -- is not `despawned`: "
+                    .. describe(edge_gone_result) .. " / " .. describe(edge_gone_detail)
+            end
+            if newer_result ~= "despawned" then
+                return "refused", "a stamp whose written-back bar reads 29/30 was judged on its "
+                    .. "older 1/30: " .. describe(newer_result) .. " / " .. describe(newer_detail)
+            end
+            if high_stamp.last_ratio ~= 29 or high_stamp.last_scale ~= 30 then
+                return "refused", "the wait did not write its last bar back to the stamp: "
+                    .. describe(high_stamp.last_ratio) .. "/" .. describe(high_stamp.last_scale)
+            end
+            -- (d)
+            if none_result ~= "ok" or not none_stamp.consumed then
+                return "refused", "an absence with no bar ever known is no longer a kill: "
+                    .. describe(none_result) .. " / " .. describe(none_detail)
+            end
+            if arm_high == nil or arm_none == nil then
+                return "hollow", "two polls of absent slot " .. tostring(slot) .. " gave the watch "
+                    .. "no verdict (the pool could not vouch?): " .. describe(arm_high_verdict)
+                    .. " / " .. describe(arm_none_verdict)
+            end
+            if arm_high ~= "despawned" or arm_none ~= "kill" then
+                return "refused", "the shared watch arm names the kinds wrong: a 29/30 seed -> "
+                    .. describe(arm_high) .. ", no bar -> " .. describe(arm_none)
+                    .. " (want despawned, kill)"
+            end
+
+            return "ok", "absent slot " .. tostring(slot) .. ": last bar 29/30 -> "
+                .. describe(high_result) .. " (stamp consumed, bar named, written back 29/30), "
+                .. "1/30 -> " .. describe(low_result) .. ", 7/30 -> " .. describe(edge_kill_result)
+                .. ", 8/30 -> " .. describe(edge_gone_result) .. ", written-back 29/30 over 1/30 -> "
+                .. describe(newer_result) .. ", no bar ever known -> " .. describe(none_result)
+                .. "; the shared watch arm names " .. describe(arm_high) .. " / "
+                .. describe(arm_none)
         end)
 
         -- AN NPC'S OWN SQUARE IS STEPPED OFF BEFORE THE PRESS.
