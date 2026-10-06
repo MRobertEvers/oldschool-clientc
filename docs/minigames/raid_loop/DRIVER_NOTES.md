@@ -6242,3 +6242,53 @@ pattern over about 140 ticks.
 `party_repeat.py _play_xarpus --runs 3` runs the harness solo and then fails on the missing
 party.tsv. The trio's repeat proof ran on a copy of the harness with `party = 3,` added
 (`build/xn34_repeat/_play_xarpus_trio.lua`, `--script ... --name _play_xarpus --runs 3`).
+## Verzik Normal trio: the Dawnbringer shared by drop and take (seam34v)
+
+One Dawnbringer per raid (tob_xarpus.rs2 `[proc,tob_dawnbringer_take]`). The Xarpus room is
+not played before `_play_verzik`, so the harness hands p1 the one copy with `::give`; p2
+and p3 keep a backpack slot free. The holder arms the special from the orb (`intent.spec`
+with `intent.attack`) and sees it as varp300 falling by the 350 it costs (special_attack.obj
+`sa_energy` 350): two specials per raider at 1000 energy. Spent: the scythe back on
+(`intent.gear`), then `QD.player.drop` on the cover tile (W:887 "pillar drop"). The next
+raider takes it with `QD.player.click_obj(..., 3)` the (role-1)th time the obj appears in
+`api_drive.objs(0)`, so the orb order (W:875) is seen, never told. Proved: 6 specials on
+five names; the last holder keeps it (the shield's break destroys it).
+
+## Verzik P1 cover is the content's box, and a pillar's bar fades (seam34v)
+
+The cover is `~tob_verzik_behind_pillar`'s box (tob_verzik.rs2), not "behind" by eye. A
+pillar's health bar shows only for a while after a hit, so the plan keeps the LOWEST bar
+seen per npc slot: a faded bar read as a whole pillar split the trio over both near pillars
+and both fell on them (t119). A pillar with 60 or less left is hidden behind only from 3+
+tiles from its centre (`^tob_verzik_pillar_collapse_range` 2). A shadow more than 7 from
+her is no cover: past the near row the bolts are tanked under Protect from Magic (W:887).
+
+## A route round a pillar is a tick longer than Chebyshev / 2 (seam34v)
+
+Hide from L-2-travel, not L-1-travel, where L is the bolt's launch tick and travel is
+ceil(Chebyshev / 2): the leader at 6430,98 needed 4 ticks to reach 6426,93, not 3.
+
+## Yellow pools are listed three times per tile (seam34v)
+
+The client lists each yellow pool's graphic (1595) three times on one tile. Deduplicate
+before assigning one pool per role (p(r) takes the r-th in x, then z order), and lock the
+pick for the charge: a pick re-read every tick flipped as the list changed. A bow repeat
+swing paths a raider off its pool: click its own tile to end the repeat, and press nothing
+while she charges (W:968, she is invulnerable).
+
+## A raider knocked off the Verzik floor never swings (seam34v)
+
+In P3 a raider can stand off the floor (6421,84). There it pressed Attack every tick for 20+
+ticks with no swing. Step back onto the floor first.
+
+## Enrage with three tornadoes: power through (seam34v)
+
+Running from all three (or from one's own, dead-reckoned) cost more than it saved: 16-22
+touches a room. The trio keeps shooting at the 45 band (W:983) and runs only while the
+green ball is in the air or above the band + 15.
+
+## party_repeat.py reads only a declared party (closer seam34v)
+
+`_play_verzik` must stay the Entry solo, so it declares no `party`; a `--party 3` run of it
+plays Normal. `party_repeat.py` has no `--party` option, so its gate runs a scratch copy
+with `party = 3,` added, through `--script` (build/seam34v_scratch/_play_verzik_party3c.lua).

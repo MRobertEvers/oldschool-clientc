@@ -662,6 +662,64 @@ cycle); V verzik.reds_attacks_between says 7 attacks BETWEEN summons (Blert): th
 both readings. (3) The cap row's 10 melee needs 10+ punches; the bow shots are there for the kept
 row only.
 
+## Verzik, Normal trio (`tob_verzik`, mode `normal`), proved (raid seam34v play_tob_verzik_normal)
+
+The harness is `test/raids/_play_verzik.lua`'s party branch: a run with `--party 3` (`seed_survey.py
+_play_verzik --party 3`) plays Normal, three raiders; without it the file is the Entry solo, unchanged
+(no `party` field, so run.py does not make every run of the id a party run). `party_repeat.py` reads
+only a declared party, so the repeat gate runs a copy with `party = 3,` added (`--script`).
+
+The Dawnbringer: one per raid, from the skeleton after Xarpus (tob_xarpus.rs2
+`[proc,tob_dawnbringer_take]`). The room before Verzik is not played, so p1 is handed the one copy
+(`::give`, p1 only), as that search would. p2 and p3 keep one backpack slot free for it.
+
+| Who / when | Intent | Source |
+|---|---|---|
+| kit | `::maxrange` (twisted bow, Masori) plus insulated boots; carried: the scythe (`::fullscythe`, wielded at the door), a charged serpentine helm, 4 brews, 3 restores, a ranging potion, 16 anglerfish | W:891 "Scythe of vitur"; W:881; W:923 venom; V p2_zap_max (25 with the boots) |
+| all, P1 | Protect from Magic and Piety. Scythe until the bolt; on the cover tile by the tick before the launch; out on the launch tick | W:871; W:883; V p1_cadence 14, p1_launch 3 |
+| all, P1 cover | The pillar shadow nearest her (the content's boxes, `~tob_verzik_behind_pillar`). A pillar with 60 or less left (its lowest bar seen, remembered) is hidden behind only from 3+ from its centre, outside its fall, and scores worse; ties go to the west pillar, so the trio hides together | W:877, W:885; `^tob_verzik_pillar_collapse_range` 2 |
+| all, P1 past the near row | A shadow more than 7 from her is no cover: the bolts are tanked under Protect from Magic | W:887 "even tank her attacks entirely" |
+| p1, p2, p3, P1 | THE DAWNBRINGER SHARED: the holder wields it, arms the special from the orb with the press, and sees each special as the 350 energy it spends. With two spent it puts the scythe back on and drops the sword on the cover tile. p(r) takes it the (r-1)th time it lies on the floor | W:875 "drop the Dawnbringer for the next player (in orb order)"; W:887 "pillar drop"; the owner, 2026-10-05; special_attack.obj sa_energy 350 |
+| all, P2 | Rigour + Missiles, Magic for the reds; p1 two out west, p2 east, p3 south of her body | W:901; W:904 "Trios: one goes south, one east, and one west" |
+| all, P2 reds | The Entry rule is kept: a red is shot only in her 10-tick summon animation | vzn2: shooting every red (150 each, a fresh pair every 36 ticks) put 528 hits into 30 reds and P2 never ended |
+| all, P3 | Each raider takes the r-th yellow pool (x, then z), deduplicated (each pool's graphic is listed three times) and locked for the charge. No press while it charges, and the bow is stopped on the pool | W:968; W:968 "Verzik is invulnerable while charging" |
+| all, P3 | A web on a teammate's tile is shot first. A raider beside another steps apart, and a raider off the floor steps back on | W:955; W:975 the ball bounces to a neighbour |
+| all, P3 threats | Her melee 63 within 2; a nylocas 63 within 4 (`^tob_verzik_p2_nylo_blast_near`), outside the enrage band | W:942; tob.constant |
+| all, enrage | POWER THROUGH: keep shooting at the 45 band; run from a tornado only with the green ball in the air or above the band + 15; with yellows charging, step on the pool at the last moment | W:983 "keep their health low so the tornado heals little"; W:981 |
+
+**What was wrong before (read from the logs, never replayed).**
+- `vzn1`: P1 threat 0, so no raider ate. Two died to a pillar's collapse while walking out (npc 8377, t119/t175).
+- `vzn2`: the Dawnbringer was shared, but P2 never ended (all shots went into reds).
+- `vzn3`: the trio stood on ONE yellow pool (6430,93) and took the blast.
+- `sv3a`/`sv3b`: a fading health bar read as a whole pillar. The trio split between the two near pillars and both fell on them (t119).
+- `sv3c`: the bow's repeat swing pathed the leader off its pool the tick before the blast (t578).
+- `sv3l`: the leader stood off the floor (6421,84) and pressed Attack for 20+ ticks with no swing.
+- Tried and reverted, all worse (0-1 of 3): dead-reckoning only one's "own" tornado (16-22 touches a room), P3 region homes, an open-ground rule, and a run judged on two tornado steps.
+
+**Measured, `seed_survey.py _play_verzik --party 3` 5 of 5 green; `party_repeat.py --script
+<declared copy> --name vzrepeat --runs 3` AGREE** (tick log sha 4f1562e0507b, 798 boundaries). Entry
+solo `seed_survey.py _play_verzik` 5 of 5 green: svd's tick log is byte-identical to HEAD's. Leader =
+pid 0.
+
+| Leader name | Room (P1 / P2 / P3) | Taken pid0 / pid1 / pid2 | Bolts on pillars / at raiders | Tornado touches | Food p0/p1/p2 |
+|---|---|---|---|---|---|
+| _play_verzik | 660 (128 / 264 / 251) | 464 / 428 / 450 | 10 / 2 | 8 (218) | 16/16/16 |
+| svaplayverzi | 599 (136 / 258 / 188) | 256 / 323 / 426 | 12 / 3 | 5 (123) | 10/14/17 |
+| svbplayverzi | 679 (157 / 322 / 183) | 276 / 387 / 382 | 14 / 4 | 4 (103) | 8/14/13 |
+| svcplayverzi | 567 (124 / 238 / 188) | 271 / 311 / 322 | 10 / 2 | 7 (180) | 11/12/12 |
+| svdplayverzi | 702 (136 / 280 / 269) | 466 / 426 / 608 | 12 / 3 | 12 (326) | 17/17/17 |
+
+The Dawnbringer: 6 specials on every name, two per raider (energy spent at t43/t50, t72/t76,
+t102/t110), 671-758 of P1's ~1,530. Deaths 0 (`::tobjail deaths=0`). Bombs on a raider's held tile:
+2-3 per member per room, against 78-90 thrown. Her P2 body never hit anyone for more than 30 (no
+slam, no stomp). The green ball was tanked, never split (W:975 "most teams will opt to simply take
+the hit"); 0-1 per room.
+
+**Not done.** The supplies margin is thin: on `_play_verzik` and svd every raider ate all 16 fish.
+P1 still costs 124-157 ticks against the wiki's "before the second pillar collapses" (W:885).
+Members do not see their own swings, so a member's out-window can still waste a swing. The client's
+tornado row standing still is the Entry section's open row (1).
+
 ## Open rows (found is not fixed)
 
 - **A hand still lands on a pathed tile in the Normal trio** (seam29). CAUSE FOUND (raid seam32):

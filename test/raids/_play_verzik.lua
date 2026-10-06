@@ -9,11 +9,191 @@
 -- (p3.um_max, K :2369-2383: the kept room dropped its protections on purpose
 -- to measure the read), which a plan that prays every auto never takes; the
 -- plan's row play.p3_prayer_on_hit asserts the ruling it plays by instead.
+-- raid seam34v play_tob_verzik_normal: THE NORMAL TRIO (run.py --party 3,
+-- seed_survey.py _play_verzik --party 3).  The solo table below is Entry and
+-- is unchanged; a party run of this id is Normal, three raiders, the plan's
+-- `normal` mode (PLAY_NOTES.md "Verzik, Normal trio").  No `party` field: a
+-- declared party would make every run of this id a party run (run.py
+-- PARTY_RE), and the Entry solo must stay one.
+local role = (QD_PARTY and QD_PARTY.role) or 1
+local size = (QD_PARTY and QD_PARTY.size) or 1
+-- The kit.  Worn: ::maxrange (the twisted bow and the Masori a P2/P3 ranger
+-- shoots in: W:923 the bow for the nylocas, the plan's P2/P3), insulated boots
+-- (the zap 48 -> 25, V p2_zap_max; Entry_Mode.wikitext:94).  Carried: the
+-- scythe for P1 (W:891 "weapon1 = Scythe of vitur"; W:881 "players should use
+-- their melee weapons"), wielded at the door; a charged serpentine helm (the
+-- Athanatos "has to be hit with poison or venom", W:923); brews, restores, a
+-- ranging potion, anglerfish.  THE DAWNBRINGER: one per raid, taken from the
+-- skeleton after Xarpus (tob_xarpus.rs2 [oploc1,tob_skeleton_with_weapon],
+-- [proc,tob_dawnbringer_take]: the searcher's backpack); the room before
+-- Verzik is not played here, so the first raider is handed it as that search
+-- would (::give, one copy, p1 only), and the trio shares it by drop and take
+-- (W:875 "drop the Dawnbringer for the next player (in orb order)").  p2 and
+-- p3 keep one backpack slot free for it.
+local party_kit = {
+    "::clearinv", "::maxrange",
+    "::setlevel attack 99", "::setlevel strength 99", "::setlevel prayer 99",
+    "::setlevel magic 99", "::setlevel agility 99",
+    "::setlevel slayer 37", "::give slayer_boots 1", "::wield slayer_boots",
+    "::fullscythe", "::give serpentine_helm_charged 1",
+    "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 3", "::give br_4doserangerspotion 1",
+    "::give anglerfish 16",
+}
+if role == 1 then party_kit[#party_kit + 1] = "::give verzik_special_weapon 1" end
+
+local function party_run(t)
+    local mode = "normal"
+    if role == 1 then
+        local tl_ok, tl_detail = t.ticklog.start()
+        t.check("verzik.ticklog", tl_ok == "ok", tostring(tl_detail))
+    end
+    local r, d = t.raid.enter("tob", "verzik", { mode = mode })
+    t.check("verzik.enter", r == "ok", "p" .. role .. " " .. tostring(d))
+    t.exec("equip.scythe", t.player.equip, "scythe_of_vitur")
+    -- W:871 "All players must have Protect from Magic on before starting the fight."
+    t.exec("p1.prayer", t.prayer.set, "protectfrommagic", true)
+    if size > 1 then t.expect("party.barrier.ready", t.party.barrier("ready", 300)) end
+    local M = nil
+    local boss_slot = nil
+    if role == 1 then
+        -- her row before the talk retypes it (the Entry entry's order)
+        local _, brow = t.npc.nearest("verzik_initial", 30)
+        local tr, td = t.player.talk_to("verzik_initial", 1)
+        t.check("verzik.talk", tr == "ok", tostring(td))
+        local cr, cd = t.chat.play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+        t.check("verzik.begin", cr == "ok", tostring(cd))
+        t.ticklog.mark("room start")
+        local slot_res, bs = t.ticklog.slot(brow)
+        boss_slot = bs
+        t.check("verzik.slot", slot_res == "ok", "server slot " .. tostring(bs))
+        local _, mk = t.ticklog.rows({ kind = "mark" })
+        M = mk[#mk].tick
+    end
+    if size > 1 then t.expect("party.barrier.started", t.party.barrier("started", 900)) end
+
+    -- THE FIGHT: the library and the room's plan, nothing else
+    local result, detail, rec = t.raid.play("tob_verzik", { mode = mode, max_ticks = 2400 })
+    t.check("play.fight", result == "ok", "p" .. role .. " " .. tostring(detail))
+    local vz = rec.vz or {}
+    local dw = vz.dawn or { specs = {}, refused = {} }
+    local hides = {}
+    for _, h in ipairs(vz.hides or {}) do hides[#hides + 1] = "L" .. h.L .. "@" .. h.from end
+    -- every raider spends both specials on the shield (the owner: "share it
+    -- using their special attack"; W:875), seen as the 350 each spends
+    t.check("play.dawn", #dw.specs >= 2,
+        "p" .. role .. " Dawnbringer specials seen spent at t" .. table.concat(dw.specs, ",t") .. "; took t" .. tostring(dw.took)
+        .. ", dropped t" .. tostring(dw.dropped) .. " (" .. tostring(dw.drop_result) .. "); floor appearances " .. tostring(dw.appear)
+        .. "; refusals " .. table.concat(dw.refused or {}, " | ") .. "; hides " .. table.concat(hides, " "))
+    t.check("play.measure_raider", true, string.format("p%d: %s; eats %d, drinks %d, swings %d, add presses %s, kites %s, tornado runs %s",
+        role, tostring(detail), #rec.eats, #rec.drinks, #rec.swings, tostring(vz.add_presses), tostring(vz.kites), tostring(vz.tornado_runs)))
+    if role ~= 1 then
+        t.expect("party.barrier.done", t.party.barrier("done", 9000))
+        t.finish(0)
+        return
+    end
+
+    -- THE LEADER'S TICK LOG: every raider's rows are in it
+    t.ticks(1)
+    local death_tick = rec.death_tick
+    local R = {}
+    local kinds = { anim = "npc_anim", proj = "projectile", hitp = "hit_player", hitn = "hit_npc", retype = "npc_retype" }
+    for k, kind in pairs(kinds) do
+        local _, rows = t.ticklog.rows({ kind = kind })
+        R[k] = rows or {}
+        t.ticks(1)
+    end
+    local ptile = {}
+    local _, ptiles = t.ticklog.rows({ kind = "player_tile" })
+    for i, row in ipairs(ptiles or {}) do
+        ptile[row.pid] = ptile[row.pid] or {}
+        ptile[row.pid][row.tick] = row
+        if i % 1500 == 0 then t.ticks(1) end
+    end
+    t.ticks(1)
+    -- her forms, by the retype rows of her slot (V verzik.av.npc_form_normal)
+    local form_at = {}
+    for _, rw in ipairs(R.retype) do
+        if rw.to_type ~= nil and rw.to_type >= 8369 and rw.to_type <= 8375 and form_at[rw.to_type] == nil then form_at[rw.to_type] = rw.tick end
+    end
+    local p1s, p2s, p3s = form_at[8370] or M, form_at[8372], form_at[8374]
+    t.ticks(1)
+    -- damage per raider, bombs on a raider's held tile, P1 bolts aimed at a raider
+    local taken, worst = {}, {}
+    for _, h in ipairs(R.hitp) do
+        taken[h.pid] = (taken[h.pid] or 0) + h.damage
+        if h.damage > (worst[h.pid] or 0) then worst[h.pid] = h.damage end
+    end
+    t.ticks(1)
+    local bombs, bombs_on, bolts_player, bolts_pillar, balls = 0, {}, 0, 0, 0
+    for _, p in ipairs(R.proj) do
+        if p.spotanim == 1583 then
+            bombs = bombs + 1
+            local land = p.tick + math.floor(((p.end_cycle or 0) - (p.start_cycle or 0)) / 30)
+            for pid, tl in pairs(ptile) do
+                local at = tl[land - 1]
+                if at ~= nil and at.x == p.dst_x and at.z == p.dst_z then bombs_on[pid] = (bombs_on[pid] or 0) + 1 end
+            end
+        elseif p.spotanim == 1580 then
+            if p.target == -1 then bolts_player = bolts_player + 1 else bolts_pillar = bolts_pillar + 1 end
+        elseif p.spotanim == 1598 then
+            balls = balls + 1
+        end
+    end
+    -- P1: the Dawnbringer's splats on the shield (anything over the melee cap
+    -- of 10 is the Dawnbringer: tob_damage.rs2 ~tob_verzik_p1_cap), and the
+    -- specials among them (75-150, W:875)
+    t.ticks(1)
+    local dawn_hits, dawn_specs, dawn_dealt, p1_dealt = 0, 0, 0, 0
+    for _, h in ipairs(R.hitn) do
+        if h.slot == boss_slot and p1s ~= nil and h.tick >= p1s and (form_at[8371] == nil or h.tick <= form_at[8371]) then
+            p1_dealt = p1_dealt + h.damage
+            if h.damage > 10 then dawn_hits = dawn_hits + 1 dawn_dealt = dawn_dealt + h.damage end
+            if h.damage >= 75 then dawn_specs = dawn_specs + 1 end
+        end
+    end
+    -- the near row's pillars are hidden behind (W:883 "hide behind one pillar
+    -- together"; W:885); past them the plan tanks (W:887), so bolts at a
+    -- raider are reported, not asserted
+    t.check("tech.p1_pillar_cover", bolts_pillar >= 4,
+        "P1 bolts aimed at a pillar (a raider hid): " .. bolts_pillar .. "; aimed at a raider (tanked under Protect from Magic past the near row): " .. bolts_player)
+    t.check("tech.dawn_shared", dawn_specs >= 4,
+        "P1 splats of 75 or more (Dawnbringer specials, W:875 75-150): " .. dawn_specs .. "; Dawnbringer splats " .. dawn_hits .. " for " .. dawn_dealt .. " of P1's " .. p1_dealt)
+    local bomb_txt, dmg_txt = {}, {}
+    for pid, n in pairs(taken) do dmg_txt[#dmg_txt + 1] = "pid" .. pid .. " " .. n .. " (max " .. worst[pid] .. ")" end
+    for pid, n in pairs(bombs_on) do bomb_txt[#bomb_txt + 1] = "pid" .. pid .. " " .. n end
+    table.sort(dmg_txt)
+    table.sort(bomb_txt)
+    t.check("play.p2_bombs_dodged", bombs >= 1,
+        bombs .. " urnbombs thrown; on a raider's held tile the tick before landing: " .. (#bomb_txt > 0 and table.concat(bomb_txt, ", ") or "none"))
+    -- THE ROOM COMPLETE: the raid's death counter (read-only ::tobjail)
+    if death_tick ~= nil then
+        t.ticks(10)
+        t.cheat("::tobjail")
+        t.ticks(2)
+        local _, jl = t.msg.last(40)
+        local jail_line = ""
+        for _, m in ipairs(jl) do
+            local jt = tostring(m.text)
+            if jail_line == "" and jt:find("tobjail jailed=", 1, true) then jail_line = jt end
+        end
+        t.check("verzik.deathless", jail_line:find("jailed=0 died_in=0 deaths=0", 1, true) ~= nil, "party: " .. jail_line)
+    end
+    local forms = {}
+    for _, f in ipairs(vz.forms or {}) do forms[#forms + 1] = f.symbol .. "@" .. f.tick end
+    t.check("play.measure", true, string.format("room %s ticks (mark %s; P1 t%s, P2 t%s, P3 t%s, death t%s); P1 %s ticks, P2 %s, P3 %s; taken %s; bolts at raiders %d, at pillars %d; balls %d; forms %s; summons %s",
+        tostring(death_tick and M and (death_tick - M)), tostring(M), tostring(p1s), tostring(p2s), tostring(p3s), tostring(death_tick),
+        tostring(form_at[8371] and p1s and (form_at[8371] - p1s)), tostring(p2s and form_at[8373] and (form_at[8373] - p2s)), tostring(p3s and death_tick and (death_tick - p3s)),
+        table.concat(dmg_txt, ", "), bolts_player, bolts_pillar, balls, table.concat(forms, " "), tostring(vz.summons)))
+    t.expect("party.barrier.done", t.party.barrier("done", 9000))
+    t.finish(0)
+end
+
 return {
     id = "_play_verzik",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 300000,
-    setup = {
+    -- raid seam34v: a Normal trio runs about 1,000 room ticks (one cap for both: run.py reads one frame cap per file)
+    max_frames = 400000,
+    setup = (size > 1) and party_kit or {
         "::clearinv",
         -- combat stats an Entry-mode Verzik player has
         "::setlevel attack 99", "::setlevel strength 99", "::setlevel defence 99",
@@ -40,6 +220,7 @@ return {
         -- ranging potion for the bow (drunk at the same transition)
     },
     run = function(t)
+        if size > 1 then return party_run(t) end
         -- THE ENTRY, as the kept room does it (K :34-43, :75-86; its read-only
         -- ::tobboss / ::tobpillars readouts are not part of the entry)
         local tl_ok, tl_detail = t.ticklog.start()
