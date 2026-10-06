@@ -1694,3 +1694,16 @@ all clean. No C and no content changed.
   shared driver file changed, and per the pass's closer rule nothing else was run (the
   quest suite was not run; the fixers ran cooks_assistant and druid green, check-drive-abi
   and check-pt-switch PASS on their binaries).
+
+## matthew-mbp-m4-camera-b1-seam53 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged): the Normal relay run once on the Blert-shaped rooms
+
+- play_tob_normal_relay_once: NOT LANDED, not KEPT (0 of 3 before the edit, 0 of 3 after;
+  Maiden clears fell from 1 of 3 to 0 of 3). The one relay edit is kept because each
+  change copies a room harness (::maxmelee on the dps seats, the door super combat, the
+  scythe at Maiden, Maiden's supply ratios, Bloat role 1 to seat 2, the trio in from
+  the start). OPEN, relay-level: '::wield slayer_boots' after ::maxmelee costs a supply
+  slot; nobody buys from the Normal points chest after Bloat/Sotetseg; no claws for
+  Bloat or elder maul for Sotetseg. OPEN, room-level: Maiden's freezer stands in blood at
+  its home tile for 3-4 ticks (3 of 3 names); Maiden's re-boost drinks every combat dose
+  (needs a reserve); one Maiden costs 35-56 drinks a dps seat; in ::maxmelee npc 8363
+  hits 41-59 every 10 ticks (Maiden seam or the melee-damage content seam).

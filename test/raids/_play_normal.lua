@@ -79,16 +79,37 @@ local KIT = {
     "::setlevel ranged 99", "::setlevel magic 99", "::setlevel hitpoints 99",
     "::setlevel prayer 99", "::setlevel agility 99", "::setlevel slayer 37",
     "::setvar varb4070_spellbook 1",
-    "::give twisted_bow", "::wield twisted_bow",
-    "::give dragon_arrow 1000", "::wield dragon_arrow",
-    "::give masori_mask", "::wield masori_mask",
-    "::give masori_body", "::wield masori_body",
-    "::give masori_chaps", "::wield masori_chaps",
-    "::give avas_assembler", "::wield avas_assembler",
-    "::give slayer_boots", "::wield slayer_boots",
-    "::give magus_ring", "::wield magus_ring",
-    "::give zenyte_amulet_enchanted", "::wield zenyte_amulet_enchanted",
-    "::fullscythe",
+}
+-- raid seam53 play_tob_normal_relay_once: THE WORN SET IS THE ROOM HARNESSES'.
+-- Every room plan after seam40 is a melee plan and every trio harness wears
+-- ::maxmelee (cheat_max_gear.rs2: torva, rancour, ferocious, ultor, the
+-- charged scythe): _play_maiden.lua party_kit's two dps seats ("::maxmelee",
+-- then the twisted bow worn at the door for the first shot, Blert
+-- TWISTED_BOW in dps1|100 19/24 rooms), _play_bloat.lua, _play_sotetseg.lua,
+-- _play_xarpus.lua and _play_verzik.lua (which adds the slayer boots).  The
+-- relay wore the old ranged Maiden's masori set into every melee room
+-- (survey1: the dps seats fought Maiden, Bloat in masori with the scythe).
+-- Seat 2 is Maiden's freezer: its harness keeps the ranged set and the bow
+-- (_play_maiden.lua party_kit role 2), so it does here too.
+if role == 2 then
+    for _, c in ipairs({
+        "::give twisted_bow", "::wield twisted_bow",
+        "::give dragon_arrow 1000", "::wield dragon_arrow",
+        "::give masori_mask", "::wield masori_mask",
+        "::give masori_body", "::wield masori_body",
+        "::give masori_chaps", "::wield masori_chaps",
+        "::give avas_assembler", "::wield avas_assembler",
+        "::give slayer_boots", "::wield slayer_boots",
+        "::give magus_ring", "::wield magus_ring",
+        "::give zenyte_amulet_enchanted", "::wield zenyte_amulet_enchanted",
+        "::fullscythe" }) do KIT[#KIT + 1] = c end
+else
+    for _, c in ipairs({ "::maxmelee",
+        "::give twisted_bow", "::wield twisted_bow",
+        "::give dragon_arrow 1000", "::wield dragon_arrow",
+        "::give slayer_boots", "::wield slayer_boots" }) do KIT[#KIT + 1] = c end
+end
+for _, c in ipairs({
     "::blowpipe dragon_dart 2000 2000",
     "::give dragon_warhammer",
     "::give serpentine_helm_charged",
@@ -103,11 +124,16 @@ local KIT = {
     -- config C's own name had Bloat at 1343 of 1500 when all three, out of
     -- run energy, walked one tile a tick beside it and took a fly a tick.
     "::give 4dosestamina 1",
-}
+}) do KIT[#KIT + 1] = c end
 local SUPPLIES = nil
 if role == 1 then
     for _, c in ipairs({ "::give eye_of_ayak_uncharged", "::give demon_tear 2000" }) do KIT[#KIT + 1] = c end
-    SUPPLIES = { "::give br_4dosepotionofsaradomin 8", "::give br_4dose2restore 5", "::give anglerfish 7" }
+    -- raid seam53: the Maiden dps harness's mix (10 fish, 8 brews, 5 restores:
+    -- _play_maiden.lua party_kit) in this seat's 20 slots.  The library eats
+    -- fish first and brews when fish run out (raid_play.lua _play_supplies);
+    -- survey1's seat 1 ran out of fish and then drank 30 brew doses, 20
+    -- restore doses and every combat dose at Maiden.
+    SUPPLIES = { "::give br_4dosepotionofsaradomin 7", "::give br_4dose2restore 4", "::give anglerfish 9" }
 elseif role == 2 then
     for _, c in ipairs({ "::give sanguinesti_staff_uncharged", "::give bloodrune 3000",
         "::give kodai_wand", "::give ancestral_hat", "::give ancestral_robe_top",
@@ -117,12 +143,16 @@ elseif role == 2 then
     -- Ice Barrage's blood runes after the Charge: it takes every blood rune
     -- in the pack (sanguinesti_staff.constant: 2 a charge, up to 20000)
     SUPPLIES = { "::give blood_rune 1000",
-        "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 3", "::give anglerfish 3" }
+        -- raid seam53: the Maiden freezer harness's mix (13 fish, 2 brews, 4
+        -- restores) in this seat's 10 slots; svbplaynorma's freezer died at
+        -- Maiden t542 on the old 3 fish
+        "::give br_4dosepotionofsaradomin 2", "::give br_4dose2restore 2", "::give anglerfish 6" }
 else
     for _, c in ipairs({ "::give eye_of_ayak_uncharged", "::give demon_tear 2000",
         "::give magic_shortbow", "::give rune_arrow 800",
         "::give water_rune 2000", "::give chaos_rune 1000", "::give death_rune 1000" }) do KIT[#KIT + 1] = c end
-    SUPPLIES = { "::give br_4dosepotionofsaradomin 6", "::give br_4dose2restore 4", "::give anglerfish 5" }
+    -- raid seam53: the Maiden dps harness's mix in this seat's 15 slots
+    SUPPLIES = { "::give br_4dosepotionofsaradomin 5", "::give br_4dose2restore 3", "::give anglerfish 7" }
 end
 
 -- What each seat leaves on the floor once no later room uses it (the Entry
@@ -177,8 +207,16 @@ local P = "p" .. role .. " "
 --    12, 7, 9, 8, 12; it lives on 14 fish, 9 eats and 11 drinks).  The
 --    leader as role 1 died on that walk with 0 fish and 4-5 brew doses
 --    (t909, t891, t1028); seat 2 with 0 fish and 16 brew doses (t672, t687).
+-- raid seam53: Bloat role 1 is the seat Maiden leaves the most: seat 2, her
+-- freezer (survey1, own name, after Maiden: seat 1 0 fish / 2 brew doses / 0
+-- restore / 0 combat, seat 2 0 / 14 / 6 / 4, seat 3 0 / 11 / 6 / 0; the
+-- freezer is not a melee seat, so the Maiden plan's re-boost never drinks its
+-- combat dose).  Role 1 is the heaviest Bloat role in its own harness
+-- (seam51 _play_bloat: role 1 10 eats 9 drinks, role 2 7 and 8, role 3 8 and
+-- 6); survey1's leader died at Bloat as role 3 on 2 brew doses, so seat 1
+-- keeps role 3 and seat 3 takes role 2.
 local ROLE_IN = { maiden = { [1] = 1, [2] = 2, [3] = 3 }, nylocas = { [1] = 2, [2] = 3, [3] = 1 },
-    bloat = { [1] = 3, [2] = 2, [3] = 1 } }
+    bloat = { [1] = 3, [2] = 1, [3] = 2 } }
 
 local function origin_of(t)
     local _, here = t.world.tile()
@@ -537,6 +575,9 @@ local PRE = {}
 -- pipe read back on its rangers, the leader's barrier, the members across.
 PRE.maiden = function(t, ox, oz)
     set_style(t, "maiden.rapid", 1, 1)
+    -- raid seam53: the dps seats' super combat at the door, as _play_maiden.lua
+    -- party_run (raid seam40: "a scythe seat's super combat at the door")
+    if ROLE_IN.maiden[role] ~= 2 then boost(t, "maiden") end
     if ROLE_IN.maiden[role] ~= 2 then
         -- (the freezer has no pipe role at Maiden)
         local bpr, bp = t.inv.blowpipe()
@@ -544,13 +585,15 @@ PRE.maiden = function(t, ox, oz)
             P .. tostring(bpr) .. " " .. tostring(type(bp) == "table" and bp.line or bp))
     end
     start_room(t, "maiden", nil, nil)
-    return { weapon = "twisted_bow", max_ticks = 1400 }
+    -- raid seam53: the dps seats swing the scythe (_play_maiden.lua party_run:
+    -- `weapon = (role == 2) and "twisted_bow" or "scythe_of_vitur"`)
+    return { weapon = (ROLE_IN.maiden[role] == 2) and "twisted_bow" or "scythe_of_vitur", max_ticks = 1400 }
 end
 
 -- _play_bloat.lua: the super combat; the scythe (the plan's weapon); p1 is
 -- in the room on the first walk, crossing when Bloat is on the far row
 -- heading west (W:687); p2/p3 enter on the first down, seq 8082 (W:689).
-local BLOAT_STARTER = 3
+local BLOAT_STARTER = 2  -- the seat playing Bloat role 1 (ROLE_IN.bloat)
 PRE.bloat = function(t, ox, oz)
     wear(t, "bloat.equip.scythe", "scythe_of_vitur")
     set_style(t, "bloat.style", 0, 0)
@@ -567,14 +610,11 @@ PRE.bloat = function(t, ox, oz)
             t.ticks(1)
         end
     end, function()
-        local waited = 0
-        while waited < 150 do
-            local wr, wb = t.npc.state("tob_bloat")
-            if wr == "ok" and wb.seq_id == 8082 then break end
-            waited = waited + 1
-            t.ticks(1)
-        end
-        t.check("bloat.first_down", waited < 150, P .. "waited " .. waited .. " ticks for the first down")
+        -- raid seam53: the whole trio in from the start, as _play_bloat.lua
+        -- since raid seam42 (15 of 22 recorded death-free Normal trio rooms;
+        -- a raider who enters on the first down swings first at age 7-9
+        -- against the reference's 3).  The relay still waited for the down
+        -- (survey1: 37 ticks).
         cross(t, "bloat")
     end, BLOAT_STARTER)
     return { weapon = "scythe_of_vitur", max_ticks = 1400 }
