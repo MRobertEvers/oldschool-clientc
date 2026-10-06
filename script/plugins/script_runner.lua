@@ -33,6 +33,18 @@
 -- A watched run is not a test run: it uses the wall clock and its ledger
 -- grades nothing (docs/minigames/raid_loop/DRIVER_NOTES.md, "Watching a test:
 -- the Scripts tab").
+--
+-- TWO VIEWS (camera seam2): while a script plays here it has its own camera
+-- (the AutomationRunner view) and yours is left alone. The page carries the
+-- INTERACT switch (api.drive.view_interact: off when a script starts -- your
+-- mouse and keys only orbit, zoom and inspect; on -- they play the game, and
+-- every action is a watcher.* ledger row), and two readings: "Under your
+-- pointer" (your own pick: api.input.hover_entity / hover_tile, which answer
+-- for the presented view) and "Runner pointer" (api.drive.view_status's
+-- runner block). The on-frame badge, the runner's ghost cursor and the
+-- outline of what it pressed are drawn by the client itself
+-- (src/app/app_overlay.c, "THE WATCHER'S AIDS"), so they cost nothing when no
+-- script is attached and cannot be covered by any plugin's drawing.
 
 ---@type torirs.Plugin
 local plugin = { id = "script-runner", title = "Scripts", version = "2" }
@@ -76,7 +88,14 @@ local shown = {}                -- row id -> text last written by set_text
 local shown_label = {}          -- row id -> label last written by set_label
 local shown_enabled = {}        -- button id -> last enabled flag written
 local shown_driver_logged = nil
+local shown_watch_logged = nil
 local page_built = false
+-- "Under your pointer": the last hover asked about and its words, so the
+-- entity pools are walked only when what is under the pointer changes.
+local hover_key = nil
+local hover_words = "-"
+local HOVER_KINDS = { [1] = "loc", [2] = "npc", [3] = "player", [4] = "obj" }
+local HOVER_WALK_LIMIT = 20000
 
 local function clip(text)
     text = tostring(text or "")
@@ -234,6 +253,100 @@ local function more_text()
 end
 
 -- What the status block and the buttons say right now.
+-- The snapshot of the entity under the watcher's pointer: walk the one pool
+-- its kind names until the element id matches (bounded; only on a change).
+local function hover_snapshot(api, kind, element_id)
+    local walker = ({ [1] = api.world.scenery_next, [2] = api.world.npc_next,
+        [3] = api.world.player_next, [4] = api.world.item_next })[kind]
+    if walker == nil then
+        return nil
+    end
+    local cursor = -1
+    for _ = 1, HOVER_WALK_LIMIT do
+        local next_cursor, snap = walker(cursor)
+        if not next_cursor then
+            return nil
+        end
+        cursor = next_cursor
+        if snap and snap.element_id == element_id then
+            return snap
+        end
+    end
+    return nil
+end
+
+-- "Under your pointer": kind, name, config id and tile of what the WATCHER's
+-- own pick holds (the presented view; with no script attached, the only one).
+local function under_you_text(api)
+    if api.input == nil or api.input.hover_entity == nil then
+        return "-"
+    end
+    local hover = api.input.hover_entity()
+    local tile_x, tile_z, level = api.input.hover_tile()
+    local key
+    if hover then
+        key = string.format("e%d:%d:%d,%d", hover.kind, hover.element_id, hover.tile_x, hover.tile_z)
+    elseif tile_x then
+        key = string.format("t%d,%d,%d", tile_x, tile_z, level or 0)
+    else
+        key = "none"
+    end
+    if key == hover_key then
+        return hover_words
+    end
+    hover_key = key
+    if hover then
+        local kind = HOVER_KINDS[hover.kind] or ("kind " .. tostring(hover.kind))
+        local snap = hover_snapshot(api, hover.kind, hover.element_id)
+        local name = snap and snap.name or "?"
+        local id = snap and (snap.npc_id or snap.loc_id or snap.obj_id or snap.server_pid)
+        hover_words = string.format("%s %s%s at %d,%d level %d", kind, name,
+            id and (" (id " .. tostring(id) .. ")") or "", hover.tile_x, hover.tile_z, hover.level)
+    elseif tile_x then
+        hover_words = string.format("tile %d,%d level %d, nothing on it", tile_x, tile_z, level or 0)
+    else
+        hover_words = "nothing (not over the world)"
+    end
+    return hover_words
+end
+
+-- The runner/watcher split's readings: the switch, the badge's words and the
+-- runner's pointer. `views` is nil when the driver has no view verbs.
+local function watch_view(api)
+    local watch = {
+        attached = false, interact = false,
+        control = "no script attached: your mouse and keys play the game",
+        runner = "-",
+    }
+    if api.drive == nil or api.drive.view_status == nil then
+        watch.control = "unavailable: this client has no driver"
+        return watch
+    end
+    local result, status = api.drive.view_status()
+    if result ~= "ok" or type(status) ~= "table" then
+        watch.control = "unavailable: drive.view_status answered " .. tostring(result)
+        return watch
+    end
+    watch.attached = status.attached and true or false
+    watch.interact = status.interact and true or false
+    if watch.attached then
+        watch.control = watch.interact and "You can interact: your clicks and keys play the game (ledger rows)"
+            or "Runner has control: your mouse orbits, zooms and inspects only"
+    elseif status.lane_refusal then
+        watch.control = "one view: " .. tostring(status.lane_refusal)
+    end
+    local runner = status.runner
+    if type(runner) == "table" then
+        watch.runner = string.format("%d,%d  picked %d%s  camera yaw %d pitch %d zoom %d",
+            runner.pointer_x or -1, runner.pointer_y or -1, runner.picked or 0,
+            runner.menu_open and "  menu open" or "", runner.yaw or 0, runner.pitch or 0, runner.zoom or 0)
+        if not watch.attached then
+            watch.runner = "(one view) " .. watch.runner
+        end
+    end
+    return watch
+end
+
 local function status_view(api)
     local view = {
         driver = "", test = "-", leg = "-", step = "-", counts = "-", summary = "-", session = "-",
@@ -335,6 +448,26 @@ local function refresh_list(api)
     show_text(api, "more", more_text())
 end
 
+-- The Interact switch and the two pointer readings.
+local function refresh_watch(api)
+    local watch = watch_view(api)
+    local under_you = under_you_text(api)
+    -- Logged when the switch or the watcher's own pick moves (never for the
+    -- runner's pointer alone, which moves on every press).
+    local line = watch.control .. " | under you: " .. under_you
+    if line ~= shown_watch_logged then
+        shown_watch_logged = line
+        api.core.log("script-runner: watch " .. line .. " | runner " .. watch.runner)
+    end
+    if not page_built then
+        return
+    end
+    show_enabled(api, "interact", watch.interact)
+    show_text(api, "control", watch.control)
+    show_text(api, "under_you", under_you)
+    show_text(api, "runner_ptr", watch.runner)
+end
+
 local function refresh_status(api)
     local view = status_view(api)
     -- One log line per driver state change, so a headless run's client.log
@@ -358,6 +491,7 @@ local function refresh_status(api)
     show_text(api, "note", note == "" and " " or note)
     show_enabled(api, "play", view.play)
     show_enabled(api, "stop", view.stop)
+    refresh_watch(api)
 end
 
 -- Ask for the manifest (refresh: ask again) and take it when it has landed.
@@ -421,6 +555,14 @@ function plugin.on_ui_build(api, panel, view)
     panel.select("start", "Start from", start_choice, STARTS)
     panel.button("play", "Play", status.play)
     panel.button("stop", "Stop", status.stop)
+    -- Two views (camera seam2): the switch and the readings. Always declared,
+    -- so the row set never changes; with no script attached they say so.
+    local watch = watch_view(api)
+    local under_you = under_you_text(api)
+    panel.toggle("interact", "Interact (play while the script runs)", watch.interact)
+    panel.key_value("control", "Control", clip(watch.control))
+    panel.key_value("under_you", "Under your pointer", clip(under_you))
+    panel.key_value("runner_ptr", "Runner pointer", clip(watch.runner))
     panel.key_value("driver", "Driver", clip(status.driver))
     panel.key_value("test", "Test", clip(status.test))
     panel.key_value("leg", "Leg", clip(status.leg))
@@ -454,6 +596,10 @@ function plugin.on_ui_build(api, panel, view)
     shown.note = note == "" and " " or clip(note)
     shown_enabled.play = status.play
     shown_enabled.stop = status.stop
+    shown_enabled.interact = watch.interact
+    shown.control = clip(watch.control)
+    shown.under_you = clip(under_you)
+    shown.runner_ptr = clip(watch.runner)
     page_built = true
     api.core.log(string.format("script-runner: page built: suite=%s search='%s' matched=%d of %d",
         suite_filter, search_text, #matched, #scripts))
@@ -495,6 +641,25 @@ local function stop(api)
     local result, detail = api.drive.stop()
     note = clip(result == "ok" and "Stopping at the next step." or tostring(detail or result))
     api.core.log("script-runner: stop -> " .. tostring(result) .. " " .. tostring(detail))
+end
+
+-- The Interact switch: only while a script's view is attached (the driver
+-- refuses otherwise, and the switch falls back to what the client says).
+local function set_interact(api, on)
+    if api.drive == nil or api.drive.view_interact == nil then
+        note = "This client has no driver."
+        return
+    end
+    local result, detail = api.drive.view_interact(on)
+    if result == "ok" then
+        note = on and "Interact is ON: your clicks and keys play the game; each is a watcher.* ledger row."
+            or "Interact is off: the runner has control; your mouse orbits, zooms and inspects."
+    else
+        note = clip(tostring(detail or result))
+    end
+    -- The toggle shows what the client holds, not what was asked for.
+    shown_enabled.interact = nil
+    api.core.log("script-runner: interact " .. tostring(on) .. " -> " .. tostring(result))
 end
 
 local function select_script(api, script)
@@ -556,6 +721,11 @@ function plugin.on_ui_action(api, ev)
     end
     if ev.id == "stop" then
         stop(api)
+        refresh_status(api)
+        return
+    end
+    if ev.id == "interact" then
+        set_interact(api, ev.on and true or false)
         refresh_status(api)
         return
     end

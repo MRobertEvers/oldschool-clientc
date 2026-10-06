@@ -566,6 +566,11 @@ struct UITreeHostRequest
         struct
         {
             struct UIMinimenu const** out;
+            /** Optional (NULL = not asked): the menu of the OTHER world view
+             *  (a script's, beside the watcher's), drawn under the presented
+             *  one in UITREE_MINIMENU_COLOR_OTHER_VIEW; the host leaves it
+             *  NULL when there is no second view. */
+            struct UIMinimenu const** out_other;
         } get_minimenu_state;
         struct
         {

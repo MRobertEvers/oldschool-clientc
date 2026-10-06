@@ -184,6 +184,13 @@ App_ChromePointerOwned(
  * translation unit, the statics and the definition order are unchanged.
  */
 
+static void
+app_drain_command(
+    struct App* app,
+    struct ToriRS_CmdHeader const* header_in,
+    uint8_t const* payload,
+    struct LibToriRS_Input* input);
+
 void
 App_DrainCommands(
     struct App* app,
@@ -197,10 +204,43 @@ App_DrainCommands(
     assert(bus);
     assert(input);
 
+    /* The runner camera split (struct App_ViewSplit): this bus is the
+     * PHYSICAL one -- the window's events and the TORIRS_SIM_* pushes -- and
+     * the driver has its own, drained after it. One branch while detached. */
+    if( app->view_split.attached )
+    {
+        app_view_split_drain_begin(app, input);
+        while( CmdBus_Pop(bus, &header, payload) )
+        {
+            if( App_ViewSplitPhysicalCommand(app, &header, payload, input) )
+                continue;
+            app_drain_command(app, &header, payload, input);
+        }
+        while( CmdBus_Pop(app->view_split.runner_bus, &header, payload) )
+        {
+            app_view_split_note_runner_command(app, &header, payload);
+            app_drain_command(app, &header, payload, input);
+        }
+        app_view_split_drain_end(app);
+        return;
+    }
     while( CmdBus_Pop(bus, &header, payload) )
+        app_drain_command(app, &header, payload, input);
+}
+
+/* One command off a bus: input into `input`, everything else dispatched. */
+static void
+app_drain_command(
+    struct App* app,
+    struct ToriRS_CmdHeader const* header_in,
+    uint8_t const* payload,
+    struct LibToriRS_Input* input)
+{
+    struct ToriRS_CmdHeader header = *header_in;
+
     {
         if( ToriRS_Input_ApplyCmd(input, &header, payload) )
-            continue;
+            return;
 
         switch( header.type )
         {
@@ -893,10 +933,13 @@ App_RunOnce(
 
         /* The chosen minimenu row's afterimage: the same clock as the marker,
          * for the same reason -- it exists to be looked at. */
-        if( UIMinimenu_AfterimageActive(app->frame_view->minimenu) )
+        for( int view = 0; view < app->view_split.view_count; view++ )
         {
-            UIMinimenu_AfterimageTick(app->frame_view->minimenu, (int)app->logic_frame_ms);
-            app->need_redraw = 1;
+            if( UIMinimenu_AfterimageActive(app->views[view].minimenu) )
+            {
+                UIMinimenu_AfterimageTick(app->views[view].minimenu, (int)app->logic_frame_ms);
+                app->need_redraw = 1;
+            }
         }
 
         if( ticks > 0 )
@@ -1050,9 +1093,20 @@ App_RunOnce(
     /* A popup retained from the previous frame must not keep native rows live
      * after that reconciliation suppressed or rebuilt their component. */
     app_minimenu_close_if_stale(app);
+    if( app->view_split.attached )
+    {
+        app->frame_view = &app->views[APP_VIEW_PLAYER_CLIENT];
+        app_minimenu_close_if_stale(app);
+        app->frame_view = &app->views[APP_VIEW_RUNNER];
+    }
     app_frame_latch_note(app, NULL);
 
     app->input_frame_consumed = 1;
+    /* The runner camera split: a frame whose game input is the watcher's
+     * (Interact on, or the plugin chrome) is handled through the
+     * PlayerClient view -- its pickset, its menu -- until the camera keys. */
+    if( app->view_split.physical_frame )
+        App_ViewSplitBindPlayerClient(app, 1);
 
     /* Per-frame interaction: returns intents; the app applies event context
      * and dispatches each hook through the game layer. */
@@ -1167,23 +1221,33 @@ App_RunOnce(
      * tile of the last tap for as long as the client runs, and the world pick
      * keeps re-answering it every frame.
      */
-    app->frame_view->pointer_absent = input->mouse_pointer_absent;
-    app->frame_view->world_mouse_in_viewport =
-        !app->frame_view->pointer_absent &&
-        app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y);
-    app->frame_view->world_mouse_x = input->curr.mouse_x;
-    app->frame_view->world_mouse_y = input->curr.mouse_y;
-    if( !app->frame_view->world_mouse_in_viewport )
+    if( app->view_split.attached )
     {
-        app->frame_view->world_hover_tile_x = -1;
-        app->frame_view->world_hover_tile_z = -1;
-        app->frame_view->world_hover_view = 0;
-        World_PickSetReset(&app->frame_view->world_pickset);
+        /* Each view latches ITS pointer: the runner's from its own events,
+         * the watcher's from the physical ones; hover text follows whichever
+         * moved last. */
+        app_view_split_latch_pointers(app);
     }
+    else
+    {
+        app->frame_view->pointer_absent = input->mouse_pointer_absent;
+        app->frame_view->world_mouse_in_viewport =
+            !app->frame_view->pointer_absent &&
+            app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y);
+        app->frame_view->world_mouse_x = input->curr.mouse_x;
+        app->frame_view->world_mouse_y = input->curr.mouse_y;
+        if( !app->frame_view->world_mouse_in_viewport )
+        {
+            app->frame_view->world_hover_tile_x = -1;
+            app->frame_view->world_hover_tile_z = -1;
+            app->frame_view->world_hover_view = 0;
+            World_PickSetReset(&app->frame_view->world_pickset);
+        }
 
-    /* Mouseover text before any click handling: the reference recomputes it
-     * every cycle from the same menu the click paths build. */
-    app_hover_text_update(app, input->curr.mouse_x, input->curr.mouse_y);
+        /* Mouseover text before any click handling: the reference recomputes it
+         * every cycle from the same menu the click paths build. */
+        app_hover_text_update(app, input->curr.mouse_x, input->curr.mouse_y);
+    }
 
     /*
      * A chat filter button, if nothing above took the click.
@@ -2100,10 +2164,25 @@ App_RunOnce(
 
     /* Every one of these reads the same key queue the login form just drained;
      * none of them has anything to act on before a world exists. */
+    if( app->view_split.menu_bound_to_player_client )
+        App_ViewSplitBindPlayerClient(app, 0);
     if( !title_captures_keys )
     {
-        app_world_camera_keys(app, input, &out);
-        app_world_camera_mouse(app, input, &out);
+        if( app->view_split.attached )
+        {
+            /* The camera keys, middle button and wheel are the WATCHER's:
+             * they steer the PlayerClient view from the physical events
+             * alone. The runner turns its camera through its verbs. */
+            app->frame_view = &app->views[APP_VIEW_PLAYER_CLIENT];
+            app_world_camera_keys(app, &app->view_split.physical_input, &out);
+            app_world_camera_mouse(app, &app->view_split.physical_input, &out);
+            app->frame_view = &app->views[APP_VIEW_RUNNER];
+        }
+        else
+        {
+            app_world_camera_keys(app, input, &out);
+            app_world_camera_mouse(app, input, &out);
+        }
         /* Before the debug world hotkeys: a configured binding claims its key
          * so the same press cannot also spawn something. */
         app_ui_hotkeys(app, input);
@@ -2223,6 +2302,10 @@ App_RunOnce(
 
     if( app->need_redraw )
     {
+        /* The emit walk builds what is PRESENTED: its overlays, compass,
+         * minimap and menu read the presented view (the watcher's while a
+         * script is attached; the only view otherwise). */
+        app->frame_view = App_PresentedView(app);
         /* Mounts/bakes bump tree->generation; server texts that landed while
          * the target interface was unmounted re-apply onto the fresh nodes
          * (reference: IF_SETTEXT persists on IfType.list). */
@@ -2297,6 +2380,12 @@ App_RunOnce(
         { uint64_t const pa_w0 = PerfAudit_Now(); App_PluginLayoutTick(app);
       PA_ADD(layout_tick_ns, PerfAudit_Now() - pa_w0); }
         app_minimenu_close_if_stale(app);
+        if( app->view_split.attached )
+        {
+            app->frame_view = App_RunnerView(app);
+            app_minimenu_close_if_stale(app);
+            app->frame_view = App_PresentedView(app);
+        }
         /* Publication invariant: an emit list is a frame commit, not a view of
          * whatever intermediate state the cooperative schedulers reached. */
         assert(App_FrameSettled(app));
@@ -2652,6 +2741,7 @@ App_RunOnce(
             app->need_redraw = 1;
         else
             app->need_redraw = 0;
+        app->frame_view = App_RunnerView(app);
         return 1;
     }
     return 0;

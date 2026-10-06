@@ -112,8 +112,12 @@ app_apply_wedge_scale(struct App* app)
         return;
 
     case TORIRS_VIEWPORT_PROJECTION_FOV:
-        app->frame_view->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_FOV;
-        app->frame_view->world_camera.fov_rpi2048 = projection.fov_rpi2048;
+        /* The viewport is shared: every attached view projects through it. */
+        for( int view = 0; view < app->view_split.view_count; view++ )
+        {
+            app->views[view].world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_FOV;
+            app->views[view].world_camera.fov_rpi2048 = projection.fov_rpi2048;
+        }
         if( torirs_env_wedge_fov_debug() )
         {
             static int logged = 0;
@@ -131,8 +135,11 @@ app_apply_wedge_scale(struct App* app)
 
     case TORIRS_VIEWPORT_PROJECTION_SCALE:
         /* Exact: the kernels multiply by projection_scale directly. */
-        app->frame_view->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
-        app->frame_view->world_camera.projection_scale = projection.scale;
+        for( int view = 0; view < app->view_split.view_count; view++ )
+        {
+            app->views[view].world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+            app->views[view].world_camera.projection_scale = projection.scale;
+        }
         if( torirs_env_wedge_fov_debug() )
         {
             static int last = -1;

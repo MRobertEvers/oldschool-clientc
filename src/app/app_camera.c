@@ -522,24 +522,38 @@ app_cinema_angles(
     *out_yaw = (int)(atan2((double)dx, (double)dz) * -325.949) & 0x7ff;
 }
 
+/* A CAM_* snap takes every attached view (owner decision 2): the scripted
+ * camera is the game's, not one watcher's. */
 void
 App_CinemaCameraSnapPosition(struct App* app)
 {
-    app_cinema_point(
-        app,
-        app->cam_script.move_lx,
-        app->cam_script.move_lz,
-        app->cam_script.move_height,
-        &app->frame_view->world_camera_pos.x,
-        &app->frame_view->world_camera_pos.y,
-        &app->frame_view->world_camera_pos.z);
+    assert(app);
+    for( int view = 0; view < app->view_split.view_count; view++ )
+        app_cinema_point(
+            app,
+            app->cam_script.move_lx,
+            app->cam_script.move_lz,
+            app->cam_script.move_height,
+            &app->views[view].world_camera_pos.x,
+            &app->views[view].world_camera_pos.y,
+            &app->views[view].world_camera_pos.z);
 }
 
 void
 App_CinemaCameraSnapAngle(struct App* app)
 {
-    app_cinema_angles(
-        app, &app->frame_view->world_camera.pitch, &app->frame_view->world_camera.yaw);
+    struct App_WorldView* saved;
+
+    assert(app);
+    saved = app->frame_view;
+    for( int view = 0; view < app->view_split.view_count; view++ )
+    {
+        /* app_cinema_angles reads the eye of the view it aims (frame_view). */
+        app->frame_view = &app->views[view];
+        app_cinema_angles(
+            app, &app->views[view].world_camera.pitch, &app->views[view].world_camera.yaw);
+    }
+    app->frame_view = saved;
 }
 
 /* Ease one axis toward its target: a flat `rate` plus `rate2`/1000 of what is

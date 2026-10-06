@@ -80,6 +80,11 @@ PluginDriveCore_SetCmdBus(struct ToriRS_CmdBus* bus)
 struct ToriRS_CmdBus*
 PluginDriveCore_CmdBus(void)
 {
+    /* The runner camera split (struct App_ViewSplit): while a script's view
+     * is attached its events go to its own bus, drained after the physical
+     * one, so the client knows whose every press is. */
+    if( g_app && g_app->view_split.attached )
+        return g_app->view_split.runner_bus;
     return g_cmdbus;
 }
 
@@ -1673,6 +1678,9 @@ drive_demand_release(void)
     /* The tick log belongs to the run that enabled it (t.ticklog.start): the
      * next run's own start begins a fresh one in its own session dir. */
     ToriRSServer_TicklogDisable();
+    /* A finished or stopped script gives the watcher back the one view (the
+     * run wrapper detaches at its own finish; a stop never reaches it). */
+    App_ViewDetachPlayerClient(g_app);
     g_started = 0;
     g_demand_state = DRIVE_DEMAND_FINISHED;
     fprintf(stderr, "quest-driver: on demand: %s finished: %s\n", g_demand_script,
@@ -1765,6 +1773,10 @@ lua_drive_pump(struct lua_State* L)
      * not a wait with its own state -- login can take an arbitrary number of
      * frames and there is nothing to remember between them. */
     (void)L;
+    /* The runner camera split: every driver verb acts through the runner's
+     * view because the pump runs between the stages that move frame_view
+     * (the presented draw and the emit walk put it back to views[0]). */
+    assert(!g_app || g_app->frame_view == App_RunnerView(g_app));
     if( PluginDrive_OnDemand() )
     {
         /* On demand nothing starts at world-ready: a start api.drive.start
@@ -2607,6 +2619,206 @@ lua_drive_render_frame(struct lua_State* L)
     return 2;
 }
 
+/* ------------------------------------------------------------ the views
+ *
+ * The runner camera split (struct App_ViewSplit, app_render.c): a script's
+ * own view of the world beside the watcher's. QD.core_run_test (the Scripts
+ * tab's runner, core.lua) attaches at start and detaches at finish; the
+ * on-demand release detaches too (a stop). A client that presents nothing --
+ * every test run -- attaches nothing and says so.
+ */
+
+static void
+drive_push_view(struct lua_State* L, struct App_WorldView const* view)
+{
+    lua_createtable(L, 0, 13);
+    lua_pushinteger(L, view->orbit.yaw);
+    lua_setfield(L, -2, "yaw");
+    lua_pushinteger(L, view->orbit.pitch);
+    lua_setfield(L, -2, "pitch");
+    lua_pushinteger(L, view->world_cam_zoom);
+    lua_setfield(L, -2, "zoom");
+    lua_pushinteger(L, view->world_mouse_x);
+    lua_setfield(L, -2, "pointer_x");
+    lua_pushinteger(L, view->world_mouse_y);
+    lua_setfield(L, -2, "pointer_y");
+    lua_pushboolean(L, view->minimenu->visible);
+    lua_setfield(L, -2, "menu_open");
+    lua_pushinteger(L, view->world_pickset.count);
+    lua_setfield(L, -2, "picked");
+    /* The eye the frame draws from (a cutscene writes this, not the orbit). */
+    lua_pushinteger(L, view->world_camera.yaw);
+    lua_setfield(L, -2, "eye_yaw");
+    lua_pushinteger(L, view->world_camera.pitch);
+    lua_setfield(L, -2, "eye_pitch");
+    lua_pushinteger(L, view->world_camera_pos.x);
+    lua_setfield(L, -2, "eye_x");
+    lua_pushinteger(L, view->world_camera_pos.y);
+    lua_setfield(L, -2, "eye_y");
+    lua_pushinteger(L, view->world_camera_pos.z);
+    lua_setfield(L, -2, "eye_z");
+}
+
+/* {attached, views, presentable, interact, refusal, runner = {...},
+ *  watcher = {...} (attached only), offscreen, offscreen_reads,
+ *  offscreen_shots, presented, delivered, dropped, held, watcher_serial} */
+static void
+drive_push_view_status(struct lua_State* L, char const* reason)
+{
+    struct App_ViewSplit const* split = &g_app->view_split;
+
+    lua_createtable(L, 0, 18);
+    lua_pushboolean(L, split->attached);
+    lua_setfield(L, -2, "attached");
+    lua_pushinteger(L, g_app->view_split.view_count);
+    lua_setfield(L, -2, "views");
+    lua_pushboolean(L, split->presentable);
+    lua_setfield(L, -2, "presentable");
+    lua_pushboolean(L, split->interact);
+    lua_setfield(L, -2, "interact");
+    if( reason )
+    {
+        lua_pushstring(L, reason);
+        lua_setfield(L, -2, "reason");
+    }
+    if( split->lane_refusal )
+    {
+        lua_pushstring(L, split->lane_refusal);
+        lua_setfield(L, -2, "lane_refusal");
+    }
+    drive_push_view(L, &g_app->views[APP_VIEW_RUNNER]);
+    lua_setfield(L, -2, "runner");
+    if( split->attached )
+    {
+        drive_push_view(L, &g_app->views[APP_VIEW_PLAYER_CLIENT]);
+        lua_setfield(L, -2, "watcher");
+    }
+    lua_pushinteger(L, (lua_Integer)split->offscreen_frames);
+    lua_setfield(L, -2, "offscreen");
+    lua_pushinteger(L, (lua_Integer)split->offscreen_frames_for_reads);
+    lua_setfield(L, -2, "offscreen_reads");
+    lua_pushinteger(L, (lua_Integer)split->offscreen_frames_for_shots);
+    lua_setfield(L, -2, "offscreen_shots");
+    lua_pushinteger(L, (lua_Integer)split->presented_frames);
+    lua_setfield(L, -2, "presented");
+    lua_pushinteger(L, (lua_Integer)split->physical_delivered);
+    lua_setfield(L, -2, "delivered");
+    lua_pushinteger(L, (lua_Integer)split->physical_dropped);
+    lua_setfield(L, -2, "dropped");
+    lua_pushinteger(L, (lua_Integer)split->physical_held);
+    lua_setfield(L, -2, "held");
+    lua_pushinteger(L, (lua_Integer)split->watcher_serial);
+    lua_setfield(L, -2, "watcher_serial");
+}
+
+/* api.drive.view_attach("AutomationRunner") -> "ok", status. The only role a
+ * script attaches is its own; any other name is "refused". `attached` false
+ * with a `reason` is a client that presents nothing (one view, as before). */
+static int
+lua_drive_view_attach(struct lua_State* L)
+{
+    char const* role = luaL_checkstring(L, 1);
+    char const* reason = NULL;
+
+    assert(g_app);
+    if( strcmp(role, "AutomationRunner") != 0 )
+    {
+        lua_pushstring(L, DriveResultName(DRIVE_REFUSED));
+        lua_pushfstring(L, "drive.view_attach: a script attaches only \"AutomationRunner\", not \"%s\"", role);
+        return 2;
+    }
+    (void)App_ViewAttachPlayerClient(g_app, &reason);
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    drive_push_view_status(L, reason);
+    return 2;
+}
+
+/* api.drive.view_detach() -> "ok", status. Nothing attached: a no-op. */
+static int
+lua_drive_view_detach(struct lua_State* L)
+{
+    assert(g_app);
+    App_ViewDetachPlayerClient(g_app);
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    drive_push_view_status(L, NULL);
+    return 2;
+}
+
+/* api.drive.view_status() -> "ok", status. */
+static int
+lua_drive_view_status(struct lua_State* L)
+{
+    assert(g_app);
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    drive_push_view_status(L, NULL);
+    return 2;
+}
+
+/* api.drive.view_interact([on]) -> "ok", status: the Interact switch (the
+ * Scripts panel's button). A pure read with no argument; "refused" while no
+ * script's view is attached. */
+static int
+lua_drive_view_interact(struct lua_State* L)
+{
+    assert(g_app);
+    if( !lua_isnoneornil(L, 1) )
+    {
+        if( lua_type(L, 1) != LUA_TBOOLEAN )
+            return luaL_error(L, "drive.view_interact: wants true, false or nothing");
+        if( !g_app->view_split.attached )
+        {
+            lua_pushstring(L, DriveResultName(DRIVE_REFUSED));
+            lua_pushstring(L, "drive.view_interact: no script's view is attached (one view: the person already has the game)");
+            return 2;
+        }
+        App_ViewSetInteract(g_app, lua_toboolean(L, 1));
+    }
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    drive_push_view_status(L, NULL);
+    return 2;
+}
+
+/* api.drive.view_watcher([after]) -> "ok", {{serial, tick, what, x, y,
+ * detail}, ...}: the watcher's actions while Interact was on, after serial
+ * `after` (0 = all kept), oldest first. */
+static int
+lua_drive_view_watcher(struct lua_State* L)
+{
+    struct App_ViewSplitWatcherAction actions[APP_VIEW_SPLIT_WATCHER_MAX];
+    lua_Integer after = 0;
+    int count;
+
+    assert(g_app);
+    if( !lua_isnoneornil(L, 1) )
+    {
+        if( !lua_isinteger(L, 1) )
+            return luaL_error(L, "drive.view_watcher: wants an integer serial or nothing");
+        after = lua_tointeger(L, 1);
+    }
+    count = App_ViewWatcherActions(
+        g_app, after > 0 ? (uint32_t)after : 0, actions, APP_VIEW_SPLIT_WATCHER_MAX);
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_createtable(L, count, 0);
+    for( int i = 0; i < count; i++ )
+    {
+        lua_createtable(L, 0, 6);
+        lua_pushinteger(L, (lua_Integer)actions[i].serial);
+        lua_setfield(L, -2, "serial");
+        lua_pushinteger(L, actions[i].tick);
+        lua_setfield(L, -2, "tick");
+        lua_pushstring(L, actions[i].what);
+        lua_setfield(L, -2, "what");
+        lua_pushinteger(L, actions[i].x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, actions[i].y);
+        lua_setfield(L, -2, "y");
+        lua_pushinteger(L, actions[i].detail);
+        lua_setfield(L, -2, "detail");
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 2;
+}
+
 static struct LuaFn const LUA_DRIVE_CORE_FNS[] = {
     {"await", lua_drive_await},
     {"pump", lua_drive_pump},
@@ -2631,6 +2843,11 @@ static struct LuaFn const LUA_DRIVE_CORE_FNS[] = {
     {"players", lua_drive_players},
     {"render_skip", lua_drive_render_skip},
     {"render_frame", lua_drive_render_frame},
+    {"view_attach", lua_drive_view_attach},
+    {"view_detach", lua_drive_view_detach},
+    {"view_status", lua_drive_view_status},
+    {"view_interact", lua_drive_view_interact},
+    {"view_watcher", lua_drive_view_watcher},
     {NULL, NULL},
 };
 

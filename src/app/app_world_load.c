@@ -38,7 +38,8 @@ app_world_load_finish_cb(void* userdata);
 void
 app_bind_configured_overlays(struct App* app)
 {
-    app->frame_view->minimenu->font_id = -1;
+    int minimenu_font_id = -1;
+
     app->hover_text.font_id = -1;
     UITREE_SCAN_METER(app->tree);
     for( uint32_t i = 0; i < app->tree->component_count; i++ )
@@ -47,10 +48,13 @@ app_bind_configured_overlays(struct App* app)
         if( node->freed )
             continue;
         if( node->type == UIELEM_BUILTIN_MINIMENU )
-            app->frame_view->minimenu->font_id = node->u.minimenu.font_id;
+            minimenu_font_id = node->u.minimenu.font_id;
         else if( node->type == UIELEM_BUILTIN_HOVERTEXT )
             app->hover_text.font_id = node->u.hovertext.font_id;
     }
+    /* Every view's menu draws in the tree's face. */
+    for( int view = 0; view < app->view_split.view_count; view++ )
+        app->views[view].minimenu->font_id = minimenu_font_id;
 }
 
 /* Reference drawDetail's mapscene pass: after the tile/wall bake, plot each loc
@@ -319,15 +323,17 @@ app_world_load_begin(
      */
     if( app->world && app->world_active )
     {
-        WorldCameraHold_Capture(
-            &app->frame_view->cam_hold,
-            app->world->_base_tile_x,
-            app->world->_base_tile_z,
-            app->frame_view->world_camera_pos.x,
-            app->frame_view->world_camera_pos.y,
-            app->frame_view->world_camera_pos.z,
-            app->frame_view->world_camera.pitch,
-            app->frame_view->world_camera.yaw);
+        /* Every attached view holds its own camera across the reload. */
+        for( int view = 0; view < app->view_split.view_count; view++ )
+            WorldCameraHold_Capture(
+                &app->views[view].cam_hold,
+                app->world->_base_tile_x,
+                app->world->_base_tile_z,
+                app->views[view].world_camera_pos.x,
+                app->views[view].world_camera_pos.y,
+                app->views[view].world_camera_pos.z,
+                app->views[view].world_camera.pitch,
+                app->views[view].world_camera.yaw);
     }
 
     app->world_load_attempted = 1;
@@ -427,6 +433,12 @@ App_WorldLoadFinish(struct App* app)
              * scene contains it. Outside the scene (the square browser opened
              * somewhere distant) the hold is meaningless and the first-look
              * centre below is correct. */
+            {
+            struct App_WorldView* const saved_view = app->frame_view;
+            /* Every attached view is placed the same way. */
+            for( int view = 0; view < app->view_split.view_count; view++ )
+            {
+            app->frame_view = &app->views[view];
             restored = WorldCameraHold_Restore(
                 &app->frame_view->cam_hold,
                 app->world->_base_tile_x,
@@ -458,6 +470,9 @@ App_WorldLoadFinish(struct App* app)
                     app->frame_view->world_camera.pitch = cpitch;
                     app->frame_view->world_camera.yaw = cyaw;
                 }
+            }
+            }
+            app->frame_view = saved_view;
             }
         }
         /* World scenery models reference textures; the bridge scan walks the

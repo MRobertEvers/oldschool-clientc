@@ -122,6 +122,7 @@ struct ToriPlatformAndroid_Renderer_GLES3;
 #include <rscache.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <string.h>
 
 #if defined(TORIRS_PLATFORM_WEB)
@@ -2188,6 +2189,247 @@ main_dynamic_chrome_scale(
  * TORIRS_SCAN_METER_TRACE=1 prints every frame's reading; =2 adds every
  * site that scanned in it.
  */
+/* ------------------------------------------------------------ runner split
+ *
+ * The host's half of the runner camera split (struct App_ViewSplit,
+ * app_render.c). Which client presents, which lane may carry the second view,
+ * the offscreen runner frame before the presented one, and two proof knobs.
+ */
+
+/* Which lanes carry a second view. The software lane is the offscreen frame's
+ * own and is proved headless; OpenGL 3 is built here and shares the presented
+ * half only (the offscreen frame is always software, its scene queue set
+ * aside) -- built, not run here (no GL context under SDL's dummy driver). The
+ * others are not built or tested by this seam: refused with a message. */
+static char const*
+main_view_split_lane_refusal(enum ToriRS_RendererKind kind)
+{
+    if( kind == TORIRS_RENDERER_KIND_SOFTWARE || kind == TORIRS_RENDERER_KIND_OPENGL3 ||
+        kind == TORIRS_RENDERER_KIND_OPENGL3_DEPTH )
+        return NULL;
+    return "the active renderer (D3D9, GLES or WebGL) is not built or tested with a second view: "
+           "one view, the script moves the presented camera (runner_view_split)";
+}
+
+/* Once per loop iteration, before the presented draw. The lane is re-judged
+ * only when it changes; everything else is one branch while detached. */
+static void
+main_view_split_step(int committed)
+{
+    static enum ToriRS_RendererKind judged = (enum ToriRS_RendererKind)-1;
+
+    if( judged != renderer_active )
+    {
+        judged = renderer_active;
+        app.view_split.lane_refusal = main_view_split_lane_refusal(renderer_active);
+        if( app.view_split.attached && app.view_split.lane_refusal )
+        {
+            TORIRS_REPORT("view-split: %s; detaching\n", app.view_split.lane_refusal);
+            App_ViewDetachPlayerClient(&app);
+        }
+    }
+    if( !app.view_split.attached )
+        return;
+    App_ViewSplitBeforePresent(&app, committed);
+}
+
+/*
+ * TORIRS_VIEW_TRACE=<path>: one line per loop iteration while a script's view
+ * is attached -- both views' poses and pointers, the switch and the counters
+ * -- the per-frame STATE the split's proofs diff. Nothing while detached.
+ */
+static void
+main_view_split_trace(void)
+{
+    static int resolved = 0;
+    static FILE* trace = NULL;
+    struct App_WorldView const* runner;
+    struct App_WorldView const* watcher;
+
+    if( !app.view_split.attached )
+        return;
+    if( !resolved )
+    {
+        char const* path = getenv("TORIRS_VIEW_TRACE");
+        resolved = 1;
+        if( path && path[0] )
+        {
+            trace = fopen(path, "w");
+            if( !trace )
+                TORIRS_ERR("TORIRS_VIEW_TRACE: cannot open %s\n", path);
+        }
+    }
+    if( !trace )
+        return;
+    runner = &app.views[APP_VIEW_RUNNER];
+    watcher = &app.views[APP_VIEW_PLAYER_CLIENT];
+    fprintf(
+        trace,
+        "frame=%ld tick=%d interact=%d runner=%d,%d,%d,%d,%d,%d,%d ptr=%d,%d watcher=%d,%d,%d,%d,%d,%d,%d "
+        "ptr=%d,%d offscreen=%llu presented=%llu delivered=%llu dropped=%llu held=%llu menus=%d,%d\n",
+        frame_count,
+        app.world ? (int)(app.world->cycle / APP_SERVER_TICK_LOGIC_CYCLES) : 0,
+        app.view_split.interact,
+        runner->orbit.yaw,
+        runner->orbit.pitch,
+        runner->world_cam_zoom,
+        runner->world_camera.yaw,
+        runner->world_camera_pos.x,
+        runner->world_camera_pos.y,
+        runner->world_camera_pos.z,
+        runner->world_mouse_x,
+        runner->world_mouse_y,
+        watcher->orbit.yaw,
+        watcher->orbit.pitch,
+        watcher->world_cam_zoom,
+        watcher->world_camera.yaw,
+        watcher->world_camera_pos.x,
+        watcher->world_camera_pos.y,
+        watcher->world_camera_pos.z,
+        watcher->world_mouse_x,
+        watcher->world_mouse_y,
+        (unsigned long long)app.view_split.offscreen_frames,
+        (unsigned long long)app.view_split.presented_frames,
+        (unsigned long long)app.view_split.physical_delivered,
+        (unsigned long long)app.view_split.physical_dropped,
+        (unsigned long long)app.view_split.physical_held,
+        runner->minimenu->visible ? 1 : 0,
+        watcher->minimenu->visible ? 1 : 0);
+    fflush(trace);
+}
+
+/*
+ * PROOF KNOBS for the split (headless, on the virtual clock). Both push onto
+ * the PHYSICAL bus -- where the window's own events land after the platform
+ * layer translates them -- so they take the same drain, filter and input path
+ * a person's mouse and keys do.
+ *
+ * Frames count from the moment a script's view attaches (nothing is pushed
+ * while detached).
+ *
+ * TORIRS_VIEW_SIM_ORBIT="start,end": from loop iteration `start` to `end`, a
+ * watcher who never stops moving the camera: an arrow key held 60 frames left
+ * then 60 right, a wheel notch every 37 frames (in, then out), and the pointer
+ * circling the viewport every frame.
+ *
+ * TORIRS_VIEW_SIM_EVENTS="frame:op:a:b:c;...": one physical event per entry.
+ * ops: move:x:y, click:button:x:y (press now, release next frame),
+ * key:code (press now, release next frame), wheel:notches,
+ * interact:0|1 (the switch, as its button would set it).
+ */
+static void
+main_view_split_sim(void)
+{
+    static int resolved = 0;
+    static long orbit_start = -1;
+    static long orbit_end = -1;
+    static char const* events = NULL;
+    static int release_button = 0;
+    static int release_x = 0;
+    static int release_y = 0;
+    static int release_key = -1;
+
+    if( !resolved )
+    {
+        char const* orbit = getenv("TORIRS_VIEW_SIM_ORBIT");
+        resolved = 1;
+        if( orbit )
+            (void)sscanf(orbit, "%ld,%ld", &orbit_start, &orbit_end);
+        events = getenv("TORIRS_VIEW_SIM_EVENTS");
+    }
+    static long attached_at = -1;
+    long frame;
+
+    if( orbit_start < 0 && !events && !release_button && release_key < 0 )
+        return;
+    /* Frames count from the attach: a script's view exists only from there,
+     * and a run's login takes however long it takes. */
+    if( !app.view_split.attached )
+    {
+        attached_at = -1;
+        return;
+    }
+    if( attached_at < 0 )
+        attached_at = frame_count;
+    frame = frame_count - attached_at;
+    if( release_button )
+    {
+        CmdBus_PushMouseButton(&bus, TORIRS_CMD_INPUT_MOUSE_UP, (uint8_t)release_button, (int16_t)release_x,
+            (int16_t)release_y);
+        release_button = 0;
+    }
+    if( release_key >= 0 )
+    {
+        CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)release_key);
+        release_key = -1;
+    }
+    if( orbit_start >= 0 && frame >= orbit_start && frame <= orbit_end )
+    {
+        long const phase = (frame - orbit_start) % 120;
+        double const angle = (double)(frame - orbit_start) * 0.05;
+        if( phase == 0 )
+        {
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, TORIRSK_RIGHT);
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, TORIRSK_LEFT);
+        }
+        else if( phase == 60 )
+        {
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, TORIRSK_LEFT);
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, TORIRSK_RIGHT);
+        }
+        if( (frame - orbit_start) % 37 == 0 )
+            CmdBus_PushMouseWheel(&bus, ((frame - orbit_start) / 37) % 2 ? -1 : 1);
+        CmdBus_PushMouseMove(
+            &bus, (int16_t)(256 + (int)(120.0 * cos(angle))), (int16_t)(170 + (int)(80.0 * sin(angle))));
+        if( frame == orbit_end )
+        {
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, TORIRSK_LEFT);
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, TORIRSK_RIGHT);
+        }
+    }
+    while( events && *events )
+    {
+        long at = -1;
+        char op[16] = { 0 };
+        int a = 0;
+        int b = 0;
+        int c = 0;
+        int fields = sscanf(events, "%ld:%15[a-z]:%d:%d:%d", &at, op, &a, &b, &c);
+        char const* next;
+
+        if( fields < 2 )
+        {
+            TORIRS_ERR("TORIRS_VIEW_SIM_EVENTS: cannot parse at '%s'; the rest is ignored\n", events);
+            events = NULL;
+            break;
+        }
+        if( at > frame )
+            break;
+        if( strcmp(op, "move") == 0 )
+            CmdBus_PushMouseMove(&bus, (int16_t)a, (int16_t)b);
+        else if( strcmp(op, "click") == 0 )
+        {
+            CmdBus_PushMouseMove(&bus, (int16_t)b, (int16_t)c);
+            CmdBus_PushMouseButton(&bus, TORIRS_CMD_INPUT_MOUSE_DOWN, (uint8_t)a, (int16_t)b, (int16_t)c);
+            release_button = a;
+            release_x = b;
+            release_y = c;
+        }
+        else if( strcmp(op, "key") == 0 )
+        {
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)a);
+            release_key = a;
+        }
+        else if( strcmp(op, "wheel") == 0 )
+            CmdBus_PushMouseWheel(&bus, (int16_t)a);
+        else if( strcmp(op, "interact") == 0 )
+            App_ViewSetInteract(&app, a);
+        TORIRS_REPORT("view-sim: frame=%ld (since attach) %s %d %d %d\n", frame, op, a, b, c);
+        next = strchr(events, ';');
+        events = next ? next + 1 : NULL;
+    }
+}
+
 static void
 frame_loop_scan_meter_check(void)
 {
@@ -2416,6 +2658,7 @@ frame_loop_step(void)
      */
     uint64_t logic_now;
     int app_redraw;
+    int app_committed = 0;
     uint64_t frame_start_us;
     /* When the screen is next allowed to be redrawn.
      *
@@ -4094,6 +4337,7 @@ frame_loop_step(void)
     }
 #endif
 
+    main_view_split_sim();
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_COMMAND_DRAIN)
     {
         if( input_frame_pending )
@@ -4231,6 +4475,7 @@ frame_loop_step(void)
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_APP_RUN)
     {
         app_redraw = App_RunOnce(&app, logic_now, input);
+        app_committed = app_redraw;
         /* Acceptance sessions rasterize explicit checkpoints; logic still runs at 50 Hz. */
         if( ContentTest_Enabled() && getenv("TORIRS_CONTENT_TEST_CHECKPOINTS") )
         {
@@ -4422,14 +4667,24 @@ frame_loop_step(void)
         app_redraw = App_RenderSkipFrame(
             &app, app_redraw, content_draw || renderer_active != TORIRS_RENDERER_KIND_SOFTWARE);
     }
+    /* The runner camera split: the offscreen runner frame a driver push owed
+     * is drawn here, BEFORE the presented one (one branch while detached). */
+    main_view_split_step(app_committed);
     if( app_redraw )
     {
+        /* The presented frame is drawn -- and picked, at the physical pointer
+         * -- through the presented view (the watcher's while a script is
+         * attached, the only view otherwise). */
+        app.frame_view = App_PresentedView(&app);
+        if( app.view_split.attached )
+            app.view_split.presented_frames++;
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
         {
             interactive_render_present(
                 &app, platform, gl3, d3d9, gles2, webgl2, webgl1, gles3,
                 renderer_active_is_depth());
         }
+        app.frame_view = App_RunnerView(&app);
     }
     else if( App_RenderSkipEnabled(&app) )
     {
@@ -4449,6 +4704,7 @@ frame_loop_step(void)
         }
     }
 
+    main_view_split_trace();
     /* Here, after the present: a frame is never half drawn by one renderer
      * and finished by another, and the drawn frame has just emptied the scene
      * queue the new renderer's replay goes into. */
@@ -7635,6 +7891,17 @@ main(
             TORIRS_ERR("window platform alloc failed\n");
             App_Shutdown(&app);
             return 1;
+        }
+        /* The runner camera split (struct App_ViewSplit): a script gets a view
+         * of its own only in a client that presents to a person. SDL's dummy
+         * driver is a headless run -- one view, nothing created -- unless
+         * TORIRS_VIEW_SPLIT_FORCE=1 asks for the watched path anyway (the
+         * split's headless proofs). */
+        {
+            char const* video = getenv("SDL_VIDEODRIVER");
+            char const* force = getenv("TORIRS_VIEW_SPLIT_FORCE");
+            app.view_split.presentable =
+                (force && strcmp(force, "1") == 0) || !(video && strcmp(video, "dummy") == 0);
         }
         /* Only when the manifest actually said something. Unset leaves the
          * platform's own default standing, which is what makes HighDPI

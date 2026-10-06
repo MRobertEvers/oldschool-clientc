@@ -458,10 +458,14 @@ App_WorldRebuildShift(
      * -= dx<<7). Fine coords move with the scene base. */
     if( base_dx != 0 || base_dz != 0 )
     {
-        app->frame_view->world_camera_pos.x -= base_dx * 128;
-        app->frame_view->world_camera_pos.z -= base_dz * 128;
-        app->frame_view->orbit.anchor_x -= base_dx * 128;
-        app->frame_view->orbit.anchor_z -= base_dz * 128;
+        /* Every attached view moves with the scene base. */
+        for( int view = 0; view < app->view_split.view_count; view++ )
+        {
+            app->views[view].world_camera_pos.x -= base_dx * 128;
+            app->views[view].world_camera_pos.z -= base_dz * 128;
+            app->views[view].orbit.anchor_x -= base_dx * 128;
+            app->views[view].orbit.anchor_z -= base_dz * 128;
+        }
     }
 
     /* Cutscene camera (deob field706 = false / Client-TS cinemaCam = false). */
@@ -474,7 +478,8 @@ App_WorldRebuildShift(
      * the id is boot-time chrome state nothing re-derives, so a reset here left
      * every later popup measuring against no font and sized by the character
      * estimate in UIMinimenu_PrepareShow (long rows drew past the border). */
-    UIMinimenu_Hide(app->frame_view->minimenu);
+    for( int view = 0; view < app->view_split.view_count; view++ )
+        UIMinimenu_Hide(app->views[view].minimenu);
 
     /* Force a minimap rebake (deob field757 = -1 / Client-TS minimapLevel = -1). */
     app->world_map_level = -1;

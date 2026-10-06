@@ -1337,7 +1337,8 @@ emit_minimenu_popup(
     struct UITreeComponent const* c,
     int32_t idx,
     struct UITreeEmitClip const* parent_clip,
-    struct UIMinimenu const* menu);
+    struct UIMinimenu const* menu,
+    int body_color);
 
 static void
 emit_minimenu_afterimage(
@@ -1364,6 +1365,7 @@ emit_minimenu(
     struct UITreeEmitClip const* parent_clip)
 {
     struct UIMinimenu const* menu = NULL;
+    struct UIMinimenu const* other = NULL;
 
     assert(c && c->type == UIELEM_BUILTIN_MINIMENU);
     assert(out && parent_clip);
@@ -1377,12 +1379,17 @@ emit_minimenu(
         struct UITreeHostRequest req = {
             .kind = UITREE_HOST_GET_MINIMENU_STATE,
             .u.get_minimenu_state.out = &menu,
+            .u.get_minimenu_state.out_other = &other,
         };
         if( !UITree_Host(host, &req) || !menu )
             return;
     }
+    /* The other view's menu first, in its own colour, so the presented one
+     * draws over it where they overlap. */
+    if( other && other->visible && other->option_count > 0 )
+        emit_minimenu_popup(out, c, idx, parent_clip, other, UITREE_MINIMENU_COLOR_OTHER_VIEW);
     if( menu->visible && menu->option_count > 0 )
-        emit_minimenu_popup(out, c, idx, parent_clip, menu);
+        emit_minimenu_popup(out, c, idx, parent_clip, menu, UITREE_MINIMENU_COLOR_BODY);
     if( UIMinimenu_AfterimageActive(menu) )
         emit_minimenu_afterimage(out, c, idx, parent_clip, menu);
 }
@@ -1393,7 +1400,8 @@ emit_minimenu_popup(
     struct UITreeComponent const* c,
     int32_t idx,
     struct UITreeEmitClip const* parent_clip,
-    struct UIMinimenu const* menu)
+    struct UIMinimenu const* menu,
+    int body_color)
 {
     int const mx = menu->x;
     int const my = menu->y;
@@ -1403,7 +1411,7 @@ emit_minimenu_popup(
     int font_id = c->u.minimenu.font_id > 0 ? c->u.minimenu.font_id : menu->font_id;
 
     /* Body + title bar + separator / bottom / left / right border strips. */
-    emit_minimenu_rect(out, c, idx, parent_clip, mx, my, mw, mh, UITREE_MINIMENU_COLOR_BODY);
+    emit_minimenu_rect(out, c, idx, parent_clip, mx, my, mw, mh, body_color);
     emit_minimenu_rect(
         out, c, idx, parent_clip, mx + 1, my + 1, mw - 2, layout->header_bar_h, 0x000000);
     emit_minimenu_rect(
@@ -1443,7 +1451,7 @@ emit_minimenu_popup(
         mw - 2 * layout->text_inset_x,
         layout->header_bar_h,
         font_id,
-        UITREE_MINIMENU_COLOR_BODY,
+        body_color,
         0,
         "Choose Option");
 

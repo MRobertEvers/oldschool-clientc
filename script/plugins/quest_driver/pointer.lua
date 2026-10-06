@@ -1945,7 +1945,21 @@ function QD.drive._camera_watched()
     if type(status_result) == "table" then
         status = status_result
     end
-    return type(status) == "table" and status.on_demand and true or false
+    if not (type(status) == "table" and status.on_demand) then
+        return false
+    end
+    -- The runner camera split: when the script has a view of its OWN, nobody
+    -- sees its camera (the watcher's view is presented), so a turn would be
+    -- a cost with no eyes on it; the runner snaps like a test run and the
+    -- watcher's camera never moves either way. "Watched" is on_demand with
+    -- NO view of its own (a lane that cannot carry one).
+    if api_drive.view_status ~= nil then
+        local view_result, view = api_drive.view_status()
+        if view_result == "ok" and type(view) == "table" and view.attached then
+            return false
+        end
+    end
+    return true
 end
 
 local function camera_aim_snap(want, stats)
@@ -2230,12 +2244,15 @@ function QD.drive._shot_plan()
     if api_drive.camera_pose == nil then
         return nil, nil, "no camera_pose verb in this binary"
     end
-    -- A WATCHED client (TORIRS_DRIVE_ON_DEMAND=1, the Scripts tab) never re-aims
-    -- for a photograph: the one-frame aim costs a test nothing and is a camera
-    -- flicker to the person watching (owner, 2026-10-05). Its shots are the
-    -- live pose's own picture. A test run's status has no `on_demand`.
+    -- A WATCHED client (TORIRS_DRIVE_ON_DEMAND=1, the Scripts tab) re-aims for
+    -- a photograph only through the script's OWN view (the runner camera
+    -- split: the aim and the picture are the runner's, the watcher's camera
+    -- never moves). Where no view of its own is attached -- a lane that
+    -- cannot carry one -- the one-frame aim would be a flicker to the person
+    -- watching (owner, 2026-10-05), so the shot is the live pose's own
+    -- picture. A test run's status has no `on_demand`.
     if QD.drive._camera_watched() then
-        return nil, nil, "a watched client photographs the live pose"
+        return nil, nil, "a watched client with no view of its own photographs the live pose"
     end
     local pose_result, live = api_drive.camera_pose()
     if pose_result ~= "ok" then

@@ -99,6 +99,7 @@ struct RSCache_Dat1Disk;
 struct Dat1BuildCache;
 struct Dat2BuildCache;
 struct ToriRS_CmdBus;
+struct ToriRS_CmdHeader;
 struct ToriRS_Network;
 struct PktNpcInfoOp;
 struct PktPlayerInfoOp;
@@ -966,9 +967,12 @@ struct AppClientScale
  * world, the pick results the last drawn frame left at that pointer, and the
  * right-click menu.
  *
- * Today there is exactly ONE: App_Init points `frame_view` at `views[0]` and
- * sets `view_count` to 1, and nothing ever changes either. Every reader and
- * writer reaches these fields through a view pointer -- `app->frame_view`,
+ * Headless, and with no script attached, there is exactly ONE: App_Init
+ * points `frame_view` at `views[0]` and sets `view_split.view_count` to 1.
+ * While a script runs in a client that presents there are two (struct
+ * App_ViewSplit: views[0] the AutomationRunner's, views[1] the watcher's
+ * PlayerClient view). Every reader and writer reaches these fields through a
+ * view pointer -- `app->frame_view`,
  * the view of the frame being built -- so a second view (a script's camera
  * beside the watcher's; docs/minigames/raid_loop/CAMERA_VIEW_TABLE.md names
  * which view each site will take) is a choice made where a stage begins,
@@ -1063,6 +1067,138 @@ struct App_WorldView
      * second view's menu is a second pointer, set where that view is made.
      */
     struct UIMinimenu* minimenu;
+};
+
+/** The view a script's verbs read and write: `views[0]`, always (headless and
+ *  with no script attached it is also the only view). */
+#define APP_VIEW_RUNNER 0
+/** The watcher's view while a script runs in a client that presents:
+ *  `views[1]`, live only between App_ViewAttachPlayerClient and
+ *  App_ViewDetachPlayerClient. */
+#define APP_VIEW_PLAYER_CLIENT 1
+
+/** Physical commands that wait for the runner's gesture to end (see
+ *  App_ViewSplit.held). A press, its release and a few keys. */
+#define APP_VIEW_SPLIT_HELD_MAX 16
+#define APP_VIEW_SPLIT_HELD_PAYLOAD 16
+/** Watcher actions kept for the driver to read (`watcher.<what>` rows). */
+#define APP_VIEW_SPLIT_WATCHER_MAX 32
+
+struct App_ViewSplitHeld
+{
+    uint32_t type;
+    uint16_t length;
+    uint8_t payload[APP_VIEW_SPLIT_HELD_PAYLOAD];
+};
+
+struct App_ViewSplitWatcherAction
+{
+    /** Monotonic serial, from 1; the driver reads past the last one it saw. */
+    uint32_t serial;
+    /** The world clock's tick when the action reached the game. */
+    int tick;
+    /** "click", "right_click", "key", "wheel". A fixed string. */
+    char const* what;
+    int x;
+    int y;
+    int detail; /* button, key code or wheel notches */
+};
+
+/**
+ * THE RUNNER CAMERA SPLIT (docs/minigames/raid_loop/CAMERA_TRIAGE_seam2.md,
+ * runner_view_split). While a script runs in a client that presents, there
+ * are two world views: `views[APP_VIEW_RUNNER]` (AutomationRunner: every
+ * driver verb, its pointer, its picks, its menu, its photographs) and
+ * `views[APP_VIEW_PLAYER_CLIENT]` (PlayerClient: what is presented, what the
+ * physical mouse and keys steer). Everything here is zero and untouched while
+ * `attached` is 0 -- a headless run and a client with no script attached pay
+ * one predicted branch per stage boundary and nothing else.
+ */
+struct App_ViewSplit
+{
+    /** How many world views are live: 1, or 2 while a script's view is
+     *  attached (App::views). */
+    int view_count;
+    /** views[1] is live. */
+    int attached;
+    /** The watcher's client presents frames: set by the host (main.c) once a
+     *  window that draws exists and render skip is off; attach refuses
+     *  without it ("nothing is presented, so there is no watcher"). */
+    int presentable;
+    /** Why the presented lane cannot carry a second view, or NULL. Set by
+     *  the host for a lane this split is not built or tested on. */
+    char const* lane_refusal;
+    /** THE INTERACT SWITCH (owner decision 1). 0 when a script starts: the
+     *  physical mouse and keys are a spectator's (orbit, zoom, hover-inspect,
+     *  the plugin chrome); 1: they act on the game through the PlayerClient
+     *  view. */
+    int interact;
+
+    /** The runner's pointer (the last position a runner event carried) and
+     *  whether one has arrived since attach. */
+    int runner_x;
+    int runner_y;
+    int runner_pointer_valid;
+    /** Runner buttons held (bit per LibToriRS_MouseButton): a gesture in
+     *  flight that physical presses must not interleave with. */
+    int runner_buttons_held;
+    /** The runner pushed an input event this frame. */
+    int runner_events_this_frame;
+    /** The physical pointer and who moved last (hover follows it). */
+    int physical_x;
+    int physical_y;
+    int physical_moved_last;
+    /** This frame's game input carries a physical gesture: the input stage
+     *  runs through the PlayerClient view and its menu. */
+    int physical_frame;
+
+    /** Every physical event, always: the PlayerClient camera's keys, middle
+     *  button and wheel, and its pointer. */
+    struct LibToriRS_Input physical_input;
+    /** The driver's own bus while attached (PluginDriveCore_CmdBus answers
+     *  it): its events are the runner's. Allocated at attach. */
+    struct ToriRS_CmdBus* runner_bus;
+    /** Physical commands waiting for the runner's gesture to end. */
+    struct App_ViewSplitHeld held[APP_VIEW_SPLIT_HELD_MAX];
+    int held_count;
+
+    /** The PlayerClient view's menu storage (views[0]'s is interact.minimenu;
+     *  App_ViewSplitBindMenu swaps the two while a physical gesture is
+     *  handled so the UI interaction step drives the right one). */
+    struct UIMinimenu player_client_menu;
+    int menu_bound_to_player_client;
+
+    /** THE OFFSCREEN RUNNER FRAME (app_render.c). */
+    int runner_fresh;
+    int runner_catch_up_ok;
+    int runner_draw_owed;
+    int offscreen; /* an offscreen frame is being drawn */
+    int* runner_pixels;
+    int runner_pixels_count;
+    struct PaintersBuffer* runner_painter_buffer;
+
+    /** Watcher actions while Interact is on (ring; the driver reads them). */
+    struct App_ViewSplitWatcherAction watcher[APP_VIEW_SPLIT_WATCHER_MAX];
+    uint32_t watcher_serial;
+
+    /** Counters (the status read; the cost proof). */
+    uint64_t offscreen_frames;
+    uint64_t offscreen_frames_for_reads;
+    uint64_t offscreen_frames_for_shots;
+    uint64_t presented_frames;
+    uint64_t physical_delivered;
+    uint64_t physical_dropped;
+    uint64_t physical_held;
+    uint64_t attaches;
+};
+
+/** CAM_SHAKE's per-frame roll, shared by every paint of one frame (the
+ *  offscreen runner frame must not consume rand(); see app_world_paint). */
+struct App_ShakeRoll
+{
+    uint64_t frame;
+    int valid;
+    int jitter[5];
 };
 
 struct App
@@ -1261,14 +1397,19 @@ struct App
     int painter_cullmap_bake_h;
     /**
      * The world views (see struct App_WorldView). `views[0]` always exists;
-     * `view_count` is how many are live (1 today, and 2 is the most there will
+     * `view_split.view_count` is how many are live (1, and 2 is the most there will
      * be: a script's camera and the watcher's). `frame_view` is the view the
-     * frame being built reads and writes, chosen where a stage begins --
-     * App_Init points it at `views[0]` and nothing moves it yet.
+     * frame being built reads and writes, chosen where a stage begins: the
+     * presented draw and the emit walk set the presented view, the offscreen
+     * runner frame and the camera follow step set theirs, and each puts
+     * views[0] back -- every other moment (logic, the plugin pump, the
+     * driver's verbs) sees views[0].
      */
     struct App_WorldView views[APP_WORLD_VIEW_MAX];
-    int view_count;
     struct App_WorldView* frame_view;
+    /** The runner/watcher split (struct App_ViewSplit); all zero while no
+     *  script is attached. */
+    struct App_ViewSplit view_split;
     /*
      * This platform aims the camera with a FINGER, so the revision's
      * `controls=` list does not decide whether it may.
@@ -2536,6 +2677,9 @@ struct App
         int shake_amplitude[5]; /* sine amplitude */
         int shake_speed[5];     /* sine rate, hundredths */
         int shake_cycle[5];
+        /** The shake's per-frame roll, shared by every paint of one frame
+         *  while a script's view is attached (struct App_ShakeRoll). */
+        struct App_ShakeRoll shake_roll;
         /** Camera packets executed this session; events[serial % RING] is the
          *  newest once serial > 0. */
         int serial;
@@ -3210,10 +3354,105 @@ static inline void
 App_WorldViewsInit(struct App* app)
 {
     assert(app);
-    app->view_count = 1;
+    app->view_split.view_count = 1;
     app->frame_view = &app->views[0];
     app->frame_view->minimenu = &app->interact.minimenu;
 }
+
+/** The view a script's verbs act through (views[0], always). */
+static inline struct App_WorldView*
+App_RunnerView(struct App* app)
+{
+    assert(app);
+    return &app->views[APP_VIEW_RUNNER];
+}
+
+/** The view the presented frame draws: the PlayerClient view while a script
+ *  is attached, otherwise the only one. */
+static inline struct App_WorldView*
+App_PresentedView(struct App* app)
+{
+    assert(app);
+    return app->view_split.attached ? &app->views[APP_VIEW_PLAYER_CLIENT] : &app->views[APP_VIEW_RUNNER];
+}
+
+/** The runner camera split (struct App_ViewSplit), app_render.c.
+ *
+ *  Attach makes views[1] a copy of views[0] (no jump), gives it its own menu,
+ *  and hands the driver its own input bus. It answers 1 when two views are
+ *  live afterwards, 0 when the client presents nothing or its lane cannot
+ *  carry the second view; `out_reason` (when non-NULL) then says which. A
+ *  second attach is a no-op answering 1. */
+int
+App_ViewAttachPlayerClient(
+    struct App* app,
+    char const** out_reason);
+
+/** Detach: views[0] takes the watcher's camera, pointer and menu (what is on
+ *  screen stays on screen; nothing the runner did is copied), views[1] and the
+ *  runner's buffers are freed. A detach with nothing attached is a no-op. */
+void
+App_ViewDetachPlayerClient(struct App* app);
+
+/** Swap which view the input stage acts through: 1 = the PlayerClient view
+ *  (its menu is moved into interact.minimenu, the storage the UI step
+ *  drives), 0 = back to the runner's. Only while attached. */
+void
+App_ViewSplitBindPlayerClient(
+    struct App* app,
+    int bind);
+
+/** The Interact switch. */
+void
+App_ViewSetInteract(
+    struct App* app,
+    int interact);
+
+/** Read the watcher actions after `after_serial` into `out` (oldest first);
+ *  answers how many were written. */
+int
+App_ViewWatcherActions(
+    struct App const* app,
+    uint32_t after_serial,
+    struct App_ViewSplitWatcherAction* out,
+    int capacity);
+
+/** The host: route one physical input command while attached (main.c's drain
+ *  hands every input command of its bus here when the split is attached).
+ *  Answers 1 when the command was an input command (consumed or forwarded),
+ *  0 for any other command (the caller dispatches it). */
+int
+App_ViewSplitPhysicalCommand(
+    struct App* app,
+    struct ToriRS_CmdHeader const* header,
+    uint8_t const* payload,
+    struct LibToriRS_Input* game_input);
+
+/** The host: drain the runner's bus into the game input (after the physical
+ *  bus), noting the runner's pointer and gesture. */
+void
+App_ViewSplitDrainRunner(
+    struct App* app,
+    struct LibToriRS_Input* game_input);
+
+/** The host, once per loop iteration while attached, before the presented
+ *  draw: `committed` is App_RunOnce's answer. Draws the owed offscreen
+ *  runner frame (BEFORE the presented one) and ages the runner's pickset. */
+void
+App_ViewSplitBeforePresent(
+    struct App* app,
+    int committed);
+
+/** Draw the offscreen runner frame now into the runner's buffer (or
+ *  `pixels` when non-NULL), pick armed at the runner's pointer unless
+ *  `pick` is 0. The CONTRACT: no frame end, no load-event drain, no
+ *  animation accumulation beyond the pose cache, its own painter buffer, no
+ *  rand(), not counted as a drawn frame. */
+void
+App_ViewSplitDrawRunner(
+    struct App* app,
+    int* pixels,
+    int pick);
 
 /** Tear down in strict reverse of App_Init. */
 void

@@ -1191,3 +1191,13 @@ all clean. No C and no content changed.
   wrote `watch.start PASS ... ::resetcharacter; read back in 22 frame(s): backpack 0, worn 0; server:
   Reset character: 14 backpack, 0 worn emptied`, no relog, then played Bloat to its kill (play.fight
   PASS, 3 downs, 200 ticks).
+## matthew-mbp-m4-camera-b1-seam2 (2026-10-05; camera worktree, branch matthew-mbp-m4-camera-b1): the full multi WorldView support
+
+- runner_view_split: LANDED. A Play in a client that presents gets its own world view
+  (AutomationRunner) beside the watcher's (PlayerClient); t.view.* verbs; one view and no
+  new per-frame work headless or with no script attached. Open: Play from the Scripts tab
+  itself not driven headless; OpenGL3 built, not run; D3D9/GLES/WebGL refuse the second
+  view with a message. Details: CAMERA_LEDGER.md.
+- watch_debug_aids: LANDED. Badge, ghost cursor, press outline, Interact toggle and the
+  page's pointer rows. Open: the page cannot show what the runner's pick holds; pictures
+  are the owner's visual checks (CAMERA_RESUME.md).
