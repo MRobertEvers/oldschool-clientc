@@ -1794,3 +1794,15 @@ range of 0 to 62 (blert_api/reference/maiden_normal_3.json boss.hit_on_recorder.
 damage is `random(max + 1)`, still with no accuracy roll ("always lands as a successful hit") and the over-hit
 kept. Effect before the fix: a trio lost 170-390 hitpoints at Maiden against the recorded 60-106, ate its pack
 empty and reached Bloat with nothing (seam53 relay, seam54 Maiden). maiden.tsv auto_damage_base reworded.
+
+## 2026-10-06 seam55 (orchestrator, from the Nylocas fixer's combat-tab probe): powered staves show the melee staff's styles
+
+The combat tab shows Bash / Pound / - / Focus for the Eye of Ayak (and so for every powered staff: there is no
+`weapon_powered_staff_table` in skill_combat/configs/combat.dbrow, only `weapon_staff_table`, and all.obj gives
+the Ayak and the Sanguinesti staff the same category 1 / param_1564 3). OSRS: a powered staff's styles are
+Accurate / Accurate / Longrange (wiki_Eye_of_Ayak.wikitext:71 "combatstyle = Powered Staff") and every style
+casts its built-in spell. The damage TYPE was already made magic for powered staves (seam36 content row), so the
+seat still casts; the LABELS and the Longrange option are wrong, and `t.ui.style("Accurate")` cannot find a
+button on these weapons (the relay picks "Pound" for the Ayak seat for now, test/raids/_play_normal.lua). OPEN:
+add the powered-staff table and map the powered staves to it in combat_stats.rs2, then the harnesses pick
+"Accurate".
