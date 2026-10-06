@@ -181,12 +181,29 @@ if size > 1 then
     -- 112 (the ranger 112 at its tenth) -- a super combat potion (99 + 5 + 15
     -- percent = 118) and a ranging potion (99 + 4 + 10 percent = 112), drunk
     -- at the door (run below; _play_maiden.lua's play.potion row).
-    out[#out + 1] = "::give 4dose2combat 1"
-    out[#out + 1] = "::give 4doserangerspotion 1"
-    -- the mage's Magic reads 112 (tenth percentile 107; the others 99): the
-    -- nearest boost this content drinks is a magic potion (99 + 4 = 103,
-    -- magic_potion.rs2); the 112 is a heart's (CONTENT_BUGS snippet)
-    if role == 1 then out[#out + 1] = "::give 4dose1magic 1" end
+    -- raid seam47: the DIVINE forms.  Blert's levels HOLD through the waves
+    -- (ny40/ny_levels.py, ticks < 250: the meleer's Attack and Strength 118
+    -- at the tenth percentile, the ranger's Ranged 112 at the tenth) where a
+    -- plain dose decays a level a minute on this server as in the game
+    -- (build/s47/s47_decay.lua: 118 -> 116 in 240 ticks); a divine dose holds
+    -- (s47_divine.lua: 118 and 112 for 240 ticks).  The plain ranging potion
+    -- also reads 111 at 99 here (s47maxhit), the divine one 112.
+    out[#out + 1] = "::give 4dosedivinecombat 1"
+    out[#out + 1] = "::give 4dosedivinerange 1"
+    -- raid seam47: the special on her melee form, as Blert's trios spend it
+    -- (8355: CLAW in 15 of 27 mage rooms, every role; the plan's P.spec)
+    -- (its slot is one Saradomin brew's: a trio seat drank 0-9 of the 40
+    -- doses in the s47 surveys, so nine potions are still more than a room's)
+    out[#out + 1] = "::give dragon_claws 1"
+    for i = 1, #out do
+        if out[i] == "::give br_4dosepotionofsaradomin 10" then out[i] = "::give br_4dosepotionofsaradomin 9" end
+    end
+    -- the mage's Magic reads 112 (tenth percentile 107; the others 99): a
+    -- SATURATED HEART (raid seam46: 99 + 4 + floor(9.9) = 112; content
+    -- skill_slayer/scripts/imbued_heart.rs2 [opheld1,saturated_heart]
+    -- stat_boost(magic, 4, 10), a five-minute cooldown), not the magic potion
+    -- (103) seam40 carried: invigorated at the door (run below; raid seam47)
+    if role == 1 then out[#out + 1] = "::give saturated_heart 1" end
     kit = out
 end
 
@@ -272,16 +289,26 @@ return {
         if role == 1 then t.player.walk_to(fight.x + 1, fight.z, 20) end
         if size > 1 then
             -- raid seam40: one dose of each boost at the door (THE BOOSTS above)
-            local pr1 = t.player.inv_op("4dose2combat", 1, { quick = true })
+            local pr1 = t.player.inv_op("4dosedivinecombat", 1, { quick = true })
             -- (a drink holds the next one off: ny40g's second press, one tick
             -- later, answered timeout)
             t.ticks(3)
-            local pr2 = t.player.inv_op("4doserangerspotion", 1, { quick = true })
+            local pr2 = t.player.inv_op("4dosedivinerange", 1, { quick = true })
             t.ticks(1)
             if role == 1 then
+                -- raid seam47: the heart's Invigorate (op 1) at the door, as
+                -- Blert's mages carry 112; the plan re-uses it when it is ready
                 t.ticks(2)
-                t.player.inv_op("4dose1magic", 1, { quick = true })
-                t.ticks(1)
+                local hr, hd = t.player.inv_op("saturated_heart", 1, { quick = true })
+                t.ticks(2)
+                local mr, magic = t.skill.read("magic")
+                -- (the heart is not used up, so inv_op's cell watch answers
+                -- `timeout` on a press that landed: s47a "slot still
+                -- saturated_heart", Magic 112; the Magic level is the proof)
+                t.check("play.heart", (hr == "ok" or hr == "timeout") and mr == "ok" and magic.level == magic.base_level + 4 + math.floor(magic.base_level / 10),
+                    "p1 Invigorate on the saturated heart " .. tostring(hr) .. " " .. string.sub(tostring(hd), 1, 80) .. "; magic "
+                    .. tostring(magic and magic.level) .. " of base " .. tostring(magic and magic.base_level)
+                    .. " (want base + 4 + 10 percent: 112 at 99, Blert's trio mages' level in the waves)")
             end
             local sr, strength = t.skill.read("strength")
             local rr, ranged = t.skill.read("ranged")
@@ -316,7 +343,12 @@ return {
         t.check("play.fight", result == "ok", tostring(detail) .. "; waves seen " .. tostring(ny.waves) .. ", presses " .. tostring(ny.presses)
             .. " (" .. table.concat(res, ", ") .. "), casts " .. tostring(ny.casts) .. " (bursts " .. tostring(ny.bursts) .. "), swaps "
             .. tostring(ny.swaps) .. ", blast escapes " .. tostring(ny.escapes) .. ", turn holds " .. tostring(ny.holds) .. ", flicker cancels "
-            .. tostring(ny.flicker_cancels) .. ", her turns " .. tostring(#(ny.turns or {})))
+            .. tostring(ny.flicker_cancels) .. ", her turns " .. tostring(#(ny.turns or {}))
+            -- raid seam47: swaps whose press rode in the swap's own block, the
+            -- specials (armed, fired by the energy spent, lost), heart presses
+            .. ", swap+press blocks " .. tostring(ny.block_presses) .. ", specials armed " .. tostring(ny.spec and ny.spec.arms)
+            .. " fired " .. tostring(ny.spec and ny.spec.fired) .. " lost " .. tostring(ny.spec and ny.spec.lost) .. " (orb " .. tostring(ny.spec and ny.spec.arm_result)
+            .. "), heart re-presses " .. tostring(ny.hearts))
 
         if role ~= 1 then
             -- raid seam32: a member's own record (its presses are its own; the
@@ -547,6 +579,32 @@ return {
                 "supports standing when Vasilias landed: " .. tostring(ny.supports_alive_at_landing)
                 .. " of 4 (need 4, the weakest at or above 0.10: real trios 34 of 34 four standing, weakest 0.10..0.54, median 0.31), bars (local x,z:fraction) "
                 .. tostring(ny.supports_at_landing) .. "; the leader's role " .. tostring(ny.role))
+            -- raid seam47 play_tob_nylocas_no_nulling: THE REFERENCE'S CLOCK,
+            -- as _play_maiden.lua's ref.* rows: the bar is the RANGE of the 27
+            -- death-free Normal scale-3 rooms (docs/minigames/theater_of_blood/
+            -- sources/blert_api/reference/nylocas_normal_3.json numbers
+            -- outcome.phase.wave31.start 260 [244-293], outcome.phase.boss.start
+            -- 308 [296-357], outcome.phase.boss.ticks 95 [75-123],
+            -- outcome.boss_death_tick 410 [371-471]).  Blert's room tick is
+            -- ours + 1 from the mark: wave 1 is out on mark + 3 in every s47 run
+            -- against the reference's 4 [4-8] (ENCOUNTER_TIMING M16's +-1
+            -- recorder alignment).
+            local boss_spawn = nil
+            for _, r in ipairs(spawns) do
+                if ids.boss[r.type] ~= nil and boss_spawn == nil and r.tick >= tick0 then boss_spawn = r.tick end
+            end
+            local ref_last = last_wave and (last_wave + 1) or nil
+            local ref_start = boss_spawn and (boss_spawn - tick0 + 1) or nil
+            local ref_phase = (boss_spawn and boss.death) and (boss.death - boss_spawn) or nil
+            local ref_death = boss.death and (boss.death - tick0 + 1) or nil
+            t.check("ref.last_wave", ref_last ~= nil and ref_last >= 244 and ref_last <= 293, "wave 31 out at room tick " .. tostring(ref_last)
+                .. "; reference/nylocas_normal_3.json outcome.phase.wave31.start 260 [244-293]")
+            t.check("ref.boss_start", ref_start ~= nil and ref_start >= 296 and ref_start <= 357, "Vasilias spawned at room tick " .. tostring(ref_start)
+                .. "; reference outcome.phase.boss.start 308 [296-357]")
+            t.check("ref.boss_ticks", ref_phase ~= nil and ref_phase >= 75 and ref_phase <= 123, "her phase " .. tostring(ref_phase)
+                .. " ticks (spawn " .. tostring(boss_spawn) .. " to death " .. tostring(boss.death) .. "); reference outcome.phase.boss.ticks 95 [75-123]")
+            t.check("ref.room_ticks", ref_death ~= nil and ref_death >= 371 and ref_death <= 471, "her death at room tick " .. tostring(ref_death)
+                .. "; reference outcome.boss_death_tick 410 [371-471]")
             -- the member's own-swing read (XP paid) against the log's
             -- player_anim swings, on the leader where both exist
             local probe, logged = {}, {}

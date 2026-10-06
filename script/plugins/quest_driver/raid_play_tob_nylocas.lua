@@ -74,7 +74,10 @@ QD.raid._play_plan("tob_nylocas", {
         -- freeze: in Normal a frozen copy keeps biting on this server
         -- (CONTENT_BUGS, Entry-only freeze stop), and the seam32 mage's Ice Rush
         -- at five ticks was the room's bottleneck (127-147 ticks of stall).
-        { name = "mage", colour = "magic", freeze = false, home = { 31, 24 },
+        -- raid seam47: `heart` -- the seat invigorates a saturated heart at the
+        -- door (Blert's trio mages read Magic 112 = 99 + 4 + 10 percent, seam46;
+        -- the harness presses it) and the plan re-uses it when it is ready
+        { name = "mage", colour = "magic", freeze = false, home = { 31, 24 }, heart = "saturated_heart",
             -- raid seam40 play_tob_nylocas_follows_blert: the mage's other two
             -- colours as Blert's trio mages swing them (27 rooms, ny_blert.out):
             -- greens BLOWPIPE 116 of 138 small-green hits, greys SCYTHE/CLAW
@@ -136,6 +139,31 @@ QD.raid._play_plan("tob_nylocas", {
     -- raid seam33: in a party a swap goes out only with the old weapon's next
     -- swing two or more ticks off (see THE SWAP, TIMED); alone, as before
     swap_timed = true,
+    -- raid seam47 play_tob_nylocas_no_nulling: the swap's press goes out in
+    -- the swap's own block, right after the equip (see THE PRESS)
+    swap_press_together = true,
+    -- raid seam47: the saturated heart's cooldown, map clock ticks (content
+    -- skill_slayer/configs/imbued_heart.constant ^saturated_heart_cooldown
+    -- 500; the wiki's five minutes)
+    heart_cooldown = 500,
+    -- raid seam47: where Blert's trios stand on her (offsets from her SW tile,
+    -- reference/nylocas_normal_3.json positions mage|boss, range|boss,
+    -- melee|boss, the most common first): see OUT FROM UNDER HER
+    -- raid seam47: a party seat's preference for a big (see BIGS ARE NOT LEFT)
+    big_first = 8,
+    boss_stands = { { 2, 4 }, { 1, 4 }, { 3, 4 }, { -1, 2 }, { 2, -1 }, { 4, 3 }, { 4, 1 }, { 1, -1 } },
+    -- raid seam47: THE SPECIAL ON HER MELEE FORM.  Blert's trios spend their
+    -- special energy on Vasilias (ny_blert.out "on Vasilias by role|form id",
+    -- 27 rooms: 8355 CLAW 17+18+12, BGS/GODSWORD 15+11, 8357 ZCB 21+20+18 --
+    -- about five specials a room); the claws on her melee form are the ones
+    -- this kit carries.  Dragon claws: 50 percent of the orb (wiki Dragon
+    -- claws; content pvm_dragon_claws.rs2 set_sa_vars(oc_param(sa_energy)),
+    -- 500 of varp300's 1000), speed 4, the special's swing
+    -- human_dragon_claws_spec 7514 (pvm_dragon_claws.rs2 :27).  Pressed only
+    -- with `room` ticks left in her form's window, armed from the orb in the
+    -- swap's own block right before the attack press (the library's intent.spec
+    -- pattern, raid_play.lua), proved by the energy it spends.
+    spec = { item = "dragon_claws", cost = 500, speed = 4, seqs = { [7514] = true, [1067] = true }, room = 4, give_up = 4 },
     -- raid seam33: the meleer waits for (and walks to meet) its own greys in
     -- the tunnels before taking another seat's colour (measured: no gain on
     -- two seeds, s33nyseedoneD identical to B; off)
@@ -196,7 +224,7 @@ QD.raid._play_plan("tob_nylocas", {
     first_window = 14, window = 15,
     -- raid seam32: no swing on her inside this many ticks before the
     -- predicted turn (the turn read can trail the server by a tick)
-    turn_margin = 1,
+    turn_margin = 0,
     -- the plan's food order (_play_nylocas_supplies): Shark 20 (wiki Shark),
     -- the Theatre's bandages 20 and a boost (E :151; tob_spectate.rs2)
     -- raid seam32: the Normal party's anglerfish ("make sure that you eat your
@@ -356,7 +384,11 @@ end
 -- library's own block comes after it (svbplaynyloc t664: her turn seen, the
 -- cast pressed, the library's prayer read lit three ticks later on t667, her
 -- first magic attack on t666 sent through Protect from Melee).
-function QD.raid._play_nylocas_wear(st, v, style, pray, stop)
+-- raid seam47 play_tob_nylocas_no_nulling: `then_press` (the decide's
+-- press_now, or nil) is sent INSIDE the block right after the equip, and only
+-- when the equip left (`pending`): the weapon click and the copy click land on
+-- one server tick, in that order (see THE PRESS in the decide).
+function QD.raid._play_nylocas_wear(st, v, style, pray, stop, then_press)
     local ny = st.ny
     local L = style ~= nil and ny.loadout[style] or nil
     local r, d = QD.together(function()
@@ -364,7 +396,15 @@ function QD.raid._play_nylocas_wear(st, v, style, pray, stop)
         -- raid seam32: the step that ends the old engagement goes out with
         -- the swap, before it (P.swap_stop; see the caller)
         if stop ~= nil then QD.player.walk_to(stop.x, stop.z, 1) end
-        if L ~= nil then QD.player.equip(L.item) end
+        if L ~= nil then
+            local er = QD.player.equip(L.item)
+            if then_press ~= nil and er == "pending" then
+                ny.block_pressed_now = true
+                ny.block_presses = (ny.block_presses or 0) + 1
+                ny.block_press_tick = QD.player._quick_now()
+                then_press()
+            end
+        end
     end)
     st.inputs[v.tick] = (st.inputs[v.tick] or 0) + (L ~= nil and 1 or 0) + (pray ~= nil and 1 or 0) + (stop ~= nil and 1 or 0)
     if stop ~= nil then
@@ -521,12 +561,38 @@ function QD.raid._play_nylocas_decide(st, v)
         -- (the harness wears it); alone the bow, as before
         if seat ~= nil then st.ny.worn = seat.colour end
         st.weapon = st.ny.loadout[st.ny.worn]
+        -- raid seam47: the special's weapon, a party seat's (THE SPECIAL)
+        if seat ~= nil and P.spec ~= nil then
+            st.ny.loadout.melee_spec = { item = P.spec.item, speed = P.spec.speed, seqs = P.spec.seqs }
+        end
     end
     local ny = st.ny
     -- (raid seam31 play_library_faults: the seam30 workaround for the
     -- library's death_serial starting at 0 is gone -- the library seeds it
     -- when the boss slot is first resolved, raid_play.lua _play_tick FAULT 2.)
     QD.raid._play_nylocas_see(st, v)
+    -- raid seam47 play_tob_nylocas_no_nulling: THE HEART.  The seat that
+    -- carries one (the mage) invigorated it at the door; it is pressed again
+    -- once its cooldown is over and Magic has fallen under the heart's boost
+    -- (base + 4 + 10 percent, imbued_heart.rs2 stat_boost(magic, 4, 10)), as
+    -- Blert's mages hold 112 through the room.  The door press is the
+    -- harness's, so the cooldown is counted from the plan's first tick.
+    local seat_heart = (st.party ~= nil and st.party > 1 and P.roles[st.role] ~= nil) and P.roles[st.role].heart or nil
+    if seat_heart ~= nil then
+        if ny.heart_tick == nil then ny.heart_tick = v.tick end
+        if v.tick - ny.heart_tick >= P.heart_cooldown then
+            local cr, n = QD.inv.count(seat_heart)
+            local mr, m = QD.skill.read("magic")
+            if cr == "ok" and n > 0 and mr == "ok" and type(m) == "table"
+                and m.level < m.base_level + 4 + math.floor(m.base_level / 10) then
+                local hr = QD.player.inv_op(seat_heart, 1, { quick = true })
+                st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
+                ny.heart_tick = v.tick
+                ny.hearts = (ny.hearts or 0) + 1
+                ny.heart_last = tostring(hr)
+            end
+        end
+    end
     local dist = QD.raid._play_nylocas_dist
     local flight = QD.raid._play_nylocas_flight
     local intent = { want = {}, walk = nil, attack = false }
@@ -782,6 +848,32 @@ function QD.raid._play_nylocas_decide(st, v)
             local d = dist(me.x, me.z, vas.x, vas.z, vas.size)
             pick = { slot = vas.slot, style = vas.form, symbol = vas.symbol, vas = true, d = d, x = vas.x, z = vas.z,
                 key = QD.raid._play_nylocas_key(ny, vas.form, false, true) }
+            -- raid seam47: THE SPECIAL (P.spec): the claws on her melee form
+            -- while the orb holds the cost and her window has room for it
+            if vas.form == "melee" and R ~= nil and P.spec ~= nil and ny.loadout.melee_spec ~= nil then
+                local sp = ny.spec or { fired = 0, arms = 0 }
+                ny.spec = sp
+                local _, energy = QD.var.varp("varp300_sa_energy")
+                energy = tonumber(energy) or 0
+                if sp.armed ~= nil and energy <= sp.energy0 - P.spec.cost then
+                    sp.fired = sp.fired + 1
+                    sp.last_fired = v.tick
+                    sp.armed = nil
+                elseif sp.armed ~= nil and v.tick - sp.armed > P.spec.give_up then
+                    sp.lost = (sp.lost or 0) + 1
+                    sp.armed = nil
+                end
+                local cr, n = QD.inv.count(P.spec.item)
+                local have = (cr == "ok" and n > 0) or ny.worn == "melee_spec"
+                local left = ny.next_turn ~= nil and (ny.next_turn - v.tick) or 99
+                if sp.armed ~= nil then
+                    pick.key = "melee_spec"
+                elseif have and energy >= P.spec.cost and left >= P.spec.room and sp.arms < 4 then
+                    pick.key = "melee_spec"
+                    pick.spec = true
+                    pick.energy = energy
+                end
+            end
         end
     else
         -- the support each chewer bites, and how much of it is left
@@ -893,11 +985,21 @@ function QD.raid._play_nylocas_decide(st, v)
                 -- ticks, half a life spent chewing.)
                 if R ~= nil then
                     score = score + math.min(n.age, 45) * 0.3
-                    if not n.fighting and n.age >= ea - 10 then score = score + 20 end
+                    if not n.fighting and n.age >= ea - 10 and not (n.big and P.big_first ~= nil) then score = score + 20 end
                 else
                     score = score - math.min(n.age, 45) * 0.2
                 end
-                if n.big then score = score + 2 end
+                -- raid seam47: BIGS ARE NOT LEFT.  Blert's trios kill a big at
+                -- a median age of 16-19 (p75 22-27) and let 0.2-2.5 a room pop;
+                -- this plan's bigs lived to p75 44 (blue) and 55 (grey) with
+                -- 4.3 a room popping each (seam40 ny40/ny_age.py over the s47
+                -- surveys, build/seam_state/...seam47/age_before_bigfirst.log):
+                -- a big chews its pillar and holds the alive cap for its whole
+                -- life.  In a party a big is preferred by P.big_first points and
+                -- is never left to pop.
+                if n.big then
+                    if R ~= nil and P.big_first ~= nil then score = score - P.big_first else score = score + 2 end
+                end
                 if key ~= ny.worn then score = score + ((R ~= nil) and 10 or 5) end
                 -- the one already pressed keeps its press unless another is
                 -- clearly worth more (no target flapping, ny30f t328-335)
@@ -1003,6 +1105,28 @@ function QD.raid._play_nylocas_decide(st, v)
         end
     end
 
+    -- raid seam47 play_tob_nylocas_no_nulling: OUT FROM UNDER HER.  She drops
+    -- in on the middle of the room, where the seats' homes are; a raider left
+    -- standing inside her footprint never frames her (s47b: the mage and the
+    -- ranger pressed her 325 times `not_visible` from 30,23 for 349 ticks
+    -- while only the meleer swung).  Blert's trios stand just outside her,
+    -- mostly north of her middle (reference/nylocas_normal_3.json positions,
+    -- offsets from her SW tile: mage|boss 2,4 32% 1,4 16% 3,4 11%; range|boss
+    -- 2,4 41%; melee|boss 1,4 28% 2,4 18%): a raider under her walks to the
+    -- nearest of those that is floor.
+    if vas ~= nil and vas.size ~= nil and intent.walk == nil and dist(me.x, me.z, vas.x, vas.z, vas.size) == 0 then
+        local best, bd = nil, nil
+        for _, o in ipairs(P.boss_stands) do
+            local x, z = vas.x + o[1], vas.z + o[2]
+            local dd = math.max(math.abs(x - me.x), math.abs(z - me.z))
+            if floor_ok(x, z) and (bd == nil or dd < bd) then best, bd = { x = x, z = z }, dd end
+        end
+        if best ~= nil then
+            intent.walk = best
+            ny.unders = (ny.unders or 0) + 1
+        end
+    end
+
     -- PRESS?  Melee and the bow swing on by themselves once pressed (wiki
     -- Attack speed); a spell is one cast a click.  A new copy is pressed as soon
     -- as the old one is doomed, so the next swing is queued on the cooldown.
@@ -1021,6 +1145,9 @@ function QD.raid._play_nylocas_decide(st, v)
         elseif v.tick - math.max(cur.pressed, cur.swung or -1000) > speed + 3 then
             press = true
         end
+        -- raid seam47: a special is its own press (the orb arms the NEXT
+        -- attack), so a fresh one is pressed even on the copy already engaged
+        if pick.spec then press = true end
         -- HER TURN: the turn stops the attack, and a hit of the old colour is
         -- reflected and heals her (W :754; NB :176; DMG :278).  The colour is
         -- judged when the swing is MADE, not when it lands ("If player makes an
@@ -1088,6 +1215,103 @@ function QD.raid._play_nylocas_decide(st, v)
             ny.early_sent = { name = name, tick = v.tick }
         end
     end
+    -- raid seam47 play_tob_nylocas_no_nulling: THE PRESS, as a function, so a
+    -- swap sends it INSIDE its own together block, right after the equip.
+    -- The block waits for the equip to show (QD.TOGETHER_CONFIRM_TICKS), and
+    -- the press used to go out only after that wait: for the tick or two
+    -- between, the server held the NEW weapon on the OLD engagement and swung
+    -- it at the old copy -- a wrong style, which nulls the raider on that copy
+    -- for life ("If the nylocas is attacked with a wrong style, the player
+    -- that attacked them can no longer damage them", W :724; DMG :272).  ny40j
+    -- p2: t153 the whip pressed grey 1096, t154 the pipe worn with the target
+    -- still 1096 and swung (hit 0 at t157), the green's press read only at
+    -- t155, then the whip hit 1096 for 0 four times; 46 of 305 wave swings
+    -- went that way (s47 ny_null.py, the swing's own-tick raider row).  A
+    -- person clicks the weapon and then the copy, both inside one tick: the
+    -- server applies the two in that order before the player's turn, so the
+    -- next swing is the new weapon at the new copy.
+    local function press_now()
+        local r, d
+        local also = {}
+        -- raid seam47: THE SPECIAL is armed from the orb right before its
+        -- press (raid_play.lua intent.spec: "Armed from the minimap orb, never
+        -- the combat tab's bar")
+        if pick.spec then
+            local wr, wid = QD.ui.widget("orbs:specbutton")
+            local ir = "no widget"
+            if wr == "ok" then ir = QD.ui.invoke(wid, 1) end
+            ny.spec.armed = v.tick
+            ny.spec.energy0 = pick.energy
+            ny.spec.arms = ny.spec.arms + 1
+            ny.spec.arm_result = tostring(ir)
+            st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
+        end
+        -- raid seam33: a powered staff is pressed like a weapon (its
+        -- built-in spell, wiki Powered staff :8); only a spellbook cast
+        -- goes through the cast path
+        if pick.style == "magic" and (not ny.loadout.magic.powered or pick.spell ~= nil) then
+            -- Ice Burst only on a clump that is ALL blue: "freezing non-magic
+            -- Nylocas means you will no longer be able to do damage to them"
+            -- (E :164); a lone blue gets Ice Rush
+            local spell, pure = "ice_rush", true
+            if pick.vas then
+                -- HER magic form: Ice Burst, the same five ticks as Ice
+                -- Rush and a max of 22 against 18 (wiki Ice burst, Ice
+                -- rush); "the boss is immune to damage of the wrong combat
+                -- style" (W :756) and there is nothing else on the floor,
+                -- so its area freezes nothing the plan still needs.
+                spell = "ice_burst"
+            elseif pick.spell ~= nil then
+                spell = pick.spell
+                ny.freezes = (ny.freezes or 0) + 1
+                for _, o in ipairs(pick.clump) do
+                    ny.frozen[o.slot] = v.tick + 16
+                    if o.style ~= "magic" then ny.nulled[o.slot] = true else also[#also + 1] = o.slot end
+                end
+            elseif not pick.vas then
+                for _, n in ipairs(v.nylos) do
+                    if n.slot ~= pick.slot and n.x <= pick.x + 1 and n.x + n.size - 1 >= pick.x - 1 and n.z <= pick.z + 1 and n.z + n.size - 1 >= pick.z - 1 then
+                        if n.style == "magic" then also[#also + 1] = n.slot else pure = false end
+                    end
+                end
+                -- raid seam32: only the seat that freezes bursts; another
+                -- seat's burst splashes a copy that walks in under it and
+                -- nulls that raider on it (s32ny4 p2 t191-192)
+                if pure and #also > 0 and (R == nil or R.freeze) then spell = "ice_burst" ny.bursts = ny.bursts + 1 else also = {} end
+            end
+            r, d = QD.player.cast(spell, pick.symbol, 1, 2, { slot = pick.slot, quick = true })
+            ny.casts = ny.casts + 1
+        else
+            r, d = QD.player.attack(pick.symbol, 2, 1, { slot = pick.slot, quick = true })
+        end
+        st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
+        ny.presses = ny.presses + 1
+        if R ~= nil and not pick.vas then
+            if pick.style == R.colour then ny.own_presses = (ny.own_presses or 0) + 1 else ny.other_presses = (ny.other_presses or 0) + 1 end
+        end
+        ny.results[tostring(r)] = (ny.results[tostring(r)] or 0) + 1
+        ny.last_press = tostring(r) .. ":" .. string.sub(tostring(d), 1, 160)
+        if r ~= "ok" and r ~= "timeout" and #st.lines < 6 then
+            st.lines[#st.lines + 1] = "t" .. v.tick .. " press " .. pick.style .. " " .. tostring(r) .. ": " .. string.sub(tostring(d), 1, 140)
+        end
+        ny.target = { slot = pick.slot, style = pick.style, key = pick.key, symbol = pick.symbol, vas = pick.vas, pressed = v.tick, d = pick.d, also = also,
+            colour = (not pick.vas and pick.spell == nil) and pick.style or nil }
+        if r ~= "ok" and r ~= "timeout" then
+            -- the press did not land on this copy (another one stands on its
+            -- pixels: `covered`, or it is off the frame): it is passed over for
+            -- a few ticks and the next tick presses another (ny30g t146-167:
+            -- one covered copy re-pressed every 7 ticks, nothing else hit)
+            ny.blocked = ny.blocked or {}
+            ny.blocked[pick.slot] = v.tick + 3
+            ny.target = nil
+            ny.misses = (ny.misses or 0) + 1
+        end
+        if pick.vas then ny.vas_presses[#ny.vas_presses + 1] = { tick = v.tick, style = pick.style, form = vas.form } end
+        st.engaged = true
+        st.engaged_tick = v.tick
+        st.walk_target = nil
+    end
+    ny.block_pressed_now = false
     if press and ny.worn ~= pick.key then
         -- raid seam32: a swap while the old weapon is still swinging at a
         -- copy keeps swinging at it WITH THE NEW WEAPON until the next press
@@ -1113,7 +1337,13 @@ function QD.raid._play_nylocas_decide(st, v)
                 end
             end
         end
-        QD.raid._play_nylocas_wear(st, v, pick.key, early, stop)
+        -- raid seam47: the press rides in the swap's block, after the equip
+        -- (a spellbook cast keeps its own path: it is magic whatever is worn)
+        local then_press = nil
+        if P.swap_press_together and not (pick.style == "magic" and (not ny.loadout.magic.powered or pick.spell ~= nil)) then
+            then_press = press_now
+        end
+        QD.raid._play_nylocas_wear(st, v, pick.key, early, stop, then_press)
     elseif early ~= nil then
         QD.raid._play_nylocas_wear(st, v, nil, early)
     end
@@ -1138,75 +1368,8 @@ function QD.raid._play_nylocas_decide(st, v)
         if name ~= nil then intent.want[name] = true end
         ny.attack_prayer = name
     end
-    if press then
-        local r, d
-        if ny.worn == pick.key then
-            local also = {}
-            -- raid seam33: a powered staff is pressed like a weapon (its
-            -- built-in spell, wiki Powered staff :8); only a spellbook cast
-            -- goes through the cast path
-            if pick.style == "magic" and (not ny.loadout.magic.powered or pick.spell ~= nil) then
-                -- Ice Burst only on a clump that is ALL blue: "freezing non-magic
-                -- Nylocas means you will no longer be able to do damage to them"
-                -- (E :164); a lone blue gets Ice Rush
-                local spell, pure = "ice_rush", true
-                if pick.vas then
-                    -- HER magic form: Ice Burst, the same five ticks as Ice
-                    -- Rush and a max of 22 against 18 (wiki Ice burst, Ice
-                    -- rush); "the boss is immune to damage of the wrong combat
-                    -- style" (W :756) and there is nothing else on the floor,
-                    -- so its area freezes nothing the plan still needs.
-                    spell = "ice_burst"
-                elseif pick.spell ~= nil then
-                    spell = pick.spell
-                    ny.freezes = (ny.freezes or 0) + 1
-                    for _, o in ipairs(pick.clump) do
-                        ny.frozen[o.slot] = v.tick + 16
-                        if o.style ~= "magic" then ny.nulled[o.slot] = true else also[#also + 1] = o.slot end
-                    end
-                elseif not pick.vas then
-                    for _, n in ipairs(v.nylos) do
-                        if n.slot ~= pick.slot and n.x <= pick.x + 1 and n.x + n.size - 1 >= pick.x - 1 and n.z <= pick.z + 1 and n.z + n.size - 1 >= pick.z - 1 then
-                            if n.style == "magic" then also[#also + 1] = n.slot else pure = false end
-                        end
-                    end
-                    -- raid seam32: only the seat that freezes bursts; another
-                    -- seat's burst splashes a copy that walks in under it and
-                    -- nulls that raider on it (s32ny4 p2 t191-192)
-                    if pure and #also > 0 and (R == nil or R.freeze) then spell = "ice_burst" ny.bursts = ny.bursts + 1 else also = {} end
-                end
-                r, d = QD.player.cast(spell, pick.symbol, 1, 2, { slot = pick.slot, quick = true })
-                ny.casts = ny.casts + 1
-            else
-                r, d = QD.player.attack(pick.symbol, 2, 1, { slot = pick.slot, quick = true })
-            end
-            st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
-            ny.presses = ny.presses + 1
-            if R ~= nil and not pick.vas then
-                if pick.style == R.colour then ny.own_presses = (ny.own_presses or 0) + 1 else ny.other_presses = (ny.other_presses or 0) + 1 end
-            end
-            ny.results[tostring(r)] = (ny.results[tostring(r)] or 0) + 1
-            ny.last_press = tostring(r) .. ":" .. string.sub(tostring(d), 1, 160)
-            if r ~= "ok" and r ~= "timeout" and #st.lines < 6 then
-                st.lines[#st.lines + 1] = "t" .. v.tick .. " press " .. pick.style .. " " .. tostring(r) .. ": " .. string.sub(tostring(d), 1, 140)
-            end
-            ny.target = { slot = pick.slot, style = pick.style, key = pick.key, symbol = pick.symbol, vas = pick.vas, pressed = v.tick, d = pick.d, also = also,
-                colour = (not pick.vas and pick.spell == nil) and pick.style or nil }
-            if r ~= "ok" and r ~= "timeout" then
-                -- the press did not land on this copy (another one stands on its
-                -- pixels: `covered`, or it is off the frame): it is passed over for
-                -- a few ticks and the next tick presses another (ny30g t146-167:
-                -- one covered copy re-pressed every 7 ticks, nothing else hit)
-                ny.blocked = ny.blocked or {}
-                ny.blocked[pick.slot] = v.tick + 3
-                ny.target = nil
-                ny.misses = (ny.misses or 0) + 1
-            end
-            if pick.vas then ny.vas_presses[#ny.vas_presses + 1] = { tick = v.tick, style = pick.style, form = vas.form } end
-            st.engaged = true
-            st.engaged_tick = v.tick
-            st.walk_target = nil
-        end
+    if press and not ny.block_pressed_now and ny.worn == pick.key then
+        press_now()
     end
 
     -- raid seam33: the meleer meets its walking grey at the tunnel's mouth
