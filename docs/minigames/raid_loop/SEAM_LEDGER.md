@@ -1601,3 +1601,21 @@ all clean. No C and no content changed.
   and _play_bloat --party 3 5/5, 0 rows changed. tools/raid_gate/seed_survey.py was edited
   in this worktree by someone outside the pass during the close (a --jobs flag): not
   committed.
+
+## matthew-mbp-m4-raid-b1-seam44 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged): Normal Verzik all melee, as Blert's trios play it
+
+- play_tob_verzik_melee_follows_blert; NOT LANDED. The triage (seam42's Verzik finding:
+  the 20 death-free Blert Normal trio rooms in verzik_normal_3.json play Verzik all melee,
+  scythe in P2 and P3 in 16-18 of 20 rooms per role, while our plan plays ::maxrange with a
+  twisted bow and Rigour; HEAD trio survey 2 of 3) was written, but the fixer never ran: no
+  report, no progress notes, no run, and raid_play_tob_verzik.lua and _play_verzik.lua are
+  byte-identical to HEAD 4375ba6fd. Open, unchanged: rewrite the Normal plan melee
+  (::maxmelee, cheat_max_gear.rs2:31, Piety, scythe; P2 step-out on T-1 per
+  verzik.p2_scan_rule; P3 step-under on T-1 per verzik.p3_melee_predicate; harness party
+  kit melee); every outcome outside the reference (room 591-833 vs 359-607, P2 289-299 vs
+  170-261, P3 146-407 vs 122-200, P2 heal 802-848 vs 65-313, hp lost per raider 268-715
+  vs 69-259); raid_report.py --against still knows only Maiden. The reference file itself
+  is seam42's output and is left to seam42's closer.
+- Closer: nothing to merge (no conformance snippet, no doc_notes); no gate run, since this
+  pass changed no driver, content, C or tool file and seam42's fixers were building in this
+  worktree at the time.
