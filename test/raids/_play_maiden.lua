@@ -31,6 +31,17 @@ local size = (QD_PARTY and QD_PARTY.size) or 1
 -- take the most damage", 10Boot 0:06:33).  Anglerfish as tob_bloat_normal's
 -- party kit; super restores ("stay on top of those super restores",
 -- 10Boot 0:06:33); Saradomin brews as the library's top-up.
+-- raid seam33: every seat also carries the Dragon warhammer for the opener
+-- ("When you run in, everyone should drop a dragon warhammer spec, then switch
+-- to range gear", 10Boot 0:06:33; W:624 "Instantly hammer Maiden"); the
+-- rangers a loaded toxic blowpipe for the Matomenos ("Everyone else should
+-- machine gun down the crabs that aren't in the clump with their blowpipe",
+-- 10Boot 0:08:14), loaded by the kit cheat through the content's own use-on
+-- (test/raids/README.md "A loaded toxic blowpipe is one kit line"), and the
+-- 10Boot kit's supplies, brews over anglerfish ("eight brews, four restores,
+-- and three anglers", 10Boot 0:04:23; the slots the melee switches would take
+-- hold anglerfish here; two more restores for Rigour's prayer, 10Boot
+-- 0:02:45 "77 prayer for rigour").
 local party_kit = {
     "::clearinv",
     "::setlevel attack 99", "::setlevel strength 99", "::setlevel defence 99",
@@ -44,6 +55,7 @@ local party_kit = {
     "::give avas_assembler", "::wield avas_assembler",
     "::give eternal_boots", "::wield eternal_boots",
     "::give magus_ring", "::wield magus_ring",
+    "::give dragon_warhammer",
 }
 if role == 2 then
     -- 8 slots of magic set and runes, 20 of supplies
@@ -52,11 +64,12 @@ if role == 2 then
         "::give water_rune 2000", "::give blood_rune 1000", "::give death_rune 1000",
         "::give ancestral_hat", "::give ancestral_robe_top", "::give ancestral_robe_bottom",
         "::give kodai_wand", "::give arcane",
-        "::give anglerfish 14", "::give br_4dose2restore 4", "::give br_4dosepotionofsaradomin 2",
+        "::give anglerfish 13", "::give br_4dose2restore 4", "::give br_4dosepotionofsaradomin 2",
     }
     for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
 else
-    local more = { "::give anglerfish 20", "::give br_4dose2restore 4", "::give br_4dosepotionofsaradomin 4" }
+    local more = { "::blowpipe dragon_dart 2000 2000",
+        "::give br_4dosepotionofsaradomin 8", "::give br_4dose2restore 6", "::give anglerfish 12" }
     for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
 end
 -- THE TRIO'S RUN (raid seam32): every seat enters Normal, the leader starts
@@ -65,6 +78,23 @@ end
 local function party_run(t)
     local mode = "normal"
     if role == 1 then t.ticklog.start() end
+    -- raid seam33: the bow on rapid, one tick faster ({{CombatStyles|Bow|
+    -- speed=6}}, wiki_Twisted_bow.wikitext:51; the blowpipe's 3 becomes 2,
+    -- wiki_Toxic_blowpipe.wikitext:108 "When using the rapid attack style");
+    -- the press is _play_nylocas.lua's (combat tab style slot 1, varp43 = 1)
+    t.ui.tab("combat")
+    t.ticks(1)
+    local style_widget_result, style_widget = t.ui.widget("combat_interface:style_slot_1")
+    local style_press_result = t.ui.invoke(style_widget, 1)
+    t.ticks(2)
+    local _, style_read = t.var.varp("varp43_com_mode")
+    t.check("setup.rapid", style_widget_result == "ok" and style_press_result == "ok" and style_read == 1,
+        "p" .. role .. " style slot 1: widget " .. tostring(style_widget_result) .. ", press " .. tostring(style_press_result) .. ", varp43_com_mode " .. tostring(style_read))
+    if role ~= 2 then
+        local bpr, bp = t.inv.blowpipe()
+        t.check("setup.blowpipe", bpr == "ok" and type(bp) == "table" and bp.darts == 2000 and bp.scales == 2000,
+            "p" .. role .. " " .. tostring(bpr) .. " " .. tostring(type(bp) == "table" and bp.line or bp))
+    end
     local er, ed = t.raid.enter("tob", "maiden", { mode = mode })
     t.check("play.enter", er == "ok", "p" .. role .. " " .. tostring(ed))
     t.expect("party.barrier.entrance", t.party.barrier("entrance", 300))

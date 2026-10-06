@@ -213,7 +213,7 @@ Found and left open:
 
 - ENGINE, retaliation (root of the ToB fix): the default `[ai_queue1,_]` still fires for every `retaliate=no` npc outside ToB (40+ in cox.npc, about 40 in toa.npc, 3 in zulrah.npc). Fix at src/torirsserver/torirs_server_world.c:5487-5489 (the npc queue drain dispatching SS_TRIGGER_AI_QUEUE1): skip queue 1 when the record says `retaliate=no` and the trigger would resolve to the `_` default; or add an `nc_retaliate` reader. Then tob_retaliate.rs2 can go. Found by tob_shared_combat_scripts.
 - Tree-wide, combat varps: `%varp6285_com_magicattack` and friends are never recomputed on a stat change (no `[changestat]` trigger; LostCity has `[changestat,_] gosub(player_combat_stat)`). Casts and swings are covered; anything else that reads com_* sees stale values after `::setlevel` or a level-up until the next equip.
-- Tree-wide, magic damage type, other callers: powered staves (gear/powered_staff.rs2:506: trident, sanguinesti, shadow), specs/pvm_purging_staff.rs2:36, pvm_eye_of_ayak.rs2:56, pvm_wild_cave_accursed_charged.rs2, pvm_voidwaker.rs2, pvm_blessed_saradomin_sword.rs2, pvm_verzik_special_weapon.rs2 (Dawnbringer) call `~player_hit_npc_prepare` with the weapon's style: a powered staff is nulled by a Hagios.
+- Tree-wide, magic damage type, other callers: powered staves (gear/powered_staff.rs2:506: trident, sanguinesti, shadow), specs/pvm_purging_staff.rs2:36, pvm_eye_of_ayak.rs2:56, pvm_wild_cave_accursed_charged.rs2, pvm_voidwaker.rs2, pvm_blessed_saradomin_sword.rs2, pvm_verzik_special_weapon.rs2 (Dawnbringer) call `~player_hit_npc_prepare` with the weapon's style: a powered staff is nulled by a Hagios. FIXED for the powered staves and three specials (raid seam33 powered_staff_damage_type): one shared entry `[proc,player_hit_npc_prepare_magic]` (player_hit_npc_prepare.rs2; the set-call-restore of the cast fix) called by the powered-staff auto (every powered staff: "a category of magic weapons that possess a built-in magic spell", wiki Powered staff :8), the Dawnbringer special ("[[Magic damage]] gear bonuses ... do not affect the damage inflicted by the Dawnbringer's special attack", wiki Dawnbringer :58), the purging staff special ("uses the best [[demonbane spell]]", wiki Purging staff :62), and the eye of Ayak special, which also read the weapon's row for everything else and now rolls magic accuracy x2 against magic defence for 130% of the staff's own max hit with Magic XP ("double the accuracy and a 30% higher maximum hit", wiki Eye of Ayak :82; :40 "powered staff"). Measured: a trident on a fresh Hagios 4 of 4 hits 0 before, 7 and 4 (killed) after; Dawnbringer and Ayak specials 0 before, 11 (killed) after; a whip still 0 (psd33_red / psd33_green); in the Entry room 3 of 3 magic nylocas hit by a trident, whip 6 of 6 rows 0 (psd33_room). Six kept Entry rooms byte-identical, _play_nylocas 5 of 5. Still open, files outside this seam: pvm_voidwaker.rs2:44 is MAGIC damage ("deals guaranteed Magic damage", wiki Voidwaker :55) -> `~player_hit_npc_prepare_magic`; pvm_wild_cave_accursed_charged.rs2:32-41 (accursed sceptre, a powered staff) rolls the weapon's row and 150% of the MELEE max hit -> magic accuracy x1.5, 150% of `~powered_staff_maxhit`, the magic entry ("a 50% increase to max hit and accuracy", wiki Accursed sceptre :80); pvm_blessed_saradomin_sword.rs2 is UNSOURCED for a style check: "a [[Magic]]-based attack ([[Magical melee]])" (wiki Saradomin's blessed sword :59) and magical melee "roll[s] for accuracy against your magic defensive bonuses but [is] fully protected against by the [[Protect from Melee]] prayer" (wiki Magical melee :2): no source says which colour of nylocas it hits, left as melee. player_magic.rs2:480/:508 can call the shared entry instead of the inline copy (behaviour-identical).
 - death.rs2: "Oh dear, you are dead!" prints twice per death (`~combat_death_message` and `~respawn_message`).
 - ToB, Verzik P1: `tob_verzik_p1_land` (tob_verzik.rs2, queued with player_uid only) writes `hit_player` npc_slot -1 and sets lethal against a 0-hp target; same fix as Maiden's (carry her uid, `npc_finduid`, skip 0-hp at launch, check hp and instance at landing).
 - ENGINE, tick log: the HIT_NPC row has no dealer column (ToriRSServer_TicklogHitNpc, torirs_server_ticklog.c, pushes e=0 f=0), so a dying Matomenos absorbed into Maiden cannot be told from a player's killing hit. Proposal: carry the dealer pid, or -2 for an npc_damage from the npc's own frame.
@@ -1133,3 +1133,53 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
 - DRIVER: the Maiden rangers' add Attack on a walking Matomenos answers `timeout` on most
   presses (every leader's play.fight detail) though the hits land. Not read yet. Found by
   the seam32 play_tob_maiden_normal fixer.
+
+## From seam33 chinchompa_multi_target (matthew-mbp-m4-raid-b1-seam33, 2026-10-06)
+
+- FIXED (seam33, content; commit named by the closer): chinchompas hit one npc.
+  player_ranged.rs2:17 said "Chinchompa multi-target ... (#18) still deferred": every
+  throw was one ordinary ranged hit. The trio sources' Maiden ranger chins the clumps
+  (wiki_Theatre_of_Blood_Strategies.wikitext:284 "Ranger should bring 15-25 black
+  chinchompas ... to hit groups of Nylocas Matomenos"; :639-641 "barrage a few times before
+  letting the ranger chin the clump"). Now `[proc,player_chinchompa_splash]`
+  (player_ranged.rs2) hits the 3x3 around the target on the primary's landing tick, the
+  primary's accuracy roll deciding every secondary, one damage roll per npc through
+  `~player_hit_npc_prepare`, up to 11 targets (12 for the black chinchompa), and only in a
+  multi-way area (maps/multiway.csv or a map instance, the engine's own rule). Sources:
+  wiki_Chinchompa_weapon, wiki_Red_chinchompa:24, wiki_Black_chinchompa:25/:64,
+  wiki_Multicombat_area:68/:87. Measured: build/quest_gate/chin33_red2 (multi zone, one row
+  per throw: 21[ws1488:3] 25[ws1488:0]) -> chin33_green (21[ws1487:11 ws1488:1 ws1489:11],
+  the copy four tiles east never hit; Lumbridge single-way: primary only) and chin33_room
+  (ToB Nylocas instance, 20[ws1079:10 ws1080:6 ws1081:11]). Found by the seam32
+  play_tob_maiden_normal fixer.
+- Still open, CONTENT: chinchompa fuse accuracy by distance (wiki_Chinchompa_weapon table:
+  short fuse 100/75/50 percent at 0-3/4-6/7+ tiles, medium 75/100/75, long 50/75/100,
+  "applied to the accuracy/defence roll when the attack is cast") and the "heavy" ranged
+  defence for the primary's roll are not modelled: `~player_npc_hit_roll`
+  (combat_stats.rs2:710) takes no modifier. Not in seam33's files.
+- Still open, CONTENT: an npc whose record says `forcemulti=yes`, standing outside both
+  maps/multiway.csv and a map instance, is treated as single-way by the chinchompa splash:
+  the record key is the engine's (`ToriRSServer_CombatMultiway`) and content cannot read it.
+- Still open, CONTENT: `~pvm_barrage_spell` (player_magic.rs2:68-71) still hits the 3x3 in
+  single-way areas; its comment says multiway "is not modelled", which stopped being true
+  when `map_multiway` was hosted. Same wiki line as above (Multicombat area:68).
+
+## From seam33's Normal trio plans (matthew-mbp-m4-raid-b1-seam33, 2026-10-06; filed by the closer)
+
+- Open, CONTENT: the Scythe of Vitur's 1x3 arc on 1x1 targets is not implemented.
+  scythe_of_vitur.rs2:38 says "Only (1) is implemented" (no NPC_FINDALLZONE dispatch), so a
+  scythe multi-hits only a 2x2 big. The trio guide's "Scythe the east melee doubles"
+  (tob_nylocas_trio_content.mdx:415, :232-239) cannot be played. Found by
+  play_tob_nylocas_normal_green; the Normal trio Nylocas meleer is the bottleneck (66-77
+  swings in about 390 wave ticks, 34-44 of 206 copies never killed).
+- Open, unsourced: the swift blade (the trio meleer's 3-tick weapon, trio guide :386)
+  carries no attack or strength bonus params in all.obj, only attackrate 3. No source page
+  was fetched, so its stats were not checked; the plan does not use it.
+- Re-read, ENGINE suspect (the seam32 row above, "Vasilias turn-tick swing", stands): "The
+  player will stop attacking when Vasilias changes forms"
+  (wiki_Theatre_of_Blood_Strategies.wikitext:752), and npc turns resolve before player
+  turns (ENCOUNTER_TIMING 1.1), so a swing due on the turn tick must not land.
+  tob_nylocas_boss.rs2:166-189 calls p_stopaction in that hunt, so the content means it; a
+  swing still landing on the npc_retype tick (seam32 s32ny2) points at the engine's turn
+  order or at p_stopaction not clearing an interaction already due that tick. The Normal
+  plan masks it (npc_heal on her 0 on all seven seam33 names).

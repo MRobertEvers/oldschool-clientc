@@ -9,7 +9,10 @@
 -- harness plays NORMAL as a trio: seat 1 the mage (and the tick log), seat 2
 -- the ranger, seat 3 the meleer (the plan's roles; "Trio: x1 mager, x1 melee,
 -- x1 ranger", wiki Strategies :711).  Alone it is the Entry solo harness,
--- unchanged.
+-- unchanged.  raid seam33 play_tob_nylocas_normal_green: every seat carries a
+-- powered staff charged in run() (setup.ayak, setup.sang), each seat starts on
+-- its own colour's weapon, and tech.pillars_at_boss asks every support
+-- standing above half its bar when she lands (the KEPT bar).
 local role = (QD_PARTY and QD_PARTY.role) or 1
 local size = (QD_PARTY and QD_PARTY.size) or 1
 local kit = {
@@ -82,6 +85,36 @@ if size > 1 then
         kit[#kit] = "::give anglerfish 6"
         kit[#kit + 1] = "::give snakeboss_scale 2000"
     end
+    if role == 1 then
+        -- raid seam33 play_tob_nylocas_normal_green: the mage's Eye of Ayak
+        -- in place of the battlestaff ("Mages should use an eye of ayak, as
+        -- its 3 tick speed and fairly high damage makes clearing them
+        -- incredibly trivial", wiki Strategies :719); given uncharged and
+        -- charged in run() the way a player does it, its Charge op with demon
+        -- tears in the backpack (wiki Eye of Ayak :22 "Wield, Charge";
+        -- eye_of_ayak.rs2 [opheld3,eye_of_ayak_uncharged] ~eye_of_ayak_charge,
+        -- one tear a charge).  The tears' slot is one anglerfish; charged,
+        -- the tears leave the backpack.  The runes stay: Ice Burst on her
+        -- magic form is the helpers' cast, and the mage keeps the spellbook.
+        for i = 1, #kit do
+            if kit[i] == "::give lava_battlestaff 1" then kit[i] = "::give eye_of_ayak_uncharged 1" end
+        end
+        kit[#kit] = "::give demon_tear 2000"
+        kit[#kit + 1] = "::give anglerfish 6"
+    end
+    if role == 2 or role == 3 then
+        -- raid seam33: the helpers' powered staff for the blues in place of
+        -- the battlestaff and its runes (trio guide :216 the ranger Ayaks,
+        -- :386 the meleer Sangs), charged in run() by its Charge op: demon
+        -- tears for the Ayak, blood runes for the Sanguinesti staff (three a
+        -- charge, sanguinesti_staff.rs2 ^sanguinesti_staff_runes_per_charge).
+        local staff = role == 2 and "eye_of_ayak_uncharged" or "sanguinesti_staff_uncharged"
+        local charge = role == 2 and "::give demon_tear 2000" or "::give bloodrune 3000"
+        for i = 1, #kit do
+            if kit[i] == "::give lava_battlestaff 1" then kit[i] = "::give " .. staff .. " 1" end
+            if kit[i] == "::give water_rune 2000" then kit[i] = charge end
+        end
+    end
 end
 
 return {
@@ -115,13 +148,43 @@ return {
             t.ticks(2)
             local er, ed = t.player.equip("toxic_blowpipe_loaded")
             t.ticks(1)
+            local cr0, cd0 = t.player.inv_op("eye_of_ayak_uncharged", 3)
+            t.ticks(2)
+            local ar0, ayaks = t.inv.count("eye_of_ayak")
+            local tr0, tears = t.inv.count("demon_tear")
+            t.check("setup.ayak", ar0 == "ok" and ayaks == 1 and tr0 == "ok" and tears == 0, "p2 Charge on the uncharged Eye of Ayak "
+                .. tostring(cr0) .. " " .. string.sub(tostring(cd0), 1, 80) .. "; eye_of_ayak in the backpack " .. tostring(ayaks)
+                .. ", demon tears left " .. tostring(tears))
+            t.ticks(1)
             local cr, darts = t.inv.count("dragon_dart")
             t.check("setup.blowpipe", er == "ok" and cr == "ok" and darts == 0, "p2 darts on the pipe " .. tostring(dr) .. " " .. string.sub(tostring(dd), 1, 80)
                 .. "; scales " .. tostring(sr2) .. " " .. string.sub(tostring(sd2), 1, 80) .. "; wielded " .. tostring(er) .. " " .. string.sub(tostring(ed), 1, 80)
                 .. "; darts left in the backpack " .. tostring(darts))
         else
+            if size > 1 and role == 3 then
+                local cr0, cd0 = t.player.inv_op("sanguinesti_staff_uncharged", 3)
+                t.ticks(2)
+                local sr0, sangs = t.inv.count("sanguinesti_staff")
+                local br0, bloods = t.inv.count("bloodrune")
+                t.check("setup.sang", sr0 == "ok" and sangs == 1 and br0 == "ok" and bloods == 0, "p3 Charge on the uncharged Sanguinesti staff "
+                    .. tostring(cr0) .. " " .. string.sub(tostring(cd0), 1, 80) .. "; sanguinesti_staff in the backpack " .. tostring(sangs)
+                    .. ", blood runes left " .. tostring(bloods))
+            end
+            if size > 1 and role == 1 then
+                local cr0, cd0 = t.player.inv_op("eye_of_ayak_uncharged", 3)
+                t.ticks(2)
+                local ar, ayaks = t.inv.count("eye_of_ayak")
+                local tr, tears = t.inv.count("demon_tear")
+                t.check("setup.ayak", ar == "ok" and ayaks == 1 and tr == "ok" and tears == 0, "p1 Charge on the uncharged Eye of Ayak "
+                    .. tostring(cr0) .. " " .. string.sub(tostring(cd0), 1, 80) .. "; eye_of_ayak in the backpack " .. tostring(ayaks)
+                    .. ", demon tears left " .. tostring(tears))
+            end
             t.player.equip("rune_arrow")
-            t.player.equip("magic_shortbow")
+            -- raid seam33: a trio seat starts with its own colour's weapon on
+            -- (the plan reads it as worn): the mage the Ayak, the meleer the whip
+            if size > 1 and role == 1 then t.player.equip("eye_of_ayak")
+            elseif size > 1 and role == 3 then t.player.equip("abyssal_whip")
+            else t.player.equip("magic_shortbow") end
         end
         local tab_result, tab_detail = t.ui.tab("combat")
         t.ticks(1)
@@ -382,8 +445,12 @@ return {
                 .. tostring(last_wave and (last_wave - 236) or "?") .. " ticks stalled); her landing " .. tostring(ny.landed and rec.start_tick and (ny.landed - rec.start_tick) or "none")
                 .. " ticks into the play; taken by raider: " .. table.concat(taken_list, ", "))
             -- the pillars on the tick she landed (the plan's read of their bars)
-            t.check("tech.pillars_at_boss", (ny.supports_alive_at_landing or 0) >= 1, "supports standing when Vasilias landed: " .. tostring(ny.supports_alive_at_landing)
-                .. " of 4, bars (local x,z:fraction) " .. tostring(ny.supports_at_landing) .. "; the leader's role " .. tostring(ny.role))
+            -- raid seam33 play_tob_nylocas_normal_green: KEPT asks every
+            -- support standing and above half its bar when she lands (seam32
+            -- kept one standing at 0.01-0.11: one collapse from a wipe)
+            t.check("tech.pillars_at_boss", (ny.supports_alive_at_landing or 0) == 4 and (ny.supports_min_at_landing or 0) > 0.5,
+                "supports standing when Vasilias landed: " .. tostring(ny.supports_alive_at_landing)
+                .. " of 4 (need 4, each above 0.50), bars (local x,z:fraction) " .. tostring(ny.supports_at_landing) .. "; the leader's role " .. tostring(ny.role))
             -- the member's own-swing read (XP paid) against the log's
             -- player_anim swings, on the leader where both exist
             local probe, logged = {}, {}

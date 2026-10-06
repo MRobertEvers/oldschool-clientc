@@ -62,6 +62,27 @@ QD.raid._play_plan("tob_sotetseg", {
     -- the scythe swings (the kept room's phase 3 wears the scythe adjacent).
     down_prayers = { "piety" },
     decide = "_play_sotetseg_decide",
+    -- raid seam33 play_tob_sotetseg_normal: the trio's numbers (read only by
+    -- QD.raid._play_sotetseg_trio; the solo plan never reads them).
+    -- His form while a maze is on (S tob_sote_start_maze retypes him to the
+    -- mode's noncombat record; tob_sote_end_maze back): a raider who sees it
+    -- knows the maze is on and he is not dead.
+    idle = { entry = "tob_sotetseg_noncombat_story", normal = "tob_sotetseg_noncombat", hard = "tob_sotetseg_noncombat_hard" },
+    -- the arena's copy of the grid, from the room's south-west corner (S
+    -- tob.constant ^tob_sote_maze_lx 9, ^tob_sote_maze_lz 22; ^tob_sote_maze_w
+    -- 14): the tile the runner stands on is lit there (S tob_sote_mirror; W:801
+    -- "players in the real world will see the tile the player in the Shadow
+    -- Realm is standing on with a red glow")
+    over_lx = 9, over_lz = 22, maze_cols = 14,
+    -- the runner holds the path's last tile this many ticks before the step
+    -- off, so the raiders reading it are on the grid before the 4-tick check
+    -- can end the maze (S tob_sote_grid_occupied counts both grids).  The
+    -- seam's choice: no source gives a number.
+    party_end_hold = 6,
+    -- the death ball's gather starts this many ticks before it lands (the
+    -- longest walk from a seat to the front tile is 5 tiles: 3 ticks running,
+    -- one for the press, one to spare).  The seam's choice.
+    gather_lead = 5,
 })
 
 -- the footprint distance a melee is decided on: S tob_sote_attack
@@ -90,6 +111,11 @@ end
 --   tile, wait on row 3 so the run ends on the tick the raider may leave,
 --   leave the grid north with the step resolving on cycle tick 3.
 function QD.raid._play_sotetseg_decide(st, v)
+    if (st.party or 1) > 1 then
+        -- raid seam33: the Normal trio has its own decide (below); the solo
+        -- Entry plan is unchanged
+        return QD.raid._play_sotetseg_trio(st, v)
+    end
     local P, N = st.plan, st.numbers
     local intent = { want = {}, walk = nil, attack = false }
     st.sote = st.sote or { mazes = {}, balls = 0, death_balls = 0, press_log = {}, read_magic = {}, pray_sent = nil,
@@ -309,9 +335,16 @@ function QD.raid._play_sotetseg_maze(st, v, intent)
     local n = #mz.order
     local moved = st.last_me ~= nil and (st.last_me.x ~= v.me.x or st.last_me.z ~= v.me.z)
     if here == n then
+        -- raid seam33: in a party the runner holds the last tile until the
+        -- raiders reading the glow are on the arena's grid (the maze ends on a
+        -- 4-tick check that finds BOTH grids empty: S tob_sote_grid_occupied),
+        -- so they walk the path behind it (yt_4i4lv-srJkw.md:97 "Everyone
+        -- else just needs to follow the path")
+        mz.end_at = mz.end_at or v.tick
+        local held = (st.party or 1) > 1 and v.tick < mz.end_at + P.party_end_hold
         -- THE PATH'S END: off the grid north, sent on a tick 2 mod 4 so it
         -- resolves on 3 ("off on 3", ET 5.3)
-        if v.tick % P.maze_cycle == P.off_send_phase and (mz.off_sent == nil or v.tick - mz.off_sent >= P.maze_cycle) then
+        if not held and v.tick % P.maze_cycle == P.off_send_phase and (mz.off_sent == nil or v.tick - mz.off_sent >= P.maze_cycle) then
             intent.walk = { x = v.me.x, z = v.me.z + 1 }
             mz.off_sent = v.tick
             mz.off_sends = (mz.off_sends or 0) + 1
@@ -342,6 +375,13 @@ function QD.raid._play_sotetseg_maze(st, v, intent)
     -- raider leaves the end tile at once with the tornado behind it
     local next_row = mz.order[here + 1][2] - mz.sz
     local row_here = v.me.z - mz.sz
+    -- raid seam33: no wait in a party: "This tornado will not appear for the
+    -- maze runner (unless they are the only player in the encounter)" (W:803;
+    -- S tob_sote_runner_tick checks the tornado only for a party of one or
+    -- Hard), and the raiders reading the glow walk once the path is whole
+    if (st.party or 1) > 1 and mz.timed == nil then
+        mz.timed = v.tick
+    end
     if row_here == P.tornado_row - 1 and next_row == P.tornado_row and mz.timed == nil then
         local left = n - here
         if (v.tick + left) % P.maze_cycle ~= P.off_send_phase then
@@ -373,5 +413,398 @@ function QD.raid._play_sotetseg_maze(st, v, intent)
         intent.walk = { x = tx, z = tz }
         mz.walks = mz.walks + 1
     end
+    return intent
+end
+
+-- ==========================================================================
+-- THE NORMAL TRIO (raid seam33 play_tob_sotetseg_normal; PLAY_NOTES.md
+-- "Sotetseg, Normal trio").  Every raider runs this; the room picks the maze
+-- runner (S tob_sote_send_party: the first raider its hunt finds), so the
+-- plan does not choose one: whoever lands in the realm runs the path
+-- (QD.raid._play_sotetseg_maze, the Entry runner with the two party lines),
+-- the other two read the glow and walk it (QD.raid._play_sotetseg_follow).
+--   W:791 "In a trio encounter, players will stand to the east, west and
+--         north-west respectively" (spread "to increase the projectile's
+--         travel time so they can be reacted to in time")
+--   W:789 a ball "up to 50 damage and disable protection prayers, but ...
+--         fully blocked if prayed against correctly"; W:787 the melee "up to
+--         45 damage (22 if prayed against)"
+--   W:794 the death ball "121+ damage ... This damage can be split among
+--         other players"; yt_4i4lv-srJkw.md:95 "learners should all gather
+--         together on the tile directly in front of Sotoseg. This splits the
+--         damage evenly between you"; yt_KF9y2GYTJ-A.md:151 "group up at the
+--         center tile in front of the boss"
+--   yt_KF9y2GYTJ-A.md:151 "to start the room pray magic and piety and attack
+--         the boss"; the Entry plan's switch (melee in his range, the ball's
+--         colour while one flies at the raider) is kept: a ball is read at
+--         IMPACT (the owner's ruling, S tob_sote_impact)
+-- ==========================================================================
+
+-- the seat for a role, from his south-west tile and size (W:791 east, west,
+-- north-west).  Each seat shares an edge with his footprint (the scythe's
+-- reach), and no two seats or his centre are nearer than 3 tiles, so every
+-- ball and ricochet flies at least 2 ticks (S tob_sote_cast / tob_sote_ricochet:
+-- duration = delay + 36 + 8 per tile, 30 cycles a tick; a 1-tile ricochet is 1).
+function QD.raid._play_sotetseg_seat(st, b)
+    local n = b.size or 5
+    local role = st.role or 1
+    if role == 2 then return b.x - 1, b.z end               -- west, his south-west end
+    -- north-west: the west face's northern tile the server stands a raider on
+    -- (its north end, z + 4, is not: s33soa's raider stopped on z + 3 three
+    -- times, 279 ticks there)
+    if role == 3 then return b.x - 1, b.z + n - 2 end
+    return b.x + n, b.z + math.floor(n / 2)                 -- east, the middle of his east face
+end
+
+function QD.raid._play_sotetseg_trio(st, v)
+    local P, N = st.plan, st.numbers
+    local intent = { want = {}, walk = nil, attack = false }
+    st.sote = st.sote or { mazes = {}, balls = 0, death_balls = 0, press_log = {}, read_magic = {}, pray_sent = nil,
+        hold = -1, ranged_hold = -1, death_land = -1, magic_ticks = 0, melee_ticks = 0,
+        follows = {}, gathers = 0, gather_ticks = 0, seat_ticks = 0, aimed = 0 }
+    local S = st.sote
+    if v.me.level == P.under_level then
+        -- the runner (the room chose this raider)
+        if S.mz == nil then S.runs = (S.runs or 0) + 1 end
+        return QD.raid._play_sotetseg_maze(st, v, intent)
+    end
+    if S.mz ~= nil and S.mz.back == nil then
+        S.mz.back = v.tick
+        st.teleport_until = v.tick + 2
+        S.mz = nil
+    end
+    S.read_magic[v.tick] = v.lit.protectfrommagic == true
+    local b = v.boss
+    if b == nil then
+        -- his combat form is gone: a maze (his idle form stands there) or his
+        -- death.  The maze is not his death; the leader reads his death from
+        -- the tick log's npc_death row, a member from the idle form being gone
+        -- as well (three ticks: the library's own rule)
+        local ir = QD.npc.state(P.idle[st.mode])
+        if ir == "ok" or st.log then
+            st.boss_gone = 0
+            -- the throw to the far end three ticks after the proc (W:799)
+            st.teleport_until = v.tick + 6
+        end
+        if ir == "ok" then
+            return QD.raid._play_sotetseg_follow(st, v, intent)
+        end
+        return intent
+    end
+    if S.fw ~= nil then
+        S.fw.done = S.fw.done or v.tick
+        S.fw = nil
+    end
+    local function protect_press(protect)
+        P.walk_prayers[1] = protect
+        intent.want[protect] = true
+        if S.pray_sent ~= nil and S.pray_sent.name == protect and v.tick - S.pray_sent.tick <= 2 then
+            v.lit[protect] = true
+        end
+        if v.lit[protect] ~= true and v.prayer > 0 then
+            S.pray_sent = { name = protect, tick = v.tick }
+            S.press_log[#S.press_log + 1] = { tick = v.tick, name = protect }
+        end
+    end
+    -- WHAT FLIES AT THIS RAIDER (a homing projectile's dst is its target's
+    -- live tile: world.lua banner), and the death ball at anyone
+    local magic_in_air, ranged_in_air, death_land = false, false, nil
+    local pr, projs = QD.world.projectiles(30)
+    if pr == "ok" then
+        for _, p in ipairs(projs) do
+            local land = v.tick + math.ceil((p.cycles_left or 0) / 30)
+            -- a homing shot's dst is the target's tile as the client last drew
+            -- it, a tick behind a raider who is walking: within a tile is this
+            -- raider's (the seats are 3 or more apart; on the front tile all
+            -- three share every shot anyway)
+            local mine = math.abs(p.dst_x - v.me.x) <= 1 and math.abs(p.dst_z - v.me.z) <= 1
+            if p.spotanim_id == P.proj_magic and mine then
+                magic_in_air = true
+                if land > S.hold then S.hold = land end
+            elseif p.spotanim_id == P.proj_ranged and mine then
+                ranged_in_air = true
+                if land > S.ranged_hold then S.ranged_hold = land end
+            elseif p.spotanim_id == P.proj_death then
+                if death_land == nil or land < death_land then death_land = land end
+                if S.death_seen ~= b.seq_tick then
+                    S.death_seen = b.seq_tick
+                    S.death_balls = S.death_balls + 1
+                end
+            end
+        end
+    end
+    if death_land ~= nil and death_land > S.death_land then S.death_land = death_land end
+    local range = QD.raid._play_sotetseg_range(b, v.me.x, v.me.z)
+    local adjacent = range <= 1
+    local protect = "protectfrommagic"
+    if magic_in_air or v.tick <= S.hold then
+        protect = "protectfrommagic"
+        S.aimed = S.aimed + 1
+    elseif ranged_in_air or v.tick <= S.ranged_hold then
+        protect = "protectfrommissiles"
+        S.aimed = S.aimed + 1
+    elseif adjacent then
+        protect = "protectfrommelee"
+    end
+    if protect == "protectfrommagic" then S.magic_ticks = S.magic_ticks + 1 end
+    if protect == "protectfrommelee" then S.melee_ticks = S.melee_ticks + 1 end
+    protect_press(protect)
+    intent.want.piety = true
+    if v.lit.piety ~= true then
+        if S.piety_sent ~= nil and v.tick - S.piety_sent <= 2 then
+            v.lit.piety = true
+        elseif v.prayer > 0 then
+            S.piety_sent = v.tick
+        end
+    end
+    -- WHERE TO STAND: the seat, or the front tile while the death ball is due
+    local n = b.size or 5
+    local sx, sz = QD.raid._play_sotetseg_seat(st, b)
+    local gathering = S.death_land >= v.tick - 1 and S.death_land - v.tick <= P.gather_lead
+    if gathering then
+        sx, sz = b.x + math.floor(n / 2), b.z - 1
+        if S.gather_for ~= S.death_land then
+            S.gather_for = S.death_land
+            S.gathers = S.gathers + 1
+        end
+        S.gather_ticks = S.gather_ticks + 1
+    end
+    local at_seat = v.me.x == sx and v.me.z == sz
+    local moved = st.last_me ~= nil and (st.last_me.x ~= v.me.x or st.last_me.z ~= v.me.z)
+    local key = sx * 100000 + sz
+    if S.seat_key ~= key then
+        S.seat_key = key
+        S.seat_misses = 0
+    end
+    -- a seat the server stopped short of three times is not a tile it will
+    -- stand the raider on: the attack press from where it stands (it paths
+    -- the raider into his range), recorded
+    local given_up = S.seat_misses >= 3
+    if given_up and S.gave_up_on ~= key then
+        S.gave_up_on = key
+        S.seats_given_up = (S.seats_given_up or 0) + 1
+    end
+    if at_seat or given_up then
+        if at_seat then S.seat_ticks = S.seat_ticks + 1 end
+        intent.attack = true
+    else
+        local same = st.walk_target ~= nil and st.walk_target.x == sx and st.walk_target.z == sz
+        if not same or (not moved and S.walk_sent ~= nil and v.tick - S.walk_sent >= 2) then
+            intent.walk = { x = sx, z = sz }
+            S.walk_sent = v.tick
+            S.walks = (S.walks or 0) + 1
+            if same then S.seat_misses = S.seat_misses + 1 end
+        end
+    end
+    -- THE SUPPLIES (the Entry rule with Normal's numbers): a melee per attack
+    -- in his range, prayed or not by the prayer this tick asks for; a ball
+    -- and a melee unprayed while the protections are disabled; the death
+    -- ball's share when it lands inside the horizon (all three on the front
+    -- tile: W:794 split, yt_4i4lv-srJkw.md:95)
+    if st.refusals > (S.refusals_seen or 0) then
+        S.refusals_seen = st.refusals
+        S.disabled_until = v.tick + 6
+    end
+    local disabled = S.disabled_until ~= nil and v.tick <= S.disabled_until
+    local function threat(h)
+        local attacks = math.ceil(h / 5)
+        local per = 0
+        if adjacent then per = (protect == "protectfrommelee") and N.melee_prayed or N.melee end
+        if disabled then per = N.ball + (adjacent and N.melee or 0) end
+        local total = attacks * per
+        if S.death_land >= v.tick and S.death_land - v.tick <= h then
+            total = total + math.floor(N.death / st.party) + 1
+        end
+        return total
+    end
+    intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, threat)
+    intent.attack = QD.raid._play_attack(st, v, intent.attack)
+    return intent
+end
+
+-- THE RAIDERS WHO READ THE GLOW (the trio's two who are not chosen).  "The
+-- remaining players will be forcibly teleported to the other end of the
+-- arena" (W:799); "players in the real world will see the tile the player in
+-- the Shadow Realm is standing on with a red glow" (W:801); "One person will
+-- be able to see a path through the maze. They need to run through it
+-- first. This will highlight the tile they click on to the other players in
+-- the raid. Everyone else just needs to follow the path. For beginners, only
+-- use straight line movement" (yt_4i4lv-srJkw.md:97).  The glow is ONE tile
+-- at a time (S tob_sote_mirror lights the runner's tile and puts the last one
+-- out), so the raider keeps every tile it saw lit, in order; two tiles seen
+-- one after the other lie on one straight run (the runner walks corner to
+-- corner), and the path between them is the run.  The raider waits off the
+-- grid's south edge until the glow has reached the last row, checks the path
+-- has the maze's shape (S tob_sote_path_has: one tile on an even row, a run
+-- on an odd one), then walks it corner to corner and steps off the north
+-- edge.  A wrong tile is "a blast ... 6.67% of the player's current Hitpoints
+-- + 15 every tick" to everyone beside it (W:803): a path that fails the
+-- check is never walked (the maze still ends when the runner steps off: S
+-- tob_sote_grid_occupied counts only raiders ON a grid).
+function QD.raid._play_sotetseg_follow(st, v, intent)
+    local P, S = st.plan, st.sote
+    st.boss_gone = 0
+    P.walk_prayers[1] = "protectfrommagic"
+    intent.want.protectfrommagic = true
+    if v.lit.protectfrommagic ~= true and S.pray_sent ~= nil and S.pray_sent.name == "protectfrommagic" and v.tick - S.pray_sent.tick <= 2 then
+        v.lit.protectfrommagic = true
+    elseif v.lit.protectfrommagic ~= true and v.prayer > 0 then
+        S.pray_sent = { name = "protectfrommagic", tick = v.tick }
+        S.press_log[#S.press_log + 1] = { tick = v.tick, name = "protectfrommagic" }
+    end
+    -- Piety out (want leaves it off); an off is a toggle, so it is sent once
+    -- and treated as read for two ticks (the runner's own guard)
+    if v.lit.piety == true and S.piety_off ~= nil and v.tick - S.piety_off <= 2 then
+        v.lit.piety = false
+    elseif v.lit.piety == true then
+        S.piety_off = v.tick
+    end
+    local fw = S.fw
+    if fw == nil then
+        fw = { n = #S.follows + 1, seen = v.tick, samples = {}, path = {}, path_n = 0, complete = nil, bad = nil,
+            gaps = 0, walks = 0, order = nil, idx = 0, on_grid = 0, off_path = 0, off_north = nil, start_walk = nil }
+        S.follows[#S.follows + 1] = fw
+        S.fw = fw
+    end
+    local gx, gz = st.origin.x + P.over_lx, st.origin.z + P.over_lz
+    local cols, rows = P.maze_cols, P.maze_rows
+    local function on_grid(x, z) return x >= gx and x < gx + cols and z >= gz and z < gz + rows end
+    local function add(x, z)
+        local k = x * 100000 + z
+        if not fw.path[k] then
+            fw.path[k] = true
+            fw.path_n = fw.path_n + 1
+        end
+    end
+    local function run_to(ax, az, bx, bz)
+        local dx = (bx > ax and 1) or (bx < ax and -1) or 0
+        local dz = (bz > az and 1) or (bz < az and -1) or 0
+        local x, z = ax, az
+        add(x, z)
+        while x ~= bx or z ~= bz do
+            x, z = x + dx, z + dz
+            add(x, z)
+        end
+    end
+    -- READ THE GLOW
+    if fw.complete == nil then
+        local lr, _, locs = QD.world.loc_copies(P.path_loc, 40)
+        if lr == "ok" and locs ~= nil then
+            for _, r in ipairs(locs) do
+                if r.level == 0 and on_grid(r.x, r.z) then
+                    local last = fw.samples[#fw.samples]
+                    if last == nil or last[1] ~= r.x or last[2] ~= r.z then
+                        fw.samples[#fw.samples + 1] = { r.x, r.z, v.tick }
+                        if last == nil then
+                            add(r.x, r.z)
+                        elseif last[1] == r.x or last[2] == r.z then
+                            run_to(last[1], last[2], r.x, r.z)
+                        else
+                            -- two glows not on one run (a tick the read missed):
+                            -- the maze's shape says which way the corner went
+                            -- (an even row is left northward, an odd row along it)
+                            fw.gaps = fw.gaps + 1
+                            local cx, cz = r.x, last[2]
+                            if (last[2] - gz) % 2 == 0 then cx, cz = last[1], r.z end
+                            run_to(last[1], last[2], cx, cz)
+                            run_to(cx, cz, r.x, r.z)
+                        end
+                        if r.z - gz == rows - 1 then fw.complete = v.tick end
+                    end
+                end
+            end
+        end
+        if fw.complete ~= nil then
+            -- the maze's shape: every row lit, an even row on one tile
+            local ok = true
+            for row = 0, rows - 1 do
+                local count = 0
+                for col = 0, cols - 1 do
+                    if fw.path[(gx + col) * 100000 + (gz + row)] then count = count + 1 end
+                end
+                if count == 0 or (row % 2 == 0 and count ~= 1) then ok = false end
+            end
+            fw.bad = not ok
+            if ok then
+                local first = fw.samples[1]
+                local order, seen = { { first[1], first[2] } }, {}
+                local cx, cz = first[1], first[2]
+                seen[cx * 100000 + cz] = true
+                for _ = 1, 120 do
+                    local nx, nz = nil, nil
+                    for _, d in ipairs({ { 0, 1 }, { -1, 0 }, { 1, 0 } }) do
+                        local k = (cx + d[1]) * 100000 + (cz + d[2])
+                        if nx == nil and fw.path[k] and not seen[k] then nx, nz = cx + d[1], cz + d[2] end
+                    end
+                    if nx == nil then break end
+                    cx, cz = nx, nz
+                    seen[cx * 100000 + cz] = true
+                    order[#order + 1] = { cx, cz }
+                end
+                fw.order = order
+                if #order ~= fw.path_n or cz - gz ~= rows - 1 then fw.bad = true end
+            end
+        end
+    end
+    -- eat up while nothing can hit (no damage while the maze is on: W:799)
+    local function threat(h) return 60 end
+    intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, threat)
+    -- the stall: S p_stun 5 from the proc (the idle form shows on the proc tick)
+    if v.tick < fw.seen + 5 then
+        return intent
+    end
+    local moved = st.last_me ~= nil and (st.last_me.x ~= v.me.x or st.last_me.z ~= v.me.z)
+    local function go(x, z)
+        local same = st.walk_target ~= nil and st.walk_target.x == x and st.walk_target.z == z
+        if not same or not moved then
+            intent.walk = { x = x, z = z }
+            fw.walks = fw.walks + 1
+        end
+    end
+    if fw.off_north ~= nil or v.me.z >= gz + rows then
+        -- off the north edge: done; the fight resumes when he wakes
+        fw.off_north = fw.off_north or v.tick
+        return intent
+    end
+    local first = fw.samples[1]
+    if on_grid(v.me.x, v.me.z) then
+        fw.on_grid = fw.on_grid + 1
+        if not fw.path[v.me.x * 100000 + v.me.z] then fw.off_path = fw.off_path + 1 end
+    end
+    if first == nil then
+        return intent
+    end
+    local wx, wz = first[1], gz - 1
+    if fw.complete == nil or fw.bad or fw.order == nil then
+        -- wait off the grid's south edge below the path's first tile
+        if not on_grid(v.me.x, v.me.z) and (v.me.x ~= wx or v.me.z ~= wz) then go(wx, wz) end
+        return intent
+    end
+    local here = nil
+    for i, o in ipairs(fw.order) do
+        if o[1] == v.me.x and o[2] == v.me.z then here = i end
+    end
+    local n = #fw.order
+    if here == nil then
+        if v.me.x == wx and v.me.z == wz then
+            fw.start_walk = fw.start_walk or v.tick
+            go(fw.order[1][1], fw.order[1][2])
+        elseif not on_grid(v.me.x, v.me.z) then
+            go(wx, wz)
+        end
+        return intent
+    end
+    fw.idx = here
+    if here == n then
+        go(v.me.x, v.me.z + 1)
+        return intent
+    end
+    local dx = fw.order[here + 1][1] - fw.order[here][1]
+    local dz = fw.order[here + 1][2] - fw.order[here][2]
+    local j = here + 1
+    while j < n and fw.order[j + 1][1] - fw.order[j][1] == dx and fw.order[j + 1][2] - fw.order[j][2] == dz do
+        j = j + 1
+    end
+    go(fw.order[j][1], fw.order[j][2])
     return intent
 end

@@ -168,6 +168,34 @@ that changes the world (`::tobgo`, `::tobadv`, `::tobscale`, `::tobsotedrain`,
 `::tobcrabdrop`, `::kill`, `::godmode`, `::setvar`, a heal, a teleport past a barrier
 or a phase) is a rejection. `t.raid.enter` issues the room-entry cheat itself.
 
+### A loaded toxic blowpipe is one kit line (raid seam33)
+
+`::give toxic_blowpipe_loaded` hands an EMPTY pipe: the darts and Zulrah's scales
+are item vars on the item instance (content's `blowpipe_ammo.rs2`), and a setup list
+is cheat strings only. The bring-along is:
+
+```lua
+"::blowpipe dragon_dart 2000 2000",   -- dart, dart count, scale count
+"::wield toxic_blowpipe_loaded",
+```
+
+`::blowpipe` (torirs_server_world.c, beside `::give`) gives the pipe, the darts and
+the scales, then dispatches the content's own use-on twice (darts on the pipe, then
+the scales), exactly the packet a player's Use click sends, and reads the slot back.
+It answers `refused` (so the setup row FAILs and the run stops) unless the pipe holds
+exactly what was asked and the darts and scales left the backpack, and it refuses up
+front when the backpack already holds a toxic blowpipe, that dart or scales (the load
+would swallow them too) or has fewer than three free slots. So put it EARLY in the
+kit, before the food fills the backpack; once loaded it is one slot. The caps (16,383
+each) are the content's `^blowpipe_max_darts` / `^blowpipe_max_scales`.
+
+Inside `run`, `t.inv.blowpipe()` reads the load back from the server through the
+read-only `::blowpipe` readout: `("ok", {where = "worn"|"inv", pipe, dart, darts,
+scales, line})`. A shot spends one dart and, two times in three, one scale
+(`~blowpipe_consume`), so a plan can count its darts down and a row can prove the
+shots were the pipe's (proved: `build/quest_gate/bp33_green`, 5 hit_npc rows on a
+Hill Giant and darts 100 -> 95).
+
 An npc acting on tick T sees the world as it stood at the end of tick T-1
 (`docs/minigames/theater_of_blood/ENCOUNTER_TIMING.md` section 1): a step that
 must dodge an attack lands the tick BEFORE the scan. Loop on the boss's state,

@@ -10276,6 +10276,246 @@ ToriRSServer_RunCheatLadder(
         return TORIRSSERVER_TRIGGER_RAN;
     }
 
+    if( strncmp(text, "blowpipe", 8) == 0 && (text[8] == '\0' || text[8] == ' ') )
+    {
+        /*
+         * `::blowpipe <dart> <count> <scales>` -- a LOADED toxic blowpipe in
+         * the backpack, as one bring-along line beside `::give` (raid seam33,
+         * kit_loaded_blowpipe). `::blowpipe` alone reads the load back.
+         *
+         * Why a cheat at all: `::give toxic_blowpipe_loaded` hands a pipe with
+         * nothing in it. The load lives on the item instance (item vars keyed
+         * by the dart's own obj id and by `snakeboss_scale`, content's
+         * blowpipe_ammo.rs2 header), and a setup list is cheat strings only, so
+         * before this a raider's blowpipe was five ticks of use-on clicks in
+         * every harness's run() plus a backpack slot juggled for the scales
+         * (_play_nylocas.lua, the Normal ranger).
+         *
+         * HOW IT LOADS: exactly the way a player does. The three items are
+         * given (the same ToriRSServer_ContainerAdd `::give` uses), then the
+         * content's own `[opheldu,toxic_blowpipe]` is dispatched twice through
+         * handle_opheldu -- the packet a "Use dart -> pipe" click sends --
+         * darts first, then the scales onto the now-loaded pipe
+         * (~blowpipe_fill_darts, ~blowpipe_fill_scales). Nothing here writes an
+         * item var, knows which objs are darts, or knows the 16,383 cap: the
+         * content decides all of that, and the cheat reads the slot back and
+         * answers FAILED unless the pipe holds exactly what was asked and the
+         * darts and scales left the backpack. The cap pre-check reads the
+         * content's own ^blowpipe_max_darts / ^blowpipe_max_scales.
+         *
+         * Refused (FAILED, t.cheat -> refused, so a setup line stops the run)
+         * when the backpack already holds a toxic blowpipe, that dart or
+         * Zulrah's scales -- the content's fill would load THOSE too and the
+         * count would not be the one asked -- or has too few free slots for
+         * the three stacks before they collapse into the one pipe.
+         *
+         * The readout, `::blowpipe` with no argument, is read-only: the worn
+         * weapon slot first, then the first backpack slot holding a toxic
+         * blowpipe, printed as one key=value line the driver parses
+         * (state.lua t.inv.blowpipe):
+         *   blowpipe where=worn pipe=<obj> dart=<obj|-1> darts=<n> scales=<n>
+         */
+        int pipe_empty = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "toxic_blowpipe");
+        int pipe_loaded = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "toxic_blowpipe_loaded");
+        int scale_obj = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "snakeboss_scale");
+        char dart_arg[64] = { 0 };
+        char suggest[256] = { 0 };
+        int dart_obj = -1;
+        int darts = 0;
+        int scales = 0;
+        int max_darts = 0;
+        int max_scales = 0;
+        int free_slots = 0;
+        int need_slots;
+        int pipe_slot = -1;
+        int use_slot = -1;
+        int loaded_darts;
+        int loaded_scales;
+        int left_darts = 0;
+        int left_scales = 0;
+        struct ToriRSServerContainer* backpack;
+
+        if( pipe_empty < 0 || pipe_loaded < 0 || scale_obj < 0 )
+        {
+            say(srv, "::blowpipe: this content has no toxic_blowpipe / toxic_blowpipe_loaded /"
+                     " snakeboss_scale obj.");
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+
+        if( text[8] == '\0' )
+        {
+            const struct ToriRSServerItem* item = NULL;
+            const char* where = "worn";
+            int read_dart = -1;
+            int read_darts = 0;
+
+            if( player->worn[TORIRSSERVER_WEAR_WEAPON].obj_id == pipe_loaded ||
+                player->worn[TORIRSSERVER_WEAR_WEAPON].obj_id == pipe_empty )
+                item = &player->worn[TORIRSSERVER_WEAR_WEAPON];
+            for( int i = 0; !item && i < TORIRSSERVER_INV_SLOTS; i++ )
+                if( player->inv[i].obj_id == pipe_loaded || player->inv[i].obj_id == pipe_empty )
+                {
+                    item = &player->inv[i];
+                    where = "inv";
+                }
+            if( !item )
+            {
+                say(srv, "::blowpipe: no toxic blowpipe worn or in the backpack.");
+                return TORIRSSERVER_TRIGGER_FAILED;
+            }
+            /* The dart is whichever non-scale key the content keyed: one
+             * holding darts first, else a drained one (a drain leaves 0). */
+            for( int i = 0; i < TORIRSSERVER_ITEM_VAR_MAX; i++ )
+            {
+                if( item->var_key[i] < 0 || item->var_key[i] == scale_obj )
+                    continue;
+                if( read_dart < 0 || (read_darts <= 0 && item->var_val[i] > 0) )
+                {
+                    read_dart = item->var_key[i];
+                    read_darts = item->var_val[i];
+                }
+            }
+            say(srv, "blowpipe where=%s pipe=%d dart=%d darts=%d scales=%d", where, item->obj_id,
+                read_dart, read_darts, ToriRSServer_ItemGetVar(item, scale_obj));
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+
+        if( sscanf(text, "blowpipe %63s %d %d", dart_arg, &darts, &scales) != 3 )
+        {
+            say(srv, "Usage: ::blowpipe <dart_name> <dart_count> <scale_count>   (::blowpipe alone"
+                     " reads the load)");
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        dart_obj = cheat_obj_from_name(dart_arg, suggest, sizeof(suggest));
+        if( dart_obj < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "::blowpipe: which %s? %s", dart_arg, suggest);
+            else
+                say(srv, "::blowpipe: no item named '%s'.", dart_arg);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( !cheat_var_value_from_text("^blowpipe_max_darts", &max_darts) ||
+            !cheat_var_value_from_text("^blowpipe_max_scales", &max_scales) )
+        {
+            say(srv, "::blowpipe: no ^blowpipe_max_darts / ^blowpipe_max_scales constant.");
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( darts < 1 || darts > max_darts || scales < 0 || scales > max_scales )
+        {
+            say(srv, "::blowpipe: %d darts and %d scales; the pipe holds 1..%d darts and 0..%d"
+                     " scales (blowpipe_ammo.constant).",
+                darts, scales, max_darts, max_scales);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+        {
+            int held = player->inv[i].obj_id;
+
+            if( held < 0 )
+            {
+                free_slots++;
+                continue;
+            }
+            if( held == pipe_empty || held == pipe_loaded || held == dart_obj ||
+                held == scale_obj )
+            {
+                say(srv, "::blowpipe: the backpack already holds %s (slot %d); the load would"
+                         " take it too.",
+                    ToriRSServer_ObjInfo(held)->name, i);
+                return TORIRSSERVER_TRIGGER_FAILED;
+            }
+        }
+        need_slots = scales > 0 ? 3 : 2;
+        if( free_slots < need_slots )
+        {
+            say(srv, "::blowpipe: %d free backpack slot(s); loading needs %d (put it early in"
+                     " the kit).",
+                free_slots, need_slots);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+
+        backpack = ToriRSServer_ContainerResolve(srv, player, ToriRSServer_Ids()->inv_backpack);
+        if( !backpack )
+        {
+            say(srv, "No backpack container.");
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( ToriRSServer_ContainerAdd(backpack, pipe_empty, 1, 0) != 1 ||
+            ToriRSServer_ContainerAdd(backpack, dart_obj, darts, 0) != darts ||
+            (scales > 0 && ToriRSServer_ContainerAdd(backpack, scale_obj, scales, 0) != scales) )
+        {
+            say(srv, "::blowpipe: the pipe, %d x %s and %d scales did not all fit (is %s a"
+                     " stackable dart?).",
+                darts, dart_arg, scales, dart_arg);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+
+        /* Use the darts on the pipe, then the scales on the loaded pipe: the
+         * body ::useon builds -- the clicked-second item (the pipe) first, the
+         * used item second. */
+        for( int step = 0; step < (scales > 0 ? 2 : 1); step++ )
+        {
+            int pipe_now = step == 0 ? pipe_empty : pipe_loaded;
+            int use_obj = step == 0 ? dart_obj : scale_obj;
+            uint8_t body[16];
+            struct RSAreaBuf out;
+
+            pipe_slot = -1;
+            use_slot = -1;
+            for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+            {
+                if( player->inv[i].obj_id == pipe_now && pipe_slot < 0 )
+                    pipe_slot = i;
+                if( player->inv[i].obj_id == use_obj && use_slot < 0 )
+                    use_slot = i;
+            }
+            if( pipe_slot < 0 || use_slot < 0 )
+            {
+                say(srv, "::blowpipe: step %d found no %s or no %s in the backpack; the content"
+                         " did not load the darts.",
+                    step + 1, ToriRSServer_ObjInfo(pipe_now)->name,
+                    ToriRSServer_ObjInfo(use_obj)->name);
+                return TORIRSSERVER_TRIGGER_FAILED;
+            }
+            rsab_wrap(&out, body, sizeof(body));
+            rsab_p2(&out, pipe_now);
+            rsab_p2(&out, pipe_slot);
+            rsab_p4(&out, ToriRSServer_Ids()->com_inventory_items);
+            rsab_p2(&out, use_obj);
+            rsab_p2(&out, use_slot);
+            rsab_p4(&out, ToriRSServer_Ids()->com_inventory_items);
+            handle_opheldu(srv, body, (int)rsab_len(&out));
+        }
+
+        pipe_slot = -1;
+        for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+        {
+            if( player->inv[i].obj_id == pipe_loaded && pipe_slot < 0 )
+                pipe_slot = i;
+            if( player->inv[i].obj_id == dart_obj )
+                left_darts += player->inv[i].count;
+            if( player->inv[i].obj_id == scale_obj )
+                left_scales += player->inv[i].count;
+        }
+        loaded_darts = pipe_slot >= 0 ? ToriRSServer_ItemGetVar(&player->inv[pipe_slot], dart_obj) : 0;
+        loaded_scales =
+            pipe_slot >= 0 ? ToriRSServer_ItemGetVar(&player->inv[pipe_slot], scale_obj) : 0;
+        if( pipe_slot < 0 || loaded_darts != darts || loaded_scales != scales || left_darts != 0 ||
+            left_scales != 0 )
+        {
+            say(srv, "::blowpipe: asked %d x %s and %d scales; the content loaded %d and %d (pipe"
+                     " slot %d), %d darts and %d scales still in the backpack.",
+                darts, dart_arg, scales, loaded_darts, loaded_scales, pipe_slot, left_darts,
+                left_scales);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        say(srv, "::blowpipe: loaded %s (slot %d) with %d x %s and %d Zulrah's scales.",
+            ToriRSServer_ObjInfo(pipe_loaded)->name, pipe_slot, darts,
+            ToriRSServer_ObjInfo(dart_obj)->name, scales);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
     if( strncmp(text, "give", 4) == 0 )
     {
         /*

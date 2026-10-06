@@ -1307,3 +1307,46 @@ all clean. No C and no content changed.
   runs AGREE. The full quest suite was not run: outside raid_play*.lua, test/raids/ and docs/
   only test/quests/_conformance.lua changed, and no quest loads it. Honest state: Bloat and
   Nylocas Normal trios green on five names; Maiden Normal is not.
+
+## matthew-mbp-m4-raid-b1-seam33 (2026-10-06)
+
+- powered_staff_damage_type: LANDED (content). A powered staff's auto and the Dawnbringer,
+  purging staff and Eye of Ayak specials go through `[proc,player_hit_npc_prepare_magic]`;
+  a Hagios takes a trident (0 -> 7, 4, killed). Open: Voidwaker and the accursed sceptre
+  specials still use the weapon's row; the blessed Saradomin sword is unsourced
+  (CONTENT_BUGS.md).
+- chinchompa_multi_target: LANDED (content). `[proc,player_chinchompa_splash]` hits the 3x3
+  in multi-way areas and instances. Open: fuse accuracy by distance, forcemulti npcs outside
+  both, barrage still splashing in single-way areas (CONTENT_BUGS.md).
+- kit_loaded_blowpipe: LANDED (server cheat + driver). `::blowpipe <dart> <n> <scales>` and
+  `t.inv.blowpipe()`, conformance row inv.blowpipe (VERB_COUNT 195). Open: the
+  _play_nylocas ranger still loads its pipe in run(); only toxic_blowpipe is supported.
+- play_tob_maiden_normal_green: NOT GREEN, plan kept as measured. `_play_maiden --party 3`
+  0 of 5; she dies on 4 of 5 names (390-470 ticks, no raider dies). First cause on every red
+  leader: more than one Matomenos per threshold reaches her (tech.freeze /
+  tech.crabs_killed), from the far 3s/4s walking 12-16 ticks unfrozen; svc's leader dies
+  at t406 beside her (two blood pools, then a 35 storm). Open: W:637/639 clump-and-barrage,
+  chinchompas on the stack.
+- play_tob_nylocas_normal_green: NOT KEPT, plan kept as measured. The pillar row now asks
+  the KEPT bar (all 4 supports above half when she lands); 0 of 7 names meet it (she dies
+  and nobody dies on all seven). First cause: 34-44 of 206 copies are never killed and
+  pop, the meleer the bottleneck. Open: scythe 1x3 arc (CONTENT_BUGS.md), chins on
+  doubles, per-wave lane plan, a party form of tech.prayer for the owner to rule on.
+  Conformance row seam.raid_play_powered_staff_cadence.
+- play_tob_sotetseg_normal: LANDED, KEPT. `_play_sotetseg --party 3` 5 of 5 (closer rerun:
+  leader room ticks 428), party_repeat 3 runs AGREE on a party = 3 copy. Conformance row
+  seam.raid_play_sotetseg_trio_seats. Open: the Dragon warhammer drain order (W:781-784)
+  went red and is not in the plan; prayer and food mistakes still cost damage.
+- Closer: conformance 381/381 PASS (195 verbs + 186 seam rows; SEAM_COUNT 184 -> 186). The
+  first attempt failed seam.raid_play_powered_staff_cadence: at Magic 99 the Ayak's max hit
+  (27) killed the goblin on the second swing, so the row now drops Magic to 21 after the
+  wield and reads its swings since its own mark. check-quest-verbs, check-drive-abi,
+  check-pt-switch, test-plugin-lua, test-quest-cheats PASS; server selftest 11 failures
+  (the baseline set). Six kept Entry rooms byte-identical; Entry solo `_play_smoke`,
+  `_play_maiden`, `_play_nylocas`, `_play_sotetseg` 5 of 5 (maiden and nylocas ledgers
+  byte-identical to the fixers' baselines); `_play_bloat --party 3` 5 of 5; `_party_smoke`
+  party_repeat AGREE (7adb63a57f33). Quest suite: 115 green + deserttreasure,
+  forgettabletale, regicide, troll red, the baseline; cooks_assistant and druid
+  byte-identical to build/merge17_check. Honest state: six Entry rooms green on five
+  names; Normal Bloat and Normal Sotetseg green; Normal Nylocas below the KEPT bar; Normal
+  Maiden red; Xarpus and Verzik have no Normal plan.

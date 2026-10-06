@@ -6067,3 +6067,141 @@ inside the run, so a row reads its rows `since` its own mark's serial, never "ti
 A row that fights must end the engagement the row before it left (a one-tile walk, then a
 wait for a dying npc to leave). A boosted stat drops one point on the player's stat restore
 tick, so read a boost on the tick the item is consumed, not a few ticks on.
+
+## A magic hit that is not a cast goes through the funnel's magic entry (seam33)
+
+`%varp6295_damagetype` is the weapon's combat-style row, and a powered staff has no magic
+row. A hit that is MAGIC damage but is not a cast calls `[proc,player_hit_npc_prepare_magic]`
+(player_hit_npc_prepare.rs2), which sets the magic style, calls `~player_hit_npc_prepare`
+and restores the varp. Callers today: the powered-staff auto (trident, sanguinesti, shadow,
+Ayak, Dawnbringer), the Dawnbringer, purging staff and Eye of Ayak specials. Before seam33 a
+Nylocas Hagios nulled a trident for good. Voidwaker and the accursed sceptre still go
+through the weapon's row (CONTENT_BUGS.md, seam33).
+
+## A nylocas stand-in outside the room (seam33)
+
+`::spawn tob_nylocas_fighting_magic` in Lumbridge gives an 11-hitpoint Hagios whose style
+and null rule are live, because `~tob_is_nylocas` reads npc_category, not the instance. It
+does not retaliate. `::kill <sym> 8` kills it through the ordinary death path. The world
+slot is reused by the next spawn, so filter `t.ticklog.rows` by slot AND by serial since a
+mark taken before the attack, and pass the `t.npc` row through `t.ticklog.slot` first:
+client and world slots differ.
+
+## A byte-identical check runs under the room's own name (seam33)
+
+The account name's first 12 characters seed the server, so a renamed run (`--name`) is a
+different seed. A kept room's byte-identical check is `run.py --script
+test/raids/<room>.lua --no-build` (it does not publish). A seed A/B needs two names that
+share their first 12 characters (s33nyseedoneA vs s33nyseedoneB).
+
+## Chinchompas hit the 3x3, in a multi-way area only (seam33)
+
+`[proc,player_chinchompa_splash]` (player_ranged.rs2): the primary's accuracy roll decides
+every secondary, each npc gets its own damage roll, the cap is 11 targets (12 for black)
+and the splash happens only in maps/multiway.csv or a map instance. ToB rooms are
+instances, so a ranger's chins hit a clump there; in Lumbridge a chin hits the primary
+only. Every hit_npc row of one throw shares the primary's landing tick.
+
+Multi-way stand-in: the wilderness zone 0_50_57 (about 3200-3215, 3648-3670) is in
+multiway.csv. `::goto 3203 3655 0; ::spawn tob_nylocas_fighting_ranged 3` puts three
+Toxobolos at 3204..3206,3656 (`::spawn` lands at the player's tile +1+i, +1). In-instance
+stand-in: `t.raid.enter('tob','nylocas',{mode='entry'})` lands at 6431,113 with the fight
+not started, and a `::spawn` there is inside the instance. `t.npc.tiles` returns
+(result, summary, rows): take the third value.
+
+## A loaded toxic blowpipe is one kit line; t.inv.blowpipe reads it (seam33)
+
+`::blowpipe <dart> <dart_count> <scale_count>` then `::wield toxic_blowpipe_loaded`. The
+cheat gives the three items and loads them through the content's own use-on (darts, then
+scales), as a player's Use click does, then reads the slot back. It answers FAILED (the
+setup row stops the run) when the counts are not exactly met, when the backpack already
+holds a toxic blowpipe, that dart or scales, or when fewer than 3 slots are free: put it
+early in the kit. Once loaded it is one slot.
+
+`t.inv.blowpipe()` -> `("ok", {where = "worn"|"inv", pipe, dart, darts, scales, line})`
+reads the load through the read-only `::blowpipe` readout (item vars are server-only). One
+shot spends one dart and, two times in three, one scale. A plan can count darts down to
+prove the shots were the pipe's. Only toxic_blowpipe is supported.
+
+Ranged stand-in: `::spawn giant 1; ::passive giant` (Hill Giant, 35 hitpoints) next to the
+fresh_lumbridge tile; read `t.ticklog.rows({kind='hit_npc'})` filtered by the
+`t.ticklog.slot` of the `t.npc.nearest` row.
+
+## A powered staff is charged by its own op and swings on by itself (seam33)
+
+One `t.player.attack` at a goblin with an Eye of Ayak gives seq 12397 every 3 ticks
+(conformance `seam.raid_play_powered_staff_cadence`). Set it up the way a player does:
+`::give <staff>_uncharged` plus its charge material, then
+`t.player.inv_op('<staff>_uncharged', 3)` (the Charge op). Demon tears for the Ayak (one a
+charge), blood runes for the Sanguinesti staff (three a charge); the material leaves the
+backpack. The staff's max hit is floor(Magic / 3) - 6 for the Ayak
+(~powered_staff_maxhit): at Magic 99 a 5-hitpoint goblin dies on the second swing, so a
+cadence check drops Magic after the wield (the closer set 21: max hit 1).
+
+## Seq ids for a loadout (seam33)
+
+Seq ids come from all.seq.compack's `id=name` lines (12397 human_eye_of_ayak_normal, 1167
+human_castwave_staff, 5061 snakeboss_blowpipe_attack). Grep the exact name with an
+anchored `=name$`.
+
+## A weapon swap does not end an attack; time it (seam33)
+
+A raider whose bow is on the boss and who swaps to a staff or wand walks to melee range and
+swings it there (the Maiden freezer stood next to her for 27 ticks); the Maiden plan sends
+a one-tile walk in the swap's tick. On a nylocas copy that still stands, the cheap fix is
+timing: send the swap and its press only when the old weapon's next swing (own last swing +
+worn speed) is two or more ticks off, else wait a tick. Wrong-style wave swings fell from 11
+to 3 on one seed with no tempo cost.
+
+## Piety and Rigour light only when the plan lists them (seam33)
+
+`_play_pray` manages only the prayers in the plan's walk_prayers or down_prayers, so
+`intent.want.piety` on a plan that does not list it lights nothing. The raider row's
+prayer mask shows it: bit 12 Protect from Magic, bit 24 Rigour.
+
+## A ranged or magic press answers "timeout" when it landed (seam33)
+
+`QD.player.attack`'s timeout means pressed, no hit inside the one-tick settle; a dart or an
+arrow cannot land in one tick. `QD.raid._play_press` gives a true answer (pressed, then ok
+when the hitsplat shows).
+
+## The supplies horizon and an overhit settled at the launch (seam33)
+
+Between swings `_play_supplies` looks only 2 ticks ahead. For Maiden's blackstorm, settled
+at the LAUNCH, a raider at low hitpoints with only potions needs two doses 3 ticks apart,
+so the Maiden plan's threat function counts a launch up to 6 ticks out (reach_h).
+
+## A seed survey overwrites its runs' directories (seam33)
+
+A survey of one id writes build/quest_gate/<sv?name>/ for every mode, so the Entry solo
+survey after a party survey destroys the party logs: read or copy the party runs first.
+`build/seed_survey/<id>/results.tsv` is also rewritten per survey.
+
+## Sotetseg trio: the room picks the runner, the others read the glow (seam33)
+
+`QD.raid._play_sotetseg_trio` runs when st.party > 1. The room picks the maze runner (S
+tob_sote_send_party), so whoever lands in the realm runs the Entry path without the row-3
+wait (W:803), and the others follow the glow (`_play_sotetseg_follow`). The arena's glow is
+ONE tile, the runner's current tile (S tob_sote_mirror): a follower remembers every glow in
+order and joins them with straight runs, which works because the runner walks corner to
+corner. A path that fails the maze-shape check (even row one tile, odd row a run) is never
+walked. The maze ends on a 4-tick check that finds BOTH grids empty (a raider off the south
+edge counts as empty), so the runner holds the last tile 6 ticks (party_end_hold).
+
+A homing projectile's dst (`world.projectiles`) is the target's tile as last drawn, one
+tick behind a walking raider: "aimed at me" is dst within one tile, safe with seats 3+
+apart. Ball flight: 5 + 36 + 8 per tile cycles for a ricochet, 20 + 36 + 8 per tile from
+his centre, 30 cycles a tick; adjacent raiders get a 1-tick ricochet. The death-ball share
+splats land over two ticks and can be 0 or 1, so judge the stack by tiles at the landing.
+The conformance row `seam.raid_play_sotetseg_trio_seats` pins the seat geometry.
+
+## A party harness that keeps its solo id needs a party = 3 copy to repeat (seam33)
+
+party_repeat.py has no --party option. A harness that reads its party from QD_PARTY
+(_play_sotetseg, _play_nylocas, _play_maiden) is repeated through a copy with `party = 3,`
+after its id line: `party_repeat.py --script <copy> --name <run> --runs 3`.
+
+## The Nylocas trio's pillar bar is decided by copies never killed (seam33)
+
+Count kills against pops from npc_spawn/npc_death per slot before tuning a target score:
+the 34-44 copies that chew their whole 51 ticks and pop are about half the support damage.

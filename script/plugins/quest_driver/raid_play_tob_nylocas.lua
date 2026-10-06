@@ -60,14 +60,41 @@ QD.raid._play_plan("tob_nylocas", {
     -- leader) is the mage, seat 2 the ranger, seat 3 the meleer.  A party of
     -- one has no role (the Entry plan: every colour, every freeze).
     roles = {
-        { name = "mage", colour = "magic", freeze = true, home = { 31, 24 } },
+        -- raid seam33 play_tob_nylocas_normal_green: the mage's weapon is the
+        -- source's own: "Mages should use an eye of ayak, as its 3 tick speed
+        -- and fairly high damage makes clearing them incredibly trivial. If not
+        -- available, use a 4 tick staff instead ... Barrages should only be used
+        -- when the fight becomes hectic" (W :719).  A powered staff ("a
+        -- category of magic weapons that possess a built-in magic spell", wiki
+        -- Powered staff :8) swings on by itself once pressed, like the whip;
+        -- speed 3, attack range 6 (wiki Eye of Ayak :69-70); its swing seq is
+        -- human_eye_of_ayak_normal (powered_staff.rs2 ~powered_staff_fx), id
+        -- 12397 (all.seq.compack "12397=human_eye_of_ayak_normal").  It lands
+        -- magic damage on a Hagios since seam33 powered_staff_damage_type.  No
+        -- freeze: in Normal a frozen copy keeps biting on this server
+        -- (CONTENT_BUGS, Entry-only freeze stop), and the seam32 mage's Ice Rush
+        -- at five ticks was the room's bottleneck (127-147 ticks of stall).
+        { name = "mage", colour = "magic", freeze = false, home = { 31, 24 },
+            loadout = { magic = { item = "eye_of_ayak", speed = 3, reach = 6, powered = true, seqs = { [12397] = true } } } },
         -- "Rangers should use a toxic blowpipe in this room" (W :717): two
         -- ticks on rapid, an attack range of 5 (wiki Toxic blowpipe), its
         -- swing seq 5061 (s32ny5 ticklog player_anim, every p2 swing;
         -- drive.symbol has no seq kind)
+        -- raid seam33: every trio seat carries a powered staff for the blues
+        -- it helps with: the trio ranger Ayaks mage bigs ("Path west and stand
+        -- 1 tile away from the west barrier. Ayak the ...", trio guide :216;
+        -- :251-255, :289, :334) and the trio meleer Sangs them ("Sang the wave
+        -- 1 south mage, swift the east small, sang the south wave 4 big",
+        -- trio guide :386-387; :434, :453).  The Sanguinesti staff: speed 4
+        -- (wiki Powered staff :6, :10), its swing human_castwave_staff
+        -- (powered_staff.rs2 ~powered_staff_fx), id 1167 (all.seq.compack
+        -- "1167=human_castwave_staff"), reach 7 (the powered staves' 7;
+        -- the Ayak's own 6, wiki Eye of Ayak :70).
         { name = "ranger", colour = "ranged", freeze = false, home = { 30, 23 },
-            loadout = { ranged = { item = "toxic_blowpipe_loaded", speed = 2, reach = 5, seqs = { [5061] = true } } } },
-        { name = "melee", colour = "melee", freeze = false, home = { 31, 25 } },
+            loadout = { ranged = { item = "toxic_blowpipe_loaded", speed = 2, reach = 5, seqs = { [5061] = true } },
+                magic = { item = "eye_of_ayak", speed = 3, reach = 6, powered = true, seqs = { [12397] = true } } } },
+        { name = "melee", colour = "melee", freeze = false, home = { 31, 25 },
+            loadout = { magic = { item = "sanguinesti_staff", speed = 4, reach = 7, powered = true, seqs = { [1167] = true } } } },
     },
     -- how much an own-colour copy is preferred over a colour another seat
     -- owns (score points; a tile of running is 3): another seat's copy is
@@ -76,6 +103,18 @@ QD.raid._play_plan("tob_nylocas", {
     -- (30 at first: the meleer walked the platform for greys, 58 swings in
     -- 340 wave ticks with 9-17 tick gaps, svaplaynyloc survey4)
     own_colour_bonus = 12,
+    -- raid seam33: own colour first as a rule (see the target pick)
+    own_first = true,
+    -- raid seam33: in a party a swap goes out only with the old weapon's next
+    -- swing two or more ticks off (see THE SWAP, TIMED); alone, as before
+    swap_timed = true,
+    -- raid seam33: the meleer waits for (and walks to meet) its own greys in
+    -- the tunnels before taking another seat's colour (measured: no gain on
+    -- two seeds, s33nyseedoneD identical to B; off)
+    own_wait = false,
+    -- raid seam33: the Ayak mage bursts a pure-blue clump of this many (nil:
+    -- off; measured at 3: one cast a room on two seeds, no gain, s33nyseedoneE)
+    burst_clump = nil,
     -- the three protection prayers are the only prayers this plan lights:
     -- "always switch protection prayers ... When its form changes, the player
     -- should again switch prayers" (W :752)
@@ -418,11 +457,14 @@ function QD.raid._play_nylocas_decide(st, v)
         for style, d in pairs(P.reach) do st.ny.reach[style] = d end
         if seat ~= nil and seat.loadout ~= nil then
             for style, L in pairs(seat.loadout) do
-                st.ny.loadout[style] = { item = L.item, speed = L.speed, seqs = L.seqs }
+                st.ny.loadout[style] = { item = L.item, speed = L.speed, seqs = L.seqs, powered = L.powered }
                 if L.reach ~= nil then st.ny.reach[style] = L.reach end
             end
         end
-        st.weapon = st.ny.loadout.ranged
+        -- raid seam33: a trio seat starts with its own colour's weapon on
+        -- (the harness wears it); alone the bow, as before
+        if seat ~= nil then st.ny.worn = seat.colour end
+        st.weapon = st.ny.loadout[st.ny.worn]
     end
     local ny = st.ny
     -- (raid seam31 play_library_faults: the seam30 workaround for the
@@ -559,6 +601,12 @@ function QD.raid._play_nylocas_decide(st, v)
             ny.supports_at_landing = table.concat(bars, " ")
             ny.supports_alive_at_landing = 0
             for _, s in ipairs(v.supports) do if s.alive then ny.supports_alive_at_landing = ny.supports_alive_at_landing + 1 end end
+            -- raid seam33: the weakest standing bar (the kept trio's row asks
+            -- every support above half)
+            ny.supports_min_at_landing = nil
+            for _, s in ipairs(v.supports) do
+                if s.alive and (ny.supports_min_at_landing == nil or s.frac < ny.supports_min_at_landing) then ny.supports_min_at_landing = s.frac end
+            end
         end
         ny.form = vas.form
         ny.target = nil
@@ -694,7 +742,7 @@ function QD.raid._play_nylocas_decide(st, v)
                 if lowest == nil or sp.frac < lowest.frac then lowest = sp end
             end
         end
-        local best = nil
+        local best, cands, own_ok = nil, {}, false
         local function consider(cand)
             if best == nil or cand.score < best.score then best = cand end
         end
@@ -734,7 +782,10 @@ function QD.raid._play_nylocas_decide(st, v)
                 -- own weapon's two or four, and its press failed half the time
                 -- (s32ny10 p3 t150-200: 13 casts pressed, 3 covered, 4 refused,
                 -- seven swings in fifty ticks)
-                if ok and R ~= nil and n.style == "magic" and R.colour ~= "magic" and not (n.fighting and d <= 8) then ok = false end
+                -- (raid seam33: a seat with a powered staff takes blues like
+                -- any other colour, under the own-colour-first rule)
+                if ok and R ~= nil and n.style == "magic" and R.colour ~= "magic" and not ny.loadout.magic.powered
+                    and not (n.fighting and d <= 8) then ok = false end
             end
             local sp = (not n.fighting) and support_of(n) or nil
             n.support = sp
@@ -791,9 +842,47 @@ function QD.raid._play_nylocas_decide(st, v)
                 -- the one already pressed keeps its press unless another is
                 -- clearly worth more (no target flapping, ny30f t328-335)
                 if cur ~= nil and cur.slot == n.slot then score = score - 12 end
-                consider({ score = score, n = n, d = d, style = n.style })
+                cands[#cands + 1] = { score = score, n = n, d = d, style = n.style }
+                if R ~= nil and n.style == R.colour then own_ok = true end
             end
         end
+        -- raid seam33 play_tob_nylocas_normal_green: OWN COLOUR FIRST, as a
+        -- rule, not a weight.  "Each player should be assigned a style of
+        -- Nylocas to kill" (W :706) and "if your assigned nylocas are not
+        -- currently near or in the room, switch weapons ... until the assigned
+        -- nylocas return" (W :746): another seat's colour is taken only while
+        -- none of the raider's own can be pressed, except an aggro ("These
+        -- aggro's should be prioritised first", W :733).  The seam32 weight
+        -- (12 points, four tiles of running) left the meleer bowing greens 44
+        -- times and whipping greys 34 (s33ny1 pid 2), and 38 of 70 greys and
+        -- 31 of 72 blues chewed until they popped.
+        -- raid seam33: "NOT CURRENTLY NEAR OR IN THE ROOM" (W :746).  The
+        -- meleer's greys cannot be hit in their tunnel ("cannot melee them
+        -- until they reach said platform", E :160) but they are near: the
+        -- meleer does not take another seat's colour while one of its own
+        -- walks in, it goes to meet it where it leaves the tunnel ("Claw the
+        -- wave 6 east big as soon as it enters the room", trio guide, melee
+        -- waves 6-9).  ny.wait_for is the nearest such grey (HOME below).
+        ny.wait_for = nil
+        if R ~= nil and P.own_wait and R.colour == "melee" and not own_ok then
+            local bd = nil
+            for _, n in ipairs(v.nylos) do
+                if n.style == "melee" and not ny.nulled[n.slot] and (ny.doomed[n.slot] == nil or ny.doomed[n.slot] < v.tick) then
+                    local lx, lz = n.x - O.x, n.z - O.z
+                    local ea = n.big and P.explode_age_big or P.explode_age
+                    if (lx < P.floor[1] or lx > P.floor[3] or lz < P.floor[2]) and n.age < ea - 12 then
+                        local d = dist(me.x, me.z, n.x, n.z, n.size)
+                        if bd == nil or d < bd then bd, ny.wait_for = d, n end
+                    end
+                end
+            end
+        end
+        for _, c in ipairs(cands) do
+            if R ~= nil and (own_ok or ny.wait_for ~= nil) and P.own_first and c.style ~= R.colour and not c.n.fighting then c.score = c.score + 100 end
+            consider(c)
+        end
+        -- (an only-other-colour pick while waiting is no pick: wait)
+        if best ~= nil and ny.wait_for ~= nil and best.score >= 50 then best = nil end
         -- THE FREEZE: "Ice barrage/burst any clumps of Nylocas you will not be
         -- dealing with. Frozen nylocas cannot attack the pillars until
         -- unfrozen ... all colours can be frozen" (E :164).  A clump of three
@@ -820,6 +909,33 @@ function QD.raid._play_nylocas_decide(st, v)
                 end
             end
         end
+        -- raid seam33: THE MAGE'S BURST.  "Magers and rangers should
+        -- prioritise killing clumps of nylocas with barrage" (W :729) and the
+        -- trio mage's "Barrage the 11 east doubles ... a value clump" (trio
+        -- guide, mage waves 10-12 and 21-23): with the Ayak worn, a clump of
+        -- P.burst_clump or more pressable blues in one 3x3 and nothing else in
+        -- it (another colour under the splash is nulled for the mage) is one
+        -- Ice Burst (Ancient Magicks, runes in the backpack: no staff needed)
+        -- instead of that many Ayak swings.
+        if R ~= nil and P.burst_clump ~= nil and R.colour == "magic" and ny.loadout.magic.powered then
+            for _, n in ipairs(v.nylos) do
+                local d = dist(me.x, me.z, n.x, n.z, n.size)
+                if n.style == "magic" and d <= P.reach.magic and not ny.nulled[n.slot]
+                    and (ny.doomed[n.slot] == nil or ny.doomed[n.slot] < v.tick)
+                    and (ny.waves < P.flicker_wave - 1 or n.age >= P.settle_age) then
+                    local clump, pure = {}, true
+                    for _, o in ipairs(v.nylos) do
+                        if o.x <= n.x + 1 and o.x + o.size - 1 >= n.x - 1 and o.z <= n.z + 1 and o.z + o.size - 1 >= n.z - 1 then
+                            if o.style ~= "magic" then pure = false
+                            elseif not ny.nulled[o.slot] and (ny.doomed[o.slot] == nil or ny.doomed[o.slot] < v.tick) then clump[#clump + 1] = o end
+                        end
+                    end
+                    if pure and #clump >= P.burst_clump then
+                        consider({ score = -30 - 6 * #clump, n = n, d = d, style = "magic", spell = "ice_burst", clump = clump, burst = true })
+                    end
+                end
+            end
+        end
         if best ~= nil then
             local n = best.n
             pick = { slot = n.slot, style = best.style, symbol = n.symbol, vas = false, d = best.d, x = n.x, z = n.z, big = n.big,
@@ -835,7 +951,7 @@ function QD.raid._play_nylocas_decide(st, v)
         local speed = ny.loadout[pick.style].speed
         if cur == nil or cur.slot ~= pick.slot or cur.style ~= pick.style then
             press = true
-        elseif pick.style == "magic" then
+        elseif pick.style == "magic" and not ny.loadout.magic.powered then
             press = cur.swung ~= nil and cur.swung >= cur.pressed and v.tick >= cur.swung + speed - 2
             -- raid seam32: a cast that never showed (the press answered
             -- `timeout` and no cast animation followed) is pressed again, as a
@@ -865,7 +981,8 @@ function QD.raid._play_nylocas_decide(st, v)
                 press = false
                 ny.holds = ny.holds + 1
             end
-            if not press and cur ~= nil and cur.slot == pick.slot and pick.style ~= "magic" then
+            -- (a powered staff swings on by itself: raid seam33)
+            if not press and cur ~= nil and cur.slot == pick.slot and (pick.style ~= "magic" or ny.loadout.magic.powered) then
                 local nxt = math.max(v.tick + 1, (cur.swung or cur.pressed) + speed)
                 if nxt >= stop_at and v.tick + 1 >= nxt - 1 then
                     local sx = me.x + 1
@@ -875,6 +992,26 @@ function QD.raid._play_nylocas_decide(st, v)
                     ny.turn_steps = (ny.turn_steps or 0) + 1
                 end
             end
+        end
+    end
+    -- raid seam33 play_tob_nylocas_normal_green: THE SWAP, TIMED.  A swap
+    -- while the old weapon is engaged on a copy that still stands swings the
+    -- NEW weapon at the OLD copy until the next press lands (seam32,
+    -- svcplaynyloc p2 t163-t167), and a wrong-style hit nulls the raider on
+    -- it for good ("If the nylocas is attacked with a wrong style, the player
+    -- that attacked them can no longer damage them", W :731-733).  The attack
+    -- cooldown is known (the raider's own last swing and the worn weapon's
+    -- speed), so the swap and its press go out only when the old weapon's
+    -- next swing is two or more ticks off -- the press lands first -- and
+    -- otherwise wait a tick: right after that swing the window is open again
+    -- (and the copy is usually dead).  s33nyseedoneA: the meleer's bow swung
+    -- at greys 4 times, the ranger's whip at greens, 11 of 92 matched swings.
+    if press and P.swap_timed and R ~= nil and ny.worn ~= pick.style and cur ~= nil and not cur.vas and cur_row ~= nil
+        and st.engaged and ny.loadout[ny.worn] ~= nil then
+        local next_old = math.max(st.last_swing, cur.swung or -1000) + ny.loadout[ny.worn].speed
+        if next_old - v.tick <= 1 and next_old >= v.tick then
+            press = false
+            ny.swap_holds = (ny.swap_holds or 0) + 1
         end
     end
     local early = nil
@@ -927,7 +1064,10 @@ function QD.raid._play_nylocas_decide(st, v)
         local r, d
         if ny.worn == pick.style then
             local also = {}
-            if pick.style == "magic" then
+            -- raid seam33: a powered staff is pressed like a weapon (its
+            -- built-in spell, wiki Powered staff :8); only a spellbook cast
+            -- goes through the cast path
+            if pick.style == "magic" and (not ny.loadout.magic.powered or pick.spell ~= nil) then
                 -- Ice Burst only on a clump that is ALL blue: "freezing non-magic
                 -- Nylocas means you will no longer be able to do damage to them"
                 -- (E :164); a lone blue gets Ice Rush
@@ -991,8 +1131,20 @@ function QD.raid._play_nylocas_decide(st, v)
         end
     end
 
+    -- raid seam33: the meleer meets its walking grey at the tunnel's mouth
+    -- (the floor tile nearest it; see "NOT CURRENTLY NEAR OR IN THE ROOM")
+    if pick == nil and intent.walk == nil and vas == nil and ny.wait_for ~= nil then
+        local n = ny.wait_for
+        local x = math.max(O.x + P.floor[1], math.min(O.x + P.floor[3], n.x))
+        local z = math.max(O.z + P.floor[2], math.min(O.z + P.floor[4], n.z))
+        if floor_ok(x, z) and not unsafe(x, z, 0) and (x ~= me.x or z ~= me.z)
+            and (st.walk_target == nil or st.walk_target.x ~= x or st.walk_target.z ~= z) then
+            intent.walk = { x = x, z = z }
+            ny.meets = (ny.meets or 0) + 1
+        end
+    end
     -- HOME: nothing to hit and off the centre -> back to it (E :162)
-    if pick == nil and intent.walk == nil and vas == nil then
+    if pick == nil and intent.walk == nil and vas == nil and ny.wait_for == nil then
         local far = math.max(math.abs(me.x - home.x), math.abs(me.z - home.z))
         if far > 2 and not unsafe(home.x, home.z, 0)
             and (st.walk_target == nil or st.walk_target.x ~= home.x or st.walk_target.z ~= home.z) then

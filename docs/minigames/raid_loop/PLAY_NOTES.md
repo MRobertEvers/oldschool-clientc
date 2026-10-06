@@ -200,44 +200,62 @@ hp 27, so the raw hit may have been higher). W:590's halving gives 14 at c=6. It
 with leaks the plan now prevents; the 2026-10-05 survey's spec.maiden.auto_prayed_entry failure
 on svb (19 of 28 off the formula) is the same row, read by the re-author.
 
-## Maiden, Normal trio (`tob_maiden`, mode `normal`), NOT green (raid seam32 play_tob_maiden_normal)
+## Maiden, Normal trio (`tob_maiden`, mode `normal`), NOT green: she dies on 4 of 5 names (raid seam32, seam33 play_tob_maiden_normal_green)
 
-`seed_survey.py _play_maiden --party 3`: **0 of 5**. Every leader reaches the 30% wave; the
-own-name run killed her (room 617 ticks, line "6:10") with seat 3 dead at t632; the other four
-lose the tank at t652-672 with every supply spent (20 anglerfish, 16 brew doses, 13-14 restore
-doses). `party_repeat.py` (the harness copied with `party = 3,`, run s32mzrep): 3 runs AGREE.
-The Entry solo plan is unchanged (`seed_survey.py _play_maiden`: 5 of 5). Same plan file; a
-party of one never reaches any line below (`m.R == nil`).
+`seed_survey.py _play_maiden --party 3` (seam33 final plan, QUEST_BINARY with `::blowpipe`):
+**0 of 5 green, and she DIES on 4 of 5**. On `_play_maiden`, `sva`, `svb` and `svd` the room is
+cleared ("Wave ... (Normal Mode) complete!", `room.cleared` PASS) in 390-470 ticks, and no
+raider dies. Only the technique rows are red: `tech.freeze` and `tech.crabs_killed` need at most
+one leak per threshold; `svb` also fails `tech.tank` (the freezer took a storm). On `svc` the
+leader dies at t406, after two pools (30 + 30) next to her and then a 35 storm at 19 hitpoints.
+Seam32 had the same survey at 0 of 5 with 600-700 tick rooms, and 4 of 5 there died with
+every supply spent. `party_repeat.py --script <harness + party = 3,> --name s33mrep2 --runs 3`:
+AGREE (tick log sha 71740ae402e4, 532 boundaries, lockstep PASS each). The Entry solo plan
+does not move: `seed_survey.py _play_maiden` is 5 of 5, and all five ledgers are
+byte-identical to seam33's post-chinchompa baseline (`seam33/chin/pm_after`). Every line below
+is under `m.R ~= nil` (a party).
 
 | Mechanic | What the plan does | Source |
 |---|---|---|
-| Roles | Seat 1 (the leader) is the ranger tank on 6434,94; seat 2 the freezer on 6441,94 (east of her middle row: both spawn rows within Ice Barrage's ten tiles; from 6440,89 the north spawns were out of reach); seat 3 the north ranger on 6437,100. Tiles re-based on her own tile. | 10Boot yt_4i4lv-srJkw 0:06:33 "The person closest to the boss becomes the tank", "You don't want your mage to be closest"; 0:08:48 "camping on the north side"; W:603 one freezer in a trio |
-| Blackstorm overhit | The hit is settled on her LAUNCH tick against the hitpoints then (tob_maiden.rs2 `~tob_maiden_blackstorm`), so `threat` needs storm + 1 for a launch inside the horizon, judged one tick early (the client sees her animation a tick late; a bite on T-1 is eaten after her scan). The storm is max(25, the largest one-tick loss read + 2). | W:590 "cannot be tick-eaten"; s32mzn1 (12 hp at launch t227, ate t229, died t232), s32mzn4 |
-| Priming | The freezer puts the magic set on while her bar is within 5% of the next threshold and holds it (at most 60 ticks), walking home if a dodge moved it; the first barrage leaves on the spawn tick. | W:643 "hover their mouse over the S1's spawn position"; W:639 "on the first tick possible" |
-| Freeze target | Every 5 ticks: the crab (walking or frozen) with the most WALKING crabs at gap >= 4 in its 3x3, a walking one before a frozen anchor, nearest her among equals. Ice Barrage lands two ticks after the cast (npc_spotanim 369), so a crab nearer than gap 4 reaches her first. The freezer holds its tile (no pre-emptive dodge) while crabs walk. | W:637 "frozen on top of each other in front of Maiden", W:639 "barrage the clump"; 10Boot 0:07:40 closest first |
-| Rangers on crabs | A walking crab at gap <= 5 first, then the crab frozen longest (its ice ends first), then any walking crab, then her. Seat 3 shoots blood spawns when no crab is up. | 10Boot 0:08:14 "machine gun down the crabs that aren't in the clump"; W:639 "kill the stray nylocas before getting back on Maiden"; W:598-600 |
-| Tank swap | Seat 1 steps to the reserve corner 6438,101 at 4 anglerfish left; seat 3 steps onto the tank tile after seeing seat 1 within 1 of that corner (its own `api_drive.players` rows) for 3 ticks. | 10Boot 0:06:33 "You can swap out when someone gets low"; W:589 |
+| Roles | Seat 1, the leader, is the TANK, on 6434,98, north of her middle and still the nearest raider. Seat 2 is the freezer on 6441,94. Seat 3 is the north ranger on 6437,100. Tiles are re-based on her own tile. | 10Boot 0:08:48 "If you're the range or melee role, camping on the north side ... gives the mage space to hit the south freezes and allows you to get the best access to the crab that doesn't get frozen"; 0:06:33 "The person closest to the boss becomes the tank" |
+| THE OPENER | Every seat runs the same steps. The Dragon warhammer goes on in one block (`intent.gear`). The special is armed from the orb with the attack press the next tick (`intent.spec`, under Piety), and the swing is seen as varp300 falling by 500. A 0 splat is swung again while energy lasts (at most 2 swings), and then the bow goes back on. Measured in s33m1: t63-69, splats 0, 35, 33, 29, three drains (200 to 140 to 98 to 69). | 10Boot 0:06:33 "everyone should drop a dragon warhammer spec, then switch to range gear"; W:624 "Instantly hammer Maiden"; W:630 "Elder maul special attacks until two hit"; wiki_Dragon_warhammer.wikitext:59 "30% ... on successful hit" |
+| Rapid, Rigour | The harness presses combat style slot 1 (varp43 = 1), so the bow fires every 5 ticks and the pipe every 2. Rigour is lit beside Protect from Magic outside the opener and the magic set (`down_prayers = { "piety", "rigour" }`, the library's managed list; the Entry plan never wants either). | wiki_Twisted_bow.wikitext:51; wiki_Toxic_blowpipe.wikitext:41, :108; 10Boot 0:02:45 "77 prayer for rigour, augury, and piety" |
+| The pipe | The rangers (seats 1 and 3) put the loaded toxic blowpipe on in one block while Matomenos are up, and put the bow back on when none is left. They shoot crabs within the pipe's reach + 2 of their own tile (s33m2: a tank that chased a south crab died on a pool). A FROZEN crab may be up to 10 away once nothing walks. | 10Boot 0:08:14 "Everyone else should machine gun down the crabs that aren't in the clump with their blowpipe"; W:639 "DPS roles should kill the stray nylocas before getting back on Maiden" |
+| Ranger order | North walkers first, then south walkers, nearest her first. Frozen crabs come last, longest-frozen first. The walker already being shot stays the target while it walks in reach. | 10Boot 0:08:48 (north camp, "the crab that doesn't get frozen"), 0:08:14 (the clump is the freezer's) |
+| Freezer order | Every 5 ticks it barrages the crab with the most walkers at gap >= 4 in its 3x3. A walker beats a frozen anchor; ties go to the nearest her (arrival), then the south one. It never targets a walking N1 (the north spawn nearest her, ten tiles east of her spawn tile). | 10Boot 0:07:40-0:08:14 "freeze the crabs that spawn closest to Maiden first. Prioritizing the south side ... since those crabs reach the boss first"; 0:08:48 "this crab should not get frozen"; W:637 "N1, N2, and S1 cannot be clumped" |
+| The halt | A weapon swap does not end an attack. The freezer's primed wand swap kept its bow attack on her, so it walked to her side and stood there 27 ticks (svdplaymaide t175-202), as the closest raider and out of barrage reach of the north spawns. On the swap tick it now steps one tile east. | (the log) |
+| Leaks seen | The plan counts a crab that was at gap <= 1 with health on its bar and is gone the next tick (a kill shows an empty bar first). The storm a raider eats against is max(mode figure, own largest loss + 2, `floor(floor(36.5 + 3.5c)/2) + 2`). A party raider looks 6 ticks ahead for a launch (two doses), not the library's 2 ticks between swings: svdplaymaide's tank, out of anglerfish at 8 hitpoints, saw the t365 launch at t363 and died with 22 brew doses left. | W:590 "36.5 + (3.5 * c) ... halved by Protect from Magic" |
+| Supplies | Each ranger carries 8 Saradomin brews, 6 super restores and 12 anglerfish, plus the hammer and the pipe. When one brew dose covers what the library asked of a bite, the ranger drinks the dose instead (no attack delay), and restores Ranged at 76 rather than 88. The freezer carries 13 anglerfish, 4 restores and 2 brews, and never takes a brew first (Magic must stay at 94). | 10Boot 0:04:23 "eight brews, four restores, and three anglers"; consume_shared.rs2:49 |
+| Tank swap | Seat 1 steps out at 8 bites left (anglerfish + brew doses), on the tick after one of her launches. Seat 3 steps in on the first tick it sees seat 1 within 1 of the reserve corner. The swap walks are allowed during a wave. | 10Boot 0:06:33; W:589; s33m1 t406 (a mid-cycle step-out left the freezer the closest at the t411 launch) |
 
-Measured (final survey, five names): frozen 3-4 of 6 per threshold, 2-4 reached her per
-threshold, 7-10 a room (heals about 900-1300); rooms 600-700 ticks; damage taken about 2000.
+(e) The rangers' `timeout` on an add press, read: `QD.player.attack`'s `timeout` means "the row
+WAS pressed and no hit showed inside the ONE tick the settle waits" (combat.lua's banner;
+raid_play.lua `_play_press`). A dart or an arrow cannot land inside one tick, so seam32's
+`timeout`s were presses that landed. The party's add press now goes through the library's
+`_play_press`, which answers `pressed` and then `ok` when the hitsplat shows (seam33 leaders:
+`presses [ok 60]`, effect lag +2..+9 ticks).
+
+Measured (sv3, five names): rooms 390-470 ticks (seam32: 600-700). Damage taken by the party is
+636-1076 (seam32: about 2000). Per threshold, 3-5 of 6 crabs are frozen and 1-3 reach her: own
+1/3/2, sva 2/2/1, svb 2/2/3, svd 2/3/3.
 
 Open (the first cause of each red leader, from its log):
-- **Supplies run out before she dies** (four of five): the tank dies at t652-672 with nothing
-  left. The room is long because 7-10 Matomenos reach her (each heals 2x its hitpoints and adds
-  3.5 to every storm) and the bows deal about 6 a tick to her. The sources' tools are absent: the
-  trio's freezer is one of two in the 4-scale tables, the rangers "machine gun" the strays with a
-  blowpipe (10Boot 0:08:14; `toxic_blowpipe_loaded` needs darts and scales loaded,
-  blowpipe_ammo.rs2, no kit verb does it), and the Defence drain at the start (W:605-626, 10Boot
-  0:06:33 "everyone should drop a dragon warhammer spec") is not in the plan.
-- **A new tank does not know the storm** (s32mzn9, svb, svc): `storm_seen` is the raider's own
-  largest loss, so seat 3 stepping in late fight under-eats against a 40+ storm. What a person
-  sees is the hitsplat on the old tank.
-- The rangers' Attack on a walking crab answers `timeout` most presses (`add attack timeout` in
-  every leader's detail); hits still land. Not yet read.
-- Library (raid_play.lua, not this seam's file): `api_drive.players`' pid counts from 1 and the
-  tick log's from 0 (s32mzn1: the leader was players() pid 1, the log's pid 0), so in a party
-  `st.my_pid` names the next raider and the leader counts another raider's swings. The Maiden
-  plan re-reads its own log pid by tile once (`m.pid_fixed`); the library should.
+- **Leaks above one a threshold** (all five; `tech.freeze`, `tech.crabs_killed`). Every
+  threshold leaks N1, as the source says it will. The second and third leaks are the far 3s and
+  4s (spawn x 6444/6448) that walk 12-16 ticks unfrozen. One freezer at one cast per 5 ticks
+  (landing 2 ticks later) freezes 3-4. The darts land but reach only 50-60 of the 75 hitpoints
+  before the crab arrives (svdplaymaide w2: N3 reached her with 21 left). The source's other
+  answers are not in the plan: W:637/639 clumping the 3s and 4s "on top of each other in front of
+  Maiden" by freezing the lead crab and barraging the anchor as the followers walk in (the
+  anchor rule exists, but it counts only walkers already in the 3x3, not ones about to arrive),
+  and W:649's chinchompas on the stack.
+- **svc: the tank in blood next to her**. Its dodges ended on 6433,97 / 6432,96, beside her,
+  where a throw cannot be out-walked ("players in melee distance will need to move before she
+  attacks", W:595). Normal has `presteps = 0`.
+- **svb `tech.tank`**: the freezer took storms on some ticks of the swap. Not read further.
+- Library (raid_play.lua, not this seam's file): the pid base (seam32 note) stands, and the
+  supplies horizon between swings is two ticks, too short for a hit settled at the launch. The
+  Maiden plan widens its own threat function (`reach_h`).
 
 ## The other four rooms: mechanics and sourced answers (for the authors)
 
@@ -305,7 +323,7 @@ about 85% from SMALL chewers (greys 10774 most, about 600 bite animations a run;
 200); freezing clumps on any support (not only under 70%) was measured (c1: support deaths
 1,2,3,3,2 against 3,2,3,3,2) and not kept (taken 1116 against 961 on the same names).
 
-## Nylocas, Normal trio (`tob_nylocas`, mode `normal`), KEPT on five names, thin margin (raid seam32 play_tob_nylocas_normal)
+## Nylocas, Normal trio (`tob_nylocas`, mode `normal`), NOT KEPT under seam33's bar: she dies, nobody dies, the supports do not hold (raid seam32 play_tob_nylocas_normal, seam33 play_tob_nylocas_normal_green)
 
 The harness is `test/raids/_play_nylocas.lua` run with `--party 3` (no `party` field, so the
 same id stays the Entry solo harness: `seed_survey.py _play_nylocas` solo, `--party 3` trio;
@@ -323,6 +341,10 @@ The plan is the Entry plan with seats (`P.roles`, used only when `st.party > 1`)
 | p2 | A toxic blowpipe (2 ticks, reach 5, seq 5061), loaded in run() by use-on (darts, then scales). | W:717 "Rangers should use a toxic blowpipe in this room" |
 | Vasilias | All three follow her form and pray by it; NO SWING on or after the predicted turn (the colour is judged at the swing): a press whose first swing falls within `turn_margin` 1 is held, a weapon swinging on its own is stopped by a step the tick before. Windows 9 then 10. | W:752 "change forms every 10 ticks"; W:733 "If player makes an attack just before the nylocas changes forms, they will still take damage from it"; tob.constant ^tob_vasilias_first_switch_ticks 9 / _switch_ticks 10 |
 | kit | The Entry set and weapons, anglerfish 7 in place of the Entry chest's bandages (p2: 6 and the blowpipe's scales). | transcripts/yt_KF9y2GYTJ-A.md:114 "make sure that you eat your angler" |
+| p1 (seam33) | An Eye of Ayak (powered, 3 ticks, reach 6, seq 12397), given uncharged and charged in run() by its Charge op with demon tears (setup.ayak); no freeze. Starts with it on. | W:719 "Mages should use an eye of ayak, as its 3 tick speed ... Barrages should only be used when the fight becomes hectic"; wiki Eye of Ayak :22, :69-70 |
+| p2, p3 (seam33) | The helpers' blues: p2 an Eye of Ayak, p3 a Sanguinesti staff (powered, 4 ticks, reach 7, seq 1167, charged with blood runes: setup.sang) in place of the battlestaff's Ice Rush; a powered-staff seat takes blues like any colour. p3 starts with the whip on. | trio guide :216, :251-255, :289, :334 (the ranger Ayaks mage bigs), :386-387, :434, :453 (the meleer Sangs); wiki Powered staff :6, :10 |
+| seats (seam33) | OWN COLOUR FIRST as a rule (`own_first`): another seat's colour only while none of the seat's own can be pressed; aggros stay every seat's. | W:706 "Each player should be assigned a style"; W:746 "if your assigned nylocas are not currently near or in the room, switch weapons"; W:733 |
+| swaps (seam33) | THE SWAP, TIMED (`swap_timed`, a party only): a swap and its press go out only when the old weapon's next swing is two or more ticks off while it is engaged on a copy that still stands. | W:731-733 a wrong-style hit nulls the raider on the copy; seam32's "a swap keeps swinging at the old copy" |
 
 **Party reads (what a member sees).** A member holds no tick log, so it read no swing of its
 own (s32ny2: p2/p3 "0 swings" in 933 ticks; its turn hold and re-press ran blind): it reads
@@ -365,6 +387,63 @@ age 20-25 ticks (blue chewers 24-28, big blues ~40, greens 17-20).
   if no next press comes inside five ticks.
 - Driver (spell.lua `_select_row_is_held`): Ice Rush presses answer `refused` 15 of 41 for a
   helper seat (s32ny7 p2), about a third.
+
+**Seam33 (play_tob_nylocas_normal_green): the powered staves and the rules above, measured.**
+The KEPT bar is now every support standing and above half its bar when she lands
+(`tech.pillars_at_boss`, 4 of 4, each > 0.50). `seed_survey.py _play_nylocas --party 3
+--names 7` on the final plan: 0 of 7 under that row. She died and nobody died on all seven;
+under seam32's ">= 1 standing" row it would be 5 of 7 (`tech.prayer` red on two). The two
+names that failed seam32 (sve, svf) now survive, and svf has all four standing.
+`party_repeat.py` on the trio copy (s33nyrepG): 3 runs AGREE, sha e8bf33f48acb, 788
+boundaries. The Entry solo survey: 5 of 5, ledgers byte-identical.
+
+| name | stall (last wave vs 236) | standing at her landing | bars |
+|---|---|---|---|
+| _play_nylocas | 99 | 1 | 36,29:0.21 |
+| svaplaynyloc | 83 | 2 | 36,29:0.17 36,18:0.05 |
+| svbplaynyloc | 91 | 1 | 36,29:0.19 |
+| svcplaynyloc | 103 | 2 | 36,29:0.33 25,29:0.04 |
+| svdplaynyloc | 95 | 1 | 36,29:0.12 |
+| sveplaynyloc | 111 | 1 | 36,29:0.30 |
+| svfplaynyloc | 83 | 4 | 0.28 0.15 0.16 0.03 |
+
+The step by step, on one seed (s33nyseedone*; nylo/nyan.py over the leader's tick log):
+- seam32 plan: 129 of 206 copies killed, 119 ticks of stall, a raider died.
+- (1) Ayak mage + (2) own colour first + own weapon at the start: 163 killed, stall 115.
+- (3) the timed swap: 172 killed, stall 99, wrong-style wave swings 11 -> 3 of the matched
+  swings, 3 of 4 standing (0.20 / 0.07 / 0.03).
+- (6) helper staves: ranger swings 118 -> 131-142 in the waves (27-29 of them Ayak).
+
+Tried and NOT kept, each measured on two seeds (behind a flag or reverted):
+- `big_cost` 8 ("prioritising the smaller ones first", W:746): stall 87 / 115.
+- `own_wait` (the meleer waits for and meets its tunnel greys): identical on one seed, no gain
+  on the other.
+- `burst_clump` 3 (the Ayak mage bursts a pure-blue 3x3): only 3 casts a room.
+
+**Why it is red (the first cause, every red leader).** The trio does not kill fast enough.
+- Stall: 83-111 ticks before wave 31, where real trios have none before wave 28 (trio guide
+  :21-24).
+- Unkilled copies: 34-44 of 206 per room, mostly greys (16-24 of 63-69) and blues (12-21 of
+  75-80). They chew for their whole 51 ticks and then pop, which is about half of the
+  supports' damage.
+- Late surge: 23-30 copies are alive at t350-450 (the cap is 24 from wave 20). The supports
+  lose 170-270 hp per 50 ticks there, and the first support falls at t434-484.
+- The meleer is the bottleneck. It swings 66-77 times in about 390 wave ticks (one every 5-6
+  ticks on a 4-tick whip) and loses 79-113 ticks to gaps over 4 ticks, walking between the
+  pillars' grey clumps.
+- Grey and blue hits read about 20 percent zero. With stat1 (Defence) 200 on every copy
+  (cache_npc_nylocas.txt), the Entry void set is short of accuracy.
+
+The trio guide's own levers are the next rows:
+- chinchompas on green and grey doubles (seam33 chinchompa_multi_target landed the splash);
+- a scythe on grey doubles and bigs (trio guide :232-239, :415);
+- the 3-tick swift blade (:386);
+- the per-wave lane assignment (blert_nylo_pillar_assignment.json).
+
+`tech.prayer`'s "blocks >= 20" was written for Entry solo. In a party the leader is hit less
+(11-18 blocks against 1-12 that landed on svb/svd/sve, in the survey of the plan before the
+helper staves), so it reads red on a plan that prays
+right. It needs a party form (blocks against landed) from the owner, not a lower number.
 
 ## Sotetseg, Entry solo (`tob_sotetseg`, mode `entry`), proved
 
@@ -409,6 +488,49 @@ Measured (survey2, final plan; mark to npc_death):
 Every "prayer" mistake is a melee through Protect from Melee (Entry 1..10, unsourced: CONTENT_BUGS
 seam30); 0 unprayed balls, 0 tornado hits, 0 off-path tiles, 0 missed attacks. The ticks with no
 attack are the two mazes (about 36-46 each, proc to the first hit back).
+
+## Sotetseg, Normal trio (`tob_sotetseg`, mode `normal`), proved (raid seam33 play_tob_sotetseg_normal)
+
+Plan: `QD.raid._play_sotetseg_trio` (the decide dispatches to it when `st.party > 1`; the solo
+Entry decide is unchanged), `QD.raid._play_sotetseg_follow` (the raiders reading the glow),
+`QD.raid._play_sotetseg_seat`, and two party lines in the runner's `QD.raid._play_sotetseg_maze`.
+Harness: `test/raids/_play_sotetseg.lua` with `--party 3` (`trio_kit` / `trio_run`; solo is as
+before). Every raider swings the scythe. T = transcripts/yt_4i4lv-srJkw.md, K =
+transcripts/yt_KF9y2GYTJ-A.md.
+
+| Who / when | Intent | Source |
+|---|---|---|
+| all, seats | p1 east (his east face, middle), p2 west (south end of the west face), p3 north-west (the west face's z+3: z+4 is not standable, s33soa). Each seat shares an edge with him and is 3+ tiles from his centre and from the other seats, so no ball or ricochet flies under 2 ticks (S tob_sote_ricochet: 5 + 36 + 8 per tile cycles) | W:791 "In a trio encounter, players will stand to the east, west and north-west respectively" |
+| all, prayer | Protect from Magic from the barrier; Protect from Melee in his range; the ball's colour from the tick a red/grey shot is seen with its dst within a tile of the raider until it has landed (a homing dst lags a walking raider a tick) | K:151 "to start the room pray magic and piety"; E:191 (the Entry switch); the owner's ruling (ball read at impact) |
+| all, death ball | On a 1604 in the air, from 5 ticks before it lands to the tick after, everyone stands on the tile in front of his south face; the share is S tob_sote_ball_impact's radius 1 | W:794 "This damage can be split among other players"; T:95 "all gather together on the tile directly in front"; K:151 "group up at the center tile in front of the boss" |
+| runner (the room picks: S tob_sote_send_party hunts and sends the first; p1 on every name) | The Entry runner, with no row-3 wait (no tornado for the runner in a party) and the last tile held 6 ticks so the others are on the arena grid before the 4-tick check | W:803 "This tornado will not appear for the maze runner (unless they are the only player)"; S tob_sote_runner_tick; S tob_sote_grid_occupied (both grids) |
+| the other two | Read the ONE lit tile on the arena grid each tick (S tob_sote_mirror), join two glows on a straight run, wait off the grid's south edge until the glow reaches the last row, check the maze's shape (even row one tile, odd row a run), then walk it corner to corner and step off north. A path that fails the check is never walked (the maze still ends when the runner leaves) | W:799 "forcibly teleported to the other end"; W:801 "a red glow"; T:97 "Everyone else just needs to follow the path ... only use straight line movement"; W:803 the wrong tile's blast |
+| kit | `::maxmelee`, prayer 99, Agility 99, 16 anglerfish, 3 restores, 1 super combat, 4 brews | K:114 anglerfish; T:93-95 eat/brew; the Bloat trio's run energy finding |
+
+**Measured, `seed_survey.py _play_sotetseg --party 3` 5 of 5 green (twice, byte-identical
+measures), `party_repeat.py` on a `party = 3` copy 3 runs AGREE** (tick log sha ff3749ba10c8,
+466 boundaries). Room ticks from the mark; pids as the log counts them (p0 = the leader).
+
+| Leader name | Room ticks | Taken p0 / p1 / p2 | Maze 1 (proc-react) | Maze 2 | Death balls: share each (all 3 stacked) | His melee | Balls blocked |
+|---|---|---|---|---|---|---|---|
+| _play_sotetseg | 428 | 291 / 219 / 263 | 44 | 41 | 37, 1, (t456 after his death) | 33 | 78 |
+| svaplaysotet | 419 | 153 / 181 / 247 | 42 | 53 | 7 (one more nulled by a maze, W:799) | 31 | 83 |
+| svbplaysotet | 424 | 216 / 211 / 339 | 43 | 46 | 25, 18 | 37 | 68 |
+| svcplaysotet | 397 | 293 / 248 / 305 | 44 | 40 | 9, 4 | 31 | 67 |
+| svdplaysotet | 438 | 256 / 285 / 267 | 47 | 47 | 18, 15 | 38 | 71 |
+
+Every maze: one raider in the realm (p0), the other two on the arena grid 16-23 ticks each, 0 off
+the path, 0 gaps in the glow, 0 hits over 3 while a maze was on. No deaths. raid_report: 69-85
+mistakes a name (food 30-36: eats over 90 hitpoints while the disabled-prayer threat counts 95;
+prayer 39-51, of which about 18 are melee through Protect from Melee, W:787's 22, and 6-10 are
+ricochets or melee taken while switching: t37-39 on the walk in, t165 the runner's walk back).
+
+**Not done (tried, red).** The Defence drain (W:781-784 "1-2, 1-3, 2-3"; T:91 the trio's order;
+K:149 "your Dragon warhammers") with the Bloat run-by's machine: s33sob, all three died (p3 t500,
+p2 t555, p1 t600), boss alive. First causes from the log: p3's special never spent energy
+(gave up phases 2 and 3: the hammer stayed worn), p2's attack press `not_visible` from t350, and
+damage taken 565 / 424 / 448 against about 250. Reverted; the code is kept at
+build/seam_state/matthew-mbp-m4-raid-b1-seam33/sote/raid_play_tob_sotetseg.hammer_red.lua.
 
 ## Xarpus, Entry solo (`tob_xarpus`, mode `entry`), proved
 

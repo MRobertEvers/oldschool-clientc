@@ -1,0 +1,208 @@
+{{Otheruses|def=no|the autocast mode of the sceptre|accursed sceptre (a)|the basic sceptre|Thammaron's sceptre}}
+{{Infobox Item
+|defver = 2
+|version1 = Uncharged
+|version2 = Charged
+|name1 = Accursed sceptre (u)
+|name2 = Accursed sceptre
+|image1 = [[File:Accursed sceptre (u).png]]
+|image2 = [[File:Accursed sceptre.png]]
+|release = [[25 January]] [[2023]]
+|update = Wilderness Boss Rework
+|members = Yes
+|quest = No
+|tradeable1 = Yes
+|tradeable2 = No
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options1 = Wield, Dismantle, Swap, Drop
+|options2 = Wield, Check, Swap, Uncharge
+|wornoptions1 = None
+|wornoptions2 = Check, Swap
+|examine = A mighty sceptre from long forgotten battles, corrupted by the power of Vet'ion.
+|value = 175000
+|weight = 0.198
+|exchange1 = Yes
+|exchange2 = No
+|id1 = 27662
+|id2 = 27665
+|leagueRegion = Wilderness
+}}
+{{Synced switch
+|version1 = [[File:Accursed sceptre (u) detail.png|left|150px]]
+|version2 = [[File:Accursed sceptre detail.png|left|150px]]
+}}
+[[File:Accursed sceptre spell.gif|thumb|250px|A player using the accursed sceptre's built in spell.]]
+The '''accursed sceptre'''  is a [[powered staff]] requiring 70 [[Magic]] to wield. It is a direct upgrade of [[Thammaron's sceptre]], made with level 85 [[Crafting]] by using the [[Skull of Vet'ion]] on the Thammaron's sceptre (note that this process is reversible). Players without the required level to combine the items may ask [[Phabelle Bile]] in [[Ferox Enclave]] to do so instead, for a fee of 500,000 coins. The item counts as a [[Zamorak]]ian item in the [[God Wars Dungeon]]. Like most powered staves, it is only tradeable when it is fully uncharged.
+
+Compared to [[Thammaron's sceptre]], the accursed sceptre has a higher max hit (usually +1 or +2 higher, depending on gear), +7 extra [[magic accuracy]], and a unique [[special attack]].
+
+The sceptre also has a "Swap" option that allows players to switch it to an [[accursed sceptre (a)]], which is a variant that can [[autocast]] offensive [[combat spells]] from the [[standard spellbook]] (including [[Flames of Zamorak]]) and the [[Ancient Magicks]].
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Charged
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = +22
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = +20
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 4
+|attackrange = 7
+|combatstyle = Powered Staff
+|image1 = [[File:Accursed sceptre (u) equipped male.png|220px]]
+|image2 = [[File:Accursed sceptre equipped male.png|220px]]
+|altimage1 = [[File:Accursed sceptre (u) equipped female.png|220px]]
+|altimage2 = [[File:Accursed sceptre equipped female.png|220px]]
+}}
+
+{{CombatStyles|Powered Staff|speed=4|attackrange=7}}
+
+==Passive effect==
+When the accursed sceptre is charged with [[revenant ether]], an additional 50% magic accuracy and damage boost is applied when attacking any [[NPC]] in the [[Wilderness]], consuming 1 ether per attack whether the player hits or not. It is also applied to any [[combat spells]] cast when it is equipped, though it cannot [[autocast]] them in powered staff mode.
+
+This effect will stack with a [[Slayer helmet (i)]] or a [[Salve amulet(i)]] and their variants, but not both simultaneously. This makes the sceptre the best magic weapon in the Wilderness, surpassing the damage output of a [[trident of the seas]] or [[Trident of the Swamp|swamp]] with the additional capability of attacking any hostile players, which both tridents are incapable of doing.
+
+==Special attack==
+[[File:Condemn.gif|thumb|250px|A player performing the Accursed sceptre's special attack, ''Condemn''.]]
+The accursed sceptre has a [[special attack]], ''Condemn'', which consumes 50% of the player's special attack energy and 1 [[revenant ether]] (whether it hits or not). The special attack hits an enemy with a 50% increase to max hit and accuracy, and upon a [[successful hit]], also drains the target's Defence and Magic by 15%, regardless of the damage inflicted.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1630218328240209920|date=27 February 2023|archiveurl=https://reldo.runescape.wiki/i/97025|archivedate=29 March 2023|quote=Looks to me like it's unaffected by what damage you did. It's saying "up to 15%" because if the target's stat was already de-buffed, it'll take them down to a total de-buff of 15%, rather than stacking with the existing de-buff for a bigger total effect.}}
+
+If the target's levels have already been reduced, ''Condemn'' will only drain them to a maximum of 15%. As a result, multiple special attacks do not stack. For example, a target with level 80 Defence and Magic cannot have their stats drained lower than 68 if using Condemn.
+
+==Creation==
+<tabber>
+|-| Crafting =
+{{Recipe
+|skill1 = Crafting
+|skill1lvl = 85
+|skill1boostable =Yes
+|skill1exp = 0
+|members = Yes
+|ticks = 1
+|mat1 = Thammaron's sceptre (u)
+|mat2 = Skull of Vet'ion
+|output1 = Accursed sceptre (u)
+|output1subtxt = Crafting
+}}
+|-| Phabelle Bile =
+{{Recipe
+|members = Yes
+|ticks = 1
+|facilities = Phabelle Bile
+|mat1 = Thammaron's sceptre (u)
+|mat2 = Skull of Vet'ion
+|mat3 = Coins
+|mat3cost = 1
+|mat3quantity = 500000
+|output1 = Accursed sceptre (u)
+|output1subtxt = Phabelle Bile
+}}
+</tabber>
+
+==Charging and death==
+To use the sceptre's passive effect, it must first be activated with 1,000 [[revenant ether]] (costing {{NoCoins|{{GEP|Revenant ether|1000}}|c}}). The 1,000 ether used to activate the sceptre '''does not''' count towards the usage of the passive effect, thus additional ether must be added (up to 16,000) to increase the sceptre's damage output. Players can configure the charges while the sceptre is in their bank by right-clicking on Configure-Charges, as long as players have the required materials. The hourly cost of constantly using this weapon to cast spells is 1,500 ether or {{NoCoins|{{GEP|Revenant ether|1500}}|c}}, as spells can only be cast every 4 [[game tick]]s.
+
+The ether can be safely removed by selecting the right-click ''Uncharge'' option on the sceptre, after which the sceptre becomes tradeable again.
+
+Upon [[death]] within the Wilderness, any revenant ether stored within the sceptre will '''always''' be dropped, even if it is one of the player's protected items. Because of this, despite the sceptre being able to store a maximum of 17,000 revenant ether, it is recommended to store the minimum amount required for a trip into the Wilderness (in addition to the 1,000 ether required to activate the weapon).
+
+==Maximum hit==
+The [[Maximum Magic hit|maximum hit]] dealt by the sceptre is dependent on the player's current [[Magic]] level. The formula is as follows:
+
+<math>\begin{align}
+\text{Max Hit} &= \frac{\text{Magic}}{3} - 6\\
+\end{align}</math>
+
+The base [[Maximum Magic hit|maximum hit]] dealt by the sceptre is dependent on the player's current [[Magic]] level, starting at 17 with level 70 Magic, increasing by one at 72 and every three Magic levels thereafter, up to a maximum of 35 at level 123 (obtainable only through [[smelling salts]] in [[Tombs of Amascut]]). Both magic damage bonuses and visible stat boosts will modify the max hit of the spell; likewise, stat-reductions will lower the damage. Invisible boosts, such as from the sceptre's attack styles, do not affect the max hit.  At 0 magic, the sceptre has a maximum hit of 0.
+
+===Calculator===
+{{Magic damage calculator|Accursed sceptre|weapons=Accursed sceptre (Wilderness)}}
+
+==Comparison between other magic weapons==
+{{Magic weapons comparison}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Accursed sceptre}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 July 2026
+|update = The Blood Moon Rises & Bank Tags Tweaks
+|change = Fixed a bug where the Auto-Charge from Bank feature allowed the Revenant weapons to be loaded with up to 17,000 ether when they were already in their charged state. The maximum capacity option should now respect the maximum charges you can add at 16,000.
+}}
+{{Subject changes
+|date = 13 May 2026
+|update = Sailing Changes and Gem Bag Expansion
+|change = The accursed sceptre's special attack now correctly works on the enemies in Chambers of Xeric.
+}}
+{{Subject changes
+|date = 5 March 2025
+|update = Game Jam: Charges QoL
+|change = The Accursed sceptre supports a bank item option for changing charges.
+}}
+{{Subject changes
+|date = 3 May 2023
+|update = Points-Based Combat Achievements
+|change = * The item now prompts players to input the amount of [[revenant ether|ether]] they would like to add if there is another [[Wilderness weapon]] in their inventory.
+* The ‘Check’ [[Bank#Inventory_item_options|inventory option]] has been replaced with ‘Wield’ when the [[Bank]] is open.
+}}
+{{Subject changes
+|date = 5 April 2023
+|update = Easter 2023
+|change = Players can now check the number of charges in the Accursed sceptre while in the [[Bank]] interface, via a new ‘Check’ option.
+}}
+{{Subject changes
+|date = 8 February 2023
+|update = Poll 78 Updates & More
+|change = The standard attack animation is now corrected when used against players.
+}}
+{{Subject changes
+|date = 2 February 2023
+|update = Wilderness Boss Rework Tweaks & More
+|change = Missing text in the accursed sceptre creation message has been restored.
+}}
+{{Subject changes
+|prerelease = yes
+|page = Ursine chainmace (beta)
+|date = 21 September 2022
+|update = Tombs of Amascut Changes & Beta Tweaks
+|change = A "Swap" option has been added to the accursed sceptre allowing it to change into an autocasting variant.
+}}
+{{Subject changes
+|beta = Wildy & Dynamite Beta
+|daterange =  14 September - 19 October 2022
+|change = First present in the Wildy & Dynamite Beta.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Accursed sceptre concept art.jpg|Concept art of the accursed sceptre by [[Mod Jerv]].
+Accursed sceptre work-in-progress.jpg|Work-in-progress of the equipped model, by [[Mod Skylark]].
+Wilderness Boss Rework - Poll Blog (4).gif|Work-in-progress animation of ''Condemn''.
+</gallery>
+
+==Trivia==
+*The accursed sceptre, alongside Thammaron's sceptre, are almost weightless which is unique compared to other powered staves.
+
+==References==
+{{Reflist}}
+
+{{Wilderness bosses}}
+{{Magic weapons}}
+[[Category:Defence reduction]]
+[[Category:Items with charges]]
+[[Category:Weapons with Special attacks]]

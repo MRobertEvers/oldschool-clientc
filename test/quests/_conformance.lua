@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 194
+-- @verb-count 195
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 184
+-- @seam-count 186
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 194
-local SEAM_COUNT = 184
+local VERB_COUNT = 195
+local SEAM_COUNT = 186
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -12098,6 +12098,100 @@ return {
                 .. "each showed the rise, " .. prompt .. " of them on the cast's tick or the next"
         end)
 
+        -- raid seam33 play_tob_nylocas_normal_green: a powered staff charged by
+        -- its own op and swinging on by itself at its own speed.
+        seam("seam.raid_play_powered_staff_cadence", function()
+            local G = "goblin_unarmed_melee_1"
+            local goto_tile = verb("player", "goto_tile")
+            local inv_op = verb("player", "inv_op")
+            local equip = verb("player", "equip")
+            local attack = verb("player", "attack")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not inv_op then return missing("player", "inv_op") end
+            if not equip then return missing("player", "equip") end
+            if not attack then return missing("player", "attack") end
+            t.ticklog.start()
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::give eye_of_ayak_uncharged 1")
+            setup_cheat("::give demon_tear 200")
+            if goto_tile(3229, 3233, 0) ~= "ok" then return "no_subject", "goto the goblin field" end
+            local cr, cd = inv_op("eye_of_ayak_uncharged", 3)
+            settle(2)
+            local _, ayaks = t.inv.count("eye_of_ayak")
+            local _, tears = t.inv.count("demon_tear")
+            if cr ~= "ok" or ayaks ~= 1 or tears ~= 0 then
+                return "fail", "Charge " .. tostring(cr) .. " " .. string.sub(tostring(cd), 1, 80) .. "; eye_of_ayak " .. tostring(ayaks) .. ", demon tears left " .. tostring(tears)
+            end
+            local er = equip("eye_of_ayak")
+            settle(1)
+            if er ~= "ok" then return "fail", "equip eye_of_ayak " .. tostring(er) end
+            -- closer seam33: the staff's max hit is floor(Magic / 3) - 6
+            -- (gear/powered_staff.rs2 ~powered_staff_maxhit); at 99 it is 27
+            -- and a 5-hitpoint goblin died on the second swing (4 then 1), so
+            -- the cadence was never seen.  Magic 21 after the wield makes it 1:
+            -- the goblin outlives the window and every swing is the staff's own.
+            setup_cheat("::setlevel magic 21")
+            setup_cheat("::spawn " .. G)
+            setup_cheat("::passive " .. G)
+            settle(3)
+            -- the server's tick restarts within a conformance run (seam32
+            -- closer), so this row's swings are the rows after its own mark
+            t.ticklog.mark("seam.raid_play_powered_staff_cadence")
+            local _, staff_marks = t.ticklog.rows({ kind = "mark" })
+            local since = (staff_marks and #staff_marks > 0) and staff_marks[#staff_marks].serial or 0
+            local ar = attack(G, 2, 3, { quick = true })
+            settle(14)
+            local _, anims = t.ticklog.rows({ kind = "player_anim" })
+            local swings, gaps, three = {}, {}, 0
+            for _, r in ipairs(anims) do if r.seq == 12397 and r.serial > since then swings[#swings + 1] = r.tick end end
+            for i = 2, #swings do
+                gaps[#gaps + 1] = swings[i] - swings[i - 1]
+                if swings[i] - swings[i - 1] == 3 then three = three + 1 end
+            end
+            if #swings < 3 or three ~= #swings - 1 then
+                return "fail", "one press " .. tostring(ar) .. "; seq 12397 swings at " .. table.concat(swings, ",") .. " (gaps " .. table.concat(gaps, ",") .. ")"
+            end
+            return "ok", "Charge ok (eye_of_ayak 1, tears 0); one press " .. tostring(ar) .. ", seq 12397 swings at " .. table.concat(swings, ",")
+                .. " (gaps " .. table.concat(gaps, ",") .. "): a powered staff swings on by itself every 3 ticks"
+        end)
+
+        -- raid seam33 play_tob_sotetseg_normal: the trio plan's seats (W:791),
+        -- pure geometry: no two seats in 1-tick ricochet range.
+        seam("seam.raid_play_sotetseg_trio_seats", function()
+            local seat = verb("raid", "_play_sotetseg_seat")
+            local range = verb("raid", "_play_sotetseg_range")
+            if not seat then return missing("raid", "_play_sotetseg_seat") end
+            if not range then return missing("raid", "_play_sotetseg_range") end
+            -- his footprint in s33soa's tick log: south-west 6413,104, size 5
+            local b = { x = 6413, z = 104, size = 5 }
+            local cx, cz = b.x + 2, b.z + 2
+            local seats, parts = {}, {}
+            for role = 1, 3 do
+                local x, z = seat({ role = role }, b)
+                seats[role] = { x, z }
+                parts[#parts + 1] = "p" .. role .. " " .. x .. "," .. z
+                -- the scythe's reach: an edge of his footprint, never a corner
+                local dx = math.max(0, b.x - x, x - (b.x + 4))
+                local dz = math.max(0, b.z - z, z - (b.z + 4))
+                if range(b, x, z) ~= 1 or (dx > 0 and dz > 0) then
+                    return "fail", "role " .. role .. " seat " .. x .. "," .. z .. " is not on an edge of his footprint"
+                end
+                if math.max(math.abs(x - cx), math.abs(z - cz)) < 3 then
+                    return "fail", "role " .. role .. " seat " .. x .. "," .. z .. " is under 3 tiles from his centre (a 1-tick ball)"
+                end
+            end
+            for i = 1, 3 do
+                for j = i + 1, 3 do
+                    local d = math.max(math.abs(seats[i][1] - seats[j][1]), math.abs(seats[i][2] - seats[j][2]))
+                    if d < 3 then
+                        return "fail", "seats " .. i .. " and " .. j .. " are " .. d .. " apart (a ricochet under 2 ticks)"
+                    end
+                end
+            end
+            return "ok", "east, west, north-west (W:791): " .. table.concat(parts, "; ")
+                .. "; every seat on an edge, 3+ tiles from his centre and from each other"
+        end)
+
         -- seam17 party_run_and_verbs: conformance rows for t.party.* (script/plugins/
         -- quest_driver/raid.lua). PLACE: in _conformance.lua's PLAN directly AFTER
         -- step("raid.leave", ...) (the raid stanza), in this order. VERB_COUNT +12.
@@ -17774,6 +17868,46 @@ return {
             t.drive._camera_turn_forced = false
             return result == "refused" and "ok" or "hollow",
                 tostring(result) .. " " .. tostring(detail and detail.why)
+        end)
+
+        -- raid seam33 kit_loaded_blowpipe: t.inv.blowpipe() reads the toxic
+        -- blowpipe's load from the SERVER (the darts and scales are item vars on
+        -- the item instance, blowpipe_ammo.rs2, which no client record carries)
+        -- through the read-only `::blowpipe` readout. The subject is made by the
+        -- kit line itself, `::blowpipe dragon_dart 7 5` (torirs_server_world.c,
+        -- beside ::give): the pipe, 7 darts and 5 scales given, then the
+        -- content's own use-on loads them. The row asks the exact counts back and
+        -- that the darts left the backpack, so a reader that answered ok on an
+        -- empty pipe, or a load that left the darts loose, is hollow.
+        step("inv.blowpipe", function()
+            local fn = verb("inv", "blowpipe")
+            local cheat = verb("cheat")
+            local count = verb("inv", "count")
+            if not fn then return missing("inv", "blowpipe") end
+            if not cheat then return missing("cheat") end
+            if not count then return missing("inv", "count") end
+            cheat("::clearinv")
+            local load_result, load_detail = cheat("::blowpipe dragon_dart 7 5")
+            if load_result ~= "ok" then
+                return "no_subject", "::blowpipe dragon_dart 7 5 -> " .. describe(load_result) .. " "
+                    .. describe(load_detail)
+            end
+            t.ticks(2)
+            local result, pipe = fn()
+            if result ~= "ok" then
+                return result, describe(pipe)
+            end
+            if type(pipe) ~= "table" or pipe.where ~= "inv" or pipe.darts ~= 7 or pipe.scales ~= 5
+                or not is_number(pipe.dart) or pipe.dart < 0 then
+                return "hollow", "loaded 7 darts and 5 scales, read back "
+                    .. (type(pipe) == "table" and tostring(pipe.line) or describe(pipe))
+            end
+            local loose_result, loose = count("dragon_dart")
+            if loose_result ~= "ok" or loose ~= 0 then
+                return "hollow", "the pipe reads 7 but the backpack still holds "
+                    .. describe(loose) .. " dragon darts (" .. describe(loose_result) .. ")"
+            end
+            return "ok", pipe.line .. "; backpack dragon darts 0"
         end)
 
         -- raid seam25 starting_character_state: t.session.held and t.session.reset

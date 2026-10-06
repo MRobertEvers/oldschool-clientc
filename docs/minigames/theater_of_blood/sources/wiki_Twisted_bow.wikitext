@@ -1,0 +1,138 @@
+{{Infobox Item
+|name = Twisted bow
+|image = [[File:Twisted bow.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|aka = Tbow
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wield, Drop
+|examine = A mystical bow carved from the twisted remains of the Great Olm.
+|value = 4000000
+|weight = 1.814
+|respawn = 100
+|exchange = Yes
+|id = 20997
+|leagueRegion = Kourend,Desert,Morytania
+}}
+[[File:Twisted bow detail.png|150px|left]]
+The '''twisted bow''' is a rare reward from the [[Chambers of Xeric]] that requires a [[Ranged]] level of 85 to wield. It can fire any type of arrow, including [[dragon arrow]]s. The twisted bow is extremely valuable due to its unmatched power against monsters with a high Magic level or accuracy bonus, such as [[Commander Zilyana]] and [[TzKal-Zuk]].
+
+Similar to the [[crystal bow]], the bow has an [[attack range]] of 10 tiles. As all attacks have a maximum of 10 range, [[Combat Options|longrange]] does not provide any attack distance benefit but may still be used to gain [[Defence]] XP.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = +70
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = +20
+|mdmg = 0
+|prayer = 0
+|slot = 2h
+|speed = 6
+|attackrange = 10
+|combatstyle = Bow
+|image = [[File:Twisted bow equipped male.png|180px]]
+|altimage = [[File:Twisted bow equipped female.png|180px]]
+}}
+
+{{CombatStyles|Bow|speed=6|attackrange=10}}
+
+==Passive effect==
+<!--[[File:Chambers of Xeric (10).png|thumb|350px|A graph that shows the accuracy and damage modifiers at different Magic levels. Note that the "buff %" is not an {{wp|Percentage#Percentage_increase_and_decrease|increase}}: at 100%, the accuracy and damage are normal rather than doubled.]]-->
+Unlike other bows that have a set strength, the twisted bow functions differently: the higher the target's [[Magic]] level or Magic accuracy is (whichever is higher), the higher the bow's accuracy and damage. The accuracy multiplier caps at 140% (reached at 244 magic level or accuracy), while the damage multiplier caps at 250% (never reached due to the scaling cap).{{CiteTwitter|author=Mod Kieren|url=https://twitter.com/JagexKieren/status/869214311675285505|date=29 May 2017|archiveurl=https://reldo.runescape.wiki/i/104081|archivedate=29 May 2020|quote=Outside raids, magic cap at 250 Acc modifier: 140 + (10 * 3 Magic / 10 - 10) / 100 - ((3 Magic / 10 - 100) ^2) / 100 Capped at 140.}}{{CiteTwitter|author=Mod Kieren|url=https://twitter.com/JagexKieren/status/869214343283564544|date=29 May 2017|archiveurl=https://reldo.runescape.wiki/i/103109|archivedate=29 May 2020|quote=Dmg modifier: 250 + (10 * 3 Magic / 10 - 14) / 100 - ((3 Magic / 10 - 140) ^2) / 100 Capped at 250.}} The Magic level or magic accuracy bonus caps at 250 outside the [[Chambers of Xeric]], and 350 within.
+
+<math>\begin{align}
+\text{Accuracy} &= 140 + \frac{\frac{10 \cdot 3 \cdot \text{Magic}}{10} - 10}{100} - \frac{\left(\frac{3 \cdot \text{Magic}}{10} - 100\right)^2}{100} \% & \text{Accuracy} \in [0, 140]\\
+\text{Damage} &= 250 + \frac{\frac{10 \cdot 3 \cdot \text{Magic}}{10} - 14}{100} - \frac{\left(\frac{3 \cdot \text{Magic}}{10} - 140\right)^2}{100} \% & \text{Damage} \in [0, 250]
+\end{align}</math>
+<!--
+Calculator is defunct
+{{Calculator:Twisted bow}}-->
+
+Assuming [[dragon arrow]]s, 99 [[Ranged]], and all damage boosting items and effects, the maximum hit with the twisted bow outside of the [[Chambers of Xeric]], [[Tombs of Amascut]], or [[Nightmare Zone]] is 92 (94 on accurate) on a Slayer task and 88 (90 on accurate) off-task. The absolute max hit possible currently is 109 (111 on accurate), which is possible while attacking a boss inside Chambers of Xeric with 350 magic or higher, while under the influence of an [[Overload (+)]].
+
+{{Chart data|Module:Chart data/Twisted bow multiplier|width=min(540px, 100vw - 32px)|height=400px|min-width=300px|min-height=300px}}
+
+==Item sources==
+{{Drop sources|Twisted bow}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Twisted bow}}
+
+==Comparison between other ranged weapons==
+{{Ranged weapons comparison}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 May 2022
+|update = Equipment Rebalance Tier Changes & Poll 76
+|change = The twisted bow now requires level 85 Ranged to wield instead of level 75 Ranged.
+}}
+{{Subject changes
+|date = 21 April 2021
+|update = Fishing Trawler Improvements and Equipment Rebalance: Part One
+|change = The twisted bow's prayer bonus has been reduced from 4 to 0.
+}}
+{{Subject changes
+|date = 9 August 2018
+|update = Looting Bag Improvements, PID Changes and Bounty Hunter Targets
+|change = The item's value was increased from 90,000 to 4,000,000.
+}}
+{{Subject changes
+|date = 12 April 2018
+|update = Quality of Life Improvements
+|change = A Magic level cap of 350 was added within the [[Chambers of Xeric]], as the twisted bow performed worse if monsters had a Magic level of over 350, due to the equations acting as {{wp|parabola}}s.
+}}
+{{Subject changes
+|date = 1 June 2017
+|update = The Inferno
+|change = Attempting to use a Twisted Bow for Barbarian Firemaking will now display a message to explain you can't.
+}}
+{{Subject changes
+|date = 26 January 2017
+|update = Prayers Scrolls, QoL & a Quest
+|change = The Magic level cap was removed within the Chambers of Xeric.
+}}
+{{Subject changes
+|date = 19 January 2017
+|update = Raids Tweaks & QoL
+|change = A Magic level cap of 250 was added to the damage calculation, as it was too powerful against some bosses.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Twisted bow early model v1.jpg|Early models for the bow by [[Mod West]].
+Twisted bow early model size adjustment.jpg|Model size adjustments after player feedback, with a dark bow for scale.
+Twisted bow model colours.jpg|Proposal of colours for the bow. Option B was chosen.
+Twisted bow model shapes.jpg|Proposal of shapes for the bow. Option B was chosen.
+</gallery>
+
+==Trivia==
+*In {{UD|QoL and CoX Changes|an update}} on [[28 February]] [[2019]], a twisted bow spawn [[Twisted bow glitch|was accidentally added]] east of the [[Farming Guild]]. The spawn was hotfixed shortly after the update{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/1101090319431581698|date=28 February 2019|archiveurl=https://reldo.runescape.wiki/i/96837|archivedate=28 February 2019|quote=A bug involving Twisted Bows and the Farming guild has been hotfixed. Stand by while we assess our next steps. If you have acquired a Twisted Bows from anywhere other than Chambers of Xeric, they will be removed - attempting to sell them may result in action against your account.}} and the game was [[rollback|rolled back]] to the time of the update.{{CiteNews|url=http://services.runescape.com/m=news/bug-twisted-bows?oldschool=1|newsdate=28 February 2019|author=The Old School Team|title=Bug: Twisted Bows}}
+*The twisted bow is similar in function to the [[RSW:Hexhunter bow|Hexhunter bow]] in ''[[RSW:RuneScape|RuneScape 3]]''.
+*The ranger [[Mercenary (Theatre of Blood)|mercenary]] outside [[Theatre of Blood]] wields a twisted bow, and it can be seen in one of the webs hanging in [[Nylocas Vasilias]]' room along with its owner. However, this particular bow is a piece of scenery rather than an item. Examining it results in the message {{Mes|It seems like the owner must've dropped it, how unfortunate!}}.
+*Upon release, attempting to light a fire after completing [[Barbarian Training|Barbarian Firemaking Training]] resulted in the message {{Mes|Nothing interesting happens.}}. With the release of the [[Inferno]], the message displayed will now state {{Mes|It'd be foolish to possibly damage such an expensive bow with a firemaking attempt. You're surprised you only realised this now!}}.
+*As a result of the twisted bow's introduction, [[General Graardor]]'s magic level and magic defence bonus were adjusted as the bow originally outperformed other high-end weapons against him.
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+{{Ranged weapons}}
+[[Category:Collection log items]]
+[[Category:Items subject to Grand Exchange item sink]]
