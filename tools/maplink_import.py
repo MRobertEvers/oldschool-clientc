@@ -37,7 +37,13 @@ importer accepts a row only when the cache agrees on all three legs of
 record identity: the object id exists in `all.loc.compack` (or, for a
 name-only fallback, `all.npc.compack`), its `name=` matches the row's menu
 target, one of its `opN=` matches the row's menu option, AND it is actually
-placed near the row's stated origin in `maps/*.jl2`. A row failing any leg is
+placed near the row's stated origin in `maps/*.jl2`. A row whose own id fails
+a leg gets one more chance, `resolve_on_tile`: shortest-path names some
+objects by an older id than this cache places (the Carnillean house stairs
+are 15645/15648 there, 46704/46705 here), so the loc this cache DOES place
+with its footprint within a tile of the origin is taken instead -- but only
+when exactly one record there has the row's name and verb, and (for a climb)
+only when the row is a jump, not a near-miss. A row failing that too is
 dropped and printed by `--report`/written to `docs/MAPLINKS_REJECTS.md`,
 never guessed — the same rule `ladder_import.py` already applies to a
 `loc_<id>` it cannot resolve by name.
@@ -339,6 +345,89 @@ def placed_near(origin, placement_set):
     return False
 
 
+# Shapes whose footprint is the record's width x length (centrepieces and
+# ground decor); walls and wall decor occupy their one tile.
+FOOTPRINT_SHAPES = (9, 10, 11, 22)
+TILE_MATCH_REACH = 1  # tiles, Chebyshev distance from the loc's footprint, same plane
+
+
+def read_footprints(maps_dir, loc_names, loc_records):
+    """(worldX >> 3, worldZ >> 3, plane) -> [(x0, z0, x1, z1, plane, locId)],
+    every placement in maps/*.jl2 as the rectangle it occupies (width/length
+    swapped on rotation 1/3). `read_placements` keeps only the anchor tile;
+    this is what `resolve_on_tile` searches when the row's own id is not
+    there."""
+    buckets = collections.defaultdict(list)
+    for name in os.listdir(maps_dir):
+        if not name.endswith(".jl2"):
+            continue
+        stem = name[:-4]
+        if not re.match(r"^m-?\d+_-?\d+$", stem):
+            continue
+        map_x, map_z = (int(v) for v in stem[1:].split("_"))
+        with open(os.path.join(maps_dir, name), encoding="utf-8", errors="ignore") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line or line.startswith("="):
+                    continue
+                pos, _, rest = line.partition(":")
+                try:
+                    plane, local_x, local_z = (int(v) for v in pos.split())
+                    fields = rest.split()
+                    loc_id = int(fields[0])
+                    shape = int(fields[1]) if len(fields) > 1 else 10
+                    rotation = int(fields[2]) if len(fields) > 2 else 0
+                except (ValueError, IndexError):
+                    continue
+                width = length = 1
+                if shape in FOOTPRINT_SHAPES:
+                    record = loc_records.get(loc_names.get(loc_id, ""), {})
+                    width = int(record.get("width", 1))
+                    length = int(record.get("length", 1))
+                    if rotation in (1, 3):
+                        width, length = length, width
+                x = map_x * 64 + local_x
+                z = map_z * 64 + local_z
+                entry = (x, z, x + width - 1, z + length - 1, plane, loc_id)
+                for bx in range(x >> 3, ((x + width - 1) >> 3) + 1):
+                    for bz in range(z >> 3, ((z + length - 1) >> 3) + 1):
+                        buckets[(bx, bz, plane)].append(entry)
+    return buckets
+
+
+def resolve_on_tile(origin, verb, menu_target, footprints, loc_names, loc_records):
+    """The loc this cache places at the row's Origin, for a row whose own
+    object id is not there (or no longer names that object).
+
+    shortest-path names some objects by an older id than this cache places:
+    the Carnillean house staircase is 15645/15648 in transports.tsv, while
+    maps/m40_51.jl2 places carnillean_stairs 46704 / carnillean_stairstop
+    46705 on those tiles. The row's claim — "clicking <verb> on <target>
+    here goes there" — still holds; only the id is stale. So: every loc whose
+    footprint lies within TILE_MATCH_REACH tiles of Origin on Origin's plane,
+    whose `name=` is the row's menu target and one of whose ops is the row's
+    verb. Exactly one distinct record must qualify — two (a stair beside a
+    ladder of the same name and verb) is an ambiguity this does not guess
+    at. Returns (name, ops) or None."""
+    ox, oz, plane = origin
+    matches = set()
+    reach = TILE_MATCH_REACH
+    for bx in range((ox - reach) >> 3, ((ox + reach) >> 3) + 1):
+        for bz in range((oz - reach) >> 3, ((oz + reach) >> 3) + 1):
+            for x0, z0, x1, z1, _p, loc_id in footprints.get((bx, bz, plane), ()):
+                if max(x0 - ox, 0, ox - x1) > reach or max(z0 - oz, 0, oz - z1) > reach:
+                    continue
+                name = loc_names.get(loc_id)
+                record = loc_records.get(name or "", {})
+                if record.get("name") != menu_target or verb not in ops_of(record).values():
+                    continue
+                matches.add(name)
+    if len(matches) != 1:
+        return None
+    name = matches.pop()
+    return name, ops_of(loc_records[name])
+
+
 def resolve_object(menu_target, menu_id, loc_names, loc_records, npc_names, npc_records):
     """menu id -> ('loc'|'npc', name, ops) if the cache agrees on id AND name."""
     name = loc_names.get(menu_id)
@@ -372,17 +461,35 @@ def classify_displacement(origin, dest, delta):
     return "jump"
 
 
+def id_path_miss(resolved, menu_id, menu_target, verb, origin, placements):
+    """Why the row's own object id cannot be taken as the loc it names on
+    its Origin tile — (reject reason, example) — or None when it can. These
+    are the three legs of record identity the module docstring describes,
+    checked in the same order as before `resolve_on_tile` existed, so an id
+    that passes all three is used exactly as it always was."""
+    if resolved is None:
+        return "id-or-name-mismatch", "id %d %r, verb %r" % (menu_id, menu_target, verb)
+    _kind, name, ops = resolved
+    if verb not in ops.values():
+        return "op-mismatch", "%s wants %r, cache ops are %r" % (name, verb, ops)
+    if not placed_near(origin, placements.get(menu_id, ())):
+        return "not-placed-at-origin", "%s at %r" % (name, origin)
+    return None
+
+
 def harvest(content, data_dir, include_near_miss):
     loc_records = read_configs(os.path.join(content, "configs", "all.loc"))
     loc_names = read_compack(os.path.join(content, "configs", "all.loc.compack"))
     npc_records = read_configs(os.path.join(content, "configs", "all.npc"))
     npc_names = read_compack(os.path.join(content, "configs", "all.npc.compack"))
     placements = read_placements(os.path.join(content, "maps"))
+    footprints = read_footprints(os.path.join(content, "maps"), loc_names, loc_records)
 
     tsv_path = os.path.join(data_dir, "transports", "transports.tsv")
     rows = read_tsv(tsv_path)
 
     accepted = []  # (origin, dest, kind, name, slot, verb, dclass)
+    tile_matched = []  # (row's object id, cache loc name, origin) — accepted by resolve_on_tile
     rejects = collections.Counter()
     reject_examples = collections.defaultdict(list)
 
@@ -402,27 +509,31 @@ def harvest(content, data_dir, include_near_miss):
         if origin is None or dest is None:
             rejects["no-coords"] += 1
             continue
+        if dest == origin:
+            # transports.tsv:2380 states Climb-up Ladder 3019,9741,0 -> itself;
+            # a row that answers a climb by standing still is a data error.
+            rejects["dest-is-origin"] += 1
+            reject_examples["dest-is-origin"].append("%s %r at %r" % (verb, menu_target, origin))
+            continue
 
         resolved = resolve_object(menu_target, menu_id, loc_names, loc_records, npc_names, npc_records)
-        if resolved is None:
-            rejects["id-or-name-mismatch"] += 1
-            reject_examples["id-or-name-mismatch"].append("id %d %r, verb %r" % (menu_id, menu_target, verb))
-            continue
-        kind, name, ops = resolved
-        if kind != "loc":
+        if resolved is not None and resolved[0] != "loc":
             rejects["npc-not-loc"] += 1  # climb verbs are locs; an npc match here is a data error
             continue
-
+        id_miss = id_path_miss(resolved, menu_id, menu_target, verb, origin, placements)
+        if id_miss is not None:
+            # The row's id is not this cache's object on that tile. Match the
+            # loc the cache DOES place there by name and verb instead.
+            on_tile = resolve_on_tile(origin, verb, menu_target, footprints, loc_names, loc_records)
+            if on_tile is None:
+                reason, example = id_miss
+                rejects[reason] += 1
+                reject_examples[reason].append(example)
+                continue
+            name, ops = on_tile
+        else:
+            _kind, name, ops = resolved
         slots = [s for s, v in ops.items() if v == verb]
-        if not slots:
-            rejects["op-mismatch"] += 1
-            reject_examples["op-mismatch"].append("%s wants %r, cache ops are %r" % (name, verb, ops))
-            continue
-
-        if not placed_near(origin, placements.get(menu_id, ())):
-            rejects["not-placed-at-origin"] += 1
-            reject_examples["not-placed-at-origin"].append("%s at %r" % (name, origin))
-            continue
 
         dclass = classify_displacement(origin, dest, CLIMB_DELTAS[verb])
         if dclass == "default":
@@ -431,10 +542,24 @@ def harvest(content, data_dir, include_near_miss):
         if dclass == "near-miss" and not include_near_miss:
             rejects["near-miss-deferred"] += 1
             continue
+        if id_miss is not None:
+            if dclass == "near-miss":
+                # A tile-matched row lands within 3 tiles and 1 plane of
+                # ~climb's default. Those landings are the ones quest tests
+                # already pin (Lumbridge castle's spiral stairs, 3205,3228,0
+                # -> 3205,3228,1, in _conformance/dragon/losttribe/
+                # runemysteries), and a default that close is not the
+                # wrong-building / under-the-roof landing this fallback
+                # exists for. Reported, not emitted.
+                rejects["tile-match-near-miss-deferred"] += 1
+                reject_examples["tile-match-near-miss-deferred"].append(
+                    "%s (row id %d) %s at %r -> %r" % (name, menu_id, verb, origin, dest))
+                continue
+            tile_matched.append((menu_id, name, origin))
 
         accepted.append((origin, dest, name, tuple(sorted(slots)), verb, dclass))
 
-    return accepted, rejects, reject_examples, len(rows)
+    return accepted, rejects, reject_examples, len(rows), tile_matched
 
 
 TRANSITION_SOURCES = (
@@ -456,8 +581,10 @@ def harvest_transitions(content, data_dir):
     npc_records = read_configs(os.path.join(content, "configs", "all.npc"))
     npc_names = read_compack(os.path.join(content, "configs", "all.npc.compack"))
     placements = read_placements(os.path.join(content, "maps"))
+    footprints = read_footprints(os.path.join(content, "maps"), loc_names, loc_records)
 
     accepted = []  # (origin, dest, name, slots, verb, 'transition')
+    tile_matched = []  # (row's object id, cache loc name, origin) — accepted by resolve_on_tile
     rejects = collections.Counter()
     reject_examples = collections.defaultdict(list)
     total_rows = 0
@@ -484,33 +611,34 @@ def harvest_transitions(content, data_dir):
             if origin is None or dest is None:
                 rejects["no-coords"] += 1
                 continue
+            if dest == origin:
+                rejects["dest-is-origin"] += 1
+                reject_examples["dest-is-origin"].append("%s %r at %r (%s)" % (verb, menu_target, origin, filename))
+                continue
 
             resolved = resolve_object(menu_target, menu_id, loc_names, loc_records, npc_names, npc_records)
-            if resolved is None:
-                rejects["id-or-name-mismatch"] += 1
-                reject_examples["id-or-name-mismatch"].append(
-                    "id %d %r, verb %r (%s)" % (menu_id, menu_target, verb, filename)
-                )
-                continue
-            kind, name, ops = resolved
-            if kind != "loc":
+            if resolved is not None and resolved[0] != "loc":
                 rejects["npc-not-loc"] += 1
                 continue
-
+            id_miss = id_path_miss(resolved, menu_id, menu_target, verb, origin, placements)
+            if id_miss is not None:
+                on_tile = resolve_on_tile(origin, verb, menu_target, footprints, loc_names, loc_records)
+                if on_tile is None:
+                    reason, example = id_miss
+                    if reason == "id-or-name-mismatch":
+                        example += " (%s)" % filename
+                    rejects[reason] += 1
+                    reject_examples[reason].append(example)
+                    continue
+                name, ops = on_tile
+                tile_matched.append((menu_id, name, origin))
+            else:
+                _kind, name, ops = resolved
             slots = [s for s, v in ops.items() if v == verb]
-            if not slots:
-                rejects["op-mismatch"] += 1
-                reject_examples["op-mismatch"].append("%s wants %r, cache ops are %r" % (name, verb, ops))
-                continue
-
-            if not placed_near(origin, placements.get(menu_id, ())):
-                rejects["not-placed-at-origin"] += 1
-                reject_examples["not-placed-at-origin"].append("%s at %r" % (name, origin))
-                continue
 
             accepted.append((origin, dest, name, tuple(sorted(slots)), verb, "transition"))
 
-    return accepted, rejects, reject_examples, total_rows
+    return accepted, rejects, reject_examples, total_rows, tile_matched
 
 
 def parse_agility_level(skills_field):
@@ -853,14 +981,21 @@ def build_agility_loc_text(category_ok_names):
 REJECT_REASONS = {
     "already-correct-default": "Same tile, plane ±1 — `~climb`'s own default already gets this right.",
     "not-placed-at-origin": "No placement of this object id sits within %d tiles of the row's Origin "
-    "in this cache's maps/*.jl2 — usually content added to the wiki's source after rev 239." % PLACEMENT_TOLERANCE,
+    "in this cache's maps/*.jl2, and no loc whose footprint is within %d tile of it has the row's name and "
+    "verb either (`resolve_on_tile`) — usually content added to the wiki's source after rev 239."
+    % (PLACEMENT_TOLERANCE, TILE_MATCH_REACH),
     "id-or-name-mismatch": "The object id doesn't resolve in this cache, or resolves to a record whose "
-    "`name=` doesn't match the row's menu target.",
-    "op-mismatch": "The resolved record's `opN=` fields don't state the row's menu option at all.",
+    "`name=` doesn't match the row's menu target — and no loc on the Origin tile has that name and verb.",
+    "op-mismatch": "The resolved record's `opN=` fields don't state the row's menu option at all, and no "
+    "loc on the Origin tile does.",
     "npc-not-loc": "The id resolved against `all.npc.compack` instead of `all.loc.compack` — a climb "
     "verb should never key an npc; treated as a data error.",
     "near-miss-deferred": "Within 3 tiles / 1 plane of the default — accepted only with --near-miss.",
+    "tile-match-near-miss-deferred": "The row's own id is not on its Origin tile, `resolve_on_tile` found the "
+    "loc that is, and the row lands within 3 tiles / 1 plane of `~climb`'s default — not emitted even with "
+    "--near-miss (see `harvest`).",
     "no-coords": "Row has no parseable Origin/Destination world point.",
+    "dest-is-origin": "Destination is the Origin tile itself — the row answers the click by not moving.",
     "not-agility-only": "Skills column names more than Agility (a grapple shortcut — Agility, Ranged and "
     "Strength for the crossbow-and-rope) or isn't Agility at all; a different mechanic, not modelled here.",
 }
@@ -960,12 +1095,12 @@ def main():
     agility_loc_path = os.path.join(agility_dir, "configs", "maplink_agility.loc")
 
     # --- climb (~climb's own destinations) ---
-    accepted, rejects, examples, total_rows = harvest(args.content, args.data, args.near_miss)
+    accepted, rejects, examples, total_rows, tile_matched = harvest(args.content, args.data, args.near_miss)
     table_rows, ambiguous, dropped_multi = split_unambiguous(accepted)
     shared_text, _ = build_shared_text(ambiguous, dropped_multi, header=SHARED_HEADER)
 
     # --- transitions (portals, levers, cave mouths — no climb verb) ---
-    t_accepted, t_rejects, t_examples, t_total = harvest_transitions(args.content, args.data)
+    t_accepted, t_rejects, t_examples, t_total, t_tile_matched = harvest_transitions(args.content, args.data)
     t_table_rows, t_ambiguous, t_dropped_multi = split_unambiguous(t_accepted)
 
     loc_records = read_configs(os.path.join(args.content, "configs", "all.loc"))
@@ -1049,16 +1184,19 @@ def main():
     )
 
     if args.report:
-        print("maplink_import: climb — %d rows considered, %d accepted, %d table rows, %d name-bound, "
-              "%d dropped (multi-placement)" % (
-                  total_rows, len(accepted), len(table_rows), len(ambiguous), len(dropped_multi)))
+        print("maplink_import: climb — %d rows considered, %d accepted (%d by the loc on the tile, "
+              "not the row's id), %d table rows, %d name-bound, %d dropped (multi-placement)" % (
+                  total_rows, len(accepted), len(tile_matched), len(table_rows), len(ambiguous),
+                  len(dropped_multi)))
         for reason, count in rejects.most_common():
             print("  rejected %-24s %5d" % (reason, count))
             for ex in examples.get(reason, [])[:5]:
                 print("      e.g. %r" % (ex,))
-        print("maplink_import: transitions — %d rows considered, %d accepted, %d category-bound, "
+        print("maplink_import: transitions — %d rows considered, %d accepted (%d by the loc on the tile, "
+              "not the row's id), %d category-bound, "
               "%d name-bound, %d dropped (category conflict or multi-placement)" % (
-                  t_total, len(t_accepted), len(category_ok), len(t_ambiguous) + len(needs_binding),
+                  t_total, len(t_accepted), len(t_tile_matched), len(category_ok),
+                  len(t_ambiguous) + len(needs_binding),
                   len(t_dropped_multi) + len(conflict_dropped)))
         for reason, count in t_rejects.most_common():
             print("  rejected %-24s %5d" % (reason, count))
