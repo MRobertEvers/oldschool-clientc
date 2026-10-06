@@ -7,7 +7,7 @@ The fight verbs from section 3. Trap 31 (the `[opnpc2]` binding) and `gaps-comba
 
 ### `t.npc.await_dead(npc, ticks=60, radius=10, attempts=6)` -- also `t.npc.await_dead_engaged`
 
-`t.npc.await_dead(npc, ticks=60, radius=10, attempts=6)` -> `ok` `timeout` `not_found`. Resolves
+`t.npc.await_dead(npc, ticks=60, radius=10, attempts=6)` -> `ok` `timeout` `not_found` `despawned`. Resolves
 when the npc's SLOT LEAVES THE POOL with a corroboration the detail names --
 `corroborated by the ZERO BAR` (it read 0 earlier in the wait, then was released) or
 `corroborated by ABSENCE` (missing for 2 consecutive polls the pool vouches for: under 64 rows, or
@@ -15,10 +15,10 @@ its farthest row beyond the slot's last tile). A ZERO BAR ALONE IS NOT A KILL (s
 bar is floor(hp x width / max), so a 170-hp Khazard warlord reads 0/30 ALIVE at 1-5 hp; after a zero
 bar the wait keeps polling up to 12 ticks past its deadline for the corpse's release
 (`the corpse grace` in the detail), and a timeout names any zero bar or missing slot it saw.
-An npc that DESPAWNS (an `npc_add` duration running out) also leaves by ABSENCE and reads `ok`:
-an answer `corroborated by ABSENCE` with a high `last hp` is a despawn, not a kill (Spirits of the
-Elid's 50-tick golems, `last hp 29/30`; seam-facts b68-seam1 (d)). Grade the kill by the quest's
-own outcome row after it.
+An npc that DESPAWNS (an `npc_add` duration running out) also leaves by ABSENCE. Until b68-seam2
+that read `ok` (Spirits of the Elid's 50-tick golems, `last hp 29/30`; seam-facts b68-seam1 (d));
+FIXED b68-seam2: both kill waits now answer `despawned` for it -- see "An absence from a high bar is
+`despawned`, not a kill" below.
 
 One `await_dead_engaged(<ticks>, attempts)` is enough for a big-hp boss -- no ground-truth re-press
 loop. And it answers on the release, BEFORE the boss's `[ai_queue3]` outcome necessarily lands
@@ -54,9 +54,35 @@ crediting a corpse it never made.
 Roving Elves reported `dead after 131 tick(s)` for a Moss Guardian standing at 2/30 while the
 character was the one who fell, then failed three more rows on the seed it never dropped.
 
+#### An absence from a high bar is `despawned`, not a kill (b68-seam2)
+
+`t.npc.await_dead` and `t.npc.await_dead_engaged` also answer `despawned`. A vouched ABSENCE says
+the slot left the pool, not why: an `npc_add` duration running out, an `npc_del`, a teleport whose
+re-add the watch did not see, or the player walking away all look the same. So the watch keeps the
+LAST BAR it read (seeded from the attack's stamp, updated on every poll, written back to the stamp
+as `stamp.last_ratio`/`last_scale`, so a second wait on the same engagement starts from the newest
+reading) and asks it when the slot goes:
+
+- last bar at most a quarter of its width (`ratio x 4 <= scale`; 7/30 is a kill) -> `ok`, detail
+  `corroborated by ABSENCE ... last bar 1/30 (...), at most a quarter`. A real death can be missed
+  in its few zero-bar ticks; this keeps crediting it.
+- last bar above a quarter (8/30 and up) -> `despawned`, detail `NOT A KILL: slot N left the npc pool
+  for K consecutive poll(s) with its last bar at 29/30 (the attack's own reading), above a quarter`.
+  The death fence runs first and the stamp is consumed, as on a kill.
+- no bar ever known -> `ok`, as before (there is nothing to ask).
+
+A `despawned` row is a FAIL. The usual cause is content (an `npc_add` duration shorter than the
+fight: report it as a content seam, never retry around it) or the test leaving the npc (a goto
+mid-fight). Proof: scratch `s2abs_before` row 6 read `ok ... dead after 3 tick(s)` for a Hill Giant
+left alive at 29/30; `s2abs_after` reads `despawned`, and the zero-bar control kill stays `ok`.
+Conformance `seam.absence_after_a_high_bar_is_a_despawn`.
+
+One hole is left: `t.npc.await_dead` called when its npc is ALREADY gone (no live row at call
+time) still answers `ok` without asking any bar. `await_dead_engaged` has no such hole.
+
 #### `t.npc.await_dead_engaged(ticks=60, attempts=6)`
 
-`t.npc.await_dead_engaged(ticks=60, attempts=6)` -> `ok` `timeout` `no_row` `refused` takes NO
+`t.npc.await_dead_engaged(ticks=60, attempts=6)` -> `ok` `timeout` `no_row` `refused` `despawned` takes NO
 target at all: it holds the slot the last `t.player.attack` pressed an Attack row on, follows an
 `npc_changetype` (a Loar Shadow BECOMES a Loar Shade on its first hit, and the symbol the file
 attacked with stops naming what it is fighting), re-engages on the id the slot wears NOW, and
