@@ -53,13 +53,25 @@
 return {
     id = "fenkenstrain",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 240000, -- every castle door, stair and ladder walked, Port Phasmatys and the caves both ways
+    max_frames = 360000, -- the Paterdomus route in, every castle door, stair and ladder walked, Port Phasmatys and the caves both ways
     setup = {
         "::clearinv",
-        "::fenkenstrain", -- quest debug reset: satisfies Priest in Peril /
-                            -- Restless Ghost prereqs, zeroes every %fenk_*
-                            -- flag, teleports to the Canifis signpost. This
-                            -- STAGES the quest (trap 8), it does not finish it.
+        -- The quest's own gate (fenkenstrain.rs2:6-22 [proc,fenk_has_requirements]):
+        -- %varp107_prieststart >= ^priest_started (Restless Ghost started) and
+        -- %varp302_priestperil >= ^fenk_pip_gate = 61 (fenkenstrain.constant:22),
+        -- the value Drezel's farewell advice sets AFTER Priest in Peril's
+        -- completion (60 -> 61, mausoleum_drezel.rs2:145-154). The two
+        -- `::complete` lines stage the prerequisite quests (as mortton.lua and
+        -- makinghistory.lua do); the run itself walks into Morytania and takes
+        -- Drezel's advice, so 61 is reached by a real conversation. The
+        -- `::fenkenstrain` debugproc used to stage all this AND p_teleport the
+        -- player to the Canifis signpost (fenkenstrain.rs2:238-255) -- a
+        -- placement with no on-foot route across the Salve -- so it is gone.
+        -- A fresh_lumbridge account holds every %fenk_* flag at 0 already
+        -- (quest.stage.not_started below grades that).
+        "::complete quest_priestinperil",
+        "::complete quest_restlessghost",
+        "::give dagger_wolfbane 1", -- Priest in Peril's own reward (::complete grants no items); Drezel's advice branch needs it held (mausoleum_drezel.rs2:28-33)
         "::setlevel hitpoints 80",
         "::setlevel attack 80",
         "::setlevel strength 80",
@@ -117,26 +129,15 @@ return {
                     .. " (want " .. x .. "," .. z .. "," .. level .. (tol > 0 and (" within " .. tol) or "") .. ")")
         end
 
-        -- A stair or ladder climb, graded on the two tiles: the player on
-        -- the maplink src (or beside the ladder) before the press, on the
-        -- dest after it. Only the climb moves the player between floors.
+        -- A stair or ladder climb by the driver's verb (t.player.climb,
+        -- verbs-pointer.md): the player walked to src on at's level before
+        -- the press, on dest's level within dest[4] (slack) of its x,z after
+        -- it. A cave ladder lands on the same level in the surface frame
+        -- (z // 6400 differs), which the verb accepts as a climb. Only the
+        -- climb moves the player between floors.
         local function climb(name, sym, at, src, dest)
-            t.player.walk_to(src[1], src[2], 40)
-            local sr, st = t.world.tile()
-            local on_src = sr == "ok" and st.x == src[1] and st.z == src[2] and st.level == at[3]
-            local cr, cd = t.player.click_loc(sym, 1, { at = at })
-            await_tile(function(tt)
-                return tt.level == dest[3] and math.abs(tt.x - dest[1]) <= (dest[4] or 0)
-                    and math.abs(tt.z - dest[2]) <= (dest[4] or 0)
-            end, 10, name)
-            local lr, lt = t.world.tile()
-            local tol = dest[4] or 0
-            t.check(name, on_src and lr == "ok" and lt.level == dest[3] and math.abs(lt.x - dest[1]) <= tol
-                and math.abs(lt.z - dest[2]) <= tol,
-                "from " .. tile_text(sr, st) .. " (want " .. src[1] .. "," .. src[2] .. "," .. at[3] .. ") click_loc(" .. sym
-                    .. " at " .. at[1] .. "," .. at[2] .. "," .. at[3] .. ") -> " .. tostring(cr) .. " " .. tostring(cd)
-                    .. "; landed " .. tile_text(lr, lt) .. " (want " .. dest[1] .. "," .. dest[2] .. "," .. dest[3]
-                    .. (tol > 0 and (" within " .. tol) or "") .. ")")
+            t.exec(name, t.player.climb, { loc = sym, op = 1, at = at, src = src,
+                dest = { dest[1], dest[2], dest[3] }, slack = dest[4] or 0 })
         end
 
         -- A key used on its locked door. The quest's label sets the unlock
@@ -234,6 +235,72 @@ return {
 
         t.exec("equip.ghostspeak", t.player.equip, "amulet_of_ghostspeak")
         t.exec("equip.scimitar", t.player.equip, "rune_scimitar")
+
+        -- ================= Into Morytania =================
+        -- The fixture stands in Lumbridge (3206,3233); no walk crosses the
+        -- Salve (reach 3206,3233 -> 3496,3489 UNREACHABLE at margin 600), and no
+        -- spell this pack implements lands in Morytania (skill_magic/scripts/
+        -- spells/teleport.rs2). So the way in is the one Priest in Peril opens,
+        -- walked as mortton.lua / makinghistory.lua do (sample_tools/reach.py
+        -- --root <worktree>, doors closed):
+        --   * 3206,3233 -> 3318,3468, west of the Varrock members' gate
+        --     (REACH closed-doors len=389 at margins 30/80).
+        --   * fai_varrock_member_gatel 3319,3468 by pass_door, then
+        --     3321,3468 -> 3405,3506 beside the Paterdomus trapdoor (REACH len=122).
+        --   * The trapdoor 3405,3507 (open, climb down), the two mausoleum gates,
+        --     Drezel's advice (60 -> 61: this is also the quest's own
+        --     ^fenk_pip_gate requirement) and the holy barrier (p_telejump out
+        --     at 3423,3485, mausoleum_interactions.rs2:26).
+        --   * 3423,3485 -> 3496,3489 beside the Canifis signpost (3488,3485)
+        --     (REACH closed-doors len=95 at margin 30).
+        t.exec("goto-enterMorytania.varrockGate", t.player.goto_tile, 3318, 3468, 0)
+        t.exec("enterMorytania.varrockGate", t.player.pass_door, { closed = "fai_varrock_member_gatel",
+            open = "fai_varrock_member_gatel_open", at = { 3319, 3468, 0 }, near = { 3318, 3468 }, far = { 3321, 3468 } })
+        t.exec("goto-enterMorytania.trapdoor", t.player.goto_tile, 3405, 3506, 0)
+        t.exec("enterMorytania.openTrapdoor", t.player.click_loc, "trapdoor", 1, { at = { 3405, 3507, 0 } })
+        t.await({
+            level = function()
+                return t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } }) == "ok"
+            end,
+            note = "enterMorytania: the trapdoor opens",
+        }, 6)
+        local tdo_r, tdo = t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } })
+        local tdc_r = t.world.loc_near("trapdoor", 3, { at = { 3405, 3507, 0 } })
+        t.check("enterMorytania.trapdoorOpen", tdo_r == "ok" and tdc_r ~= "ok",
+            "trapdoor_open on 3405,3507,0 -> " .. tostring(tdo_r) .. " "
+                .. (tdo_r == "ok" and (tdo.tile_x .. "," .. tdo.tile_z .. "," .. tdo.level) or tostring(tdo))
+                .. "; closed trapdoor there -> " .. tostring(tdc_r) .. " (want the open leaf and no closed one)")
+        t.exec("enterMorytania.descend", t.player.climb, { loc = "trapdoor_open", op = 1, op_name = "Climb-down",
+            at = { 3405, 3507, 0 }, src = { 3405, 3506 }, dest = { 3405, 9906, 0 } })
+        t.exec("enterMorytania.gate1", t.player.cross_gate, { loc = "pip_underground_door1", at = { 3405, 9895, 0 },
+            near = { 3405, 9896 }, far_ok = function(tile) return tile.z > 6400 and tile.z <= 9894 end,
+            far_desc = "south of the golden-key gate, z <= 9894", ticks = 30 })
+        t.exec("enterMorytania.gate2", t.player.cross_gate, { loc = "pip_underground_door2", at = { 3431, 9897, 0 },
+            near = { 3430, 9897 }, far_ok = function(tile) return tile.z > 6400 and tile.x >= 3432 end,
+            far_desc = "Drezel's side of the second gate, x >= 3432", ticks = 60 })
+        -- Priest in Peril's farewell advice (mausoleum_drezel.rs2:145-154,
+        -- LostCity drezel.rs2:138-147): 60 -> 61, the holy barrier opens. The
+        -- advice has no combat-level branch, so the staged combat stats
+        -- (80 attack/strength/defence/hitpoints) change nothing here; no
+        -- dialogue this run passes reads ~player_combat_level.
+        t.exec("enterMorytania.talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
+        t.exec("enterMorytania.talkToDrezel-dialog", t.chat.play, {
+            "player:So can I pass through that barrier now?",
+            "npc:Ah, ",
+            "npc:Morytania is an evil land",
+            "npc:You should take some basic precautions",
+            "npc:In many ways Werewolves",
+            "npc:and it is a holy relic",
+            "npc:wolf form is incredibly powerful",
+            "player:Okay, I will keep it equipped",
+        })
+        t.exec("enterMorytania.drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
+        t.exec("enterMorytania.holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
+            at = { 3440, 9886, 0 }, near = { 3440, 9887 },
+            far_ok = function(tile) return tile.x == 3423 and tile.z == 3485 end,
+            far_desc = "east of the Salve at 3423,3485 (mausoleum_interactions.rs2 p_telejump(0_53_54_31_29))" })
+        t.exec("enterMorytania.holyBarrier-msg", t.msg.expect, "You pass through the holy barrier")
+        t.exec("goto-readSign", t.player.goto_tile, 3496, 3489, 0)
 
         -- ================= Panel: Starting off =================
         t.exec("readSign", t.player.click_loc, "fenk_signpost", 1)
