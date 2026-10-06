@@ -204,6 +204,15 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
   library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
   pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
+  STATE 2026-10-06 ~04:30. SEAM32 LANDED 328d7ec9b (pushed): NORMAL TRIO BLOAT GREEN (five leaders,
+  lockstep repeat AGREE; 267-332 room ticks, 4-5 downs, no deaths); Normal Nylocas kept on a THIN
+  margin (one support left at 1-11 percent; names 6 and 7 fail); Normal Maiden 0 of 5 (supplies).
+  The reports name three gaps real trios have and we do not: powered staves nulled by a Hagios
+  (CONTENT_BUGS :216), chinchompas single-target (player_ranged.rs2:17), no loaded blowpipe in a
+  kit. NEXT = SEAM33 (`SEAM_TRIAGE_2026-10-06c.md`): those three fixed at the source, then Normal
+  Maiden green, Nylocas on seven names with supports above 50 percent, Normal Sotetseg. THEN SEAM34:
+  Normal Xarpus and Verzik (the Dawnbringer shared by special). Honest state: six Entry rooms green
+  on five names; Normal Bloat green; Normal Nylocas thin; Normal Maiden red; three rooms unplanned.
   STATE 2026-10-06 ~01:40. SEAM31 LANDED 89146dbf1 (pushed): the two library faults fixed (prayer
   groups from prayers.dbrow; death_serial seeded; quick-press answers made true; boss-gone = dead),
   Nylocas 5 of 5 (and 10 of 10), Verzik 5 of 5: ALL SIX ENTRY ROOMS are played through the library
