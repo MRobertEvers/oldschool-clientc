@@ -1,0 +1,1361 @@
+{
+ "kind": "blert-script-v1",
+ "room": "verzik",
+ "mode": "normal",
+ "scale": 3,
+ "anchor": {
+  "what": "the boss's first tile",
+  "region_local": [
+   31,
+   25
+  ]
+ },
+ "lanes": {},
+ "rooms": 20,
+ "missing_streams": [],
+ "uuids": [
+  "6f97e7fe-aa6a-4cfa-a1a2-3a779b207f9d",
+  "9bd263a4-cf6b-4cab-8e9e-dc7e33de0372",
+  "8d1e055d-b107-44b3-aee8-420d97773273",
+  "23bdbe80-5e59-47d2-b579-2104df3b0b57",
+  "245bc9b5-4077-4034-9fcc-a1946edc3eef",
+  "635ee0b6-cf7b-419b-b78c-b95d70501ad6",
+  "5c1b9584-f132-4572-ac92-a98b72ef028e",
+  "af05026c-c98a-4539-97f5-1b448dfb7bad",
+  "18274856-4209-43e2-b165-2e534b0a971e",
+  "2c0208a5-654b-4f48-a9b8-4bf6555217f0",
+  "28e24d80-261f-4d38-8e3d-ca6f4ef50b7a",
+  "4721ed67-b397-469c-bbc8-043404e1a735",
+  "e84b03ba-eb61-44ea-a73f-948695b97633",
+  "85b10c82-83fe-424b-9623-fa44a123570c",
+  "ffb1fbff-9ea5-4040-bdf4-bc5d18d35272",
+  "c78ab63b-a7ec-42dd-9aa3-43b8235f5e89",
+  "e9b276c8-350f-44b4-9382-7e89052cc3b8",
+  "d05eb065-98fc-422a-855e-1a24dced70aa",
+  "0f9abe1a-e930-4d3a-aaa6-ce2fce23af0b",
+  "cd5ff686-b95d-47ba-b044-7b8ea5c4c80f"
+ ],
+ "segments": [
+  {
+   "name": "start",
+   "n": 20,
+   "start": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 20
+   },
+   "length": {
+    "median": 85.5,
+    "min": 60,
+    "max": 152,
+    "n": 20
+   },
+   "adds": {
+    "median": 7.0,
+    "min": 7,
+    "max": 7,
+    "n": 20
+   },
+   "lanes": {
+    "8379": 120,
+    "8370": 20
+   },
+   "leaks": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 20
+   },
+   "leak_hp": null,
+   "roles": {
+    "melee1": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       -1,
+       9
+      ],
+      "share": 0.8,
+      "dx": {
+       "median": -1.0,
+       "min": -5,
+       "max": -1,
+       "n": 20
+      },
+      "dy": {
+       "median": 9.0,
+       "min": 4,
+       "max": 9,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       -1,
+       9
+      ],
+      "share": 1.0
+     },
+     "first_action": {
+      "median": 1.0,
+      "min": 1,
+      "max": 4,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 17.0,
+      "min": 13,
+      "max": 27,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 1.0,
+       "min": 1,
+       "max": 4,
+       "n": 20
+      },
+      {
+       "median": 5.5,
+       "min": 5,
+       "max": 8,
+       "n": 20
+      },
+      {
+       "median": 10.0,
+       "min": 9,
+       "max": 13,
+       "n": 20
+      },
+      {
+       "median": 15.0,
+       "min": 13,
+       "max": 23,
+       "n": 20
+      },
+      {
+       "median": 21.0,
+       "min": 20,
+       "max": 27,
+       "n": 20
+      },
+      {
+       "median": 24.0,
+       "min": 23,
+       "max": 31,
+       "n": 20
+      },
+      {
+       "median": 29.0,
+       "min": 28,
+       "max": 35,
+       "n": 20
+      },
+      {
+       "median": 35.0,
+       "min": 33,
+       "max": 38,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "8370",
+       "share": 0.65,
+       "n": 20
+      },
+      {
+       "i": 1,
+       "mode": "8370",
+       "share": 1.0,
+       "n": 7
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 72,
+      "DAWN_SPEC": 37,
+      "EYE_OF_AYAK_AUTO": 31,
+      "NOXIOUS_HALBERD": 6
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 16,
+      "DAWN": 2,
+      "NOXIOUS_HALBERD": 1
+     },
+     "prayer": {
+      "magic": 20
+     }
+    },
+    "melee2": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       -1,
+       9
+      ],
+      "share": 1.0,
+      "dx": {
+       "median": -1.0,
+       "min": -1,
+       "max": -1,
+       "n": 20
+      },
+      "dy": {
+       "median": 9.0,
+       "min": 9,
+       "max": 9,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       -1,
+       9
+      ],
+      "share": 1.0
+     },
+     "first_action": {
+      "median": 1.0,
+      "min": 1,
+      "max": 4,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 15.5,
+      "min": 12,
+      "max": 26,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 1.0,
+       "min": 1,
+       "max": 4,
+       "n": 20
+      },
+      {
+       "median": 6.0,
+       "min": 5,
+       "max": 8,
+       "n": 20
+      },
+      {
+       "median": 10.0,
+       "min": 9,
+       "max": 12,
+       "n": 20
+      },
+      {
+       "median": 15.0,
+       "min": 14,
+       "max": 25,
+       "n": 20
+      },
+      {
+       "median": 21.0,
+       "min": 20,
+       "max": 29,
+       "n": 20
+      },
+      {
+       "median": 24.5,
+       "min": 23,
+       "max": 33,
+       "n": 20
+      },
+      {
+       "median": 29.5,
+       "min": 28,
+       "max": 41,
+       "n": 20
+      },
+      {
+       "median": 35.0,
+       "min": 33,
+       "max": 46,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "8370",
+       "share": 0.7,
+       "n": 20
+      },
+      {
+       "i": 1,
+       "mode": "8370",
+       "share": 1.0,
+       "n": 6
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 86,
+      "DAWN_SPEC": 45,
+      "EYE_OF_AYAK_AUTO": 14,
+      "SULPHUR_BLADES": 6
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 18,
+      "SULPHUR_BLADES": 1,
+      "SOULREAPER_AXE": 1
+     },
+     "prayer": {
+      "magic": 20
+     }
+    },
+    "melee3": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       -1,
+       9
+      ],
+      "share": 0.9,
+      "dx": {
+       "median": -1.0,
+       "min": -5,
+       "max": -1,
+       "n": 20
+      },
+      "dy": {
+       "median": 9.0,
+       "min": 4,
+       "max": 9,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       -1,
+       9
+      ],
+      "share": 0.95
+     },
+     "first_action": {
+      "median": 1.0,
+      "min": 1,
+      "max": 4,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 13.0,
+      "min": 12,
+      "max": 23,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 1.0,
+       "min": 1,
+       "max": 4,
+       "n": 20
+      },
+      {
+       "median": 6.0,
+       "min": 5,
+       "max": 9,
+       "n": 20
+      },
+      {
+       "median": 11.0,
+       "min": 9,
+       "max": 21,
+       "n": 20
+      },
+      {
+       "median": 15.0,
+       "min": 14,
+       "max": 26,
+       "n": 20
+      },
+      {
+       "median": 21.0,
+       "min": 20,
+       "max": 37,
+       "n": 20
+      },
+      {
+       "median": 25.0,
+       "min": 24,
+       "max": 42,
+       "n": 20
+      },
+      {
+       "median": 31.0,
+       "min": 28,
+       "max": 53,
+       "n": 20
+      },
+      {
+       "median": 36.5,
+       "min": 32,
+       "max": 58,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "8370",
+       "share": 0.65,
+       "n": 20
+      },
+      {
+       "i": 1,
+       "mode": "8370",
+       "share": 1.0,
+       "n": 7
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 84,
+      "DAWN_SPEC": 50,
+      "NOXIOUS_HALBERD": 11,
+      "EYE_OF_AYAK_AUTO": 5
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 16,
+      "NOXIOUS_HALBERD": 2,
+      "DAWN": 1
+     },
+     "prayer": {
+      "magic": 19,
+      "none": 1
+     }
+    }
+   }
+  },
+  {
+   "name": "phase2",
+   "n": 20,
+   "start": {
+    "median": 85.5,
+    "min": 60,
+    "max": 152,
+    "n": 20
+   },
+   "length": {
+    "median": 210.0,
+    "min": 170,
+    "max": 261,
+    "n": 20
+   },
+   "adds": {
+    "median": 9.5,
+    "min": 6,
+    "max": 13,
+    "n": 20
+   },
+   "lanes": {
+    "8385": 92,
+    "8384": 32,
+    "8381": 25,
+    "8382": 20,
+    "8383": 15
+   },
+   "leaks": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 20
+   },
+   "leak_hp": null,
+   "roles": {
+    "melee1": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       -1,
+       2
+      ],
+      "share": 0.4,
+      "dx": {
+       "median": -1.0,
+       "min": -1,
+       "max": 4,
+       "n": 20
+      },
+      "dy": {
+       "median": 1.0,
+       "min": 0,
+       "max": 3,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       -2,
+       3
+      ],
+      "share": 0.15
+     },
+     "first_action": {
+      "median": 14.0,
+      "min": 14,
+      "max": 15,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 37.5,
+      "min": 31,
+      "max": 54,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 14.0,
+       "min": 14,
+       "max": 15,
+       "n": 20
+      },
+      {
+       "median": 20.0,
+       "min": 18,
+       "max": 20,
+       "n": 20
+      },
+      {
+       "median": 25.0,
+       "min": 22,
+       "max": 32,
+       "n": 20
+      },
+      {
+       "median": 30.0,
+       "min": 26,
+       "max": 36,
+       "n": 20
+      },
+      {
+       "median": 36.0,
+       "min": 29,
+       "max": 40,
+       "n": 20
+      },
+      {
+       "median": 41.0,
+       "min": 34,
+       "max": 44,
+       "n": 20
+      },
+      {
+       "median": 46.0,
+       "min": 40,
+       "max": 49,
+       "n": 20
+      },
+      {
+       "median": 52.0,
+       "min": 45,
+       "max": 54,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "8370",
+       "share": 1.0,
+       "n": 20
+      },
+      {
+       "i": 1,
+       "mode": "8384",
+       "share": 0.7,
+       "n": 20
+      },
+      {
+       "i": 2,
+       "mode": "8370",
+       "share": 0.9,
+       "n": 20
+      },
+      {
+       "i": 3,
+       "mode": "8385",
+       "share": 0.79,
+       "n": 19
+      },
+      {
+       "i": 4,
+       "mode": "8370",
+       "share": 0.84,
+       "n": 19
+      },
+      {
+       "i": 5,
+       "mode": "8385",
+       "share": 0.88,
+       "n": 17
+      },
+      {
+       "i": 6,
+       "mode": "8370",
+       "share": 0.88,
+       "n": 17
+      },
+      {
+       "i": 7,
+       "mode": "8385",
+       "share": 0.78,
+       "n": 9
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 118,
+      "NOXIOUS_HALBERD": 16,
+      "BLOWPIPE": 10,
+      "UNKNOWN": 8
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 16,
+      "NOXIOUS_HALBERD": 2,
+      "RAPIER": 1
+     },
+     "prayer": {
+      "missiles": 12,
+      "magic": 6,
+      "none": 2
+     }
+    },
+    "melee2": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       -1,
+       2
+      ],
+      "share": 0.45,
+      "dx": {
+       "median": -1.0,
+       "min": -1,
+       "max": 3,
+       "n": 20
+      },
+      "dy": {
+       "median": 1.5,
+       "min": -1,
+       "max": 2,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       -1,
+       3
+      ],
+      "share": 0.1
+     },
+     "first_action": {
+      "median": 14.0,
+      "min": 14,
+      "max": 14,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 36.5,
+      "min": 30,
+      "max": 46,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 14.0,
+       "min": 14,
+       "max": 14,
+       "n": 20
+      },
+      {
+       "median": 20.0,
+       "min": 20,
+       "max": 20,
+       "n": 20
+      },
+      {
+       "median": 25.0,
+       "min": 25,
+       "max": 31,
+       "n": 20
+      },
+      {
+       "median": 30.0,
+       "min": 30,
+       "max": 36,
+       "n": 20
+      },
+      {
+       "median": 36.0,
+       "min": 35,
+       "max": 46,
+       "n": 20
+      },
+      {
+       "median": 41.0,
+       "min": 37,
+       "max": 52,
+       "n": 20
+      },
+      {
+       "median": 46.0,
+       "min": 41,
+       "max": 57,
+       "n": 20
+      },
+      {
+       "median": 52.0,
+       "min": 45,
+       "max": 62,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "8370",
+       "share": 1.0,
+       "n": 20
+      },
+      {
+       "i": 1,
+       "mode": "8385",
+       "share": 0.75,
+       "n": 20
+      },
+      {
+       "i": 2,
+       "mode": "8370",
+       "share": 0.95,
+       "n": 20
+      },
+      {
+       "i": 3,
+       "mode": "8385",
+       "share": 0.95,
+       "n": 19
+      },
+      {
+       "i": 4,
+       "mode": "8370",
+       "share": 1.0,
+       "n": 19
+      },
+      {
+       "i": 5,
+       "mode": "8385",
+       "share": 0.92,
+       "n": 12
+      },
+      {
+       "i": 6,
+       "mode": "8370",
+       "share": 1.0,
+       "n": 12
+      },
+      {
+       "i": 7,
+       "mode": "8385",
+       "share": 1.0,
+       "n": 6
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 140,
+      "SOULREAPER_AXE": 14,
+      "BLOWPIPE": 6
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 18,
+      "SOULREAPER_AXE": 2
+     },
+     "prayer": {
+      "missiles": 11,
+      "none": 7,
+      "magic": 2
+     }
+    },
+    "melee3": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       3,
+       0
+      ],
+      "share": 0.25,
+      "dx": {
+       "median": 1.0,
+       "min": -2,
+       "max": 3,
+       "n": 20
+      },
+      "dy": {
+       "median": 0.0,
+       "min": -2,
+       "max": 3,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       -1,
+       2
+      ],
+      "share": 0.2
+     },
+     "first_action": {
+      "median": 14.0,
+      "min": 14,
+      "max": 16,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 35.0,
+      "min": 29,
+      "max": 44,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 14.0,
+       "min": 14,
+       "max": 16,
+       "n": 20
+      },
+      {
+       "median": 20.0,
+       "min": 19,
+       "max": 23,
+       "n": 20
+      },
+      {
+       "median": 25.0,
+       "min": 24,
+       "max": 29,
+       "n": 20
+      },
+      {
+       "median": 30.0,
+       "min": 29,
+       "max": 45,
+       "n": 20
+      },
+      {
+       "median": 36.5,
+       "min": 34,
+       "max": 50,
+       "n": 20
+      },
+      {
+       "median": 41.5,
+       "min": 39,
+       "max": 56,
+       "n": 20
+      },
+      {
+       "median": 47.5,
+       "min": 44,
+       "max": 61,
+       "n": 20
+      },
+      {
+       "median": 53.0,
+       "min": 49,
+       "max": 69,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "8370",
+       "share": 1.0,
+       "n": 20
+      },
+      {
+       "i": 1,
+       "mode": "8385",
+       "share": 0.6,
+       "n": 20
+      },
+      {
+       "i": 2,
+       "mode": "8370",
+       "share": 0.95,
+       "n": 20
+      },
+      {
+       "i": 3,
+       "mode": "8385",
+       "share": 0.56,
+       "n": 16
+      },
+      {
+       "i": 4,
+       "mode": "8370",
+       "share": 0.88,
+       "n": 16
+      },
+      {
+       "i": 5,
+       "mode": "8385",
+       "share": 0.86,
+       "n": 14
+      },
+      {
+       "i": 6,
+       "mode": "8370",
+       "share": 0.92,
+       "n": 12
+      },
+      {
+       "i": 7,
+       "mode": "8385",
+       "share": 0.86,
+       "n": 7
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 128,
+      "NOXIOUS_HALBERD": 24,
+      "BLOWPIPE": 7,
+      "ZCB_AUTO": 1
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 17,
+      "NOXIOUS_HALBERD": 3
+     },
+     "prayer": {
+      "missiles": 13,
+      "none": 4,
+      "magic": 3
+     }
+    }
+   }
+  },
+  {
+   "name": "phase3",
+   "n": 20,
+   "start": {
+    "median": 288.5,
+    "min": 233,
+    "max": 413,
+    "n": 20
+   },
+   "length": {
+    "median": 134.5,
+    "min": 122,
+    "max": 200,
+    "n": 20
+   },
+   "adds": {
+    "median": 5.0,
+    "min": 4,
+    "max": 8,
+    "n": 20
+   },
+   "lanes": {
+    "8386": 60,
+    "8381": 16,
+    "8382": 13,
+    "8383": 13,
+    "8385": 4
+   },
+   "leaks": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 20
+   },
+   "leak_hp": null,
+   "roles": {
+    "melee1": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       0,
+       5
+      ],
+      "share": 0.6,
+      "dx": {
+       "median": 0.0,
+       "min": -3,
+       "max": 9,
+       "n": 20
+      },
+      "dy": {
+       "median": 5.0,
+       "min": -5,
+       "max": 5,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       -2,
+       2
+      ],
+      "share": 0.2
+     },
+     "first_action": {
+      "median": 7.0,
+      "min": 7,
+      "max": 8,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 24.0,
+      "min": 22,
+      "max": 33,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 7.0,
+       "min": 7,
+       "max": 8,
+       "n": 20
+      },
+      {
+       "median": 12.0,
+       "min": 12,
+       "max": 13,
+       "n": 20
+      },
+      {
+       "median": 17.0,
+       "min": 16,
+       "max": 19,
+       "n": 20
+      },
+      {
+       "median": 22.0,
+       "min": 20,
+       "max": 24,
+       "n": 20
+      },
+      {
+       "median": 27.0,
+       "min": 24,
+       "max": 29,
+       "n": 20
+      },
+      {
+       "median": 32.0,
+       "min": 28,
+       "max": 35,
+       "n": 20
+      },
+      {
+       "median": 37.0,
+       "min": 33,
+       "max": 40,
+       "n": 20
+      },
+      {
+       "median": 42.0,
+       "min": 37,
+       "max": 45,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "8370",
+       "share": 1.0,
+       "n": 20
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 128,
+      "NOXIOUS_HALBERD": 16,
+      "UNKNOWN": 8,
+      "FANG": 8
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 16,
+      "NOXIOUS_HALBERD": 2,
+      "RAPIER": 1
+     },
+     "prayer": {
+      "missiles": 8,
+      "magic": 7,
+      "none": 5
+     }
+    },
+    "melee2": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       0,
+       5
+      ],
+      "share": 0.4,
+      "dx": {
+       "median": 0.0,
+       "min": -3,
+       "max": 5,
+       "n": 20
+      },
+      "dy": {
+       "median": 1.5,
+       "min": -5,
+       "max": 5,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       3,
+       0
+      ],
+      "share": 0.1
+     },
+     "first_action": {
+      "median": 7.0,
+      "min": 7,
+      "max": 9,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 24.0,
+      "min": 21,
+      "max": 32,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 7.0,
+       "min": 7,
+       "max": 9,
+       "n": 20
+      },
+      {
+       "median": 12.0,
+       "min": 12,
+       "max": 14,
+       "n": 20
+      },
+      {
+       "median": 17.0,
+       "min": 16,
+       "max": 19,
+       "n": 20
+      },
+      {
+       "median": 22.0,
+       "min": 21,
+       "max": 24,
+       "n": 20
+      },
+      {
+       "median": 27.0,
+       "min": 26,
+       "max": 29,
+       "n": 20
+      },
+      {
+       "median": 32.0,
+       "min": 31,
+       "max": 34,
+       "n": 20
+      },
+      {
+       "median": 37.0,
+       "min": 36,
+       "max": 40,
+       "n": 20
+      },
+      {
+       "median": 42.0,
+       "min": 41,
+       "max": 45,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "8370",
+       "share": 1.0,
+       "n": 20
+      },
+      {
+       "i": 1,
+       "mode": "8381",
+       "share": 1.0,
+       "n": 1
+      },
+      {
+       "i": 2,
+       "mode": "8370",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 143,
+      "SOULREAPER_AXE": 16,
+      "CLAW_SPEC": 1
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 18,
+      "SOULREAPER_AXE": 2
+     },
+     "prayer": {
+      "magic": 8,
+      "missiles": 8,
+      "none": 4
+     }
+    },
+    "melee3": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       1,
+       -5
+      ],
+      "share": 0.25,
+      "dx": {
+       "median": 1.0,
+       "min": -3,
+       "max": 5,
+       "n": 20
+      },
+      "dy": {
+       "median": 0.5,
+       "min": -5,
+       "max": 5,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       1,
+       -2
+      ],
+      "share": 0.2
+     },
+     "first_action": {
+      "median": 7.0,
+      "min": 7,
+      "max": 12,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 23.0,
+      "min": 19,
+      "max": 29,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 7.0,
+       "min": 7,
+       "max": 12,
+       "n": 20
+      },
+      {
+       "median": 12.0,
+       "min": 12,
+       "max": 17,
+       "n": 20
+      },
+      {
+       "median": 17.0,
+       "min": 17,
+       "max": 22,
+       "n": 20
+      },
+      {
+       "median": 22.0,
+       "min": 22,
+       "max": 27,
+       "n": 20
+      },
+      {
+       "median": 27.0,
+       "min": 27,
+       "max": 32,
+       "n": 20
+      },
+      {
+       "median": 32.5,
+       "min": 31,
+       "max": 37,
+       "n": 20
+      },
+      {
+       "median": 37.5,
+       "min": 36,
+       "max": 43,
+       "n": 20
+      },
+      {
+       "median": 43.0,
+       "min": 41,
+       "max": 63,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "8370",
+       "share": 1.0,
+       "n": 20
+      },
+      {
+       "i": 1,
+       "mode": "8381",
+       "share": 1.0,
+       "n": 1
+      },
+      {
+       "i": 2,
+       "mode": "8370",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 135,
+      "NOXIOUS_HALBERD": 22,
+      "BURNING_CLAW_SPEC": 2,
+      "SCEPTRE_BARRAGE": 1
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 17,
+      "NOXIOUS_HALBERD": 3
+     },
+     "prayer": {
+      "missiles": 10,
+      "magic": 8,
+      "none": 2
+     }
+    }
+   }
+  }
+ ]
+}

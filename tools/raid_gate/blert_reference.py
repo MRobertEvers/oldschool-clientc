@@ -824,6 +824,34 @@ another raider's hitpoints, what was eaten, the damage of one hit (a hit on a re
 its hitpoints drop in the six ticks after the attack, approximate); see the tool's
 docstring.
 
+## Per-wave scripts (`<room>_<mode>_<scale>.script.json`)
+
+Written by `tools/raid_gate/blert_script.py <room> --mode M --scale S` from the same cached
+streams and the same rooms (the reference's `selection.uuids`); read by
+`tools/raid_gate/raid_report.py RUN --waves <file> [--wave N] [--roles p0=ROLE,...]`, which
+aligns each of a run's waves on its own spawn tick and names, per role, the first tick
+the run left the script (tile / late / none / target / return).  Every number is
+`{median, min, max, n}` over the rooms.
+
+- `anchor`: what tiles are relative to (Maiden: her SW tile; Nylocas: the Vasilias' spawn
+  tile, region-local 30,23; other rooms: the boss's first tile). `lanes`: each spawn lane's
+  tile relative to the anchor (Maiden N1..N4out / S1..S4out, Blert's crab positions;
+  Nylocas W / S / E).
+- `segments[]` in room order. Maiden `100`, `70`, `50`, `30`; Nylocas `w1`..`w31`,
+  `cleanup`, `boss`; other rooms Blert's phase events. `start` (ticks from the room's
+  tick 0), `length`, `adds` (spawns in the segment), `lanes` (spawns per lane over all
+  rooms; a Nylocas lane is `<lane>-<style>[-big]`, `split-*` a big one's split), `leaks`
+  and `leak_hp` (Maiden: crabs reaching her, the crab's hitpoints then).
+- `segments[].roles.<role>` (classify_roles: Maiden `dps1`/`dps2`/`freezer`, others
+  `mage`/`range`/`melee`): `tile` (modal tile over the segment relative to the anchor:
+  `mode` across rooms, its `share`, and `dx`/`dy` ranges of each room's modal tile);
+  `spawn_tile` (where the role stood on the spawn tick); `first_action` (ticks from the
+  spawn to its first attack) and `no_action_share`; `attacks`; `casts[i]` (the i-th
+  attack's offset, kept while half the rooms have one); `targets[i]` (the i-th DISTINCT
+  target in order: `boss`, a lane, or `other`, with its `share`); `attack_names`;
+  `return_to_boss` (offset of the first boss attack after its first add attack);
+  `weapon` and `prayer` (modal per room, counted over rooms).
+
 """
 
 

@@ -25,6 +25,16 @@ read against one that did not.
     python3 tools/raid_gate/raid_report.py RUN_A RUN_B --timeline 380-420
     python3 tools/raid_gate/raid_report.py build/quest_gate/RUN --against         docs/minigames/theater_of_blood/sources/blert_api/reference/maiden_normal_3.json
 
+--waves SCRIPT.json [--wave N] (tools seam, 2026-10-06): instead of the
+report, the run against a Blert PER-WAVE script (blert_script.py): every wave
+aligned on its own spawn tick, per role ours vs the script's tile, first
+action, targets in order and return-to-boss, and the FIRST tick where the run
+deviates (raid_waves.py says how each is judged).  Under 4 KB; --wave N for
+one wave in full.
+
+    python3 tools/raid_gate/raid_report.py build/quest_gate/_play_maiden --waves \
+        docs/minigames/theater_of_blood/sources/blert_api/reference/maiden_normal_3.script.json
+
 --against (seam40): the run's numbers beside what successful real teams did in
 the same room, mode and scale (the reference blert_reference.py writes): the
 room and phase ticks, the boss's hitpoints lost per tick per phase (the damage
@@ -926,6 +936,13 @@ def main():
     parser.add_argument("--against", default=None, metavar="REFERENCE.json",
                         help="also print the run's numbers against a Blert reference "
                              "(tools/raid_gate/blert_reference.py) and flag every one outside its range")
+    parser.add_argument("--waves", default=None, metavar="SCRIPT.json",
+                        help="print only the WAVE-ALIGNED DIFF of the run against a Blert per-wave script "
+                             "(tools/raid_gate/blert_script.py; raid_waves.py), under 4 KB")
+    parser.add_argument("--wave", default=None, metavar="N",
+                        help="with --waves, one wave in full (70 / 50 / 30 / 100 at Maiden, 7 or w7 at Nylocas)")
+    parser.add_argument("--roles", default=None, metavar="p0=ROLE,...",
+                        help="with --waves, seat our players on the script's roles by hand")
     parser.add_argument("--all-numbers", action="store_true",
                         help="with --against, list the numbers inside the range too")
     arguments = parser.parse_args()
@@ -933,6 +950,20 @@ def main():
     for entry in arguments.hazard:
         spotanim, _, ticks = entry.partition(":")
         HAZARDS_IN_USE[int(spotanim)] = ("spotanim %s" % spotanim, int(ticks or 1))
+
+    if arguments.waves:
+        import raid_waves
+        with open(arguments.waves, "r", encoding="utf-8") as handle:
+            script = json.load(handle)
+        assert script.get("kind") == "blert-script-v1", "%s is not a blert script" % arguments.waves
+        script["_path"] = arguments.waves
+        lines = []
+        for run_directory in arguments.run_directories:
+            lines += raid_waves.wave_lines(run_directory, script, sys.modules[__name__], arguments.wave,
+                                            arguments.roles)
+        for line in raid_waves.budget(lines, raid_waves.BYTE_BUDGET * (4 if arguments.wave else 1)):
+            print(line)
+        return 0
 
     lines = []
     for run_directory in arguments.run_directories:

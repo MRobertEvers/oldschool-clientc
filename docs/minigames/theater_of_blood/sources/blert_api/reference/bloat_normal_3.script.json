@@ -1,0 +1,1579 @@
+{
+ "kind": "blert-script-v1",
+ "room": "bloat",
+ "mode": "normal",
+ "scale": 3,
+ "anchor": {
+  "what": "the boss's first tile",
+  "region_local": [
+   28,
+   24
+  ]
+ },
+ "lanes": {},
+ "rooms": 19,
+ "missing_streams": [],
+ "uuids": [
+  "3cdb2763-c014-46b1-a469-0d55a4da8605",
+  "b3339716-ca8c-4876-9739-c0d4b6252fae",
+  "287a5e70-cb5f-4f49-9f86-2a9eafd9c992",
+  "48daf88c-6f23-4fc0-9e73-271ff1fac630",
+  "fe1a8595-e225-44fe-9c7c-78eefe479867",
+  "c107b440-aee6-4d3d-a2f4-56465006b989",
+  "121e11d2-20e9-49b7-bbe1-16e46dfe0d38",
+  "71c56a70-ad64-4991-90b6-50d68be84ef6",
+  "d2d2bcb6-71a8-40bf-8bc8-c26396984115",
+  "2b90489f-ec86-42ec-aa2b-796657026850",
+  "66e7b7a7-548f-4689-9c70-98fab8ac9040",
+  "a9dfe446-e901-4052-87be-3aafb1fe11d1",
+  "7655682f-3540-4f47-acd7-333ab41bf632",
+  "d68e15d3-ae43-4a90-93ae-66811545b69c",
+  "84a26074-8a52-4814-8b22-f75bdb01408a",
+  "4aa994a6-ed34-4ff5-a183-faa232186b94",
+  "7983c78a-cb94-4e51-ac15-5efa29973a4e",
+  "09b7b06c-a4e2-4728-9299-97490a2f9e0f",
+  "958d9a7c-79c3-4cb8-a3d2-3fe5c10532da"
+ ],
+ "segments": [
+  {
+   "name": "start",
+   "n": 19,
+   "start": {
+    "median": 0,
+    "min": 0,
+    "max": 0,
+    "n": 19
+   },
+   "length": {
+    "median": 42,
+    "min": 39,
+    "max": 47,
+    "n": 19
+   },
+   "adds": {
+    "median": 0,
+    "min": 0,
+    "max": 0,
+    "n": 19
+   },
+   "lanes": {},
+   "leaks": {
+    "median": 0,
+    "min": 0,
+    "max": 0,
+    "n": 19
+   },
+   "leak_hp": null,
+   "roles": {
+    "melee1": {
+     "n": 19,
+     "tile": {
+      "mode": [
+       0,
+       -5
+      ],
+      "share": 0.32,
+      "dx": {
+       "median": 0,
+       "min": -5,
+       "max": 9,
+       "n": 19
+      },
+      "dy": {
+       "median": -2,
+       "min": -6,
+       "max": 9,
+       "n": 19
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       11,
+       -5
+      ],
+      "share": 0.26
+     },
+     "first_action": {
+      "median": 8.0,
+      "min": 2,
+      "max": 9,
+      "n": 18
+     },
+     "no_action_share": 0.05,
+     "attacks": {
+      "median": 3,
+      "min": 0,
+      "max": 8,
+      "n": 19
+     },
+     "casts": [
+      {
+       "median": 8.0,
+       "min": 2,
+       "max": 9,
+       "n": 18
+      },
+      {
+       "median": 19.0,
+       "min": 7,
+       "max": 20,
+       "n": 18
+      },
+      {
+       "median": 30.0,
+       "min": 16,
+       "max": 31,
+       "n": 18
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 18
+      }
+     ],
+     "attack_names": {
+      "ZCB_AUTO": 35,
+      "TWISTED_BOW": 15,
+      "SCYTHE": 9,
+      "BOWFA": 3
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "ZCB": 11,
+      "TWISTED_BOW": 5,
+      "BOWFA": 1
+     },
+     "prayer": {
+      "missiles": 19
+     }
+    },
+    "melee2": {
+     "n": 19,
+     "tile": {
+      "mode": [
+       2,
+       0
+      ],
+      "share": 0.16,
+      "dx": {
+       "median": 1,
+       "min": -1,
+       "max": 15,
+       "n": 19
+      },
+      "dy": {
+       "median": 0,
+       "min": -7,
+       "max": 11,
+       "n": 19
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       13,
+       9
+      ],
+      "share": 0.26
+     },
+     "first_action": {
+      "median": 8.0,
+      "min": 7,
+      "max": 19,
+      "n": 16
+     },
+     "no_action_share": 0.16,
+     "attacks": {
+      "median": 3,
+      "min": 0,
+      "max": 6,
+      "n": 19
+     },
+     "casts": [
+      {
+       "median": 8.0,
+       "min": 7,
+       "max": 19,
+       "n": 16
+      },
+      {
+       "median": 19.0,
+       "min": 15,
+       "max": 30,
+       "n": 16
+      },
+      {
+       "median": 30.0,
+       "min": 21,
+       "max": 30,
+       "n": 14
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 16
+      }
+     ],
+     "attack_names": {
+      "ZCB_AUTO": 41,
+      "SCYTHE": 5,
+      "TONALZTICS_AUTO": 3,
+      "BGS_SPEC": 1
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "ZCB": 14,
+      "CHALLY": 2,
+      "TONALZTICS": 1
+     },
+     "prayer": {
+      "missiles": 16,
+      "none": 3
+     }
+    },
+    "melee3": {
+     "n": 19,
+     "tile": {
+      "mode": [
+       0,
+       9
+      ],
+      "share": 0.21,
+      "dx": {
+       "median": 2,
+       "min": 0,
+       "max": 15,
+       "n": 19
+      },
+      "dy": {
+       "median": 0,
+       "min": -5,
+       "max": 9,
+       "n": 19
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       11,
+       9
+      ],
+      "share": 0.21
+     },
+     "first_action": {
+      "median": 8.0,
+      "min": 6,
+      "max": 18,
+      "n": 10
+     },
+     "no_action_share": 0.47,
+     "attacks": {
+      "median": 2,
+      "min": 0,
+      "max": 5,
+      "n": 19
+     },
+     "casts": [
+      {
+       "median": 8.0,
+       "min": 6,
+       "max": 18,
+       "n": 10
+      },
+      {
+       "median": 19.0,
+       "min": 11,
+       "max": 30,
+       "n": 10
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 10
+      }
+     ],
+     "attack_names": {
+      "ZCB_AUTO": 25,
+      "SCYTHE": 7
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "ZCB": 9,
+      "CHALLY": 7,
+      "SCYTHE": 1
+     },
+     "prayer": {
+      "missiles": 11,
+      "none": 8
+     }
+    }
+   }
+  },
+  {
+   "name": "down1",
+   "n": 19,
+   "start": {
+    "median": 42,
+    "min": 39,
+    "max": 47,
+    "n": 19
+   },
+   "length": {
+    "median": 33,
+    "min": 31,
+    "max": 33,
+    "n": 19
+   },
+   "adds": {
+    "median": 0,
+    "min": 0,
+    "max": 0,
+    "n": 19
+   },
+   "lanes": {},
+   "leaks": {
+    "median": 0,
+    "min": 0,
+    "max": 0,
+    "n": 19
+   },
+   "leak_hp": null,
+   "roles": {
+    "melee1": {
+     "n": 19,
+     "tile": {
+      "mode": [
+       5,
+       4
+      ],
+      "share": 0.16,
+      "dx": {
+       "median": 5,
+       "min": 2,
+       "max": 8,
+       "n": 19
+      },
+      "dy": {
+       "median": 0,
+       "min": -7,
+       "max": 11,
+       "n": 19
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       1,
+       4
+      ],
+      "share": 0.11
+     },
+     "first_action": {
+      "median": 3,
+      "min": 1,
+      "max": 5,
+      "n": 19
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 6,
+      "min": 5,
+      "max": 7,
+      "n": 19
+     },
+     "casts": [
+      {
+       "median": 3,
+       "min": 1,
+       "max": 5,
+       "n": 19
+      },
+      {
+       "median": 10,
+       "min": 7,
+       "max": 12,
+       "n": 19
+      },
+      {
+       "median": 15,
+       "min": 11,
+       "max": 17,
+       "n": 19
+      },
+      {
+       "median": 20,
+       "min": 15,
+       "max": 22,
+       "n": 19
+      },
+      {
+       "median": 24,
+       "min": 20,
+       "max": 31,
+       "n": 19
+      },
+      {
+       "median": 30,
+       "min": 25,
+       "max": 32,
+       "n": 15
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 19
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 67,
+      "CHALLY_SPEC": 28,
+      "SAELDOR": 7,
+      "CLAW_SPEC": 5
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 16,
+      "SAELDOR": 2,
+      "SOULREAPER_AXE": 1
+     },
+     "prayer": {
+      "missiles": 19
+     }
+    },
+    "melee2": {
+     "n": 19,
+     "tile": {
+      "mode": [
+       7,
+       10
+      ],
+      "share": 0.16,
+      "dx": {
+       "median": 7,
+       "min": 2,
+       "max": 8,
+       "n": 19
+      },
+      "dy": {
+       "median": 0,
+       "min": -7,
+       "max": 10,
+       "n": 19
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       1,
+       4
+      ],
+      "share": 0.11
+     },
+     "first_action": {
+      "median": 3,
+      "min": 1,
+      "max": 6,
+      "n": 19
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 6,
+      "min": 5,
+      "max": 7,
+      "n": 19
+     },
+     "casts": [
+      {
+       "median": 3,
+       "min": 1,
+       "max": 6,
+       "n": 19
+      },
+      {
+       "median": 9,
+       "min": 6,
+       "max": 13,
+       "n": 19
+      },
+      {
+       "median": 15,
+       "min": 11,
+       "max": 18,
+       "n": 19
+      },
+      {
+       "median": 20,
+       "min": 16,
+       "max": 23,
+       "n": 19
+      },
+      {
+       "median": 25,
+       "min": 21,
+       "max": 30,
+       "n": 19
+      },
+      {
+       "median": 30.0,
+       "min": 26,
+       "max": 31,
+       "n": 16
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 19
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 74,
+      "CHALLY_SPEC": 28,
+      "CLAW_SPEC": 7,
+      "SOULREAPER_AXE": 4
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 18,
+      "SOULREAPER_AXE": 1
+     },
+     "prayer": {
+      "missiles": 19
+     }
+    },
+    "melee3": {
+     "n": 19,
+     "tile": {
+      "mode": [
+       2,
+       11
+      ],
+      "share": 0.05,
+      "dx": {
+       "median": 7,
+       "min": 2,
+       "max": 15,
+       "n": 19
+      },
+      "dy": {
+       "median": 2,
+       "min": -7,
+       "max": 11,
+       "n": 19
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       6,
+       11
+      ],
+      "share": 0.11
+     },
+     "first_action": {
+      "median": 4,
+      "min": 2,
+      "max": 22,
+      "n": 19
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 6,
+      "min": 1,
+      "max": 7,
+      "n": 19
+     },
+     "casts": [
+      {
+       "median": 4,
+       "min": 2,
+       "max": 22,
+       "n": 19
+      },
+      {
+       "median": 9.0,
+       "min": 7,
+       "max": 13,
+       "n": 18
+      },
+      {
+       "median": 15.5,
+       "min": 11,
+       "max": 18,
+       "n": 18
+      },
+      {
+       "median": 19.5,
+       "min": 15,
+       "max": 23,
+       "n": 18
+      },
+      {
+       "median": 24,
+       "min": 20,
+       "max": 27,
+       "n": 17
+      },
+      {
+       "median": 27,
+       "min": 25,
+       "max": 32,
+       "n": 11
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 19
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 59,
+      "CHALLY_SPEC": 27,
+      "UNKNOWN": 9,
+      "CLAW_SPEC": 8
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 15,
+      "4151": 3,
+      "CHALLY": 1
+     },
+     "prayer": {
+      "missiles": 15,
+      "none": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "walk2",
+   "n": 18,
+   "start": {
+    "median": 74.5,
+    "min": 72,
+    "max": 80,
+    "n": 18
+   },
+   "length": {
+    "median": 36.0,
+    "min": 35,
+    "max": 43,
+    "n": 18
+   },
+   "adds": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 18
+   },
+   "lanes": {},
+   "leaks": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 18
+   },
+   "leak_hp": null,
+   "roles": {
+    "melee1": {
+     "n": 18,
+     "tile": {
+      "mode": [
+       7,
+       -1
+      ],
+      "share": 0.11,
+      "dx": {
+       "median": 5.5,
+       "min": 0,
+       "max": 8,
+       "n": 18
+      },
+      "dy": {
+       "median": 2.0,
+       "min": -7,
+       "max": 11,
+       "n": 18
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       0,
+       -2
+      ],
+      "share": 0.11
+     },
+     "first_action": {
+      "median": 14,
+      "min": 0,
+      "max": 25,
+      "n": 5
+     },
+     "no_action_share": 0.72,
+     "attacks": {
+      "median": 0.0,
+      "min": 0,
+      "max": 5,
+      "n": 18
+     },
+     "casts": [],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 5
+      }
+     ],
+     "attack_names": {
+      "ZCB_AUTO": 6,
+      "TWISTED_BOW": 3,
+      "CHALLY_SPEC": 1
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "CLAW": 7,
+      "SCYTHE": 3,
+      "CHALLY": 3
+     },
+     "prayer": {
+      "missiles": 18
+     }
+    },
+    "melee2": {
+     "n": 18,
+     "tile": {
+      "mode": [
+       1,
+       4
+      ],
+      "share": 0.11,
+      "dx": {
+       "median": 5.0,
+       "min": 0,
+       "max": 9,
+       "n": 18
+      },
+      "dy": {
+       "median": 2.0,
+       "min": -6,
+       "max": 11,
+       "n": 18
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       6,
+       11
+      ],
+      "share": 0.06
+     },
+     "first_action": {
+      "median": 0,
+      "min": 0,
+      "max": 0,
+      "n": 1
+     },
+     "no_action_share": 0.94,
+     "attacks": {
+      "median": 0.0,
+      "min": 0,
+      "max": 1,
+      "n": 18
+     },
+     "casts": [],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "CHALLY_SPEC": 1
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "CLAW": 11,
+      "CHALLY": 3,
+      "SCYTHE": 3
+     },
+     "prayer": {
+      "missiles": 18
+     }
+    },
+    "melee3": {
+     "n": 18,
+     "tile": {
+      "mode": [
+       1,
+       4
+      ],
+      "share": 0.06,
+      "dx": {
+       "median": 5.5,
+       "min": 0,
+       "max": 9,
+       "n": 18
+      },
+      "dy": {
+       "median": 2.0,
+       "min": -7,
+       "max": 11,
+       "n": 18
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       4,
+       4
+      ],
+      "share": 0.11
+     },
+     "first_action": null,
+     "no_action_share": 1.0,
+     "attacks": {
+      "median": 0.0,
+      "min": 0,
+      "max": 0,
+      "n": 18
+     },
+     "casts": [],
+     "targets": [],
+     "attack_names": {},
+     "return_to_boss": null,
+     "weapon": {
+      "CLAW": 8,
+      "SCYTHE": 6,
+      "CHALLY": 4
+     },
+     "prayer": {
+      "missiles": 16,
+      "none": 2
+     }
+    }
+   }
+  },
+  {
+   "name": "down2",
+   "n": 18,
+   "start": {
+    "median": 113.0,
+    "min": 107,
+    "max": 119,
+    "n": 18
+   },
+   "length": {
+    "median": 24.5,
+    "min": 13,
+    "max": 33,
+    "n": 18
+   },
+   "adds": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 18
+   },
+   "lanes": {},
+   "leaks": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 18
+   },
+   "leak_hp": null,
+   "roles": {
+    "melee1": {
+     "n": 18,
+     "tile": {
+      "mode": [
+       6,
+       4
+      ],
+      "share": 0.06,
+      "dx": {
+       "median": 0.5,
+       "min": -4,
+       "max": 8,
+       "n": 18
+      },
+      "dy": {
+       "median": 1.5,
+       "min": -7,
+       "max": 12,
+       "n": 18
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       7,
+       5
+      ],
+      "share": 0.11
+     },
+     "first_action": {
+      "median": 5.0,
+      "min": 3,
+      "max": 7,
+      "n": 18
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 4.0,
+      "min": 2,
+      "max": 6,
+      "n": 18
+     },
+     "casts": [
+      {
+       "median": 5.0,
+       "min": 3,
+       "max": 7,
+       "n": 18
+      },
+      {
+       "median": 10.0,
+       "min": 8,
+       "max": 14,
+       "n": 18
+      },
+      {
+       "median": 15,
+       "min": 13,
+       "max": 18,
+       "n": 17
+      },
+      {
+       "median": 20.0,
+       "min": 17,
+       "max": 22,
+       "n": 10
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 18
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 43,
+      "CLAW_SPEC": 12,
+      "SAELDOR": 8,
+      "CHALLY_SPEC": 6
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 12,
+      "CLAW": 3,
+      "SAELDOR": 2
+     },
+     "prayer": {
+      "missiles": 17,
+      "none": 1
+     }
+    },
+    "melee2": {
+     "n": 18,
+     "tile": {
+      "mode": [
+       1,
+       0
+      ],
+      "share": 0.11,
+      "dx": {
+       "median": 2.0,
+       "min": -4,
+       "max": 9,
+       "n": 18
+      },
+      "dy": {
+       "median": 2.0,
+       "min": -7,
+       "max": 11,
+       "n": 18
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       7,
+       -1
+      ],
+      "share": 0.17
+     },
+     "first_action": {
+      "median": 5.5,
+      "min": 2,
+      "max": 11,
+      "n": 18
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 3.5,
+      "min": 2,
+      "max": 6,
+      "n": 18
+     },
+     "casts": [
+      {
+       "median": 5.5,
+       "min": 2,
+       "max": 11,
+       "n": 18
+      },
+      {
+       "median": 10.0,
+       "min": 6,
+       "max": 16,
+       "n": 18
+      },
+      {
+       "median": 15.0,
+       "min": 11,
+       "max": 21,
+       "n": 16
+      },
+      {
+       "median": 20,
+       "min": 18,
+       "max": 26,
+       "n": 9
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 18
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 48,
+      "CLAW_SPEC": 12,
+      "CHALLY_SPEC": 5,
+      "SOULREAPER_AXE": 4
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 14,
+      "CLAW": 3,
+      "SOULREAPER_AXE": 1
+     },
+     "prayer": {
+      "missiles": 17,
+      "none": 1
+     }
+    },
+    "melee3": {
+     "n": 18,
+     "tile": {
+      "mode": [
+       3,
+       0
+      ],
+      "share": 0.11,
+      "dx": {
+       "median": 3.0,
+       "min": -4,
+       "max": 7,
+       "n": 18
+      },
+      "dy": {
+       "median": 1.5,
+       "min": -7,
+       "max": 11,
+       "n": 18
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       0,
+       -6
+      ],
+      "share": 0.11
+     },
+     "first_action": {
+      "median": 6.0,
+      "min": 4,
+      "max": 9,
+      "n": 18
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 4.0,
+      "min": 1,
+      "max": 5,
+      "n": 18
+     },
+     "casts": [
+      {
+       "median": 6.0,
+       "min": 4,
+       "max": 9,
+       "n": 18
+      },
+      {
+       "median": 11,
+       "min": 8,
+       "max": 14,
+       "n": 17
+      },
+      {
+       "median": 16,
+       "min": 13,
+       "max": 18,
+       "n": 13
+      },
+      {
+       "median": 21,
+       "min": 18,
+       "max": 23,
+       "n": 11
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 18
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 36,
+      "UNKNOWN": 12,
+      "CLAW_SPEC": 9,
+      "CHALLY_SPEC": 8
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 13,
+      "4151": 3,
+      "CLAW": 2
+     },
+     "prayer": {
+      "missiles": 12,
+      "none": 6
+     }
+    }
+   }
+  },
+  {
+   "name": "walk3",
+   "n": 4,
+   "start": {
+    "median": 144.5,
+    "min": 141,
+    "max": 147,
+    "n": 4
+   },
+   "length": {
+    "median": 19.5,
+    "min": 1,
+    "max": 40,
+    "n": 4
+   },
+   "adds": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 4
+   },
+   "lanes": {},
+   "leaks": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 4
+   },
+   "leak_hp": null,
+   "roles": {
+    "melee1": {
+     "n": 4,
+     "tile": {
+      "mode": [
+       7,
+       7
+      ],
+      "share": 0.25,
+      "dx": {
+       "median": 4.0,
+       "min": -1,
+       "max": 7,
+       "n": 4
+      },
+      "dy": {
+       "median": 6.0,
+       "min": -1,
+       "max": 8,
+       "n": 4
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       7,
+       9
+      ],
+      "share": 0.25
+     },
+     "first_action": null,
+     "no_action_share": 1.0,
+     "attacks": {
+      "median": 0.0,
+      "min": 0,
+      "max": 0,
+      "n": 4
+     },
+     "casts": [],
+     "targets": [],
+     "attack_names": {},
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 2,
+      "CHALLY": 1,
+      "SAELDOR": 1
+     },
+     "prayer": {
+      "missiles": 3,
+      "none": 1
+     }
+    },
+    "melee2": {
+     "n": 4,
+     "tile": {
+      "mode": [
+       7,
+       5
+      ],
+      "share": 0.5,
+      "dx": {
+       "median": 7.0,
+       "min": -1,
+       "max": 7,
+       "n": 4
+      },
+      "dy": {
+       "median": 4.5,
+       "min": -1,
+       "max": 5,
+       "n": 4
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       6,
+       11
+      ],
+      "share": 0.25
+     },
+     "first_action": null,
+     "no_action_share": 1.0,
+     "attacks": {
+      "median": 0.0,
+      "min": 0,
+      "max": 0,
+      "n": 4
+     },
+     "casts": [],
+     "targets": [],
+     "attack_names": {},
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 3,
+      "SOULREAPER_AXE": 1
+     },
+     "prayer": {
+      "missiles": 4
+     }
+    },
+    "melee3": {
+     "n": 4,
+     "tile": {
+      "mode": [
+       6,
+       11
+      ],
+      "share": 0.25,
+      "dx": {
+       "median": 6.5,
+       "min": 0,
+       "max": 7,
+       "n": 4
+      },
+      "dy": {
+       "median": 4.5,
+       "min": -5,
+       "max": 11,
+       "n": 4
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       6,
+       11
+      ],
+      "share": 0.25
+     },
+     "first_action": null,
+     "no_action_share": 1.0,
+     "attacks": {
+      "median": 0.0,
+      "min": 0,
+      "max": 0,
+      "n": 4
+     },
+     "casts": [],
+     "targets": [],
+     "attack_names": {},
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 2,
+      "4151": 1,
+      "CLAW": 1
+     },
+     "prayer": {
+      "missiles": 3,
+      "none": 1
+     }
+    }
+   }
+  },
+  {
+   "name": "down3",
+   "n": 2,
+   "start": {
+    "median": 185.5,
+    "min": 184,
+    "max": 187,
+    "n": 2
+   },
+   "length": {
+    "median": 8.0,
+    "min": 8,
+    "max": 8,
+    "n": 2
+   },
+   "adds": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 2
+   },
+   "lanes": {},
+   "leaks": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 2
+   },
+   "leak_hp": null,
+   "roles": {
+    "melee1": {
+     "n": 2,
+     "tile": {
+      "mode": [
+       6,
+       11
+      ],
+      "share": 0.5,
+      "dx": {
+       "median": 4.5,
+       "min": 3,
+       "max": 6,
+       "n": 2
+      },
+      "dy": {
+       "median": 11.0,
+       "min": 11,
+       "max": 11,
+       "n": 2
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       6,
+       11
+      ],
+      "share": 0.5
+     },
+     "first_action": {
+      "median": 3.5,
+      "min": 3,
+      "max": 4,
+      "n": 2
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 1.0,
+      "min": 1,
+      "max": 1,
+      "n": 2
+     },
+     "casts": [
+      {
+       "median": 3.5,
+       "min": 3,
+       "max": 4,
+       "n": 2
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 2
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 1,
+      "CHALLY_SPEC": 1
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 1,
+      "CHALLY": 1
+     },
+     "prayer": {
+      "missiles": 2
+     }
+    },
+    "melee2": {
+     "n": 2,
+     "tile": {
+      "mode": [
+       0,
+       6
+      ],
+      "share": 0.5,
+      "dx": {
+       "median": 3.5,
+       "min": 0,
+       "max": 7,
+       "n": 2
+      },
+      "dy": {
+       "median": 5.0,
+       "min": 4,
+       "max": 6,
+       "n": 2
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       0,
+       6
+      ],
+      "share": 0.5
+     },
+     "first_action": {
+      "median": 4,
+      "min": 4,
+      "max": 4,
+      "n": 1
+     },
+     "no_action_share": 0.5,
+     "attacks": {
+      "median": 0.5,
+      "min": 0,
+      "max": 1,
+      "n": 2
+     },
+     "casts": [
+      {
+       "median": 4,
+       "min": 4,
+       "max": 4,
+       "n": 1
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 1
+     },
+     "return_to_boss": null,
+     "weapon": {
+      "SCYTHE": 2
+     },
+     "prayer": {
+      "missiles": 1,
+      "none": 1
+     }
+    },
+    "melee3": {
+     "n": 2,
+     "tile": {
+      "mode": [
+       7,
+       9
+      ],
+      "share": 0.5,
+      "dx": {
+       "median": 7.0,
+       "min": 7,
+       "max": 7,
+       "n": 2
+      },
+      "dy": {
+       "median": 6.5,
+       "min": 4,
+       "max": 9,
+       "n": 2
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       4,
+       11
+      ],
+      "share": 0.5
+     },
+     "first_action": null,
+     "no_action_share": 1.0,
+     "attacks": {
+      "median": 0.0,
+      "min": 0,
+      "max": 0,
+      "n": 2
+     },
+     "casts": [],
+     "targets": [],
+     "attack_names": {},
+     "return_to_boss": null,
+     "weapon": {
+      "CHALLY": 1,
+      "SCYTHE": 1
+     },
+     "prayer": {
+      "none": 1,
+      "missiles": 1
+     }
+    }
+   }
+  }
+ ]
+}
