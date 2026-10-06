@@ -93,6 +93,8 @@ topic file with one line added here.
 - Ratcatchers: the trellis top's Climb-down lands inside the house at 2844,5104,0; the garden gates swing open and lead nowhere (FIXED b64-seam1: both leave the grounds for Ardougne, 2570,3322,0) -> seam-facts: Seam pass matthew-mbp-m4-b64-seam1 (b)
 - a `ladders.loc` ladder or trellis does something other than its category's `~climb`: a quest `.rs2` binds `[oploc1,<loc>]` by name, which shadows the category -> seam-facts: Seam pass matthew-mbp-m4-b64-seam1 (b)
 - Biohazard: a teleport does NOT break the plague sample (LostCity's "too delicate...it disintegrates in the crossing." is 2004; OSRS dropped it 25 July 2019) -> seam-facts: Seam pass matthew-mbp-m4-b64-seam1 (a)
+- `You can't go any further.` from a stair that has a `maplink.dbrow` row: `~maplink_try` is keyed on the PLAYER's tile, so you pressed it from its footprint, not the row's src tile (the Uzer ruin stairs answer from the arch 3491,3090 only; b65-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b65-seam1 (a)
+- Golem: the Uzer portal lands in an empty square 3544,4952,0 and the throne room's exit portal loops back into it; the ruin stairs land on their own footprint 3493,3090 (FIXED b65-seam1: throne room 2720,4884,2, out to 2721,4911,0; stairs 3491,3090,0 <-> 2721,4886,0) -> seam-facts: Seam pass matthew-mbp-m4-b65-seam1 (a)
 
 ## Pressing and clicking
 
@@ -151,6 +153,8 @@ topic file with one line added here.
 - `pass_door` on a Gu'Tanoth gate (or any LostCity `~open_and_close_double_door*` gate) reads "the closed leaf is still at ... (player ...)" after the player was carried through -> verbs-pointer: A gate ported from LostCity's `~open_and_close_double_door*` is a WALK-THROUGH
 - `climb` answers `refused ... a page is up: npc '...' -- the press spoke before it moved the player (pass spec.chat ...)`; the Watchtower's towerladder guard ("It is the wizards' helping hand") -> verbs-pointer: A GUARDED ladder speaks first: `chat=`, `chat_optional=`
 - `covered ... element E at 382,102 ... none of 99 pixels` on a named npc copy (`{slot=}`/`{at=}`) one tile away, every try, every camera (FIXED b63-seam1) -> verbs-pointer: A named npc copy is pressed at its OWN pose's pixel
+- `pass_door` refused "the closed leaf left ... but no <open leaf> stands within 1" on a double door that the next row reads standing open (Al Kharid palace `bankdoor_l`; FIXED b65-seam1: the open leaf is awaited, the detail says `(after N tick(s), M read(s))`) -> verbs-pointer: A double door's open leaf lands a frame late: awaited
+- `covered ... pickset held=false, menu rows: Cancel, Walk here` at EVERY pose and `none of 99 pixels hittested` on a stairwell or ring loc whose middle is a hole (Uzer `golem_insidestairs_top` pressed from 3491,3090): OPEN driver seam, the b65 aim-on-model fix was reverted (it broke five greens) -> seam-facts: Seam pass matthew-mbp-m4-b65-seam1 (c)
 
 ## Dialogue and chat
 
@@ -383,6 +387,8 @@ topic file with one line added here.
 - helper_coverage CHEAT "with every door shut no walk joins them ... every walk on foot opens <gate> ... (gate_crossings)", a `(goto onto <loc>)` step "on a solid tile ... (solid_landings)", UNMATCHED "line N is a bare use_on" / "shows no effect" -> coverage-and-gate: A goto through the only gate, onto a solid tile, or off an island it swung onto; a use that did nothing
 - a quest queued green reads RED on a fresh run with its FIRST goto charged (membergater, a house door, a solid landing), or a `(setup placement) <cheat> lands at x,z,l past <loc>` CHEAT step: the owner ruled 2026-10-05 that the first goto and the setup placement obey the door rule (b64-seam1 judges both from the fixture's tile) -> start-and-travel: "The grader now catches the goto inside"; coverage-and-gate: A goto through the only gate, onto a solid tile, or off an island it swung onto; a use that did nothing
 - helper_coverage CHEAT "every walk on foot crosses (by its own op) <loc> ... (NEEDS-OP ...)": a goto over the Wilderness Ditch, through the Shantay Pass or the Barbarian agility pipe; reach.py now says NEEDS-OP there, not UNREACHABLE (b64-seam1) -> coverage-and-gate: A goto through the only gate, onto a solid tile, or off an island it swung onto; a use that did nothing
+- helper_coverage CHEAT "no on-foot route (UNREACHABLE at margin 600)" (a goto onto an island, into Morytania or Lletya, with no teleport, boat, climb or ferry row before it) or "the fewest-door walk on foot opens <gate> ... at margin N only" (a members' gate only a wider flood finds); a crossing row named `goToX` no longer reads as a goto (b65-seam1) -> coverage-and-gate: "no on-foot route (UNREACHABLE at margin 600)", "the fewest-door walk on foot opens ... at margin N only"; a `goToX` crossing row is no goto
+- a staged Magic or combat level hides an npc's low-combat dialogue branch (druid's Kaqemeex, Prying Times): OPEN owner question -> verbs-pointer: `t.player.teleport_cast(spell, landing, opts)` (the owner question under it)
 
 ## Harness and runs
 

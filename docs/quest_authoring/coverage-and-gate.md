@@ -932,7 +932,9 @@ Four holes the b63 fixers found, each closed in `helper_coverage.py`, each with 
   pressing it in the 500 ticks before credits it like a gate press. Not judged: a hop to another
   level or map frame, a hop over 1,200 tiles on its longer axis, a row
   `enclosure_entries`/`enclosure_exits` already charged, a start whose landing is unknown (a setup
-  `::tele <name>`, a debugproc whose teleport target is computed).
+  `::tele <name>`, a debugproc whose teleport target is computed). A hop with NO route at margin 160
+  is no longer skipped: it is flooded at 250/400/600 and charged as a gate or as "no on-foot route"
+  (matthew-mbp-m4-b65-seam1, the section at the end of this file).
 - **`solid_landings`: "lands at x,z,l on a solid tile (<loc> at ...): no walk ends there"**
   (`SOLID_LANDINGS`). A goto row (a `goto_tile`/`::goto` line, or goto_tile's bare `at x,z,l[ from
   ...]` detail; never a climb row named `goToFirstFloor` whose `at` is the stair's own tile) that
@@ -1000,3 +1002,65 @@ two log balances and Lawgof's railing gate, because the bridge is a run-time loc
 OPEN: a `GUIDE-GAP:` marker on a use step is still accepted when the content has a use trigger on
 the target (the b63 Haunted Mine copy declares "no [oplocu,hauntedmine_lift_valve]"; the
 concurrent content seam adds one).
+
+### "no on-foot route (UNREACHABLE at margin 600)", "the fewest-door walk on foot opens ... at margin N only"; a `goToX` crossing row is no goto (matthew-mbp-m4-b65-seam1)
+
+Two holes the b65 fixers found in `gate_crossings` and `player_track`, closed in
+`helper_coverage.py`, each with a switch (False restores the old reading for the fixtures):
+
+- **A hop with no on-foot route charged nothing** (`Grader.NO_ROUTE_CHARGED`, `MapWalls.NO_ROUTE`,
+  `MapWalls.hop_route`). `only_way_gates` returned `[]` both when a closed-doors walk exists and when
+  no walk exists at 30/80/160 at all, so a goto onto an island, into Morytania past the Paterdomus
+  trapdoor, or round a members' gate the margin-160 box could not hold was clean. Now a hop with no
+  route at 160 (doors open, crossing locs enterable) is flooded again at `WIDE_MARGINS` 250, 400,
+  600: a closed-doors walk there is clean; the FEWEST-door walk (door_route "cross": crossings, then
+  doors, then length -- a shortest walk cuts through every house on the way) is charged naming its
+  gate, "the fewest-door walk on foot opens membergater at 2933,3320,0 (NEEDS-DOOR at margin 250
+  only: no route at all at 30/80/160)" (Making History's row 5 Lumbridge -> Jorral at 250; Chompy
+  Bird's Lumbridge -> Rantz, Clock Tower's -> Kojo and Watchtower's -> the trellis at 400); none at 600
+  is "no on-foot route (UNREACHABLE at margin 600)" (the Pandemonium, Lunar Isle, Mort'ton, Canifis,
+  Lletya). Excused: a travel row between the departure and the goto (a cast or teleport, a climb, a
+  `t.sail` verb that moves the hull or disembarks, a page naming a ferry, boat, cart or carpet, a row
+  NAMED travel/ferry/boat/landed/arrived, or a row whose own detail reads a tile more than 30 from the
+  departure -- The Fremennik Isles' ferry talk whose check says `tile 2311,3782,0 want ...`). Not
+  charged as no-route: a hop whose departure or landing is in a room or pocket the enclosure rules
+  judge (`enclosure()` closes within 400 tiles: `enclosure_entries`/`exits`, `sealed_entries`/`exits`
+  own it), a hop off or onto a solid tile (`solid_landings` owns it), an end on a map square not on
+  disk. Any older switch off (`CROSSINGS`, `START_JUDGED`, `POCKET_PRESS_SINCE_ARRIVAL`,
+  `GOTO_BY_ACTION`) turns this rule off too, so their `*_off` fixtures keep meaning "the reading
+  before that seam".
+- **A diagonal door is a door** (`MapWalls.DIAGONAL_DOORS`). A closed door set diagonally across a
+  wall's corner is an object (shape 9) that blocks its tile; the doors-open walk read it as a wall.
+  The Wizards' Tower ladder room (`fai_wiztower_poor_door` at 3107,3162,0) was a 22-tile room with no
+  way in; Imp Catcher's `goto-moveToTower` now reads "every walk on foot opens fai_wiztower_poor_door
+  at 3109,3167,0, fai_wiztower_poor_door at 3107,3162,0" (Rune Mysteries `pass_door`s both).
+- **The departure is read past a sail verb that moves nothing** (`SAIL_NO_MOVE_KEPT`): `_side_kept`
+  read every `t.sail.` line as a side change, so Prying Times' `goto-thurgo` (after
+  `deliverCargo`, a `t.sail.cargo_deliver`) had no departure. `state`, `tasks`, `task_board`,
+  `task_accept`, `cargo_take`, `cargo_load`, `cargo_deliver` keep the player's side now.
+- **A goto is what a row DID, never its name** (`GOTO_BY_ACTION`). `player_track` read any row whose
+  step name holds `goto`/`goTo` as a goto, and the first `at x,z,l` in its detail as its landing: a
+  `cross_gate` row named `goToHemenster.gateIn` "landed" on the gate's own tile, so its own press was
+  not "before" it and Fishing Contest read CHEAT (the b65 fixer renamed the row to `enterHemenster` to
+  get past it). Now a row is a goto when it is a setup placement or `_real_goto` (its source line calls
+  `goto_tile`/`::goto`, or its detail is goto_tile's own `at x,z,l[ from a,b,c]`, its `::goto` retry's
+  `... on attempt N of M via ::goto` included). Any other row contributes its END tile
+  (`TRACK_END_READS`): `landed x,z,l` (climb, cross_gate), `-> at x,z,l` (pass_door's far side,
+  walk_route's end), a cast's `at a,b,c -> x,z,l`, `reached x,z,l`, `; at x,z,l` (walk_to),
+  `player at x,z,l`. Name a crossing row after the guide step; it no longer changes the grade.
+
+Proof: `tools/quest_gate/helper_coverage_departure_cross_test.py` 19/19 (committed Lua/ledger pairs
+read from git): Prying Times before b65 (753ee4a3c / 74e86ee0d4) gains CHEAT on the `::pryingtimes`
+placement and on `goto-thurgo` (getKey), neither with `NO_ROUTE` off, goto-thurgo not with
+`SAIL_NO_MOVE_KEPT` off; Making History before b65 (9a9d57559 / 776bd1593e) gains talkToJorral row 5
+naming membergater 2933,3320 at margin 250 only; Watchtower 16ad11389 / c436ddab5a (FULL before)
+reads CHEAT on goto-goUpTrellis; Fishing Contest with `enterHemenster` renamed `goToHemenster` reads
+FULL (CHEAT with `GOTO_BY_ACTION` off); death keeps exactly its one charge, grandtree stays FULL; the
+b65 greens of pryingtimes, makinghistory and itwatchtower stay FULL. Re-grading the 71 green rows
+against their committed ledgers moved 10: chompybird, cog, elena, ikov, sheepherder (a members' gate
+at 250/400), dreammentor, mortton, fenkenstrain (`::fenkenstrain`), mourningsendpartii (`::mend2`)
+(no on-foot route), imp (the Wizards' Tower doors). arena, biohazard, mourningsendparti and seaslug
+are not charged. `--calibrate` 10/39 -> 10/39. The closer's fresh runs of all 143 committed tests
+(matthew-mbp-m4-b65-seam1 close) moved exactly those ten and no other queued green; all ten were
+reopened. `helper_coverage_two_op_test`'s `wt_swung_off_first` (the same Watchtower pair) now wants
+`leaveGrewIsland` DRIVEN instead of a FULL verdict.

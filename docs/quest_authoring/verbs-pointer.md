@@ -73,6 +73,20 @@ castle's stacked `castledoor` 2506,3851 (levels 0 and 1): conformance `player.pa
 `seam.stacked_door_read_on_its_own_floor`; a misc.lua copy using it for all 25 call sites ran
 207/0 (84 crossings, 17 pressed, 67 standing open, every one on its own floor).
 
+#### A double door's open leaf lands a frame late: awaited (b65-seam1)
+
+After the press, the closed leaf leaving is not the end of step 2: the OPEN leaf is awaited for up
+to the same 6 ticks, because a double door's script (`doubledoors.rs2` `~open_double_door_left`:
+`loc_del` then `loc_add` in one server tick) can reach the client pool a frame apart. Prince Ali's
+Al Kharid palace door (`bankdoor_l` 3293,3167,0) refused with "the closed leaf left ... but no
+openbankdoor_l stands within 1" while the next door row read it standing open. The detail now
+says `open leaf <sym> at x,z,l (after N tick(s), M read(s))` -- `M read(s)` over 1 is a leaf the
+old single read would have refused -- and a leaf that never comes is still `refused ... stood
+within 1 of it on level L after N tick(s) of waiting (M read(s))`. Name `open=` on a double door's
+first visit; the b65 workaround of naming no open leaf there (prince.lua `palace_in`) is no longer
+needed. Conformance `seam.pass_door_awaits_a_late_open_leaf` (seam-facts: Seam pass
+matthew-mbp-m4-b65-seam1 (b)).
+
 ### The crossing verbs: `cross_gate`, `cross_trap`, `walk_route`, `teleport_cast` (b60-seam0)
 
 In b56-b59 every door-rule fixer hand-wrote these four helpers into its quest file (hero.lua
@@ -245,6 +259,17 @@ t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = "camelotT
 
 It answers `ok` only when all three passed, else `refused` naming the rows that did not. A step the
 guide does with a teleport is done with this, not with `goto_tile` or `::tele`.
+
+**OPEN OWNER QUESTION (b64-seam1 druid, b65-seam1 pryingtimes): a staged level is a stat change.**
+Staging Magic for a teleport, or attack/strength/defence/hitpoints for a fight, raises the combat
+level (`combat_level.rs2`), and an npc whose dialogue branches on it then shows the staged branch:
+druid's Kaqemeex (`kaqemeex.rs2:103`, `~player_combat_level < 10`: Magic 16 alone already makes
+combat 10, and every standard teleport needs more) and Prying Times (`pryingtimes.rs2:216`: combat
+stats staged at 20 in setup, combat 23, so the low-combat mesbox is never shown). Options recorded
+for the owner: (a) accept the staged dialogue; (b) drive the low-combat branch first and stage
+only after it (conflicts with the ban on mid-run cheats); (c) a second account run (`run.py
+--name`) at combat 3 for the opening dialogue only. Until the owner rules: check every dialogue
+the run passes for a combat-level branch and say in a comment which branch the staged player sees.
 
 ### `t.player.climb(spec)` -- a staircase, ladder or trapdoor, graded on the level and the landing (b60-seam1)
 
