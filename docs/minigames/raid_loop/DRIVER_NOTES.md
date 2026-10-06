@@ -7212,3 +7212,106 @@ every 50 ticks.
 Lua plan trap: S.balls in the Sotetseg plan is a ball COUNTER (st.sote
 init). Reusing the name for a table raised 'for iterator: table expected,
 got number' at tick 17 in every name (seam51 s3).
+
+## Melee damage per swing follows the kit: ::tobkit and ::tobkitsalve (seam52)
+
+`::maxmelee` is the wiki's highest-bonus row per slot. The recorded Theatre raiders
+(Blert equipmentDeltas) wear radiant oathplate body and legs instead of torva, and a
+salve amulet(ei) at Bloat, which is undead. Use `::tobkitsalve` at Bloat and `::tobkit`
+in the other melee rooms (cheat_max_gear.rs2; both run `::maxmelee` first). Wiki
+expectations per scythe swing (99+19 Strength, Piety, Reap): Bloat down 42.6, Verzik P2
+28.9, Verzik P3 34.7, Vasilias melee form 40.5. The seam52 probe read 41.9 on Bloat.
+Conformance: seam.tob_melee_kit_worn.
+
+## Never pick style slot 1 (Chop) on a scythe (seam52)
+
+combat.dbrow:72 makes the scythe's slot 1 STAB; the wiki says it has no stab style.
+Until that content row is fixed, a harness presses Reap (slot 0) for a scythe seat.
+
+## Reading per-swing damage from a tick log (seam52)
+
+Group the hit_npc rows on the boss slot by tick. One charged-scythe swing on a large npc
+is three rows on one tick, in the order hit2, hit3, primary (the primary is queued last,
+combat_stats.rs2 ~player_melee_swing).
+
+## A Blert per-attack damage average is not a per-scythe-swing number (seam52)
+
+Halberd and claw specials sit in the same window. Regress on attack kind before comparing
+(protoId 38 SCYTHE, 14 CHALLY_SPEC, 20 CLAW_SPEC; attack_definitions.json). Over 29 Bloat
+rooms that gives 46 per scythe swing, not seam51's "about 49".
+
+## Verzik P2's own percent is (bar - 50) x 2 (seam52)
+
+Her client health bar covers P2 and P3 together (one pool of 2 x ^tob_verzik_p23_hp_3 =
+5250). P2 runs the bar from 100 to 50. With a 30-step bar one step is 6.7% of P2, so a
+test against the raw bar (the old "bar <= 36 before her first summon") never fires in P2.
+
+## Verzik P2 reds, as Blert's Normal trios play them (seam52)
+
+First summon at P2+100..152, then one every 44; two summons in most rooms, three in a
+few. The reds of a summon that is not her last take 6-11 swings across the trio and are
+absorbed with about 45 left. The last summon's reds are never absorbed, because P3 comes
+first, and get 0-2 swings a raider. Measure her P2 heal without the [proc,tob_boss_set_hp]
+rows: those are fresh-pool resets at phase boundaries (85 at P2's start, 23 at P2 -> P3).
+
+## Verzik P3: webs hit every raider on the web's tile (seam52)
+
+A member that is not the tank has no dangerous tick (her melee needs the tank beside her),
+but each web snaps once on every raider standing on its tile, so two raiders on one tile
+take two webs each. Keep members off each other's tiles. A raider bound on its own web
+cannot swing at that web and cannot walk: it breaks an orthogonally adjacent mate's web or
+swings at her.
+
+## Sotetseg maze followers: poll the glow every frame, send the step directly (seam52)
+
+A member's loop wakes on a lockstep boundary that can come before or after that tick's loc
+packets, so a glow read once a tick jumps 3-4 tiles between reads even with read skips 0.
+Poll the glow on every frame until the tick turns (QD.await with a predicate that returns
+true when t.tick() changes), and send the step with api_drive.move_to rather than a
+together block, so the read loop never waits on a confirmation. Send the next straight run
+on the frame the arrival at a corner shows (fw.next_step): it removed a one-tick stall at
+every corner (mazes 35-47 ticks down to 30-39).
+
+## Sotetseg maze gaps: QD.raid._play_sotetseg_gap (seam52)
+
+An even grid row is one tile and an odd row is the run between two of them.
+`QD.raid._play_sotetseg_gap(last, now, gz, consecutive)` returns the points between two
+glows and whether they are certain. A one-tick pair of at most 2 tiles is certain; so are
+odd row to the even row above, even row to the odd row above, even to even two rows on,
+and along one odd row. Odd to odd two rows on after a missed read is two-way (seam51's
+blasts at (19,27) and (16,31)). Never walk past a two-way gap, and hold at most one tick
+(the tornado reached a follower held for 10). Conformance: seam.raid_play_sotetseg_gap.
+
+## Sotetseg ball landing: floor, not ceil (seam52)
+
+lo = launch tick + floor(cycles_left / 30). His own ball (source inside his footprint)
+lands on lo; a ricochet lands on lo or lo+1; his ball wins a tie. With ceil() a primary
+whose flight is not a whole number of ticks was dated a tick late, and the arrival double
+ball followed: a primary under a held Protect from Missiles disables protections for 5
+ticks.
+
+## party_repeat.py needs `party = 3,` in the harness (seam52)
+
+_play_sotetseg.lua is also the Entry solo test, so its repeat copy lives in the pass's
+state dir (seam52/sotetseg/repeat_sotetseg.lua).
+
+## Nylocas trio stands and the split cleanup (seam52)
+
+Reference positions '<role>|wave<N>' are offsets from Vasilias' SW tile (local 30,23). The
+lane mouths are west (26,25), south (32,19 / 31,19) and east (37,24). An idle-only walk to
+a stand does nothing in a trio (seats are idle 1-5 times a room); the stand has to weigh
+the target choice (stand_leash, 4 points a tile beyond the weapon's reach). The cleanup is
+a dogpile unless split: the mage takes the north side, the ranger and meleer the south,
+newest first, and a copy within 10 ticks of its pop is left to pop (trio guide :175,
+:185-187, :363-366, :496).
+
+## Nylocas "no effect" message can name the wrong copy (seam52)
+
+A weapon swap's press can land on the previous target, so the message is not always about
+the copy the plan last swung at. Never strike a copy off for good on the message alone when
+it is the worn weapon's colour; better, make the swap's press go to the new target.
+
+## Survey runs read the plan Lua from disk (seam52)
+
+A plan edit needs no rebuild of a private binary. seed_survey and solo or regression runs
+overwrite build/quest_gate/<name>: copy the summary lines out before the next survey.

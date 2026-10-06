@@ -23,7 +23,10 @@
 local role = (QD_PARTY and QD_PARTY.role) or 1
 local size = (QD_PARTY and QD_PARTY.size) or 1
 local trio_kit, trio_run = nil, nil
--- The trio's kit: ::maxmelee (the scythe of vitur; "it is best to attack
+-- The trio's kit: ::tobkit (seam52 melee_damage_per_swing: ::maxmelee with
+-- the recorded raiders' radiant oathplate body and legs and the amulet of
+-- rancour -- Blert equipmentDeltas, build/blert/sotetseg, oathplate on 81 of
+-- 87 -- cheat_max_gear.rs2; the scythe of vitur; "it is best to attack
 -- Sotetseg with Melee", Entry page :191, and the trio guide's melee set),
 -- anglerfish ("make sure that you eat your angler", yt_KF9y2GYTJ-A.md:114),
 -- restores and brews ("eat up if you drop below 45 HP ... brew up",
@@ -31,7 +34,7 @@ local trio_kit, trio_run = nil, nil
 -- the maze and the death-ball gathers spend (the Bloat trio's finding,
 -- PLAY_NOTES "Bloat, Normal trio").
 trio_kit = {
-    "::clearinv", "::maxmelee", "::setlevel prayer 99", "::setlevel agility 99",
+    "::clearinv", "::tobkit", "::setlevel prayer 99", "::setlevel agility 99",
     "::give anglerfish 16", "::give br_4dose2restore 3", "::give 4dose2combat 1",
     "::give br_4dosepotionofsaradomin 4",
     -- raid seam42: the elder maul the Blert trios spec once a phase
@@ -92,6 +95,11 @@ trio_run = function(t)
                 .. " gaps, " .. tostring(fw.ambiguous or 0) .. " of them two-way), path " .. fw.path_n .. " tiles complete t" .. tostring(fw.complete) .. (fw.bad and " BAD SHAPE" or "")
                 .. ", walk t" .. tostring(fw.start_walk) .. ", off north t" .. tostring(fw.off_north) .. ", " .. fw.on_grid
                 .. " ticks on the grid (" .. fw.off_path .. " off the path)"
+                -- raid seam52: the read side, measured: ticks the read was
+                -- not taken while the glow was live, the unsent guesses
+                .. ", read skips " .. tostring(fw.read_skips or 0) .. ", reads with two lit " .. tostring(fw.multi_lit or 0) .. ", frame polls " .. tostring(fw.polls or 0) .. ", early runs " .. tostring(fw.early_steps or 0) .. ", direct walks " .. tostring(fw.direct_walks or 0)
+                .. ", held at a two-way gap " .. tostring(fw.held or 0) .. " ticks, guessed " .. tostring(fw.guess_walked or 0)
+                .. (fw.stayed_off and ", stayed off the grid" or "")
         end
         return #parts > 0 and table.concat(parts, "; ") or "no maze"
     end

@@ -538,9 +538,30 @@ function QD.raid._play_sotetseg_trio(st, v)
     local magic_in_air, ranged_in_air, death_land = false, false, nil
     local soonest, soonest_style = nil, nil
     local pr, projs = QD.world.projectiles(30)
+    -- raid seam52 play_tob_sotetseg_last: THE LANDING WINDOW.  His ball lands
+    -- on launch + floor(duration / 30) (seam51 s2, three names: "Primary =
+    -- launch + floor(dur/30)"); a ricochet on that tick or the next, by the
+    -- pid order (45 of 45 / 31 of 35).  The old estimate, ceil(cycles_left /
+    -- 30), dated a ball a tick late whenever its flight was not a whole
+    -- number of ticks: seam51 _play t34, a primary of 136 cycles at p2 dated
+    -- t39 against a ricochet dated t38, so Protect from Missiles was held over
+    -- t38, the primary landed on it, the protections went for five ticks
+    -- (the magic press REFUSED on t38) and his t39 melee hit 41 unprayed: the
+    -- arrival double ball on every name.  Now each ball carries [lo, hi]:
+    -- lo = this tick + floor(cycles_left / 30), hi = lo for his ball (thrown
+    -- from his own footprint), lo + 1 for a ricochet; the prayer for next tick
+    -- is the colour of the ball that can land on it, his ball first when a
+    -- ricochet's late tick and his ball's tick coincide (his is the sure one).
+    local bn = b.size or 5
+    local function from_him(p)
+        return p.src_x ~= nil and p.src_x >= b.x and p.src_x < b.x + bn and p.src_z >= b.z and p.src_z < b.z + bn
+    end
     if pr == "ok" then
         for _, p in ipairs(projs) do
-            local land = v.tick + math.ceil((p.cycles_left or 0) / 30)
+            local lo = v.tick + math.floor((p.cycles_left or 0) / 30)
+            local primary = from_him(p)
+            local hi = primary and lo or lo + 1
+            local land = lo
             -- a homing shot's dst is the target's tile as the client last drew
             -- it, a tick behind a raider who is walking: within a tile is this
             -- raider's (the seats are 3 or more apart; on the front tile all
@@ -560,7 +581,15 @@ function QD.raid._play_sotetseg_trio(st, v)
                 -- the ball that lands FIRST after this tick decides (a press
                 -- takes on the server's next tick, and the prayer is read at
                 -- the landing: S tob_sote_impact)
-                local key = (land > v.tick) and land or (land + 1000)
+                local nxt = v.tick + 1
+                local key
+                if hi < nxt then
+                    key = 100000 + lo
+                elseif lo <= nxt then
+                    key = (primary and 0 or 10) + lo
+                else
+                    key = 1000 + lo * 2 + (primary and 0 or 1)
+                end
                 if soonest == nil or key < soonest then soonest, soonest_style = key, style end
             end
             if p.spotanim_id == P.proj_magic and mine then
@@ -847,7 +876,82 @@ end
 -- + 15 every tick" to everyone beside it (W:803): a path that fails the
 -- check is never walked (the maze still ends when the runner steps off: S
 -- tob_sote_grid_occupied counts only raiders ON a grid).
+-- raid seam52 play_tob_sotetseg_last: THE TILES BETWEEN TWO GLOWS.
+--   QD.raid._play_sotetseg_gap(last, now, gz, consecutive) -> points, certain
+-- `last` and `now` are {x, z} glows in read order, `gz` the grid's south row,
+-- `consecutive` true when the two reads were a tick apart.  `points` are the
+-- corners of the straight runs from `last` to `now` (first `last`, last
+-- `now`); `certain` is false when the maze's shape (an even row is one tile,
+-- an odd row the run between two of them: S tob_sote_path_has) does not name
+-- the turn -- the corner on an odd row two rows on, or more rows than one tick
+-- of the runner covers -- and `points` is then the parity guess, never to be
+-- walked before the glows are complete.
+function QD.raid._play_sotetseg_gap(last, now, gz, consecutive)
+    assert(last)
+    assert(now)
+    assert(gz)
+    local lrow, rrow = last[2] - gz, now[2] - gz
+    local dist = math.abs(now[1] - last[1]) + math.abs(now[2] - last[2])
+    local function parity()
+        if lrow % 2 == 0 then
+            return { last, { last[1], now[2] }, now }
+        end
+        return { last, { now[1], last[2] }, now }
+    end
+    if consecutive and dist <= 2 then
+        -- one tick of the runner: a straight run, or the one corner the
+        -- row's parity allows
+        if last[1] == now[1] or last[2] == now[2] then
+            return { last, now }, true
+        end
+        return parity(), true
+    elseif lrow == rrow and lrow % 2 == 1 then
+        return { last, now }, true
+    elseif rrow == lrow + 1 then
+        return parity(), true
+    elseif rrow == lrow + 2 and lrow % 2 == 0 then
+        return { last, { last[1], last[2] + 1 }, { now[1], last[2] + 1 }, now }, true
+    end
+    -- two-way: the parity guess, so later glows join on; never walked past
+    return parity(), false
+end
+
+-- raid seam52 play_tob_sotetseg_last: THE POLL.  The follower's decide
+-- (below) reads the glow at the top of the tick and sends its step at once
+-- (api_drive.move_to, no block); then, while the glow is live and nothing
+-- else is to be sent, it keeps reading on every frame until the tick turns,
+-- so the loop wakes on the next tick with every glow the client was shown.
 function QD.raid._play_sotetseg_follow(st, v, intent)
+    local out = QD.raid._play_sotetseg_follow_read(st, v, intent)
+    local fw = st.sote ~= nil and st.sote.fw or nil
+    if fw ~= nil and fw.read_glow ~= nil and fw.off_north == nil and v.me.z < st.origin.z + st.plan.over_lz + st.plan.maze_rows
+        and out.walk == nil and out.eat == nil and out.drink == nil then
+        local t0 = v.tick
+        local polls = 0
+        QD.await({ level = function()
+            local tr, now = QD.tick()
+            if tr ~= "ok" or now ~= t0 then return true end
+            polls = polls + 1
+            if fw.complete == nil then fw.read_glow(now) end
+            local wt = st.walk_target
+            if fw.next_step ~= nil and wt ~= nil and #fw.samples > 0 and api_drive.move_to ~= nil then
+                local mr, me = QD.world.tile()
+                if mr == "ok" and me ~= nil and me.x == wt.x and me.z == wt.z then
+                    local nx, nz = fw.next_step(me.x, me.z)
+                    if nx ~= nil and (nx ~= me.x or nz ~= me.z) and api_drive.move_to(nx, nz) == "ok" then
+                        st.walk_target = { x = nx, z = nz }
+                        fw.early_steps = (fw.early_steps or 0) + 1
+                    end
+                end
+            end
+            return false
+        end, note = "sotetseg follower: the glow and the next run on every frame of the tick" }, 2)
+        fw.polls = (fw.polls or 0) + polls
+    end
+    return out
+end
+
+function QD.raid._play_sotetseg_follow_read(st, v, intent)
     local P, S = st.plan, st.sote
     st.boss_gone = 0
     P.walk_prayers[1] = "protectfrommagic"
@@ -894,84 +998,118 @@ function QD.raid._play_sotetseg_follow(st, v, intent)
         end
     end
     -- READ THE GLOW
-    if fw.complete == nil then
-        local lr, _, locs = QD.world.loc_copies(P.path_loc, 40)
-        if lr == "ok" and locs ~= nil then
-            for _, r in ipairs(locs) do
-                if r.level == 0 and on_grid(r.x, r.z) then
-                    local last = fw.samples[#fw.samples]
-                    if last == nil or last[1] ~= r.x or last[2] ~= r.z then
-                        fw.samples[#fw.samples + 1] = { r.x, r.z, v.tick }
-                        -- raid seam50: the ROUTE, the lit tiles in the order the
-                        -- runner stood on them, every gap filled by the corner
-                        -- rule below; the live follow walks it in order (a
-                        -- neighbour search over the read set took a wrong
-                        -- guess's dead end: seam49 s1, 1,900 ticks stranded)
-                        fw.route = fw.route or {}
-                        local function route_to(bx, bz)
-                            local tail = fw.route[#fw.route]
-                            if tail == nil then
-                                fw.route[1] = { bx, bz }
-                                return
-                            end
-                            local ddx = (bx > tail[1] and 1) or (bx < tail[1] and -1) or 0
-                            local ddz = (bz > tail[2] and 1) or (bz < tail[2] and -1) or 0
-                            local x, z = tail[1], tail[2]
-                            while x ~= bx or z ~= bz do
-                                x, z = x + ddx, z + ddz
-                                fw.route[#fw.route + 1] = { x, z }
-                            end
-                        end
-                        if last == nil then
-                            route_to(r.x, r.z)
-                        elseif last[1] == r.x or last[2] == r.z then
-                            route_to(r.x, r.z)
-                        else
-                            local rcx, rcz = r.x, last[2]
-                            if (last[2] - gz) % 2 == 0 then rcx, rcz = last[1], r.z end
-                            route_to(rcx, rcz)
-                            route_to(r.x, r.z)
-                        end
-                        if last == nil then
-                            add(r.x, r.z)
-                        elseif last[1] == r.x or last[2] == r.z then
-                            run_to(last[1], last[2], r.x, r.z)
-                        else
-                            -- two glows not on one run (a tick the read missed):
-                            -- the maze's shape says which way the corner went
-                            -- (an even row is left northward, an odd row along it)
-                            fw.gaps = fw.gaps + 1
-                            local cx, cz = r.x, last[2]
-                            if (last[2] - gz) % 2 == 0 then cx, cz = last[1], r.z end
-                            run_to(last[1], last[2], cx, cz)
-                            run_to(cx, cz, r.x, r.z)
-                            -- raid seam42: a gap of three tiles or more (a
-                            -- glow missed while the runner ran two a tick)
-                            -- crosses two lateral rows, and either could hold
-                            -- the turn: its guessed tiles are never walked
-                            -- before the path is complete
-                            if math.abs(r.x - last[1]) + math.abs(r.z - last[2]) >= 3 then
-                                fw.guessed = fw.guessed or {}
-                                fw.ambiguous = (fw.ambiguous or 0) + 1
-                                local function mark(ax, az, bx, bz)
-                                    local ddx = (bx > ax and 1) or (bx < ax and -1) or 0
-                                    local ddz = (bz > az and 1) or (bz < az and -1) or 0
-                                    local x, z = ax + ddx, az + ddz
-                                    while true do
-                                        fw.guessed[x * 100000 + z] = true
-                                        if x == bx and z == bz then break end
-                                        x, z = x + ddx, z + ddz
-                                    end
+    -- raid seam52 play_tob_sotetseg_last: EVERY TICK, AND NO GUESS WALKED.
+    -- The arena shows one lit tile, the runner's ("The players in the arena
+    -- will only be able to see the current location of the transported
+    -- player": S tob_sote_mirror), and the server moves it every tick the
+    -- runner moves (seam51 _play ticklog: one loc_set 33035 a tick, t90-t108).
+    -- Read on consecutive ticks, two glows are one tick of the runner apart
+    -- (at most two tiles, never round a corner inside a tick: the same log),
+    -- and the maze's shape (an even row is one tile, an odd row the run
+    -- between two of them: S tob_sote_path_has) names the tiles between.  A
+    -- read the loop did not take (a block that ran over a tick) can leave a
+    -- gap the shape does not settle: the corner on an odd row two rows on
+    -- may be either end (seam51 blasts at (19,27) and (16,31) were exactly
+    -- that parity guess).  Such a gap is recorded and the follower never
+    -- walks past the last tile before it (QD.raid._play_sotetseg_follow's
+    -- live block caps the reach there).
+    -- raid seam52 s2: a party member reads its world as the packets reach
+    -- it, and the boundary its loop wakes on can come before or after this
+    -- tick's loc changes: read once a tick, two glows a tick apart were
+    -- three and four tiles apart on every name (read skips 0, gaps 4-6).  The
+    -- read is a function, taken at the top of the tick and again on every
+    -- frame until the tick turns (QD.raid._play_sotetseg_follow's poll
+    -- below), so a glow lit for one tick is seen whenever it arrived.
+    local function read_glow(now)
+    if fw.complete ~= nil then return end
+            local lr, _, locs = QD.world.loc_copies(P.path_loc, 40)
+            local read_any = false
+            -- raid seam52 s1: the client can list more than one lit tile on a read
+            -- (the tile the runner left still lit beside the new one) while the
+            -- server lights one a tick (ticklog: one loc_set 33035 a tick); taken
+            -- in pool order the old one came after the new and the route doubled
+            -- back, a false two-way gap on every name (read skips 0, gaps 2-4).  A
+            -- path never crosses itself, so a glow already read is stale; the new
+            -- ones are taken nearest the last first.
+            fw.glow_seen = fw.glow_seen or {}
+            local fresh = {}
+            if lr == "ok" and locs ~= nil then
+                local lit_n = 0
+                for _, r in ipairs(locs) do
+                    if r.level == 0 and on_grid(r.x, r.z) then
+                        lit_n = lit_n + 1
+                        read_any = true
+                        if not fw.glow_seen[r.x * 100000 + r.z] then fresh[#fresh + 1] = r end
+                    end
+                end
+                if lit_n > 1 then fw.multi_lit = (fw.multi_lit or 0) + 1 end
+                local tail = fw.samples[#fw.samples]
+                if tail ~= nil and #fresh > 1 then
+                    table.sort(fresh, function(a1, a2)
+                        return math.abs(a1.x - tail[1]) + math.abs(a1.z - tail[2]) < math.abs(a2.x - tail[1]) + math.abs(a2.z - tail[2])
+                    end)
+                end
+            end
+            if #fresh > 0 then
+                for _, r in ipairs(fresh) do
+                    fw.glow_seen[r.x * 100000 + r.z] = true
+                    do
+                        local last = fw.samples[#fw.samples]
+                        if last == nil or last[1] ~= r.x or last[2] ~= r.z then
+                            fw.samples[#fw.samples + 1] = { r.x, r.z, now }
+                            fw.route = fw.route or {}
+                            local function route_to(bx, bz)
+                                local tail = fw.route[#fw.route]
+                                if tail == nil then
+                                    fw.route[1] = { bx, bz }
+                                    return
                                 end
-                                mark(last[1], last[2], cx, cz)
-                                if cx ~= r.x or cz ~= r.z then mark(cx, cz, r.x, r.z) end
+                                local ddx = (bx > tail[1] and 1) or (bx < tail[1] and -1) or 0
+                                local ddz = (bz > tail[2] and 1) or (bz < tail[2] and -1) or 0
+                                local x, z = tail[1], tail[2]
+                                while x ~= bx or z ~= bz do
+                                    x, z = x + ddx, z + ddz
+                                    fw.route[#fw.route + 1] = { x, z }
+                                end
                             end
+                            local function via(points)
+                                local ax, az = points[1][1], points[1][2]
+                                for i = 2, #points do
+                                    run_to(ax, az, points[i][1], points[i][2])
+                                    route_to(points[i][1], points[i][2])
+                                    ax, az = points[i][1], points[i][2]
+                                end
+                            end
+                            if last == nil then
+                                route_to(r.x, r.z)
+                                add(r.x, r.z)
+                            else
+                                local consecutive = fw.prev_read ~= nil and now - fw.prev_read <= 1
+                                local dist = math.abs(r.x - last[1]) + math.abs(r.z - last[2])
+                                local points, certain = QD.raid._play_sotetseg_gap(last, { r.x, r.z }, gz, consecutive)
+                                if not consecutive or dist > 2 then fw.gaps = fw.gaps + 1 end
+                                if not certain then
+                                    fw.ambiguous = (fw.ambiguous or 0) + 1
+                                    if fw.uncertain_at == nil then fw.uncertain_at = #fw.route; fw.gap_held = 0 end
+                                end
+                                via(points)
+                            end
+                            if r.z - gz == rows - 1 then fw.complete = now end
                         end
-                        if r.z - gz == rows - 1 then fw.complete = v.tick end
                     end
                 end
             end
-        end
+            if read_any then
+                if fw.prev_read ~= nil and now - fw.prev_read > 1 then
+                    fw.read_skips = (fw.read_skips or 0) + (now - fw.prev_read - 1)
+                end
+                fw.prev_read = now
+            end
+    end
+    fw.read_glow = read_glow
+    read_glow(v.tick)
+    if fw.complete ~= nil and not fw.shape_checked then
+        fw.shape_checked = true
         if fw.complete ~= nil then
             -- the maze's shape: every row lit, an even row on one tile
             local ok = true
@@ -1013,17 +1151,39 @@ function QD.raid._play_sotetseg_follow(st, v, intent)
     end
     -- eat up while nothing can hit (no damage while the maze is on: W:799)
     local function threat(h) return 60 end
-    intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, threat)
+    -- raid seam52: nothing but the step while the glow is read.  A block that
+    -- waits on an eat or a drink can run over a tick, and the tick it eats is
+    -- a glow not read (seam51 _play: both followers ate on t104, the tick of
+    -- the second guessed corner).  Nothing hits a follower walking the lit
+    -- route, so the bite waits for the last row.
+    local reading = #fw.samples > 0 and fw.complete == nil
+    if reading then
+        fw.supplies_held = (fw.supplies_held or 0) + 1
+    else
+        intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, threat)
+    end
     -- the stall: S p_stun 5 from the proc (the idle form shows on the proc tick)
     if v.tick < fw.seen + 5 then
         return intent
     end
     local moved = st.last_me ~= nil and (st.last_me.x ~= v.me.x or st.last_me.z ~= v.me.z)
+    -- raid seam52: while the glow is read the step is sent on its own, the
+    -- same api_drive.move_to a together block's walk sends (pointer.lua
+    -- QD._together_move), without the block's wait for the tile to change:
+    -- that wait is what can carry the loop over a tick and lose a glow.  The
+    -- next tick's read of our own tile is the confirmation.
     local function go(x, z)
         local same = st.walk_target ~= nil and st.walk_target.x == x and st.walk_target.z == z
         if not same or not moved then
-            intent.walk = { x = x, z = z }
             fw.walks = fw.walks + 1
+            if #fw.samples > 0 and api_drive.move_to ~= nil and api_drive.move_to(x, z) == "ok" then
+                st.walk_target = { x = x, z = z }
+                st.engaged = false
+                fw.direct_walks = (fw.direct_walks or 0) + 1
+                st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
+                return
+            end
+            intent.walk = { x = x, z = z }
         end
     end
     if fw.off_north ~= nil or v.me.z >= gz + rows then
@@ -1056,10 +1216,60 @@ function QD.raid._play_sotetseg_follow(st, v, intent)
     -- tornado (S tob_sote_tornado_step, one tile a tick from the path's start)
     -- never catches a raider who runs the path two tiles a tick behind the
     -- runner.
+    -- raid seam52 s3: THE NEXT STRAIGHT RUN from a route tile, for the poll.
+    -- A member sees its own arrival at a corner whenever the packet lands,
+    -- often after the boundary its loop woke on, and so stood a tick at every
+    -- corner (s3 _play maze 1: t88-90, t94-95, t98-99, t100-101, t102-103;
+    -- the glow complete t128, off the north edge t138; mazes 35-47 ticks
+    -- against 30-36).  The poll sends the next run on the frame the arrival
+    -- shows, inside the same tick.
+    fw.next_step = function(mx, mz)
+        local route = fw.route
+        if route == nil or #route == 0 or fw.uncertain_at ~= nil then return nil end
+        local done = fw.complete ~= nil
+        local reach = #route - (done and 0 or P.follow_lag)
+        local here = nil
+        for i = #route, 1, -1 do
+            if here == nil and route[i][1] == mx and route[i][2] == mz then here = i end
+        end
+        if here == nil then return nil end
+        if done and here == #route then return mx, mz + 1 end
+        if here >= reach then return nil end
+        local dx = route[here + 1][1] - route[here][1]
+        local dz = route[here + 1][2] - route[here][2]
+        local j = here + 1
+        while j < reach and route[j + 1][1] - route[j][1] == dx and route[j + 1][2] - route[j][2] == dz do
+            j = j + 1
+        end
+        return route[j][1], route[j][2]
+    end
     if P.follow_live and fw.route ~= nil and #fw.route > 0 then
         local route = fw.route
         local done = fw.complete ~= nil
         local reach = #route - (done and 0 or P.follow_lag)
+        -- raid seam52: NEVER PAST A TWO-WAY GAP.  A follower not yet on the
+        -- grid when one is read stays off it: the maze ends when the runner
+        -- steps off and nobody stands on either grid (S tob_sote_grid_occupied),
+        -- the documented fallback.  One already on it walks to the last tile
+        -- before the gap and waits there for the glows to finish; only then,
+        -- with nothing more to read, does it take the corner the shape
+        -- makes likelier (counted: guessed).
+        if fw.uncertain_at ~= nil and (fw.stayed_off or (fw.on_grid == 0 and not on_grid(v.me.x, v.me.z))) then
+            fw.stayed_off = true
+            if v.me.x ~= wx or v.me.z ~= wz then go(wx, wz) end
+            return intent
+        end
+        if fw.uncertain_at ~= nil then
+            -- one tick for the next glow, then the likelier corner: held
+            -- longer, the tornado walking the path from its start reached the
+            -- holder (seam52 s1 _play t104: 45 and 40 after 10 ticks held)
+            if done or (fw.gap_held or 0) >= 1 then
+                fw.uncertain_at = nil
+                fw.guess_walked = (fw.guess_walked or 0) + 1
+            else
+                reach = math.min(reach, fw.uncertain_at)
+            end
+        end
         local here = nil
         for i = #route, 1, -1 do
             if here == nil and route[i][1] == v.me.x and route[i][2] == v.me.z then here = i end
@@ -1088,6 +1298,10 @@ function QD.raid._play_sotetseg_follow(st, v, intent)
         if done and here == #route then
             go(v.me.x, v.me.z + 1)
             return intent
+        end
+        if here >= reach and fw.uncertain_at ~= nil then
+            fw.held = (fw.held or 0) + 1
+            fw.gap_held = (fw.gap_held or 0) + 1
         end
         if here < reach then
             local dx = route[here + 1][1] - route[here][1]

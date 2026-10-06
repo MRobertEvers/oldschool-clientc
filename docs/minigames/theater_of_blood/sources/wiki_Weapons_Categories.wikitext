@@ -1,0 +1,178 @@
+[[File:Attack style tab.png|right|thumb|The Combat Options tab, where weapon category is found.]]
+This is a list of weapons grouped by their category, which is found in game at the bottom of the [[Combat Options]] tab. All weapons within a category use the same set of combat options. (The one exception to this is the [[3rd Age longsword]], which uses the combat options of a [[Weapons/Categories#2h sword|2h sword]] despite being one-handed and categorised as a [[Weapons/Categories#Slash sword|slash sword]].)
+
+==Melee weapons==
+
+This section lists out all equippable items that can only deal melee damage.
+
+===2h sword<span class="anchor" id="2h sword"></span>===
+{{Main|2h sword}}
+{{CombatStyles|2h Sword}}
+Consisting mainly of 2h swords and [[godsword]]s:
+{{CombatStylesDisplay|2h Sword}}
+
+===Axe===
+{{CombatStyles|Axe}}
+Consisting mainly of [[axe|woodcutting axe]]s and [[battleaxe]]s:
+{{CombatStylesDisplay|Axe}}
+
+===Banner===
+{{Main|Banner}}
+{{CombatStyles|Banner}}
+{{CombatStylesDisplay|Banner}}
+
+===Blunt===
+Apart from their names, the combat options available to blunt weapons are identical to those of [[polestaves]]. 
+{{CombatStyles|Blunt}}
+Consisting mainly of [[blackjack]]s, [[fun weapon]]s, [[maul]]s, [[warhammer]]s, and [[courier tasks|crates]]:
+{{CombatStylesDisplay|Blunt}}
+
+===Bludgeon===
+Bludgeon is similar to Blunt, the only difference being that all attack styles are aggressive.
+{{CombatStyles|Bludgeon}}
+{{CombatStylesDisplay|Bludgeon}}
+
+===Bulwark===
+{{CombatStyles|Bulwark}}
+{{CombatStylesDisplay|Bulwark}}
+
+===Claw===
+{{Main|Claws}}
+{{CombatStyles|Claw}}
+Consisting mainly of claws:
+{{CombatStylesDisplay|Claw}}
+
+===Egg===
+{{CombatStyles|Blunt}}[[Humphrey Dumphrey|Egg]]
+
+===Flail===
+{{CombatStyles|Flail}}
+{{CombatStylesDisplay|Flail}}
+
+===Multi-melee===
+The only Multi-Melee weapon released into the game was the [[infernal tecpatl]], which was only available during the [[Demonic Pacts League]]. 
+{{CombatStyles|Multi-Melee}}
+{{CombatStylesDisplay|Multi-Melee}}
+
+===Partisan===
+{{Main|Partisan}}
+{{CombatStyles|Partisan}}
+{{CombatStylesDisplay|Partisan}}
+
+===Pickaxe===
+{{Main|Pickaxe}}
+{{CombatStyles|Pickaxe}}
+{{CombatStylesDisplay|Pickaxe}}
+
+===Polearm===
+{{CombatStyles|Polearm}}
+Consisting only of [[halberd]]s:
+{{CombatStylesDisplay|Polearm}}
+
+===Polestaff===
+{{Main|Polestaff}}
+Apart from their names, the combat options available to polestaves are identical to those of [[blunt]] weapons.
+{{CombatStyles|Polestaff}}
+Consisting mainly of [[banner]]s and [[mjolnir]]s:
+{{CombatStylesDisplay|Polestaff}}
+
+===Scythe===
+{{Main|Scythe_(weapon)}}
+{{CombatStyles|Scythe}}
+{{CombatStylesDisplay|Scythe}}
+
+===Slash sword===
+{{CombatStyles|Slash Sword}}
+Consisting mainly of [[longsword]]s, [[Machete (weapon)|machete]]s, [[scimitar]]s, and [[sickle]]s:
+{{CombatStylesDisplay|Slash Sword}}
+
+===Spear===
+{{CombatStyles|Spear}}
+Consisting mainly of [[hastae]] and [[spear]]s:
+{{CombatStylesDisplay|Spear}}
+
+===Spiked===
+{{CombatStyles|Spiked}}
+Consisting mainly of [[cane]]s and [[mace]]s:
+{{CombatStylesDisplay|Spiked}}
+
+===Stab sword===
+{{CombatStyles|Stab Sword}}
+Consisting mainly of [[dagger]]s, [[harpoon (weapon|harpoon]]s, and [[sword]]s:
+{{CombatStylesDisplay|Stab Sword}}
+
+===Unarmed===
+{{CombatStyles|Unarmed}}
+The style used when the player [[unarmed|has no weapon equipped]]. Also used for some items the player cannot attack while holding, such as [[greegree]], some purely cosmetic items, and some non-combat items equipped for [[minigames]], [[quests]], and other activities.
+{{CombatStylesDisplay|Unarmed}}
+
+===Whip===
+{{CombatStyles|Whip}}
+Consisting mainly of [[whip]]s:
+{{CombatStylesDisplay|Whip}}
+
+==Ranged weapons==
+{{Main|Ranged weapons}}
+Ranged weapons can attack non-adjacent monsters from a varying ranges. When using a "Longrange" attack style, the weapon's maximum range is increased by 2 tiles; though no attack range exceeds 10 tiles. For all weapons using non-Longrange attack styles that have a range of 9 or 10, the range of its Longrange attack style will be 10.
+
+===Blaster===
+The only blasters ever released into the game were the [[Easter blaster]] and its variants, all of which were only available during the [[2015 Easter Event]].
+{{CombatStyles|Blaster}}
+{{CombatStylesDisplay|Blaster}}
+
+===Bow===
+{{CombatStyles|Bow}}
+Consisting mainly of [[composite bow]]s, [[Longbow (weapon)|longbow]]s, and [[Shortbow (weapon)|shortbow]]s:
+{{CombatStylesDisplay|Bow}}
+
+===Chinchompa===
+{{CombatStyles|Chinchompas|range = 9}}
+Consisting of [[Chinchompa (weapon)|chinchompa]]s:
+{{CombatStylesDisplay|Chinchompas}}
+
+===Crossbow===
+{{Main|Crossbow (weapon)}}
+{{CombatStyles|Crossbow}}
+{{CombatStylesDisplay|Crossbow}}
+
+===Gun===
+{{CombatStyles|Gun}}
+{{CombatStylesDisplay|Gun}}
+
+===Thrown===
+{{CombatStyles|Thrown}}
+Consisting mainly of [[dart]]s, [[blowpipe]]s, [[throwing knives]], and [[thrownaxe]]s:
+{{CombatStylesDisplay|Thrown}}
+
+==Magic weapons==
+{{Main|Magic weapons}}
+All magic weapons can be set to automatically cast spells, whether it’s using the [[autocast]] combat option or, in the case of [[Powered Staff|powered staves]], their built-in spell. 
+
+===Bladed staff===
+{{Main|Bladed Staff}}
+{{CombatStyles|Bladed Staff}}
+{{CombatStylesDisplay|Bladed Staff}}
+
+===Powered Staff===
+{{Main|Powered Staff}}
+{{CombatStyles|Powered Staff}}
+{{CombatStylesDisplay|Powered Staff}}
+
+===Staff===
+{{CombatStyles|Staff}}
+{{CombatStylesDisplay|Staff}}
+
+==Other==
+
+===Salamander===
+{{Main|Salamander}}
+{{CombatStyles|Salamander}}
+{{CombatStylesDisplay|Salamander}}
+
+===Multi-style===
+The only Multi-Style weapon released into the game was the [[Nature's reprisal]] which was only available during the [[Raging Echoes League]]. 
+Multi-style is exactly like a salamander, except the melee combat style uses stab as attack type instead of slash.
+{{CombatStyles|Multi-Style}}
+{{CombatStylesDisplay|Multi-Style}}
+
+[[Category:Weapons]]

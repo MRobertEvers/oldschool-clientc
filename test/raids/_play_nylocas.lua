@@ -154,7 +154,12 @@ if size > 1 then
         local c = swap[kit[i]] or kit[i]
         local item = string.match(c, "^::give ([%w_]+) 1$") or string.match(c, "^::wield ([%w_]+)$")
         if role == 3 and item ~= nil and melee_set[item] then
-            if c == "::give game_pest_melee_helm 1" then out[#out + 1] = "::maxmelee" end
+            -- raid seam52 melee_damage_per_swing: the recorded meleers wear
+            -- radiant oathplate body and legs, not torva (Blert equipmentDeltas:
+            -- Bloat 79/90, Verzik 66/81, Sotetseg 81/87; build/seam_state/
+            -- matthew-mbp-m4-raid-b1-seam52/kit.melee_damage_per_swing.md);
+            -- `::tobkit` is `::maxmelee` with those two pieces (cheat_max_gear.rs2)
+            if c == "::give game_pest_melee_helm 1" then out[#out + 1] = "::tobkit" end
         elseif c == "::give abyssal_whip 1" then
             if role == 3 then out[#out + 1] = c else out[#out + 1] = "::fullscythe" end
         elseif c == "::give magic_shortbow 1" and role ~= 2 then
@@ -363,12 +368,15 @@ return {
             -- specials (armed, fired by the energy spent, lost), heart presses
             .. ", swap+press blocks " .. tostring(ny.block_presses) .. ", specials armed " .. tostring(ny.spec and ny.spec.arms)
             .. " fired " .. tostring(ny.spec and ny.spec.fired) .. " lost " .. tostring(ny.spec and ny.spec.lost) .. " (orb " .. tostring(ny.spec and ny.spec.arm_result)
-            .. "), heart re-presses " .. tostring(ny.hearts))
+            .. "), heart re-presses " .. tostring(ny.hearts)
+            -- raid seam52: THE STANDS and THE CLEANUP'S ORDER (the plan)
+            .. ", walks home/stand " .. tostring(ny.homes) .. " (last stand wave " .. tostring(ny.stand) .. "), cleanup passes " .. tostring(ny.cleanup_passes or 0))
 
         if role ~= 1 then
             -- raid seam32: a member's own record (its presses are its own; the
             -- leader's tick log carries the room)
             t.check("play.member", ny.presses ~= nil and ny.presses > 0, "p" .. role .. " " .. tostring(ny.role) .. ": presses " .. tostring(ny.presses)
+                .. ", walks home/stand " .. tostring(ny.homes) .. ", cleanup passes " .. tostring(ny.cleanup_passes or 0)
                 .. ", casts " .. tostring(ny.casts) .. ", freezes " .. tostring(ny.freezes) .. ", swaps " .. tostring(ny.swaps) .. ", own colour "
                 .. tostring(ny.own_presses) .. " / other colours " .. tostring(ny.other_presses) .. ", flicker cancels " .. tostring(ny.flicker_cancels)
                 .. ", presses on her " .. #(ny.vas_presses or {}) .. ", turn holds " .. tostring(ny.holds) .. ", turn steps " .. tostring(ny.turn_steps) .. ", XP-read swings " .. tostring(ny.xp_swings) .. ", nulled read " .. tostring(ny.null_reads) .. ", eats " .. #(rec.eats or {}) .. ", drinks " .. #(rec.drinks or {}))

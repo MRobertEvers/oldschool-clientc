@@ -306,6 +306,59 @@ QD.raid._play_plan("tob_nylocas", {
     -- the cleanup is read off the screen: this many waves seen and none for
     -- `cleanup_quiet` ticks (a seat sees 29-31 of the 31: it2 p2 saw 29)
     cleanup_waves = 28, cleanup_quiet = 14,
+    -- raid seam52 play_tob_nylocas_last: THE STANDS.  Where Blert's trios
+    -- stand in each wave, per role: the most common tile of the wave's span
+    -- (reference/nylocas_normal_3.json positions "<role>|wave<N>", offsets
+    -- from Vasilias' south-west tile, local 30,23), kept when it holds 10
+    -- percent or more of the role's ticks in that wave; elsewhere the seat's
+    -- own home.  The tiles are the lane mouths (content tob_nylocas.rs2: a
+    -- copy leaves its lane at "west x=26, east x=37, south z=19 room-local"):
+    -- west -4,2 = 26,25; south 2,-4 / 1,-4 = 32,19 / 31,19; east 7,1 = 37,24.
+    -- The plan sent every idle seat to the centre, and the south-west support
+    -- (25,18), the one the west and south lanes both reach, was the weakest on
+    -- every red seam51 name (0.01, 0.01, fallen; the others 0.15-0.39).  An
+    -- idle seat walks to its role's stand for the wave it last saw.
+    stand_anchor = { 30, 23 },
+    -- The stand is also where a seat fights FROM: a ranged or magic copy
+    -- further from the seat's stand (its home) than the weapon reaches costs
+    -- `stand_leash` points a tile, as the walk back would.  An idle walk alone
+    -- did nothing (seam52 it1: 1-5 walks a seat a room; every seat is busy):
+    -- the seats drifted with their last kill (svaplaynyloc t330-380: the mage
+    -- at 32,22 and the ranger at 35,20-36,21 swinging the east lane while a
+    -- green big and a green small chewed the south-west support for 45 ticks
+    -- unpressed).  "it's best to stay near the centre of the arena as much as
+    -- possible, unless you are cleaning up greys" (E :162): greys are exempt.
+    stand_leash = 4,
+    stands = {
+        mage = { [1] = { 1, -3 }, [2] = { 7, 1 }, [3] = { 7, 2 }, [4] = { 2, -4 }, [6] = { -4, 2 }, [7] = { 1, -4 }, [8] = { -4, 2 }, [10] = { 7, 1 }, [14] = { 0, 2 }, [15] = { 6, 2 }, [16] = { 7, 1 }, [18] = { 4, 1 }, [19] = { 2, 1 }, [21] = { -4, 1 }, [22] = { 7, 2 }, [23] = { 7, 1 }, [25] = { 3, 1 }, [26] = { -3, 1 }, [27] = { -3, 1 }, [28] = { 1, 2 }, [29] = { 1, 2 }, [30] = { 7, 1 }, [31] = { 3, 2 } },
+        ranger = { [1] = { -4, 1 }, [2] = { 4, 1 }, [3] = { 2, -4 }, [4] = { -4, 2 }, [5] = { 1, -4 }, [6] = { 1, -4 }, [7] = { 1, -4 }, [8] = { -3, 2 }, [9] = { -1, 1 }, [10] = { 2, 2 }, [11] = { 0, 1 }, [12] = { -4, 1 }, [13] = { -4, 2 }, [16] = { 1, 1 }, [17] = { -1, 1 }, [18] = { 0, 1 }, [19] = { 1, 1 }, [21] = { 4, 1 }, [23] = { -4, 1 }, [24] = { -4, 1 }, [25] = { 1, 1 }, [27] = { 2, 0 }, [28] = { 1, 1 }, [29] = { 2, 1 }, [30] = { -4, 1 } },
+        melee = { [1] = { 2, -3 }, [2] = { 7, 2 }, [3] = { 7, 2 }, [4] = { 1, -4 }, [7] = { 7, 1 }, [9] = { 1, -4 }, [10] = { -4, 2 }, [12] = { 7, 2 }, [13] = { 6, 2 }, [22] = { 1, -4 } },
+    },
+    -- raid seam52: THE CLEANUP'S ORDER.  "Kill any wave 29/31 smalls first as
+    -- these will change color if you don't kill them quickly enough. Don't get
+    -- baited into chinning a clump with 28s in it as 28s will expire" (trio
+    -- guide, ranger cleanup :363-364); "Continue Ayaking smalls with the
+    -- highest wave number" (mage waves 28-29 :175); "If a dimmed and undimmed
+    -- Nylo are stacked ... target the bottom one ... as it is the newest"
+    -- (mage cleanup :187).  Once the cleanup is on (cleanup_waves above), a
+    -- copy's age weighs `age` more points a tick (newest first), and a copy
+    -- with `expire` ticks or fewer to its pop is passed over (`pass` points)
+    -- unless it is an aggro or chews a support under keep_low: it ends by
+    -- itself.  The reference's cleanup is 32 ticks from wave 31 to the last
+    -- death (outcome.phase.cleanup_end.start 292 - wave31.start 260); the
+    -- seam51 trio's 55-63, the tail splits of bigs killed late.
+    -- THE CLEANUP'S SIDES: "Prioritize cleaning up the north side of the room
+    -- after the 31s are dead" (mage cleanup :185); "After killing any 29+
+    -- rangers, look to kill other colors (mage > melee), working from the
+    -- south to the north side" (ranger cleanup :365-366); "kill all relevant
+    -- melees starting from the south" (melee cleanup :496).  The mage takes
+    -- the north half (local z >= `north_z`), the ranger and the meleer the
+    -- south; a copy on the other half costs `side` points.  seam52 it1: the
+    -- cleanup was a dogpile, all three seats pressing one copy at a time
+    -- (_play_nylocas t319-331: 8344 at 26,21, then 8342 at 28,19, then 8342
+    -- at 37,21, each pressed by p0, p1 and p2 within two ticks) while a green
+    -- split chewed the south-east support from t308 to t342.
+    cleanup_order = { age = 0.5, expire = 10, pass = 30, side = 15, north_z = 24, north_role = "mage" },
 })
 
 -- The ids of the room's npcs, once per play (a symbol is a content name, an id
@@ -662,6 +715,20 @@ function QD.raid._play_nylocas_decide(st, v)
     local R = (st.party ~= nil and st.party > 1) and P.roles[st.role] or nil
     local home_tile = R ~= nil and R.home or P.home
     ny.role = R ~= nil and R.name or "solo"
+    -- raid seam52: THE STANDS (see the plan's `stands`): through the waves a
+    -- party seat's home is its role's reference stand for the wave it last saw
+    ny.stand = nil
+    if R ~= nil and P.stands ~= nil and v.vas == nil and ny.waves >= 1 then
+        local row = P.stands[R.name]
+        local s = row ~= nil and row[math.min(ny.waves, 31)] or nil
+        if s ~= nil then
+            home_tile = { P.stand_anchor[1] + s[1], P.stand_anchor[2] + s[2] }
+            ny.stand = math.min(ny.waves, 31)
+        end
+    end
+    -- raid seam52: the cleanup, read once a tick (THE CLEANUP'S ORDER and the
+    -- own-colour rule below share it)
+    ny.cleanup = P.cleanup_free and ny.waves >= P.cleanup_waves and v.tick - (ny.last_wave_tick or v.tick) >= P.cleanup_quiet
     local home = { x = O.x + home_tile[1], z = O.z + home_tile[2] }
     local vas = v.vas
 
@@ -1132,6 +1199,21 @@ function QD.raid._play_nylocas_decide(st, v)
                     -- its last P.pop_skip ticks, when the kill saves no bite.
                     local skip = (P.pop_skip ~= nil and sp ~= nil) and P.pop_skip or 10
                     if not n.fighting and n.age >= ea - skip and not (n.big and P.big_first ~= nil) then score = score + 20 end
+                    -- raid seam52: THE CLEANUP'S ORDER (the plan's
+                    -- `cleanup_order`): newest first, and one about to pop
+                    -- is left to pop
+                    if ny.cleanup and P.cleanup_order ~= nil then
+                        score = score + math.min(n.age, 45) * P.cleanup_order.age
+                        if P.cleanup_order.side ~= nil and not n.fighting
+                            and ((n.z - O.z) >= P.cleanup_order.north_z) ~= (R.name == P.cleanup_order.north_role) then
+                            score = score + P.cleanup_order.side
+                        end
+                        if not n.fighting and ea - n.age <= P.cleanup_order.expire
+                            and not (sp ~= nil and P.keep_low ~= nil and sp.frac < P.keep_low) then
+                            score = score + P.cleanup_order.pass
+                            ny.cleanup_passes = (ny.cleanup_passes or 0) + 1
+                        end
+                    end
                 else
                     score = score - math.min(n.age, 45) * 0.2
                 end
@@ -1145,6 +1227,11 @@ function QD.raid._play_nylocas_decide(st, v)
                 -- is never left to pop.
                 if n.big then
                     if R ~= nil and P.big_first ~= nil then score = score - P.big_first else score = score + 2 end
+                end
+                -- raid seam52: THE STAND'S LEASH (the plan's `stand_leash`)
+                if R ~= nil and P.stand_leash ~= nil and vas == nil and not n.fighting and n.style ~= "melee" then
+                    local hd = dist(home.x, home.z, n.x, n.z, n.size)
+                    if hd > ny.reach[n.style] then score = score + (hd - ny.reach[n.style]) * P.stand_leash end
                 end
                 if key ~= ny.worn then score = score + ((R ~= nil) and 10 or 5) end
                 -- raid seam51: ANOTHER SEAT'S SHOT IN THE AIR (above); never
@@ -1194,7 +1281,7 @@ function QD.raid._play_nylocas_decide(st, v)
             end
         end
         for _, c in ipairs(cands) do
-            local cleanup = P.cleanup_free and ny.waves >= P.cleanup_waves and v.tick - (ny.last_wave_tick or v.tick) >= P.cleanup_quiet
+            local cleanup = ny.cleanup
             if R ~= nil and (own_ok or ny.wait_for ~= nil) and P.own_first and not cleanup and c.style ~= R.colour and not c.n.fighting and not c.n.helps then c.score = c.score + 100 end
             consider(c)
         end
@@ -1624,7 +1711,7 @@ function QD.raid._play_nylocas_decide(st, v)
     -- HOME: nothing to hit and off the centre -> back to it (E :162)
     if pick == nil and intent.walk == nil and vas == nil and ny.wait_for == nil then
         local far = math.max(math.abs(me.x - home.x), math.abs(me.z - home.z))
-        if far > 2 and not unsafe(home.x, home.z, 0)
+        if far > (ny.stand ~= nil and 1 or 2) and not unsafe(home.x, home.z, 0)
             and (st.walk_target == nil or st.walk_target.x ~= home.x or st.walk_target.z ~= home.z) then
             intent.walk = { x = home.x, z = home.z }
             ny.homes = ny.homes + 1

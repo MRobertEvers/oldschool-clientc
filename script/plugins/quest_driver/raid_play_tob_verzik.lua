@@ -111,6 +111,22 @@ QD.raid._play_plan("tob_verzik", {
     -- animation ends": p2_reds_anim; measured s45 e20/e21/e22 on five names:
     -- the 10-tick window P2 270-310, every red killed 307-350, 5 ticks 259-335)
     p2_reds_window = 10,
+    -- raid seam52 play_tob_verzik_last: the reds as Blert's trios treat them
+    -- (seam52 verzik/refreds.py, refheal.py over the 20 rooms of
+    -- verzik_normal_3.json): a summon that is NOT her last of P2 is swung at
+    -- 6-11 times by the trio, spread over both reds from +1 to +39 (red end
+    -- hitpoints 0-66 on the first summon, absorbed ~45 a summon); the LAST
+    -- summon's reds are never absorbed (P3 comes first) and get 0-2 swings a
+    -- raider.  So: a non-last summon, each red swung at until it dies or
+    -- p2_reds_kill_window ticks pass, the third raider on the red with more
+    -- left; the last one, only inside the absorb window (no swing on her
+    -- there anyway).  Last = her bar at the summon is at most
+    -- p2_reds_last_frac of what she lost since the summon before.
+    -- (and, raid seam52 e2: or her P2 at most p2_reds_last_pct, what the trio
+    -- takes off her in a summon's cycle with no swing on a red: e2 sva's
+    -- fourth summon came at 6 % after a cycle of 7 % spent half on reds, and
+    -- killing its reds put her first hit 25 ticks after it)
+    p2_reds_kill_window = 20, p2_reds_last_frac = 0.9, p2_reds_last_pct = 14,
     p2_reds_first = 12, p3_gap_crabs = 10, p3_gap_webs = 40, p3_gap_yellows = 20, p3_gap_ball = 12,
     pool_life = 14,                        -- V verzik.p3_yellow_pool_lifetime (B)
     -- run from a tornado nearer than this (its walk: one tile a tick, s30 vz30h)
@@ -960,15 +976,47 @@ function QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
     -- trios swing at an add only 5-6 times a role in all of P2.  Measured
     -- both ways on one name (s45 svaplayverzi): every red chased to its death
     -- (e8) made P2 517 ticks, the window (e7) 393.
-    if red ~= nil and vz.summon ~= nil and v.tick > vz.summon + P.p2_reds_window then red = nil end
+    -- raid seam52: which summon this is (P.p2_reds_kill_window's note): her
+    -- bar read on the first tick after it, against the bar at the one before
+    -- (P2's OWN percent: the client's bar is over P2 and P3 together, one
+    -- pool of 2 x ^tob_verzik_p23_hp_3 2625 -- e1 red policy rows read the
+    -- first summon, P2's 35 %, at 63-66 and her last at 50 -- so P2 runs the
+    -- bar from 100 to 50)
+    local pct = nil
+    if b.health_ratio ~= nil and b.health_scale ~= nil and b.health_scale > 0 then pct = math.max(0, (b.health_ratio * 100 / b.health_scale - 50) * 2) end
+    if vz.summon ~= nil and vz.red_policy_for ~= vz.summon and pct ~= nil then
+        vz.red_policy_for = vz.summon
+        vz.red_last = vz.red_prev_pct ~= nil and (pct <= P.p2_reds_last_pct or pct <= (vz.red_prev_pct - pct) * P.p2_reds_last_frac)
+        vz.red_prev_pct = pct
+        M.red_policy = M.red_policy or {}
+        if #M.red_policy < 6 then M.red_policy[#M.red_policy + 1] = vz.summon .. (vz.red_last and "L" or "K") .. math.floor(pct) end
+    end
+    local red_window = vz.red_last and P.p2_absorb or P.p2_reds_kill_window
+    if red ~= nil and vz.summon ~= nil and v.tick > vz.summon + red_window then red = nil end
     -- one red each: the pair split between the raiders by role, in slot
     -- order, so both die (s45 e6 sva: all three on the nearest red, the other
-    -- absorbed whole four times, 588 healed)
+    -- absorbed whole four times, 588 healed); raid seam52: the third raider
+    -- on the red with more left (seam51: two on the first red overkilled it
+    -- while the second kept about half and healed her ~100 a summon), kept
+    -- while it lives so the pick does not flip each tick
     if red ~= nil and #v.reds > 1 then
         local sorted = {}
         for _, r in ipairs(v.reds) do sorted[#sorted + 1] = r end
         table.sort(sorted, function(a, c) return a.row.slot < c.row.slot end)
-        red = sorted[((st.role - 1) % #sorted) + 1]
+        if st.role <= #sorted then
+            red = sorted[st.role]
+        else
+            local keep = nil
+            for _, r in ipairs(sorted) do if r.row.slot == vz.target_slot then keep = r end end
+            if keep ~= nil then
+                red = keep
+            else
+                red = sorted[1]
+                for _, r in ipairs(sorted) do
+                    if (r.row.health_ratio or 0) > (red.row.health_ratio or 0) then red = r end
+                end
+            end
+        end
     end
     local add = purple or red
     -- her: never into a summon slot, never inside the absorb window after one
@@ -979,7 +1027,8 @@ function QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
     -- "At 35% she stops attacking, summons two Matomenos" (tob_verzik.rs2
     -- ~tob_verzik_p2 notes, the reds at 35 % of P2), so once her bar reads
     -- 36 % or less with no summon yet, her next slot is held as one)
-    local first_due = (vz.summons or 0) == 0 and b.health_ratio ~= nil and b.health_scale ~= nil and b.health_scale > 0 and b.health_ratio * 100 <= 36 * b.health_scale
+    -- (raid seam52: on P2's own percent, above; the bar's 36 never came in P2)
+    local first_due = (vz.summons or 0) == 0 and pct ~= nil and pct <= 36
     local hold_her = ((summon_next or first_due) and nxt ~= nil and v.tick >= nxt - 1) or (vz.summon ~= nil and v.tick <= vz.summon + P.p2_absorb)
     if add ~= nil then
         local idle = v.tick - math.max(st.last_swing, st.engaged_tick) > st.weapon.speed + 2
@@ -1470,6 +1519,16 @@ function QD.raid._play_verzik_decide(st, v)
         -- hold as before -- s49 final svc/svd, members beside her through the
         -- specials died at t514 / t555 on one tile)
         if not tank and vz.m3_sure and v.tick <= (m3_next or 0) then m3_hold = false end
+        -- raid seam52 play_tob_verzik_last: and around her specials too.  Her
+        -- melee is judged on the tank alone (tob_verzik.rs2
+        -- ~tob_verzik_tank_in_melee; V verzik.p3_melee_predicate) and the
+        -- tank still holds on an unsure slot, so a member has no dangerous
+        -- tick: seam51's members stood ready and not swinging 58-67 ticks of
+        -- P3 (sva 593-599 before the yellows: the unsure hold).  Blert's trios
+        -- swing 22-33 times a raider in a 122-200 tick P3.  (seam49's deaths
+        -- beside her through a special were two members on ONE pool, since
+        -- fixed: the r-th pool.)  The pool, the crabs and the webs still win.
+        if not tank and st.mode == "normal" then m3_hold = false end
         vz.m3 = vz.m3 or { outs = 0, late = 0, holds = 0, dodges = 0, log = {} }
         -- (late: the tank beside her at the end of T-1, raid seam51)
         if melee and tank and m3_next ~= nil and v.tick == m3_next - 1 and d_boss == 1 and vz.m3_sure then vz.m3.late = vz.m3.late + 1 end
@@ -1640,6 +1699,18 @@ function QD.raid._play_verzik_decide(st, v)
             -- one (tob.constant ^tob_verzik_p2_nylo_blast_near/_mid/_far 63/26/8, range 3;
             -- the plan reads it from 4, one tile of its walk ahead)
             if st.mode == "normal" and cd <= 4 then t = math.max(t, 63) end
+            -- raid seam52: a web on my tile snaps for up to 40 if no teammate
+            -- breaks it (tob.constant ^tob_verzik_p3_web_break_max 40, [M50];
+            -- tob_verzik.rs2 [ai_timer,verzik_web_npc]), one hit per web on
+            -- the tile (e1 _play_verzik t520: two members on one tile, two
+            -- webs, 27+35 and 40+12, both dead from 62 and 52)
+            if st.mode == "normal" then
+                local mine = 0
+                for _, w in ipairs(v.webs) do
+                    if w.row.x == me.x and w.row.z == me.z then mine = mine + 1 end
+                end
+                if mine > 0 then t = math.max(t, 40 * mine) end
+            end
             -- raid seam45: every nylocas within 4 is its own 63 (s45 e14 svb; the
             -- blast is rolled 1-63, tob.constant ^tob_verzik_p2_nylo_blast_near)
             if melee then
@@ -1656,10 +1727,26 @@ function QD.raid._play_verzik_decide(st, v)
         for _, w in ipairs(v.webs) do
             if w.row.x == me.x and w.row.z == me.z then webbed = w end
         end
+        -- raid seam52: bound on my OWN web, the melee raider cannot swing at
+        -- it (it is under me, and a bound raider does not walk): a mate's web
+        -- one straight step away is broken instead, else her if she is in
+        -- reach (e2 svb: both members bound t513-529 beside her, pressing
+        -- their own webs, no swing for 16 ticks)
+        if st.mode == "normal" and melee and webbed and st.party > 1 then
+            local mate_web = false
+            for _, r in ipairs(mates) do
+                for _, w in ipairs(v.webs) do
+                    if w.row.x == r.x and w.row.z == r.z and math.abs(w.row.x - me.x) + math.abs(w.row.z - me.z) == 1 then mate_web = w end
+                end
+            end
+            webbed = mate_web
+            vz.m3.bound = (vz.m3.bound or 0) + 1
+            vz.m3.bound_tick = v.tick
+        end
         -- raid seam34v: a raider caught in a web is freed by ANOTHER player
         -- "breaking the web, which has 10 Hitpoints" (W:955): a web on a
         -- teammate's tile is shot first
-        if st.party > 1 and not webbed then
+        if st.party > 1 and not webbed and not (st.mode == "normal" and melee and vz.m3.bound_tick == v.tick) then
             local pr, prow = api_drive.players()
             if pr == "ok" then
                 for _, r in ipairs(prow) do
@@ -1843,6 +1930,37 @@ function QD.raid._play_verzik_decide(st, v)
             -- t600-625, the leader stood on 6421,84, a column west of the
             -- floor, pressed Attack every tick and never swung)
             go(me.x, me.z)
+        elseif st.mode == "normal" and melee and not tank and st.party > 1 and d_boss == 1 and not ball and (function()
+                -- (the higher pid of the two steps, so they do not step together)
+                for _, m in ipairs(mates) do if m.x == me.x and m.z == me.z and (m.pid == nil or st.my_pid == nil or m.pid < st.my_pid) then return true end end
+                return false
+            end)() then
+            -- raid seam52: a member beside her shares no tile with a mate.
+            -- Her webs are thrown one a raider and every web snaps on every
+            -- raider on its tile (tob_verzik.rs2 ~tob_verzik_webs,
+            -- [ai_timer,verzik_web_npc]): e1 _play_verzik, both members
+            -- pathed to the same tile of her east edge, took both webs and
+            -- died at t520.  Blert's trios keep apart (seam52 refspread.py:
+            -- 95% of reds-phase ticks no other raider within one tile).  One
+            -- step along her edge to a tile beside her that no mate holds.
+            local best, bx, bz = nil, nil, nil
+            for dx = -2, 2 do
+                for dz = -2, 2 do
+                    local x, z = me.x + dx, me.z + dz
+                    if (dx ~= 0 or dz ~= 0) and okp(x, z) and not v.shadows[x * 100000 + z] and QD.raid._verzik_dist(x, z, b) == 1 then
+                        local sc = math.max(math.abs(dx), math.abs(dz)) * 10 + crowd(x, z) * 5
+                        for _, m in ipairs(mates) do if m.x == x and m.z == z then sc = sc + 1000 end end
+                        if best == nil or sc < best then best, bx, bz = sc, x, z end
+                    end
+                end
+            end
+            if best ~= nil and best < 1000 then
+                intent.walk = { x = bx, z = bz }
+                vz.steps = vz.steps + 1
+                st.engaged = false
+                vz.target_slot = nil
+                vz.m3.apart = (vz.m3.apart or 0) + 1
+            end
         elseif st.party > 1 and crowd(me.x, me.z) > 0 and (not melee or ball) then
             -- raid seam34v: a raider beside another steps apart (the ball
             -- bounces to a neighbour, W:975; s34v vzn3: the two members ran
@@ -1861,6 +1979,13 @@ function QD.raid._play_verzik_decide(st, v)
                 end
             end
             if best ~= nil then go(bx, bz) vz.spreads = (vz.spreads or 0) + 1 end
+        end
+        -- raid seam52: bound, a walk goes nowhere: e3 _play_verzik, both
+        -- members re-sent the walk to her north-east side every tick of the
+        -- webs (she walks to the centre) and swung at nothing t489-507
+        if st.mode == "normal" and melee and vz.m3.bound_tick == v.tick then
+            intent.walk = nil
+            vz.m3.bound_walks = (vz.m3.bound_walks or 0) + 1
         end
         if intent.walk == nil and pool == nil then crab = QD.raid._verzik_crabs(st, v, ok, go) end
         -- raid seam45: melee never swings at a nylocas (its death blasts

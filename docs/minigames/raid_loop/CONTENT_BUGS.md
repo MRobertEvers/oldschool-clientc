@@ -1738,3 +1738,48 @@ tob_bloat.rs2 huntall(movecoord(npc_coord, 2, 0, 2), ^tob_bloat_stomp_range = 5)
 area" (wiki_Pestilent_Bloat.wikitext:92) + Blert's 27 downs (footprint+2: 23/27, +3: 4/10, >=4: 0/10). [M65] grade D.
 The plan moved with it in the same commit (centre distance, leave margin kept at -2, the leave locked once
 started): tech.leave_before_stomp PASS 3 of 3, 0 stomp hits (closer survey 2).
+
+## From seam52 melee_damage_per_swing (matthew-mbp-m4-raid-b1-seam52, 2026-10-06)
+
+Settled: the melee formula is not short. `combat_stats.rs2` and the scythe split follow the
+wiki to the term: `~combat_effective_stat` scales the CURRENT (boosted) level by the prayer
+(Piety 123, `~check_strength_prayer`) before `+ style + 8` (wiki_Maximum_melee_hit step one),
+`~combat_maxhit` is `(effective * (bonus + 64) + 320) / 640` (step two, the 0.5 is the 320),
+the defence roll is `(level + 9) * (bonus + 64)`, the hit test is `randominc(A) > randominc(D)`,
+and `scythe_of_vitur.rs2` rolls hits 2 and 3 on their own accuracy at `scale(50)` and
+`scale(25)` of the max (wiki_Scythe_of_vitur :83 "each hit will deal 50% less damage,
+(rounded down), than the preceding hit"). Bloat, Verzik P2/P3 and Vasilias stats in
+all.npc equal the wiki's. With `::maxmelee` (torva body/legs, rancour) the wiki expectation
+on Bloat is 38.0 per swing (Reap) -- exactly the 36-39 seam51 measured. The gap to the
+reference was the KIT and the reference's own number:
+
+- KIT (fixed by a test affordance, `cheat_max_gear.rs2` `::tobkit` / `::tobkitsalve`): the
+  recorded raiders (Blert equipmentDeltas, build/blert/{bloat,verzik,sotetseg}) wear radiant
+  oathplate body and legs (Bloat 79/90, Verzik 66/81, Sotetseg 81/87; torva 0), and at
+  Bloat a salve amulet(ei) (74/90; Bloat is undead). Wiki expectation with that kit on
+  Bloat: 42.6 (Reap) / 43.8 (Chop); Verzik P2 29.3 (against 28.0 for `::maxmelee`).
+  Measured on this content: seam52_melee_probe (solo Normal Bloat, `::tobkitsalve`, Reap):
+  24 swings in the downs, 1005 damage, **41.9 per swing**, 7 of 72 rows zero, maxes seen
+  50/26/13 within 55/27/13.
+- THE REFERENCE'S "~49": the down-1 damage divided by ALL attacks, of which about 4.7 per
+  room are crystal-halberd specials. Regressed per kind over 29 recorded rooms (Bloat HP
+  drop in down 1 against attack counts): scythe **46** per swing, halberd special 72.5,
+  claw special 50. The scythe's 46 is inside the noise of the wiki's 42.6-43.8.
+- OPEN (not my file): `skill_combat/configs/combat.dbrow:72`, `weapon_scythe_table` slot 1
+  ("Chop") is `^stab_style`; the wiki's Module:CombatStyles (sources/wiki_Module_CombatStyles.lua
+  :547-549) has `'Chop', 'Slash', Aggressive`, and wiki_Scythe_of_vitur :41 "it does not
+  have a Stab combat style". Fix: `data=damagetype,^slash_style` on line 72. Until it lands
+  a raider must NOT pick style slot 1 with a scythe (stab 70 against Bloat's 40 stab
+  defence); Reap (slot 0, the default) costs 1 max hit (50 against 51) and nothing else.
+- OPEN (shared funnel, EV -1.2 per swing on an undead): the salve multiplies the ROLLED
+  damage (`player_hit_npc_prepare.rs2` `~salve_or_black_mask_scale_target($prepared)`),
+  where the wiki multiplies the MAX HIT ("Step three", wiki_Maximum_melee_hit :86-87 and
+  the Salve amulet (e) row :164) and rolls under it. Same maximum; the distribution is
+  lumpy and the mean slightly low (Bloat with `::tobkitsalve`: 41.5 against 42.6). Moving
+  it touches every caller of `~player_hit_npc_prepare` (ranged, magic, every special) --
+  left for a seam that owns them.
+- NOT THE FORMULA: Vasilias's 21 per swing against Blert's 34 (seam51 nylocas) -- the wiki
+  expectation in its melee form is 41-42 per swing with either kit; the shortfall is the
+  room (swings into the wrong form, reflected, or across a form change), not the swing.
+  Verzik P2's 43% zero splats: the formula gives 39% (`::maxmelee`) / 36% (`::tobkit`) per
+  row; the rest are the heal window's zeros (`tob_damage.rs2` `~tob_prepare_player_hit`).

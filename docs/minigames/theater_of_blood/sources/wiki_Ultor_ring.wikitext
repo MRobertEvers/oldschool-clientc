@@ -1,0 +1,99 @@
+{{Infobox Item
+|name = Ultor ring
+|image = [[File:Ultor ring.png]]
+|release = [[26 July]] [[2023]]
+|update = Desert Treasure II - The Fallen Empire
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wear, Drop
+|examine = An occult ring that grants immense physical power.
+|value = 140000
+|weight = 0.012
+|exchange = Yes
+|id = 28307
+|leagueRegion = Varlamore
+}}
+[[File:Ultor ring detail.png|left|150px]]
+The '''ultor ring''' is one of four [[ancient rings]] which currently boasts the highest strength bonus of any ring, surpassing the [[berserker ring (i)|imbued berserker ring]] by +4. The ring requires players to have killed [[Vardorvis]] at least once to wear, which is done during [[Desert Treasure II - The Fallen Empire]]; attempting to wear it otherwise will result in the message {{mes|The ring slips off your finger. The power within it seems unfamiliar.}}
+
+The ring requires level 90 [[Magic]] and 80 [[Crafting]] to create (both being boostable), as well as having learnt how to combine Fremennik ring icons with ancient vestiges via [[Peer the Seer]].
+
+Players who are able to craft the ring must first combine the [[berserker icon]], 500 blood runes, and the [[ultor vestige]], obtained as an untradeable drop from [[Vardorvis]]. Next, they must bring the resulting [[ultor icon]] to a [[furnace]], alongside three [[chromium ingot]]s and a [[ring mould]], to craft the ring.
+
+Unlike their predecessors, the [[Fremennik rings]], the ancient rings '''cannot''' be imbued.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = +12
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = ring
+}}
+
+==Creation==
+{{Recipe
+|skill1 = Magic
+|skill1lvl = 90
+|skill1exp = 0
+|skill1boostable = Yes
+|skill2 = Crafting
+|skill2lvl = 80
+|skill2exp = 2500
+|skill2boostable = Yes
+|members = Yes
+|ticks = 3
+|tools = Ring mould
+|facilities = Furnace
+|mat1 = Ultor icon
+|mat1cost = No
+|mat2 = Chromium ingot
+|mat2quantity = 3
+|output1 = Ultor ring
+}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Ultor ring}}
+
+==Changes==
+
+{{Subject changes header}}
+{{Subject changes
+|prerelease = yes
+|page = Ultor ring (beta)
+|daterange = 14 - 21 June 2023
+|beta = Ruinous Powers Beta v2
+|change = The item's name was changed from "Ring of true blood" to "Ultor ring".
+}}
+{{Subject changes
+|daterange = 12 - 18 April 2023
+|beta = Desert Treasure II Rewards Beta
+|change = First present in the DT2 rewards beta.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="150" style="text-align:left">
+Ancient rings concept art.png|Concept art for the ancient rings, by [[Mod Jerv]].
+</gallery>
+
+==Trivia==
+* Ultor is a Latin word meaning "avenger".
+* Despite the poll blog and newspost stating the ultor ring requires full completion of [[Desert Treasure II - The Fallen Empire]] to wear, this is not the case in-game, and players need only to have obtained one kill count of [[Vardorvis]] to wear it.
+
+{{Rings}}
+{{The Forgotten Four}}

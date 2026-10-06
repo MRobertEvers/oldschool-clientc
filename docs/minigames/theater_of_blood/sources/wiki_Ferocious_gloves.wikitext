@@ -1,0 +1,106 @@
+{{Infobox Item
+|name = Ferocious gloves
+|image = [[File:Ferocious gloves.png]]
+|release = [[10 January]] [[2019]]
+|update = The Kebos Lowlands
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wear, Drop
+|examine = A pair of very very nice gloves.
+|value = 100000
+|weight = 0.226
+|id = 22981
+|leagueRegion = Kourend
+}}
+[[File:Ferocious gloves detail.png|left|130px]]
+The '''ferocious gloves''' are a pair of [[melee]] [[gloves]] requiring level 80 [[Attack]] and [[Defence]] to equip. They are the [[Armour/Highest bonuses|best-in-slot]] offensive gloves for melee, surpassing [[Barrows gloves]]. However, they provide no defensive stats, and have a negative ranged and magic attack bonuses, making them less effective when using multiple attack styles. 
+
+The gloves are untradeable, but can be made from a piece of [[hydra leather]], costing {{Coins|{{GEP|Hydra leather}}}} on the [[Grand Exchange]]. To craft the gloves, player must bring the leather and a [[hammer]] to the northern part of the [[Lithkren Vault]], and use the leather on the [[machinery]] south-west of the pool. In order to revert the gloves back to leather form, simply use the [[machinery]] again while holding a [[hammer]] and the gloves. Players must complete [[Dragon Slayer II]] to access the vault. [[File:Ferocious gloves creation.gif|right|thumb|The player crafting the gloves]]
+==Combat stats==
+{{Infobox Bonuses
+|astab = +16
+|aslash = +16
+|acrush = +16
+|amagic = -16
+|arange = -16
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = +14
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = hands
+|image = [[File:Ferocious gloves equipped.png|130px]]
+|altimage = [[File:Ferocious gloves equipped female.png|130px]]
+}}
+
+==Creation==
+{{Recipe
+|notes = {{SCP|Quest}} Completion of [[Dragon Slayer II]]
+|members = Yes
+|ticks = 7
+|tools = hammer
+|facilities = Machinery
+|mat1 = Hydra leather
+|output1 = Ferocious gloves
+|output1cost = No
+}}
+
+==Comparison==
+{{Infotable Bonuses|Barrows gloves|Ferocious gloves|nototals=yes}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Ferocious gloves}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 March 2020
+|update = Game Improvements (26 March 2020)
+|poll = 
+|change = Ferocious gloves have been moved from the "Weapons" section to the "Armour" section within the [[Attack]] skill guide.
+}}
+{{Subject changes
+|date = 31 January 2019
+|update = Chambers of Xeric, Kebos, and Collection Log Changes
+|change = The ferocious gloves now work when harvesting [[cave nightshade]] from a [[Belladonna patch]].
+}}
+{{Subject changes
+|date = 17 January 2019
+|update = Kebos Graphical Changes and Other Fixes
+|change = *The ferocious gloves received a [[graphical updates|graphical update]]. 
+*The item's values was decreased from 1,000,000 to 100,000 [[coins]].
+}}
+{{Subject changes
+|date = 14 January 2019
+|update = Konar Loot Table Balancing
+|type = hotfix
+|change = Ferocious gloves can now be reverted back into [[hydra leather]] using the machine in the Lithkren Vault.
+{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/1084834960543043585|date=14 January 2019|archiveurl=https://reldo.runescape.wiki/i/103571|archivedate=25 May 2020}}
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Ferocious gloves (v1) detail.png|center|300x150px]]
+|[[File:Ferocious gloves detail.png|center|300x150px]]
+|-
+|[[File:Ferocious gloves v1.png|center]]
+|[[File:Ferocious gloves.png|center]]
+|-
+|10 January 2019 –<br/>17 January 2019
+|17 January 2019 –<br/>present
+|}
+
+==References==
+{{reflist}}
+
+{{Alchemical Hydra}}
+[[Category:Gloves]]

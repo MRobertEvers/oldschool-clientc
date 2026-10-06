@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 219
+-- @seam-count 221
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 230
-local SEAM_COUNT = 219
+local SEAM_COUNT = 221
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -15219,6 +15219,47 @@ return {
             return "ok", "QD.raid._play_bloat_path_dist: 6 of 6 (the reach ring 0, three along the edge, seven and ten round the tank, the 5x5's diagonal corner 1, the survey's nine-tile run)"
         end)
 
+        -- conformance.play_tob_sotetseg_last (raid seam52).  ONE seam row, no new
+        -- library verb: the plan helper QD.raid._play_sotetseg_gap (the tiles
+        -- between two Sotetseg maze glows), pure logic.
+        -- PLACE: test/quests/_conformance.lua, right after
+        -- seam("seam.raid_play_bloat_path_dist", ...).  SEAM_COUNT +1 (@seam-count).
+        -- Proved first as build/seam_state/matthew-mbp-m4-raid-b1-seam52/sotetseg/
+        -- sote_gap_probe.lua, run s52sotegap: PASS 9 of 9; its copy with case 5's
+        -- expectation flipped (sote_gap_probe_neg.lua, s52sotegapneg) FAILS
+        -- "case 5 20,27->19,29: certain false corners '19,27' (want true '19,27')".
+        seam("seam.raid_play_sotetseg_gap", function()
+            local gap = verb("raid", "_play_sotetseg_gap")
+            if not gap then return missing("raid", "_play_sotetseg_gap") end
+            local cases = {
+                -- last glow, this glow, consecutive reads, want certain, want corners (between the two)
+                { { 22, 23 }, { 22, 25 }, true,  true,  "" },          -- one tick north across an even row
+                { { 20, 25 }, { 20, 27 }, true,  true,  "" },          -- odd row to odd row in one tick: straight
+                { { 16, 24 }, { 17, 25 }, true,  true,  "16,25" },     -- even row: north first (parity)
+                { { 21, 25 }, { 22, 26 }, true,  true,  "22,25" },     -- odd row: along it first (parity)
+                { { 20, 27 }, { 19, 29 }, false, false, "19,27" },     -- seam51 blast at (19,27): two-way
+                { { 17, 31 }, { 16, 33 }, false, false, "16,31" },     -- seam51 blast at (16,31): two-way
+                { { 19, 28 }, { 21, 29 }, false, true,  "19,29" },     -- even row to the odd row above: one corner
+                { { 16, 24 }, { 21, 26 }, false, true,  "16,25 21,25" }, -- even to even two rows on: the run between
+                { { 17, 25 }, { 21, 25 }, false, true,  "" },          -- along one odd row
+            }
+            local bad = {}
+            for i, c in ipairs(cases) do
+                local points, certain = gap(c[1], c[2], 22, c[3])
+                local mids = {}
+                for k = 2, #points - 1 do mids[#mids + 1] = points[k][1] .. "," .. points[k][2] end
+                local got = table.concat(mids, " ")
+                local ends_ok = points[1] == c[1] and points[#points][1] == c[2][1] and points[#points][2] == c[2][2]
+                if certain ~= c[4] or got ~= c[5] or not ends_ok then
+                    bad[#bad + 1] = string.format("case %d %d,%d->%d,%d: certain %s corners '%s' (want %s '%s')",
+                        i, c[1][1], c[1][2], c[2][1], c[2][2], tostring(certain), got, tostring(c[4]), c[5])
+                end
+            end
+            if #bad > 0 then return "fail", "QD.raid._play_sotetseg_gap: " .. table.concat(bad, "; ") end
+            return "ok", "QD.raid._play_sotetseg_gap: 9 of 9 (straight runs, the parity corner of a one-tick read, "
+                .. "the seam51 blast gaps (19,27) and (16,31) two-way, the corners the maze's shape names)"
+        end)
+
         -- conformance.play_tob_nylocas_normal (raid seam32).  ONE seam row, no verb.
         -- PLACE: test/quests/_conformance.lua, right after seam("seam.raid_play_nylocas_supplies", ...)
         -- (it ends at about line 12017 on f54d63893).  SEAM_COUNT +1 (@seam-count).
@@ -21393,6 +21434,53 @@ return {
                 .. ": hit_npc on " .. n .. " slot(s)"
             if n ~= 3 then
                 return "refused", text .. " -- want three goblins hit by one swing (wiki_Scythe_of_vitur:81)"
+            end
+            return "ok", text
+        end)
+
+        -- PLACE: test/quests/_conformance.lua, right after the
+        -- seam("seam.scythe_arc_three_in_a_row", ...) row (the scythe's own seam;
+        -- the seam52 closer's first placement after seam.raid_play_sotetseg_gap left
+        -- ::maxmelee's scythe worn into seam.raid_play_member_swing_xp, whose Wind
+        -- Strike casts then fell to one: keep this row where the scythe already is).
+        --
+        -- raid seam52 melee_damage_per_swing: the Theatre melee kit the recorded
+        -- raiders wear (Blert equipmentDeltas: radiant oathplate body and legs,
+        -- a salve amulet(ei) at Bloat), one cheat each (cheat_max_gear.rs2
+        -- ::tobkit / ::tobkitsalve).  The row asks the worn slots back from the
+        -- client: a cheat that left ::maxmelee's torva or rancour on is hollow,
+        -- because the damage per swing follows the kit (CONTENT_BUGS seam52).
+        seam("seam.tob_melee_kit_worn", function()
+            local held = verb("session", "held")
+            if not held then return missing("session", "held") end
+            local function worn_set()
+                settle(2)
+                local r, h = held()
+                local set = {}
+                if r == "ok" then
+                    for _, name in ipairs(h.worn or {}) do set[name] = true end
+                end
+                return r, set
+            end
+            setup_cheat("::tobkitsalve")
+            local r1, w1 = worn_set()
+            setup_cheat("::tobkit")
+            local r2, w2 = worn_set()
+            setup_cheat("::maxmelee")
+            settle(2)
+            if r1 ~= "ok" or r2 ~= "ok" then
+                return "no_subject", "session.held " .. tostring(r1) .. "/" .. tostring(r2)
+            end
+            local text = string.format("::tobkitsalve body %s legs %s neck salve %s scythe %s; ::tobkit neck rancour %s salve %s",
+                tostring(w1.radiant_oathplate_chest == true), tostring(w1.radiant_oathplate_legs == true),
+                tostring(w1.lotr_crystalshard_necklace_upgrade == true), tostring(w1.scythe_of_vitur == true),
+                tostring(w2.amulet_of_rancour == true), tostring(w2.lotr_crystalshard_necklace_upgrade == true))
+            if not (w1.radiant_oathplate_chest and w1.radiant_oathplate_legs and w1.lotr_crystalshard_necklace_upgrade
+                    and w1.scythe_of_vitur and not w1.torva_chest and not w1.amulet_of_rancour) then
+                return "refused", text .. " -- want the recorded Bloat kit worn (oathplate, salve(ei), scythe)"
+            end
+            if not (w2.amulet_of_rancour and w2.radiant_oathplate_chest and not w2.lotr_crystalshard_necklace_upgrade) then
+                return "refused", text .. " -- want ::tobkit's rancour and oathplate"
             end
             return "ok", text
         end)

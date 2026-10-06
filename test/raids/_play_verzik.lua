@@ -20,7 +20,7 @@ local size = (QD_PARTY and QD_PARTY.size) or 1
 -- The kit (raid seam45 play_tob_verzik_melee_follows_blert: MELEE, as every
 -- recorded Normal trio plays her -- Blert verzik_normal_3.json, 20 death-free
 -- rooms: the scythe in P2 and P3 in 16-18 of 20 rooms per role, melee 83-92%
--- of attacks).  Worn: ::maxmelee (Torva, the charged scythe: W:891 "weapon1 =
+-- of attacks).  Worn: ::tobkit (::maxmelee's charged scythe, the oathplate: W:891 "weapon1 =
 -- Scythe of vitur"; W:881 "players should use their melee weapons"),
 -- insulated boots (the zap 48 -> 25, V p2_zap_max; Entry_Mode.wikitext:94).
 -- Carried: a charged serpentine helm (the Athanatos "has to be hit with
@@ -34,7 +34,11 @@ local size = (QD_PARTY and QD_PARTY.size) or 1
 -- (W:875 "drop the Dawnbringer for the next player (in orb order)").  p2 and
 -- p3 keep one backpack slot free for it.
 local party_kit = {
-    "::clearinv", "::maxmelee",
+    -- (raid seam52 melee_damage_per_swing: ::tobkit = ::maxmelee, then the
+    -- recorded raiders' radiant oathplate body and legs and the amulet of
+    -- rancour -- Blert equipmentDeltas, build/blert/verzik, 66/81 rooms;
+    -- cheat_max_gear.rs2; the wiki's swing on her P2 28.9, P3 34.7)
+    "::clearinv", "::tobkit",
     "::setlevel attack 99", "::setlevel strength 99", "::setlevel prayer 99",
     "::setlevel magic 99", "::setlevel agility 99",
     "::setlevel slayer 37", "::give slayer_boots 1", "::wield slayer_boots",
@@ -94,7 +98,9 @@ local function party_run(t)
     -- (raid seam51: the late-seen attacks the clocks re-dated, and P2's late ticks)
     t.check("play.melee_clock", true, string.format("p%d P2 outs %s late %s [%s] snaps %s waits %s add presses %s kites %s; P3 outs %s late %s snaps %s holds %s; P2 log %s",
         role, tostring(m2.outs), tostring(m2.late), table.concat(m2.late_ticks or {}, " "), tostring(vz.m2_snaps or 0), tostring(m2.waits), tostring(m2.add_presses), tostring(m2.kites),
-        tostring(m3.outs), tostring(m3.late), tostring(vz.m3_snaps or 0), tostring(m3.holds), table.concat(m2.log or {}, " ")) .. "; P3 dodges " .. tostring(m3.dodges) .. "; enrage log " .. table.concat(m3.log or {}, " ") .. "; webs log " .. table.concat(m3.log2 or {}, " "))
+        tostring(m3.outs), tostring(m3.late), tostring(vz.m3_snaps or 0), tostring(m3.holds), table.concat(m2.log or {}, " ")) .. "; P3 dodges " .. tostring(m3.dodges) .. "; enrage log " .. table.concat(m3.log or {}, " ") .. "; webs log " .. table.concat(m3.log2 or {}, " ")
+        -- (raid seam52: each summon's red policy: tick, K kill / L last, her bar %)
+        .. "; red policy " .. table.concat(m2.red_policy or {}, " ") .. "; P3 apart " .. tostring(m3.apart or 0) .. " bound " .. tostring(m3.bound or 0) .. " bound walks " .. tostring(m3.bound_walks or 0))
     if role ~= 1 then
         t.expect("party.barrier.done", t.party.barrier("done", 9000))
         t.finish(0)

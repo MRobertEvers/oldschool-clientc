@@ -1694,3 +1694,39 @@ all clean. No C and no content changed.
   shared driver file changed, and per the pass's closer rule nothing else was run (the
   quest suite was not run; the fixers ran cooks_assistant and druid green, check-drive-abi
   and check-pt-switch PASS on their binaries).
+
+## matthew-mbp-m4-raid-b1-seam52 (2026-10-06; the commit that carries this heading, OSRS-Content cheat_max_gear.rs2): the melee kit and the last gaps of Sotetseg, Nylocas, Verzik
+
+- melee_damage_per_swing: LANDED (content). The formula matches the wiki term by term; the
+  gap was the kit. ::tobkit (radiant oathplate, rancour) and ::tobkitsalve (oathplate,
+  salve(ei)) in cheat_max_gear.rs2, sourced from the Blert equipmentDeltas of the recorded
+  rooms; probe 41.9 per swing on Bloat against the wiki's 42.6-43.8, reference regressed by
+  attack kind 46. Row seam.tob_melee_kit_worn. OPEN: combat.dbrow:72 scythe Chop is STAB
+  (wiki: no stab style); the salve scales rolled damage, not the max hit (~1.1 a swing);
+  the 19 new wiki source files have no manifest.tsv rows (revision ids not fetched).
+- play_tob_verzik_last: LANDED and KEPT (5 of 5 green on ::tobkit, repeat AGREE, Entry solo
+  5 of 5). The reds policy per summon, P2's own percent off the shared bar, P3 members off
+  each other's tiles and the own-web bind. OPEN: P2 267 on one name [170-261]; last-summon
+  choice is coarse on a 30-step bar; hp lost 8 of 15 raiders inside; P3 tank step-under on
+  T-1 not tried.
+- play_tob_sotetseg_last: LANDED, not KEPT (2 of 5 green on ::tobkit, 3 of 5 on ::maxmelee;
+  repeat AGREE; Entry solo 5 of 5). Maze blasts 0 on 10 of 10 mazes (frame-polled glow,
+  direct steps, QD.raid._play_sotetseg_gap, row seam.raid_play_sotetseg_gap); arrival double
+  ball gone (floor landing). OPEN: room_ticks 268-304 on 3 names [164-262] (start walk, no
+  bow opener, post-maze DPS, the unsourced return tile); p2's t39 melee on Protect from
+  Magic; p1's t44 ball through Protect from Melee.
+- play_tob_nylocas_last: LANDED, not KEPT (0 of 5 green, was 1 of 5; repeat AGREE; Entry
+  solo 5 of 5). Stands from the reference positions with a leash, cleanup split by side,
+  ::tobkit for the meleer; last wave and boss start now in range on 3 of 5 (seam51 1 of 5).
+  OPEN: the SW support falls on 2 names; the "no effect" reader strikes off the seat's own
+  colour after a stale swap press; boss ticks 124-131 on 3 names [75-123]; tech.prayer
+  reads 20 hp lost on one name [24-120].
+- Closer: two conformance rows merged (seam.raid_play_sotetseg_gap after
+  seam.raid_play_bloat_path_dist; seam.tob_melee_kit_worn after
+  seam.scythe_arc_three_in_a_row, moved there after its first placement left the scythe
+  worn into seam.raid_play_member_swing_xp and failed it). SEAM_COUNT 221;
+  test-quest-conformance 451/451 rows PASS, check-quest-verbs PASS, luac -p clean. No C
+  changed; per the pass's closer rule nothing else was run (the fixers ran cooks_assistant
+  and druid green, check-drive-abi and check-pt-switch PASS, the pack rc 0 at 16:43). A
+  concurrent seam54 pass was editing the Bloat and Maiden files in this worktree: those are
+  not in this commit.
