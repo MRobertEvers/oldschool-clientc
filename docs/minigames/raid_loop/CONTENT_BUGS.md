@@ -1783,3 +1783,14 @@ reference was the KIT and the reference's own number:
   room (swings into the wrong form, reflected, or across a form change), not the swing.
   Verzik P2's 43% zero splats: the formula gives 39% (`::maxmelee`) / 36% (`::tobkit`) per
   row; the rest are the heal window's zeros (`tob_damage.rs2` `~tob_prepare_player_hit`).
+
+## 2026-10-06 seam55 (orchestrator, owner: "This needs to be fixed. Fix it now"): the Maiden's blackstorm landed exactly its max
+
+`tob_maiden.rs2 ~tob_maiden_hit_damage` returned `36.5 + 3.5c` (halved by Entry and by Protect from Magic)
+on every storm. The Strategies page's "deals damage equal to 36.5 + 3.5c" (wiki_Theatre_of_Blood_Strategies
+.wikitext:590) is the MAX: the Maiden's infobox lists max hit 36 (18 in Entry; wiki_The_Maiden_of_Sugadinti
+.wikitext:39-44) and the 112 recorded Normal trio storms on the Blert raiders have a median of 12.5 and a
+range of 0 to 62 (blert_api/reference/maiden_normal_3.json boss.hit_on_recorder.maiden_auto). Fixed: the
+damage is `random(max + 1)`, still with no accuracy roll ("always lands as a successful hit") and the over-hit
+kept. Effect before the fix: a trio lost 170-390 hitpoints at Maiden against the recorded 60-106, ate its pack
+empty and reached Bloat with nothing (seam53 relay, seam54 Maiden). maiden.tsv auto_damage_base reworded.
