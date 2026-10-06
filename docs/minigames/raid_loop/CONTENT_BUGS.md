@@ -1363,3 +1363,105 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   closer's own-name run. Tick log: a big died at 613 and split; its smalls freed at 665; she
   spawned at 682, 17 ticks later, inside the spec's 16-19. The row takes the last WAVE
   nylocas free (641) and skips the split smalls (DRIVER_NOTES.md, closer seam36).
+
+## From seam38 stopaction_and_stat_rows (matthew-mbp-m4-raid-b1-seam38, 2026-10-06)
+
+- FIXED, ENGINE: `p_stopaction` stopped `srv->active_player`, not the script's bound
+  player. Source: LostCity Engine-TS PlayerOps.ts:431-433 `[ScriptOpcode.P_STOPACTION]:
+  checkedHandler(ProtectedActivePlayer, state => { state.activePlayer.stopAction(); })`.
+  Content caller: tob_nylocas_boss.rs2 `[proc,tob_vasilias_act]` `huntnext` loop,
+  `if (p_finduid(uid) = true) { p_stopaction; }` for every raider on her turn. Now
+  `assert(player); ToriRSServer_CombatStopPlayerAt(player);` (torirs_server_scripts.c).
+  The same active-vs-bound audit of every `p_*` case in `ToriRSServer_ScriptCommand`,
+  fixed in the same file: `p_opnpc` (shadowed the bound player with `srv->active_player`;
+  its AFK stop and interaction clear now act on the bound player, and
+  `WorldInteractionSet`/`WorldWalkToApproach` run with the world pointed at it),
+  `p_opnpct` (cleared/set `srv->active_player`'s interaction but wrote the spell and
+  cleared the steps of the bound one), `p_walk` (`WorldWalkTo(srv)` walked
+  `srv->active_player` while the same-tile branch read the bound player), `p_logout`,
+  `p_countdialog`. The rebinding is a save/`ToriRSServer_WorldSetActive`/restore pair
+  (`script_world_bind_player`/`script_world_unbind_player`), the shape `p_overhit` uses; in
+  a player's own script the two are one player and it is a no-op. Correct already:
+  `p_overhit` (uid-addressed), `p_teleport`/`p_telejump`/`p_delay`/`p_stun`/`p_aprange`/
+  `p_arrivedelay`/`p_locmerge`/`p_exactmove` (read the bound `player`).
+  Measured: Normal trio `_play_nylocas --party 3` own name (s38nylo3): her 37 retypes
+  (t490..849), 0 player_anim rows on a retype tick, every raider row on those ticks reads
+  `tgt -1`; play.no_reflect PASS (0 heal rows). The SAME run on the pre-fix C
+  (s38nylo3pre, QUEST_BINARY from a HEAD worktree) also reads 0 and `tgt -1` on all 27
+  retypes: the play plan's turn holds keep every raider off her on the turn, so this plan
+  cannot show the bug; the evidence of the bug stays seam36's s32ny2 tick 562 (serials
+  15615-15620, p0 swinging after the retype). Entry solo survey `_play_nylocas` 5 of 5.
+  Server selftest 11 failures, the same 11 rows as HEAD.
+- OPEN, ENGINE (not this seam's file): `src/torirsserver/torirs_server_ops_player.c`
+  `p_oploc`/`p_opobj`/`p_opplayer` call `ToriRSServer_WorldClearPendingAction(srv)`,
+  `ToriRSServer_WorldInteractionClear(srv)`, `WorldInteractionSet(srv, ...)` and
+  `WorldWalkToApproach(srv, ...)`, which act on `srv->active_player`, and `p_oploc`
+  resolves the loc transform against `srv->active_player`; the same rebind applies. No
+  content caller from an npc script is known.
+- FIXED, CONTENT: a held overheal never decayed. Source: wiki_Hitpoints.wikitext:95
+  "Boosted hitpoints levels above a player's maximum Hitpoints level decay at a rate of one
+  per minute, identically to other temporary boosts. This timer can be restarted through
+  activating the Rapid Heal prayer or through logging out" -- the two places that rearm
+  `[timer,health_regen]` (prayer.rs2 `~health_regen_rearm`, login.rs2
+  `~health_regen_login`), so the decay lives on that timer, not on stat_restore:
+  health_regen.rs2 now subtracts one when `stat(hitpoints) > stat_base(hitpoints)` and heals
+  one otherwise, and the interval is the flat 100 while overhealed (the page's rate; Rapid
+  Heal / the cape / the regen bracelet are regeneration rates, :56-58). Measured, scratch
+  s38_hp1 (fresh_lumbridge) raider rows: consume t254 `[opheld1,br_4dosepotionofsaradomin]`
+  99 -> 115; hp 115 at t255; 114 at t301 (the timer already running, not restarted by the
+  drink); 113 at t401, exactly 100 later. Ledger overheal.drink 115, overheal.minute 114,
+  overheal.two_minutes 113 PASS.
+- SETTLED, no change: "hitpoints of 84/85 under the base did not regenerate in 240 ticks"
+  (seam36, fresh_lumbridge scratch). Not reproduced: s38_hp1 `::drain hitpoints 15 0` at t6
+  -> 84; raider rows 85 at t101, 86 at t201 (wiki Hitpoints:56 "1 Hitpoint per minute").
+  The timer is armed at login (login.rs2:40 `~health_regen_login`) and survived the
+  fixture start. Seam36's scratch had an npc biting (15 at t16) and a bandage; its reading
+  is not repeated here, so the row is closed on this measurement, not explained.
+- SPEC: M165 (Sotetseg Entry prayed melee max 10, grade E) is now in
+  THEATRE_OF_BLOOD_PLAN.md's open table and `^tob_sote_melee_prayed_max_entry` carries
+  `[derived][M165]` (tob_sotetseg.constant).
+
+## From seam38 scythe_arc_and_salve_accuracy (matthew-mbp-m4-raid-b1-seam38, 2026-10-06)
+
+- FIXED (seam38, content; commit named by the closer): the Scythe of Vitur's 1x3 arc on 1x1
+  targets (the seam33 row; scythe_of_vitur.rs2:38 "Only (1) is implemented").
+  wiki_Scythe_of_vitur.wikitext:81 "their attack range is increased to a 1x3 arc radius in
+  front of the player, which can allow them to hit three 1x1 targets in front of them";
+  :83 "accuracy and strength rolls are rolled independently on each target, though each hit
+  will deal 50% less damage, (rounded down), than the preceding hit"; :85 "47-23-11";
+  wiki_Multicombat_area.wikitext:95 "Cleave: Hit many targets and/or larger targets multiple
+  times in a player-facing cone" with :68 "they can only hit multiple opponents while in a
+  multi-combat area". Tiles from Near-Reality ScytheOfViturCombat.java:139-159 (target tile,
+  left and right across the facing; an npc counted by its south-west tile) and :101 (1.0 /
+  0.5 / 0.25). New `[proc,scythe_of_vitur_arc]` / `[proc,scythe_of_vitur_arc_hit]`, called
+  from `~scythe_of_vitur_swing` only when the primary is size 1; `npc_findallany` (dispatched
+  now, torirs_server_scripts.c) replaces the missing NPC_FINDALLZONE. The large-target hits
+  (size 2: two, size 3+: three, floor(M/2), floor(M/4)) were already the page's rule and are
+  unchanged. Proved, build/quest_gate/s38arc_after2 (6 of 6): single-way Lumbridge, three
+  goblins in a row, one hit_npc row on the middle copy (tick 11); multi-way Barbarian Village
+  (multiway.csv 0_48_53) three rows on three slots in one tick (tick 24: 5, 5, 4; tick 37:
+  5, 5, 1); a lone goblin one row; cow (size 2) two rows; black_demon_strongholdcave_1 (size 3)
+  three rows on 8 of 9 swing ticks (the ninth killed it), per-position max 12 / 8 / 25 in log
+  order hit2, hit3, primary. Bloat (size 5, party 3 survey): 3 rows a scythe swing (tick 111:
+  2, 2, 33).
+- Stated, not sourced: which arc side takes the 50% hit. The wiki is silent and NR leaves it
+  to a HashSet's iteration order; this takes the left one (across the facing) first.
+- Left, small: NR gives a LARGE npc standing on an arc side tile the swing's remaining hits;
+  the wiki's "three 1x1 targets" does not cover it; here every arc secondary takes one hit.
+- No ToB room changes from the arc: every scythe primary in the kept Bloat, Sotetseg, Xarpus
+  and Verzik rooms is size 2 or more (Bloat 5, Sotetseg 5, Xarpus 5, Verzik forms, Athanatos
+  3, Matomenos 2); the arc fired 0 times in _play_smoke/_play_sotetseg/_play_xarpus/
+  _play_verzik/_play_bloat x3 and the kept tob_verzik scratch (no tick with a 1x1 primary and a
+  same-tick secondary). The Normal trio Nylocas "Scythe the east melee doubles" plan is what
+  it unblocks.
+- PROVED (seam38), the salve's ACCURACY half applied by the seam36 closer
+  (combat_stats.rs2:646): build/quest_gate/s38salve1, kourend_spectre (undead), ::maxmelee,
+  attack 1, whip: 75 landed of 381 swings (19.7 per 100) without, 90 of 317 (28.4 per 100)
+  with salve(ei); ratio 1.44, 95% interval about 1.10..1.89, containing the page's 6/5. One
+  salve application on the attack roll (grep: only combat_stats.rs2:646).
+- Closed as a row, CONTENT: the chinchompa 'heavy' ranged defence
+  (wiki_Chinchompa_weapon.wikitext:7 "|type = heavy"). Every ToB npc page in sources/ gives
+  dlight = dstandard = dheavy (Pestilent_Bloat 800/800/800; Sotetseg 120/150/150 per form;
+  Xarpus 100/160; Verzik 10-250 per form; every Nylocas and the Maiden and Blood spawn 0), so
+  a heavy split changes no ToB roll; the tree's single `rangedefence` equals the heavy value
+  there. Still open tree-wide (an npc whose heavy differs needs the param first).

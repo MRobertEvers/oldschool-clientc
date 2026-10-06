@@ -1426,3 +1426,38 @@ all clean. No C and no content changed.
 ## matthew-mbp-m4-raid-b1-seam35e (2026-10-06; the commit that carries this heading, OSRS-Content 1c612cdfe3 unchanged): the whole Theatre, Entry solo
 
 - play_tob_entry_relay; LANDED. `test/raids/_play_entry.lua` enters by the notice board and the door's ready check (no `t.raid.enter`, no `::tob*` room cheat), plays the six rooms through their library plans, walks every passage, takes both supply chests and the Dawnbringer, goes down Verzik's trapdoor and opens the reward chest. Proved: `seed_survey.py _play_entry --names 3` 3 of 3 (closer re-run on OSRS-Content 1c612cdfe3: verzik.complete_line "completion time" 20:02 / 19:26 / 19:55, raid.reward_chest "modal tob_chests", raid.complete "6 of 6 rooms cleared and left"); the fixer's `--names 5` 5 of 5. Seven relay-only faults were fixed where they live: the Maiden solo plan's absolute tiles, bandages missing from `QD.RAID_PLAY_FOOD`, the Xarpus P2 eat gate that was true on every tick, a nil Xarpus P3 edge that stalled for 700 ticks, the first `_play_see` counting earlier rooms' swings, Verzik P1 bolts counted at landing instead of launch, and Verzik P3 bow presses stepping off the yellow pool. Rows: seam.raid_play_supplies_bandages, seam.raid_play_swings_start_at_play (SEAM_COUNT 189; conformance 384 of 384). Closer finding: the worktree's OSRS-Content was checked out at fb292a9996 (seam22) while the parent recorded 1c612cdfe3 (seam33: powered staff damage type, Dawnbringer, chinchompas), so every fixer run used the older content. The closer fast-forwarded the submodule branch and re-proved the relay on 1c612cdfe3. Open: the supply margin is thin (own name ends with 0 brew and 2 restore doses) because content bandages restore no prayer (CONTENT_BUGS "From seam13"); the Bloat chest gives 6 of its 10 bandages (only 6 free slots); spent switches are dropped on the floor (a player's choice, not sourced); the raid's 2253-2304 ticks are reported, not graded (the Entry page gives no typical time); visual verification is pending (owner: afterwards); the bandage conformance row ate a shark in the conformance pack (it grades "the first of anglerfish, shark, tob_bandages held"), so only the scratch run (no fish) showed the bandage pick live.
+
+## matthew-mbp-m4-raid-b1-seam38 (2026-10-06; the commit that carries this heading): p_stopaction, overheal decay, the scythe arc
+
+- stopaction_and_stat_rows: LANDED. ENGINE: `p_stopaction` stops the bound player
+  (LostCity PlayerOps.ts:431), and the same active-vs-bound fix in `p_opnpc`, `p_opnpct`,
+  `p_walk`, `p_logout`, `p_countdialog`. CONTENT: overheal decays one a minute on
+  `[timer,health_regen]` (wiki Hitpoints:95); seam36's "no regen in 240 ticks" not
+  reproduced (85@t101, 86@t201; the timer is armed at login); M165 in the PLAN open
+  table and tagged in tob_sotetseg.constant. Row `seam.overheal_decays_one_a_minute`.
+  OPEN: `p_oploc`/`p_opobj`/`p_opplayer` (torirs_server_ops_player.c) and the `if_*` /
+  hint-arrow commands still use `srv->active_player`; the p_stopaction fix has no
+  before/after through the play library (the plan's turn holds mask it): a two-player
+  C selftest stanza would pin it.
+- scythe_arc_and_salve_accuracy: LANDED. CONTENT: the Scythe of vitur 1x3 arc on 1x1
+  targets in multi-way areas and map instances (wiki Scythe_of_vitur:81/83/85,
+  Multicombat_area:68/95; tiles from Near-Reality ScytheOfViturCombat.java:139-159);
+  large-target hits unchanged. Salve accuracy (seam36's line) measured 1.44 (CI
+  1.10..1.89, contains 6/5). Chinchompa heavy defence: no ToB npc differs, row written.
+  Row `seam.scythe_arc_three_in_a_row`. OPEN: M, M/2, M/4 bounded not read back; arc side
+  order (left 50%) stated, unsourced; a large npc on an arc side takes one hit;
+  chinchompa light/standard/heavy split tree-wide.
+- Closer: conformance 386/386 (195 verbs + 191 seams) after the urnbomb row was given up
+  to eight more unprayed bombs (the seed's six all rolled 8 or less; scratch c38urn1 read
+  5 of 14 over 8). check-quest-verbs, check-drive-abi, check-pt-switch, test-quest-cheats,
+  test-plugin-lua PASS; lint: the 11 pre-existing quest-file findings. Server selftest 11
+  failures (baseline; no gear rows; `make test-torirsserver` stops at the pre-existing
+  servpack Membership check, so the binary was run directly). cooks_assistant and druid
+  byte-identical. Quest gate 115 green + deserttreasure forgettabletale regicide troll red
+  (baseline, nothing moved). Kept rooms under their own names: bloat 94, sotetseg 158
+  identical; xarpus 116 PASS (trace rows only); verzik `spec.verzik.reds_attacks_between`
+  8 FAIL and nylocas `spec.nylocas.vasilias_spawn_delay` 41 FAIL are seam36's recorded
+  re-author notes (she spawned 17 ticks after the last nylocas free, t665 -> t682);
+  verzik `spec.verzik.reds_absorb_window` fell back to `drive.absorb_diag` (no +5 arrow
+  this run). Surveys 5 of 5: _play_smoke _play_sotetseg _play_xarpus _play_verzik
+  _play_nylocas, and `_play_bloat --party 3`.
