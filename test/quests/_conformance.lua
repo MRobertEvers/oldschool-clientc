@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 123
+-- @seam-count 124
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 186
-local SEAM_COUNT = 123
+local SEAM_COUNT = 124
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -6161,6 +6161,16 @@ return {
         -- -> DIFFERENT copy".  At pitch 383 the player sits at the viewport
         -- centre and the two never differ (s21as_gob2..gob6).
         stage(function()
+            -- Whatever fight the cast rows above left live is waited out
+            -- first, exactly as the cast stage below does: a goblin they
+            -- engaged still held the single-way claim when this row pressed
+            -- ("I'm already under attack.", the engagement stamp on slot 79
+            -- -- b65-seam1 close, once the stairwell aim made row 148 land
+            -- its first pixel and the rows after it ran ~30 ticks sooner).
+            local dead_before = verb("npc", "await_dead_engaged")
+            if dead_before then
+                dead_before(60)
+            end
             setup_cheat("::give " .. COMBAT_WEAPON .. " 1")
             -- Magic 99 for seam.cast_presses_the_named_copy (put back to 1
             -- after it), set HERE, before this stage's equip and the melee row
@@ -6247,7 +6257,9 @@ return {
             local result, detail = fn(CAST_NPC_SYMBOL, COMBAT_ATTACK_OP, 20)
             local text = condition .. "; attack -> " .. describe(result) .. " " .. describe(detail)
             if result ~= "ok" then
-                return result, text
+                -- the whole detail: describe() cuts it at 120 characters,
+                -- before the server's own refusal (b65-seam1 close)
+                return result, condition .. "; attack -> " .. describe(result) .. " " .. tostring(detail)
             end
             if not string.find(tostring(detail), "pressed slot " .. tostring(near.slot) .. " ", 1, true)
                 or not string.find(tostring(detail), "watching slot " .. tostring(near.slot) .. ":", 1, true) then
@@ -10988,6 +11000,67 @@ return {
             return leave("ok", text)
         end)
 
+        -- b65 seam1 pass_door_polls_for_the_open_leaf: A DOUBLE DOOR'S OPEN
+        -- LEAF IS AWAITED, NOT READ ONCE.  The Al Kharid palace door bankdoor_l
+        -- 3293,3167,0 (doubledoors.rs2 ~open_double_door_left: loc_del then
+        -- loc_add in one server tick) leaves the client pool a frame before
+        -- openbankdoor_l arrives in it: pass_door read the open leaf once
+        -- and refused (prince b65 run1/run2 "no openbankdoor_l stands within
+        -- 1"); measured since, the first read misses and the second holds it
+        -- ("after 0 tick(s), 2 read(s)", build/quest_gate/sd_prince_open row
+        -- 6).  Graded: in through it with the open leaf named and shut behind
+        -- -- ok, the detail naming the open leaf and the reads it took; then
+        -- out with an open leaf that never comes (opencastledoor) -- refused,
+        -- naming the ticks it waited; the leaf left open is shut again.  The
+        -- goto is the row's starting point in the palace hall.
+        seam("seam.pass_door_awaits_a_late_open_leaf", function()
+            local goto_tile = verb("player", "goto_tile")
+            local walk_to = verb("player", "walk_to")
+            local pass_door = verb("player", "pass_door")
+            local click_loc = verb("player", "click_loc")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not pass_door then return missing("player", "pass_door") end
+            if not click_loc then return missing("player", "click_loc") end
+            local function leave(result, text)
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return result, text
+            end
+            local goto_result, goto_detail = goto_tile(3290, 3182, 0)
+            if goto_result ~= "ok" then
+                return leave("no_subject", "goto the palace courtyard 3290,3182,0 -> " .. describe(goto_result) .. " "
+                    .. describe(goto_detail))
+            end
+            walk_to(3293, 3168)
+            local in_result, in_detail = pass_door({ closed = "bankdoor_l", open = "openbankdoor_l",
+                at = { 3293, 3167, 0 }, near = { 3293, 3168 }, far = { 3293, 3165 },
+                far_ok = function(tile) return tile.z <= 3166 end, far_desc = "in Hassan's hall, z <= 3166",
+                close = true })
+            local text = "in -> " .. describe(in_result) .. " " .. tostring(in_detail)
+            if in_result ~= "ok" then
+                return leave(in_result, text)
+            end
+            if string.find(tostring(in_detail), "pressed bankdoor_l op1 at 3293,3167,0", 1, true) == nil
+                or string.find(tostring(in_detail), "open leaf openbankdoor_l at ", 1, true) == nil
+                or string.find(tostring(in_detail), " read(s))", 1, true) == nil
+                or string.find(tostring(in_detail), "closed leaf back on 3293,3167,0", 1, true) == nil then
+                return leave("hollow", text .. " -- ok, but the detail names no press, no awaited open leaf or no shut")
+            end
+            local never_result, never_detail = pass_door({ closed = "bankdoor_l", open = "opencastledoor",
+                at = { 3293, 3167, 0 }, near = { 3293, 3166 }, far = { 3293, 3168 },
+                far_ok = function(tile) return tile.z >= 3167 end, far_desc = "in the palace hall, z >= 3167" })
+            text = text .. " | a leaf that never comes -> " .. describe(never_result) .. " " .. tostring(never_detail)
+            local shut_result, shut_detail = click_loc("openbankdoor_l", 1, { at = { 3293, 3166, 0 } })
+            text = text .. " | shut the leaf left open -> " .. describe(shut_result) .. " " .. tostring(shut_detail)
+            if never_result ~= "refused"
+                or string.find(tostring(never_detail), "but no opencastledoor stood within 1", 1, true) == nil
+                or string.find(tostring(never_detail), "tick(s) of waiting", 1, true) == nil then
+                return leave("hollow", text .. " -- an open leaf that never arrives must be refused after the wait, naming it")
+            end
+            return leave("ok", text)
+        end)
+
         -- SEAM door_revert_lost_when_player_is_away (matthew-mbp-m4-b59-seam1):
         -- UPDATE_ZONE_FULL_FOLLOWS RESETS THE ZONE'S LOCS, not just its obj
         -- stacks (src/game/rs_gameproto_exec.c zone_full_reset_locs; reference
@@ -12042,6 +12115,9 @@ return {
             setup_cheat("::clearinv")                           -- setup
             setup_cheat("::setlevel hitpoints 99")
             setup_cheat("::give shark 6")
+            setup_cheat("::goto 3227 3233 0")                   -- setup: a second copy at 3228,3234, for
+            settle(2)                                           -- a first press that kills (b65-seam1 close)
+            setup_cheat("::spawn goblin_unarmed_melee_1")       -- setup
             setup_cheat("::goto 3229 3233 0")                   -- setup: the goblin field (spawns 3230-3231,3234)
             settle(2)
             setup_cheat("::spawn goblin_unarmed_melee_1")       -- setup
@@ -12081,10 +12157,38 @@ return {
             end
             -- The same copy: a second goblin would be single-way combat's
             -- "I'm already under attack." (the first press opened a fight).
+            -- Unless the first press KILLED it (a 5-hitpoint goblin, one
+            -- roll: b65-seam1 close, "hp no bar -> 0/30" then the second
+            -- press "framed nothing (not_visible)"): then the fight is over,
+            -- its claim is waited out, and the nearest live copy is pressed.
+            local eat_slot = rows[1].slot
+            if string.find(tostring(plain_detail), "%-> 0/%d+") ~= nil then
+                -- the bar read empty after the press: a dying copy stays in
+                -- the pool a few ticks but is drawn by nothing a press can hold
+                local other = nil
+                for _ = 1, 12 do
+                    settle(1)
+                    local r1, _, rows_after = tiles(GOBLIN, 8)
+                    if r1 == "ok" and is_table(rows_after) then
+                        for i = 1, #rows_after do
+                            if other == nil and rows_after[i].slot ~= eat_slot then other = rows_after[i].slot end
+                        end
+                    end
+                    if other ~= nil then break end
+                end
+                if other == nil then
+                    return leave("no_subject", text .. " -- the first press killed slot " .. tostring(eat_slot)
+                        .. " and no other copy stood within 8")
+                end
+                settle(8)
+                text = text .. " | slot " .. tostring(eat_slot) .. " died to the first press; the eat press names slot "
+                    .. tostring(other)
+                eat_slot = other
+            end
             local eat_result, eat_detail = attack(GOBLIN, COMBAT_ATTACK_OP, 10,
-                { slot = rows[1].slot, eat = { item = "shark", below = 100 } })
+                { slot = eat_slot, eat = { item = "shark", below = 100 } })
             local _, sharks_after = count("shark")
-            text = text .. " | with opts.eat {shark, below 100}, slot " .. tostring(rows[1].slot) .. " -> "
+            text = text .. " | with opts.eat {shark, below 100}, slot " .. tostring(eat_slot) .. " -> "
                 .. describe(eat_result) .. " " .. tostring(eat_detail) .. "; shark " .. describe(sharks_plain)
                 .. " -> " .. describe(sharks_after)
             if eat_result ~= "ok" and eat_result ~= "timeout" then

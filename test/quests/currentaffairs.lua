@@ -48,7 +48,14 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
-        "::currentaffairs", -- debugproc: resets the quest varp, teleports to Arhein
+        "::currentaffairs", -- debugproc: resets the quest varp (and teleports to Arhein, undone below)
+        -- Door rule for the setup placement (owner 2026-10-05; b64-seam1 charges the net placement):
+        -- ::currentaffairs' own p_teleport lands at Arhein 2803,3430, north of the Taverley members'
+        -- gate membergater 2933,3320 -- the only walk from the Lumbridge fixture goes through it (reach.py
+        -- 3206,3233 -> 2803,3430: UNREACHABLE at 30, NEEDS-DOOR via membergater@2933,3320 at 80/160). So the net placement is the open ground just
+        -- SOUTH of that gate (reach.py 3206,3233 -> 2933,3318: REACH closed-doors len=388 at 30/80/160),
+        -- and the run crosses the gate by its verb before walking on to Catherby.
+        "::goto 2933 3318 0",
         "::give coins 50", -- Harry's mayoral-fishbowl-and-net purchase, a real currency cost
         "::setlevel sailing 22",
         "::setlevel fishing 10",
@@ -99,48 +106,21 @@ return {
                 "walked to " .. x .. "," .. z .. ",0 -> " .. tile_text(r, tt))
         end
 
-        -- Cross one door on foot (the b56/b57 pass_door pattern, build/orchestrator/fix_b57/
-        -- priest.final.lua). Walk to the tile on this side; if the closed leaf (closed_sym) stands
-        -- on door_x,door_z on the player's own level, click THAT copy; otherwise an earlier press
-        -- left it open (a door swings back after 500 ticks), so assert the open leaf (open_sym)
-        -- stands within 1 of the door tile -- a row that fails when neither leaf is there -- and do
-        -- not press it again. Then walk through and check the far tile.
-        local function pass_door(prefix, closed_sym, open_sym, door_x, door_z, near_x, near_z, far_x, far_z, far_ok, far_desc)
-            t.player.walk_to(near_x, near_z, 30)
-            local nr, nt = t.world.tile()
-            t.check(prefix .. ".atDoor", nr == "ok" and math.abs(nt.x - near_x) <= 1 and math.abs(nt.z - near_z) <= 1,
-                "walked to " .. near_x .. "," .. near_z .. " beside the door at " .. door_x .. "," .. door_z .. " -> " .. tile_text(nr, nt))
-            local cr, cd = t.world.loc_near(closed_sym, 3)
-            local here = (nr == "ok") and nt.level or 0
-            if cr == "ok" and cd.tile_x == door_x and cd.tile_z == door_z and cd.level == here then
-                t.exec(prefix .. ".openDoor", t.player.click_loc, closed_sym, 1, { at = { door_x, door_z } })
-                t.ticks(1)
-            else
-                local orr, od = t.world.loc_near(open_sym, 3)
-                t.check(prefix .. ".doorStandsOpen", orr == "ok" and od.level == here and not (od.tile_x == door_x and od.tile_z == door_z)
-                        and math.abs(od.tile_x - door_x) <= 1 and math.abs(od.tile_z - door_z) <= 1,
-                    closed_sym .. " at " .. door_x .. "," .. door_z .. ": " .. (cr == "ok" and ("nearest closed copy at " .. cd.tile_x .. "," .. cd.tile_z .. "," .. cd.level) or tostring(cr))
-                        .. "; " .. open_sym .. ": " .. (orr == "ok" and ("open leaf at " .. od.tile_x .. "," .. od.tile_z .. "," .. od.level) or tostring(orr))
-                        .. " (want the open leaf within 1 of the door tile: an earlier press left it open, so it is walked through, not pressed again)")
-            end
-            t.player.walk_to(far_x, far_z, 30)
-            local fr, ft = t.world.tile()
-            t.check(prefix .. ".throughDoor", fr == "ok" and ft.level == 0 and far_ok(ft),
-                "walked through to " .. far_x .. "," .. far_z .. " -> " .. tile_text(fr, ft) .. " (want " .. far_desc .. ")")
-        end
-
         -- The Catherby Council Office (Councillor Catherine, currentaffairs.spawn:25 2825,3454) is a
         -- walled room x 2823-2827 z 3448-3454 whose only door, poordoor 2828,3450,0 (maps/m44_53.jl2,
         -- rot 0: the west edge of 2828,3450), opens onto the street at 2828..2829,3450. Every visit
         -- goes to the street tile 2829,3450 and walks in through that door, and out the same way.
         local function office_in(prefix)
-            pass_door(prefix, "poordoor", "poordooropen", 2828, 3450, 2828, 3450, 2826, 3450,
-                function(tt) return tt.x <= 2827 and tt.x >= 2823 and tt.z >= 3448 and tt.z <= 3454 end,
-                "inside the council office, x 2823-2827 z 3448-3454")
+            t.exec(prefix, t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = { 2828, 3450, 0 }, near = { 2828, 3450 }, far = { 2826, 3450 },
+                far_ok = function(tt) return tt.x <= 2827 and tt.x >= 2823 and tt.z >= 3448 and tt.z <= 3454 end,
+                far_desc = "inside the council office, x 2823-2827 z 3448-3454" })
         end
         local function office_out(prefix)
-            pass_door(prefix, "poordoor", "poordooropen", 2828, 3450, 2827, 3450, 2829, 3450,
-                function(tt) return tt.x >= 2828 end, "on the street east of the office door, x >= 2828")
+            t.exec(prefix, t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = { 2828, 3450, 0 }, near = { 2827, 3450 }, far = { 2829, 3450 },
+                far_ok = function(tt) return tt.x >= 2828 end,
+                far_desc = "on the street east of the office door, x >= 2828" })
         end
 
         t.ticks(3) -- the ::currentaffairs debug reset's effect is not client-side yet
@@ -152,6 +132,13 @@ return {
         -- "What's with the duck?" (^ca_arhein_start, :453). Levels/
         -- Pandemonium are already met (setup), so this is the meets-
         -- requirements=true / Yes branch straight through to ^ca_councillor. ----
+        -- The setup stands the player on open ground south of the Taverley members' gate (see the
+        -- setup note). The walk-through gate membergater 2933,3320 is pressed (gates.rs2
+        -- [label,member_fencegate_try]), graded on the tiles; then the open overland walk to Arhein
+        -- (reach.py 2933,3322 -> 2803,3430: REACH closed-doors len=450 at margins 80 and 160).
+        t.exec("startQuest.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+            near = { 2933, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2933) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320", far = { 2933, 3322 } })
         t.exec("goto-startQuest", t.player.goto_tile, 2803, 3430, 0) -- arhein.spawn (m43_53.spawn)
         t.exec("startQuest", t.player.talk_to, "arhein", 1)
         t.exec("startQuest-dialog", t.chat.play, {
@@ -595,6 +582,7 @@ return {
         -- Fishing was staged at level 10 (1,154 xp) and nothing in the quest
         -- trains it before the hand-in, so the baseline must read exactly that.
         local snapshot_result, snapshot = t.skill.snapshot()
+        local coupons_before_result, coupons_before = t.inv.count("sawmill_coupon_oak")
         local fishing_before = type(snapshot) == "table" and snapshot.fishing or nil
         t.check("preCompletion.snapshot", snapshot_result == "ok" and type(fishing_before) == "table"
                 and fishing_before.base_level == 10 and fishing_before.experience == 1154,
@@ -630,9 +618,13 @@ return {
         local sailing_gain_result, sailing_gain_detail = t.skill.expect_gain("sailing", 1400, snapshot)
         t.check("reward.sailingXp", sailing_gain_result == "ok",
             "skill.expect_gain(sailing,1400) -> " .. tostring(sailing_gain_result) .. " " .. tostring(sailing_gain_detail))
-        local coupon_result, coupon_detail = t.inv.expect_has("sawmill_coupon_oak", 25)
-        t.check("reward.coupons", coupon_result == "ok",
-            "inv.expect_has(sawmill_coupon_oak,25) -> " .. tostring(coupon_result) .. " " .. tostring(coupon_detail))
+        -- ~ca_quest_complete's inv_add(inv, sawmill_coupon_oak, 25): the literal delta, before -> after.
+        local coupons_after_result, coupons_after = t.inv.count("sawmill_coupon_oak")
+        t.check("reward.coupons", coupons_before_result == "ok" and coupons_after_result == "ok"
+                and type(coupons_before) == "number" and type(coupons_after) == "number"
+                and coupons_after - coupons_before == 25,
+            "sawmill_coupon_oak " .. tostring(coupons_before) .. " -> " .. tostring(coupons_after)
+                .. " (want a delta of exactly 25)")
         local duck_reward_result, duck_reward_detail = t.inv.expect_has("sailing_charting_current_duck", 1)
         t.check("reward.duck", duck_reward_result == "ok",
             "inv.expect_has(sailing_charting_current_duck,1) -> " .. tostring(duck_reward_result) .. " " .. tostring(duck_reward_detail))

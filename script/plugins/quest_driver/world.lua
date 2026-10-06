@@ -292,7 +292,10 @@ end
 --     a tile of it when `open` is named -- or on the press itself carrying
 --     the player to the far side (a walk-through door);
 --     (Either leaf is awaited for up to QD.player._pass_door_scene_ticks
---     first: a scene that has just loaded can hold neither for a tick or two.)
+--     first: a scene that has just loaded can hold neither for a tick or two.
+--     After the press the open leaf is awaited for as long again: a double
+--     door's open leaf can land a frame after its closed leaf leaves --
+--     b65-seam1.)
 --     absent: the door stands open, so it is NOT pressed (pressing an open
 --     leaf shuts it), and the OPEN leaf must stand within a tile of the door
 --     tile on this level -- `not_found` naming both reads when neither leaf
@@ -430,13 +433,39 @@ function QD.player.pass_door(spec)
             return press_result ~= "ok" and press_result or "refused", text
                 .. "; the closed leaf is still at " .. where .. " (player " .. tile_text(after) .. ")"
         elseif open ~= nil then
-            local open_result, open_row = QD.world.loc_near(open, radius, { at = door_at, slack = 1 })
-            if open_result ~= "ok" then
+            -- The open leaf is AWAITED, not read once (matthew-mbp-m4-b65-seam1
+            -- pass_door_polls_for_the_open_leaf): a double door's script
+            -- (doubledoors.rs2 open_double_door_left) does loc_del then
+            -- loc_add in one server tick, yet the client pool can hold the
+            -- delete a frame before the add -- prince's Al Kharid palace door
+            -- (bankdoor_l 3293,3167,0) refused here with "no openbankdoor_l
+            -- within 1" while the next door row read it standing open
+            -- (measured since: the first read misses, the second, the same
+            -- tick, holds it -- build/quest_gate/sd_prince_open row 6).  So
+            -- the wait runs up to _pass_door_scene_ticks; a leaf that never
+            -- comes still refuses, and the ticks waited are in the detail.
+            -- `reads` counts the pool reads: 1 is the old single read's
+            -- answer, more is a leaf the old verb would have refused.
+            local open_row = nil
+            local reads = 0
+            local open_wait_start = api_drive.tick()
+            local open_result = QD.await({
+                level = function()
+                    local read_result, row = QD.world.loc_near(open, radius, { at = door_at, slack = 1 })
+                    reads = reads + 1
+                    open_row = row
+                    return read_result == "ok"
+                end,
+                note = "pass_door: the open leaf " .. open .. " on " .. where,
+            }, QD.player._pass_door_scene_ticks)
+            local open_waited = api_drive.tick() - open_wait_start
+            if open_result ~= "ok" or type(open_row) ~= "table" then
                 return "refused", text .. "; the closed leaf left " .. where .. " but no " .. open
-                    .. " stands within 1 of it on level " .. loc_level .. ": " .. tostring(open_row)
+                    .. " stood within 1 of it on level " .. loc_level .. " after " .. open_waited
+                    .. " tick(s) of waiting (" .. reads .. " read(s)): " .. tostring(open_row)
             end
             text = text .. "; open leaf " .. open .. " at " .. open_row.tile_x .. "," .. open_row.tile_z
-                .. "," .. open_row.level
+                .. "," .. open_row.level .. " (after " .. open_waited .. " tick(s), " .. reads .. " read(s))"
         else
             text = text .. "; the closed leaf left " .. where
         end
