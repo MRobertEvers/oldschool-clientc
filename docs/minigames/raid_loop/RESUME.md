@@ -204,6 +204,17 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
   library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
   pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
+  STATE 2026-10-05 ~20:30. THE CAMERA SPLIT IS ON THE RAID BRANCH: camera pass seam2 landed
+  d4dac4338 (runner_view_split + watch_debug_aids; CAMERA_LEDGER.md / CAMERA_RESUME.md hold the
+  proofs, the lanes -- software and GL3 carry it, D3D9/GLES/WebGL gated off -- and
+  visual_checks_for_later for the owner), merged at 636621d4a (pointer.lua resolved: a watched
+  client turns only when the script has NO view of its own; with its own view the runner snaps and
+  the watcher's camera never moves), verified on the merged build: cooks and druid identical,
+  conformance 369/369 (193 verbs + 176 seams), _play_smoke 5 of 5, six rooms green, pt-switch,
+  tree-walks, plugin-lua PASS. The owner tries it: ./launch run osrs239-scripts, Play, move his own
+  camera. The camera branch and worktree are DONE (nothing further planned there; the
+  picture-in-picture is 'later'); raid25/w25 likewise: both worktrees may be removed. RAID WORK
+  RESUMES: seam30 launched (the five Entry room plans).
   STATE 2026-10-05 ~19:45. SEAM25 LANDED on w25 (a0f479d06, ledger d6c875357) and is MERGED into
   the raid branch (c04b94da9; verified on the merged build: cooks and druid identical, conformance
   363/363, _play_smoke 5 of 5, six rooms green; pushed 79b4dd3da). What seam25 left open: the
