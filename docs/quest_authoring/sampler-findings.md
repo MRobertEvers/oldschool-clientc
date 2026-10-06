@@ -942,3 +942,47 @@ ANY-OF. Plague City's first goto (737 tiles, Lumbridge to Edmond's garden) is th
 goto, so it is not judged. Plague City's `elena.lua` content landed in the giantdwarf green commit
 `4146b50b9`, and `cda6435a6` carries only its evidence. Reverting `cda6435a6` alone would leave
 the test file in place.
+
+## Sample matthew-mbp-m4-b64: `goto_table.py` absent or reading the wrong checkout (2026-10-05)
+
+Three quests were sampled: atailoftwocats, druid and elemental_workshop. All three were kept.
+Under the owner rule of 2026-10-05, no images were opened. Each verdict rests on the run, the
+gate, the lint, `helper_coverage` (FULL for all three), the ledger and `goto_table.py`/`reach.py`.
+
+(a) THE SAMPLE TOOLS ASSUME THE MAIN CHECKOUT (FIXED matthew-mbp-m4-b64-seam1: `reach.py`,
+`goto_table.py`, `comp.py` and `locs_near.py` take `--root <repo>` and default to the checkout they
+live in, so a worktree batch runs them in place). `reach.py` hard-codes
+`REPO = "/Users/matthewevers/Documents/git_repos/3draster"`, and `locs_near.py` hard-codes the
+same path. In a worktree batch such as `3draster-b63`, the tools read the other checkout's maps
+and write their loc cache under that checkout's `build/`. The atailoftwocats reviewer found no
+`goto_table.py` and recorded that the hops went unchecked. The tools live at
+`test/quests/orchestrator/matthew-mbp-m4/reports/sample_tools/`, not under `tools/`. To use them
+in a worktree batch, copy that folder into the scratchpad, point `REPO` (and `locs_near.py`'s two
+paths) at the batch checkout, and run the copy. Never edit the committed copy for one batch.
+
+(b) A JUDGEMENT CALL THAT STANDS. A Tail of Two Cats calls `::twocats_growpotatoes` for the
+guide's `waitForPotatoesToGrow`. That is the documented GRIND fast-forward in
+`docs/QUEST_SERVER_CHEATS.md`, and `helper_coverage` grades the step ALTERNATIVE. It skips a real
+15-35 minute wait, not a player action, so it does not send the quest back. The rejected
+debugproc is `::twocats_gotobob` (the b25 sampler's finding). The three locator legs here turn
+the whiskers for real.
+
+## Sample matthew-mbp-m4-b64 round 2: a round-2 sampler is handed a quest round 1 already sampled (2026-10-05)
+
+Three quests were sampled: atailoftwocats, eadgar and ratcatchers. All three were kept, and no
+images were opened. Each verdict rests on the run, `gate.py`, `lint_quest.py`, `helper_coverage`
+(FULL with 0 CHEAT for all three), the ledger and `goto_table.py --root <batch checkout>` (every hop
+REACH closed-doors).
+
+(a) THE ROUND-1 SAMPLE STATE MOVES OUT OF SIGHT. When the batch opens round 2, the round-1 files
+move into `build/author_state/<batch>/round1/`, and `sample.json` goes with them. The round-2
+launch then reads no `sample.json` and reports "already sampled: none". In this batch it handed
+atailoftwocats to the sampler a second time, with no new commit to the file since the round-1 check.
+Before you pick, read `round1/sample.json` (or `round<N>/`). A quest already checked there, with no
+commit to its test since, needs only a re-grade under the current `helper_coverage`. Do not repeat
+the full walk.
+
+(b) A ROW THAT CANNOT FAIL IS NOT A FINDING WHEN A LATER ROW GRADES. Ratcatchers'
+`playSnakeCharm-N` rows pass every octave press and the last note unconditionally, because
+`ok = (n[2] == nil) or ... or (n[2] == 8)`. The grade is the next row, `playSnakeCharm.await`
+(`varb1404_ratcatch_var` reaches 105), so the quest is kept. Each row still carries a detail.

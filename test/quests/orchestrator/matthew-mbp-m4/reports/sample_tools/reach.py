@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""reach.py sx sz tx tz [level] [margin] [--allow-op-locs] -- 4-dir flood over static map collision
+"""reach.py sx sz tx tz [level] [margin] [--allow-op-locs] [--root <repo>] -- 4-dir flood over static map collision
 (jm2 floor flags + jl2 locs). Answers the first of:
 
   REACH closed-doors len=N           a walk with every door closed and every OP LOC avoided
@@ -14,13 +14,21 @@ blockwalk=1 and active) that has any op1-5: Regicide's pitfalls (Jump), tripwire
 woodsprings (Pass), a stepping stone, a log balance, a spring trap. A loc whose every op is in
 PASS_THROUGH_OPS (an open door's leaf: Close; a crop: Pick) is not one, and neither is a wall
 decoration (shapes 4-8: clicked from the tile beside it). A ground decoration that BLOCKS and has an
-op (Troll Stronghold's climbing rocks) stays solid for REACH / NEEDS-DOOR; NEEDS-OP may cross it.
+op (Troll Stronghold's climbing rocks) stays solid for REACH / NEEDS-DOOR; NEEDS-OP may cross it. So
+does a blocking OBJECT (shapes 9-21) with a crossing op (CROSSING_OPS: Cross, Go-through, Squeeze,
+Jump...; never a ladder or stair): the Wilderness Ditch (ditch_wilderness_cover, Cross, 3106,3521),
+the Shantay Pass (shantay_pass_henge_doorway, Go-through, 3302,3116) -- before seam
+matthew-mbp-m4-b64-seam1 those read UNREACHABLE. An op-less, nameless wall (an inviswall) on the
+edge of such a crossing tile is part of the crossing.
 A ZONE-TRIGGER tile (zone_triggers.tsv beside this file: the tiles a [zone,...] timer hurts you on,
 with the .rs2 file:line) is blocked the same way and named <timer>@x,z.
 --allow-op-locs restores the old flood: op locs and trigger tiles are floor.
 
 Ignores script-spawned locs, npcs, diagonal-only gaps, and maplinks (stairs, agility shortcuts).
-Importable: comp.py and the fixture test use Area / answer()."""
+Importable: comp.py and the fixture test use Area / answer().
+
+--root names the repo checkout whose OSRS-Content maps and configs are read (and whose build/ holds
+the loc cache); it defaults to the checkout this file lives in, so a worktree reads its own maps."""
 import heapq
 import os
 import pickle
@@ -28,13 +36,34 @@ import re
 import sys
 from collections import deque
 
-REPO = "/Users/matthewevers/Documents/git_repos/3draster"
-BASE = REPO + "/OSRS-Content/osrs239-content"
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def repo_of(path):
+    """The checkout `path` lives in: the nearest directory above it holding OSRS-Content."""
+    path = os.path.abspath(path)
+    while True:
+        if os.path.isdir(os.path.join(path, "OSRS-Content")):
+            return path
+        parent = os.path.dirname(path)
+        assert parent != path, "no OSRS-Content above %s: pass --root <repo>" % HERE
+        path = parent
+
+
 TRIGGERS = HERE + "/zone_triggers.tsv"
-# The loc table (all.loc's collision and op fields) is cached under build/, never committed, and
-# rebuilt when all.loc or its compack changes (a stale table is how the old pickle went wrong).
-CACHE = REPO + "/build/orchestrator/sample_tools/locinfo.pickle"
+
+
+def set_root(root):
+    """Read the maps and configs of the checkout at `root` (and cache the loc table under its build/)."""
+    global REPO, BASE, CACHE
+    REPO = os.path.abspath(root)
+    BASE = REPO + "/OSRS-Content/osrs239-content"
+    # The loc table (all.loc's collision and op fields) is cached under build/, never committed, and
+    # rebuilt when all.loc or its compack changes (a stale table is how the old pickle went wrong).
+    CACHE = REPO + "/build/orchestrator/sample_tools/locinfo.pickle"
+
+
+set_root(repo_of(HERE))
 FIELDS = ("name", "op1", "op2", "op3", "op4", "op5", "blockwalk", "width", "length", "active")
 DX = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)}   # side: 0=W 1=N 2=E 3=S
 
@@ -76,6 +105,18 @@ def load_locs():
 # (Pick: wheat, cabbage, potato, flax -- a player walks through the field; X Marks the Spot's dig in
 # the Draynor wheat read NEEDS-OP until Pick was listed here).
 PASS_THROUGH_OPS = {"close", "pick"}
+# The ops of a BLOCKING object a walk crosses by clicking it (helper_coverage MapWalls.CROSSING_OPS):
+# the first word of the op, lowercased (`Go-through` -> go).
+CROSSING_OPS = {"cross", "go", "walk", "squeeze", "crawl", "jump", "pass", "swing"}
+CLIMB_NAME_RE = re.compile(r"\b(ladder|stairs|staircase|stairway|trapdoor|trap door|steps)\b")
+
+
+def is_crossing(i):
+    """Does this blocking object carry an op that crosses it (and is it no climb)?"""
+    words = [re.split(r"[-\s]", o.lower())[0] for o in ops_of(i)]
+    if "climb" in words or CLIMB_NAME_RE.search(i.get("name", "").lower()):
+        return False
+    return any(w in CROSSING_OPS for w in words)
 
 
 def ops_of(i):
@@ -149,6 +190,7 @@ class Area:
             return L - 1 if flags.get((1, x, z), 0) & 2 else L
 
         self.full, self.wall, self.doorw, self.optile, self.opgate = set(), {}, {}, {}, {}
+        self.hardwall = {}   # (x,z) -> sides walled by a loc with a name or an op (never part of a crossing)
         self.trigger_sources = {}
         for (L, x, z), f in flags.items():
             if f & 1 and eff(L, x, z) == level:
@@ -180,13 +222,19 @@ class Area:
             nml = i.get("name", "").lower()
             isdoor = ("open" in op or "door" in nml or "gate" in nml) and shape in (0, 2)
             door = ("%s@%d,%d" % (nm, x, z)) if isdoor else None
+            soft = not ops_of(i) and not i.get("name")   # an inviswall: no name, no op
             if shape == 0:
-                self.addwall(x, z, rot, door)
+                self.addwall(x, z, rot, door, soft)
             elif shape == 2:
-                self.addwall(x, z, rot, door)
-                self.addwall(x, z, (rot + 1) % 4, door)
+                self.addwall(x, z, rot, door, soft)
+                self.addwall(x, z, (rot + 1) % 4, door, soft)
             elif 9 <= shape <= 21:
                 self.full.update(foot)
+                if not allow_op_locs and is_crossing(i):
+                    # a blocking object a click crosses (the Wilderness Ditch, the Shantay Pass): only
+                    # the NEEDS-OP rung may step onto it, and names it
+                    for t in foot:
+                        self.opgate[t] = "%s@%d,%d" % (nm, x, z)
             elif shape == 22 and i.get("blockwalk") == "1" and (i.get("active") == "1" or
                                                                  ("active" not in i and ops_of(i))):
                 self.full.add((x, z))   # the server's floor-decoration stamp (torirs_server_scene.c)
@@ -195,13 +243,15 @@ class Area:
                     # click crosses it, so the NEEDS-OP rung may step onto it and names it
                     self.opgate[(x, z)] = "%s@%d,%d" % (nm, x, z)
 
-    def addwall(self, x, z, side, door):
+    def addwall(self, x, z, side, door, soft=False):
         dx, dz = DX[side]
         for (a, b, s) in ((x, z, side), (x + dx, z + dz, (side + 2) % 4)):
             if door:
                 self.doorw[(a, b, s)] = door
             else:
                 self.wall.setdefault((a, b), set()).add(s)
+                if not soft:
+                    self.hardwall.setdefault((a, b), set()).add(s)
 
     def steps(self, c, ends, open_doors, allow_ops):
         """(neighbour, crossed door label or None, entered op label or None) for each legal 4-way step."""
@@ -211,7 +261,10 @@ class Area:
             if not (self.x0 <= n[0] <= self.x1 and self.z0 <= n[1] <= self.z1):
                 continue
             if side in self.wall.get(c, ()):
-                continue
+                # an inviswall on a crossing tile's edge is part of the crossing (NEEDS-OP only)
+                if not (allow_ops and side not in self.hardwall.get(c, ()) and
+                        (c in self.opgate or n in self.opgate)):
+                    continue
             door = self.doorw.get((x, z, side))
             if door and not open_doors:
                 continue
@@ -317,7 +370,17 @@ def answer(sx, sz, tx, tz, level=0, margin=40, allow_op_locs=False):
     return "UNREACHABLE (margin %d)%s" % (margin, tail)
 
 
+def take_root(argv):
+    """argv without `--root <repo>`, applying it (set_root) when given."""
+    if "--root" in argv:
+        k = argv.index("--root")
+        set_root(argv[k + 1])
+        argv = argv[:k] + argv[k + 2:]
+    return argv
+
+
 def main(argv):
+    argv = take_root(argv)
     allow = "--allow-op-locs" in argv
     args = [a for a in argv if a != "--allow-op-locs"]
     if len(args) < 4:

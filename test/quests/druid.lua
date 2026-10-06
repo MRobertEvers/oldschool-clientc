@@ -7,8 +7,23 @@
 -- Rewards from Quest Helper: 1 experience, 0 item, quest points 4 (QuestPointReward).
 --
 -- Fixture start: fresh_lumbridge.ini stands the player at 3206,3233,0 (Lumbridge, beside
--- Hans). Every step below carries its own Quest Helper WorldPoint; the
--- FIRST emitted t.player.goto_tile is what actually leaves that tile.
+-- Hans, open courtyard).
+--
+-- Door rule (docs/QUEST_ORCHESTRATOR.md standing rules; owner ruling 2026-10-05: the
+-- first goto obeys it too). Taverley is behind the members' wall: with every door shut
+-- no walk from Lumbridge or Falador reaches it, and every walk on foot opens a
+-- membergater (reach.py, margins 30/80/160). So the run leaves Lumbridge by a REAL
+-- Falador Teleport (teleport_cast: cast, exact runes, landing), travels overland to the
+-- open ground east of the east gate (2938,3450; reach.py REACH len 99 from Falador
+-- square) and crosses membergater 2935,3450 by its own press (cross_gate). Every trip
+-- after that stays inside Taverley and is walked through each closed space by its own
+-- loc: the herblore store's east door (poordooropen 2901,3428, placed open by the map:
+-- pass_door reads it standing open), its spiral stairs both ways (climb, maplink rows
+-- 0_45_53_20_36_up -> 1_45_53_18_35 and 1_45_53_18_35_down -> 0_45_53_17_36), the
+-- dungeon ladder both ways (climb, maplink 0_45_53_4_6_down / 0_45_153_4_6_up), the
+-- corridor to the prison door (walk_route), and the cauldron room's prison door in and
+-- out (prison_doors.rs2: two presses wake the suits, the third walks through; from
+-- inside one press walks out).
 --
 -- Three rules the first pilot pass broke -- read before touching this file:
 -- (a) "blocked" means a t.blocked("...") row followed by return -- a file
@@ -27,12 +42,21 @@ return {
         "::give raw_bear_meat 1",
         "::give raw_beef 1",
         "::give raw_chicken 1",
+        -- The trip out of Lumbridge is a real Falador Teleport (magic_spells.dbrow
+        -- [magic_spell_teleport_falador]: level 37, waterrune 1 + airrune 3 + lawrune 1,
+        -- tele_coord 0_46_52_21_50 = 2965,3378).
+        "::setlevel magic 37",
+        "::give waterrune 1",
+        "::give airrune 3",
+        "::give lawrune 1",
         -- The cauldron room's prison door (below) spawns two guard suits of
-        -- armour that retaliate on sight; the guide itself says to
-        -- spam-click past them, which this driver cannot literally do, so
-        -- hold the type passive rather than fight an obstacle npc that is
-        -- not the quest's own deliverable (docs/QUEST_SERVER_CHEATS.md sec F).
+        -- armour; the guide says to spam-click past them. ::passive stops the
+        -- type STARTING fights, but prison_doors.rs2's own ~npc_retaliate(0)
+        -- still sends each new suit at the player (run 1: hitpoints 10 -> 9 in
+        -- the door presses), so the presses are watched every tick, eaten
+        -- through and graded by a margin row (enterCauldronRoom.margin).
         "::passive suit_of_armour",
+        "::give trout 3", -- food for the suits' blows during the door presses (heals 7)
     },
 
     run = function(t)
@@ -51,7 +75,28 @@ return {
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
 
-        t.exec("goto-talkToKaqemeex", t.player.goto_tile, 2925, 3486, 0) -- first step -- leaves the fixture's start tile
+        local function tile_text()
+            local tr, tt = t.world.tile()
+            if tr == "ok" and type(tt) == "table" then
+                return tt.x .. "," .. tt.z .. "," .. tt.level
+            end
+            return tostring(tr) .. " " .. tostring(tt)
+        end
+
+        -- ---- Lumbridge -> Taverley: Falador Teleport, then the members' east gate ----
+        t.player.teleport_cast("falador_teleport", { 2965, 3378, 0 }, { name = "talkToKaqemeex.faladorTeleport",
+            runes = { { "waterrune", 1 }, { "airrune", 3 }, { "lawrune", 1 } },
+            where = "Falador square, tele_coord 0_46_52_21_50" })
+        -- Overland from Falador's square out of its north gate to the open ground east of
+        -- the members' east gate (reach.py 2965,3378 -> 2938,3450 REACH closed-doors len 99).
+        t.exec("goto-talkToKaqemeex.memberGate", t.player.goto_tile, 2938, 3450, 0)
+        -- membergater 2935,3450 (gates.rs2 [label,member_fencegate_try], a walk-through,
+        -- rot 2: Taverley is x <= 2935).
+        t.exec("talkToKaqemeex.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 },
+            near = { 2936, 3450 }, far_ok = function(tile) return tile.x <= 2935 end,
+            far_desc = "inside Taverley, x <= 2935" })
+        -- Inside Taverley to the Druids' Circle (reach.py 2935,3450 -> 2925,3486 REACH len 52).
+        t.exec("goto-talkToKaqemeex", t.player.goto_tile, 2925, 3486, 0)
         -- Talk to Kaqemeex in the Druids' Circle in Taverley.
         t.exec("talkToKaqemeex", t.player.talk_to, "kaqemeex", 1)
         t.exec("talkToKaqemeex-dialog-1", t.chat.play, {
@@ -64,9 +109,10 @@ return {
             "npc:Hmm. I think I may have a worthwhile quest for you actually. I don't know if you are familiar with the stone circle south of Varrock or not, but...",
             "npc:That used to be OUR stone circle. Unfortunately, many many years ago, dark wizards cast a wicked spell upon it so that they could corrupt its power for their own evil ends.",
             "npc:When they cursed the rocks for their rituals they made them useless to us and our magics. We require a brave adventurer to go on a quest for us to help purify the circle of Varrock.",
+            -- kaqemeex.rs2 [label,kaqemeex_quest_offer]: the combat-10 advisory mesbox shows
+            -- only below combat 10; Magic 37 (staged for the Falador Teleport) puts this
+            -- player above it, so the offer goes straight to the agreement.
             "mesbox:Start the Druidic Ritual quest?",
-            "choose:Yes.",
-            "mesbox:This quest is recommended for players with a combat level of 10 or above. You can still start it.",
             "choose:Yes.",
             "player:Yes.",
             "npc:Excellent. Go to the village south of this place and speak to my fellow Sanfew who is working on the purification ritual. He knows better than I what is required to complete it.",
@@ -75,9 +121,29 @@ return {
 
         t.exec("expect_stage-after-kaqemeex", t.quest.expect_stage, "started")
 
+        -- The herblore store: in by its east door, up its spiral stairs. The door
+        -- (poordooropen 2901,3428 rot 1) is placed OPEN by the map, so pass_door reads the
+        -- open leaf on its tile and walks through it, never pressing it shut. The stairs
+        -- (spiralstairs 2898,3428, a 2x2) take the player to 1_45_53_18_35 = 2898,3427,1
+        -- from every approach tile (maplink.dbrow 0_45_53_20_36_up and its siblings).
+        local function store_in_and_up(prefix)
+            t.exec(prefix .. ".storeDoorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = { 2901, 3428, 0 }, near = { 2902, 3428 }, far = { 2900, 3428 } })
+            t.exec(prefix, t.player.climb, { loc = "spiralstairs", op = 1, op_name = "Climb-up",
+                at = { 2898, 3428, 0 }, src = { 2900, 3428 }, dest = { 2898, 3427, 1 } })
+        end
+        -- Down the stairs (maplink 1_45_53_18_35_down -> 2897,3428,0) and out by the east door.
+        local function down_and_out(prefix)
+            t.exec(prefix, t.player.climb, { loc = "spiralstairstop", op = 1, op_name = "Climb-down",
+                at = { 2898, 3428, 1 }, src = { 2898, 3427 }, dest = { 2897, 3428, 0 } })
+            t.exec(prefix .. ".storeDoorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = { 2901, 3428, 0 }, near = { 2900, 3428 }, far = { 2902, 3428 } })
+        end
+
         -- Talk to Sanfew upstairs in the Taverley herblore store.
-        t.exec("goto-talkToSanfew", t.player.goto_tile, 2899, 3429, 1) -- plane change (0 -> 1)
-        -- Talk to Sanfew upstairs in the Taverley herblore store.
+        -- Circle -> the open ground east of the store (reach.py 2925,3486 -> 2903,3428 REACH len 96).
+        t.exec("goto-goUpToSanfew", t.player.goto_tile, 2903, 3428, 0)
+        store_in_and_up("goUpToSanfew")
         t.exec("talkToSanfew", t.player.talk_to, "sanfew", 1)
         t.exec("talkToSanfew-dialog-1", t.chat.play, {
             "npc:What can I do for you young 'un?",
@@ -89,52 +155,121 @@ return {
             "player:Ok, I'll do that then.",
             "npc:Well thank you very much!",
         })
+        t.exec("expect_stage-after-sanfew", t.quest.expect_stage, "spoken_sanfew")
 
-        -- Enter Taverley Dungeon at its real ladder destination (the
-        -- maplink dbrow's own 0_45_53_3_5 -> 0_45_153_3_5, the underground
-        -- counterpart of the surface ladder at 2884,3397,0 -- section 2's
-        -- "goto_tile the destination tile with ITS level" applies to this
-        -- travel leg, same as the doc's own druid-reaches-Sanfew example),
-        -- well south of the prison door (cauldrondoor/cauldrondoor_l sit at
-        -- 2889,9830-9831,0) so click_loc has real corridor to walk.
-        t.exec("goto-cauldronEntrance", t.player.goto_tile, 2883, 9797, 0)
-        -- Spam-click the prison door: prison_doors.rs2's
-        -- taverley_dungeon_open_doors spawns the north guard suit on the
-        -- first press and the south one on the second (each prints its own
-        -- "Suddenly the suit of armour comes to life!" line, so these two
-        -- settle normally), and only walks the player through on the third.
-        t.exec("cauldronDoor.press1", t.player.click_loc, "cauldrondoor")
-        t.exec("cauldronDoor.press2", t.player.click_loc, "cauldrondoor")
-        -- The third press's effect is a bare p_teleport -- no chat line, no
-        -- mesbox, no interface -- so the click's own settle reads `timeout`
-        -- on a press that landed (docs/QUEST_AUTHORING.md sec 2, "A LOC
-        -- whose [oploc<n>] body is a bare p_teleport"); grade it on the
-        -- tile instead of the click result.
-        local press3_result, press3_detail = t.player.click_loc("cauldrondoor")
-        t.ticks(1)
-        local door_tile_result, door_tile = t.world.tile()
-        local door_tile_detail = door_tile_result == "ok"
-            and (door_tile.x .. "," .. door_tile.z .. "," .. door_tile.level)
-            or tostring(door_tile)
-        t.check("cauldronDoor.press3", door_tile_result == "ok" and door_tile.z >= 9828,
-            "click_loc -> " .. tostring(press3_result) .. " (" .. tostring(press3_detail)
-            .. "); tile now " .. door_tile_detail)
+        -- Enter Taverley Dungeon south of Taverley: down the stairs, out of the store,
+        -- overland to the ladder (reach.py 2903,3428 -> 2884,3398 REACH len 51) and down it
+        -- (ladder_outside_to_underground 2884,3397; maplink 0_45_53_4_6_down -> 2884,9798:
+        -- the same level in the underground's map frame).
+        down_and_out("climbDownToEnterDungeon")
+        t.exec("goto-enterDungeon", t.player.goto_tile, 2884, 3398, 0)
+        t.exec("enterDungeon", t.player.climb, { loc = "ladder_outside_to_underground", op = 1, op_name = "Climb-down",
+            at = { 2884, 3397, 0 }, src = { 2884, 3398 }, dest = { 2884, 9798, 0 } })
+        -- The corridor north to the prison door is one open passage (reach.py 2884,9798 ->
+        -- 2888,9831 REACH closed-doors len 37).
+        t.exec("enterCauldronRoom.toDoor", t.player.walk_route, { { 2884, 9798 }, { 2884, 9818 }, { 2888, 9831 } },
+            { max_hop = 20, ticks = 40 })
 
-        -- Use the chicken meat on the cauldron in Taverley dungeon.
+        -- Spam-click the Prison door (prison_doors.rs2 [label,taverley_dungeon_open_doors]):
+        -- from outside, the first press wakes the north suit (npc_add 0_45_153_7_40 =
+        -- 2887,9832), the second the south one (0_45_153_7_37 = 2887,9829), each with
+        -- "Suddenly the suit of armour comes to life!"; only with both awake does a press
+        -- walk the player through (p_teleport onto the door tile 2889,9831, inside).
+        -- The suits are held passive in SETUP (::passive suit_of_armour): no fight happens.
+        local function suits_awake()
+            local r, summary, rows = t.npc.tiles("suit_of_armour", 10)
+            if r == "ok" and type(rows) == "table" then
+                return #rows, tostring(summary)
+            end
+            return 0, tostring(r) .. " " .. tostring(summary)
+        end
+        -- The suits' blows: read hitpoints every tick of the exposure, eat a trout below
+        -- EAT_BELOW, keep the lowest reading for the margin row.
+        local EAT_BELOW = 7
+        local hp_low, hp_max, eaten = nil, nil, 0
+        local function vitals()
+            local hr, hp = t.skill.read("hitpoints")
+            if hr == "ok" and type(hp) == "table" and hp.level then
+                if hp_low == nil or hp.level < hp_low then
+                    hp_low = hp.level
+                end
+                if hp.base_level and (hp_max == nil or hp.base_level > hp_max) then
+                    hp_max = hp.base_level
+                end
+                if hp.level < EAT_BELOW then
+                    if t.player.inv_op("trout", 1) == "ok" then
+                        eaten = eaten + 1
+                    end
+                end
+            end
+        end
+        local function watch(ticks)
+            for _ = 1, ticks do
+                t.ticks(1)
+                vitals()
+            end
+        end
+        vitals()
+        for press = 1, 2 do
+            local before_n = suits_awake()
+            local pr, pd = t.player.click_loc("cauldrondoor", 1, { at = { 2889, 9831 } })
+            watch(2)
+            local after_n, after_summary = suits_awake()
+            local tr, tt = t.world.tile()
+            t.check("enterCauldronRoom.press" .. press,
+                after_n == before_n + 1 and after_n == press and tr == "ok" and tt.x <= 2888,
+                "click_loc -> " .. tostring(pr) .. " (" .. tostring(pd) .. "); suit_of_armour awake "
+                    .. before_n .. " -> " .. after_n .. " (" .. after_summary .. "); player " .. tile_text()
+                    .. " (want one more suit, still outside x <= 2888)")
+        end
+        t.exec("enterCauldronRoom", t.player.cross_gate, { loc = "cauldrondoor", at = { 2889, 9831, 0 },
+            near = { 2888, 9831 }, far_ok = function(tile) return tile.x >= 2889 end,
+            far_desc = "inside the cauldron room, x >= 2889" })
+        watch(3)
+        local function margin_row(name, what)
+            vitals()
+            local fr, food = t.inv.count("trout")
+            local quarter = hp_max and math.ceil(hp_max / 4) or nil
+            t.check(name, hp_low ~= nil and quarter ~= nil and hp_low >= quarter and fr == "ok" and food > 0,
+                what .. ": lowest hitpoints " .. tostring(hp_low) .. " of " .. tostring(hp_max)
+                    .. " (want >= " .. tostring(quarter) .. ", a quarter), trout eaten " .. eaten
+                    .. ", trout left " .. tostring(food) .. " (want > 0)")
+        end
+        margin_row("enterCauldronRoom.margin", "two suits of armour through three door presses")
+
+        -- Use each raw meat on the Cauldron of Thunder (quest_druid.rs2 [oplocu,cauldron_of_thunder]
+        -- -> ~druid_enchant_meat: the raw meat leaves, its enchanted meat arrives, "You dip ...").
         local cauldron = t.player.by_symbol("loc", "cauldron_of_thunder")
-        t.exec("useChickenOnCauldron", t.player.use_on, "raw_chicken", cauldron)
-
-        -- Use the beef meat on the cauldron in Taverley dungeon.
-        t.exec("useBeefOnCauldron", t.player.use_on, "raw_beef", cauldron)
-
-        -- Use the bear meat on the cauldron in Taverley dungeon.
-        t.exec("useBearOnCauldron", t.player.use_on, "raw_bear_meat", cauldron)
-
-        -- Use the rat meat on the cauldron in Taverley dungeon.
-        t.exec("useRatOnCauldron", t.player.use_on, "raw_rat_meat", cauldron)
+        local function dip(name, raw, enchanted)
+            t.exec(name, t.player.use_on, raw, cauldron)
+            local rr, rn = t.inv.count(raw)
+            local er, en = t.inv.count(enchanted)
+            t.check(name .. ".effect", rr == "ok" and rn == 0 and er == "ok" and en == 1,
+                raw .. " " .. tostring(rn) .. " (want 0), " .. enchanted .. " " .. tostring(en) .. " (want 1)")
+        end
+        dip("useChickenOnCauldron", "raw_chicken", "enchanted_chicken")
+        dip("useBeefOnCauldron", "raw_beef", "enchanted_beef")
+        dip("useBearOnCauldron", "raw_bear_meat", "enchanted_bear_meat")
+        dip("useRatOnCauldron", "raw_rat_meat", "enchanted_rat_meat")
 
         -- Return to Sanfew upstairs in the Taverley herblore store with the enchanted meats.
-        t.exec("goto-talkToSanfewWithMeat-upper", t.player.goto_tile, 2899, 3429, 1)
+        -- Out of the room by its door (one press from inside walks the player out:
+        -- ~taverley_prison_walk_door), back down the corridor, up the ladder
+        -- (ladder_from_cellar 2884,9797; maplink 0_45_153_4_6_up -> 2884,3398), overland to
+        -- the store (reach.py 2884,3398 -> 2903,3428 REACH len 51), in and up.
+        hp_low, eaten = nil, 0
+        vitals()
+        t.exec("goUpToSanfewWithMeat.leaveCauldronRoom", t.player.cross_gate, { loc = "cauldrondoor",
+            at = { 2889, 9831, 0 }, near = { 2890, 9831 }, far_ok = function(tile) return tile.x <= 2888 end,
+            far_desc = "out of the cauldron room, x <= 2888" })
+        vitals()
+        t.exec("goUpToSanfewWithMeat.toLadder", t.player.walk_route, { { 2888, 9831 }, { 2884, 9818 }, { 2884, 9798 } },
+            { max_hop = 20, ticks = 40, vitals = vitals })
+        margin_row("goUpToSanfewWithMeat.margin", "past the two awake suits on the way out")
+        t.exec("goUpToSanfewWithMeat.ladderUp", t.player.climb, { loc = "ladder_from_cellar", op = 1, op_name = "Climb-up",
+            at = { 2884, 9797, 0 }, src = { 2884, 9798 }, dest = { 2884, 3398, 0 } })
+        t.exec("goto-goUpToSanfewWithMeat", t.player.goto_tile, 2903, 3428, 0)
+        store_in_and_up("goUpToSanfewWithMeat")
         t.exec("talkToSanfewWithMeat", t.player.talk_to, "sanfew", 1)
         t.exec("talkToSanfewWithMeat-dialog", t.chat.play, {
             "npc:Did you bring me the required ingredients for the potion?",
@@ -146,7 +281,9 @@ return {
 
         t.exec("expect_stage-given_ingredients", t.quest.expect_stage, "given_ingredients")
 
-        t.exec("goto-talkToKaqemeexToFinish", t.player.goto_tile, 2925, 3486, 0) -- plane change (1 -> 0)
+        -- Back to the circle: down, out, overland (reach.py 2903,3428 -> 2925,3486 REACH len 96).
+        down_and_out("talkToKaqemeexToFinish.storeExit")
+        t.exec("goto-talkToKaqemeexToFinish", t.player.goto_tile, 2925, 3486, 0)
 
         -- Reward snapshot before the FINAL hand-in step (H2, docs/QUEST_SUITE_KIT.md)
         local reward_snapshot_result, reward_before = t.skill.snapshot()

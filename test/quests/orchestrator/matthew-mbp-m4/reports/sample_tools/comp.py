@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""comp.py sx sz tx tz margin [level] [--allow-op-locs] -- the walking component of (sx, sz): a 4-way flood
+"""comp.py sx sz tx tz margin [level] [--allow-op-locs] [--root <repo>] -- the walking component of (sx, sz): a 4-way flood
 with every door closed and every op loc / zone-trigger tile blocked (reach.py's rules). Prints its size,
 the three tiles closest to the target, its max x, and the doors and op locs on its edge: one of those is
 the click that leaves it."""
@@ -10,8 +10,9 @@ from collections import deque
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import reach  # noqa: E402
 
-allow = "--allow-op-locs" in sys.argv
-args = [a for a in sys.argv[1:] if a != "--allow-op-locs"]
+argv = reach.take_root(sys.argv[1:])   # --root: another checkout's maps (default: this file's)
+allow = "--allow-op-locs" in argv
+args = [a for a in argv if a != "--allow-op-locs"]
 if len(args) < 5:
     sys.exit(__doc__)
 sx, sz, tx, tz, mg = map(int, args[:5])
