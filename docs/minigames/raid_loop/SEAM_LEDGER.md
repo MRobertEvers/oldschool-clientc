@@ -1201,3 +1201,30 @@ all clean. No C and no content changed.
 - watch_debug_aids: LANDED. Badge, ghost cursor, press outline, Interact toggle and the
   page's pointer rows. Open: the page cannot show what the runner's pick holds; pictures
   are the owner's visual checks (CAMERA_RESUME.md).
+
+## matthew-mbp-m4-raid-b1-seam30 (2026-10-06; the commit that carries this heading, OSRS-Content fb292a9996 unchanged): one played plan per ToB room
+
+- play_tob_maiden: LANDED. Proved: _play_maiden is 5 of 5 names on the closer's tree. Kill
+  takes 227-320 ticks against the kept 443; damage taken is 169-251 against 525. Open: the
+  Normal and Hard numbers are placeholders; the trio freezer roles are not coded; the bow
+  flick is a measurement for the kept row only (it swaps after her aim); a blackstorm hit 27
+  through prayer with 6 leaks (one sample).
+- play_tob_nylocas: LANDED, NOT GREEN. 1 of 5 names (svb). _play_nylocas, sva and svc die at
+  Vasilias t730-754 with no supplies left. svd ends `ok` with no npc_death row after her
+  retype, and its room line is missing. Open: supply budget at Vasilias (boost at the
+  interlude, a faster weapon, fewer support collapses); her Entry prayed max (CONTENT_BUGS,
+  unchecked); the svd stop.
+- play_tob_sotetseg: LANDED. Proved: 5 of 5 names. raid_play.lua `st.teleport_until`, row
+  seam.raid_play_teleport_until. Open: Elder maul specials not used; solo never sees the grey
+  ball, and the prayed melee max 10 is unsourced (CONTENT_BUGS).
+- play_tob_xarpus: LANDED. Proved: 5 of 5 names, 0 retaliations. Row
+  seam.raid_play_xarpus_quadrant. Open: the five names share one room layout (less coverage
+  than five); phase 3 was short (1-11 turns); raid_report flags Xarpus poison as a prayer
+  mistake.
+- play_tob_verzik: LANDED, NOT GREEN. 4 of 5 names (svd dies in P3). Row
+  seam.raid_play_verzik_footprint_distance. Open: svd's long reds phase (she heals 305) and
+  the enrage tornado; the tornado's tiles are not in the tick log; Normal and Hard are
+  unproved.
+- Library faults found and NOT fixed (worked around in the plans): `_play_pray` re-lights the
+  old protection; `st.death_serial` starts at 0. See DRIVER_NOTES "Protection prayers" and
+  "death_serial".

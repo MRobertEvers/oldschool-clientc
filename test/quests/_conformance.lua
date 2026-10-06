@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 176
+-- @seam-count 179
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 193
-local SEAM_COUNT = 176
+local SEAM_COUNT = 179
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -11694,6 +11694,9 @@ return {
 -- (DRIVE_SCRIPT_PARTS); the row also proves the four other room parts are loaded
 -- and registered, each answering unsupported and naming the seam that writes it.
 -- No verb added; VERB_COUNT and SEAM_COUNT unchanged by it.
+-- raid seam30 (the five room plans, merged by the seam30 closer): every room
+-- part now has a decide, so the row no longer calls t.raid.play on a room (it
+-- would play it); it asserts each decide is registered.  No verb added.
         step("raid.play", function()
             local fn = verb("raid", "play")
             if not fn then return missing("raid", "play") end
@@ -11701,19 +11704,94 @@ return {
             if r1 ~= "unsupported" or not string.find(tostring(d1), "no plan named no_such_plan", 1, true) then
                 return "hollow", "an unknown plan answered " .. describe(r1) .. " -- " .. describe(d1)
             end
-            local r2, d2 = fn("tob_maiden", { mode = "entry" })
-            if r2 ~= "unsupported" or not string.find(tostring(d2), "no decide function", 1, true) then
-                return "hollow", "tob_maiden (strategy only) answered " .. describe(r2) .. " -- " .. describe(d2)
-            end
-            for _, room in ipairs({ "nylocas", "sotetseg", "xarpus", "verzik" }) do
-                local r, d = fn("tob_" .. room, { mode = "entry" })
-                if r ~= "unsupported" or not string.find(tostring(d), "no decide function", 1, true)
-                    or not string.find(tostring(d), "play_tob_" .. room, 1, true) then
-                    return "hollow", "tob_" .. room .. " (its own part, no plan yet) answered " .. describe(r) .. " -- " .. describe(d)
+            -- raid seam30 (merged by the seam30 closer): all five room parts now
+            -- register a decide, so none is called here -- t.raid.play outside
+            -- its room would PLAY it, looping up to max_ticks for a boss that is
+            -- not there.  The row proves each part is loaded and its decide is
+            -- registered; each play is proved by its harness under
+            -- tools/raid_gate/seed_survey.py (test/raids/_play_<room>.lua).
+            local have = {}
+            for _, room in ipairs({ "maiden", "nylocas", "sotetseg", "xarpus", "verzik" }) do
+                local dec = verb("raid", "_play_" .. room .. "_decide")
+                if not dec then
+                    return "hollow", "tob_" .. room .. ": its part registered no decide function (raid_play_tob_" .. room
+                        .. ".lua QD.raid._play_" .. room .. "_decide missing)"
                 end
+                have[#have + 1] = "tob_" .. room
             end
-            return "ok", "unknown plan: " .. tostring(d1) .. "; tob_maiden: " .. tostring(d2)
-                .. "; nylocas, sotetseg, xarpus and verzik registered from their own parts, each unsupported"
+            return "ok", "unknown plan: " .. tostring(d1) .. "; " .. table.concat(have, ", ")
+                .. " have their decide (raid seam30; played by test/raids/_play_<room>.lua)"
+        end)
+
+        -- raid seam30 play_tob_sotetseg (merged by the seam30 closer): the library's
+        -- death test (a jump of more than 20 tiles) is skipped while st.teleport_until
+        -- covers the tick (raid_play.lua _play_tick); Sotetseg's portal sets it.
+        -- SEAM_COUNT +1.
+        seam("seam.raid_play_teleport_until", function()
+            local state_fn = verb("raid", "_play_state")
+            local tick_fn = verb("raid", "_play_tick")
+            if not state_fn then return missing("raid", "_play_state") end
+            if not tick_fn then return missing("raid", "_play_tick") end
+            t.raid._conformance_teleport_decide = function(st, v) return { want = {}, attack = false } end
+            local plan = { room = "probe", boss = { entry = "tob_sotetseg_combat_story" }, modes = { entry = {} },
+                walk_prayers = {}, down_prayers = {}, decide = "_conformance_teleport_decide" }
+            local st = state_fn(plan, "_conformance_teleport", "entry", plan.modes.entry, { speed = 5, seqs = {} }, {})
+            local _, here = t.world.tile()
+            local _, now = t.tick()
+            st.last_me = { x = here.x + 40, z = here.z }
+            st.teleport_until = now + 5
+            local r1 = tick_fn(st)
+            st.last_me = { x = here.x + 40, z = here.z }
+            st.teleport_until = nil
+            local r2 = tick_fn(st)
+            if r1 ~= nil or r2 ~= "died" then
+                return "hollow", "a covered 40-tile jump answered " .. describe(r1) .. " (want nil), an uncovered one " .. describe(r2) .. " (want died)"
+            end
+            return "ok", "a 40-tile jump inside st.teleport_until played on; the same jump with none answered died"
+        end)
+
+        -- raid seam30 play_tob_xarpus (merged by the seam30 closer): the plan's
+        -- quadrant split is the server's (tob_xarpus.rs2 ~tob_xarpus_quadrant_from:
+        -- dz > 0 north, dx > 0 east).  A pure function, no npc.  SEAM_COUNT +1.
+        seam("seam.raid_play_xarpus_quadrant", function()
+            local q = verb("raid", "_xarpus_quadrant")
+            if not q then return missing("raid", "_xarpus_quadrant") end
+            local cases = {
+                { 6435, 100, "NE" }, { 6433, 100, "NW" }, { 6435, 98, "SE" }, { 6433, 98, "SW" },
+                { 6434, 100, "NW" }, { 6435, 99, "SE" }, { 6434, 99, "SW" }, { 6434, 98, "SW" },
+            }
+            local bad = {}
+            for _, c in ipairs(cases) do
+                local got = q(6434, 99, c[1], c[2])
+                if got ~= c[3] then bad[#bad + 1] = c[1] .. "," .. c[2] .. " gave " .. tostring(got) .. " want " .. c[3] end
+            end
+            if #bad > 0 then
+                return "fail", "quadrant split differs from tob_xarpus.rs2 ~tob_xarpus_quadrant_from: " .. table.concat(bad, "; ")
+            end
+            return "ok", "8 of 8 tiles in the server's quadrant (diagonals and the four boundary tiles; centre row south, centre column west)"
+        end)
+
+        -- raid seam30 play_tob_verzik (merged by the seam30 closer): the footprint
+        -- distance every Verzik slam, melee, pillar-fall and blast rule reads
+        -- (V verzik.p2_scan_rule, p3_melee_predicate, pillar_collapse_range 2).
+        -- A pure function, no npc.  SEAM_COUNT +1.
+        seam("seam.raid_play_verzik_footprint_distance", function()
+            local dist = verb("raid", "_verzik_dist")
+            if not dist then return missing("raid", "_verzik_dist") end
+            local p2 = { x = 6431, z = 89, size = 3 }
+            local one = { x = 6430, z = 90 }
+            local cases = {
+                { 6432, 90, p2, 0 }, { 6433, 91, p2, 0 }, { 6430, 90, p2, 1 }, { 6434, 92, p2, 1 },
+                { 6429, 91, p2, 2 }, { 6429, 87, p2, 2 }, { 6436, 89, p2, 3 }, { 6430, 90, one, 0 },
+                { 6432, 91, one, 2 },
+            }
+            local bad = {}
+            for _, c in ipairs(cases) do
+                local got = dist(c[1], c[2], c[3])
+                if got ~= c[4] then bad[#bad + 1] = c[1] .. "," .. c[2] .. " gave " .. tostring(got) .. " want " .. c[4] end
+            end
+            if #bad > 0 then return "fail", "QD.raid._verzik_dist: " .. table.concat(bad, "; ") end
+            return "ok", "QD.raid._verzik_dist: 9 tiles against her P2 3x3 at 6431,89 and a 1x1 row (under 0, adjacent 1, two out 2) all as the slam, melee, pillar-fall and blast rules read them"
         end)
 
         -- seam17 party_run_and_verbs: conformance rows for t.party.* (script/plugins/

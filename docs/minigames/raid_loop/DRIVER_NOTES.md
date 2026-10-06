@@ -5710,3 +5710,125 @@ live character without a relog.
 - Not proved: a watched Play through the Scripts tab turning (the forced flag stood in
   for it), the flicker rate before and after, and the Screenshots toggle (off by
   default in a watched client), which needs `script_runner.lua`.
+
+## The five room plans and their harnesses (seam30)
+
+Every ToB room now has a decide function in its own part,
+`script/plugins/quest_driver/raid_play_tob_<room>.lua`, and a harness,
+`test/raids/_play_<room>.lua`. Each harness is the kept room's kit and entry, then one
+`t.raid.play`, then the kept room's technique and room-complete rows copied unchanged.
+Status on the closer's tree (`seed_survey.py _play_<room>`): maiden, sotetseg and xarpus
+are 5 of 5 names; verzik is 4 of 5 (svd dies in P3 after a long reds phase); nylocas is
+1 of 5 (the red names run out of supplies at Vasilias). The `raid.play` conformance row no
+longer calls `t.raid.play` on a room, because with a decide it would play. It only asserts
+that the five decides are registered.
+
+## A plan may send its own block (seam30)
+
+The library's SEND has no gear list. A plan that swaps a loadout sends its own
+`QD.together` block from decide: equips, plus a drink or a prayer if needed. It counts the
+inputs into `st.inputs[v.tick]` and the result into `st.blocks`, then sets
+`st.engaged = false` so the library presses the boss again. A press on an add is the same:
+`QD.player.attack(sym, 2, 1, {quick=true, slot=n})` from decide. See `_play_maiden_block`,
+`_play_nylocas_wear` and `_verzik_block`.
+
+## Protection prayers: keep one in `walk_prayers` (seam30)
+
+`QD.prayer.set` is a toggle, and the three protections exclude each other on the server.
+The library's `_play_pray` sends "on new" and then "off old". The off press lights the old
+one again (ny30d: Missiles stayed lit t67-362 while the plan asked for Magic seven times).
+The nylocas, sotetseg and verzik plans keep exactly one protection in
+`P.walk_prayers[1]`, rewrite it each tick, and let the server put the old one out. A press
+reads lit one to three ticks later, so a plan treats its own press as lit for two ticks
+rather than pressing again. The library is not fixed yet: the fix is to skip the off for a
+member of the group being lit.
+
+## `death_serial` starts at 0 (seam30, open)
+
+The loop stops on the first `npc_death` row of the boss slot after `st.death_serial`, and
+that serial starts at 0. A boss that takes a slot a dead npc used ends the play on its spawn
+tick (ny30h: Vasilias landed in slot 1079, where a wave nylocas had died). The nylocas plan
+moves `st.death_serial` forward itself until `st.boss_slot` is known. The library fix is to
+seed the serial with the newest one when `boss_slot` is first set.
+
+## A boss that changes type (seam30)
+
+Maiden (100/70/50/30), Nylocas Vasilias (her forms) and Verzik (her phases) change npc type.
+The plan follows the new type from one `api_drive.npcs(0)` read and sets
+`st.boss_symbol`. Verzik's client gives each new form a NEW row (P1 was slot 68 and P2 was
+slot 78 while the server slot stayed 1079). So follow her by form id, never by the client
+slot. The library's `npc_death` check on the server slot still ends the fight. Sotetseg's
+maze form leaves `t.npc.state(boss_symbol)` empty, so his plan holds `st.boss_gone` at 0
+while the tick log is on. The ticklog's `npc_retype` row carries the type BEFORE the
+change.
+
+## `st.teleport_until`: a room teleport is not a death (seam30)
+
+`_play_tick` reads a jump of more than 20 tiles between two ticks as a death. It now skips
+that test while `v.tick <= st.teleport_until`. A plan sets that field when it sees a room
+teleport coming: Sotetseg's plan sets it from the portal animation and while in the realm.
+A plan that never sets it is judged as before. Row: `seam.raid_play_teleport_until`.
+
+## Fresh npc rows read health -1/-1 (seam30)
+
+A freshly spawned npc's `api_drive.npcs` row reads `health_ratio -1` and
+`health_scale -1` until its bar is drawn. Test "alive" as `health_ratio ~= 0`, never
+`> 0`. The `> 0` test hid every Matomenos in mz30a/b.
+
+## Quick presses answer `timeout` and still land (seam30)
+
+`t.player.cast(..., {slot=, quick=true})` and the quick attack press answer `timeout` on
+most presses: 121-130 a Nylocas run, and every Maiden barrage. The tick log shows them
+landing (hit rows, apnpc input rows). Count casts, not confirmations, and judge the result
+from the tick log. `covered` means another npc stands on its pixels: pass that one over for
+a few ticks.
+
+## Walks, presses and footprints (seam30)
+
+- An attack press stops a walk on its first tick-end tile. A dodge that must arrive (Maiden's
+  3-tile run out of the 5x5) gets no press until it lands.
+- Players walk through npcs. A route that ends a tick inside a large boss's footprint
+  triggers its footprint mechanic (Xarpus: the pebble stomp and a skipped spit, xa30d t194).
+  Before walking around him, check both route shapes the server uses (diagonal first, and
+  straight first).
+- Room presses need the kept test's camera (`t.drive.camera(0, 512, 1100)`). Without it
+  nearly every Nylocas press answered `covered` or `not_visible` (ny30c).
+
+## Client tick vs server tick (seam30)
+
+An npc row's `seq_tick` and `face_tick` are client ticks, and `v.tick - v.api_now` drifts
+by one against the server tick (xa30a saw spit 147 as 146). For a rhythm with a published
+cadence (Xarpus, 4), anchor a grid on one sighting and accept a sighting up to 2 ticks
+late.
+
+## Projectiles and floor reads (seam30)
+
+- `QD.world.projectiles` rows can include a projectile that has already landed. Keep only
+  `cycles_left > 0` before treating a destination as a hazard (Verzik).
+- Each projectile's `dst_x/dst_z` is the tile a person sees it falling on. Maiden's 1578
+  splats, Xarpus's 1555 acid, and Verzik's urnbombs, Athanatos and webs are all dodged
+  from it.
+- Sotetseg's shadow-realm path is `t.world.loc_copies('tob_sotetseg_lighttile', 40)` on
+  level 3. Walking it one straight run at a time, corner to corner, left 0 of 40-55 realm
+  ticks off the path in every survey run.
+
+## A technique row keyed on the plan's own timing passes vacuously (seam30)
+
+The kept `tob_xarpus.lua` row `technique.spit_dodge` looks up the acid by the plan's own
+dodge tick (`acid[j].tick == rec.S`). It passed while 9 of 16 dodges were a tick early,
+because a dodge whose S had no spit was skipped. Pair such a row with a guard that every
+timed event exists in the tick log (`play.dodge_on_spit` in `_play_xarpus.lua`).
+
+## Verzik's nylocas blast on arrival and on death (seam30)
+
+The server's Verzik nylocas blast (`~tob_verzik_crab_blast` on `[ai_queue3]`: 63/26/8 by
+band, range 3) fires when it arrives and also when it dies. Killing one beside the raider
+costs up to 63, so shoot from 4 or more tiles.
+
+## Raid runs are cheap on the virtual clock (seam30)
+
+A Maiden room is about 10 s of wall time headless, so a five-name survey takes about a
+minute. Iterate from `raid_report.py --mistakes`, not from replays. Note: `raid_report.py`
+counts every Xarpus poison hit and every Sotetseg melee through Protect from Melee as a
+`prayer` mistake. In both rooms that is the content's rule (protection has no effect at
+Xarpus, E:201; Sotetseg's prayed melee max is 10), not a play error.

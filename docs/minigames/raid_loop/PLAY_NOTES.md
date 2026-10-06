@@ -154,6 +154,39 @@ evidence (seam29: `_play_smoke`, `svcplaysmoke`).
 | Blood spawns | Kill or avoid. Never stand on their trail. | W:596-598 |
 | Skipping 30s | Trio only: kill her before the 30s unfreeze. | W:645-646 |
 
+The table above is the strategy the seam30 plan was written from; the plan itself is the next
+section.
+
+## Maiden, Entry solo (`tob_maiden`, mode `entry`), proved (raid seam30 play_tob_maiden)
+
+REPLACES the decide line of "Maiden: the full plan": the plan is
+`QD.raid._play_maiden_decide` in `raid_play_tob_maiden.lua`, proved by
+`test/raids/_play_maiden.lua` (`seed_survey.py _play_maiden`: 5 of 5 green). Weapon: the
+twisted bow (W:633 "the twisted bow is highly effective against her"; the library's bow row,
+seq 426 every 6 ticks, lives in the plan file because raid_play.lua has only the scythe).
+
+| Mechanic | What the plan does | Source |
+|---|---|---|
+| Her four forms | The plan follows the npc row's type change (100/70/50/30) and re-points the library's boss symbol. | W:592; K boss_symbols |
+| Blackstorm | Protect from Magic on; the threat is 28 a storm on the 10-tick clock (impact 5 after the aim), because mz30a took 27 through the prayer at c=6. | W:590; K auto_impact_offset 5 |
+| Blood splat, seen in flight | Every projectile 1578's destination is a marked tile. If any lands within 2 of the player, the player runs 3 tiles to the floor tile nearest home, out of every in-flight splat's 5x5 and off every pool and trail. | W:595 "those standing away can react to it", W:596 (5x5 extras); K blood_flight_base (two ticks or more) |
+| The T-1 step | On the tick before her predicted attack, and only when a throw can come (2 autos since the last one), the player runs the same 3 tiles. This repeats until a throw lands on the tick after such a step. | W:595 (melee distance, and the cooldown); ET 1.1 |
+| Pools and trails | The pools are graphic 1579 and the trails are loc 32984 (`api_drive.loc_copies`). Standing on either moves the player to the nearest safe tile (`_play_hazard`). | W:597, W:600; ET 2.4 |
+| Matomenos | When a wave is seen: the magic set in one block (5 inputs), one Ice Barrage per nylocas every 5 ticks, the ranged set back in one block (4 inputs), then any nylocas still standing is shot. Entry: each barrage killed its nylocas (16 hp). | W:594 "essentially mandatory", W:637-643; K freeze_full_bonus +140 |
+| Blood spawns | The nearest one within 10 tiles is shot (they lay the trails). | W:598-600 "Kill or avoid" |
+| Drain | A drained Ranged level (below 88) is restored with a super restore. | advanced guide :111 "always repot" |
+| Measurements | `prove_protect`: one blackstorm is taken before Protect from Magic goes up. `flicks`: the whip goes on after her aim, at most 12 times, until one drain is seen. These exist only so the kept rows tech.protect_magic and tech.bow_flick can be read. | K rows; W:590-591 |
+
+Measured (five names): room 227-320 ticks, against 443 for the kept run. Damage taken 169-251
+(kept 525), all from the blackstorm; pools 0 and trails 0-2 (kept 175). Food 4-9 of 10 sharks,
+drinks 1-6 (kept 29 eats and 11 restores). About 0 ticks with no attack (kept 63). Inputs per
+tick: 1 on 72-106 ticks, 2 on 5-9, 3 on 0-1, 4+ on 6 (the two gear blocks a wave).
+
+Open: one blackstorm hit 27 through Protect from Magic with six Matomenos leaked (mz30a t256,
+hp 27, so the raw hit may have been higher). W:590's halving gives 14 at c=6. It is one sample,
+with leaks the plan now prevents; the 2026-10-05 survey's spec.maiden.auto_prayed_entry failure
+on svb (19 of 28 off the formula) is the same row, read by the re-author.
+
 ## The other four rooms: mechanics and sourced answers (for the authors)
 
 **Nylocas** (W:702-776; ET 4). Trio roles are one mage, one melee and one ranger (W:713). Each
@@ -177,6 +210,161 @@ the bounce tick (Plank2g quote, ET 1.3), with Protect from Missiles up when the 
 (the pinned exception), and kill the nylocas by style. P3: step away one tick before her
 attack (Granddad Jad, ET 1.3), webs and yellows by position, and the green ball passed.
 Protection prayer on hit is the pinned exception.
+
+## Nylocas, Entry solo (`tob_nylocas`, mode `entry`), measured, NOT green on five names
+
+Plan file `raid_play_tob_nylocas.lua` (raid seam30). `E` is
+`sources/wiki_Theatre_of_Blood_Entry_Mode.wikitext` (its Nylocas "Solo strategy"), `W` the
+Strategies page, `NT` `encounters/nylocas.tsv`, `NB`/`NR`/`DMG` the room's own scripts
+(`tob_nylocas_boss.rs2`, `tob_nylocas.rs2`, `tob_damage.rs2`). Harness `test/raids/_play_nylocas.lua`.
+
+| Decision | Rule in the plan | Source |
+|---|---|---|
+| One weapon per colour | whip (4), magic shortbow on rapid (3), Ice Rush / Ice Burst (5); swap in one block on the press tick | E:155-157 "You will need all three attack styles"; Ancient Magicks + a fast ranged weapon |
+| Never the wrong colour | a copy is pressed only with its colour; a flicker that turns under the press is dropped (step); from wave 16 nothing younger than 7 ticks is hit | DMG:272 (a wrong hit nulls the raider on it for good); NT flicker_first_wave 16, first_switch 5, hold 2 |
+| Aggros first | the aggro hitting through the prayer, then one hitting, then other aggros, then chewers | E:160 "must be killed as fast as possible"; W:742 |
+| Greens first, smalls first, oldest first | small score biases | E:162 "Focus the green (Ranged) Nylocas first"; W:746 "prioritising the smaller ones first" |
+| Stay central | home 31,24 local; melee only on the platform | E:162 "stay near the centre ... unless you are cleaning up greys"; E:160 "cannot melee them until they reach said platform" |
+| Let a low pillar go | chewers of the lowest support under 15% are passed over | E:171 "let one that's low die and focus on the other three" |
+| Freeze chewer clumps | Ice Burst on 3+ chewing a support under 70%, centred on a blue when one is in it | E:164 "Ice barrage/burst any clumps ... Frozen nylocas cannot attack the pillars" |
+| Off the blast | a copy aged 45-52 (46-53 big) within 2 tiles: run to the safe tile nearest home | NT lifetime_small 52 / big 53; E:161 "at least two tiles away"; ET 1.1 T-1 |
+| Wave prayer | the colour with the most weight among aggros in reach (big 2, grey only within 2), held until another is 2 heavier | kept tob_nylocas.lua technique (tech.prayer row) |
+| Vasilias prayer | by her form from the tick it is seen (spawning = melee), sent FIRST in the plan's own block | W:752; NB:136-150 first attack +2/+3 after a turn |
+| Vasilias style | her form's weapon; after a turn re-press (the turn stops attacks); no arrow/spell that would land within a tick of the predicted turn (14 then 15 ticks) | W:752 "The player will stop attacking when Vasilias changes forms"; NB:176 p_stopaction; NB:436-464; DMG:278 reflect + heal |
+| Supplies | library `_play_supplies`; threat = 2 big max hits floor + unprayed aggros + blasts + 17 a swing through her magic/ranged prayer + 40 when a support is under 25%; heal up in the interlude; a super restore when Ranged or Magic < 88 | NB:370-383 (^tob_vasilias_prayed_max 17); W:750 "heal up and boost"; E:171 "30+ damage" |
+
+Two library faults met here, both worked around IN THE PLAN (raid_play.lua untouched):
+1. `_play_pray` sends "on new" then "off old" for the three protection prayers; they exclude
+   each other and a press is a toggle, so the off re-lit the old one (ny30d: Missiles held
+   t67-362). The plan keeps the lit protection prayer in `want` and, since ny30k, presses its
+   prayer itself.
+2. The loop's boss-death read starts at serial 0; Vasilias takes a slot a wave nylocas died
+   in, so the room "ended" on her spawn tick (ny30h t644). The plan advances
+   `st.death_serial` until her slot is known.
+
+Measured (2026-10-05, headless, seed_survey): survey2 2 of 5 (own name, svc), the current
+plan 1 of 5 (svb: room 819 ticks mark to death, taken 409). Every red name ran out of
+supplies at Vasilias (her prayed magic/ranged hits 17) or after pillar collapses (77-119 a
+run); svd's loop stopped "boss gone" at t793 with no npc_death row for her (npc_free t801).
+
+## Sotetseg, Entry solo (`tob_sotetseg`, mode `entry`), proved
+
+Plan: `script/plugins/quest_driver/raid_play_tob_sotetseg.lua` (QD.raid._play_sotetseg_decide,
+QD.raid._play_sotetseg_maze). Harness: `test/raids/_play_sotetseg.lua` (the kept room's kit and
+entry, one `t.raid.play`, the kept technique and room-complete rows copied unchanged).
+`seed_survey.py _play_sotetseg`: 5 of 5 (twice: survey1 with the first plan, survey2 with the final).
+Sources: E = wiki_Theatre_of_Blood_Entry_Mode.wikitext, W = wiki_Theatre_of_Blood_Strategies.wikitext,
+ET = ENCOUNTER_TIMING.md section 5, S = our tob_sotetseg.rs2 / tob.constant.
+
+| Decision | Source |
+|---|---|
+| Melee him with the scythe, Piety lit, the melee kit the kept room's phase 3 wears | E:191 "it is best to attack Sotetseg with Melee" |
+| Protect from Melee on every tick the raider stands in his range (footprint distance <= 1) | E:191 "praying Protect from Melee"; S: the melee's prayer is read in the swing tick's own player phase, so it cannot be reacted to; S `npc_range(coord) <= 1` |
+| Protect from Magic the tick a 1606 is seen in the air, held until its landing tick has passed; Missiles for a 1607 | E:191 "switching to the other two protection prayers when you see their respective projectile"; the owner's ruling (ball read at IMPACT), S tob_sote_impact |
+| Out of his range, Protect from Magic | S: no melee past range 1, so every attack there is a ball |
+| ONE protection in the plan's walk_prayers per tick (decide writes slot 1); a sent press is treated as lit for 2 ticks | the protections exclude each other and a press is a toggle (nylocas fixer, seam30) |
+| The death ball (1604) is not prayed; its 15 is in the supplies threat when it lands inside the horizon | E:191 "cannot be protected against ... 15 damage" solo; W:20 tick-eat it |
+| Eat by the largest hit before the next chance: a prayed melee (10) per 5 ticks in range, the death ball when due, a ball and a melee unprayed only while a press was refused (prayers disabled) | the library's supplies rule; W:13 "disable protection prayers"; the first plan's standing 22 ate at 25-43 hp (survey1) |
+| The maze path is the realm's `tob_sotetseg_lighttile` locs the client draws (t.world.loc_copies), walked north first, else along the row | W:25 "presented with a randomly generated path"; S tob_sote_light_path / tob_sote_path_has |
+| Walk one straight run at a time, to its corner, never across a corner | ET 5.4 "an L that goes diagonal first steps off the path" |
+| No step for the first 2 ticks in the realm | S p_stun 5 from the proc, realm at +3 (kept maze.stall, maze_first_move 5) |
+| Wait on row 3 (index 2) until the rest of the run ends on a tick 2 mod 4, then go | W:27 "stop on the third row and wait" (the tornado spawns on row 4, ET 5.3); solo the wait times the run |
+| Step off the grid north on a tick 2 mod 4 (resolves on 3) | ET 5.3 "off on 3"; kept maze_cycle 4, phase global |
+| Not done: the Elder maul Defence specials | W:5-8 spec roles; left for a later plan (Entry defence 150, floor 100) |
+
+Library change (raid_play.lua `_play_tick`): the "jump of more than 20 tiles = died" test is skipped
+while `st.teleport_until` covers the tick; this plan sets it while his combat form is out of view and
+in the realm. No other plan sets it. `seed_survey.py _play_smoke`: 5 of 5 after it.
+
+Measured (survey2, final plan; mark to npc_death):
+
+| name | kill ticks | taken | sharks | drinks | ticks no attack | inputs 1/2/3/4+ | mistakes |
+|---|---|---|---|---|---|---|---|
+| _play_sotetseg | 158 | 75 | 0 | 2 | ~62 | 72/4/2/0 | prayer 11 |
+| svaplaysotet | 188 | 91 | 0 | 2 | ~77 | 86/3/2/0 | prayer 13 |
+| svbplaysotet | 215 | 97 | 1 | 2 | ~71 | 93/4/2/0 | prayer 11, food 1 |
+| svcplaysotet | 153 | 70 | 0 | 1 | ~62 | 71/4/2/0 | prayer 10 |
+| svdplaysotet | 181 | 81 | 0 | 2 | ~70 | 80/5/2/0 | prayer 12 |
+| kept tob_sotetseg | 468 | 343 | 11 | 1 restore | ~204 | (not recorded) | food 6, prayer 15 |
+
+Every "prayer" mistake is a melee through Protect from Melee (Entry 1..10, unsourced: CONTENT_BUGS
+seam30); 0 unprayed balls, 0 tornado hits, 0 off-path tiles, 0 missed attacks. The ticks with no
+attack are the two mazes (about 36-46 each, proc to the first hit back).
+
+## Xarpus, Entry solo (`tob_xarpus`, mode `entry`), proved
+
+Plan: `script/plugins/quest_driver/raid_play_tob_xarpus.lua` (QD.raid._play_xarpus_decide,
+QD.raid._xarpus_see, QD.raid._xarpus_quadrant). Harness: `test/raids/_play_xarpus.lua` (the kept
+room's kit and entry, one `t.raid.play`, the kept technique rows technique.exhumed_cover and
+technique.spit_dodge and the room-complete rows fight.done and exit.* copied unchanged).
+`seed_survey.py _play_xarpus`: 5 of 5 (twice: survey1 with the grid plan, survey2 with the final).
+Sources: E = wiki_Theatre_of_Blood_Entry_Mode.wikitext, W = wiki_Theatre_of_Blood_Strategies.wikitext,
+A = wiki_Guide_Advanced_Theatre_of_Blood.wikitext, ET = ENCOUNTER_TIMING.md section 6,
+X = encounters/xarpus.tsv, S = our tob_xarpus.rs2 / tob_damage.rs2 (read for WHEN a rule bites).
+
+| Decision | Source |
+|---|---|
+| Phase 1: walk onto every exhumed the tick it is seen and stand on it until it closes; wait on the south melee tile (6434,96) between them | W:831 "stand on top of them until they return to the ground ... stand in the centre of the arena to quickly intercept"; E:204 |
+| The super combat potion is drunk on the fifth exhumed (the quiet phase) | tob_xarpus.lua :120-123 (kept room's own timing) |
+| Piety from the stand-up; no protection prayer at all | E:201 "Protection prayers have no effect during the fight, so prayer points can be used instead to boost damage" |
+| The spit rhythm is a grid: first slot stand-up + 7, then every 4; a spit seen 0-2 ticks after its slot keeps the grid | X xarpus.p2.first_spit 7 (blert FIRST_P2_TURN_TICK), xarpus.p2.cadence 4 grade A; A:203 "you step back every 4 ticks, based on Xarpus' attack speed" |
+| The dodge: one step sent on S-1 (resolves S, after his scan, so he aims at the tile just left), a second resolving S+1; the splat lands two tiles from the player; the second tile is a clean melee tile when one exists | E:207 "moving ... exactly 2 tiles at a time to avoid the poison", "moving just before you see the projectile is about to hit you"; ET 6.2 the scan reads END OF T-1; tob_xarpus.lua :445-471 (the kept recipe, unchanged, so its row copies) |
+| Between dodges: stand on a clean melee tile (an edge of his 5x5) and swing on cooldown; off a pool or a landing 3x3 first | E:207 "permanent 1-tile puddle ... dealing some damage if you stand or run over it", "3x3 area"; W:836 |
+| Every walk to a melee tile is routed: neither route shape (diagonal first, straight first) may end inside his footprint or cross a pool | E:212 "Do not get too close to Xarpus, or he will throw pebbles"; S ~tob_xarpus_ground_sweep (stomp + skipped spit when a tick ends inside him); measured xa30d t194 |
+| The screech: a grid slot with no spit two ticks after it while the bar reads <= 25% | E:212 "screech when below 22.5% health, and will stop launching poison"; X xarpus.p3.screech_pct_entry 22.5 (the bar is 30 px) |
+| Phase 3: swing only from a quadrant he does not face; only while the next swing lands before his next turn (turn + 8, one tick margin); else step one tile out in the same quadrant | W:851 "If a player attacks from a corner that Xarpus is looking at, he will retaliate"; E:212 "attacking Xarpus once with Melee when he turns to face one of the other quadrants, then click on the ground to stop attacking"; A:225-227 (22121); S tob_damage.rs2:430-437 (never before the first turn, never on a turn's own tick) |
+| He turns to the player's quadrant: walk to the nearest clean melee tile of another, the quadrant he looked at last first | W:853 "Xarpus will never look in the same corner twice, so players should be moving to where he last looked" |
+| Quadrant = the server's split (centre row south, centre column west) | S ~tob_xarpus_quadrant_from; conformance seam.raid_play_xarpus_quadrant |
+
+Not copied from the kept room (deliberate measurement probes a play never makes):
+technique.lag_step (holds a tile one from a landing to take the splash), technique.stomp_skip (stands
+under him), technique.gaze_probe (swings into his gaze). New harness rows: play.dodge_on_spit (every
+dodge's S is a real 8059 tick, or the one slot the screech cancelled -- without it the copied
+spit_dodge row checks nothing when the plan's S is wrong, which xa30a showed), play.gaze_kept (0
+retaliation hitsplats after the screech), play.measure.
+
+Survey2 (mark 36 to npc_death): kill 176/176/163/160/176 ticks; taken 29/26/0/11/29; food 0 of 15
+sharks; drinks 1 (the super combat); raid_report 0 long gaps, about 0 ticks with no attack, 0 missed
+attacks; inputs per tick 1 on 44-50 ticks, 2 on 9-16, 3+ on 0; 0 retaliation. Kept tob_xarpus: 245
+ticks, 251 taken (3 retaliations), 9 eats, about 27 ticks with no attack, 5 missed attacks. The
+2026-10-05 survey: 228/263/232/223 ticks, taken 161/259/193/201, eats 7/13/8/10.
+
+## Verzik, Entry solo (`tob_verzik`, mode `entry`), measured, 4 of 5 names green
+
+raid seam30 play_tob_verzik: plan `raid_play_tob_verzik.lua`, harness `test/raids/_play_verzik.lua`.
+
+Entry, solo, the kept room's kit (K = test/raids/tob_verzik.lua :6-31: fists, the Dawnbringer, the
+twisted bow, the serpentine helm, 16 anglerfish, 4 brews, 2 restores, a ranging potion). W =
+wiki_Theatre_of_Blood_Strategies.wikitext, V = encounters/verzik.tsv.
+
+| Phase | Decision | Source |
+|---|---|---|
+| all | Follow her one npc row through every form by its id (10831 P1, 10832, 10833 P2, 10834, 10835 P3). The client gives a new form a NEW row (P1 slot 68, P2 slot 78), so the id is the key, never the slot. | V verzik.av.npc_form_entry; s30 vz30b |
+| all | Protection prayers: keep ONE in walk_prayers (slot 1 rewritten each tick). Magic-on then Missiles-off relights Missiles (a toggle), which put 23 blood spells under the wrong prayer. | nylocas/sotetseg fixers; s30 vz30g |
+| P1 | Protect from Magic all phase; Piety while punching. | W:871 |
+| P1 | Four punches from the start, then hide behind the pillar south-west of her (the kept tile 6426,93) for the first bolt, and out on its launch tick. | W:885 "safely attack four times with a 4-tick weapon"; W:887; V p1_verdict_tick |
+| P1 | Every later bolt is TANKED under the prayer (15 max taken; 30 cap). | W:891 "tank her attacks entirely, to avoid losing out on ticks" |
+| P1 | Fists until 10 punches, then 2 bow shots, then the Dawnbringer: 2 specials (75-150) and autos. The fists and the bow are the cap row's sample (10 melee, 3 ranged); the specials do the work. | W:873 caps; W:875 Dawnbringer; W:883 "use their melee weapons" |
+| P1 | On her death animation (8111) leave anything within 2 of a pillar. | W:879; V pillar_collapse_range |
+| T12 | One block: bow + ranging potion; then the serpentine helm; rapid style; Rigour + Protect from Missiles; heal up; walk two out of her P2 body on the west. | W:899, W:901, W:927 venom, W:943 |
+| P2 | Stand two out of her 3x3 (survey3: 20-66 attacks per name with the raider two or more out on T-1, 0 slams; sva and svd were adjacent once each, a crab run, and slammed that once). Step off any tile an urnbomb, an Athanatos or a web is falling on (the projectile's destination). | W:909, W:911; V p2_scan_rule |
+| P2 | Prayer: Missiles; Magic once the reds phase is SEEN (a Matomenos on the floor or a blood spell 1591 in the air; the 8117 summon is not read off her row reliably); back to Missiles while an urnbomb is in the air (read at landing, the owner's ruling). | W:931; V p2_bomb_prayer_read_tick |
+| P2 | Targets: a ranged nylocas only from 4+ tiles, the Athanatos (one venom hit kills it: 30 dealt), the Matomenos, then her; hold fire on her for 5 ticks after a summon. A nylocas within 3 is run from: it blasts on arrival AND on death (63/26/8 by band; s30 vz30c took 62 killing one beside it). | W:925, W:927, W:931; tob.constant :2504-2509 |
+| P3 | Switch protection on sight of her animation/projectile (8124/1594 Magic, 8125/1593 Missiles; the green ball 1598 is not prayed, eaten for). Read on hit, the owner's ruling. | W:951; V p3_prayer_read |
+| P3 | Two or more out of her (no melee on T-1). Stand on the nearest yellow pool while any is down. Nylocas as in P2. | W:953, W:969, W:948 |
+| P3 enraged | Run from a tornado within 5 (two tiles a tick against its one), the wall weighed like a tile so the run does not corner; keep hitpoints in the 50-60 band (no bite above 45 unless the ball is in the air). | W:981 "keep health around 50-60"; s30 survey2 |
+
+Measured (survey3, five names, from the mark to her npc_death): own 480 ticks, sva 631, svb 438,
+svc 327 green; svd red (died t788). Damage taken 376/570/248/162/565; food 11/16/9/4/16;
+drinks 13/18/7/5/18; about 28/35/27/19/31 ticks with no attack landing. Kept tob_verzik: 679
+ticks, 615 taken, about 256 ticks with no attack; the 2026-10-05 survey: 208-276.
+
+Open: (1) svd's P2 reds phase lasts 273 ticks (8 summons; 305 healed by blood spells and two
+Matomenos that reached her), so P3 starts on spent supplies and its enrage kills (tornado 171 in
+6, prayer 0 at the end). (2) The tornado is still landed on most names (6-12 hits on the reds);
+it is not seen walking in the tick log (no npc_tile rows for 10846), so its speed is inferred
+(spawn to hit 5 ticks). (3) The cap row's 10 melee needs 10+ punches; the bow shots are there for
+the kept row only.
 
 ## Open rows (found is not fixed)
 

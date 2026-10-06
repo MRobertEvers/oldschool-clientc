@@ -1013,3 +1013,32 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   (the wave-10 west aggro was splashed by an Ice Burst before the edge). Count the spawns the
   table names (nylocas_waves.md `*` rows: wave, lane, size) or add the table's aggros killed in
   their lane to the swaps; `spawn_aggro` re-worded to say so.
+
+## From seam30 play_tob_sotetseg (matthew-mbp-m4-raid-b1-seam30, 2026-10-05)
+
+- ToB, Sotetseg Entry solo: a solo raider only ever sees the red ball. The Entry page's
+  solo strategy says the room throws both: "It launches two types of small projectiles,
+  either red or grey. The '''red''' one can be completely blocked with '''Protect from
+  Magic''', while the '''grey''' one can be completely blocked with '''Protect from
+  Missiles'''" (sources/wiki_Theatre_of_Blood_Entry_Mode.wikitext:191). Ours: the main
+  ball is always `tob_sotetseg_maging` 1606 (tob_sotetseg.rs2 [proc,tob_sote_cast]), and
+  the grey 1607 exists only as a SPLIT, which `[proc,tob_sote_split]` sends to another
+  targetable player (`uid ! $victim`), so a party of one never sees it. Measured: six
+  runs of test/raids/_play_sotetseg.lua (so30a and the five survey2 names): 79 projectile
+  rows of 1606, 6 of 1604, 0 of 1607. Open: which projectile a solo raider's main ball is (no recorder
+  row for solo Entry here); the play prays Missiles for a 1607 already, so a fix changes
+  no play.
+- ToB, Sotetseg Entry: the melee through Protect from Melee hits 1..10
+  (`^tob_sote_melee_prayed_max_entry = 10`, tob_sotetseg.constant:26, "[derived] 20
+  halved, the 45 -> 22 rule; no Entry source"). Not a disagreement, an UNSOURCED number
+  that is the whole of a played Entry room's damage now: 54-70 of 70-97 taken per
+  _play_sotetseg run, and every one of raid_report's "prayer" MISTAKES on it (10-13 per
+  run, "took N ... through protectfrommelee"). raid_report counts a hit through the
+  right prayer as a mistake; for this boss that is the content's rule (W:11 "up to 45
+  damage (22 if prayed against)"), not a play error.
+- ToB, Nylocas Entry (from seam30 play_tob_nylocas, NOT checked against an Entry source):
+  Vasilias' prayed max through a magic or ranged protection is `^tob_vasilias_prayed_max
+  = 17` (tob_nylocas.constant:1306) in every mode, while her Entry off-prayer max is 24.
+  W:752's "17 if prayed against" is the Normal sentence. If Entry scales it down, this is
+  the number that makes the red _play_nylocas names run out of supplies at Vasilias.
+  Open: find an Entry source before filing it as a bug.

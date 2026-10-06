@@ -529,7 +529,17 @@ function QD.raid._play_tick(st)
             f.moved = math.max(math.abs(v.me.x - f.from.x), math.abs(v.me.z - f.from.z))
         end
     end
-    if v.hp <= 0 or (st.last_me ~= nil and math.abs(v.me.x - st.last_me.x) + math.abs(v.me.z - st.last_me.z) > 20) then
+    -- A jump of more than 20 tiles is a death's respawn, EXCEPT a teleport the
+    -- room makes on purpose that the plan saw coming (raid seam30
+    -- play_tob_sotetseg: Sotetseg's portal moves the runner to the shadow
+    -- realm and back; the plan sets st.teleport_until from the portal
+    -- animation, W:23 "a bright white light").  A plan that never sets it
+    -- (bloat, maiden, nylocas) is judged exactly as before.
+    local jumped = st.last_me ~= nil and math.abs(v.me.x - st.last_me.x) + math.abs(v.me.z - st.last_me.z) > 20
+    if jumped and st.teleport_until ~= nil and v.tick <= st.teleport_until then
+        jumped = false
+    end
+    if v.hp <= 0 or jumped then
         st.end_tick = v.tick
         return "died"
     end
