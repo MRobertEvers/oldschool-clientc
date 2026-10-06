@@ -15,6 +15,10 @@ its farthest row beyond the slot's last tile). A ZERO BAR ALONE IS NOT A KILL (s
 bar is floor(hp x width / max), so a 170-hp Khazard warlord reads 0/30 ALIVE at 1-5 hp; after a zero
 bar the wait keeps polling up to 12 ticks past its deadline for the corpse's release
 (`the corpse grace` in the detail), and a timeout names any zero bar or missing slot it saw.
+An npc that DESPAWNS (an `npc_add` duration running out) also leaves by ABSENCE and reads `ok`:
+an answer `corroborated by ABSENCE` with a high `last hp` is a despawn, not a kill (Spirits of the
+Elid's 50-tick golems, `last hp 29/30`; seam-facts b68-seam1 (d)). Grade the kill by the quest's
+own outcome row after it.
 
 One `await_dead_engaged(<ticks>, attempts)` is enough for a big-hp boss -- no ground-truth re-press
 loop. And it answers on the release, BEFORE the boss's `[ai_queue3]` outcome necessarily lands

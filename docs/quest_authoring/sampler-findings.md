@@ -997,7 +997,8 @@ re-graded (b64 round 2 (a)). Fenkenstrain's round-2 change was checked as a diff
 Phasmatys toll is gone. The test now casts a real Falador Teleport (runes 1/3/1 -> 0), walks 18
 tiles to the furnace, and comes back by `teletab_fenk` (1 -> 0, landing 3550,3530). Magic 48 is
 staged for the tablet's level gate (`teleport_tablet.rs2:34`). The wiki needs no level for this,
-so it is a known content seam carry and not a send-back.
+so it is a known content seam carry and not a send-back. (FIXED in matthew-mbp-m4-b68-seam1: the
+gate is gone, seam-facts b68-seam1 (a).)
 
 (a) STAGED 99 MELEE IS NOT A SEND-BACK WHEN THE MARGIN ROWS SHOW DAMAGE. Wanted! stages 99
 Attack, Strength, Defence and Hitpoints. Its guide names only the enemies ("Black Knight (level
