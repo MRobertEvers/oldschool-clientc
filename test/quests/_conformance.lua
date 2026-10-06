@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 128
+-- @seam-count 129
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 186
-local SEAM_COUNT = 128
+local SEAM_COUNT = 129
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -6221,9 +6221,66 @@ return {
                 "the bound square the hull crossed into")
         end)
 
+        -- b69 (the Red Reef): a heading ONE POINT OFF THE BOW is set, and the
+        -- hull turns to it.  The heading row used to be hunted on a 110px
+        -- ring around the player at whatever yaw the camera held; the helm
+        -- stands astern of the hull's centre, so ring points toward the bow
+        -- named the opposite heading, and the ring's bottom arc ran under
+        -- the chatbox -- with the bow south at yaw 1792, headings 15 and
+        -- 0..5 had no row at all (build/quest_gate/redreef_b69_probe6 rows
+        -- 12-27: "no 'Set heading' row for heading 1 on the ring").  sail_to
+        -- then counted a miss and sailed the old heading onto
+        -- ocean_outcrop_rock09.  The press now looks along the wanted heading
+        -- (QD.sail._press_heading); this row furls, sets bow+1 and bow-1
+        -- through the private _set_heading (the server must HOLD it) and
+        -- waits for the hull's angle to reach each, then sets the sails
+        -- again for the leg home.
+        seam("seam.sail_heading_off_the_bow", function()
+            local state = verb("sail", "state")
+            local sails = verb("sail", "sails")
+            if not state then return missing("sail", "state") end
+            if not sails then return missing("sail", "sails") end
+            local state_result, reading = state()
+            if state_result ~= "ok" or type(reading) ~= "table" or reading.aboard ~= true
+                or reading.at_helm ~= true then
+                return "no_subject", "not at the helm: " .. describe(reading)
+            end
+            local furl_result, furl_detail = sails(false)
+            if furl_result ~= "ok" then
+                return furl_result, "furl: " .. describe(furl_detail)
+            end
+            local bow = math.floor((reading.angle + 64) / 128) % 16
+            local done = {}
+            for _, heading in ipairs({ (bow + 1) % 16, (bow + 15) % 16 }) do
+                local set_result, set_detail = t.sail._set_heading(heading)
+                if set_result ~= "ok" then
+                    return set_result, "bow " .. bow .. ": heading " .. heading .. " not set -- "
+                        .. describe(set_detail)
+                end
+                local turned, after = t.sail._await(function(r)
+                    return r.angle == heading * 128
+                end, 20, "seam.sail_heading_off_the_bow")
+                if turned ~= "ok" then
+                    return "timeout", "bow " .. bow .. ": heading " .. heading .. " set (" .. describe(set_detail)
+                        .. ") but the hull never pointed along it -- " .. t.sail._describe(after)
+                end
+                done[#done + 1] = heading .. " (" .. describe(set_detail) .. ")"
+            end
+            local set_sails, sails_detail = sails(true)
+            if set_sails ~= "ok" then
+                return set_sails, "headings set, then the sails: " .. describe(sails_detail)
+            end
+            return "ok", "bow " .. bow .. ", turned in place to " .. table.concat(done, " then ")
+        end)
+
         stage(function()
             local sail_to = verb("sail", "sail_to")
             local sails = verb("sail", "sails")
+            -- sail_to refuses with the sails furled (a hull that cannot make
+            -- way), and the seam row above may have ended furled.
+            if sails then
+                sails(true)                                    -- setup: sails set
+            end
             if sail_to then
                 sail_to(2793, 3407, 1)                         -- setup: back to the berth
             end

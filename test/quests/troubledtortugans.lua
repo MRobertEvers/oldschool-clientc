@@ -69,7 +69,13 @@ return {
         t.exec("board", t.sail.board, "sailing_gangplank_the_summer_shore")
         t.exec("helm", t.sail.helm, "Helm")
         t.exec("sails", t.sail.sails, true)
-        local out = { {3176,2332,4}, {3000,2335,6}, {2947,2392,6}, {2937,2528,6}, {2975,2545,6}, {2975,2575,5}, {2975,2588,2}, {2972,2598,1} }
+        -- The last leg runs due north (2973,2588 -> 2973,2598), so the hull
+        -- moors nose-in at angle 1024 and the reverse out (sailToGreatConch)
+        -- backs straight off.  The line 2975,2588 -> 2972,2598 bears NNW:
+        -- sail_to (b69: it keeps to the leg's line) moored at angle 896, the
+        -- reverse left the hull at 2973,2598, and the first leg back was
+        -- parked at once (post at 2975..2976,2596..2597).
+        local out = { {3176,2332,4}, {3000,2335,6}, {2947,2392,6}, {2937,2528,6}, {2975,2545,6}, {2975,2575,5}, {2973,2588,2}, {2973,2598,1} }
         for i, p in ipairs(out) do
             local rr = t.sail.sail_to(p[1], p[2], p[3], 1500)
             local _, s2 = t.sail.state()
@@ -249,7 +255,11 @@ return {
         t.exec("pearl.stop_reverse", t.sail._press_sidepanel, 0)
         t.ticks(2)
         t.exec("pearl.sails", t.sail.sails, true)
-        local pearl = { {3178,2340,4}, {3235,2300,6}, {3245,2235,6}, {3335,2226,6}, {3354,2226,3} }
+        -- The last leg closes on the mooring (3354..3356,2217..2218): from
+        -- 3351,2226 at angle 1536 -- where sail_to's due-east line (b69)
+        -- now leaves the hull, the old one left it at 1664 -- no reach pose
+        -- projected the mooring ("Disembark ... in 0 probes").
+        local pearl = { {3178,2340,4}, {3235,2300,6}, {3245,2235,6}, {3335,2226,6}, {3354,2226,3}, {3354,2223,1} }
         for i, p in ipairs(pearl) do
             local rr = t.sail.sail_to(p[1], p[2], p[3], 1500)
             local _, s2 = t.sail.state()
