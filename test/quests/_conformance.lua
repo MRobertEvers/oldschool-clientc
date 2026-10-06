@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 230 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 231 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 230
+-- @verb-count 231
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 221
+-- @seam-count 222
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 230
-local SEAM_COUNT = 221
+local VERB_COUNT = 231
+local SEAM_COUNT = 222
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -15260,6 +15260,38 @@ return {
                 .. "the seam51 blast gaps (19,27) and (16,31) two-way, the corners the maze's shape names)"
         end)
 
+        -- conformance.play_tob_maiden_whole (raid seam54).  ONE seam row, no new
+        -- library verb: the Maiden plan helper QD.raid._play_maiden_in_blood
+        -- (the freezer's blood rule: no barrage is sent while the freezer stands on
+        -- a pool, a trail or a landing splat, or while it steps off one), pure logic.
+        -- PLACE: test/quests/_conformance.lua, right after
+        -- seam("seam.raid_play_sotetseg_gap", ...).  SEAM_COUNT +1 (@seam-count).
+        -- Proved first as build/seam_state/matthew-mbp-m4-raid-b1-seam54/
+        -- maiden_in_blood_probe.lua, run m54blood: PASS 6 of 6; its copy with case 5's
+        -- expectation flipped (maiden_in_blood_probe_neg.lua, m54bloodneg2) FAILS
+        -- "case 5 clear tile, standing (NEGATIVE: flipped): got false want true".
+        seam("seam.raid_play_maiden_in_blood", function()
+            local f = verb("raid", "_play_maiden_in_blood")
+            if not f then return missing("raid", "_play_maiden_in_blood") end
+            local k = 6441 * 100000 + 94
+            local cases = {
+                -- view marks, plan move, want  (camera seam53 survey2: the freezer on its home tile)
+                { { [k] = true }, nil, true, "a pool under the freezer" },
+                { {}, { x = 6442, z = 94, why = "pool" }, true, "stepping off a pool" },
+                { {}, { x = 6444, z = 94, why = "dodge" }, true, "dodging a splat in flight" },
+                { {}, { x = 6441, z = 95, why = "home" }, false, "a walk home, no blood" },
+                { {}, nil, false, "clear tile, standing" },
+                { { [k + 1] = true }, nil, false, "a pool on the next tile only" },
+            }
+            local bad = {}
+            for i, c in ipairs(cases) do
+                local got = f({ me = { x = 6441, z = 94 }, marks = c[1] }, { move = c[2] })
+                if got ~= c[3] then bad[#bad + 1] = string.format("case %d %s: got %s want %s", i, c[4], tostring(got), tostring(c[3])) end
+            end
+            if #bad > 0 then return "fail", "QD.raid._play_maiden_in_blood: " .. table.concat(bad, "; ") end
+            return "ok", "QD.raid._play_maiden_in_blood: 6 of 6 (pool under, stepping off, dodging, home walk, clear, neighbour pool)"
+        end)
+
         -- conformance.play_tob_nylocas_normal (raid seam32).  ONE seam row, no verb.
         -- PLACE: test/quests/_conformance.lua, right after seam("seam.raid_play_nylocas_supplies", ...)
         -- (it ends at about line 12017 on f54d63893).  SEAM_COUNT +1 (@seam-count).
@@ -16278,6 +16310,15 @@ return {
         -- and anything 0..9 (it does NOT strongly separate a roll that keeps the fixed damage: at 99
         -- Defence and Magic 1 such a roll lands ~0.9 of the time). ::god 1 keeps him up through the
         -- pools; `raw` is the hit before ::god (ticklog.lua hit_player).
+        -- RAID SEAM54 CLOSER: the DAMAGE is rolled now (OSRS-Content 081bb7e61a,
+        -- the seam55 ruling: random(max + 1) before the halvings; the Maiden
+        -- infobox's max hit 36, wiki_The_Maiden_of_Sugadinti.wikitext:40-44, and
+        -- Blert's 112 recorded storms, median 12.5 [0-62]).  What the row still
+        -- holds is the ACCURACY verdict: every launch lands a hit row (a 0 is a
+        -- landed hit, not a miss), each raw in 0..9 (the prayed Entry max at
+        -- c 0), and the six are not all one value -- the fixed 9 this row used
+        -- to want is the over-max the ruling retired (all-equal on a 0..9 roll
+        -- is 1e-5 for six storms).
         seam("seam.maiden_blackstorm_always_lands_entry", function()
             local enter = verb("raid", "enter")
             local click_loc = verb("player", "click_loc")
@@ -16328,11 +16369,13 @@ return {
             local from_tick = 0
             if tick_verb then local _, t0 = tick_verb() from_tick = tonumber(t0) or 0 end
             local launches, landed, nines, parts = 0, 0, 0, {}
+            local values = {}
             for _ = 1, 24 do
                 settle(5)
                 setup_cheat("::setlevel prayer 99")
                 pray("protectfrommagic", true)
                 launches, landed, nines, parts = 0, 0, 0, {}
+                values = {}
                 local _, anims = log_rows({ kind = "npc_anim", slot = slot })
                 local _, hits = log_rows({ kind = "hit_player" })
                 local last = 0
@@ -16347,7 +16390,8 @@ return {
                         if got ~= nil then
                             landed = landed + 1
                             local raw = got.raw or got.damage
-                            if raw == 9 then nines = nines + 1 end
+                            if type(raw) == "number" and raw >= 0 and raw <= 9 then nines = nines + 1 end
+                            if type(raw) == "number" then values[raw] = true end
                             parts[#parts + 1] = "L" .. a.tick .. "/H" .. got.tick .. "=" .. tostring(raw)
                         else
                             parts[#parts + 1] = "L" .. a.tick .. "/none"
@@ -16357,9 +16401,13 @@ return {
                 if launches >= 6 then break end
             end
             teardown()
-            local detail = launches .. " blackstorms launched, " .. landed .. " landed, " .. nines .. " raw 9 (Entry, Protect from Magic, c 0, Defence 99): " .. table.concat(parts, " ")
-            if launches >= 6 and landed == launches and nines == launches then return "ok", detail end
-            return "refused", detail .. " (want >= 6, every one landed at raw 9: wiki Strategies:590 'always lands as a successful hit')"
+            local distinct = 0
+            for _ in pairs(values) do distinct = distinct + 1 end
+            local detail = launches .. " blackstorms launched, " .. landed .. " landed, " .. nines .. " raw in 0..9, "
+                .. distinct .. " distinct (Entry, Protect from Magic, c 0, Defence 99): " .. table.concat(parts, " ")
+            if launches >= 6 and landed == launches and nines == launches and distinct >= 2 then return "ok", detail end
+            return "refused", detail .. " (want >= 6, every one landed, raw rolled in 0..9 with more than one value:"
+                .. " wiki Strategies:590 'always lands as a successful hit'; the max is the infobox's, the damage rolled)"
         end)
 
 -- seam7 tob_bloat_presentation: one seam row, no verb added or changed.
@@ -21481,6 +21529,39 @@ return {
             end
             if not (w2.amulet_of_rancour and w2.radiant_oathplate_chest and not w2.lotr_crystalshard_necklace_upgrade) then
                 return "refused", text .. " -- want ::tobkit's rancour and oathplate"
+            end
+            return "ok", text
+        end)
+
+        -- raid seam54 (the orchestrator's ui.style, ab1c3e602): t.ui.style(name)
+        -- picks a combat style by the NAME its button shows, never by a slot
+        -- number.  Every room harness used to press slot 1 for every seat, so the
+        -- scythe seats swung "Chop", which this content makes stab
+        -- (CONTENT_BUGS seam52).  The subject is the scythe ::maxmelee left worn
+        -- in the row above.  Three asks: "Chop" must land on slot 1 and "Reap" on
+        -- slot 0, each read back from varp43_com_mode by the verb itself, and
+        -- "Rapid" (a bow's name, on none of the scythe's buttons) must answer
+        -- no_style -- a verb that pressed a fixed slot, or answered ok on a name
+        -- the screen does not show, is hollow.  Ends on Reap and the backpack tab.
+        step("ui.style", function()
+            local fn = verb("ui", "style")
+            local tab = verb("ui", "tab")
+            if not fn then return missing("ui", "style") end
+            if not tab then return missing("ui", "tab") end
+            local cr, cd, cs = fn("Chop")
+            local rr, rd, rs = fn("Reap")
+            local nr, nd = fn("Rapid")
+            tab(INVENTORY_INTERFACE)
+            local text = "Chop " .. tostring(cr) .. " slot " .. tostring(cs) .. "; Reap " .. tostring(rr)
+                .. " slot " .. tostring(rs) .. "; Rapid " .. tostring(nr) .. " (" .. tostring(rd) .. ")"
+            if cr ~= "ok" or rr ~= "ok" then
+                return (rr ~= "ok") and rr or cr, text .. " / " .. tostring(cd) .. " / " .. tostring(rd)
+            end
+            if cs ~= 1 or rs ~= 0 then
+                return "refused", text .. " -- want the scythe's Chop on slot 1 and Reap on slot 0"
+            end
+            if nr ~= "no_style" then
+                return "refused", text .. " -- want no_style for a name no button shows: " .. tostring(nd)
             end
             return "ok", text
         end)

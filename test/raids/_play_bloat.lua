@@ -16,8 +16,17 @@ local size = (QD_PARTY and QD_PARTY.size) or 1
 -- tob_bloat_normal.lua's party kit: ::maxmelee (the scythe of vitur, wiki
 -- "Recommended equipment"), anglerfish ("make sure that you eat your angler",
 -- transcripts/yt_KF9y2GYTJ-A.md:675), restores, brews, a super combat
+-- raid seam54 play_tob_bloat_on_tobkit: ::tobkitsalve, the kit the recorded
+-- raiders WEAR at Bloat (seam52 kit.melee_damage_per_swing.md: Blert
+-- equipmentDeltas of the 90 Normal trio raiders -- radiant oathplate body and
+-- legs, salve amulet(ei) on 74 of 90, Bloat is undead; cheat_max_gear.rs2
+-- ::tobkitsalve runs ::maxmelee first, so the scythe, helm, cape, gloves,
+-- boots and ring are unchanged).  41.9 a swing measured (wiki 42.6, Reap)
+-- against ::maxmelee's 36-39: seam51's two red names dealt 1373-1399 of
+-- 1500 in d1+d2 and needed a third down (room 202 against the cap 195).
+-- The scythe stays on style slot 0 (Reap): slot 1 is STAB in this cache.
 local kit = {
-    "::clearinv", "::maxmelee", "::setlevel prayer 99",
+    "::clearinv", "::tobkitsalve", "::setlevel prayer 99",
     "::give anglerfish 14", "::give br_4dose2restore 2", "::give 4dose2combat 1",
     "::give br_4dosepotionofsaradomin 4",
 }
@@ -278,16 +287,65 @@ return {
         end
         t.check("tech.hide_behind_tank", behind_ticks > 0 and behind_flies == 0,
             "Bloat was up on " .. walk_total_ticks .. " ticks and a fly projectile flew on " .. #fly_list .. " of them; on the " .. behind_ticks .. " walking ticks the player stood directly behind the tank " .. behind_flies .. " flies flew" .. (size > 1 and " at the player's own tile (a party: flies fly at every raider Bloat sees and spread, W:673)" or ""))
-        local on_my_tile, stayed = 0, 0
-        for i = 1, #shadows do
-            local row = shadows[i]
-            if (pxf[row.tick] == row.x and pzf[row.tick] == row.z) or (pxf[row.tick - 1] == row.x and pzf[row.tick - 1] == row.z) then
-                on_my_tile = on_my_tile + 1
-                if pxf[row.tick + 2] == row.x and pzf[row.tick + 2] == row.z then stayed = stayed + 1 end
+        -- raid seam54 play_tob_bloat_on_tobkit: in a party the row reads EVERY
+        -- raider's own tile (player_tile rows carry the pid; the leader's log
+        -- has all three), each raider held to the same rule (off within two
+        -- ticks for at least half the shadows that fell on it).  With the
+        -- recorded kit the room is two downs (138-148 ticks), and on
+        -- svaplaybloat no shadow fell on the leader's own tile at all: the row
+        -- read "0 of 0" as a failed technique when it was no evidence, while
+        -- the same plan steps every raider.  Solo: the leader alone, unchanged.
+        local tiles_by = {}
+        for i = 1, #player_tiles do
+            local row = player_tiles[i]
+            local key = (size > 1 and row.pid ~= nil) and tostring(row.pid) or "me"
+            if size == 1 and not mine(row) then key = nil end
+            if key ~= nil then
+                if tiles_by[key] == nil then tiles_by[key] = {} end
+                tiles_by[key][row.tick] = row
             end
         end
-        t.check("tech.step_off_shadow", on_my_tile > 0 and (on_my_tile - stayed) * 2 >= on_my_tile,
-            on_my_tile .. " falling-flesh shadows appeared on the player's own tile, the player was off it two ticks later for " .. (on_my_tile - stayed) .. " of them, " .. #hand_hits .. " hand hits landed in all")
+        local on_my_tile, stayed, every_raider_ok, per_raider = 0, 0, true, {}
+        for key, at in pairs(tiles_by) do
+            local fx, fz, lx, lz = {}, {}, nil, nil
+            for tk = 0, end_tick + 40 do
+                if at[tk] ~= nil then lx, lz = at[tk].x, at[tk].z end
+                fx[tk], fz[tk] = lx, lz
+            end
+            local on, st = 0, 0
+            for i = 1, #shadows do
+                local row = shadows[i]
+                if (fx[row.tick] == row.x and fz[row.tick] == row.z) or (fx[row.tick - 1] == row.x and fz[row.tick - 1] == row.z) then
+                    on = on + 1
+                    if fx[row.tick + 2] == row.x and fz[row.tick + 2] == row.z then st = st + 1 end
+                end
+            end
+            if on > 0 and (on - st) * 2 < on then every_raider_ok = false end
+            on_my_tile, stayed = on_my_tile + on, stayed + st
+            per_raider[#per_raider + 1] = (key == "me" and "" or "pid" .. key .. " ") .. (on - st) .. " of " .. on
+        end
+        table.sort(per_raider)
+        -- The hands fall on random tiles, not at a raider (tob_bloat.rs2
+        -- ~tob_bloat_drop_hand: sixteen of the room's 220 tiles a volley), so a
+        -- short room can drop none on any raider: svaplaybloat, 94 shadows in a
+        -- 138-tick room, 0 on a raider's tile.  Then the row has no step to
+        -- judge and says so; what it still asserts is the outcome -- no hand
+        -- landed on ANY raider (every pid's hit_player row is in this log).
+        local party_hand_hits = 0
+        for i = 1, #player_hits do
+            local row = player_hits[i]
+            local in_down = false
+            for k = 1, #downs do
+                if row.tick > downs[k] and row.tick < downs[k] + 33 then in_down = true end
+            end
+            if splat_ticks[row.tick] and row.damage >= 15 and not in_down then party_hand_hits = party_hand_hits + 1 end
+        end
+        local shadow_ok = every_raider_ok
+        if on_my_tile == 0 then shadow_ok = size > 1 and party_hand_hits == 0 end
+        t.check("tech.step_off_shadow", shadow_ok,
+            on_my_tile .. " falling-flesh shadows appeared on a raider's own tile, the raider was off it two ticks later for " .. (on_my_tile - stayed) .. " of them (" .. table.concat(per_raider, ", ") .. ")"
+            .. (on_my_tile == 0 and ("; no step to judge: " .. #shadows .. " shadows in the room, none on a raider") or "")
+            .. "; hand hits: " .. #hand_hits .. " on the leader, " .. party_hand_hits .. " on the party")
         -- NORMAL (raid seam32 play_tob_bloat_normal): the Entry rows above
         -- assert Entry's numbers and Entry's stay-and-flinch; Normal leaves.
         -- "Unless the boss is below 3% health, it is recommended to run

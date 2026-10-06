@@ -83,7 +83,16 @@ else
     -- run in (Blert: TWISTED_BOW in dps1|100 19/24 rooms, dps2|100 22/24,
     -- one attack each; every real raider's first attack at tick 5-6 from
     -- 8 tiles out), the scythe carried for the rest
-    local more = { "::maxmelee", "::give twisted_bow", "::wield twisted_bow",
+    -- raid seam54 play_tob_maiden_whole: THE RECORDED SET.  The 24 reference
+    -- streams' equipmentDeltas per slot (build/blert_maiden/<uuid>.json, the
+    -- uuids of reference/maiden_normal_3.json): both dps wear sanguine torva
+    -- helm (28254, 18 / 20 rooms), RADIANT OATHPLATE chest and legs (30779 /
+    -- 30781, 16 / 13 rooms), ferocious gloves (24 / 24), avernic treads,
+    -- ultor ring, rancour -- the melee set ::tobkit wears (cheat_max_gear.rs2,
+    -- raid seam52), not ::maxmelee's torva body and legs.  They take her
+    -- storms in it on Protect from Magic (prayerSet bit 16 on 68 / 60 percent
+    -- of their ticks, Piety 26 / 20).
+    local more = { "::tobkit", "::give twisted_bow", "::wield twisted_bow",
         "::give dragon_arrow 1000", "::wield dragon_arrow", "::give dragon_warhammer",
         "::give br_4dosepotionofsaradomin 8", "::give br_4dose2restore 5", "::give anglerfish 10",
         "::give 4dose2combat 2" }
@@ -99,14 +108,22 @@ local function party_run(t)
     -- speed=6}}, wiki_Twisted_bow.wikitext:51; the blowpipe's 3 becomes 2,
     -- wiki_Toxic_blowpipe.wikitext:108 "When using the rapid attack style");
     -- the press is _play_nylocas.lua's (combat tab style slot 1, varp43 = 1)
+    -- raid seam54: the scythe seats keep style slot 0, Reap (slash): slot 1 is
+    -- "Chop", which this content makes STAB (combat.dbrow:72; the wiki's
+    -- Module:CombatStyles :547-549 has it Slash; CONTENT_BUGS.md seam52,
+    -- open), and the scythe's stab bonus is 70 to its slash 125 against her
+    -- 0 / 0 (all.npc tob_maiden_100).  The slot carries across the weapon
+    -- swap (varp43), so the bow's rapid was the scythe's Chop all fight.
+    -- The freezer keeps the bow's rapid.
+    local style_slot = (role == 2) and 1 or 0
     t.ui.tab("combat")
     t.ticks(1)
-    local style_widget_result, style_widget = t.ui.widget("combat_interface:style_slot_1")
+    local style_widget_result, style_widget = t.ui.widget("combat_interface:style_slot_" .. style_slot)
     local style_press_result = t.ui.invoke(style_widget, 1)
     t.ticks(2)
     local _, style_read = t.var.varp("varp43_com_mode")
-    t.check("setup.rapid", style_widget_result == "ok" and style_press_result == "ok" and style_read == 1,
-        "p" .. role .. " style slot 1: widget " .. tostring(style_widget_result) .. ", press " .. tostring(style_press_result) .. ", varp43_com_mode " .. tostring(style_read))
+    t.check(role == 2 and "setup.rapid" or "setup.reap", style_widget_result == "ok" and style_press_result == "ok" and style_read == style_slot,
+        "p" .. role .. " style slot " .. style_slot .. ": widget " .. tostring(style_widget_result) .. ", press " .. tostring(style_press_result) .. ", varp43_com_mode " .. tostring(style_read))
     local er, ed = t.raid.enter("tob", "maiden", { mode = mode })
     t.check("play.enter", er == "ok", "p" .. role .. " " .. tostring(ed))
     if role ~= 2 then

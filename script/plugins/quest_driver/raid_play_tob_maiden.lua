@@ -213,6 +213,9 @@ QD.raid._play_plan("tob_maiden", {
     -- doses (the seam's choice; seam32's 4 anglerfish, and since seam33 a
     -- dose heals 16 to a bite's 22, so eight)
     tank_out = 8,
+    -- raid seam54: super combat doses a scythe seat keeps past this room (the
+    -- re-boost below never drinks them): one potion, the next room's door dose
+    reboost_keep = 4,
     decide = "_play_maiden_decide",
 })
 
@@ -513,6 +516,22 @@ end
 --   off), then her.  The north ranger (seat 3) shoots the blood spawns when
 --   no nylocas is up (W:598-600 "Kill or avoid"); the tank stays on her.
 -- Returns the add to shoot ({row, symbol}) or nil.
+-- raid seam54 play_tob_maiden_whole THE FREEZER'S BLOOD RULE: never a second
+-- tick on a blood tile while holding a cast.  The cast is a click on a crab,
+-- and a click replaces the walk, so a barrage sent while the freezer is on a
+-- pool, a trail or a landing splat (v.marks: the pools, the trails and the
+-- splats in flight) or while it is stepping off one keeps it standing there
+-- (camera seam53 survey2: the freezer stood 3-4 ticks in her blood at its
+-- home tile, 6440-6441,157-161, and died from 90+ on 3 of 3 names).  So the
+-- step goes first (the decide's "pool" / "dodge" walk, the shortest safe
+-- tile) and the cast waits for the tick it arrives; the target and its
+-- order are kept.
+function QD.raid._play_maiden_in_blood(v, m)
+    local me = v.me
+    if me ~= nil and v.marks ~= nil and v.marks[me.x * 100000 + me.z] then return true end
+    return m.move ~= nil and (m.move.why == "pool" or m.move.why == "dodge")
+end
+
 function QD.raid._play_maiden_party_wave(st, v, m, R, mg, moving, gap_to_her, cheb)
     local P = st.plan
     local me = v.me
@@ -680,7 +699,8 @@ function QD.raid._play_maiden_party_wave(st, v, m, R, mg, moving, gap_to_her, ch
             QD.raid._play_maiden_block(st, v, "ranged set", P.ranged_set)
             m.fz = nil
             st.engaged = false
-        elseif m.fz == "magic" and v.tick - m.last_cast >= P.cast_every and (not moving or walkers_up()) then
+        elseif m.fz == "magic" and v.tick - m.last_cast >= P.cast_every and (not moving or walkers_up())
+            and not QD.raid._play_maiden_in_blood(v, m) then
             -- a walking nylocas the barrage can still stop: the one with the
             -- most walking nylocas in its 3x3 (Ice Barrage's area: "the other
             -- spawns can all be frozen on top of each other", W:637), nearest
@@ -1436,8 +1456,22 @@ function QD.raid._play_maiden_decide(st, v)
         -- The rangers stay on HER through the 30 percent wave (Blert, 26 trio
         -- rooms: 0 crabs killed at 30 percent, she dies about 12 ticks after
         -- that spawn); the freezer still barrages.
+        -- raid seam54 play_tob_maiden_whole: one swing at the walker that is
+        -- arriving BESIDE the seat.  A Matomenos that reaches her heals her
+        -- by twice its current hitpoints (W:593; tob_maiden.rs2 ~1411), and
+        -- ours arrived whole: seam54 survey1, 2-5 leaks at 30 percent healed
+        -- her 300-478 (reference outcome.phase.30.boss_heal 49 [0-762]) and
+        -- the phase ran 76-114 ticks against 48 [34-75].  The reference's dps
+        -- spend about one attack a seat on the crabs in that phase
+        -- (role.dps1.phase.30.attacks_add 1 [0-8], dps2 1 [0-3]) and stay on
+        -- her edge (dist_boss 1): so the seat keeps an add only when it is a
+        -- walker two tiles or less from her and from the seat, never a walk
+        -- across the room.
         if add ~= nil and not R.freezer and st.boss_symbol ~= nil and st.boss_symbol:find("_30", 1, true) ~= nil then
-            add = nil
+            local c = add.row
+            if c == nil or c.x == nil or gap_to_her(c.x, c.z) > 2 or cheb(c.x, c.z, me.x, me.z) > 2 then
+                add = nil
+            end
         end
         -- raid seam33 THE HALT: a weapon swap does not end an attack, so the
         -- freezer that put the wand on while its bow was on her walked to her
@@ -1701,6 +1735,17 @@ function QD.raid._play_maiden_decide(st, v)
                 local cr, n = QD.inv.count(dose)
                 if combat == nil and cr == "ok" and (tonumber(n) or 0) > 0 then combat = dose end
             end
+            -- raid seam54: a reserve of `reboost_keep` doses is never drunk
+            -- here (the reference's dps drink nothing in the room:
+            -- role.dps1.phase.*.drinks 0 [0-0], dps2 0 [0-0]; camera seam53
+            -- survey1: the re-boost drank all four of the relay's doses at
+            -- Maiden and bloat.potion FAILed on seats 1 and 3)
+            local doses = 0
+            for k, dose in ipairs({ "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" }) do
+                local cr, n = QD.inv.count(dose)
+                if cr == "ok" then doses = doses + k * (tonumber(n) or 0) end
+            end
+            if doses <= (P.reboost_keep or 0) then combat = nil end
             if (at.level < 108 or sg.level < 108) and combat ~= nil then
                 intent.drink = combat
                 m.reboosts = (m.reboosts or 0) + 1

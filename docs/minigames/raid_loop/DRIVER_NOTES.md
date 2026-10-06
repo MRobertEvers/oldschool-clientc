@@ -7344,3 +7344,58 @@ The first supply chest stands after Bloat and is a points store
 cost a dps seat 35-56 drinks and 6-8 eats in seam53; the trio pages' kit
 for the whole raid is 8 brews, 4 restores and 3 anglers (10Boot 0:04:23).
 The relay stays supply-bound until a room costs about that.
+
+## Bloat, Normal trio: the kit closed the gap (seam54)
+
+The seam51 plan did not change. With ::tobkitsalve (radiant oathplate plus
+salve amulet(ei), the kit the recorded raiders wear) every survey name kills
+in down 2. d1+d2 = 1500, and rooms run 133-148 ticks against the Blert median
+of 137 and the cap of 195. On ::maxmelee the same plan dealt 1373-1399 in two
+downs and needed a third (room 202).
+
+## Falling flesh is random tiles, so a step row reads every raider (seam54)
+
+Bloat's hands land on random tiles (tob_bloat.rs2 ~tob_bloat_drop_hand, 16
+of the room's 220 tiles a volley). They are not aimed at a raider, so a
+two-down room can drop none on anyone: 94 shadows and 0 on a raider in three
+of five names. In a party, tech.step_off_shadow in _play_bloat.lua reads every
+raider's player_tile rows by pid. When no shadow fell on any raider it says
+"no step to judge" and asserts only that 0 hand hits landed on the party. A
+technique row that needs a hazard to reach someone has to say so rather than
+fail.
+
+## Maiden, the recorded gear (seam54)
+
+From the 24 reference streams' equipmentDeltas per slot, the dps wear sanguine
+torva helm 28254, radiant oathplate 30779/30781, ferocious gloves, avernic
+treads, ultor and rancour (::tobkit). They pray Protect from Magic on 60-68
+percent of their ticks. Their storm loss does not come from the armour.
+
+## A combat style slot carries across a weapon swap: use t.ui.style (seam54)
+
+varp43 keeps the slot, not the style. A harness that presses the bow's Rapid
+(slot 1) leaves the scythe on Chop, which this content makes stab
+(combat.dbrow:72, CONTENT_BUGS seam52). t.ui.style(name) reads the four button
+names off the combat tab, presses the one that matches and checks varp43
+(conformance row ui.style: scythe Chop slot 1, Reap slot 0, "Rapid" no_style).
+Pick styles by name. _play_maiden.lua still presses style_slot_<n> directly.
+
+## The freezer's blood rule: a cast cancels the step (seam54)
+
+A spell click replaces a walk. A barrage sent while the freezer stands on a
+pool, trail or landing splat, or while it is stepping off one, keeps the
+caster standing in it (camera seam53: 3-4 ticks in blood, dead from 90+).
+QD.raid._play_maiden_in_blood holds the cast until the step arrives (row
+seam.raid_play_maiden_in_blood). With it the freezer took 0 HP on all five
+survey names.
+
+## Maiden's blackstorm is rolled now (content 081bb7e61a)
+
+Through seam54's surveys every storm landed at exactly its max, floor(36.5 +
+3.5c), halved for Entry and for the prayer. The Blert reference's per-hit
+median is 12.5 [0-62] (n=112). The seam55 ruling rolls the damage
+(random(max + 1)) but keeps the "always lands" accuracy verdict, and
+seam.maiden_blackstorm_always_lands_entry now asserts exactly that: every
+launch lands, raw within 0..9 at c 0, and more than one value. The seam54
+Maiden numbers (hp_lost.dps 198-543 against 60-106, 5-8 eats a phase) were
+measured on the fixed storm, so they predate the ruling.
