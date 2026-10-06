@@ -138,6 +138,132 @@ local function glider_to(t, row_name, destination)
     })
 end
 
+-- Door rule (owner 2026-10-03): every closed space is crossed on foot, in and out, on every visit.
+--   * Lumbridge, Karamja and Ape Atoll -> Kandarin: a real Camelot Teleport each (Quest Helper
+--     MonkeyMadnessI.java:339 escapeTeleport "Any teleport to leave Ape Atoll"; the members' wall and
+--     the sea are between them on foot), then the overland hop Camelot -> south of the Stronghold gate
+--     (reach.py 2757,3478 -> 2461,3379 closed-doors len 411; the zoo -> the gate len 247);
+--   * the Stronghold's gnome_areagate 2459,3383 (gnome_gate.rs2) is pressed on every entry; the Grand
+--     Tree's ground floor is a pocket behind the walk-through treedoorl 2464,3492: cross_gate in;
+--   * the tree's floors are climbed by their ladders (2466,3495 on every floor, ladders.loc); Daero's
+--     bar is on the first floor (m38_54.spawn mm_daero 2484,3486,1), walked to from the ladder;
+--   * the Karamja shipyard is a fenced yard behind grandtree_fencegate_l 2945,3041
+--     (grandtree_shipyard_gate.rs2): pressed in and out; Karamja -> the tree by the Gandius glider
+--     (gnome_glider.rs2 @gnome_pilot_glider, ^gandius -> ^ta_quir_priw 2465,3501,3);
+--   * the Ape Atoll dungeon (m42_142/m43_142): the ladder's open part is one component; Zooknock's
+--     corner is reached over the two double spring traps (mm_double_springtrap_trigger 2693,9109 and
+--     2743,9146, ape_atoll_dungeon.rs2: "maybe you can find a way to cross over it"), each searched
+--     and walked over, the guide's line (MonkeyMadnessI.java:623 zooknockDungeonPath) kept off the
+--     floor spikes and spear traps.
+
+-- The Grand Tree's ladders stand on 2466,3495 on every floor and move the player one plane on the
+-- tile it stands on (ladders.loc climb_up_ladder / climb_spiral_middle_ladder / climb_down_ladder).
+local TREE_LADDERS_UP = {
+    { "F0ToF1", "grandtree_ladderbottom", 1, 0 },
+    { "F1ToF2", "grandtree_laddermiddle_bottom", 2, 1 },
+    { "F2ToF3", "grandtree_laddermiddle_top", 2, 2 },
+}
+local TREE_LADDERS_DOWN = {
+    { "F3ToF2", "grandtree_laddertop", 1, 3 },
+    { "F2ToF1", "grandtree_laddermiddle_top", 3, 2 },
+    { "F1ToF0", "grandtree_laddermiddle_bottom", 3, 1 },
+}
+
+local function climb_tree(t, pfx, ladders, floors)
+    for i = 1, floors do
+        local l = ladders[i]
+        local up = ladders == TREE_LADDERS_UP
+        t.exec(pfx .. ".climb" .. l[1], t.player.climb, { loc = l[2], op = l[3], op_name = up and "Climb-up" or "Climb-down",
+            at = { 2466, 3495, l[4] }, src = { 2466, 3494 }, dest = { 2466, 3494, up and (l[4] + 1) or (l[4] - 1) } })
+    end
+end
+
+local function camelot_teleport(t, name)
+    t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = name,
+        runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot, magic_spells.dbrow magic_spell_teleport_camelot" })
+end
+
+-- Camelot (or the zoo) -> south of the Stronghold gate, then through it. The gate's press from the
+-- south opens Femi's boxes instead while %varp5856_femi_help = 0 and she stands within 6 tiles
+-- (gnome_gate.rs2:31-33 -> femi.rs2 @grandtree_femi_boxes): decline (femi_help 1), then press again.
+local function stronghold_in(t, pfx)
+    t.exec("goto-" .. pfx .. ".strongholdGate", t.player.goto_tile, 2461, 3379, 0)
+    local femi_result, femi_help = t.var.server("varp5856_femi_help")
+    if femi_result == "ok" and femi_help == 0 then
+        t.exec(pfx .. ".gateApproach", t.player.walk_route, { { 2461, 3382 } })
+        local press_result, press_detail = t.player.click_loc("gnome_areagate", 1, { at = { 2459, 3383 } })
+        t.await({ level = function()
+            if t.chat.kind() ~= "none" then
+                return true
+            end
+            local r, tl = t.world.tile()
+            return r == "ok" and tl.z >= 3385
+        end, note = "Femi's boxes page or the gate's walk-through" }, 12)
+        if t.chat.kind() == "none" then
+            local r, tl = t.world.tile()
+            t.check(pfx .. ".gateIn", r == "ok" and tl.level == 0 and tl.z >= 3385,
+                "click_loc gnome_areagate -> " .. tostring(press_result) .. " " .. tostring(press_detail)
+                    .. "; no Femi page; after the press " .. tostring(tl and tl.x) .. "," .. tostring(tl and tl.z)
+                    .. " (want through the gate from 2461,3382: z >= 3385)")
+            return
+        end
+        t.exec(pfx .. ".femiBoxes-dialog", t.chat.play, {
+            "npc:Hello there", "player:Hi!", "npc:Could you help me lift", "options",
+            "choose:Sorry, I'm a bit busy.", "player:Sorry, I'm a bit busy", "npc:Oh, OK" })
+        t.ticks(2)
+    end
+    t.exec(pfx .. ".gateIn", t.player.cross_gate, { loc = "gnome_areagate", at = { 2459, 3383, 0 }, near = { 2461, 3382 },
+        far_ok = function(tile) return tile.z >= 3385 end, far_desc = "inside the Stronghold, z >= 3385" })
+end
+
+-- inside the Stronghold: to the tree door (open ground, reach.py 2461,3386 -> 2465,3489 closed-doors
+-- len 111) and through it (gnome_gate.rs2 @open_tree_door: x 2465, force-moved two tiles through z 3492)
+local function into_tree(t, pfx)
+    t.exec("goto-" .. pfx .. ".treeDoor", t.player.goto_tile, 2465, 3489, 0)
+    t.exec(pfx .. ".treeDoorIn", t.player.cross_gate, { loc = "treedoorl", at = { 2464, 3492, 0 }, near = { 2465, 3491 },
+        far_ok = function(tile) return tile.z >= 3493 and tile.z <= 3498 and tile.x >= 2463 and tile.x <= 2468 end,
+        far_desc = "inside the Grand Tree's ground floor, z 3493..3498" })
+end
+
+-- ground floor -> the first floor's ladder tile -> Daero at the Blurberry bar (reach.py 2466,3494,1 ->
+-- 2482,3486,1 len 26 over the trunk's open doorway treewall1_lvl2door 2468,3495, blockwalk=0, no script)
+local function up_to_daero(t, pfx)
+    climb_tree(t, pfx, TREE_LADDERS_UP, 1)
+    t.exec(pfx .. ".walkToDaero", t.player.walk_route, { { 2473, 3495 }, { 2474, 3488 }, { 2480, 3486 }, { 2482, 3486 } }, { level = 1 })
+end
+
+-- "Teleport out to prepare" (Quest Helper leaveToPrepareFor*): Camelot, the Stronghold, the tree, Daero
+local function teleport_to_daero(t, step)
+    camelot_teleport(t, step)
+    stronghold_in(t, step)
+    into_tree(t, step)
+    up_to_daero(t, step)
+end
+
+-- One double spring trap (ape_atoll_dungeon.rs2 [oploc1,mm_double_springtrap_trigger]: a search only
+-- says it cannot be disarmed; [timer,mm_springtrap] hurts whoever stands on it): searched, then walked
+-- over, graded on the far tile.
+local function cross_springtrap(t, name, trap, dest)
+    t.exec(name .. ".search", t.player.click_loc, "mm_double_springtrap_trigger", 1, { at = trap })
+    t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the trap's mesbox" }, 10)
+    t.exec(name .. ".search-mesbox", t.chat.play, { "mesbox:It's a trap!" })
+    t.ticks(1)
+    t.exec(name .. ".walkOver", t.player.walk_route, { dest })
+end
+
+-- The Ape Atoll dungeon from its ladder (2764,9103) to Zooknock: the ladder's component runs to the
+-- first trap (reach.py 2764,9103 -> 2693,9108 closed-doors len 460); past it the guide's line is
+-- walked (scratch BFS over reach.Area with the mm_floorspikes / mm_speartrap / trap tiles blocked).
+local function walk_to_zooknock(t, step)
+    t.exec("goto-" .. step, t.player.goto_tile, 2693, 9108, 0)
+    cross_springtrap(t, step .. ".trap1", { 2693, 9109 }, { 2693, 9110 })
+    t.exec(step .. ".walkNorth", t.player.walk_route, { { 2693, 9118 }, { 2695, 9124 }, { 2696, 9131 }, { 2696, 9139 },
+        { 2696, 9147 }, { 2704, 9147 }, { 2712, 9147 }, { 2720, 9147 }, { 2727, 9146 }, { 2735, 9146 }, { 2742, 9146 } })
+    cross_springtrap(t, step .. ".trap2", { 2743, 9146 }, { 2744, 9146 })
+    t.exec(step .. ".walkEast", t.player.walk_route, { { 2750, 9144 }, { 2758, 9144 }, { 2766, 9144 }, { 2774, 9144 },
+        { 2780, 9142 }, { 2788, 9142 }, { 2794, 9140 }, { 2799, 9139 }, { 2804, 9141 } })
+end
+
 return {
     id = "mm",
     max_frames = 150000, -- the full file passes 2000 server ticks before leg 6 (relay run budget)
@@ -151,7 +277,7 @@ return {
         "::setlevel hitpoints 99", -- the guide recommends combat stats for Ape Atoll; survives the Crash Island spiders, the ravine archers and the jail punches on the temple run (leg 4)
         "::setlevel defence 70",
         "::setlevel prayer 52", -- guide (enterValley): "going north WITH PROTECT FROM RANGED ON" needs level 40 Protect from Missiles
-        "::give lobster 10", -- guide (enterValleyForAmuletMake): "Food, Antipoison" for the ravine archers and the temple spikes; 10 with the rune armour below (legs 1-5 ate 2-3 armoured; 18 left no room for leg 5's bananas or leg 6's zombie bones)
+        "::give lobster 12", -- guide (enterValleyForAmuletMake): "Food, Antipoison" for the ravine archers and the temple spikes; 12 with the rune armour below (b69: legs 2-5 ate 4-10 of them on the b69 engine, and the Jungle Demon ate all 10 left of a 10-lobster setup on account mm; 12 still leaves room, with the two rune stacks, for leg 5's bananas, leg 6's zombie bones and leg 7's monkey -- the peak is 27 slots on account mm_b69b)
         "::give 4doseprayerrestore 2", -- guide (enterValleyForAmuletMake): "Prayer potions"; the ravine prayer drains the setup points before the temple
         "::setlevel attack 90", -- guide (killNinja, killGorilla, goDownToZombie): "Combat gear" for the archers, the gorilla and the zombie monkeys (leg 5)
         "::setlevel strength 90",
@@ -163,6 +289,15 @@ return {
         "::give rune_full_helm 1", "::wield rune_full_helm", "::give rune_chainbody 1", "::wield rune_chainbody",
         "::give rune_platelegs 1", "::wield rune_platelegs", "::give rune_kiteshield 1", "::wield rune_kiteshield",
         "::setvar varp111_treequest 9", -- guide requirement: Tree Gnome Village (no ::complete row for it)
+        -- six Camelot Teleports (magic_spells.dbrow magic_spell_teleport_camelot: level 45, 5 air + 1 law
+        -- each): Lumbridge -> Kandarin past the members' wall, then Quest Helper's escapeTeleport ("Any
+        -- teleport to leave Ape Atoll", MonkeyMadnessI.java:339) for leaveToPrepareForBar /
+        -- leaveToPrepareForAmulet / leaveToPrepareForTalismanRun / leaveDungeonWithGreeGree and the trip
+        -- home to Narnode. Magic 45 leaves the combat level where the melee stats put it (no quest_mm
+        -- script reads the combat level or Magic).
+        "::setlevel magic 45",
+        "::give airrune 30",
+        "::give lawrune 6",
     },
     bind = {
         varp = "varp365_mm_main",
@@ -239,7 +374,11 @@ return {
             -- LEG 1 BEGIN: talkToNarnode
             t.expect("start.stage", t.quest.expect_stage("monkeymadness_not_started"))
 
-            t.exec("goto-talkToNarnode", t.player.goto_tile, 2465, 3496, 0)
+            -- Lumbridge -> Kandarin: on foot only through a members' gate, so a real teleport, then the
+            -- Stronghold gate and the tree door to the king on the ground floor
+            camelot_teleport(t, "talkToNarnode.camelotTeleport")
+            stronghold_in(t, "talkToNarnode")
+            into_tree(t, "talkToNarnode")
             t.exec("talkToNarnode", t.player.talk_to, "grandtree_narnode", 1)
             t.exec("talkToNarnode-dialog", t.chat.play, {
                 "npc:Adventurer! It is good to see you again.",
@@ -269,8 +408,9 @@ return {
             t.expect("quest.stage.monkeymadness_started", t.quest.expect_stage("monkeymadness_started"))
             t.exec("talkToNarnode-seal", t.inv.await, "mm_gnome_royal_seal", 1, 5)
 
-            -- flyGandius: the Grand Tree glider pilot is on the top floor (goUpF0ToF1.. are plain stairs/ladders)
-            t.exec("goto-flyGandius", t.player.goto_tile, 2464, 3501, 3)
+            -- flyGandius: the Grand Tree glider pilot is on the top floor (m38_54.spawn pilot_grand_tree
+            -- 2464,3501,3): the guide's goUpF0ToF1 / F1ToF2 / F2ToF3 ladders
+            climb_tree(t, "flyGandius", TREE_LADDERS_UP, 3)
             t.exec("flyGandius-talk", t.player.talk_to, "pilot_grand_tree", 1)
             glider_to(t, "flyGandius", "Karamja")
             t.ticks(8)
@@ -307,10 +447,22 @@ return {
                 "npc:I shall see personally",
             })
             t.ticks(2)
-            -- Karamja's glider is the wreck (gnome_glider.rs2 gnome_pilot_crash_karamja): the way home is on foot,
-            -- plain travel to the tree.
-
-            t.exec("goto-talkToNarnodeAfterShipyard", t.player.goto_tile, 2465, 3496, 0)
+            -- Home: out of the yard by its gate (inside, the press puts the player on 2944,3041:
+            -- grandtree_shipyard_gate.rs2 @open_shipyard_gate), overland to the Gandius glider station
+            -- (reach.py 2944,3041 -> 2970,2972 len 95), the glider to Ta Quir Priw on the tree's top floor
+            -- (gnome_glider.rs2 @gnome_pilot_glider: pilot_karamja flies to ^ta_quir_priw 3_38_54_33_45)
+            -- and down its ladders to the king.
+            t.exec("talkToNarnodeAfterShipyard.shipyardGateOut", t.player.cross_gate, { loc = "grandtree_fencegate_l",
+                at = { 2945, 3041, 0 }, near = { 2945, 3041 }, far_ok = function(tile) return tile.x <= 2944 end,
+                far_desc = "outside the shipyard, x <= 2944" })
+            t.exec("goto-talkToNarnodeAfterShipyard.gandius", t.player.goto_tile, 2971, 2970, 0)
+            t.exec("talkToNarnodeAfterShipyard.pilot", t.player.talk_to, "pilot_karamja", 1)
+            glider_to(t, "talkToNarnodeAfterShipyard.glider", "The Grand Tree")
+            t.expect("talkToNarnodeAfterShipyard.landed", t.await({ level = function()
+                local r, tile = t.world.tile()
+                return r == "ok" and tile.level == 3 and math.abs(tile.x - 2465) <= 2 and math.abs(tile.z - 3501) <= 2
+            end, note = "the glider down on Ta Quir Priw, 2465,3501,3" }, 20))
+            climb_tree(t, "talkToNarnodeAfterShipyard", TREE_LADDERS_DOWN, 3)
             t.exec("talkToNarnodeAfterShipyard", t.player.talk_to, "grandtree_narnode", 1)
             t.exec("talkToNarnodeAfterShipyard-dialog", t.chat.play, {
                 "npc:Welcome back, adventurer.",
@@ -334,7 +486,7 @@ return {
             t.exec("talkToNarnodeAfterShipyard-orders", t.inv.await, "mm_narnode_orders", 1, 5)
 
             -- talkToDaero: orders handed over, then every submenu until "Leave..." shows (varbits 99/100/101)
-            t.exec("goto-talkToDaero", t.player.goto_tile, 2482, 3486, 1)
+            up_to_daero(t, "talkToDaero")
             t.exec("talkToDaero", t.player.talk_to, "mm_daero", 1)
             t.exec("talkToDaero-dialog", t.chat.play, {
                 "player:Are you Daero?",
@@ -433,7 +585,15 @@ return {
             end, note = "camera back to the player" }, 200))
 
             -- talkToDaeroAfterPuzzle (mm_daero = daero_reinit_complete): the hangar page that follows the solved panel
-            t.exec("goto-talkToDaeroAfterPuzzle", t.player.goto_tile, 2393, 9889, 0)
+            -- the scene leaves the player in the reinitialised hangar (mm_puzzle.rs2:260 p_teleport 0_41_70_25_27
+            -- = 2649,4507) beside its Daero (m41_70.spawn mm_daero 2648,4514; mm_daero.rs2:13 takes the hangar
+            -- dialogue in 0_40_70..0_41_71): talked to there, seven tiles' walk. The p_teleport follows the
+            -- cam_reset, so the camera is free a tick before the player is in m41_70: wait for the tile.
+            t.expect("clickPuzzle-reinitialisedHangar", t.await({ level = function()
+                local r, tile = t.world.tile()
+                return r == "ok" and tile.x >= 2624 and tile.x < 2688 and tile.z >= 4480 and tile.z < 4544
+            end, note = "the player in the reinitialised hangar m41_70 (2649,4507)" }, 20))
+            t.ticks(2)
             t.exec("talkToDaeroAfterPuzzle", t.player.talk_to, "mm_daero", 1)
             t.exec("talkToDaeroAfterPuzzle-dialog", t.chat.play, {
                 "npc:Well done, adventurer.",
@@ -706,60 +866,171 @@ return {
                 "npc:Just go and find my squad mage, human.",
             })
 
-            -- enterDentureBuilding: the south bamboo door (mm_bamboo_doors.rs2:9, mm_bamboo_secure_walk)
-            local hops = { { 2798, 2762 }, { 2790, 2761 }, { 2782, 2761 }, { 2774, 2761 }, { 2766, 2761 }, { 2765, 2763 } }
-            for _, hop in ipairs(hops) do
+            -- The warehouse (Quest Helper MonkeyMadnessI.java:570-592; wiki Monkey Madness I oldid 15360748
+            -- "Supply Crates", quick guide oldid 15257376): in by the south door, "stay on the dark brown floor
+            -- along the walls", the dentures from the stacked crates (QH's tile marker 2768,2769, the light floor
+            -- 2766-2767,2767-2769 skull-marked), then down the south-east crate. The light floor is the sleeping
+            -- guard's room (mm_sleeping_monkey_guard.rs2 ai_timer: inzone 0_43_43_10_15..15_20 = x 2762-2767,
+            -- z 2767-2772 summons the guards, aa_summon_guards.rs2). Two guide-faithful defences:
+            --   * Auto Retaliate off for the warehouse (combat_tab.rs2 [if_button1,combat_interface:retaliate],
+            --     varp172_option_nodef 1 = off): the warehouse spiders (m43_43.spawn mm_warehouse_spider 2761,2770 /
+            --     2770,2766) bite, and retaliating walks the player onto the light floor (account mm_b69b, b69:
+            --     2768,2769 -> 2767,2771 with hp 82 -> 78 inside three ticks of the dentures "Yes");
+            --   * caught anyway, the guards knock the player out into the jail (mm_knockout.rs2
+            --     [queue,aa_guard_knockout] p_teleport 0_43_43_18_41 + 0..6,0..1): the wiki's "Prison Break" --
+            --     pick the cell door, slip past the patrol (mm_jail.rs2), "be prepared to make several attempts" --
+            --     then the east edge back to the door, and the crates again. Never a goto out of the jail.
+            local function tile_now()
+                local r, tl = t.world.tile()
+                if r ~= "ok" or tl == nil then return nil end
+                return tl
+            end
+            local function tile_text()
+                local tl = tile_now()
+                return tl and (tl.x .. "," .. tl.z .. "," .. tl.level) or "?"
+            end
+            local function in_prison()
+                local tl = tile_now()
+                return tl ~= nil and tl.level == 0 and tl.x >= 2764 and tl.x <= 2776 and tl.z >= 2793 and tl.z <= 2802
+            end
+            local function in_warehouse()
+                local tl = tile_now()
+                return tl ~= nil and tl.level == 0 and tl.x >= 2759 and tl.x <= 2770 and tl.z >= 2764 and tl.z <= 2772
+            end
+            local function in_cavern()
+                local tl = tile_now()
+                return tl ~= nil and tl.z >= 9000
+            end
+            local function set_retaliate(name, want_off)
+                local _, before = t.var.server("varp172_option_nodef")
+                if (before == 1) ~= want_off then
+                    t.ui.tab("combat")
+                    t.ticks(1)
+                    local wr, w = t.ui.widget("combat_interface:retaliate")
+                    if wr == "ok" then t.ui.invoke(w, 1) end
+                    t.ticks(2)
+                end
+                local _, after = t.var.server("varp172_option_nodef")
+                t.check(name, (after == 1) == want_off, "varp172_option_nodef " .. tostring(before) .. " -> " .. tostring(after)
+                    .. " (want " .. (want_off and "1, Auto Retaliate off" or "0, Auto Retaliate on") .. "; combat_tab.rs2 [if_button1,combat_interface:retaliate])")
+                t.ui.tab("inventory")
+                t.ticks(1)
+            end
+            -- the wiki's prison break, as leavePrison above
+            local function escape_prison(name)
                 for _ = 1, 3 do
+                    t.ticks(6)
+                    if t.chat.kind() ~= "none" then t.chat.drain({}) end
+                end
+                local got_out, tries = false, 0
+                while not got_out and tries < 14 do
+                    tries = tries + 1
                     eat_if_hurt()
-                    local dr, dd = t.player.walk_to(hop[1], hop[2], 20)
-                    local hr, hp = t.skill.read("hitpoints")
-                    t.note("hop " .. hop[1] .. " " .. tostring(dr) .. " hp=" .. tostring(hr == "ok" and hp.level))
-                    if dr == "ok" then break end
+                    local ptile = tile_now()
+                    if ptile ~= nil and ptile.z <= 2795 and ptile.x >= 2766 and ptile.x <= 2776 then
+                        t.player.click_loc("mm_jail_door", 1)
+                        t.ticks(5)
+                    end
+                    t.player.walk_to(2779, 2802, 30)
+                    t.ticks(1)
+                    local wtile = tile_now()
+                    if wtile ~= nil and math.abs(wtile.x - 2779) <= 2 and math.abs(wtile.z - 2802) <= 2 then got_out = true end
+                    if t.chat.kind() ~= "none" then t.chat.drain({}) end
+                end
+                t.check(name, got_out, "picked the cell door (mm_jail_door 2771,2795) and slipped out to the north side of the prison after "
+                    .. tries .. " attempt(s); standing at " .. tile_text())
+                -- "Stick to the east edge of the town" back to Garkor's corner, then the warehouse route
+                for _ = 1, 4 do
+                    eat_if_hurt()
+                    if t.player.walk_to(2807, 2764, 40) == "ok" then break end
                 end
             end
-            -- the door is a bare p_teleport + p_delay: click_loc reads settle_after_click, so grade the landing tile
-            t.player.click_loc("mm_bamboo_door_secure", 1)
-            t.await({ level = function()
-                local ar, atile = t.world.tile()
-                return ar == "ok" and atile ~= nil and atile.z >= 2765
-            end, note = "the player through the secure door" }, 20)
-            local br, btile = t.world.tile()
-            t.check("enterDentureBuilding", br == "ok" and btile ~= nil and btile.x >= 2760 and btile.x <= 2772 and btile.z >= 2764,
-                "through the secure door (mm_bamboo_doors.rs2:9); standing at " .. tostring(btile and btile.x) .. "," .. tostring(btile and btile.z))
 
-            -- searchForDentures: mm_quest_crates.rs2:9, "Do you wish to take one?" -> Yes
-            -- the guard room (0_43_43_10_15 .. 15_20 = x 2762-2767, z 2767-2772, mm_sleeping_monkey_guard.rs2:14) wakes the
-            -- guard and summons the guards: the guide's "light floor". Stand east of the crate, outside it.
-            t.player.walk_to(2768, 2766, 12)
-            t.player.walk_to(2768, 2769, 12)
-            t.exec("searchForDentures", t.player.click_loc, "mm_denture_crate", 1)
-            t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the crate's mesbox" }, 30)
-            t.exec("searchForDentures-page", t.chat.play, { "*" })
-            t.await({ level = function() return t.chat.kind() == "options" end, note = "the take-one options" }, 10)
-            local orr, orows = t.chat.options()
-            local otr, otitle = t.chat.options_title()
-            t.note("options " .. tostring(orr) .. " " .. tostring(type(orows) == "table" and table.concat(orows, "/") or orows) .. " title=" .. tostring(otitle) .. " kind=" .. t.chat.kind())
-            t.exec("searchForDentures-dialog", t.chat.choose, "Yes")
-            t.exec("searchForDentures-got", t.inv.await, "mm_monkey_dentures", 1, 10)
+            local hops = { { 2798, 2762 }, { 2790, 2761 }, { 2782, 2761 }, { 2774, 2761 }, { 2766, 2761 }, { 2765, 2763 } }
+            local landed = false
+            local visit = 0
+            while not landed and visit < 4 do
+                visit = visit + 1
+                -- row names: the first visit keeps the guide step names, a return after a capture is suffixed
+                local function R(name) return visit == 1 and name or (name .. ".visit" .. visit) end
+                if in_prison() then
+                    escape_prison(R("caught.leavePrison"))
+                end
+                if not in_warehouse() then
+                    -- enterDentureBuilding: the south bamboo door (mm_bamboo_doors.rs2:9, mm_bamboo_secure_walk)
+                    for _, hop in ipairs(hops) do
+                        for _ = 1, 3 do
+                            eat_if_hurt()
+                            local dr, dd = t.player.walk_to(hop[1], hop[2], 20)
+                            local hr, hp = t.skill.read("hitpoints")
+                            t.note("hop " .. hop[1] .. " " .. tostring(dr) .. " hp=" .. tostring(hr == "ok" and hp.level))
+                            if dr == "ok" then break end
+                        end
+                    end
+                    if visit == 1 then
+                        set_retaliate("enterDentureBuilding-retaliateOff", true)
+                    end
+                    -- the door is a bare p_teleport + p_delay: click_loc reads settle_after_click, so grade the landing tile
+                    t.player.click_loc("mm_bamboo_door_secure", 1)
+                    t.await({ level = function()
+                        local atile = tile_now()
+                        return atile ~= nil and atile.z >= 2765
+                    end, note = "the player through the secure door" }, 20)
+                    local btile = tile_now()
+                    t.check(R("enterDentureBuilding"), btile ~= nil and btile.x >= 2760 and btile.x <= 2772 and btile.z >= 2764,
+                        "through the secure door (mm_bamboo_doors.rs2:9); standing at " .. tile_text())
+                end
 
-            -- goDownFromDentures: the crate over the hole (mm_warehouse.rs2:9); the fall is random (agility 150/300)
-            t.player.walk_to(2768, 2766, 12)
-            t.exec("goDownFromDentures", t.player.click_loc, "mm_crate_over_hole", 1)
-            t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the crate's mesbox" }, 30)
-            t.exec("goDownFromDentures-dialog", t.chat.play, {
-                "*",
-                "choose:Yes, I'm sure.",
-                "*",
-            })
-            t.ticks(8)
-            t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the landing message" }, 30)
-            t.exec("goDownFromDentures-landing", t.chat.drain, {})
+                -- searchForDentures: mm_quest_crates.rs2:9, "Do you wish to take one?" -> Yes, from QH's tile 2768,2769
+                local _, held = t.inv.count("mm_monkey_dentures")
+                if (held or 0) == 0 then
+                    t.player.walk_to(2768, 2766, 12)
+                    t.player.walk_to(2768, 2769, 12)
+                    t.exec(R("searchForDentures"), t.player.click_loc, "mm_denture_crate", 1)
+                    t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the crate's mesbox" }, 30)
+                    t.chat.play({ "*" })
+                    t.await({ level = function() return t.chat.kind() == "options" end, note = "the take-one options" }, 10)
+                    local choose_result, choose_detail = t.chat.choose("Yes")
+                    t.ticks(2)
+                    _, held = t.inv.count("mm_monkey_dentures")
+                    if (held or 0) == 1 then
+                        t.check(R("searchForDentures-got"), true, "mm_monkey_dentures 0 -> 1 (chose Yes: " .. tostring(choose_result)
+                            .. "); standing at " .. tile_text() .. ", off the light floor")
+                    end
+                end
+
+                -- goDownFromDentures: the crate over the hole (mm_warehouse.rs2:9); the fall is random (agility 150/300)
+                if (held or 0) == 1 and in_warehouse() then
+                    t.player.walk_to(2768, 2766, 12)
+                    t.exec(R("goDownFromDentures"), t.player.click_loc, "mm_crate_over_hole", 1)
+                    t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the crate's mesbox" }, 30)
+                    local play_result, play_detail = t.chat.play({ "*", "choose:Yes, I'm sure.", "*" })
+                    t.note("goDownFromDentures dialogue: " .. tostring(play_result) .. " " .. tostring(play_detail))
+                end
+                -- the cavern, or the jail: a summoned guard's blow (aa_guard_knockout) lands within a few ticks
+                t.await({ level = function() return in_cavern() or in_prison() end, note = "the cavern floor or the jail" }, 40)
+                if in_cavern() then
+                    landed = true
+                else
+                    local sr, spider = t.npc.nearest("mm_warehouse_spider", 6)
+                    t.note("visit " .. visit .. " caught: at " .. tile_text() .. ", dentures " .. tostring(held)
+                        .. ", nearest warehouse spider " .. tostring(sr) .. " "
+                        .. tostring(type(spider) == "table" and (spider.x .. "," .. spider.z) or spider))
+                end
+            end
+            t.check("goDownFromDentures-cavern", landed, "down the crate's hole into the cavern after " .. visit
+                .. " warehouse visit(s) (a capture is a jail break and another visit); standing at " .. tile_text())
             t.ticks(4)
+            if t.chat.kind() ~= "none" then
+                t.exec("goDownFromDentures-landing", t.chat.drain, {})
+            end
+            t.ticks(2)
+            set_retaliate("goDownFromDentures-retaliateOn", false)
             local ex, etile = t.world.tile()
             local sr, stage = t.quest.stage()
             local dr, dentures = t.inv.count("mm_monkey_dentures")
             local fr, food = t.inv.count("lobster")
-            t.check("leg.2.state", ex == "ok" and sr == "ok" and dentures == 1,
+            t.check("leg.2.state", ex == "ok" and sr == "ok" and dentures == 1 and etile ~= nil and etile.z >= 9000,
                 "tile=" .. tostring(etile and etile.x) .. "," .. tostring(etile and etile.z) .. "," .. tostring(etile and etile.level)
                 .. " mm_main=" .. tostring(stage) .. " mm_monkey_dentures=" .. tostring(dentures) .. " lobster=" .. tostring(food)
                 .. " (bottom of the warehouse hole cavern, quiet; royal seal, gold bar, wool, bones from earlier; prayer 52 setup, Protect from Missiles off since the ravine)")
@@ -776,8 +1047,9 @@ return {
             t.exec("searchForMould-dialog", t.chat.choose, "Yes")
             t.exec("searchForMould-got", t.inv.await, "mm_monkey_amulet_mould", 1, 10)
 
-            -- leaveToPrepareForBar: the guide's "teleport out to prepare" -- plain travel to the Grand Tree's first floor.
-            t.exec("leaveToPrepareForBar", t.player.goto_tile, 2483, 3487, 1)
+            -- leaveToPrepareForBar: the guide's "teleport out to prepare" (MonkeyMadnessI.java:597), then
+            -- goUpToDaeroForAmuletRun's F0 ladder to Daero on the tree's first floor
+            teleport_to_daero(t, "leaveToPrepareForBar")
             -- talkToDaeroForAmuletRun: mm_daero.rs2:12 opnpc1 -> daero_return_hangar (mm_daero >= daero_left_grandtree)
             t.exec("talkToDaeroForAmuletRun", t.player.talk_to, "mm_daero", 1)
             t.exec("talkToDaeroForAmuletRun-dialog", t.chat.play, {
@@ -822,7 +1094,7 @@ return {
             t.check("enterDungeonForAmuletRun-below", dr == "ok" and dtile ~= nil and dtile.z >= 9000,
                 "down the ladder (mm_bamboo_ladder_dungeon_entrance, monkeymadnessii.rs2:335): " .. tostring(dtile and dtile.x) .. "," .. tostring(dtile and dtile.z))
             -- talkToZooknock: mm_zooknock.rs2:13 opnpc1, mm_zooknock = told_mission -> mm_zooknock_p5 (line 326)
-            t.exec("goto-talkToZooknock", t.player.goto_tile, 2804, 9141, 0)
+            walk_to_zooknock(t, "talkToZooknock")
             t.exec("talkToZooknock", t.player.talk_to, "mm_zooknock", 1)
             t.exec("talkToZooknock-dialog", t.chat.play, {
                 "player:Hello?",
@@ -943,8 +1215,8 @@ return {
             local _, mould_back = t.inv.count("mm_monkey_amulet_mould")
             t.check("useBar-enchanted", ebar == 1 and mould_back == 1, "enchanted gold bar " .. tostring(ebar) .. ", mould " .. tostring(mould_back))
 
-            -- leaveToPrepareForAmulet: the guide's "teleport out" -- plain travel to the Grand Tree's first floor
-            t.exec("leaveToPrepareForAmulet", t.player.goto_tile, 2483, 3487, 1)
+            -- leaveToPrepareForAmulet: the guide's "teleport out" (MonkeyMadnessI.java:671), then Daero
+            teleport_to_daero(t, "leaveToPrepareForAmulet")
             t.exec("talkToDaeroForAmuletMake", t.player.talk_to, "mm_daero", 1)
             t.exec("talkToDaeroForAmuletMake-dialog", t.chat.play, {
                 "npc:Hello again, adventurer.",
@@ -1426,8 +1698,8 @@ return {
                 end
                 t.check("killZombie-protectOff", on == 0, "prayer_protectfrommelee varbit " .. tostring(on) .. ", prayer " .. prayer_points())
             end
-            -- leaveToPrepareForTalismanRun: the guide's "teleport out to prepare" -- plain travel to the Grand Tree's first floor
-            t.exec("leaveToPrepareForTalismanRun", t.player.goto_tile, 2483, 3487, 1)
+            -- leaveToPrepareForTalismanRun: the guide's "teleport out to prepare" (MonkeyMadnessI.java:747), then Daero
+            teleport_to_daero(t, "leaveToPrepareForTalismanRun")
             t.exec("talkToDaeroForTalismanRun", t.player.talk_to, "mm_daero", 1)
             t.exec("talkToDaeroForTalismanRun-dialog", t.chat.play, {
                 "npc:Hello again, adventurer.",
@@ -1466,7 +1738,7 @@ return {
             local dr, dtile = t.world.tile()
             t.check("enterDungeonForTalismanRun-below", dr == "ok" and dtile ~= nil and dtile.z >= 9000,
                 "down the ladder: " .. tostring(dtile and dtile.x) .. "," .. tostring(dtile and dtile.z))
-            t.exec("goto-useTalisman", t.player.goto_tile, 2804, 9141, 0)
+            walk_to_zooknock(t, "useTalisman")
             -- useTalisman: mm_zooknock.rs2 opnpcu case mm_monkey_talisman
             t.exec("useTalisman", t.player.use_on, "mm_monkey_talisman", t.player.by_symbol("npc", "mm_zooknock"))
             t.exec("useTalisman-dialog", t.chat.play, { "mesbox:You hand Zooknock the monkey talisman.", "*", "*" })
@@ -1550,8 +1822,10 @@ return {
             t.exec("leaveDungeonWithGreeGree-end", t.chat.drain, {})
             local gr, gn = t.inv.count("mm_monkey_greegree_for_normal_monkey")
             t.check("leaveDungeonWithGreeGree-have", gr == "ok" and gn == 1, "Karamjan monkey greegree in the pack: " .. tostring(gn))
-            -- "teleport away": plain travel to the Ardougne Zoo, beside the Monkey Minder
-            t.exec("leaveDungeonWithGreeGree", t.player.goto_tile, 2609, 3280, 0)
+            -- "teleport away" (MonkeyMadnessI.java:820): Camelot, then overland to the Ardougne Zoo beside the
+            -- Monkey Minder (reach.py 2757,3478 -> 2609,3280 closed-doors len 356)
+            camelot_teleport(t, "leaveDungeonWithGreeGree")
+            t.exec("goto-talkToMinder", t.player.goto_tile, 2609, 3280, 0)
             t.ticks(2)
             -- talkToMinder: hold the greegree (opheld2, mm_greegree.rs2:19), then talk
             local hr, hd = t.player.inv_op("mm_monkey_greegree_for_normal_monkey", 2)
@@ -1592,8 +1866,11 @@ return {
             })
             t.ticks(4)
             t.check("talkToMinderAgain-out", true, "out of the pen: " .. tile_text())
-            -- the return run: Daero, Waydar, Lumdo (the leg 3 / leg 6 route)
-            t.exec("goto-talkToDaeroForTalkingToAwow", t.player.goto_tile, 2483, 3487, 1)
+            -- the return run: "WALK/RUN to Daero" (MonkeyMadnessI.java:836, a teleport loses the monkey):
+            -- overland from the zoo to the Stronghold gate, the tree door and the ladder; then Waydar, Lumdo
+            stronghold_in(t, "talkToDaeroForTalkingToAwow")
+            into_tree(t, "talkToDaeroForTalkingToAwow")
+            up_to_daero(t, "talkToDaeroForTalkingToAwow")
             t.exec("talkToDaeroForTalkingToAwow", t.player.talk_to, "mm_daero", 1)
             t.exec("talkToDaeroForTalkingToAwow-dialog", t.chat.play, {
                 "npc:Hello again, adventurer.",
@@ -1839,7 +2116,7 @@ return {
             t.ticks(2)
             t.cheat("::give lobster 6") -- guide (prepareForBattle): "Food"
             t.ticks(3)
-            for _ = 1, 6 do eat_if_hurt(99) end
+            for _ = 1, 6 do eat_if_hurt(88) end -- to within one lobster's heal (12) of full: no heal wasted
             -- Prayer does not regenerate: drink the carried prayer potions up to a full book (52) for the demon,
             -- smallest potion first; the row asserts the points rose
             local function prayer_points()
@@ -1918,12 +2195,15 @@ return {
             t.ticks(6)
             local zr, ztile = t.world.tile()
             t.check("killDemon-out", zr == "ok" and ztile ~= nil and ztile.z < 9000 and ztile.level == 0, "Zooknock teleported the player out of the arena to " .. tile_text())
-            -- talkToNarnodeToFinish: plain travel back to the Grand Tree, then the hand-in (mm_narnode.rs2:28)
+            -- talkToNarnodeToFinish: back to the Grand Tree, then the hand-in (mm_narnode.rs2:28)
             local _, coins_before = t.inv.count("coins")
             local _, diamonds_before = t.inv.count("diamond")
             local snapshot_result, snapshot = t.skill.snapshot()
             t.check("reward.snapshot", snapshot_result == "ok", "skills read before the hand-in; coins " .. tostring(coins_before) .. ", diamonds " .. tostring(diamonds_before))
-            t.exec("goto-talkToNarnodeToFinish", t.player.goto_tile, 2465, 3494, 0)
+            -- off Ape Atoll by Camelot Teleport, then the Stronghold gate and the tree door to the king
+            camelot_teleport(t, "talkToNarnodeToFinish.camelotTeleport")
+            stronghold_in(t, "talkToNarnodeToFinish")
+            into_tree(t, "talkToNarnodeToFinish")
             t.exec("talkToNarnodeToFinish", t.player.talk_to, "grandtree_narnode", 1)
             t.exec("talkToNarnodeToFinish-dialog", t.chat.play, {
                 "player:King Narnode!",
