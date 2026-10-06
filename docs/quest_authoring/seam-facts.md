@@ -2730,10 +2730,37 @@ invention: docs/quests/spirits_of_the_elid.md section 4; the wiki names no timer
 hitpoints the golem outlived it: `whiteGolem.dead` read `dead after 48 tick(s) ... last hp 29/30
 ... corroborated by ABSENCE`, and only the next quest row (`clearChannel.msg`, "disarm the spike
 trap") caught it. A kill wait that answers by ABSENCE with a high last bar is a despawn: read the
-last hp in the detail, and grade the kill by the quest's own outcome row after it. Content fix
-pending (a duration long enough to be no timer); the test then needs stronger offence than bronze
-at unstaged levels and a longer budget.
+last hp in the detail, and grade the kill by the quest's own outcome row after it. **FIXED
+b68-seam2** (OSRS-Content 99061aaa2e, below): the golems live `^elid_golem_duration` (3000), and
+both kill waits answer `despawned`, never `ok`, for an absence from a bar above a quarter. The test
+still needs stronger offence than bronze at unstaged levels and a longer budget.
 
 (e) **`t.npc.record(symbol, {need='server'})` proves a whole stat table cheaply**: it reads the
 server's content block by symbol with no live copy, so one scratch file with a row per npc
 (hp, levels, aggression, attackrate, damagetype, bonuses) proves every block landed in the pack.
+
+## Seam pass matthew-mbp-m4-b68-seam2 (2026-10-06, batch matthew-mbp-m4-b68)
+
+(a) **Spirits of the Elid's door golems have no timer** (elid_golems_npc_add_for_50_ticks_and_an_80_hp_golem_despawns_mid_fight).
+`elid_dungeon.rs2` :91/:142/:213 npc_add'ed each golem for 50 ticks, a port invention: the wiki
+(Spirits_of_the_Elid oldid 15306897 Walkthrough "The Golems", Transcript oldid 15338971, the
+White/Grey/Black golem pages oldids 15338923/15338925/15338922) and Quest Helper
+(`SpiritsOfTheElid.java` :245-263) all have the golem stand until it is killed. They now pass
+`^elid_golem_duration = 3000` (`quest_spiritsoftheelid.constant`), the walk-away clean-up value
+Swan Song (`^ssq_fight_duration`) and Contact! (`contact_scarab.rs2:17`) use; no put-back proc is
+needed, because each door re-adds its golem while its `%elid_*golem` bit is 0 and `npc_find` sees
+none. OSRS-Content 99061aaa2e. Proof: scratch `b68s2_elid_golem_after` 8/8, the white golem
+present at every 10-tick poll to 120 while fighting. The committed test now times out on the White
+golem at 25/30 after 120 ticks with a bronze dagger: reopened for real offence and a 300+ tick
+budget. The pattern to grep in any quest: an `npc_add(..., <n>)` whose `<n>` is shorter than the
+fight against it; for an npc the sources give no timer, use 3000.
+
+(b) **`await_dead`/`await_dead_engaged` answer `despawned` for an absence from a high bar**
+(await_dead_engaged_grades_a_despawn_as_a_kill_by_absence). The watch keeps the last bar it read
+and, on a vouched absence, credits a kill only from a bar at most a quarter of its width (or with
+no bar ever known); above a quarter it answers `despawned` with `NOT A KILL: ... last bar at 29/30
+..., above a quarter`, runs the death fence and consumes the stamp. The rule and its proof are in
+verbs-combat "An absence from a high bar is `despawned`, not a kill". Conformance
+`seam.absence_after_a_high_bar_is_a_despawn` (seam rows 125 -> 126). Before: the old Elid ledger
+rows 56/66/76 read `ok` at 29/30, 24/30 and 30/30; deserttreasure's Dessous kill (last bar 1/30)
+and tree's warlord (ZERO BAR) stay `ok`.

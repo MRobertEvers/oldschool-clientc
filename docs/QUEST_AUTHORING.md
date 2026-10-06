@@ -204,8 +204,8 @@ banners: the topic file named in each group heading.
 ### Combat -- `verbs-combat.md`
 
 - `t.player.attack(npc, op=2, ticks, opts)` -> `ok timeout refused`. `refused` can be single-way combat or no route. `opts.eat = {item=, below=}` eats inside the press and settle (b63-seam1).
-- `t.npc.await_dead_engaged(ticks, attempts, opts)` -> `ok timeout no_row refused`; the kill wait for every hunt. `opts.eat = {item=, below=}` eats.
-- `t.npc.await_dead(npc, ticks, radius, attempts, opts)` -> `ok timeout not_found`; a slot leaving the pool, corroborated.
+- `t.npc.await_dead_engaged(ticks, attempts, opts)` -> `ok timeout no_row refused despawned`; the kill wait for every hunt. `opts.eat = {item=, below=}` eats.
+- `t.npc.await_dead(npc, ticks, radius, attempts, opts)` -> `ok timeout not_found despawned`; a slot leaving the pool, corroborated. `despawned` = it left alive (last bar above a quarter): never a kill (b68-seam2).
 - `t.player.cast(spell, target, ticks, ...)` -> `ok refused no_runes timeout no_row not_visible unsupported`; npc, obj/loc, held item or no target.
 - `t.player.alive()` -> `ok refused`; takes no argument (use `t.expect`). A death writes `player.died` and ENDS the run.
 
