@@ -19,12 +19,13 @@
 --     ("Follow the directions to the house.", ratcatchers.rs2 [opheld1,ratcatchers_party_directions]
 --     p_telejump to the garden 2847,5066), the walk round the back and the trellis up (lands on the
 --     trellis top 2844,5104,1); the upper floor's door 2838,5099, the mansion ladder both ways, the
---     ground floor's door 2860,5093 both ways; DOWN by the trellis top (see the note at the climb);
---     OUT by Ardougne Teleport;
+--     ground floor's door 2860,5093 both ways; OUT by the trellis top's Climb-down, which leaves the
+--     grounds for Ardougne outside Jimmy's front door (ratcatchers.rs2 [proc,ratcatch_leave_grounds],
+--     OSRS wiki Ratcatchers/Quick_guide "Climb back down the trellis to return to Ardougne");
 --   * the Port Sarim manhole and the rat pits' ladder by their cache maplink rows
 --     (maplink_0_47_50_10_31_down 3018,3231 -> 2962,9650; maplink_0_46_150_18_50_up -> 3018,3233).
--- Long trips are real teleports cast by click (t.player.teleport_cast): Ardougne (the scroll is
--- read by click at the start), Varrock and Falador. Every other goto is an overland hop between
+-- Long trips are real teleports cast by click (t.player.teleport_cast): Ardougne once, to reach
+-- Jimmy from the Varrock sewer (the scroll is read by click at the start), Varrock and Falador. Every other goto is an overland hop between
 -- open tiles (reach.py REACH closed-doors) or inside one passage (the sewer, Keldagrim).
 -- Hooknosed Jack wanders: each talk to him is awaited present and retried (attempts are notes,
 -- the talk's own row and the quest stage are the grade).
@@ -84,8 +85,9 @@ end
 
 -- Jimmy Dazzler's house north of Ardougne Castle: front door 2569,3322 (west edge), his room's
 -- door 2565,3320 (west edge); comp.py: street 2,997 -> hall 21 -> his room 16 tiles.
-local function jimmy_in(t, name)
-    t.exec("goto-" .. name .. ".house", t.player.goto_tile, 2570, 3322, 0)
+local function jimmy_in(t, name, at_door)
+    -- at_door: the player already stands on 2570,3322,0 (the trellis's own landing), no hop.
+    if not at_door then t.exec("goto-" .. name .. ".house", t.player.goto_tile, 2570, 3322, 0) end
     t.exec(name .. ".frontDoorIn", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
         at = { 2569, 3322, 0 }, near = { 2569, 3322 }, far = { 2568, 3322 } })
     t.exec(name .. ".roomDoorIn", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
@@ -156,8 +158,8 @@ return {
         "::give cheese 4", "::give bucket_milk 1", "::give unicorn_horn_dust 1", "::give marentill 1",
         "::give trout 6", "::give pot_empty 1", "::give weeds 1", "::give tinderbox 1",
         "::give coins 400",             -- 101 snake charmer + 5 Shantay pass + 200 carpet fare
-        -- 2 x Ardougne, 2 x Varrock, 2 x Falador Teleport (magic_spells.dbrow runesrequired)
-        "::give waterrune 6", "::give lawrune 8", "::give airrune 12", "::give firerune 2",
+        -- 1 x Ardougne, 2 x Varrock, 2 x Falador Teleport (magic_spells.dbrow runesrequired)
+        "::give waterrune 4", "::give lawrune 6", "::give airrune 12", "::give firerune 2",
     },
     bind = {
         varp = "varb1404_ratcatch_var",
@@ -333,19 +335,15 @@ return {
             t.exec("leaveMansion.ladderUp", t.player.climb, { loc = "ladder", op = 1, op_name = "Climb-up",
                 at = { 2862, 5092, 0 }, src = { 2862, 5093 }, dest = { 2862, 5093, 1 } })
             t.exec("walk-leaveMansion.trellisTop", t.player.walk_route, { { 2856, 5098 }, { 2848, 5102 }, { 2844, 5104 } })
-            -- The trellis top (vc_blank_trellis_top_trigger 2844,5104,1, ladders.loc category climb_down)
-            -- has no binding of its own and no maplink row, so ladders.rs2:178 -> [proc,climb]
-            -- (ladders.rs2:69-78) lowers the player one plane on the tile: 2844,5104,0, INSIDE the
-            -- ground floor (comp.py: the 110-tile ground-floor component), not the garden below the
-            -- trellis and not Ardougne (the OSRS wiki's "return to Ardougne" for climbing back down).
-            -- Graded on the landing the content gives; reported as a content note. Out by Ardougne
-            -- Teleport from there.
+            -- The trellis top (vc_blank_trellis_top_trigger 2844,5104,1) is the grounds' way out:
+            -- [oploc1,vc_blank_trellis_top_trigger] -> [proc,ratcatch_leave_grounds], p_telejump to
+            -- 0_40_51_10_58 = 2570,3322,0, the open street tile outside Jimmy Dazzler's front door
+            -- (OSRS wiki Ratcatchers/Quick_guide: "Climb back down the trellis to return to Ardougne").
             t.exec("leaveMansion.trellisDown", t.player.climb, { loc = "vc_blank_trellis_top_trigger", op = 1,
-                op_name = "Climb-down", at = { 2844, 5104, 1 }, dest = { 2844, 5104, 0 } })
-            -- talkToJimmyAgain: out of the sealed mansion by Ardougne Teleport, then Jimmy's doors.
-            t.player.teleport_cast("ardougne_teleport", { 2661, 3301, 0 }, { name = "talkToJimmyAgain.ardougneTeleport",
-                runes = ARDOUGNE_RUNES, where = "Ardougne market" })
-            jimmy_in(t, "talkToJimmyAgain")
+                op_name = "Climb-down", at = { 2844, 5104, 1 }, dest = { 2570, 3322, 0 } })
+            t.expect("quest.stage.mansion_done.afterExit", t.quest.expect_stage("mansion_done"))
+            -- talkToJimmyAgain: from the trellis's landing straight through Jimmy's two doors.
+            jimmy_in(t, "talkToJimmyAgain", true)
             t.exec("talkToJimmyAgain", t.player.talk_to, "vc_jimmy_dazzler", 1)
             t.exec("talkToJimmyAgain-dialog", t.chat.play, { "player:My cat caught all six", "npc:Splendid" })
             t.ticks(2)
@@ -674,6 +672,7 @@ return {
             local snap_result, snap = t.skill.snapshot()
             t.expect("ratcatchers.snapshot", snap_result, "snapshot before hand-in")
             local pole0 = count(t, "vc_rat_pole")
+            local _, qp0 = t.var.server("varp101_qp")
             t.exec("talkToFelkrashForEnd", t.player.talk_to, "vc_felkrash_the_bard", 1)
             t.exec("talkToFelkrashForEnd-dialog", t.chat.play, { "player:I've charmed the rats", "npc:Astonishing!" })
             t.ticks(2)
@@ -681,6 +680,9 @@ return {
             t.expect("ratcatchers.thieving_xp_up", t.skill.expect_gain("thieving", 4500, snap))
             t.quest.expect_complete()
             t.check("ratcatchers.rat_pole", count(t, "vc_rat_pole") == pole0 + 1, "vc_rat_pole " .. pole0 .. " -> " .. count(t, "vc_rat_pole"))
+            local _, qp1 = t.var.server("varp101_qp")
+            t.check("ratcatchers.quest_points", qp0 ~= nil and qp1 == qp0 + 2,
+                "varp101_qp " .. tostring(qp0) .. " -> " .. tostring(qp1) .. " (2 quest points, wiki Ratcatchers)")
             t.finish(0)
         end },
     },
