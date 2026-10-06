@@ -27,7 +27,8 @@
 --   stronghold is entered over the crumbled wall (south side only), the
 --   ladder 2503,3252 climbed up and down, and left by
 --   khazard_stronghold_door 2502,3250 (a walk-through from inside only,
---   quest_tree_locs.rs2:36-49).
+--   quest_tree_locs.rs2:36-58; fixed in OSRS-Content 973a687d72 to land
+--   the player on the door tile outside), then walked to the maze entrance.
 -- * Combat-level branches: none in quest_tree/ or area_gnome/ (grepped
 --   combat_level), so the staged combat stats change no page.
 --
@@ -58,8 +59,8 @@ return {
         "::give rune_kiteshield 1",
         "::give chaosrune 60", -- fire_bolt: 1 chaos + 4 fire + 3 air per cast (magic_combat_spells.dbrow)
         "::give firerune 200",
-        "::give airrune 160", -- 150 for fire bolts + two Camelot Teleports' 5 (magic_spells.dbrow [magic_spell_teleport_camelot])
-        "::give lawrune 2", -- two Camelot Teleports (airrune 5 + lawrune 1 each, level 45; Magic is staged 99 above): the start and out of the Khazard stronghold
+        "::give airrune 160", -- 150 for fire bolts + one Camelot Teleport's 5 (magic_spells.dbrow [magic_spell_teleport_camelot])
+        "::give lawrune 1", -- one Camelot Teleport (airrune 5 + lawrune 1, level 45; Magic is staged 99 above): the start
         "::give shark 6", -- recommended food
     },
 
@@ -321,37 +322,23 @@ return {
         t.exec("chest.orb_page", t.chat.play, { "mesbox:Inside you find the gnomes' stolen orb" })
         t.exec("orb.held", t.inv.await, "orb_of_protection", 1, 10)
         t.exec("stage.retrieved_orb", t.var.await_server, "varp111_treequest", 6, 10)
-        -- Out: the laddertop down, then the way out. CONTENT BUG: the
-        -- stronghold's front door does not let the player out.
-        -- quest_tree_locs.rs2:36-49 [oploc1,khazard_stronghold_door] (pressed
-        -- from inside, coordz > the door's) always runs the ENTERING half of
-        -- LostCity's ~open_and_close_door: p_teleport onto the door tile
-        -- 2502,3250 (outside), then p_teleport(movecoord(door, ~door_open(
-        -- north, wall_straight) = 0,+1)) = 2502,3251, back inside. LostCity
-        -- (quest_tree.rs2:32-36) passes ~check_axis(coord, loc_coord,
-        -- loc_angle), so from inside $entering is false and $dest stays on
-        -- the door tile, outside (open_and_close_doors.rs2:20-35). b67 run 1:
-        -- `click_loc -> timeout settle_after_click; landed 2502,3251,0`. The
-        -- crumbled wall refuses from the north (quest_tree_locs.rs2:57-59), so
-        -- no on-foot exit works: the player leaves the way a stuck player
-        -- does, a real Camelot Teleport. The door press stays as an attempt
-        -- (a note) so the run keeps the evidence; when the door is fixed this
-        -- becomes t.player.cross_gate{ loc = "khazard_stronghold_door",
-        -- at = {2502,3250,0}, near = {2502,3251}, far_ok = z <= 3250 }.
+        -- Out: the laddertop down, then the stronghold's front door.
+        -- [oploc1,khazard_stronghold_door] (quest_tree_locs.rs2:36-58), pressed
+        -- from inside (coordz > the door's), passes ~check_axis(coord,
+        -- loc_coord, loc_angle) as $entering, as LostCity quest_tree.rs2:32-36
+        -- does: from inside $entering is false, so $dest stays on the door tile
+        -- 2502,3250, outside (LostCity open_and_close_doors.rs2:20-35; fixed in
+        -- OSRS-Content 973a687d72 -- before it the press ran the entering half
+        -- and put the player back on 2502,3251). From the south the door
+        -- refuses ("The door is locked from the inside."), and the crumbled
+        -- wall refuses from the north, so this door is the only way out.
         t.exec("retrieveOrb.ladderDown", t.player.climb, { loc = "laddertop", op = 1, op_name = "Climb-down",
             at = { 2503, 3252, 1 }, src = { 2503, 3253 }, dest = { 2503, 3253, 0 }, slack = 1 })
-        do
-            local door_r, door_d = t.player.walk_to(2502, 3251)
-            local press_r, press_d = t.player.click_loc("khazard_stronghold_door", 1)
-            t.ticks(3)
-            local after_r, after_v = t.world.tile()
-            t.note("retrieveOrb.strongholdDoor (content bug, quest_tree_locs.rs2:36-49): walk_to 2502,3251 -> "
-                .. tostring(door_r) .. "; click_loc khazard_stronghold_door op1 -> " .. tostring(press_r) .. " "
-                .. tostring(press_d) .. "; tile after 3 ticks " .. tostring(after_r) .. " "
-                .. ((type(after_v) == "table" and after_v.x) and (after_v.x .. "," .. after_v.z .. "," .. after_v.level) or "?"))
-        end
-        t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = "retrieveOrb.leaveStronghold.camelotTeleport",
-            runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot" })
+        t.exec("retrieveOrb.strongholdDoorOut", t.player.cross_gate, { loc = "khazard_stronghold_door",
+            at = { 2502, 3250, 0 }, near = { 2502, 3251 },
+            far_ok = function(tile) return tile.z <= 3250 end,
+            far_desc = "outside the stronghold, on or south of its door (z <= 3250)" })
+        t.exec("walk-retrieveOrb.leaveStronghold", t.player.walk_to, 2502, 3249)
 
         -- returnFirstOrb via elkoySkip: Elkoy outside the maze, "Yes please."
         -- -> p_telejump(^elkoy_maze_coord) 2515,3159 (elkoy.rs2:89-106).
