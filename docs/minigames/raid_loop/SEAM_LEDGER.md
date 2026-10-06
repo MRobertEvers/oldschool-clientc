@@ -1742,3 +1742,25 @@ all clean. No C and no content changed.
   its home tile for 3-4 ticks (3 of 3 names); Maiden's re-boost drinks every combat dose
   (needs a reserve); one Maiden costs 35-56 drinks a dps seat; in ::maxmelee npc 8363
   hits 41-59 every 10 ticks (Maiden seam or the melee-damage content seam).
+
+## matthew-mbp-m4-raid-b1-seam54 (2026-10-06; parent 541b03b64, OSRS-Content unchanged by this pass): Normal Maiden written whole, Bloat on the recorded kit
+
+- play_tob_bloat_on_tobkit: LANDED and KEPT. Normal trio Bloat 5 of 5 on ::tobkitsalve
+  (rooms 133-148 against Blert's median 137, cap 195; two downs on every name; repeat
+  AGREE). Plan unchanged; harness kit plus a pid-wide tech.step_off_shadow. OPEN: the
+  "no step to judge" branch fires on 3 of 5 names (it asserts 0 party hand hits only);
+  five names give 4 distinct rolls; 2 party hand hits on two names; tob_bloat_normal.lua
+  (author attempt) still says ::maxmelee. Entry solo 4 of 5 (the own name dies in Maiden).
+- play_tob_maiden_whole: NOT LANDED as a room (0 of 5; rooms 253-327 against 132-204;
+  heal 604-1266 against 223.5; 6-23 leaks; svd p3 died at t333). Kept as progress, proved
+  per piece: ::tobkit for the scythe seats, Reap on slot 0 (setup.reap PASS), the freezer's
+  blood rule (freezer 0 HP on 5 of 5; seam.raid_play_maiden_in_blood), reboost_keep 4.
+  Entry solo 5 of 5. OPEN: the storm was fixed at the max through these surveys (rolled
+  since 081bb7e61a, seam55 ruling, so resurvey on it); leaks reach her whole because the
+  freezer at 15,2 freezes one crab a cast and the 30-percent add rule never fired; the
+  freezer drifts toward her; phase-100 output 13-15.6 against 17.94.
+- Closer: conformance 453/453 PASS (231 verbs, 222 seam rows): seam.raid_play_maiden_in_blood
+  merged; ui.style row added for the orchestrator's verb (ab1c3e602); the blackstorm row
+  re-asserted for the rolled storm. check-quest-verbs, check-drive-abi, check-pt-switch,
+  test-plugin-lua, test-quest-cheats PASS; torirsserver-scripts clean. No quest suite run
+  (closer capped at conformance plus verb list); no C changed.
