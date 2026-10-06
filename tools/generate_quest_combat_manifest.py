@@ -2452,6 +2452,125 @@ AUDITED_OVERRIDES["Shadow of the Storm"] = {
     ],
 }
 
+AUDITED_OVERRIDES["Between a Rock..."] = {
+    "source_audits": [
+        {"url": "https://oldschool.runescape.wiki/w/Arzinian_Avatar_of_Strength?oldid=15200005", "revision": 15200005, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Arzinian_Avatar_of_Ranging?oldid=15200004", "revision": 15200004, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Arzinian_Avatar_of_Magic?oldid=15200003", "revision": 15200003, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Arzinian_Being_of_Bordanzan?oldid=15362316", "revision": 15362316, "retrieved": "2026-10-06"},
+    ],
+    "npc_gamevals": [
+        "dwarf_rock_avatar_warrior_green: Arzinian Avatar of Strength level 125 (npc 1228), 100 hitpoints, 110/100/95 attack/strength/defence, crush, attack speed 4, aggressive, max hit 11 (falls out of 100 strength), defence 20/20/20 stab/slash/crush, 15 magic, 80 ranged (wiki infobox; cache all.npc stat1-6 110/95/100/100/0/0 agrees) (quest_betweenarock/configs/betweenarock.npc)",
+        "dwarf_rock_avatar_warrior_yellow: Arzinian Avatar of Strength level 75 (npc 1229), 70 hitpoints, 70/65/50 attack/strength/defence, crush, speed 4, max hit 7, defence 15/15/15, 10 magic, 40 ranged (wiki; cache 70/50/65/70/0/0 agrees)",
+        "dwarf_rock_avatar_warrior: Invincible version (npc 1227, never spawned), 200 hitpoints, 150/130/120, max hit 14, cache defences 20/20/20/20",
+        "dwarf_rock_avatar_archer_green: Arzinian Avatar of Ranging level 125 (npc 1231), 100 hitpoints, attack 10, strength 100, defence 120, ranged 110, Ranged, speed 4, rangebonus_ammo 10, max hit 14 (~npc_ranged_maxhit), defence 15/15/15, 80 magic, 20 ranged (wiki; cache 10/120/100/100/110/0 agrees); [ai_opplayer2] ~npc_rangeattack",
+        "dwarf_rock_avatar_archer_yellow: Arzinian Avatar of Ranging level 75 (npc 1232), 70 hitpoints, 10/40/75 attack/strength/defence, ranged 75, rangebonus_ammo 5, max hit 9, defence 10/10/10, 40 magic, 15 ranged (wiki; cache 10/75/40/70/75/0 agrees)",
+        "dwarf_rock_avatar_archer: Invincible version (npc 1230, never spawned), 200 hitpoints, ranged 140, rangebonus_ammo 19 (cache), cache defences 20/20/20 and 120 magic",
+        "dwarf_rock_avatar_mage_green: Arzinian Avatar of Magic level 125 (npc 1234), 100 hitpoints, attack 10, strength 90, defence 120, magic 120, Magic, speed 4, magic_maxhit 13, defence 80/80/80, 20 magic, 15 ranged (wiki; cache 10/120/90/100/0/120 agrees); [ai_opplayer2] ~npc_generic_magicattack",
+        "dwarf_rock_avatar_mage_yellow: Arzinian Avatar of Magic level 75 (npc 1235), 70 hitpoints, 10/50/75 attack/strength/defence, magic 75, magic_maxhit 8, defence 40/40/40, 15 magic, 10 ranged (wiki; cache 10/75/50/70/0/75 agrees)",
+        "dwarf_rock_avatar_mage: Invincible version (npc 1233, never spawned), 200 hitpoints, magic 150, magic_maxhit 15, cache defences 120/120/120 and 20 magic",
+        "dwarf_rock_actual_demon: Arzinian Being of Bordanzan (npc 1236), Infobox NPC, Talk-to only, never fought (wiki: inaccessible in the centre of the flames) -- no combat block",
+        "scorpion: the page-1 scorpion (level 14) fights on npc/configs/combat_stats.generated.npc's block (17 hitpoints)",
+    ],
+    "item_gamevals": [
+        "gold_ore: 6-14 held at the central flame spawns the level-125 (_green) Avatar, 15+ the level-75 (_yellow) one (^dwarfrock_gold_ore_needed / ^dwarfrock_gold_ore_reduced)",
+        "dwarf_goldrock_helmet: must be worn to approach the flame and to stay in the realm",
+    ],
+    "loc_gamevals": [
+        "dwarf_firewall_centre_straight / dwarf_firewall_centre_diagonal: the central wall of flame; op1/op2 spawn the Avatar",
+    ],
+    "trigger_handlers": [
+        "label:dwarfrock_face_avatar / proc:dwarfrock_spawn_avatar (style counters the player's highest base stat; tier by gold ore held; betweenarock_realm.rs2)",
+        "opnpc2:dwarf_rock_avatar_* (nine, @dwarfrock_avatar_attack -> @player_combat_start; betweenarock_realm.rs2)",
+        "ai_opplayer2:dwarf_rock_avatar_archer* (~npc_rangeattack) and dwarf_rock_avatar_mage* (~npc_generic_magicattack); the Avatars of Strength use the melee default (betweenarock_realm.rs2)",
+        "ai_queue3:dwarf_rock_avatar_* (~dwarfrock_avatar_death sets ^dwarfrock_avatar_defeated and returns the player, then ~npc_default_death; betweenarock_realm.rs2)",
+        "ai_queue3:scorpion (page-1 drop, coordinate-gated; betweenarock_pages.rs2)",
+    ],
+    "loot_contract": "The Avatar drops nothing (death_drop null; the wiki pages list no drops); its kill advances the quest to ^dwarfrock_avatar_defeated and teleports the player back to Dondakan. The Dwarven Mine scorpion's quest kill drops page 1.",
+    "test_ids": [
+        "quest-combat-contract:between-a-rock",
+        "quest:betweenarock",
+    ],
+    "known_gaps": [
+        "The Invincible versions (5 or fewer gold ore: no combat level, regeneration) are not modelled; the flame refuses under 6 ore, so they never spawn.",
+        "The Invincible Avatar of Ranging computes a max hit of 19 (ranged 140, cache rangebonus_ammo 19) against the page's 17; its page bonuses are blank.",
+        "The gold-ore anti-regeneration is read once at the flame, not continuously; the wiki's 'randomize it just a little bit' style pick is not modelled.",
+        "attackrange 10 for the ranged and magic Avatars is the authored-quest convention (slice.npc), not a sourced number; no projectile or cast spotanim is sourced, so none is drawn.",
+        "The Avatar of Ranging swings rock_avatar_attack (npc_anims.generated.npc) though the cache has a rock_avatar_archer_attack seq.",
+    ],
+}
+
+AUDITED_OVERRIDES["Rum Deal"] = {
+    "source_audits": [
+        {"url": "https://oldschool.runescape.wiki/w/Evil_spirit?oldid=15199641", "revision": 15199641, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Fever_spider?oldid=15275482", "revision": 15275482, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Rum_Deal?oldid=15315444", "revision": 15315444, "retrieved": "2026-10-06"},
+    ],
+    "npc_gamevals": [
+        "deal_evil_spirit: Evil spirit (npc 625, level 150, size 2), 90 hitpoints, 170/146/100 attack/strength/defence, magic 1, ranged 1, every bonus and defence 0, crush, attack speed 4, aggressive, 30% Air weakness, drops Ashes always (wiki infobox; cache all.npc stat1-4 170/100/146/90 agrees) (quest_rumdeal/configs/rumdeal.npc); Protect from Melee negates its swing",
+        "deal_fever_spiders1: Fever spider (level 49), the basement mob, fights on npc/configs/combat_stats.generated.npc's block (40 hitpoints, death_drop null; the quest carcass is deal_combat.rs2's [ai_queue3] drop)",
+    ],
+    "item_gamevals": [
+        "deal_wrench_blessed: Davey's blessing of deal_wrench (47 prayer points, none drained); used on the brewing control it summons the spirit",
+        "ashes: the spirit's death_drop (wiki: always)",
+        "deal_spider_body: the fever spider carcass, dropped only at ^deal_kill_spider",
+    ],
+    "loc_gamevals": [
+        "deal_multicontrol: the brewing control; [oplocu] with deal_wrench_blessed at ^deal_kill_spirit spins it and spawns the spirit at ^deal_multicontrol_coord for 1000 ticks (one at a time within 5 tiles)",
+    ],
+    "trigger_handlers": [
+        "proc:deal_spawn_evilspirit (npc_add at ^deal_multicontrol_coord; deal_combat.rs2)",
+        "opnpc2:deal_evil_spirit (~npc_retaliate(0) -> @player_combat_start; deal_combat.rs2)",
+        "ai_queue3:deal_evil_spirit (npc_findhero at ^deal_kill_spirit: %varb1355_deal_multi_hopper = ^deal_control_running, %varp600_deal_quest = ^deal_told_kill_spider, then ~npc_default_death; deal_combat.rs2)",
+        "ai_queue3:deal_fever_spiders1 (deal_spider_body at ^deal_kill_spider, then ~npc_default_death; deal_combat.rs2)",
+    ],
+    "loot_contract": "The spirit drops Ashes (death_drop ashes, the wiki's 100% line); its quest kill moves the quest to ^deal_told_kill_spider and leaves the brewing control running. A fever spider killed at ^deal_kill_spider drops deal_spider_body.",
+    "test_ids": [
+        "quest-combat-contract:rum-deal",
+        "quest:rumdeal",
+    ],
+    "known_gaps": [
+        "The page's max hit 28 is not what the sourced stats give: ~npc_melee_maxhit is (146 + 9) * 64 / 640 = 16 from strength 146 and bonus 0, and neither the page nor the cache carries a strength bonus; the 28 needs the spirit's own melee swing rolling it (the Swan Song ^ssq_queen_melee_maxhit pattern) in deal_combat.rs2.",
+        "The page's 'sucked back into the brewing controls and must be fought again from full hitpoints' is the 1000-tick npc_add duration, not a modelled timer; changing floors to drop its aggression is the engine's ordinary chase.",
+        "The fever spider's 12.5%-of-Hitpoints hit and disease without slayer gloves are not modelled (rumdeal.constant's deferred note).",
+        "The Trivia's 'The power of Guthix compels you!' on attacking it is not said.",
+    ],
+}
+
+AUDITED_OVERRIDES["Wanted!"] = {
+    "source_audits": [
+        {"url": "https://oldschool.runescape.wiki/w/Solus_Dellagar?oldid=15204754", "revision": 15204754, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Black_Knight_(Wanted!)?oldid=15324646", "revision": 15324646, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Wanted!?oldid=15355767", "revision": 15355767, "retrieved": "2026-10-06"},
+    ],
+    "npc_gamevals": [
+        "wanted_solus_attackable: Solus Dellagar (npc 4930/4933/4962, no combat level, size 1), 40 hitpoints, 25/25/25 attack/strength/defence, magic 1, ranged 1, strength bonus 16, defence 5/5/5 stab/slash/crush, 72 magic, Melee (crush, gen_npc_stats.py's 'melee' rule), attack speed 3, aggressive, max hit 4 (falls out of 25 strength + 16 bonus), no drops (wiki infobox; cache all.npc stat1-4 25/25/25/40 and its strengthbonus/attackrate/defence params agree) (quest_wanted/configs/wanted.npc)",
+        "wanted_summoned_black_knight: Black Knight (Wanted!) (npc 4934/4959/4960, level 32), 42 hitpoints, 25/25/25, slash, attbns 18, strbns 16, speed 5, max hit 4, defence 73/76/70, -11 magic, 72 ranged, aggressive, no drops (wiki infobox; the cache's stat4 is 40) (quest_wanted/configs/wanted.npc)",
+    ],
+    "item_gamevals": [
+        "wanted_solus_trophy: Solus's hat, handed over by the Commorb Contact after the kill (wanted_commorb.rs2), not dropped",
+        "wanted_crystal_ball: the Commorb; its Scan at the seventh stop summons Solus, at the sixth the Black Knight",
+    ],
+    "loc_gamevals": [],
+    "trigger_handlers": [
+        "proc:wanted_scan_commorb seventh stop (npc_add wanted_solus_attackable at ^wanted_essence_mine_coord for 100 ticks; wanted_hunt.rs2)",
+        "opnpc2:wanted_solus_attackable (~npc_retaliate(0) -> @player_combat_start; wanted_hunt.rs2)",
+        "ai_queue3:wanted_solus_attackable (npc_findhero at ^wanted_hunt: mission4 bits, %varb1051_wanted_main = ^wanted_final_battle, then ~npc_default_death; wanted_hunt.rs2)",
+        "proc:wanted_hunt_sixth_black_knight (npc_add wanted_summoned_black_knight for 200 ticks, npc_setmode(opplayer2); wanted_hunt.rs2)",
+        "ai_queue3:wanted_summoned_black_knight (npc_findhero -> queue wanted_black_knight_defeated, then ~npc_default_death; wanted_hunt.rs2)",
+    ],
+    "loot_contract": "Neither Solus nor the summoned Black Knight drops anything (death_drop null; the pages list no drops). Solus's kill writes ^wanted_final_battle; his hat comes from the Commorb Contact. The Black Knight's kill completes the sixth hunt stop and returns the 20 essence as the final clue.",
+    "test_ids": [
+        "quest-combat-contract:wanted",
+        "quest:wanted",
+    ],
+    "known_gaps": [
+        "Savant's 15 Temple Knight archers and Solus's Ice Barrage over them are not staged; the fight starts with Solus alone.",
+        "No source names Solus's swing animation (the cache has only his staff ready and halberd walk), so he swings the attack_anim param default.",
+        "The summoned Black Knight's block follows the page's 42 hitpoints against the cache's stat4 40.",
+    ],
+}
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(

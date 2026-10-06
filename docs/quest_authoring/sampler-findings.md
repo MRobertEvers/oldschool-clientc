@@ -986,3 +986,25 @@ the full walk.
 `playSnakeCharm-N` rows pass every octave press and the last note unconditionally, because
 `ok = (n[2] == nil) or ... or (n[2] == 8)`. The grade is the next row, `playSnakeCharm.await`
 (`varb1404_ratcatch_var` reaches 105), so the quest is kept. Each row still carries a detail.
+
+## Sample matthew-mbp-m4-b67 round 2: a 99-melee account whose margin rows still show a real fight (2026-10-06)
+
+Three quests were sampled: betweenarock, wanted and fenkenstrain. All three were kept, and no
+images were opened. Each verdict rests on `gate.py`, `lint_quest.py` (clean, no mid-run gives),
+`helper_coverage` (FULL 43, 31 and 37, 0 CHEAT), the ledger and `goto_table.py` (every hop REACH
+closed-doors). Round 1 had already kept betweenarock with no commit since, so it was only
+re-graded (b64 round 2 (a)). Fenkenstrain's round-2 change was checked as a diff. The Port
+Phasmatys toll is gone. The test now casts a real Falador Teleport (runes 1/3/1 -> 0), walks 18
+tiles to the furnace, and comes back by `teletab_fenk` (1 -> 0, landing 3550,3530). Magic 48 is
+staged for the tablet's level gate (`teleport_tablet.rs2:34`). The wiki needs no level for this,
+so it is a known content seam carry and not a send-back.
+
+(a) STAGED 99 MELEE IS NOT A SEND-BACK WHEN THE MARGIN ROWS SHOW DAMAGE. Wanted! stages 99
+Attack, Strength, Defence and Hitpoints. Its guide names only the enemies ("Black Knight (level
+33)", "Solus Dellagar"). gaps-combat ("A margin at 99 Defence and 99 Hitpoints proves nothing")
+asks for the gear's minimum levels instead. Even so, the rows read lowest hp 96, 71 and 70, with
+Solus on his b67-seam1 stat block (`27/30` after the first hit, dead in 36 ticks). Those are real
+fights, so the quest was kept. Between a Rock's `killAvatar.margin` reads 99/99. The Avatar of
+Magic attacks only with magic, and the test has Protect from Magic on, so the full hp comes from
+the prayer and not from the staging. Send a test back only when the full-hp margin comes from the
+staged levels alone, and nothing else in the fight explains it.

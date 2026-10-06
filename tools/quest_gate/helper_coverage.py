@@ -3323,12 +3323,99 @@ class Grader:
                 found.update(words(item["name"]))
         return found
 
+    # -- seam matthew-mbp-m4-b67-seam1 (a): an item cheat is charged to a
+    # step only for the step's own item, never for a word the two merely
+    # share. Rum Deal's setup `::give deal_slayer_gloves 1` (a bring-along
+    # the guide's getItemRequirements lists: slayerGloves, whose alternate
+    # deal_slayer_gloves is) was graded CHEAT against useBucketOnTap ("Fill a
+    # bucket from the output tap", deal_brewvat_tap) because both carry the
+    # content's own symbol prefix "deal". False is the reading before it.
+    CHEAT_BY_OWN_ITEM = True
+    # A symbol prefix is the quest's own (not a word of any step) when at
+    # least this many of the symbols the guide names start with it and they
+    # are at least PREFIX_SHARE of them all (Rum Deal: deal_, 25 of 30).
+    PREFIX_MIN = 4
+    PREFIX_SHARE = 0.5
+
+    def bring_along_alts(self):
+        """Every symbol a guide bring-along (getItemRequirements /
+        getItemRecommended, not obtainable during the quest) may be given as:
+        its ids and its alternates. Rum Deal's slayerGloves is
+        slayerguide_slayer_gloves OR deal_slayer_gloves."""
+        out = set()
+        for var in self.guide.item_requirements + self.guide.item_recommended:
+            item = self.guide.items.get(var)
+            if item and not item["obtainable"]:
+                out.update(item["ids"])
+                out.update(item.get("alts") or ())
+        return out
+
+    def prefix_words(self):
+        """words() of the quest's dominant symbol prefix -- the first `_`
+        token most of the symbols the guide names share ("deal" for Rum
+        Deal's deal_pete, deal_brewvat_tap, deal_slayer_gloves ...), which
+        says nothing about WHICH item or loc -- or an empty set when no token
+        reaches PREFIX_MIN symbols and PREFIX_SHARE of them."""
+        cached = getattr(self, "_prefix_words", None)
+        if cached is not None:
+            return cached
+        symbols = {s for step in self.guide.steps.values() for _, s in step.targets}
+        symbols |= {i for item in self.guide.items.values() for i in item["ids"]}
+        counts = {}
+        for symbol in symbols:
+            if "_" in symbol:
+                head = symbol.split("_")[0]
+                counts[head] = counts.get(head, 0) + 1
+        found = set()
+        if counts:
+            head, count = max(sorted(counts.items()), key=lambda pair: pair[1])
+            if count >= self.PREFIX_MIN and count >= self.PREFIX_SHARE * len(symbols):
+                found = set(words(head))
+        self._prefix_words = found
+        return found
+
+    def step_input_items(self, step):
+        """The items a step HOLDS to do its work and does not obtain: the
+        ids and alternates of its req_vars, unless the step is an ItemStep
+        (a pickup, whose requirement is the item it picks up) or the item is
+        one of its own obj targets. Rum Deal's useBucketOnTap ("Fill a
+        bucket", req bucket -> bucket_empty) spends the empty bucket: a
+        setup `::give bucket_empty` is its input, not its result."""
+        if step.kind == "ItemStep":
+            return set()
+        own = [s for k, s in step.targets if k == "obj"]
+        out = set()
+        for var in step.req_vars:
+            item = self.guide.items.get(var)
+            if not item:
+                continue
+            for symbol in list(item["ids"]) + list(item.get("alts") or ()):
+                if not any(same_thing("obj", target, symbol) for target in own):
+                    out.add(symbol)
+        return out
+
+    def is_own_item(self, step, symbol):
+        """Is `symbol` the item the step obtains: one of its obj targets (or
+        that target's family), or for an ItemStep one of its req_vars ids or
+        alternates?"""
+        own = [s for k, s in step.targets if k == "obj"]
+        if step.kind == "ItemStep":
+            for var in step.req_vars:
+                item = self.guide.items.get(var)
+                if item:
+                    own += list(item["ids"]) + list(item.get("alts") or ())
+        return any(target == symbol or same_thing("obj", target, symbol) or symbol in obj_family(target)
+                   for target in own)
+
     def _cheat_effects(self):
         """[{line, text, kind: give|var|teleport, items, vars, words}] -- the cheats
         that do quest work. Resets, stat/level setup and bring-along gives are
         dropped here."""
         _, _, debugprocs = content_index()
         bring = self.bring_alongs()
+        # a bring-along given as one of its alternates is still a bring-along
+        # (Rum Deal's deal_slayer_gloves for slayerGloves; seam b67-seam1 (a))
+        bring_given = (bring | self.bring_along_alts()) if self.CHEAT_BY_OWN_ITEM else bring
         effects = []
         for number, text in self.test.cheats:
             parts = text[2:].split()
@@ -3338,7 +3425,7 @@ class Grader:
             args = parts[1:]
             effect = {"line": number, "text": text, "items": [], "vars": [], "teleport": False}
             if command in GIVE_CHEATS and args:
-                if args[0] in bring:
+                if args[0] in bring_given:
                     # A bring-along is fine to give -- unless the ladder has a
                     # step whose whole job is picking it up (Fishing Contest's
                     # garlic on the Seers' table).
@@ -3559,6 +3646,8 @@ class Grader:
     def line_refused(self, step, line, kind=None, symbol=None, text=None):
         """Why action line `line` cannot drive `step` (claimed by another
         step's row, or the wrong op on the step's target), or None."""
+        if self.never_ran(line):
+            return "line %d sits below the block at line %d: the run never reached it" % (line, self.block_line())
         other = self.claimed_by_other(self.test.row_name_at(line), step)
         if other:
             return "line %d writes row %r, guide step %s's own row" % (
@@ -3573,6 +3662,107 @@ class Grader:
             if name == row_step:
                 return first
         return None
+
+    # -- a blocked run (seam matthew-mbp-m4-b67-seam1 (b)). A run that
+    # stopped at t.blocked never ran the lines below that call: they drive
+    # nothing and cheat nothing. Witch's House's enterGate and
+    # useCheeseOnHole (rows at ball.lua:426/:468, under the block at :403)
+    # were charged CHEAT by goto proximity, and Rum Deal's thirty island
+    # steps read DRIVEN off action lines below its block at :217. False is
+    # the reading before it.
+    BELOW_BLOCK = True
+
+    def _blocked_calls(self):
+        """[(line, reason)]: every `t.blocked(...)` call in the test, its
+        reason the call's string literals joined (a reason built from a
+        variable alone is "")."""
+        code = self.test.code
+        out = []
+        for match in re.finditer(r"\bt\.blocked\s*\(", code):
+            line = code.count("\n", 0, match.start()) + 1
+            if code[code.rfind("\n", 0, match.start()) + 1:match.start()].count('"') % 2:
+                continue  # inside a string
+            body = code[match.end():matching_close(code, match.end() - 1)]
+            literals = re.findall(r'"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\'', body)
+            out.append((line, "".join(a or b for a, b in literals)))
+        return out
+
+    def block_line(self):
+        """The source line of the t.blocked call the run stopped at, or None:
+        the ledger's BLOCKED row's detail starts with that call's literal
+        reason (the only call, when none can be told apart by its reason).
+        None too when the row written just before the block comes from a
+        line BELOW it (the call sits in a helper or a loop: what ran after it
+        in the file cannot be told)."""
+        if getattr(self, "_block_line", False) is not False:
+            return self._block_line
+        self._block_line = None
+        if not self.BELOW_BLOCK:
+            return None
+        blocked = [i for i, row in enumerate(self.rows) if row["verdict"] == "BLOCKED"]
+        if not blocked:
+            return None
+        position = blocked[-1]
+        detail = re.sub(r"\s+", " ", self.rows[position].get("detail") or "").strip()
+        calls = self._blocked_calls()
+        matched = sorted({line for line, reason in calls
+                          if reason and detail.startswith(re.sub(r"\s+", " ", reason).strip()[:60])})
+        if not matched and len(calls) == 1:
+            matched = [calls[0][0]]
+        if len(matched) != 1:
+            return None
+        line = matched[0]
+        for row in reversed(self.rows[:position]):
+            before = self.row_line(row["step"])
+            if before is None:
+                continue
+            if before > line:
+                return None
+            break
+        self._block_line = line
+        return line
+
+    def never_ran(self, line):
+        """Is source line `line` below the t.blocked call the run stopped at
+        (block_line), and not part of a row the ledger has (a loop body that
+        ran before the block)?"""
+        block = self.block_line()
+        if block is None or line is None or line <= block:
+            return False
+        name = self.test.row_name_at(line)
+        if name is not None and any(row["step"] == name or re.match(re.escape(name) + r"-\d+$", row["step"])
+                                    for row in self.rows):
+            return False
+        return True
+
+    def step_test_lines(self, step):
+        """Every source line that is a step's own: the rows named after it
+        (or a guide alias of it) and the action lines naming one of its
+        targets."""
+        names = [step.name] + [alias for alias, target in self.guide.step_alias.items()
+                               if self.guide.resolve(alias) == step.name]
+        lines = set()
+        for first, _last, name in self.test.row_spans:
+            if any(self.row_names_step(name, own) for own in names):
+                lines.add(first)
+        for line, named in self.test.action_lines:
+            if any(same_thing(kind, symbol, text) for text in named for kind, symbol in step.targets):
+                lines.add(line)
+        return lines
+
+    def below_block(self, step):
+        """The UNMATCHED reason of a step whose own test lines (step_test_lines)
+        all sit below the block the run stopped at, or None."""
+        block = self.block_line()
+        if block is None:
+            return None
+        lines = self.step_test_lines(step)
+        if not lines or not all(self.never_ran(line) for line in lines):
+            return None
+        shown = sorted(lines)
+        return "below the block at line %d: the run stopped there, and the step's own line%s %s never ran" % (
+            block, "" if len(shown) == 1 else "s", ", ".join(str(n) for n in shown[:6]) +
+            (" ..." if len(shown) > 6 else ""))
 
     @staticmethod
     def _tokens(text):
@@ -3988,7 +4178,7 @@ class Grader:
                         continue
                     why = self.line_refused(step, line, kind, symbol, text)
                     if why:
-                        held = self.state_already_set(step, line, kind, symbol, text)
+                        held = None if self.never_ran(line) else self.state_already_set(step, line, kind, symbol, text)
                         if held:
                             return held
                         refused.append(why)
@@ -4032,7 +4222,7 @@ class Grader:
             wanted = set(words(step.text))
             for line, named in self.test.action_lines:
                 source = self.test.code_lines[line - 1]
-                if not re.search(r"shop\.buy|click_obj|take_obj|pickup", source):
+                if not re.search(r"shop\.buy|click_obj|take_obj|pickup", source) or self.never_ran(line):
                     continue
                 for text in named:
                     if re.match(r"^[a-z][a-z0-9_]+$", text) and set(words(text.replace("_", " "))) & wanted \
@@ -4420,26 +4610,40 @@ class Grader:
         own = self.step_words(step)
         first = (camel_words(step.name) or [""])[0]
         obtains = bool(OBTAIN_VERB.match(step.text)) or bool(OBTAIN_VERB.match(first))
+        # seam b67-seam1 (a): words that name no particular thing -- the
+        # quest's own words and its symbol prefix -- and the items the step
+        # holds to do its work, never charge it
+        common = (self.quest_words | self.prefix_words()) if self.CHEAT_BY_OWN_ITEM else set()
+        inputs = self.step_input_items(step) if self.CHEAT_BY_OWN_ITEM else set()
         for effect in self.effects:
+            if self.never_ran(effect["line"]):
+                continue  # below the block: the run never reached it (seam b67-seam1 (b))
             hit = set()
+            own_item = False
             # An item cheat stands in only for a step that OBTAINS the item;
             # a step that merely uses it is still the test's to do.
             if effect["items"] and obtains:
+                items = [i for i in effect["items"] if i not in inputs]
+                own_item = self.CHEAT_BY_OWN_ITEM and any(self.is_own_item(step, i) for i in items)
                 item_words = set()
-                for item in effect["items"]:
+                for item in items:
                     item_words |= self.item_words(item)
                 if effect.get("obtain_only"):
+                    # a bring-along: charged only to the step that picks
+                    # THAT item up (Fishing Contest's garlic), never to one
+                    # whose item differs
                     if item_words and item_words <= set(words(step.text)):
                         hit |= item_words
                 else:
-                    hit |= own & item_words
+                    hit |= own & (item_words - common)
             var_words = set()
             for var in effect["vars"]:
                 var_words |= set(words(var.replace("_", " ")))
             var_words -= self.quest_words
+            var_words -= common
             hit |= own & var_words
             target_items = [s for k, s in step.targets if k == "obj"]
-            if set(effect["items"]) & set(target_items) or hit:
+            if set(effect["items"]) & set(target_items) or hit or own_item:
                 what = effect["text"]
                 if effect.get("where"):
                     what += " (debugproc %s)" % effect["where"]
@@ -4472,6 +4676,8 @@ class Grader:
             if self.is_travel(step) and not self.writes_quest_var(locs):
                 return None
             near = [g for g in self.test.gotos if _near(step.point, g)]
+            if self.GOTO_FAR_SIDE and near:
+                return self._goto_past(step, near, locs, gated)
             if near:
                 # The goto that lands CLOSEST to the step's tile is the one
                 # that skipped it, not the first nearby one in file order
@@ -4491,6 +4697,84 @@ class Grader:
                 return "goto_tile %d,%d,%d at line %d lands past the %s the guide names (%s)" % (
                     goto[1], goto[2], goto[3], goto[0], max(gated, key=len), ",".join(locs) or step.text[:40])
         return None
+
+    # -- seam matthew-mbp-m4-b67-seam1 (b): a goto is charged with the gated
+    # loc a step names only when it lands on the loc's far side: in the
+    # loc's own map frame and level (across it, for a climb), from a
+    # departure no walk joins with every door shut. Witch's House's
+    # goto-getKey (2928,3455,0 -> 2899,3473,0, the potted plant outside the
+    # front door: REACH with the doors closed) was charged with the
+    # basement's shockgater (2902,9873,0, another frame, matched only
+    # through _near's 6400 shift) and the mouse hole behind two doors
+    # (2903,3466,0). False is the reading before it (proximity alone).
+    GOTO_FAR_SIDE = True
+    # reach.py's margins, as goto_table.py reads a hop
+    GOTO_REACH_MARGINS = (30, 100, 250)
+
+    def _goto_runs(self, goto):
+        """[(departure (x, z, level) or None, landing, ledger row)] for every
+        ledger goto row that landed within a tile of the goto's target."""
+        _, x, z, level = goto
+        out = []
+        track = self.player_track()
+        for i, (position, point, is_goto) in enumerate(track):
+            if not is_goto or point[2] != level or max(abs(point[0] - x), abs(point[1] - z)) > 1:
+                continue
+            known = self._known_departure(track, i)
+            out.append((known[0] if known else None, point, self.rows[position]))
+        return out
+
+    def _hop_reaches(self, start, end):
+        """Does a walk join `start` and `end` (one level, one map frame) with
+        every door shut, at any of GOTO_REACH_MARGINS (goto_table's REACH
+        closed-doors)?"""
+        if start[2] != end[2] or abs(start[1] - end[1]) > 3200 or abs(start[0] - end[0]) > 3200:
+            return False
+        if start[:2] == end[:2]:
+            return True
+        if max(abs(start[0] - end[0]), abs(start[1] - end[1])) > self.GATE_MAX_TILES:
+            return False
+        walls = map_walls()
+        return any(walls.door_route(start[:2], end[:2], end[2], margin, False)[0]
+                   for margin in self.GOTO_REACH_MARGINS)
+
+    def _goto_past(self, step, near, locs, gated):
+        """goto_cheat's charge under GOTO_FAR_SIDE: the goto in `near` (the
+        file's gotos within NEAR_TILES of the step's WorldPoint) that lands
+        on the far side of the step's loc, or None. A goto whose line never
+        ran (below the block) is not one; one with no ledger row to read
+        its departure from is judged on its landing alone."""
+        point = step.point
+        climbs = any("climb" in family_op_words("loc", s) for s in locs)
+        level = point[2] if len(point) > 2 else None
+        if climbs:
+            # a climb's far side is the other map frame or level
+            sided = [g for g in near if abs(g[2] - point[1]) > 3200 or (level is not None and g[3] != level)]
+        else:
+            sided = [g for g in near if abs(g[2] - point[1]) <= 3200 and (level is None or g[3] == level)]
+        charged = []
+        for goto in sided:
+            if self.never_ran(goto[0]):
+                continue
+            runs = self._goto_runs(goto)
+            if runs and all(departure is not None and self._hop_reaches(departure, landing)
+                            for departure, landing, _ in runs):
+                continue  # every time it ran, a walk with the doors shut got there: past no gate
+            charged.append((goto, runs))
+        if not charged:
+            return None
+        goto, runs = min(charged, key=lambda pair: (_distance(point, pair[0]), pair[0][0]))
+        hop = next(((departure, landing, row) for departure, landing, row in runs
+                    if departure is None or not self._hop_reaches(departure, landing)), None)
+        if hop is None:
+            how = "no ledger row read its departure"
+        elif hop[0] is None:
+            how = "ledger row %s %r, departure unknown" % (hop[2]["index"], hop[2]["step"])
+        else:
+            how = "ledger row %s %r from %d,%d,%d: no walk with every door shut" % (
+                (hop[2]["index"], hop[2]["step"]) + tuple(hop[0]))
+        return "goto_tile %d,%d,%d at line %d lands past the %s the guide names (%s) -- %s" % (
+            goto[1], goto[2], goto[3], goto[0], max(gated, key=len), ",".join(locs) or step.text[:40], how)
 
     def readback(self, line):
         """The first code line within READBACK_SPAN lines after `line` that
@@ -4529,6 +4813,8 @@ class Grader:
         sanctioned = sanctioned_grind_cheats()
         unread = None
         for line, text in self.test.cheats:
+            if self.never_ran(line):
+                continue  # below the block the run stopped at (seam b67-seam1 (b))
             parts = text[2:].split()
             if parts and parts[0] in debugprocs and name in norm(parts[0]):
                 rel, where, _ = debugprocs[parts[0]]
@@ -4852,6 +5138,12 @@ class Grader:
         collapsed = self.collapsed_by_name(step)
         if collapsed:
             return "CONTENT_GAP", collapsed
+        # A step whose own lines all sit below the block the run stopped at
+        # was never reached: not a cheat, not a narrated leg -- not done
+        # (seam b67-seam1 (b)).
+        below = self.below_block(step)
+        if below:
+            return "UNMATCHED", below
         for klass, check in (("CHEAT", lambda: self.cheat(step, driven_symbols)),
                              ("BRING_ALONG", lambda: self.bring_along(step)),
                              ("CONTENT_GAP", lambda: self.content_gap(step)),
