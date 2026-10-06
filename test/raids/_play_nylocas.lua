@@ -195,8 +195,22 @@ if size > 1 then
     -- (its slot is one Saradomin brew's: a trio seat drank 0-9 of the 40
     -- doses in the s47 surveys, so nine potions are still more than a room's)
     out[#out + 1] = "::give dragon_claws 1"
+    -- raid seam49: the ranger's TWISTED BOW for her ranged form (Blert
+    -- range|boss TWISTED_BOW in 20 of 27 rooms, the pipe in 14), arrows worn
+    -- in the quiver slot the loaded pipe leaves empty; its slot and the
+    -- arrows' passing one are two Saradomin brews' (below)
+    if role == 2 then
+        out[#out + 1] = "::give twisted_bow 1"
+        out[#out + 1] = "::give dragon_arrow 1000"
+        out[#out + 1] = "::wield dragon_arrow"
+        -- raid seam51 play_tob_nylocas_whole: the ranger's BLACK CHINCHOMPAS
+        -- for the green clumps (Blert range|wave10 CHIN_BLACK in 23 of 27
+        -- Normal trio rooms, wave 21 in 21, wave 31 in 18: reference/
+        -- nylocas_normal_3.json weapons); one stacked slot, a brew's
+        out[#out + 1] = "::give chinchompa_black 300"
+    end
     for i = 1, #out do
-        if out[i] == "::give br_4dosepotionofsaradomin 10" then out[i] = "::give br_4dosepotionofsaradomin 9" end
+        if out[i] == "::give br_4dosepotionofsaradomin 10" then out[i] = "::give br_4dosepotionofsaradomin " .. (role == 2 and 6 or 9) end
     end
     -- the mage's Magic reads 112 (tenth percentile 107; the others 99): a
     -- SATURATED HEART (raid seam46: 99 + 4 + floor(9.9) = 112; content
@@ -341,7 +355,8 @@ return {
         for k, c in pairs(ny.results or {}) do res[#res + 1] = k .. " " .. c end
         table.sort(res)
         t.check("play.fight", result == "ok", tostring(detail) .. "; waves seen " .. tostring(ny.waves) .. ", presses " .. tostring(ny.presses)
-            .. " (" .. table.concat(res, ", ") .. "), casts " .. tostring(ny.casts) .. " (bursts " .. tostring(ny.bursts) .. "), swaps "
+            .. " (" .. table.concat(res, ", ") .. "), casts " .. tostring(ny.casts) .. " (bursts " .. tostring(ny.bursts) .. "), chins " .. tostring(ny.chins)
+            .. " (best clump " .. tostring(ny.chin_best) .. ", chinchompas carried " .. tostring(ny.chin_have) .. "), swaps "
             .. tostring(ny.swaps) .. ", blast escapes " .. tostring(ny.escapes) .. ", turn holds " .. tostring(ny.holds) .. ", flicker cancels "
             .. tostring(ny.flicker_cancels) .. ", her turns " .. tostring(#(ny.turns or {}))
             -- raid seam47: swaps whose press rode in the swap's own block, the
@@ -508,7 +523,22 @@ return {
             .. " against the incoming forms " .. kills.incoming .. ": the ones that swing at the player are met first")
         t.check("tech.food", (eaten + brews) > 0 and lowest > 0, "sharks eaten " .. eaten .. ", brew doses " .. brews .. ", lowest hitpoints " .. lowest .. ", eaten from 78 (84 with three copies swinging) and below, one at a time, the next only once the hitpoint read had risen")
         -- a 0 is a block only when the prayer the test held covered the style (prayer_log); a 0 with no prayer on its style is a miss (swing_miss_entry)
-        t.check("tech.prayer", wave_block_count >= 20 and melee_block_count > melee_cover_landed, "protection prayer switched " .. prayer_switches .. " times to the style of the swinging majority (a big counts two, a melee copy only "
+        -- raid seam49: in a party the leader is the MAGE, not the tank: the
+        -- solo room's 20 wave blocks (every wave swing is at the one raider)
+        -- is no trio number -- 9-11 wave swings a room reach the trio mage at
+        -- all (seam49 survey_a).  The trio's wave half is the reference's
+        -- range of what the mage's prayer and footing let through:
+        -- reference/nylocas_normal_3.json outcome.hp_lost.mage 67 [24-120]
+        -- (14 recorded mages; hit_player damage on the leader's pid, the
+        -- room's every source).  Her melee form's half is unchanged.
+        local leader_taken = 0
+        for _, h in ipairs(hits) do
+            if (h.damage or 0) > 0 and rec.my_pid ~= nil and h.pid == rec.my_pid then leader_taken = leader_taken + h.damage end
+        end
+        local wave_half = wave_block_count >= 20
+        if size > 1 then wave_half = rec.my_pid ~= nil and leader_taken >= 24 and leader_taken <= 120 end
+        t.check("tech.prayer", wave_half and melee_block_count > melee_cover_landed, (size > 1 and ("the leader (the mage) lost " .. leader_taken
+            .. " hitpoints in the room; reference outcome.hp_lost.mage 67 [24-120]; ") or "") .. "protection prayer switched " .. prayer_switches .. " times to the style of the swinging majority (a big counts two, a melee copy only "
             .. "inside four tiles): " .. wave_block_count .. " hit_player rows from wave nylocas at 0 while the prayer held covered their style (blocks), against " .. wave_unprayed_zero
             .. " zeros with no prayer on their style (misses, not counted) and " .. wave_unprayed_landed .. " that landed with none on (the other two styles, and explosions); "
             .. "her melee form: " .. melee_block_count .. " blocked against " .. melee_cover_landed .. " landed on the switch ticks before the prayer followed")

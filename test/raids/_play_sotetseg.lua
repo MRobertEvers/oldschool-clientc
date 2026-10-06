@@ -34,6 +34,9 @@ trio_kit = {
     "::clearinv", "::maxmelee", "::setlevel prayer 99", "::setlevel agility 99",
     "::give anglerfish 16", "::give br_4dose2restore 3", "::give 4dose2combat 1",
     "::give br_4dosepotionofsaradomin 4",
+    -- raid seam42: the elder maul the Blert trios spec once a phase
+    -- (sotetseg_normal_3.json weapons ELDER_MAUL; the plan's THE ELDER MAUL)
+    "::give elder_maul 1",
 }
 
 trio_run = function(t)
@@ -86,7 +89,7 @@ trio_run = function(t)
         end
         for k, fw in ipairs(S.follows or {}) do
             parts[#parts + 1] = "read maze " .. k .. ": from t" .. tostring(fw.seen) .. ", " .. #fw.samples .. " glows (" .. fw.gaps
-                .. " gaps), path " .. fw.path_n .. " tiles complete t" .. tostring(fw.complete) .. (fw.bad and " BAD SHAPE" or "")
+                .. " gaps, " .. tostring(fw.ambiguous or 0) .. " of them two-way), path " .. fw.path_n .. " tiles complete t" .. tostring(fw.complete) .. (fw.bad and " BAD SHAPE" or "")
                 .. ", walk t" .. tostring(fw.start_walk) .. ", off north t" .. tostring(fw.off_north) .. ", " .. fw.on_grid
                 .. " ticks on the grid (" .. fw.off_path .. " off the path)"
         end
@@ -95,7 +98,11 @@ trio_run = function(t)
     t.check("play.fight", result == "ok", "p" .. role .. " " .. tostring(detail))
     t.check("play.mazes", true, "p" .. role .. " " .. maze_text() .. "; death balls seen " .. tostring(S.death_balls)
         .. ", gathers " .. tostring(S.gathers) .. " (" .. tostring(S.gather_ticks) .. " ticks), seat ticks " .. tostring(S.seat_ticks)
-        .. ", seats given up " .. tostring(S.seats_given_up or 0) .. ", ticks a ball flew at me " .. tostring(S.aimed))
+        .. ", seats given up " .. tostring(S.seats_given_up or 0) .. ", ticks a ball flew at me " .. tostring(S.aimed)
+        .. "; elder maul " .. ((S.em and #S.em.log > 0) and table.concat(S.em.log, ", ") or "none")
+        -- raid seam51: his attack clock as this raider read it, and the boosts
+        .. "; his attacks seen " .. tostring(S.attacks_seen or 0) .. ", melee prayer on his due tick " .. tostring(S.melee_due or 0)
+        .. " ticks, super combat sips " .. tostring(S.reboosts or 0))
     if role ~= 1 then
         t.expect("party.barrier.done", t.party.barrier("done", 9000))
         t.finish(0)
@@ -235,8 +242,14 @@ trio_run = function(t)
             ball_lines[#ball_lines + 1] = "t" .. r.tick .. " land t" .. land .. ": " .. n .. " raiders (" .. table.concat(parts, ",") .. ")"
         end
     end
-    t.expect("technique.trio.death_ball_shared", (balls >= 1 and shared_all) and "ok" or "fail",
-        balls .. " death balls, the party stacked within a tile at every landing (the splats: the largest equal group, landing to +2): " .. table.concat(ball_lines, "; "))
+    -- raid seam50: a room whose only death ball landed inside a maze (nulled,
+    -- W:799) has nothing to judge: the row is absent on that seed, never a
+    -- FAIL on nothing (seam49 s2 _play_sotetseg: t190 land t205, nulled) nor
+    -- a PASS on nothing; play.measure carries the line
+    if balls >= 1 then
+        t.expect("technique.trio.death_ball_shared", shared_all and "ok" or "fail",
+            balls .. " death balls, the party stacked within a tile at every landing (the splats: the largest equal group, landing to +2): " .. table.concat(ball_lines, "; "))
+    end
     -- the balls: blocked splats (hitsplat 26, 0) against ones that hurt
     local blocked, hurt = 0, 0
     for _, h in ipairs(hits) do
@@ -263,6 +276,30 @@ trio_run = function(t)
     for _, n in pairs(rec.inputs) do
         if n > 0 then hist[math.min(n, 4)] = hist[math.min(n, 4)] + 1 end
     end
+    -- raid seam50 play_tob_sotetseg_whole: THE REFERENCE ROWS.  The room
+    -- against the 20 recorded death-free Normal trio rooms on Blert
+    -- (docs/minigames/theater_of_blood/sources/blert_api/reference/
+    -- sotetseg_normal_3.json): outcome.room_ticks 212.5 [164-262];
+    -- outcome.hp_lost per raider melee1 92.5 [27-155], melee2 108 [3-225],
+    -- melee3 105 [83-135] (the roles are the recorder's labels, so a raider
+    -- is held to their union [3-225]); outcome.deaths 0 [0-0]; the maze, proc
+    -- to his combat form back, 28 [14-47] over 26 mazes (blert_api/
+    -- sote_maze.csv reactivate_tick - proc_tick).
+    local room_ticks = death_tick and (death_tick - mark_tick) or nil
+    t.check("blert.room_ticks", room_ticks ~= nil and room_ticks >= 164 and room_ticks <= 262,
+        "room " .. tostring(room_ticks) .. " ticks from the mark to his death; the reference's 20 rooms: 212.5 [164-262]")
+    local hp_ok = #per >= 1
+    for pid, _ in pairs(pids) do
+        if (taken[pid] or 0) > 225 then hp_ok = false end
+    end
+    t.check("blert.hp_lost", hp_ok, "hitpoints lost a raider " .. table.concat(per, ", ") .. "; the reference: melee1 92.5 [27-155], melee2 108 [3-225], melee3 105 [83-135]")
+    local maze_ok, maze_d = #mazes >= 1, {}
+    for _, mz in ipairs(mazes) do
+        local d = mz.react and (mz.react - mz.proc) or nil
+        maze_d[#maze_d + 1] = tostring(d)
+        if d == nil or d < 14 or d > 47 then maze_ok = false end
+    end
+    t.check("blert.maze_ticks", maze_ok, "mazes proc to back " .. table.concat(maze_d, ", ") .. " ticks; the reference's 26 mazes: 28 [14-47]")
     t.check("play.measure", true, string.format("room %s ticks (mark %s, death %s); damage taken %s; his melee swings %d; "
         .. "balls blocked %d; death balls %d; mazes %d; leader eats %d, drinks %d, swings %d; inputs 1/2/3/4+ %d/%d/%d/%d",
         tostring(death_tick and (death_tick - mark_tick)), tostring(mark_tick), tostring(death_tick), table.concat(per, ", "),

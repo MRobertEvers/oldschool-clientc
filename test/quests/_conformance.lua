@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 218
+-- @seam-count 219
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 230
-local SEAM_COUNT = 218
+local SEAM_COUNT = 219
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -15178,6 +15178,45 @@ return {
             if #bad > 0 then return "fail", "QD.raid._play_nylocas_supplies: " .. table.concat(bad, "; ") end
             return "ok", "QD.raid._play_nylocas_supplies: 7 of 7 (nothing at 99 or 92 under a threat of 200; the shark alone at 88 and 85; brew and shark at 50; "
                 .. "nothing over the threat; the interlude bandage once at 99)"
+        end)
+
+        -- PLACE: test/quests/_conformance.lua PLAN, after the
+        -- seam("seam.raid_play_nylocas_supplies", ...) row (the other raid
+        -- plan-helper rows).  SEAM_COUNT +1, @seam-count +1.
+        --
+        -- raid seam51 play_tob_bloat_whole: the Bloat hide is scored by the
+        -- WALK to an attack tile (QD.raid._play_bloat_path_dist), not the
+        -- straight line: a breadth-first walk on Bloat's floor from the reach
+        -- ring (the tiles beside the 5x5's four sides; no diagonal melee), a
+        -- diagonal step only where both of its sides are floor (no corner cut
+        -- past the tank).  No npc, no cheat: the floor and the tank are the
+        -- plan's own geometry in map square 6400,64.
+        seam("seam.raid_play_bloat_path_dist", function()
+            local pd = verb("raid", "_play_bloat_path_dist")
+            if not pd then return missing("raid", "_play_bloat_path_dist") end
+            local function floor_ok(x, z)
+                local inside = x >= 6424 and x <= 6437 and z >= 89 and z <= 102
+                local tank = x >= 6429 and x <= 6434 and z >= 93 and z <= 98
+                return inside and not tank
+            end
+            local cases = {
+                -- Bloat south-west tile, the tile, the walk (seam51 survey_1/_3 _play_bloat)
+                { 6435, 95, 6434, 99, 0 },   -- beside the 5x5's west side: an attack tile
+                { 6435, 95, 6431, 99, 3 },   -- three along the north edge
+                { 6435, 95, 6428, 98, 7 },   -- the seam49 hide: seven, round the tank's corner
+                { 6435, 95, 6428, 93, 10 },  -- the far corner
+                { 6424, 94, 6429, 99, 1 },   -- diagonal to the 5x5's corner is not an attack tile
+                { 6424, 94, 6437, 97, 9 },   -- survey_3 down3: the members' nine-tile run
+            }
+            local bad = {}
+            for _, c in ipairs(cases) do
+                local d = pd(c[1], c[2], floor_ok)[c[3] * 100000 + c[4]]
+                if d ~= c[5] then
+                    bad[#bad + 1] = string.format("Bloat %d,%d tile %d,%d gave %s want %d", c[1], c[2], c[3], c[4], tostring(d), c[5])
+                end
+            end
+            if #bad > 0 then return "fail", "QD.raid._play_bloat_path_dist: " .. table.concat(bad, "; ") end
+            return "ok", "QD.raid._play_bloat_path_dist: 6 of 6 (the reach ring 0, three along the edge, seven and ten round the tank, the 5x5's diagonal corner 1, the survey's nine-tile run)"
         end)
 
         -- conformance.play_tob_nylocas_normal (raid seam32).  ONE seam row, no verb.

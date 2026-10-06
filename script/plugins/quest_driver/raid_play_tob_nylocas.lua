@@ -110,6 +110,20 @@ QD.raid._play_plan("tob_nylocas", {
             -- SCYTHE 118 of 167), not the whip
             loadout = { ranged = { item = "toxic_blowpipe_loaded", speed = 2, reach = 5, seqs = { [5061] = true } },
                 magic = { item = "eye_of_ayak", speed = 3, reach = 6, powered = true, seqs = { [12397] = true } },
+                -- raid seam49: her ranged form with the TWISTED BOW (Blert
+                -- range|boss TWISTED_BOW 20 of 27 rooms; the harness kit)
+                ranged_boss = { item = "twisted_bow", speed = 5, seqs = { [426] = true } },
+                -- raid seam51 play_tob_nylocas_whole: BLACK CHINCHOMPAS for a
+                -- green clump (Blert range|wave10 CHIN_BLACK in 23 of 27 rooms,
+                -- wave 21 in 21, wave 31 in 18, wave 6 in 12, wave 9 in 11;
+                -- reference/nylocas_normal_3.json weapons).  Thrown on rapid
+                -- (the medium fuse: full accuracy at 4-6 tiles, 75 percent
+                -- elsewhere, player_ranged.rs2 ~player_chinchompa_hit_roll),
+                -- the blast a 3x3 on the copy (~player_chinchompa_splash),
+                -- swing human_chinchompa_attack_pvn 7618 (all.seq.compack; the
+                -- it2 ticklogs: 10 throws, every one 7618, none 2779)
+                -- speed 4, 3 on rapid, range 9 (wiki Black chinchompa)
+                ranged_chin = { item = "chinchompa_black", speed = 3, seqs = { [7618] = true, [2779] = true } },
                 melee = { item = "scythe_of_vitur", speed = 5, seqs = { [8056] = true } } } },
         { name = "melee", colour = "melee", freeze = false, home = { 31, 25 },
             -- raid seam40 play_tob_nylocas_follows_blert: the meleer as Blert's
@@ -136,6 +150,17 @@ QD.raid._play_plan("tob_nylocas", {
     own_colour_bonus = 12,
     -- raid seam33: own colour first as a rule (see the target pick)
     own_first = true,
+    -- raid seam50 play_tob_nylocas_whole: a helper melees a grey in reach (see
+    -- A GREY AT A HELPER'S FEET) and a chewer stays a target until its last
+    -- pop_skip ticks (see AN OLD CHEWER IS STILL A COPY)
+    help_feet = true,
+    pop_skip = 4,
+    -- raid seam50: another seat's copy near its owner is left to it (see LEAVE
+    -- IT TO ITS OWNER); score points (a tile of running is 3)
+    leave_to_owner = 60,
+    -- raid seam49: the mage stands two off her on her magic and ranged forms
+    -- (see NOT HER NEAREST)
+    mage_back = true,
     -- raid seam33: in a party a swap goes out only with the old weapon's next
     -- swing two or more ticks off (see THE SWAP, TIMED); alone, as before
     swap_timed = true,
@@ -247,8 +272,40 @@ QD.raid._play_plan("tob_nylocas", {
     -- Measured OFF: survey1 (seed_survey --party 3) stood 3,2,1,2,2 of 4 at
     -- her landing against 2,2,2,2,2 without it; the supports do not fall for
     -- being let go, they fall for the copies the trio does not kill in time
-    keep_all = false,
-    keep_weight = 12,
+    -- raid seam51 play_tob_nylocas_whole: ON again, and stronger.  The
+    -- seam50 surveys (it2: weakest 0.05, 0.00 (fallen), 0.10 at her landing)
+    -- are the "let the lowest go" rule (+25 under 0.15) doing what it says;
+    -- the reference trios stand all four in 34 of 34 rooms, weakest 0.10 or
+    -- more.  A chewer on a support under `keep_low` is worth `keep_urgent`
+    -- more points on top of the missing-bar weight.
+    keep_all = true,
+    keep_weight = 20,
+    keep_low = 0.4,
+    keep_urgent = 25,
+    -- raid seam51: A SPLIT DOES NOT FLICKER.  The flicker is a wave spawn's
+    -- (NR :17 "FLICKER from wave 16 on: spawn as style a, switch to b five
+    -- ticks after spawning"); a big's split is armed with no flicker chain
+    -- (NR ~tob_nylo_spawn_split: ~tob_nylo_arm(..., 0), its colour rolled
+    -- once).  The settle wait held every split seven ticks from wave 16:
+    -- the cleanup's tail is splits (it2 _play_nylocas: 9 of the last 12
+    -- copies to die spawned after wave 31, every one a split).
+    split_settled = true,
+    -- raid seam51: THE CHINS (the ranger's `ranged_chin`, see its loadout):
+    -- thrown at a green whose 3x3 holds `clump` or more pressable greens (a
+    -- big counts half: 16 hitpoints against one blast roll), from `reach`
+    -- tiles or nearer without a step; a copy of another colour under the
+    -- blast is nulled for the ranger (DMG :272), each costs `other` points
+    chin = { clump = 2, reach = 9, other = 4 },
+    -- raid seam51: ANOTHER SEAT'S SHOT IN THE AIR (see the target pick):
+    -- score points on a copy another raider's projectile is flying at
+    inbound = 35,
+    -- raid seam51: once the 31st wave is out, the colour rule no longer
+    -- holds a seat back (the reference's cleanup is 32 ticks from wave 31,
+    -- outcome.phase.cleanup_end.start 292 - wave31.start 260; ours 47-51)
+    cleanup_free = true,
+    -- the cleanup is read off the screen: this many waves seen and none for
+    -- `cleanup_quiet` ticks (a seat sees 29-31 of the 31: it2 p2 saw 29)
+    cleanup_waves = 28, cleanup_quiet = 14,
 })
 
 -- The ids of the room's npcs, once per play (a symbol is a content name, an id
@@ -320,6 +377,7 @@ function QD.raid._play_nylocas_see(st, v)
                 if lane and ny.wave_ticks[v.tick] == nil then
                     ny.wave_ticks[v.tick] = true
                     ny.waves = ny.waves + 1
+                    ny.last_wave_tick = v.tick
                 end
             end
             s.last = v.tick
@@ -330,8 +388,11 @@ function QD.raid._play_nylocas_see(st, v)
                 s.style_tick = v.tick
             end
             if alive then
+                local age = v.tick - s.first
+                local settled = ny.waves < st.plan.flicker_wave - 1 or age >= st.plan.settle_age
+                    or (st.plan.split_settled and not s.lane)
                 v.nylos[#v.nylos + 1] = { row = row, slot = row.slot, x = row.x, z = row.z, style = w.style, big = w.big,
-                    fighting = w.fighting, symbol = w.symbol, size = w.big and 2 or 1, age = v.tick - s.first, seen = s }
+                    fighting = w.fighting, symbol = w.symbol, size = w.big and 2 or 1, age = age, seen = s, settled = settled }
             end
         elseif b ~= nil then
             -- HER bar is no death sign: at 4 of 360 hitpoints it reads 0 of 30
@@ -690,7 +751,8 @@ function QD.raid._play_nylocas_decide(st, v)
             local mr, rows = api_drive.messages()
             if mr == "ok" and type(rows) == "table" then
                 for i = 1, #rows do
-                    if rows[i].serial > ny.msg_serial and string.find(rows[i].text or "", "no effect on this Nylocas", 1, true) ~= nil then
+                    if rows[i].serial > ny.msg_serial and string.find(rows[i].text or "", "no effect on this Nylocas", 1, true) ~= nil
+                        and not (ny.chin_quiet ~= nil and v.tick <= ny.chin_quiet) then
                         local slot = ny.swung_slot or (ny.target and ny.target.slot)
                         if slot ~= nil and not ny.nulled[slot] then
                             ny.nulled[slot] = true
@@ -823,6 +885,27 @@ function QD.raid._play_nylocas_decide(st, v)
         end
     end
 
+    -- raid seam51 play_tob_nylocas_whole: ANOTHER SEAT'S SHOT IN THE AIR.
+    -- What a person sees of the others' attacks: the dart or the orb flying
+    -- from them to a copy (api_drive.projectiles: its target slot and the
+    -- tile it left).  Seam50's dup.py: 81 of 199 copies pressed by two or
+    -- three seats, the mage sharing 87 of 145 engagements, and a small has
+    -- 8 hitpoints in a trio (W :731) -- the second shot lands on a corpse.
+    -- A small with another raider's shot on it, or a big with two, is worth
+    -- P.inbound points less to this raider while the shot flies.
+    local inbound = {}
+    if st.party ~= nil and st.party > 1 and P.inbound ~= nil and api_drive.projectiles ~= nil then
+        local pr, prow = api_drive.projectiles(24)
+        if pr == "ok" and type(prow) == "table" then
+            for _, p in ipairs(prow) do
+                local slot = p.target_npc_slot
+                if type(slot) == "number" and slot >= 0 and p.src_x ~= nil and p.src_z ~= nil
+                    and math.max(math.abs(p.src_x - me.x), math.abs(p.src_z - me.z)) > 1 then
+                    inbound[slot] = (inbound[slot] or 0) + 1
+                end
+            end
+        end
+    end
     -- THE TARGET.
     local cur = ny.target
     local cur_row = nil
@@ -891,6 +974,29 @@ function QD.raid._play_nylocas_decide(st, v)
             end
         end
         local best, cands, own_ok = nil, {}, false
+        -- raid seam50 play_tob_nylocas_whole: THE COLOUR'S OWNER, ON SCREEN.
+        -- What a person sees of the other two: their tiles (api_drive.players)
+        -- and their names, which say their seats (QD.party.names(), seat i =
+        -- role i).  owner_at[style] = the tile of the seat that owns it.
+        local owner_at = {}
+        if R ~= nil and P.leave_to_owner ~= nil then
+            local seat_of = {}
+            for i, nm in ipairs(QD.party.names()) do seat_of[string.lower(string.gsub(nm, "[ _]", ""))] = i end
+            local pr, prow = api_drive.players()
+            if pr == "ok" then
+                for _, r in ipairs(prow) do
+                    local seat = (not r.me and r.name ~= nil) and seat_of[string.lower(string.gsub(r.name, "[ _]", ""))] or nil
+                    local role = seat ~= nil and P.roles[seat] or nil
+                    if role ~= nil then owner_at[role.colour] = { x = r.x, z = r.z } end
+                end
+            end
+            local seen = 0
+            for _ in pairs(owner_at) do seen = seen + 1 end
+            if (ny.owners_seen or -1) ~= seen then
+                ny.owners_seen = seen
+                api_drive.report("nyplay owners seen " .. seen .. " (seat " .. tostring(st.role) .. ")")
+            end
+        end
         local function consider(cand)
             if best == nil or cand.score < best.score then best = cand end
         end
@@ -902,13 +1008,13 @@ function QD.raid._play_nylocas_decide(st, v)
             local ok = (ny.doomed[n.slot] == nil or ny.doomed[n.slot] < v.tick) and not ny.nulled[n.slot]
                 and (ny.blocked == nil or (ny.blocked[n.slot] or -1) < v.tick)
                 -- from wave 16 a copy's colour may still turn (NT flicker_*)
-                and (ny.waves < P.flicker_wave - 1 or n.age >= P.settle_age)
+                and n.settled
             if P.trace_seat ~= nil then
                 local why = nil
                 if not (ny.doomed[n.slot] == nil or ny.doomed[n.slot] < v.tick) then why = "doom"
                 elseif ny.nulled[n.slot] then why = "null"
                 elseif not (ny.blocked == nil or (ny.blocked[n.slot] or -1) < v.tick) then why = "block"
-                elseif not (ny.waves < P.flicker_wave - 1 or n.age >= P.settle_age) then why = "young"
+                elseif not n.settled then why = "young"
                 elseif n.style == "melee" and not on_floor then why = "lane"
                 elseif n.style == "melee" and not (n.age < ea - 6 and not unsafe(n.x, n.z, 1)) then why = "blast"
                 elseif n.style ~= "melee" and not (d <= ny.reach[n.style] + 6) then why = "far" end
@@ -962,7 +1068,35 @@ function QD.raid._play_nylocas_decide(st, v)
                     -- seat's covered aggro for its owner: s32ny5 t389 the ranger
                     -- stood among 12 live aggros, f=12, and died to them.)
                 end
-                if not n.fighting and R ~= nil and n.style ~= R.colour then score = score + P.own_colour_bonus end
+                -- raid seam50 play_tob_nylocas_whole: A GREY AT A HELPER'S FEET.
+                -- Blert's trio mage and ranger melee 9.5 and 8.1 percent of their
+                -- swings (reference/nylocas_normal_3.json role.mage.melee_pct,
+                -- role.range.melee_pct; the meleer 62.7).  Ours never did: the
+                -- own-first rule left the split greys of a big a helper had just
+                -- scythed chewing beside it (seam50 base, _play_nylocas: 13 of 29
+                -- copies that popped were greys, 12 of them splits on a support;
+                -- t46 (26,21) beside the mage at (27,21) for six ticks).  A
+                -- helper takes a grey in reach with no step, at no colour cost.
+                local helps = P.help_feet and R ~= nil and R.colour ~= "melee" and n.style == "melee" and d <= 1 and not n.fighting
+                n.helps = helps
+                if not n.fighting and R ~= nil and n.style ~= R.colour and not helps then score = score + P.own_colour_bonus end
+                -- raid seam50: LEAVE IT TO ITS OWNER.  Two or three seats pressed
+                -- the same copy on 85 of the 199 targets of the base leader (its
+                -- input rows: the mage shared 93 of 136 engagements -- blues and
+                -- greens with the ranger 29, aggros by all three 21), and a
+                -- small (8 hitpoints) takes one landed hit: the second swing is
+                -- thrown at a corpse.  Blert's trios swing about one attack a
+                -- kill (role.*.phase.waveN.attacks_add: 233 a room).  Another
+                -- seat's copy within its owner's reach, and nearer its owner than
+                -- this raider, is its owner's; an aggro too, unless it is hitting
+                -- this raider through the prayer.
+                if R ~= nil and n.style ~= R.colour and owner_at[n.style] ~= nil then
+                    local ow = owner_at[n.style]
+                    local od = dist(ow.x, ow.z, n.x, n.z, n.size)
+                    local oreach = n.style == "melee" and 1 or (n.style == "ranged" and 5 or 6)
+                    local mine_now = n.fighting and ((n.style == "melee" and d <= 1) or (n.style ~= "melee" and d <= 8)) and n.style ~= pray_style
+                    if not mine_now and od <= oreach + 2 and od <= d then score = score + P.leave_to_owner end
+                end
                 if not n.fighting and sp ~= nil then
                     -- a chewer: "keep the pillars alive" (E :155); but "it's best to
                     -- let one that's low die and focus on the other three" (E :171)
@@ -970,7 +1104,12 @@ function QD.raid._play_nylocas_decide(st, v)
                     -- in 34 of 34 recorded Regular trios, weakest 0.10..0.54 at
                     -- her landing): the low one is defended, not let go
                     if sp == lowest and sp.frac < 0.15 and alive_supports > 1 and not (R ~= nil and P.keep_all) then score = score + 25
-                    else score = score - 12 - (1 - sp.frac) * (R ~= nil and P.keep_all and P.keep_weight or 12) end
+                    else
+                        score = score - 12 - (1 - sp.frac) * (R ~= nil and P.keep_all and P.keep_weight or 12)
+                        -- raid seam51: a low support's chewer before anything
+                        -- but an aggro hitting through the prayer
+                        if R ~= nil and P.keep_all and P.keep_low ~= nil and sp.frac < P.keep_low then score = score - P.keep_urgent end
+                    end
                 end
                 -- "Focus the green (Ranged) Nylocas first" (E :162)
                 if n.style == "ranged" then score = score - 4 end
@@ -984,8 +1123,15 @@ function QD.raid._play_nylocas_decide(st, v)
                 -- Normal's do not: s32ny5 killed at an average age of 23.6
                 -- ticks, half a life spent chewing.)
                 if R ~= nil then
-                    score = score + math.min(n.age, 45) * 0.3
-                    if not n.fighting and n.age >= ea - 10 and not (n.big and P.big_first ~= nil) then score = score + 20 end
+                    score = score + math.min(n.age, 45) * ((P.pop_skip ~= nil and sp ~= nil) and 0.1 or 0.3)
+                    -- raid seam50: AN OLD CHEWER IS STILL A COPY.  The +20 from ten
+                    -- ticks before its pop let every chewer that outlived its first
+                    -- forty ticks pop on its support (base: 29 pops a room, 42 copies
+                    -- living 35+ ticks, the alive cap held into a stall from wave 11;
+                    -- Blert's trios pop 0.2-2.5).  A chewer is passed over only in
+                    -- its last P.pop_skip ticks, when the kill saves no bite.
+                    local skip = (P.pop_skip ~= nil and sp ~= nil) and P.pop_skip or 10
+                    if not n.fighting and n.age >= ea - skip and not (n.big and P.big_first ~= nil) then score = score + 20 end
                 else
                     score = score - math.min(n.age, 45) * 0.2
                 end
@@ -1001,6 +1147,14 @@ function QD.raid._play_nylocas_decide(st, v)
                     if R ~= nil and P.big_first ~= nil then score = score - P.big_first else score = score + 2 end
                 end
                 if key ~= ny.worn then score = score + ((R ~= nil) and 10 or 5) end
+                -- raid seam51: ANOTHER SEAT'S SHOT IN THE AIR (above); never
+                -- on the copy this raider is on (its own shot is its own)
+                local inb = inbound[n.slot] or 0
+                if R ~= nil and P.inbound ~= nil and inb > 0 and not (cur ~= nil and cur.slot == n.slot)
+                    and (not n.big or inb >= 2) and not (sp ~= nil and P.keep_low ~= nil and sp.frac < P.keep_low) then
+                    score = score + P.inbound
+                    ny.inbound_skips = (ny.inbound_skips or 0) + 1
+                end
                 -- the one already pressed keeps its press unless another is
                 -- clearly worth more (no target flapping, ny30f t328-335)
                 if cur ~= nil and cur.slot == n.slot then score = score - 12 end
@@ -1040,7 +1194,8 @@ function QD.raid._play_nylocas_decide(st, v)
             end
         end
         for _, c in ipairs(cands) do
-            if R ~= nil and (own_ok or ny.wait_for ~= nil) and P.own_first and c.style ~= R.colour and not c.n.fighting then c.score = c.score + 100 end
+            local cleanup = P.cleanup_free and ny.waves >= P.cleanup_waves and v.tick - (ny.last_wave_tick or v.tick) >= P.cleanup_quiet
+            if R ~= nil and (own_ok or ny.wait_for ~= nil) and P.own_first and not cleanup and c.style ~= R.colour and not c.n.fighting and not c.n.helps then c.score = c.score + 100 end
             consider(c)
         end
         -- (an only-other-colour pick while waiting is no pick: wait)
@@ -1056,7 +1211,7 @@ function QD.raid._play_nylocas_decide(st, v)
             local d = dist(me.x, me.z, n.x, n.z, n.size)
             if (R == nil or R.freeze) and sp ~= nil and sp.frac < 0.7 and not (sp == lowest and sp.frac < 0.15 and alive_supports > 1)
                 and d <= ny.reach.magic and (ny.frozen[n.slot] or -1) < v.tick
-                and (ny.waves < P.flicker_wave - 1 or n.age >= P.settle_age) then
+                and n.settled then
                 local clump, blues = {}, 0
                 for _, o in ipairs(v.nylos) do
                     if (ny.frozen[o.slot] or -1) < v.tick and (ny.doomed[o.slot] == nil or ny.doomed[o.slot] < v.tick)
@@ -1084,7 +1239,7 @@ function QD.raid._play_nylocas_decide(st, v)
                 local d = dist(me.x, me.z, n.x, n.z, n.size)
                 if n.style == "magic" and d <= P.reach.magic and not ny.nulled[n.slot]
                     and (ny.doomed[n.slot] == nil or ny.doomed[n.slot] < v.tick)
-                    and (ny.waves < P.flicker_wave - 1 or n.age >= P.settle_age) then
+                    and n.settled then
                     local clump, pure = {}, true
                     for _, o in ipairs(v.nylos) do
                         if o.x <= n.x + 1 and o.x + o.size - 1 >= n.x - 1 and o.z <= n.z + 1 and o.z + o.size - 1 >= n.z - 1 then
@@ -1098,10 +1253,53 @@ function QD.raid._play_nylocas_decide(st, v)
                 end
             end
         end
+        -- raid seam51 play_tob_nylocas_whole: THE RANGER'S CHINS.  Blert's
+        -- trio rangers throw black chinchompas at the waves that stall a room
+        -- (range|wave10 CHIN_BLACK 23 of 27 rooms, 2 a room; wave 21 21 of 27;
+        -- wave 31 18 of 27), and the kills per attack say why: the reference's
+        -- ~0.85-1 against this plan's 0.6 (seam50 dup.py).  One throw at a
+        -- green lands on every copy in the 3x3 round it (player_ranged.rs2
+        -- ~player_chinchompa_splash, radius 1, one accuracy roll); only the
+        -- greens take it, the rest null the ranger (DMG :272).  The clumps are
+        -- the chewers on a support and a lane's wave walking in together.
+        if R ~= nil and P.chin ~= nil and ny.loadout.ranged_chin ~= nil then
+            if ny.chin_have == nil then
+                local cr, cn = QD.inv.count(ny.loadout.ranged_chin.item)
+                ny.chin_have = (cr == "ok") and cn or tostring(cr)
+            end
+            for _, n in ipairs(v.nylos) do
+                local d = dist(me.x, me.z, n.x, n.z, n.size)
+                if n.style == "ranged" and d <= P.chin.reach and not ny.nulled[n.slot]
+                    and (ny.doomed[n.slot] == nil or ny.doomed[n.slot] < v.tick)
+                    and (ny.blocked == nil or (ny.blocked[n.slot] or -1) < v.tick)
+                    and n.settled then
+                    local clump, worth, others = {}, 0, 0
+                    for _, o in ipairs(v.nylos) do
+                        if o.x <= n.x + 1 and o.x + o.size - 1 >= n.x - 1 and o.z <= n.z + 1 and o.z + o.size - 1 >= n.z - 1
+                            and not ny.nulled[o.slot] then
+                            if o.style == "ranged" and o.settled then
+                                if ny.doomed[o.slot] == nil or ny.doomed[o.slot] < v.tick then
+                                    clump[#clump + 1] = o
+                                    worth = worth + (o.big and 0.5 or 1)
+                                end
+                            else
+                                others = others + 1
+                                clump[#clump + 1] = o
+                            end
+                        end
+                    end
+                    if ny.chin_best == nil or worth > ny.chin_best then ny.chin_best = worth end
+                    if worth >= P.chin.clump then
+                        consider({ score = -30 - 8 * worth + P.chin.other * others + ((ny.worn ~= "ranged_chin") and 10 or 0),
+                            n = n, d = d, style = "ranged", key = "ranged_chin", clump = clump, chin = true })
+                    end
+                end
+            end
+        end
         if best ~= nil then
             local n = best.n
             pick = { slot = n.slot, style = best.style, symbol = n.symbol, vas = false, d = best.d, x = n.x, z = n.z, big = n.big,
-                spell = best.spell, clump = best.clump, key = best.key or best.style }
+                spell = best.spell, clump = best.clump, key = best.key or best.style, chin = best.chin }
         end
     end
 
@@ -1124,6 +1322,32 @@ function QD.raid._play_nylocas_decide(st, v)
         if best ~= nil then
             intent.walk = best
             ny.unders = (ny.unders or 0) + 1
+        end
+    end
+
+    -- raid seam49: NOT HER NEAREST.  She swings at the nearest raider
+    -- (content tob_nylocas_boss.rs2 ~tob_vasilias_act, strict nearest, the
+    -- first found on a tie).  This plan's mage stood nearest in 23 of her 27
+    -- swings (svbplaynyloc) and took 18-22 of her 24-26 hits a room, where
+    -- Blert's recorders take about a third each (boss.hit_on_recorder
+    -- n 53+76+62 over 27 rooms, ~7 a room of her 19 attacks).  On her magic
+    -- and ranged forms the mage (Ayak reach 6, bow 10) stands two tiles off.
+    if R ~= nil and P.mage_back and R.name == "mage" and vas ~= nil and vas.size ~= nil and intent.walk == nil
+        and vas.form ~= "melee" and vas.form ~= "spawning" and dist(me.x, me.z, vas.x, vas.z, vas.size) == 1 then
+        local best, bd = nil, nil
+        for dx = -2, 2 do
+            for dz = -2, 2 do
+                local x, z = me.x + dx, me.z + dz
+                if floor_ok(x, z) and not unsafe(x, z, 0) and dist(x, z, vas.x, vas.z, vas.size) == 2 then
+                    local dd = math.max(math.abs(dx), math.abs(dz))
+                    if bd == nil or dd < bd then best, bd = { x = x, z = z }, dd end
+                end
+            end
+        end
+        if best ~= nil then
+            intent.walk = best
+            ny.target = nil
+            ny.backs = (ny.backs or 0) + 1
         end
     end
 
@@ -1282,6 +1506,19 @@ function QD.raid._play_nylocas_decide(st, v)
             r, d = QD.player.cast(spell, pick.symbol, 1, 2, { slot = pick.slot, quick = true })
             ny.casts = ny.casts + 1
         else
+            -- raid seam51: a chin throw dooms the clump's greens with its
+            -- primary, and nulls the ranger on the others under the blast;
+            -- their "no effect" lines must not strike off the primary
+            if pick.chin and pick.clump ~= nil then
+                local nulls = 0
+                for _, o in ipairs(pick.clump) do
+                    if o.slot ~= pick.slot then
+                        if o.style == "ranged" then also[#also + 1] = o.slot else ny.nulled[o.slot] = true nulls = nulls + 1 end
+                    end
+                end
+                ny.chins = (ny.chins or 0) + 1
+                if nulls > 0 then ny.chin_quiet = v.tick + 8 end
+            end
             r, d = QD.player.attack(pick.symbol, 2, 1, { slot = pick.slot, quick = true })
         end
         st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1

@@ -77,12 +77,23 @@ QD.raid._play_plan("tob_sotetseg", {
     -- the runner holds the path's last tile this many ticks before the step
     -- off, so the raiders reading it are on the grid before the 4-tick check
     -- can end the maze (S tob_sote_grid_occupied counts both grids).  The
-    -- seam's choice: no source gives a number.
-    party_end_hold = 6,
+    -- seam's choice: no source gives a number.  raid seam50: 2, the live
+    -- followers are on the grid a run behind the runner, not waiting for the
+    -- whole path (Blert: the runner back beside him a tick after the
+    -- followers' last row, 16ff015b +28).
+    party_end_hold = 2,
     -- the death ball's gather starts this many ticks before it lands (the
     -- longest walk from a seat to the front tile is 5 tiles: 3 ticks running,
-    -- one for the press, one to spare).  The seam's choice.
-    gather_lead = 5,
+    -- one for the press, one to spare).  The seam's choice.  raid seam50: 6,
+    -- the east seat (5,4) is 8 tiles round his south-east corner.
+    gather_lead = 6,
+    -- raid seam42: a follower walks only to a tile at least this many lit
+    -- tiles behind the newest glow (the runner runs two tiles a tick; two
+    -- tiles is one tick of his run).  The seam's choice.
+    follow_lag = 2,
+    -- raid seam50: the follower walks the lit route as it is lit, as the
+    -- Blert trios do (QD.raid._play_sotetseg_follow, its live block).
+    follow_live = true,
 })
 
 -- the footprint distance a melee is decided on: S tob_sote_attack
@@ -445,15 +456,21 @@ end
 -- reach), and no two seats or his centre are nearer than 3 tiles, so every
 -- ball and ricochet flies at least 2 ticks (S tob_sote_cast / tob_sote_ricochet:
 -- duration = delay + 36 + 8 per tile, 30 cycles a tick; a 1-tile ricochet is 1).
+-- raid seam50 play_tob_sotetseg_whole: the Blert trios' tiles.  Their
+-- positions relative to his south-west tile (sotetseg_normal_3.json
+-- positions, 20 rooms, ticks spent) are the four face corners, one per
+-- raider: (-1,0) the west face's south end, (4,-1) the south face's east end,
+-- (5,4) the east face's north end, (0,5) the north face's west end (melee2:
+-- (4,-1) 25-27% of its ticks in every phase; melee1: (5,4), (-1,0), (0,5),
+-- (4,-1) 12-20% each).  Ours takes the three nearest the maze's north exit
+-- (the grid ends a row south of his south face): every raider is a step or
+-- two from its seat when he wakes, as theirs are (first attack a tick after).
 function QD.raid._play_sotetseg_seat(st, b)
     local n = b.size or 5
     local role = st.role or 1
-    if role == 2 then return b.x - 1, b.z end               -- west, his south-west end
-    -- north-west: the west face's northern tile the server stands a raider on
-    -- (its north end, z + 4, is not: s33soa's raider stopped on z + 3 three
-    -- times, 279 ticks there)
-    if role == 3 then return b.x - 1, b.z + n - 2 end
-    return b.x + n, b.z + math.floor(n / 2)                 -- east, the middle of his east face
+    if role == 2 then return b.x - 1, b.z end               -- (-1,0): west face, south end
+    if role == 3 then return b.x + n - 1, b.z - 1 end       -- (4,-1): south face, east end
+    return b.x + n, b.z + n - 1                             -- (5,4): east face, north end
 end
 
 function QD.raid._play_sotetseg_trio(st, v)
@@ -465,6 +482,7 @@ function QD.raid._play_sotetseg_trio(st, v)
     local S = st.sote
     if v.me.level == P.under_level then
         -- the runner (the room chose this raider)
+        S.in_maze = true
         if S.mz == nil then S.runs = (S.runs or 0) + 1 end
         return QD.raid._play_sotetseg_maze(st, v, intent)
     end
@@ -487,6 +505,7 @@ function QD.raid._play_sotetseg_trio(st, v)
             st.teleport_until = v.tick + 6
         end
         if ir == "ok" then
+            S.in_maze = true
             return QD.raid._play_sotetseg_follow(st, v, intent)
         end
         return intent
@@ -494,6 +513,14 @@ function QD.raid._play_sotetseg_trio(st, v)
     if S.fw ~= nil then
         S.fw.done = S.fw.done or v.tick
         S.fw = nil
+    end
+    -- raid seam42: the fight's phase (0 before the first maze, +1 each time
+    -- his combat form is back after one), the elder maul's key
+    if S.in_maze then
+        S.in_maze = nil
+        S.phase = (S.phase or 0) + 1
+        -- raid seam51: the tick the phase began (the maul's opener key)
+        S.phase_start = v.tick
     end
     local function protect_press(protect)
         P.walk_prayers[1] = protect
@@ -509,6 +536,7 @@ function QD.raid._play_sotetseg_trio(st, v)
     -- WHAT FLIES AT THIS RAIDER (a homing projectile's dst is its target's
     -- live tile: world.lua banner), and the death ball at anyone
     local magic_in_air, ranged_in_air, death_land = false, false, nil
+    local soonest, soonest_style = nil, nil
     local pr, projs = QD.world.projectiles(30)
     if pr == "ok" then
         for _, p in ipairs(projs) do
@@ -518,12 +546,27 @@ function QD.raid._play_sotetseg_trio(st, v)
             -- raider's (the seats are 3 or more apart; on the front tile all
             -- three share every shot anyway)
             local mine = math.abs(p.dst_x - v.me.x) <= 1 and math.abs(p.dst_z - v.me.z) <= 1
+            -- raid seam49: the projectile's own target when the client knows
+            -- this raider's pid (MAP_PROJANIM's target, `-(pid) - 1` for a
+            -- player: src/world/entity_projectile.h).  The tile test above took
+            -- a ball at a raider who was running to its seat after a maze (dst
+            -- a tick behind, two tiles away) as nobody's, and the ricochet of
+            -- the other colour aimed at the raider beside it as its own.
+            if st.my_pid ~= nil and p.target ~= nil and p.target < 0 then
+                mine = (p.target == -st.my_pid - 1)
+            end
+            if (p.spotanim_id == P.proj_magic or p.spotanim_id == P.proj_ranged) and mine then
+                local style = (p.spotanim_id == P.proj_magic) and "protectfrommagic" or "protectfrommissiles"
+                -- the ball that lands FIRST after this tick decides (a press
+                -- takes on the server's next tick, and the prayer is read at
+                -- the landing: S tob_sote_impact)
+                local key = (land > v.tick) and land or (land + 1000)
+                if soonest == nil or key < soonest then soonest, soonest_style = key, style end
+            end
             if p.spotanim_id == P.proj_magic and mine then
                 magic_in_air = true
-                if land > S.hold then S.hold = land end
             elseif p.spotanim_id == P.proj_ranged and mine then
                 ranged_in_air = true
-                if land > S.ranged_hold then S.ranged_hold = land end
             elseif p.spotanim_id == P.proj_death then
                 if death_land == nil or land < death_land then death_land = land end
                 if S.death_seen ~= b.seq_tick then
@@ -536,15 +579,60 @@ function QD.raid._play_sotetseg_trio(st, v)
     if death_land ~= nil and death_land > S.death_land then S.death_land = death_land end
     local range = QD.raid._play_sotetseg_range(b, v.me.x, v.me.z)
     local adjacent = range <= 1
+    -- raid seam51 play_tob_sotetseg_whole: HIS ATTACK CLOCK.  He attacks every
+    -- 5 ticks (blert boss.cadence 5 [5-5], 20 rooms) and 10 after a death ball
+    -- (S tob_sote_attack: "his next attack is TEN ticks after it"); an attack
+    -- is dated to the plan tick that first SEES its seq (raid seam51 Verzik:
+    -- the seen tick equalled the tick log's in every sample, the row's age
+    -- was a tick early).  His melee is decided and its prayer read on the
+    -- tick it is SENT (the owner's ruling), so Protect from Melee must be lit
+    -- ON his next attack tick N, pressed on N-1.
+    if (b.seq_id == P.seq_melee or b.seq_id == P.seq_ball) and b.seq_tick ~= nil and b.seq_tick ~= S.atk_seq_tick then
+        S.atk_seq_tick = b.seq_tick
+        S.last_attack = v.tick
+        S.next_attack = v.tick + 5
+        S.attacks_seen = (S.attacks_seen or 0) + 1
+    end
+    if S.last_attack ~= nil and S.death_seen ~= nil and S.death_seen == S.atk_seq_tick and S.next_attack == S.last_attack + 5 then
+        S.next_attack = S.last_attack + 10
+    end
+    local due = S.next_attack ~= nil and v.tick + 1 >= S.next_attack
+    -- THE PRAYER FOR NEXT TICK (a press on tick t is in force on t+1).
+    -- A ball or a ricochet at this raider wins: unprayed it "takes the
+    -- victim's protection prayers away for five ticks" (S tob_sotetseg.rs2:15,
+    -- ~prayer_block_protection at the impact), and every attack in those five
+    -- ticks lands unprayed (seam51 s1: a melee-first rule on his due tick
+    -- dropped the ricochet's colour on its impact, sva p0/p1 t105, and the
+    -- refused presses held both raiders at no protection for 20 ticks).
+    -- The ricochets are launched at A+2 and land at A+4 or A+5, his next
+    -- attack's tick (seam51 s2, three names: launch + floor(duration/30) when
+    -- this raider's pid is above the pid it bounced off, 45 of 45; a tick later
+    -- when below, 31 of 35: its impact queue runs in the next tick's player
+    -- phase.  A schedule built on that rule, seam51 s3b, lost the colour on
+    -- the client's pid and was withdrawn: DRIVER_NOTES), so the melee
+    -- on that tick is the one-in-three roll a raider takes on the wrong
+    -- prayer (S tob_sote_attack: a random target, melee a licence at range 1).
+    -- The colour is held while the ball is listed and one tick after it
+    -- vanishes (the client ends a flight up to a tick before the server's
+    -- impact).  Otherwise Protect from Melee near him, Magic away from him.
+    if magic_in_air then S.hold = math.max(S.hold, v.tick + 1) end
+    if ranged_in_air then S.ranged_hold = math.max(S.ranged_hold, v.tick + 1) end
     local protect = "protectfrommagic"
-    if magic_in_air or v.tick <= S.hold then
+    if soonest_style ~= nil then
+        protect = soonest_style
+        S.aimed = S.aimed + 1
+    elseif v.tick <= S.hold and v.tick <= S.ranged_hold then
+        protect = (S.hold >= S.ranged_hold) and "protectfrommagic" or "protectfrommissiles"
+        S.aimed = S.aimed + 1
+    elseif v.tick <= S.hold then
         protect = "protectfrommagic"
         S.aimed = S.aimed + 1
-    elseif ranged_in_air or v.tick <= S.ranged_hold then
+    elseif v.tick <= S.ranged_hold then
         protect = "protectfrommissiles"
         S.aimed = S.aimed + 1
-    elseif adjacent then
+    elseif range <= 3 then
         protect = "protectfrommelee"
+        if due then S.melee_due = (S.melee_due or 0) + 1 end
     end
     if protect == "protectfrommagic" then S.magic_ticks = S.magic_ticks + 1 end
     if protect == "protectfrommelee" then S.melee_ticks = S.melee_ticks + 1 end
@@ -607,10 +695,23 @@ function QD.raid._play_sotetseg_trio(st, v)
     end
     local disabled = S.disabled_until ~= nil and v.tick <= S.disabled_until
     local function threat(h)
-        local attacks = math.ceil(h / 5)
+        -- raid seam42 play_tob_sotetseg_follows_blert: ONE attack of his, not
+        -- one per five ticks of the horizon.  He swings at one raider a
+        -- cycle and the food comes between (eat delay 3), so the hit to keep
+        -- above is the next one; the horizon's two worst-case melees made
+        -- every raider eat and brew at 80-115 of 99 (seam42 s1: 12 eats and
+        -- 13 drinks a raider, the brews' Attack drain took the scythe's
+        -- accuracy from 0.87 to 0.29) where the Blert trios eat at 29% and
+        -- 41.5% of their hitpoints (sotetseg_normal_3.json
+        -- role.melee1/2.eat_at_hp_pct) and lose 92-108 in the whole room.
+        local attacks = 1
         local per = 0
         if adjacent then per = (protect == "protectfrommelee") and N.melee_prayed or N.melee end
-        if disabled then per = N.ball + (adjacent and N.melee or 0) end
+        -- raid seam50: ONE attack while the prayers are out as well (his
+        -- ball or his melee, never both in one cycle): the sum had every
+        -- raider eat at 82-95 of 99 (seam49 s2: p2 ate 14 times in maze2's
+        -- phase) where the Blert trios eat at 29% and 41.5%
+        if disabled then per = math.max(N.ball, adjacent and N.melee or 0) end
         local total = attacks * per
         if S.death_land >= v.tick and S.death_land - v.tick <= h then
             total = total + math.floor(N.death / st.party) + 1
@@ -618,6 +719,111 @@ function QD.raid._play_sotetseg_trio(st, v)
         return total
     end
     intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, threat)
+    -- raid seam51 play_tob_sotetseg_whole: THE BOOST BACK, Maiden's rule
+    -- ("the super combat again under 108": raid_play_tob_maiden.lua; a
+    -- boost is set from the base level, wiki Super combat potion "+5 +15%",
+    -- 118 at 99).  A brew's drain (wiki Saradomin brew: -10% -2 each dose)
+    -- put right by a restore leaves the scythe at 99 for the rest of the
+    -- room: seam50 s1's splats were 0 on 26% of hits before the first maze
+    -- and 42-44% after, where the reference's trios deal ~33 a swing
+    -- (output.phase.*.boss_hp_per_tick over role.*.phase.*.attacks_boss).
+    if intent.drink == nil and v.tick - (st.last_drink or -1000) >= QD.RAID_PLAY_DRINK_DELAY then
+        local _, at = QD.skill.read("attack")
+        local _, sg = QD.skill.read("strength")
+        local combat = nil
+        for _, dose in ipairs({ "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" }) do
+            local cr, n = QD.inv.count(dose)
+            if combat == nil and cr == "ok" and (tonumber(n) or 0) > 0 then combat = dose end
+        end
+        if combat ~= nil and at ~= nil and sg ~= nil and ((at.level or 999) < 108 or (sg.level or 999) < 108) then
+            intent.drink = combat
+            S.reboosts = (S.reboosts or 0) + 1
+        end
+    end
+    -- raid seam42 play_tob_sotetseg_follows_blert: THE ELDER MAUL, once a
+    -- phase.  The Normal trios on Blert swing ELDER_MAUL once in a phase per
+    -- raider (sotetseg_normal_3.json weapons: melee1 start 15 of 19 rooms,
+    -- maze1 13, maze2 12), and their scythes then deal ~30 a swing (1000
+    -- hitpoints a phase from role.*.phase.start.attacks_boss 10 each) where
+    -- ours dealt 22 into his full Defence 200.  The special "reduces the
+    -- target's Defence by 35% of its current level" on a hit
+    -- (pvm_elder_maul.rs2:4-41) and costs 500 energy; it is armed from the
+    -- orb like Maiden's hammer (raid_play_tob_maiden.lua opener), proved by
+    -- the energy it spends, and the scythe goes back on the tick after.
+    local phase = S.phase or 0
+    S.em = S.em or { phases = {}, log = {} }
+    local em = S.em.phases[phase]
+    local _, energy = QD.var.varp("varp300_sa_energy")
+    energy = tonumber(energy) or 0
+    -- raid seam51 play_tob_sotetseg_whole: THE MAUL IN TWO STEPS, Maiden's
+    -- opener shape (raid_play_tob_maiden.lua THE OPENER, proved there): the
+    -- maul goes on in one block, the special is armed from the orb with the
+    -- attack press on the next tick, the scythe goes back once its 500 is
+    -- spent.  The one-block arm missed: seam50 s1 p1 put the maul on at t110,
+    -- swung it plain (seq 7516) at t113 and specced at t119, three attacks
+    -- where a scythe would have swung four.  It OPENS the phase (the first
+    -- attack after the room's start or a maze, so every scythe swing after
+    -- it meets the lowered Defence; the reference's trios swap 6-20 ticks into
+    -- a phase, react.phase.maze1.*.swap) or, when the phase's first swing went
+    -- by, it goes on the tick after a scythe swing, four before the next.
+    local just_swung = st.engaged and st.last_swing ~= nil and v.tick - st.last_swing <= 1
+    local fresh = st.last_swing == nil or st.last_swing < (S.phase_start or 0)
+    -- raid seam51: TWO SPECIALS A PHASE, shared out.  His Defence is back at
+    -- its level after every maze (seam51 s1 svb: zero splats 17% in the start
+    -- phase after three specials, 25% after maze 1's three, 48% after maze 2
+    -- with none: the energy, 1000 a raider and 10% a 50 ticks back, was spent
+    -- by then; the reference's trios swing the maul in 12-15 of 19 rooms in
+    -- EVERY phase, sotetseg_normal_3.json weapons ELDER_MAUL).  Each raider
+    -- owns two of the three phases (role 1: start and maze 1, role 2: start and
+    -- maze 2, role 3: maze 1 and maze 2), and specs in another only with the
+    -- energy for its own still to come.
+    local own = { [1] = { [0] = true, [1] = true }, [2] = { [0] = true, [2] = true }, [3] = { [1] = true, [2] = true } }
+    local mine_phases = own[st.role or 1] or own[1]
+    local still = 0
+    for later = phase + 1, 2 do
+        if mine_phases[later] then still = still + 1 end
+    end
+    local spec_ok = (mine_phases[phase] == true and energy >= 500) or energy >= 500 * (1 + still)
+    if em == nil and not gathering and intent.eat == nil and spec_ok and st.party > 1
+        and (fresh or (at_seat and just_swung)) then
+        em = { stage = "equip", at = v.tick, fresh = fresh }
+        S.em.phases[phase] = em
+        intent.gear = { "elder_maul" }
+        intent.attack = false
+        return intent
+    end
+    if em ~= nil and em.stage ~= "done" then
+        if em.stage == "equip" then
+            -- armed from the seat (walking in, the walk goes on: no attack
+            -- press, so nothing swings the maul plain on the way)
+            if not (at_seat or given_up) then
+                intent.attack = false
+                return intent
+            end
+            em.stage, em.arm, em.energy0 = "swing", v.tick, energy
+            intent.spec = true
+            intent.attack = true
+            st.engaged = false
+            return intent
+        elseif em.stage == "swing" then
+            if energy <= em.energy0 - 500 or v.tick - em.arm > 12 then
+                em.fired = (energy <= em.energy0 - 500) and v.tick or nil
+                em.stage = "done"
+                intent.gear = { "scythe_of_vitur" }
+                st.engaged = false
+                S.em.log[#S.em.log + 1] = "phase " .. phase .. (em.fresh and " opener" or "") .. " on t" .. em.at
+                    .. (em.fired and (" fired t" .. em.fired) or " gave up t" .. v.tick) .. (em.rearm and (" rearmed " .. em.rearm) or "")
+            else
+                local _, armed = QD.var.varp("varp301_sa_attack")
+                if tonumber(armed) == 0 and v.tick - em.arm >= 2 and (em.rearm or 0) < 3 then
+                    em.rearm = (em.rearm or 0) + 1
+                    intent.spec = true
+                end
+                intent.attack = true
+                return intent
+            end
+        end
+    end
     intent.attack = QD.raid._play_attack(st, v, intent.attack)
     return intent
 end
@@ -662,7 +868,8 @@ function QD.raid._play_sotetseg_follow(st, v, intent)
     local fw = S.fw
     if fw == nil then
         fw = { n = #S.follows + 1, seen = v.tick, samples = {}, path = {}, path_n = 0, complete = nil, bad = nil,
-            gaps = 0, walks = 0, order = nil, idx = 0, on_grid = 0, off_path = 0, off_north = nil, start_walk = nil }
+            gaps = 0, walks = 0, order = nil, idx = 0, on_grid = 0, off_path = 0, off_north = nil, start_walk = nil,
+            live = {}, live_steps = 0 }
         S.follows[#S.follows + 1] = fw
         S.fw = fw
     end
@@ -695,6 +902,36 @@ function QD.raid._play_sotetseg_follow(st, v, intent)
                     local last = fw.samples[#fw.samples]
                     if last == nil or last[1] ~= r.x or last[2] ~= r.z then
                         fw.samples[#fw.samples + 1] = { r.x, r.z, v.tick }
+                        -- raid seam50: the ROUTE, the lit tiles in the order the
+                        -- runner stood on them, every gap filled by the corner
+                        -- rule below; the live follow walks it in order (a
+                        -- neighbour search over the read set took a wrong
+                        -- guess's dead end: seam49 s1, 1,900 ticks stranded)
+                        fw.route = fw.route or {}
+                        local function route_to(bx, bz)
+                            local tail = fw.route[#fw.route]
+                            if tail == nil then
+                                fw.route[1] = { bx, bz }
+                                return
+                            end
+                            local ddx = (bx > tail[1] and 1) or (bx < tail[1] and -1) or 0
+                            local ddz = (bz > tail[2] and 1) or (bz < tail[2] and -1) or 0
+                            local x, z = tail[1], tail[2]
+                            while x ~= bx or z ~= bz do
+                                x, z = x + ddx, z + ddz
+                                fw.route[#fw.route + 1] = { x, z }
+                            end
+                        end
+                        if last == nil then
+                            route_to(r.x, r.z)
+                        elseif last[1] == r.x or last[2] == r.z then
+                            route_to(r.x, r.z)
+                        else
+                            local rcx, rcz = r.x, last[2]
+                            if (last[2] - gz) % 2 == 0 then rcx, rcz = last[1], r.z end
+                            route_to(rcx, rcz)
+                            route_to(r.x, r.z)
+                        end
                         if last == nil then
                             add(r.x, r.z)
                         elseif last[1] == r.x or last[2] == r.z then
@@ -708,6 +945,27 @@ function QD.raid._play_sotetseg_follow(st, v, intent)
                             if (last[2] - gz) % 2 == 0 then cx, cz = last[1], r.z end
                             run_to(last[1], last[2], cx, cz)
                             run_to(cx, cz, r.x, r.z)
+                            -- raid seam42: a gap of three tiles or more (a
+                            -- glow missed while the runner ran two a tick)
+                            -- crosses two lateral rows, and either could hold
+                            -- the turn: its guessed tiles are never walked
+                            -- before the path is complete
+                            if math.abs(r.x - last[1]) + math.abs(r.z - last[2]) >= 3 then
+                                fw.guessed = fw.guessed or {}
+                                fw.ambiguous = (fw.ambiguous or 0) + 1
+                                local function mark(ax, az, bx, bz)
+                                    local ddx = (bx > ax and 1) or (bx < ax and -1) or 0
+                                    local ddz = (bz > az and 1) or (bz < az and -1) or 0
+                                    local x, z = ax + ddx, az + ddz
+                                    while true do
+                                        fw.guessed[x * 100000 + z] = true
+                                        if x == bx and z == bz then break end
+                                        x, z = x + ddx, z + ddz
+                                    end
+                                end
+                                mark(last[1], last[2], cx, cz)
+                                if cx ~= r.x or cz ~= r.z then mark(cx, cz, r.x, r.z) end
+                            end
                         end
                         if r.z - gz == rows - 1 then fw.complete = v.tick end
                     end
@@ -725,6 +983,13 @@ function QD.raid._play_sotetseg_follow(st, v, intent)
                 if count == 0 or (row % 2 == 0 and count ~= 1) then ok = false end
             end
             fw.bad = not ok
+            -- raid seam49: a gap the glow left two-way (three tiles or more:
+            -- a read missed while the runner ran two a tick) may hold the turn
+            -- on either row; the parity guess walked onto a dark tile is a
+            -- blast every tick (W:803).  Such a path is not walked: the raider
+            -- stays off the grid and the maze ends when the runner steps off
+            -- (S tob_sote_grid_occupied), the documented fallback above.
+            if (fw.ambiguous or 0) > 0 then fw.bad = true end
             if ok then
                 local first = fw.samples[1]
                 local order, seen = { { first[1], first[2] } }, {}
@@ -775,8 +1040,79 @@ function QD.raid._play_sotetseg_follow(st, v, intent)
         return intent
     end
     local wx, wz = first[1], gz - 1
+    -- raid seam50 play_tob_sotetseg_whole: THE LIVE FOLLOW, as the Blert
+    -- trios walk it.  Their two thrown raiders step onto the grid 12-14 ticks
+    -- after the proc and off its north edge at 26-28, a tick or two behind
+    -- the runner (build/blert/sotetseg 16ff015b: Xvok and drek on the grid
+    -- from +14, row 15 at +26/+28; the runner back beside him at +28), and
+    -- the maze is over 28 [14-47] ticks after the proc (blert_api/
+    -- sote_maze.csv, 26 mazes) with his first attack taken a tick later in
+    -- 25 of 26.  Ours waited for the whole path and then walked it: 46-58.
+    -- The walk is the route in lit order, `follow_lag` tiles behind the newest
+    -- glow while the runner is on the grid, to its end once the last row is
+    -- lit, then one step north.  Each target is the far end of the straight
+    -- run from the tile the raider stands on, so a target extended mid-run is
+    -- on the same line (the server cannot cut a corner on it); the arena
+    -- tornado (S tob_sote_tornado_step, one tile a tick from the path's start)
+    -- never catches a raider who runs the path two tiles a tick behind the
+    -- runner.
+    if P.follow_live and fw.route ~= nil and #fw.route > 0 then
+        local route = fw.route
+        local done = fw.complete ~= nil
+        local reach = #route - (done and 0 or P.follow_lag)
+        local here = nil
+        for i = #route, 1, -1 do
+            if here == nil and route[i][1] == v.me.x and route[i][2] == v.me.z then here = i end
+        end
+        if here == nil then
+            if v.me.x == wx and v.me.z == wz then
+                if reach >= 1 then
+                    fw.start_walk = fw.start_walk or v.tick
+                    go(route[1][1], route[1][2])
+                end
+            elseif not on_grid(v.me.x, v.me.z) then
+                go(wx, wz)
+            else
+                -- on the grid off the route (a step the server took short):
+                -- back to the nearest route tile at or before the reach
+                local best, bd = nil, 999
+                for i = 1, math.max(1, reach) do
+                    local d = math.max(math.abs(route[i][1] - v.me.x), math.abs(route[i][2] - v.me.z))
+                    if d < bd then best, bd = i, d end
+                end
+                go(route[best][1], route[best][2])
+            end
+            return intent
+        end
+        fw.live_steps = fw.live_steps + 1
+        if done and here == #route then
+            go(v.me.x, v.me.z + 1)
+            return intent
+        end
+        if here < reach then
+            local dx = route[here + 1][1] - route[here][1]
+            local dz = route[here + 1][2] - route[here][2]
+            local j = here + 1
+            while j < reach and route[j + 1][1] - route[j][1] == dx and route[j + 1][2] - route[j][2] == dz do
+                j = j + 1
+            end
+            go(route[j][1], route[j][2])
+        end
+        return intent
+    end
+    -- raid seam42: on the grid, a new walk is sent only from the end of the
+    -- last one.  Every target is a straight run from the tile it was chosen
+    -- on; a target changed mid-run is routed by the server from wherever the
+    -- raider has got to, and its shortest route cuts the corner onto a dark
+    -- tile (seam42 s3 p1 t101-103: (17,25) -> (15,25) -> (15,27), a 21
+    -- blast).  Still on the way (moved this tick, not there yet): wait.
+    if on_grid(v.me.x, v.me.z) and moved and st.walk_target ~= nil
+        and (v.me.x ~= st.walk_target.x or v.me.z ~= st.walk_target.z) then
+        return intent
+    end
     if fw.complete == nil or fw.bad or fw.order == nil then
-        -- wait off the grid's south edge below the path's first tile
+        -- wait off the grid's south edge below the path's first tile (or, on
+        -- the grid already, where the glow last let us stand)
         if not on_grid(v.me.x, v.me.z) and (v.me.x ~= wx or v.me.z ~= wz) then go(wx, wz) end
         return intent
     end

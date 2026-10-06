@@ -37,6 +37,10 @@ local kit = {
 -- have less than 70 agility, I'd strongly advise buying a stamina potion"
 -- (yt_4i4lv-srJkw.md 0:12:09): the guide's raider has the level.
 kit[#kit + 1] = "::setlevel agility 99"
+-- raid seam49 play_tob_bloat_round2: the Dragon claws for the down's special
+-- (the reference's trios: claws in down 2 in 12 of 19 Normal rooms; the plan's
+-- N.down_spec, raid_play_tob_bloat.lua _play_bloat_down_spec)
+kit[#kit + 1] = "::give dragon_claws 1"
 
 return {
     id = "_play_bloat",

@@ -1660,3 +1660,37 @@ all clean. No C and no content changed.
   only the Verzik plan module and its raid harness, no C, content or shared driver file.
   The fixer ran cooks_assistant and druid green. seam48's uncommitted C, raid_play.lua,
   conformance and Bloat content in this tree are seam48's and were not committed here.
+
+## matthew-mbp-m4-raid-b1-seam51 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged): four ToB Normal trio rooms written whole from Blert
+
+- play_tob_bloat_whole: LANDED, not KEPT (3 of 5 names green, repeat AGREE). Six swings a
+  raider in downs 1 and 2 on every name (a rise swing at T+30-31, the hide scored by the
+  walk to an attack tile, shadows remembered until their splat); 0 stomp hits. OPEN: two
+  names at 202 room ticks [75-195], every name takes 3 downs (the content's swing deals
+  36-39 against the reference's about 49); hp lost 232-467 a raider, outside [11-217] with
+  no harness row yet; the raiders stand stacked on one tile. Fixer's Entry solo run died in
+  Maiden on one name (ice barrage cast timeout), before Bloat.
+- play_tob_verzik_whole: LANDED, not KEPT (5 of 5 green, repeat AGREE, Entry solo 5 of 5).
+  Her attacks are dated by the tick that saw the seq; the step out is sent on T-2, the
+  press back on T-1; swings held from T-1 of a summon slot; a dying P2 nylocas stays a
+  threat. P2 swing rate 0.17 a tick a raider (Blert 0.176). OPEN: P2 262-315 [170-261] on
+  4 of 5 (she heals 330-520 against 65-313); P3 over 200 on two names; hp lost outside on
+  7 of 15 raiders.
+- play_tob_nylocas_whole: LANDED, not KEPT (1 of 5 green, was 0 of 5; repeat AGREE on the
+  green name; Entry solo 5 of 5). The ranger's black chinchompas on green clumps (seq
+  7618), no support left to fall, a seat avoids a copy another raider's shot is flying at,
+  splits settled at once. OPEN: support 25,18 weakest on every red name (every idle seat
+  goes to the centre, not the reference's per-wave stands); cleanup 55-63 ticks against
+  32; boss damage per swing about 21 against 34.
+- play_tob_sotetseg_whole: LANDED, not KEPT (1 of 5 green, was 0 of 3; repeat AGREE; Entry
+  solo 5 of 5). The ball's colour beats Protect from Melee, the elder maul is equipped then
+  armed on the next tick, two specials a phase shared by role, the super combat re-drunk.
+  The pid-ordered ricochet schedule (iteration 3) was worse and is not in the plan. OPEN:
+  maze-1 blasts on 3 of 5 names (followers miss glows at two-way gaps); p2's double ball
+  at t13-14; start phase 66-86 against 42-67 (no bow in the kit).
+- Closer: one conformance row merged, seam.raid_play_bloat_path_dist (SEAM_COUNT 219);
+  test-quest-conformance 449/449 rows PASS (230 verbs + 219 seam rows); check-quest-verbs
+  PASS; torirsserver-scripts rc 0; luac -p clean on every changed file. No C, content or
+  shared driver file changed, and per the pass's closer rule nothing else was run (the
+  quest suite was not run; the fixers ran cooks_assistant and druid green, check-drive-abi
+  and check-pt-switch PASS on their binaries).

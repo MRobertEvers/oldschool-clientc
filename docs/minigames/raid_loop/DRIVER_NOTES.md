@@ -7067,3 +7067,148 @@ passed on 3 of 3 names with 0 stomp hits.
 the own-screen swings that counted each swing twice, the second a tick or
 more late. Every raider now records the XP rise in `ny.xp_probe`
 (note.xp_swing_lag) and nothing else.
+
+## Bloat Normal: the rise T+30..T+32 is a full-damage swing (seam51)
+
+Bloat Normal (seam51): the rise T+30..T+32 is a full-damage window. Walk
+back in on decide-ages 29-31 (the stomp resolves in the NPC turn of T+29
+before any player moves, ET 1.1), take one swing, then hide. Clamp the
+supplies horizon to T+32 while doing it, or the library eats for the T+33
+fly and the bite costs the swing. That is the sixth swing a raider a down; 0
+stomp hits in 10 downs.
+
+## Bloat's hide is scored by the walk to an attack tile, not a straight line (seam51)
+
+Bloat hide: score hidden tiles by a BFS walk (8-neighbour, no corner cut
+past the tank) from the reach ring (tiles beside the 5x5's four sides; a
+tile diagonal to a corner is not an attack tile), not by straight-line
+distance. From walk age 32 (36 on the first walk) look only 4 steps ahead.
+Together these cut down-1 first swings from age 4-6 to 2-3.
+
+## Bloat's shadows leave the client's list before their splat (seam51)
+
+Bloat shadows (1570-1573) leave the client's spotanim list before their
+splat lands 3 ticks later. A plan that reads only v.shadows dodges and then
+steps back onto the tile the next tick. Remember each shadow tile for 3
+ticks (QD.RAID_PLAY_BLOAT_SHADOW_TICKS).
+
+## Bloat: a raider already leaving is not counted in the stomp's threat (seam51)
+
+Bloat threat: with the straight leave (leave tile set) a leaving raider is
+not caught by the stomp (0 hits in every survey). Counting the stomp made it
+eat on the leave at age 26-27, and that bite's attack delay cost the rise
+swing.
+
+## In a party, a member's input lands a tick after the leader's (seam51)
+
+Party latency, read from the tick log: the leader's input lands on its
+decide-age, members' one tick later (both see the down; members act a tick
+behind).
+
+## Bloat damage gap: 36-39 a swing against the reference's about 49 (seam51)
+
+Damage gap: this content's scythe/claws trio deals 36-39 a swing on Bloat
+against the Blert reference's ~49 (down 1 890 in ~18 attacks). With six
+swings a raider a down, d1+d2 come to 1373-1486 of 1500, so the room is 3
+downs and its length follows Bloat's walk rolls: 180-185 on one roll set,
+202 on the other.
+
+## Verzik's attack clock is dated by the tick that first saw her seq (seam51)
+
+Verzik Normal trio, her attack clock: date her seq by the plan tick that
+first SAW it, not by the row's age. The age dated the leader's every P2
+attack one early. The seen tick equals the server's tick log, except on a
+tick after the decide pressed (the one-tick settle), when it is one late.
+Her P2 cadence is exact (4; 12 after the summon; 8 into a counted summon),
+so a seq seen one tick after the named slot is that slot. Never snap twice
+in a row, or a clock that really ran late locks in early.
+
+## Verzik's step out is sent on T-2 and the press back on T-1 (seam51)
+
+The plan's tick t is the server's t, and an input sent on it lands on t+1.
+So the T-1 step (ET 1.1) is SENT on T-2 and the press back on T-1 (it lands
+on T, after her turn). That is one tick-end out of reach, not two. The two-
+tick step left each raider ready and not swinging for about 12 swings of a
+P2.
+
+## Verzik: hold swings from T-1 of a summon slot (seam51)
+
+Hold swings from T-1 of a summon slot, not T: a press or repeat sent on T-1
+is rolled on the summon tick and heals her (tob_prepare_player_hit). Her
+first P2 summon is not counted: it comes at 35% (tob_verzik.rs2), on a plain
+4-tick slot.
+
+## A dying P2 nylocas still blasts four ticks after its death (seam51)
+
+A dying P2 nylocas blasts 4 ticks after its death, while its row reads
+health 0. Keep running from it until the row is freed.
+
+## Nylocas trio: the ranger's black chinchompas (seq 7618) (seam51)
+
+Nylocas trio: the ranger's black chinchompas are a plan loadout key
+(ranged_chin, item chinchompa_black). Their swing is seq 7618
+human_chinchompa_attack_pvn, not 2779; projectile spotanim 1272. The plan's
+chin candidate needs 2 or more pressable greens in the 3x3 (a big counts
+half). Source: Blert range|wave10 CHIN_BLACK in 23 of 27 Normal trio rooms.
+
+## A Nylocas big's split never flickers (seam51)
+
+A big's split never flickers (tob_nylocas.rs2 ~tob_nylo_spawn_split arms it
+with no flicker chain). A plan's flicker settle wait applies only to copies
+that walk out of a lane.
+
+## api_drive.projectiles shows a party member's shot in the air (seam51)
+
+api_drive.projectiles shows a party member's shot in the air
+(target_npc_slot, src tile in world coords). This is what a person sees, and
+it is enough to keep a second seat off a small that is about to die.
+
+## A Nylocas seat can miss waves: never gate on ny.waves >= 31 (seam51)
+
+A seat's ny.waves can miss waves (the ranger saw 29 of 31). Never gate
+anything on ny.waves >= 31; use waves >= 28 plus a quiet gap.
+
+## party_repeat.py has no --party flag (seam51)
+
+party_repeat.py has no --party flag. For a size-from-QD_PARTY harness,
+repeat a scratch copy that declares party = 3.
+
+## Sotetseg: an unprayed ball or ricochet blocks protection prayers 5 ticks (seam51)
+
+Sotetseg (Normal trio): an unprayed ball OR ricochet takes the victim's
+protection prayers away for 5 ticks (tob_sotetseg.rs2:15,
+~prayer_block_protection at the impact). Every press in that window comes
+back REFUSED, and a plan that keeps pressing sits at no protection: seam51
+s1 had 20 ticks at m0 and a death. The ball's colour therefore always beats
+the melee prayer.
+
+## Sotetseg's ricochet impact tick depends on pid order (seam51)
+
+Sotetseg's ricochet impact depends on PID order: launch + floor(duration/30)
+when the target pid is above the raider it bounced off (45 of 45), one tick
+later when below (31 of 35). Ricochets launched at his attack A+2 land at
+A+4 or A+5, and A+5 is his next attack tick, so the A+5 melee lands on the
+wrong prayer for the raider holding the ricochet's colour. In a party, the
+client's api_drive.players pid is not the server's order: a schedule keyed
+on it was a tick early (seam51 s3b).
+
+## Elder maul special in a party plan: equip, then arm on the next tick (seam51)
+
+Elder maul special in a party plan: equip it in one block, then arm from the
+orb with the attack press on the NEXT tick (Maiden opener shape). Arming in
+the same block as the equip missed (seam50 p1: plain maul swing, then the
+special 6 ticks later).
+
+## Sotetseg's Defence is back at its level after every maze (seam51)
+
+Sotetseg's Defence is back at its level after every maze in our server (zero
+splats 17%/25%/48% by phase with 3/3/0 specials). Spread two specials per
+phase across the three raiders (role 1: start and maze 1; role 2: start and
+maze 2; role 3: maze 1 and maze 2). Energy is 1000 per raider with 10% back
+every 50 ticks.
+
+## Sotetseg plan trap: S.balls is a counter, not a table (seam51)
+
+Lua plan trap: S.balls in the Sotetseg plan is a ball COUNTER (st.sote
+init). Reusing the name for a table raised 'for iterator: table expected,
+got number' at tick 17 in every name (seam51 s3).

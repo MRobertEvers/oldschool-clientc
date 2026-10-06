@@ -196,8 +196,13 @@ function QD.raid._verzik_see(st, v)
                     st.boss_symbol = f.symbol
                     vz.forms[#vz.forms + 1] = { tick = v.tick, symbol = f.symbol }
                 end
-            elseif alive and vz.ids.crab[id] then
-                v.crabs[#v.crabs + 1] = { row = row, symbol = vz.ids.crab[id] }
+            elseif vz.ids.crab[id] then
+                -- raid seam51: a DYING nylocas too, until its row goes: its
+                -- blast comes 4 ticks after its death (e2 sva: 8382 slots
+                -- 1082/1081 npc_death t201/t210, blasts t205/t214 for 63 and
+                -- 55 on the same raider, who had stopped running from it the
+                -- tick its bar read 0; npc_free t206/t215)
+                v.crabs[#v.crabs + 1] = { row = row, symbol = vz.ids.crab[id], dead = not alive }
             elseif alive and vz.ids.purple[id] then
                 v.purples[#v.purples + 1] = { row = row, symbol = vz.ids.purple[id] }
             elseif alive and vz.ids.red[id] then
@@ -212,6 +217,14 @@ function QD.raid._verzik_see(st, v)
             end
         end
     end
+    -- (raid seam51: the dying ones in P2 only, where their blasts were the
+    -- intake -- e2 sva P2 crab blasts 194; in P3 8 -- and in P3 the e3 run
+    -- that kept them ran from them for 8-9 ticks after the crabs special)
+    if v.phase ~= "p2" then
+        local live = {}
+        for _, c in ipairs(v.crabs) do if not c.dead then live[#live + 1] = c end end
+        v.crabs = live
+    end
     -- her attack this tick: a new seq on her row (seq_tick is the client's
     -- tick; the server tick it started is v.tick minus its age, as Bloat's)
     v.attack = nil
@@ -219,6 +232,14 @@ function QD.raid._verzik_see(st, v)
     if b ~= nil and b.seq_id ~= nil and b.seq_id >= 0 and b.seq_tick ~= nil and b.seq_tick ~= vz.last_seq_tick then
         vz.last_seq_tick = b.seq_tick
         v.attack = { seq = b.seq_id, tick = v.tick - math.max(0, v.api_now - b.seq_tick), seen = v.tick }
+        -- raid seam51 play_tob_verzik_whole: the tick her attack is dated to
+        -- in the Normal trio's P2 and P3 clocks is the plan tick that FIRST
+        -- SAW the seq, not the row's age: the age dated the leader's every P2
+        -- attack one early (seam50, s49 head_party4 sva: her 8114 true at
+        -- 177,181,185,189,193,197 in the tick log, the leader's age-dated
+        -- 176,180,...) and the members' half the time, while the seen tick
+        -- equalled the tick log's in every sample.  P1 and Entry keep `tick`.
+        v.attack.at = st.mode == "normal" and v.tick or v.attack.tick
         vz.attacks[#vz.attacks + 1] = v.attack
     end
     -- what is in the air: each projectile by the tile it falls on
@@ -364,7 +385,7 @@ function QD.raid._verzik_crabs(st, v, ok, go)
     for _, c in ipairs(v.crabs) do
         local d = math.max(math.abs(c.row.x - me.x), math.abs(c.row.z - me.z))
         if d <= 3 and (near_crab == nil or d < near_crab.d) then near_crab = { row = c.row, d = d } end
-        if string.find(c.symbol, "verzik_nylocas_ranged", 1, true) == 1 and d >= 4 then shoot_crab = c end
+        if not c.dead and string.find(c.symbol, "verzik_nylocas_ranged", 1, true) == 1 and d >= 4 then shoot_crab = c end
     end
     if near_crab ~= nil then
         local best, bx, bz = nil, me.x, me.z
@@ -711,9 +732,18 @@ end
 -- tornadoes rise furthest from (the east edge).
 QD.RAID_PLAY_VERZIK_DODGE = false  -- (the simulated dodge; the seen one below stays on)
 
--- How many of the plan's ticks before her attack the step out may go on
--- (2: T-2 and T-1; 1: T-1 alone).  See the timing note above.
-QD.RAID_PLAY_VERZIK_OUT_LEAD = 2
+-- How many of the plan's ticks the step out may be SENT on, ending on T-2
+-- (1: T-2 alone; 2: T-3 and T-2).  raid seam51 play_tob_verzik_whole: the
+-- timing note above measured the two-tick step against an attack dated one
+-- early.  Dated by the tick that first saw it (QD.raid._verzik_see `at`), the
+-- plan's tick t is the server's t, and an input sent on it lands on the
+-- server's t+1 (s49 head_party4 sva leader, P2 log "177 press -> 178 d1,
+-- 178 step -> 179 d2"): the step sent on T-2 stands the raider out at the end
+-- of T-1, the tile her scan on T reads (ET 1.1), and the press sent on T-1
+-- walks it back in on T, after her turn.  One tick-end out of every four, not
+-- two: the two-tick step left each raider ready and not swinging 57-60 ticks
+-- of a 319-tick P2 (seam50 uptime.py, about 12 swings a raider).
+QD.RAID_PLAY_VERZIK_OUT_LEAD = 1
 
 -- The one-tile step out of her reach: a floor tile two from her footprint,
 -- beside me, nothing falling on it (an urnbomb is aimed at the tile of T-1,
@@ -742,6 +772,30 @@ function QD.raid._verzik_step_out(st, v, ok, mates)
     return bx, bz
 end
 
+-- raid seam49 play_tob_verzik_round2: whether I am her P3 TANK.  Her melee
+-- is checked against the tank alone, from where the tank stood at the end of
+-- the previous tick (tob_verzik.rs2 ~tob_verzik_tank_in_melee; V
+-- verzik.p3_melee_predicate), so only the tank has a dangerous tick: W:953
+-- "the PRIMARY TANK should either walk under or away from Verzik one or two
+-- ticks before she attacks".  She takes her tank on her first P3 tick and
+-- keeps it for the phase while it comes back into reach at least every 17
+-- ticks (~tob_verzik_pick_tank, ^tob_verzik_p3_aggro_timeout).  In the game
+-- a raider sees whom she faces; this room does not turn her to the tank
+-- (CONTENT_BUGS seam49 "P3 does not face its tank"), and its pick takes the
+-- first raider in player order (huntall iterates by pid,
+-- torirs_server_scripts.c SS_OP_HUNTALL), so the plan reads the tank as the
+-- living raider in the room with the lowest pid.  Not known: I am the tank.
+function QD.raid._verzik_is_tank(st, v)
+    if st.party <= 1 or st.my_pid == nil then return true end
+    local pr, prow = api_drive.players()
+    if pr ~= "ok" then return true end
+    local b, low = v.boss, nil
+    for _, r in ipairs(prow) do
+        if r.pid ~= nil and math.max(math.abs(r.x - b.x), math.abs(r.z - b.z)) <= 20 and (low == nil or r.pid < low) then low = r.pid end
+    end
+    return low == nil or low == st.my_pid
+end
+
 -- The other raiders' tiles (api_drive.players), for the step's tie-break.
 function QD.raid._verzik_mates(st)
     local mates = {}
@@ -768,13 +822,28 @@ function QD.raid._verzik_p2_clock(st, v)
     local P, vz = st.plan, st.vz
     local a = v.attack
     if a ~= nil then
+        local at = a.at or a.tick
+        -- raid seam51: her cadence is exact (V verzik.p2_cadence 4, B), so a
+        -- cast seen ONE tick after the slot the clock named is that slot, seen
+        -- late (the decide that pressed waits out a one-tick settle and sees
+        -- her seq on the next tick: e1 sva t233 -> t237, all three raiders
+        -- dated it 234, stepped out on 236 and were slammed)
+        -- (never two in a row: a clock that really ran one late would lock
+        -- in one early, so the second is taken as seen)
+        local snap = vz.m2_N ~= nil and not vz.m2_summon_next and at == vz.m2_N + 1 and not vz.m2_snapped
+        if snap then
+            at = vz.m2_N
+            vz.m2_snaps = (vz.m2_snaps or 0) + 1
+        end
+        vz.m2_snapped = snap
+        a.at = at
         if a.seq == P.p2_cast or a.seq == P.p2_slam then
-            vz.m2_N, vz.m2_summon_next = a.tick + P.p2_cadence, false
-            if vz.summon ~= nil and a.tick > vz.summon and (vz.p2_count or 0) >= P.p2_attacks_between then
-                vz.m2_N, vz.m2_summon_next = a.tick + 2 * P.p2_cadence, true
+            vz.m2_N, vz.m2_summon_next = at + P.p2_cadence, false
+            if vz.summon ~= nil and at > vz.summon and (vz.p2_count or 0) >= P.p2_attacks_between then
+                vz.m2_N, vz.m2_summon_next = at + 2 * P.p2_cadence, true
             end
         elseif a.seq == P.p2_reds then
-            vz.m2_N, vz.m2_summon_next = a.tick + P.p2_reds_first, false
+            vz.m2_N, vz.m2_summon_next = at + P.p2_reds_first, false
         end
     end
     return vz.m2_N, vz.m2_summon_next
@@ -799,11 +868,16 @@ function QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
     -- the first ticks of the phase, as the plan read them (the ledger's
     -- play.melee_clock row): tick, her next attack, my distance, her seq seen
     if #M.log < 24 then
-        M.log[#M.log + 1] = v.tick .. "N" .. tostring(nxt) .. "d" .. d_boss .. (v.attack and ("a" .. v.attack.seq .. "@" .. v.attack.tick) or "")
+        M.log[#M.log + 1] = v.tick .. "N" .. tostring(nxt) .. "d" .. d_boss .. (v.attack and ("a" .. v.attack.seq .. "@" .. (v.attack.at or v.attack.tick)) or "")
     end
     -- not known: no attack seen yet this phase, or her slot passed unseen
     local unknown = nxt == nil or v.tick > nxt + 1
-    if v.tick == (nxt or -10) and d_boss <= 1 then M.late = M.late + 1 end
+    -- (late: beside her at the end of T-1, the tile her scan reads)
+    if v.tick == (nxt or -10) - 1 and d_boss <= 1 then
+        M.late = M.late + 1
+        M.late_ticks = M.late_ticks or {}
+        if #M.late_ticks < 16 then M.late_ticks[#M.late_ticks + 1] = v.tick end
+    end
     local _, cd = nearest(v.crabs)
     local threat = function(h)
         local t = N.zap + N.bomb
@@ -839,15 +913,13 @@ function QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
             return threat
         end
     end
-    -- my tile did not change while engaged from two out: the server is not
-    -- pathing me in (a member reads no tick log, so its swings are counted,
-    -- not seen: s45 e3 p2 stood 35 ticks at 6437,86 after a slam's
-    -- knockback, engaged by its own count): press again
-    -- (two ticks after the press at least: the press's own first tick shows
-    -- the old tile, s45 e4: the rule pressed twice a tick)
-    if st.engaged and vz.target_slot == nil and d_boss >= 2 and v.tick - st.engaged_tick >= 2 and st.last_me ~= nil and st.last_me.x == me.x and st.last_me.z == me.z then st.engaged = false end
-    -- the step out, on the plan's T-2 or T-1 (and whenever her clock is not known)
-    if unknown or (v.tick >= nxt - QD.RAID_PLAY_VERZIK_OUT_LEAD and v.tick <= nxt - 1) then
+    -- (raid seam51: the "engaged from two out and not moving: press again"
+    -- rule is gone: every raider SEES its own swings now (raid seam48), and
+    -- the library's _play_attack presses again when none came for speed + 1)
+    -- the step out, sent on the plan's T-2 (it lands on T-1; see
+    -- QD.RAID_PLAY_VERZIK_OUT_LEAD), and whenever her clock is not known;
+    -- the press back in is the ordinary one below, from T-1 on
+    if unknown or (v.tick >= nxt - 1 - QD.RAID_PLAY_VERZIK_OUT_LEAD and v.tick <= nxt - 2) then
         if d_boss <= 1 then
             local sx, sz = QD.raid._verzik_step_out(st, v, ok, QD.raid._verzik_mates(st))
             if sx ~= nil then
@@ -862,6 +934,12 @@ function QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
             local hx, hz = QD.raid._verzik_p2_home(st, b.x, b.z, b.size or 3, 1)
             if v.shadows[hx * 100000 + hz] then hx, hz = QD.raid._verzik_p2_home(st, b.x, b.z, b.size or 3, 2) end
             go(hx, hz)
+        elseif st.engaged and vz.target_slot == nil then
+            -- raid seam51: engaged on her from two out, the server would path
+            -- the swing in on T-1, beside her for the scan: a click on my own
+            -- tile clears it (as P3's hold)
+            intent.walk = { x = me.x, z = me.z }
+            st.engaged = false
         end
         return threat
     end
@@ -894,7 +972,15 @@ function QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
     end
     local add = purple or red
     -- her: never into a summon slot, never inside the absorb window after one
-    local hold_her = (summon_next and v.tick >= nxt) or (vz.summon ~= nil and v.tick <= vz.summon + P.p2_absorb)
+    -- (raid seam51: from the plan's T-1 of the summon slot, not T: a press
+    -- or a repeat sent on T-1 is rolled on T, the summon's own tick, and
+    -- heals her -- e1 svb tob_prepare_player_hit 37+18 on t303, 9 on t346,
+    -- 23+10 on t390, each a summon tick.  The FIRST summon is not counted:
+    -- "At 35% she stops attacking, summons two Matomenos" (tob_verzik.rs2
+    -- ~tob_verzik_p2 notes, the reds at 35 % of P2), so once her bar reads
+    -- 36 % or less with no summon yet, her next slot is held as one)
+    local first_due = (vz.summons or 0) == 0 and b.health_ratio ~= nil and b.health_scale ~= nil and b.health_scale > 0 and b.health_ratio * 100 <= 36 * b.health_scale
+    local hold_her = ((summon_next or first_due) and nxt ~= nil and v.tick >= nxt - 1) or (vz.summon ~= nil and v.tick <= vz.summon + P.p2_absorb)
     if add ~= nil then
         local idle = v.tick - math.max(st.last_swing, st.engaged_tick) > st.weapon.speed + 2
         if vz.target_slot ~= add.row.slot or not st.engaged or idle then
@@ -942,15 +1028,24 @@ function QD.raid._verzik_p3_clock(st, v, ball)
     local a = v.attack
     local cad = vz.enraged and P.p3_enraged_cadence or P.p3_cadence
     if a ~= nil then
-        local s = a.seq
+        local s, at = a.seq, a.at or a.tick
+        -- raid seam51: an auto seen one tick after the sure slot is that
+        -- slot, seen late (as P2's clock)
+        local snap = vz.m3_sure and vz.m3_N ~= nil and at == vz.m3_N + 1 and not vz.m3_snapped
+        if snap then
+            at = vz.m3_N
+            vz.m3_snaps = (vz.m3_snaps or 0) + 1
+        end
+        vz.m3_snapped = snap
+        a.at = at
         if s == P.p3_ranged or s == P.p3_magic or s == P.p3_melee then
-            vz.m3_A, vz.m3_N, vz.m3_sure = a.tick, a.tick + cad, true
+            vz.m3_A, vz.m3_N, vz.m3_sure = at, at + cad, true
         elseif s == P.p3_crabs then
-            vz.m3_A, vz.m3_N, vz.m3_sure = a.tick, a.tick + P.p3_gap_crabs, false
+            vz.m3_A, vz.m3_N, vz.m3_sure = at, at + P.p3_gap_crabs, false
         elseif s == P.p3_webs then
-            vz.m3_A, vz.m3_N, vz.m3_sure = a.tick, a.tick + P.p3_gap_webs, false
+            vz.m3_A, vz.m3_N, vz.m3_sure = at, at + P.p3_gap_webs, false
         elseif s == P.p3_yellows then
-            vz.m3_A, vz.m3_N, vz.m3_sure = a.tick, a.tick + P.p3_gap_yellows, false
+            vz.m3_A, vz.m3_N, vz.m3_sure = at, at + P.p3_gap_yellows, false
         end
     end
     -- the green ball rides an auto: once it is seen in the air, her next is 12 on
@@ -966,7 +1061,11 @@ function QD.raid._verzik_p3_clock(st, v, ball)
     end
     local N = vz.m3_N
     if N == nil then return nil, false end
-    local hold = (v.tick > N + 1) or (v.tick >= N - QD.RAID_PLAY_VERZIK_OUT_LEAD and v.tick <= N - 1) or ((not vz.m3_sure) and v.tick >= N - 2)
+    -- (raid seam51: on a sure slot the walk goes on T-2 alone -- an input
+    -- sent on the plan's tick t lands on the server's t+1, so the raider
+    -- stands out at the end of T-1 -- and the press back in goes on T-1 and
+    -- lands on T, after her scan: one tick-end out of reach, not two)
+    local hold = (v.tick > N + 1) or (v.tick >= N - 1 - QD.RAID_PLAY_VERZIK_OUT_LEAD and v.tick <= N - 2) or ((not vz.m3_sure) and v.tick >= N - 2)
     return N, hold
 end
 
@@ -1190,7 +1289,7 @@ function QD.raid._play_verzik_decide(st, v)
     elseif phase == "p2" then
         vz.dying = false
         if st.mode ~= "normal" and vz.held ~= "bow_rapid" then swap_to("bow_rapid") end
-        if v.attack ~= nil and v.attack.seq == P.p2_reds then vz.reds_tick = v.attack.tick vz.summon = v.attack.tick end
+        if v.attack ~= nil and v.attack.seq == P.p2_reds then vz.reds_tick = v.attack.at or v.attack.tick vz.summon = v.attack.at or v.attack.tick end
         -- THE NEXT SUMMON, by counting her attacks (seam31): "DO NOT attack
         -- her while she summons them or immediately after, as any damage
         -- dealt will instead heal her" (Entry_Mode.wikitext:231, :235).  The
@@ -1208,7 +1307,7 @@ function QD.raid._play_verzik_decide(st, v)
                 vz.p2_last = v.attack.tick
                 vz.p2_count = (vz.p2_count or 0) + 1
             end
-            if vz.p2_count >= P.p2_attacks_between - 1 then vz.next_summon = v.attack.tick + P.p2_cadence end
+            if vz.p2_count >= P.p2_attacks_between - 1 then vz.next_summon = (v.attack.at or v.attack.tick) + P.p2_cadence end
         end
         -- prayers: Protect from Missiles (W:899), Protect from Magic once the
         -- Matomenos are summoned (W:931), back to Missiles while an urnbomb is
@@ -1364,15 +1463,21 @@ function QD.raid._play_verzik_decide(st, v)
         -- raid seam45: her clock, read every tick (the ball is in `ball`)
         local m3_next, m3_hold = nil, false
         if melee then m3_next, m3_hold = QD.raid._verzik_p3_clock(st, v, ball) end
+        -- raid seam49: only her tank steps out; the other two stay beside her
+        -- and swing (her melee needs the tank in reach, ~tob_verzik_tank_in_melee)
+        local tank = (not melee) or QD.raid._verzik_is_tank(st, v)
+        -- (on an auto after an auto only: around a special the other two
+        -- hold as before -- s49 final svc/svd, members beside her through the
+        -- specials died at t514 / t555 on one tile)
+        if not tank and vz.m3_sure and v.tick <= (m3_next or 0) then m3_hold = false end
         vz.m3 = vz.m3 or { outs = 0, late = 0, holds = 0, dodges = 0, log = {} }
-        if melee and m3_next ~= nil and v.tick == m3_next and d_boss == 1 and vz.m3_sure then vz.m3.late = vz.m3.late + 1 end
-        -- (a member reads no tick log, so it cannot see its own swings stop:
-        -- s45 e13 svaplayverzi p2, engaged by its own count at 6436,97 beside
-        -- her, the server's attack ended at t645 with her web special and no
-        -- swing came for 30 ticks.  A member presses again every 8 ticks.)
-        if melee and not st.log and st.engaged and vz.target_slot == nil and not m3_hold and v.tick - st.engaged_tick >= 8 then st.engaged = false end
-        -- (engaged on her from two out and not moving: press again, as P2)
-        if melee and st.engaged and vz.target_slot == nil and d_boss >= 2 and v.tick - st.engaged_tick >= 2 and st.last_me ~= nil and st.last_me.x == me.x and st.last_me.z == me.z then st.engaged = false end
+        -- (late: the tank beside her at the end of T-1, raid seam51)
+        if melee and tank and m3_next ~= nil and v.tick == m3_next - 1 and d_boss == 1 and vz.m3_sure then vz.m3.late = vz.m3.late + 1 end
+        -- (raid seam49: the members' every-8-ticks re-press is gone: every
+        -- raider SEES its own swings now (raid seam48), and the library's
+        -- _play_attack presses again when none came for speed + 1)
+        -- (raid seam51: the "engaged from two out and not moving: press
+        -- again" rule is gone with P2's: every raider sees its own swings)
         -- a yellow pool: stand on one until the blast is over (W:969)
         local pool = nil
         for _, p in ipairs(v.pools) do
@@ -1405,6 +1510,17 @@ function QD.raid._play_verzik_decide(st, v)
             if vz.my_pool == nil or vz.my_pool.first ~= vz.pool_first then
                 vz.my_pool = { x = p.x, z = p.z, first = vz.pool_first }
             end
+        end
+        -- raid seam49: fewer pools in view than raiders: the r-th of those in
+        -- view, never the nearest (s49 final svc/svd: the two members, both
+        -- beside her east edge now that only the tank steps out, took the
+        -- same nearest pool and the blast killed one, t514 / t555)
+        if st.party > 1 and #uniq > 0 and #uniq < st.party and (vz.my_pool == nil or vz.my_pool.first ~= vz.pool_first) then
+            local sorted = {}
+            for _, p in ipairs(uniq) do sorted[#sorted + 1] = p end
+            table.sort(sorted, function(a, c) if a.x ~= c.x then return a.x < c.x end return a.z < c.z end)
+            local p = sorted[((st.role - 1) % #sorted) + 1]
+            pool = { x = p.x, z = p.z, d = math.max(math.abs(p.x - me.x), math.abs(p.z - me.z)) }
         end
         if st.party > 1 and #uniq > 0 and vz.my_pool ~= nil and vz.my_pool.first == vz.pool_first then
             pool = { x = vz.my_pool.x, z = vz.my_pool.z, d = math.max(math.abs(vz.my_pool.x - me.x), math.abs(vz.my_pool.z - me.z)) }
@@ -1515,7 +1631,9 @@ function QD.raid._play_verzik_decide(st, v)
             -- (she walks at her target first: ET 1.1); s34v _play_verzik t579:
             -- the leader ran from its tornado into a corner, she followed and
             -- her melee took its last 51 of a 62
-            if st.mode == "normal" and d_boss <= 2 and not (melee and vz.enraged and not ball) then t = math.max(t, N.melee) end
+            -- (raid seam49: the tank's alone -- her melee needs the tank beside
+            -- her, and the tank steps out of it)
+            if st.mode == "normal" and d_boss <= 2 and tank and not (melee and vz.enraged and not ball) then t = math.max(t, N.melee) end
             -- raid seam34v: a nylocas's blast is outside the enrage band
             -- (s34v _play_verzik t652: a magic nylocas took a leader's last 47
             -- of a 55 with the band capping the bite at 45): 63 within 3 of

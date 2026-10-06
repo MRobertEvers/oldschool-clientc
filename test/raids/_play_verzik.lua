@@ -91,9 +91,10 @@ local function party_run(t)
         role, tostring(detail), #rec.eats, #rec.drinks, #rec.swings, tostring(vz.add_presses), tostring(vz.kites), tostring(vz.tornado_runs)))
     -- raid seam45: the melee clock as the plan read it (P2 and P3)
     local m2, m3 = vz.m2 or {}, vz.m3 or {}
-    t.check("play.melee_clock", true, string.format("p%d P2 outs %s late %s waits %s add presses %s kites %s; P3 outs %s late %s holds %s; P2 log %s",
-        role, tostring(m2.outs), tostring(m2.late), tostring(m2.waits), tostring(m2.add_presses), tostring(m2.kites),
-        tostring(m3.outs), tostring(m3.late), tostring(m3.holds), table.concat(m2.log or {}, " ")) .. "; P3 dodges " .. tostring(m3.dodges) .. "; enrage log " .. table.concat(m3.log or {}, " ") .. "; webs log " .. table.concat(m3.log2 or {}, " "))
+    -- (raid seam51: the late-seen attacks the clocks re-dated, and P2's late ticks)
+    t.check("play.melee_clock", true, string.format("p%d P2 outs %s late %s [%s] snaps %s waits %s add presses %s kites %s; P3 outs %s late %s snaps %s holds %s; P2 log %s",
+        role, tostring(m2.outs), tostring(m2.late), table.concat(m2.late_ticks or {}, " "), tostring(vz.m2_snaps or 0), tostring(m2.waits), tostring(m2.add_presses), tostring(m2.kites),
+        tostring(m3.outs), tostring(m3.late), tostring(vz.m3_snaps or 0), tostring(m3.holds), table.concat(m2.log or {}, " ")) .. "; P3 dodges " .. tostring(m3.dodges) .. "; enrage log " .. table.concat(m3.log or {}, " ") .. "; webs log " .. table.concat(m3.log2 or {}, " "))
     if role ~= 1 then
         t.expect("party.barrier.done", t.party.barrier("done", 9000))
         t.finish(0)
