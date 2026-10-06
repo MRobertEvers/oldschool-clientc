@@ -1079,8 +1079,12 @@ return {
         -- maps/m40_51.jl2: double door w_ardougnedoubledoorl/r on the west
         -- edge of 2576,3298-3299 (the door tile is the street); the stairs
         -- (2571-2572, 3295-3297) are climbed from their north front
-        -- 2571,3298 (no up maplink row: +1 plane on the stand tile); the
-        -- king's room x 2575-2579 z 3292-3294,1 is behind elfdoor on the
+        -- 2571,3298 and land at the stair top's south foot 2571,3294,1
+        -- (maplink_0_40_51_11_34_up, transports.tsv:558; the 2004 game
+        -- agrees: LostCity_Content2 scripts/ladders+stairs/scripts/
+        -- stairs.rs2 [oploc1,loc_1722] "Ardougne Castle" telejumps
+        -- 0_40_51_11_31 -> 1_40_51_11_30, and stairstop's forceapproach
+        -- faces south); the king's room x 2575-2579 z 3292-3294,1 is behind elfdoor on the
         -- west edge of 2575,3293,1. Choosing "I don't understand..." runs
         -- the full exposition and ends in
         -- queue(quest_biohazard_complete,0,0) -- asynchronous (section 8),
@@ -1093,7 +1097,7 @@ return {
         pass_door("informTheKing.castleDoor", "w_ardougnedoubledoorl", "w_ardougnedoubledoorlopen", 2576, 3298, 0, 2577, 3298, 2573, 3298,
             function(tt) return tt.x <= 2575 end, "in the castle hall, x <= 2575")
         climb("informTheKingGoUpstairs", "stairs", 2571, 3295, 0, 2571, 3298, 1,
-            function(tt) return tt.x == 2571 and tt.z == 3298 end, "2571,3298,1 above the stand tile")
+            function(tt) return tt.x == 2571 and tt.z == 3294 end, "2571,3294,1 at the stair top's south foot (maplink_0_40_51_11_34_up)")
         pass_door("informTheKing.kingsDoor", "elfdoor", "elfdooropen", 2575, 3293, 1, 2574, 3293, 2576, 3293,
             function(tt) return tt.x >= 2575 and tt.x <= 2579 and tt.z >= 3292 and tt.z <= 3294 end, "in King Lathas's room, x 2575-2579 z 3292-3294 level 1")
         t.exec("talkToKingLathas", t.player.talk_to, "kinglathas", 1)
