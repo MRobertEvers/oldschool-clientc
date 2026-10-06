@@ -180,6 +180,15 @@ QD.raid._play_plan("tob_nylocas", {
     trace_seat = nil,
     -- raid seam32: the swap's engagement-ending step (see the press); off
     swap_stop = false,
+    -- raid seam35m play_tob_nylocas_normal_supports: in a party, never let a
+    -- low support go (the Entry guide's "let one that's low die", E :171, is
+    -- a solo's rule: 34 of 34 recorded Regular trios land her with all four
+    -- standing), and weigh a chewer by its support's missing bar this much.
+    -- Measured OFF: survey1 (seed_survey --party 3) stood 3,2,1,2,2 of 4 at
+    -- her landing against 2,2,2,2,2 without it; the supports do not fall for
+    -- being let go, they fall for the copies the trio does not kill in time
+    keep_all = false,
+    keep_weight = 12,
 })
 
 -- The ids of the room's npcs, once per play (a symbol is a content name, an id
@@ -817,8 +826,11 @@ function QD.raid._play_nylocas_decide(st, v)
                 if not n.fighting and sp ~= nil then
                     -- a chewer: "keep the pillars alive" (E :155); but "it's best to
                     -- let one that's low die and focus on the other three" (E :171)
-                    if sp == lowest and sp.frac < 0.15 and alive_supports > 1 then score = score + 25
-                    else score = score - 12 - (1 - sp.frac) * 12 end
+                    -- raid seam35m: a trio keeps all four ("all four standing"
+                    -- in 34 of 34 recorded Regular trios, weakest 0.10..0.54 at
+                    -- her landing): the low one is defended, not let go
+                    if sp == lowest and sp.frac < 0.15 and alive_supports > 1 and not (R ~= nil and P.keep_all) then score = score + 25
+                    else score = score - 12 - (1 - sp.frac) * (R ~= nil and P.keep_all and P.keep_weight or 12) end
                 end
                 -- "Focus the green (Ranged) Nylocas first" (E :162)
                 if n.style == "ranged" then score = score - 4 end

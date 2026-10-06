@@ -126,6 +126,12 @@ local function party_run(t)
         .. "; Ice Barrage casts " .. nc .. " " .. casts, 1, 1800))
     if role == 2 then
         t.check("tech.freezer_casts", nc > 0 and m.waves ~= nil and m.waves >= 3, "the freezer's waves " .. tostring(m.waves) .. ", casts " .. nc)
+        -- raid seam35m: what the freezer's plan said each wave could be frozen
+        -- (raid_play_tob_maiden.lua _play_maiden_ice_plan, its first cast)
+        local plans = {}
+        for k, pl in pairs(m.ice_plans or {}) do plans[#plans + 1] = "w" .. k .. " t" .. pl.tick .. " " .. pl.frozen .. " of " .. pl.total end
+        table.sort(plans)
+        t.check("play.ice_plan", #plans > 0, "the plan's best at each wave's first cast: " .. table.concat(plans, "; "))
     end
     if role ~= 1 then
         t.expect("party.barrier.done", t.party.barrier("done", 9000))
@@ -181,6 +187,13 @@ local function party_run(t)
         if bx == nil then return 99 end
         return math.max(math.max(bx - x, 0, x - (bx + 5)), math.max(bz - z, 0, z - (bz + 5)))
     end
+    -- raid seam35m: the content's own arrival rectangle for a size-2 crab
+    -- over its south-west anchor (tob.constant:480-494, ^tob_maiden_arrive_*:
+    -- two tiles out on her west and south faces, one on her north and east)
+    local function arrived_at(x, z)
+        if bx == nil then return false end
+        return x - bx >= -2 and x - bx <= 6 and z - bz >= -2 and z - bz <= 6
+    end
     -- the thresholds: her retypes to the 70/50/30 forms
     local thresholds = {}
     for _, r in ipairs(retype_rows) do
@@ -208,10 +221,16 @@ local function party_run(t)
         local last_end = c.death or free_tick or (c.tiles[#c.tiles] and c.tiles[#c.tiles].tick) or c.spawn
         for k = 1, #c.tiles do
             local nxt = (k < #c.tiles) and c.tiles[k + 1].tick or last_end
-            if nxt - c.tiles[k].tick >= 3 and gap(c.tiles[k].x, c.tiles[k].z) > 1 then c.frozen = true end
+            if nxt - c.tiles[k].tick >= 3 and not arrived_at(c.tiles[k].x, c.tiles[k].z) then c.frozen = true end
         end
+        -- raid seam35m: reached = it stood in the arrival rectangle at the end
+        -- of a tick and died on a later one (the content absorbs it at the
+        -- start of the next tick, before any hit: tob_maiden.rs2
+        -- [proc,tob_maiden_crab_tick]); one killed on the tick it stepped in
+        -- was killed (seam33's gap <= 1 missed every south absorb at gap 2:
+        -- m35a w1 S1 absorbed on 5,-2 counted as killed)
         local lt = c.tiles[#c.tiles]
-        if c.death ~= nil and lt ~= nil and gap(lt.x, lt.z) <= 1 then
+        if c.death ~= nil and lt ~= nil and arrived_at(lt.x, lt.z) and c.death > lt.tick then
             c.reached = true
             for _, r in ipairs(hitn_rows) do
                 if r.slot == c.slot and r.tick == c.death then c.heal = 2 * r.damage end

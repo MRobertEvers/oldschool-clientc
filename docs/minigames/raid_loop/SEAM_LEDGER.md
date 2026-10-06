@@ -1385,3 +1385,35 @@ all clean. No C and no content changed.
   this harness); every raider eats most of its 16 anglerfish (thin margin); P1 takes
   124-157 ticks; tornado rows do not follow the server's walk; 2-3 urnbombs a raider land
   on a held tile (reported, not asserted); party_repeat.py has no `--party` option.
+
+## matthew-mbp-m4-camera-b1-seam35m (2026-10-06; the commit that carries this heading, OSRS-Content 1c612cdfe3 unchanged): Normal trio Maiden's rows and Normal trio Nylocas' supports
+
+- play_tob_maiden_normal_rows; NOT KEPT, the plan landed as an improvement. Closer re-run of
+  `seed_survey.py _play_maiden --party 3`: 0 of 5 green, but `room.cleared` PASS on all
+  five names (seam33: she died on 4 of 5); Matomenos that reached her 6/7/3/7/7. Red:
+  `tech.freeze` on all five (one freezer on a 5-tick cast plans at best 3-5 of 6 a wave for
+  most spawn sets; the row was not loosened, the owner rules), `tech.crabs_killed` on four
+  (left crabs reach her 6-9 ticks after spawning, before two pipes kill a 75 hp crab),
+  `tech.tank` on svb, sva's p3 dies. The harness's reach test is now the content's arrival
+  rectangle (tob.constant:480-494). Open: Normal trio Matomenos hitpoints 75 in our
+  content against W:593's 150 (content pass); the repeat name m35rep's leader dies t306 to
+  a 60 blackstorm through a lit Protect from Magic (unread); the Ice Barrage resolve delay
+  (0 or 1 tick by wave) is measured, its cause unread.
+- play_tob_nylocas_normal_supports; NOT KEPT, the bar is now sourced. `tech.pillars_at_boss`
+  asks four supports standing with the weakest at or above 0.10, from 34 recorded Regular
+  trio rooms on blert (all four standing in 34 of 34, weakest 0.10..0.54, median 0.31;
+  seam33's "each above 0.50" had no source and 3 of 34 real trios meet it). Closer re-run
+  of `seed_survey.py _play_nylocas --party 3`: 0 of 5, standing 1/2/1/2/1 of 4 at her
+  landing, every other row PASS (tech.prayer red on `_play_nylocas` only). First cause:
+  our trio kills about 0.42 copies a tick against a real trio's 0.70; the late surge drops
+  the west supports. `P.keep_all` (defend the low support) measured no gain, left OFF.
+  Open: chins on doubles (needs its own weapon key), the scythe on grey doubles (content:
+  scythe_of_vitur.rs2:38 arcs only for 2x2 targets), our support bite mean 1.03 against
+  0.83-0.93 recorded (grade D), tech.prayer's party form (owner).
+- Closer: both Entry solo surveys 5 of 5; cooks_assistant ledger byte-identical to
+  build/merge17_check/cooks_before.tsv; conformance 382/382 rows PASS; check-quest-verbs,
+  check-drive-abi, check-pt-switch, test-quest-cheats, test-plugin-lua PASS; no verb, C or
+  content change. OSRS-Content carries a stray publish of quest_cook/play from a worker's
+  run without --no-publish (46 deleted pngs, 46 untracked, ledger.tsv modified); the
+  restore was refused by the permission classifier and is left for the owner; it is not
+  committed.
