@@ -1,0 +1,210 @@
+{{Update|date=08 April 2026|url=https://secure.runescape.com/m=news/demonic-pacts---overview?oldschool=1|category=community}}
+[[File:Demonic Pacts - Overview newspost.png|right]]
+{{clear}}
+__TOC__
+''It's time to take a look at the power Yama has granted you this league.''
+
+<center>
+{{Youtube|2YlM2PIrqxg}}
+That's right we've decided to Yamafy the Combat Masteries with a bit of demon magic and transform them in to the mighty and vast Demonic Pacts. And boy oh boy, don't they look great!
+</center>
+
+[[File:Demonic Pacts - Overview (1).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-08/DP-Tree.png click here].]]
+We're here to give you all you need to know about this new take on combat for Leagues VI. While Yama has given you plenty of generous options for power this time around, your soul will belong to him by the end of this league.
+
+Before we dive in, we want to make it '''clear''' that this system is being tested right up until launch, so there may be some instances where we slightly tweak numbers or descriptions. In that case we will let you know and update the [https://tools.runescape.wiki/demonic-pacts OSRS Wiki Calculator], which will be the source of truth.
+
+==Overview==
+For those of you who either haven't played a league before, missed Leagues V: Raging Echoes or forgot what Combat Masteries were, they essentially gave you a variety of specific combat buffs over the three main styles of Magic, Melee and Ranged.
+
+While the previous league gave you a total of 18 choices over three different paths, this time around you've got '''over 130''' to choose from. These do stick to the same three styles but we've also sprinkled in some neutral nodes which don't give any specific style a buff but are there to enhance your builds in different ways.
+
+[[File:Demonic Pacts - Overview (2).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-08/DP-Tooltip.png click here].]]
+You can access the Demonic Pacts in the Leagues Menu through the 'Demonic Pacts' button and explore the tree at your own leisure. You'll also have a small tutorial at the end that will give you an overview of the system.
+
+[[File:Demonic Pacts - Overview (3).png|thumb|201px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-08/Leagues-Panel-1.png click here].]]
+You'll also have a handy summary of everything you've unlocked on the right-hand side!
+
+[[File:Demonic Pacts - Overview (4).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-08/DP-Summary.png click here].]]
+
+===Pact Points===
+Unlocking pacts are done with Pact Points, with nodes only being available to unlock if an adjacent node has already been unlocked.
+
+[[File:Demonic Pacts - Overview (5).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-08/DP-Points.png click here].]]
+
+These points will be your currency to unlock your Demonic Pacts. Each pact will cost 1 point and if you gain all of them, you'll have a total of '''40 Pact Points!'''
+
+We've split them out across the different areas which means you'll get:
+
+* 9 from global tasks (with 2 given during the tutorial)
+* 4 from Varlamore
+* 6 from Karamja
+* 7 for each additional area unlocked
+
+You'll always begin at the centre of the tree and spend your first point on that pact, but after this and as long as you have at least one connected pact unlocked, you can go wherever you like on the 'tree'!
+
+Much like last year's Masteries, these can be achieved through specific tasks related to combat. We've even included a handy little filter in the task interface to show you the specific tasks you need to complete for points.
+
+[[File:Demonic Pacts - Overview (6).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-08/DP-Tasks.png click here].]]
+
+And, to give you an extra helping hand with your planning, below are the list of tasks within each area:
+
+{{Collapsed section|18|Asgarnia}}
+* Complete the Leagues Tutorial (10 points)
+* Open the Leagues Menu (10 points)
+* Defeat a Hill Giant (10 points)
+* Reach Combat Level 50 (30 points)
+* Use the Protect from Melee Prayer (30 points)
+* Kill 1 unique Echo Boss (80 points + Reset)
+* Kill 2 unique Echo Bosses (80 points + Reset)
+* Kill 3 unique Echo Bosses (80 points + Reset)
+* Kill 4 unique Echo Bosses (200 points)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Global}}
+* Complete the Leagues Tutorial (10 points)
+* Open the Leagues Menu (10 points)
+* Defeat a Hill Giant (10 points)
+* Reach Combat Level 50 (30 points)
+* Use the Protect from Melee Prayer (30 points)
+* Kill 1 unique Echo Boss (80 points + Reset)
+* Kill 2 unique Echo Bosses (80 points + Reset)
+* Kill 3 unique Echo Bosses (80 points + Reset)
+* Kill 4 unique Echo Bosses (200 points)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Varlamore}}
+* 1 Hueycoatl Kill (80 Points)
+* Complete Wave 12 of Fortis Colosseum (200 Points)
+* Defeat Awakened Vardorvis (200 Points)
+* Equip Avernic Treads (200 Points)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Karamja}}
+* Defeat a Steel Dragon on Karamja (30 Points)
+* Defeat a TzHaar (30 Points)
+* Complete Tzhaar-Ket-Rek's third challenge (80 Points)
+* Equip a Fire Cape (200 Points)
+* Complete Tzhaar-Ket-Rek's Special challenge (400 Points)
+* Equip an Infernal Cape (400 Points)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Asgarnia}}
+* Defeat a Troll in Asgarnia (10 Points)
+* Defeat the Royal Titans solo (80 Points)
+* Equip a Dragon Defender (80 Points)
+* Defeat Awakened Whisperer (200 Points)
+* Equip a Godsword (200 Points)
+* Equip the Bellator Ring (200 Points)
+* Defeat Nex Solo (400 Points)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Desert}}
+* Set a mummy ablaze (10 Points)
+* Cast Ice Barrage (200 Points)
+* Defeat Awakened Leviathan (200 Points)
+* Equip a Dragon Chainbody in the Kharidian Desert (200 Points)
+* Equip a Piece of Masori Armour (200 Points)
+* Equip the Venator Ring (200 Points)
+* Equip Osmumten's Fang (or) (400 Points)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Fremennik}}
+* Defeat a Cockatrice in the Fremennik Province (10 Points)
+* Kill 8 penguins within 5 seconds (30 Points)
+* Defeat Phantom Muspah (80 Points)
+* Defeat Basilisk Knight (80 Points)
+* Defeat Awakened Duke Sucellus (200 Points)
+* Defeat Vorkath 5 Times Without Special Damage (200 Points)
+* Equip the Magus Ring (200 Points)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Kandarin}}
+* Defeat a Demonic Gorilla (80 Points)
+* Defeat a Mithril Dragon (80 Points)
+* Defeat the Kraken Boss 50 Times (80 Points)
+* Equip a Trident of the Seas (80 Points)
+* Equip Some Zenyte Jewelry (200 Points)
+* Equip an Abyssal Tentacle (200 Points)
+* Equip an Occult Necklace (200 Points)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Kourend}}
+* Open 1 Grubby Chest (10 Points)
+* 150 Lizardmen Shaman Kills (30 Points)
+* 1 Skotizo Kill (80 Points)
+* 25 Chambers of Xeric (80 Points)
+* Equip a Dragon Hunter Lance (200 Points)
+* Equip a piece of Radiant Oathplate (200 Points)
+* Equip any Ancestral Piece (200 Points)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Morytania}}
+* Defeat a Werewolf in Morytania (10 Points)
+* 1 Araxxor Kill (80 Points)
+* Assemble a Slayer Helm (80 Points)
+* Create an Amulet of Blood Fury (80 Points)
+* Equip any Full Barrows Armour Set (80 Points)
+* Complete the Theatre of Blood 25 Times (200 Points)
+* Defeat Phosani's Nightmare (200 Points)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Tirannwn}}
+* Kill a Black Dragon in Tirannwn (30 Points)
+* Complete the Corrupted Gauntlet (80 Points)
+* Defeat Zalcano (80 Points)
+* Equip a Dark Bow in Tirannwn (80 Points)
+* Craft a Toxic Blowpipe (200 Points)
+* Use a prayer altar to restore 90 prayer in Prifddinas (200 Points)
+* Equip a Corrupted Weapon (400 Points)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Wilderness}}
+* Defeat a Chaos Dwarf in the Wilderness (10 Points)
+* Defeat the Corporeal Beast (80 Points)
+* Equip a Dragon 2-Handed Sword in the Wilderness (80 Points)
+* Equip a Malediction Ward (80 Points)
+* Equip a Piece of the Dagon'Hai Set (200 Points)
+* Equip the Voidwaker (200 Points)
+* Imbue a God Cape (200 Points)
+{{Collapsed section end}}
+
+===Can you reset the Demonic Pacts?===
+One of the most interesting elements about leagues is that choice matters! Something we have always considered to be a pivotal part to what makes it special. It is exactly why we've not let you repick relics, areas or Combat Masteries in the past.
+
+While this ethos is still instilled throughout Leagues VI, it is important for us to recognise not only the sheer scale of the new Demonic Pacts but this element of experimentation we are trying with the new system.
+
+So, '''while you will be able to reset the Demonic Pacts''', you will be limited to a small number of them, '''3''' to be exact. These limited resets, can refresh all of the current Pact Points you've spent, but once you've used a reset it is gone for good... so choose wisely.
+
+You can unlock these resets by completing the following tasks:
+
+* Defeat 1 unique Echo Boss
+* Defeat 2 unique Echo Bosses
+* Defeat 3 unique Echo Bosses
+
+==Resources==
+We know this might be a lot to take in, especially compared to the previous iteration, but we're here to provide as much as we can to help you get going with Yama's toybox! While this isn't everything we've got in the pipeline to help you, this collection of goodies is sure to get you going!
+
+===OSRS Wiki Calculator===
+[[File:Demonic Pacts - Overview (7).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-08/Wiki-Calc.png click here].]]
+As there's so much information to take in and we would like you to get your hands on the tree early, we've worked very closely with our friends over at the [[Old School Wiki]] to create a calculator for the Demonic Pacts that mimics how you'll experience in the game.
+
+This way there is less speculation on how the tree works and you have a practical solution to get your hands on. Check out the [https://tools.runescape.wiki/demonic-pacts Demonic Pacts Calculator!]
+
+===Leagues VI: Demonic Pacts - Livestream (April 9th)===
+Of course we had to fit in special live appearance to talk about everything Leagues VI. But this livestream is extra special, as alongside Mod Husky & Mod Sarnie we'll be having the fantastic theory crafters [https://www.youtube.com/@doubleshine DoubleShine], [https://www.twitch.tv/faux Faux] & [https://www.youtube.com/@ScriticRS Scritic] to talk relic choices, pact builds, answer your burning questions and maybe a reveal or two?
+
+Join us tomorrow, '''April 9th''' at '''3:00pm UTC''' for more leagues goodness!
+
+===Leagues Discord===
+As always, if you want a great place to chat with other Leagues enthusiasts, ask questions or just get an idea of what other peoples plans are, then the Leagues Discord is the place to be! Shoutout to the effort they put in to solve yesterday's roster of puzzles. ''!turtle''
+
+Jump into the Discord [https://discord.gg/fVJA6b4JdZ here] or check out the official [https://discord.gg/OSRS OSRS Discord] to join the conversation!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1s1hawy/get_ready_for_leagues_vi_demonic_pacts 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the official [https://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Default, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Lotus, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume.'''
+
+''The Old School Team.''

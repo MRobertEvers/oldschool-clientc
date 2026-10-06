@@ -1,0 +1,33 @@
+{{Otheruses|Deadman Mode variant|Bee Swarm (Deadman)|def=no}}
+{{Infobox NPC
+|name = Bee Swarm
+|image = [[File:Bee Swarm.png|130px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|location = [[Fortis Colosseum]]
+|options = Attack
+|examine = Not the bees!
+|map = No
+|id = 12823
+|leagueRegion = Varlamore
+}}
+'''Bee Swarms''' are NPCs that may appear in the [[Fortis Colosseum]] when the "Bees!" handicap is active. They will slowly converge on the player and deal 15-20 unblockable poison damage every tick, and inflict poison starting at 1 damage. The damage is halved if the player is under the effects of [[antipoison]]. The Bee Swarm will not take recoil damage, such as from a [[Ring of suffering (i)|ring of suffering (ri)]].
+
+Bee swarms can be attacked, only having 1 hitpoint and players are guaranteed a max hit in most cases. Be wary of their somewhat unpredictable movement, if not careful the player can be dragged out from behind the pillar.
+
+Higher tiers of "Bees!" increases the amount of bee swarms that appear in the arena.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 24 April 2024
+|update = Varlamore Tweaks, GameJam V Commences & More!
+|change = Bees inside the Colosseum are now more visible and easier to keep track of.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* The examine text is a reference to a memorable quote from the 2006 horror film {{wp|The Wicker Man (2006 film)|The Wicker Man}}.
+
+{{Fortis Colosseum}}

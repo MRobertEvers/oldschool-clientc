@@ -1,0 +1,42 @@
+mechanic_id	scope	note
+quiver_and_pet.quiver.source	all	one solo test: complete the run and read the reward
+quiver_and_pet.quiver.guaranteed_on_wave12	all	one solo test: complete the run and read the reward
+quiver_and_pet.quiver.no_roll_before_wave12	all	one solo test: complete the run and read the reward
+quiver_and_pet.quiver.form_awarded	all	one solo test: complete the run and read the reward
+quiver_and_pet.quiver.item_stats_owner	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.chance	statistical	a 1/200 roll is settled by the recorder or a counted loop of the roll, not one test
+quiver_and_pet.pet.chance_independent	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.roll_wave	all	one solo test: complete wave 11 then wave 12 and note which clear rolls; the force-roll cheat makes it deterministic
+quiver_and_pet.pet.rolls_per_run	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.not_on_cash_out	all	one solo test: complete wave 11 then wave 12 and note which clear rolls; the force-roll cheat makes it deterministic
+quiver_and_pet.pet.minimus_gamble_chance	statistical	a 1/200 roll is settled by the recorder or a counted loop of the roll, not one test
+quiver_and_pet.pet.minimus_gamble_consumes_quiver	all	one solo test: talk to Minimus with an uncharged, a charged and no quiver
+quiver_and_pet.pet.minimus_gamble_dialogue	all	one solo test: talk to Minimus with an uncharged, a charged and no quiver
+quiver_and_pet.pet.minimus_gamble_hidden_when_owned	all	one solo test: talk to Minimus with an uncharged, a charged and no quiver
+quiver_and_pet.trade.splinters	all	one solo test: talk to Minimus with an uncharged, a charged and no quiver
+quiver_and_pet.trade.uncharged_only	all	one solo test: talk to Minimus with an uncharged, a charged and no quiver
+quiver_and_pet.trade.confirm_step	all	one solo test: talk to Minimus with an uncharged, a charged and no quiver
+quiver_and_pet.trade.inventory_gate	all	one solo test: talk to Minimus with an uncharged, a charged and no quiver
+quiver_and_pet.trade.script_ownership	all	one solo test: talk to Minimus with an uncharged, a charged and no quiver
+quiver_and_pet.pet.obj.id	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.follower.id	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.menagerie.id	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.follower.scale	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.examine	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.varbit.insurance	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.varbit.menagerie	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.reclaim.free	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.receipt.follower	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.receipt.inventory_fallback	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.main_drop	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.collection_log	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.broadcast	all	one solo test: complete wave 11 then wave 12 and note which clear rolls; the force-roll cheat makes it deterministic
+quiver_and_pet.pet.follow.cardinal_first	all	one solo test: complete the run and read the reward
+quiver_and_pet.pet.membership_reclaim	all	one solo test: complete the run and read the reward
+quiver_and_pet.presentation.pet.idle	all	one solo test: take the follower out and read its seq and model ids
+quiver_and_pet.presentation.pet.walk	all	one solo test: take the follower out and read its seq and model ids
+quiver_and_pet.presentation.pet.walk_r	all	one solo test: take the follower out and read its seq and model ids
+quiver_and_pet.presentation.pet.models	all	one solo test: take the follower out and read its seq and model ids
+quiver_and_pet.presentation.pet.receive_graphic	all	one solo test: take the follower out and read its seq and model ids
+quiver_and_pet.presentation.quiver.interface	all	one solo test: take the follower out and read its seq and model ids
+quiver_and_pet.system.blessed_out_of_run	all	one solo test: complete the run and read the reward

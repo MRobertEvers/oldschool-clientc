@@ -1,0 +1,60 @@
+{{Infobox Monster
+|name = Shockwave Colossus
+|image = [[File:Shockwave Colossus.png|130px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|combat = 239
+|size = 3
+|examine = If he had a theme song, it'd probably go with everything.
+|xpbonus = 0
+|max hit = 56
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 5
+|hitpoints = 125
+|att = 120
+|str = 190
+|def = 150
+|mage = 350
+|range = 220
+|attbns = 0
+|strbns = 0
+|amagic = 55
+|mbns = 35
+|arange = 0
+|rngbns = 0
+|dstab = 15
+|dslash = 15
+|dcrush = 15
+|dmagic = 5
+|dlight = 35
+|dstandard = 35
+|dheavy = 35
+|poisonresistance = 100
+|venomresistance = 100
+|id = 12819
+}}
+'''Shockwave Colossi''' are enemies encountered in [[Fortis Colosseum]] who attack with magic and have an attack range of 15 tiles.
+
+If the "Dynamic Duo" handicap is active, they will spawn in pairs.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 June 2024
+|update = Colosseum NPC Clickboxes & More
+|change = The clickbox of the NPC was updated to include all of its models.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="160" style="text-align:left">
+Fortis Colosseum - colossi concept art.jpg|Concept art of the shockwave and javelin colossi, by [[Mod Grub]].
+</gallery>
+
+==Trivia==
+* The Shockwave Colossus' examine is a reference to the ''Guile's Theme Goes with Everything'' meme made popular in the early 2010s. Guile is a playable character in the ''Street Fighter'' series of video games and uses a shockwave-based special attack.
+
+{{Fortis Colosseum}}

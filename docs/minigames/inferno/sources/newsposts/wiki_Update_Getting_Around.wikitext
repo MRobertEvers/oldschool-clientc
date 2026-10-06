@@ -1,0 +1,551 @@
+{{Update|date=08 January 2026|rev=12 January 2026|url=https://secure.runescape.com/m=news/getting-around?oldschool=1|category=devblog}}
+[[File:Getting Around newspost.jpg|right]]
+{{clear}}
+__TOC__
+==Update==
+Before polls open tomorrow, we wanted to take a moment to check back in and address some of the feedback we’ve seen on this blog. The discussion so far has been really constructive, and it’s helped us spot a few places where we could be clearer about intent or next steps.
+
+Below are a few updates and clarifications based on what you’ve shared.
+
+===Herb Sack Upgrade & Sarachnis Instance===
+A lot of the discussion around the Herb Sack upgrade has focused on Sarachnis, particularly concerns about world congestion and the difficulty players can face finding a free world.
+
+Many of you told us that you like the idea of the Herb Sack upgrade itself, but that increased competition for worlds and excessive world-hopping would be a major frustration. One of the most common suggestions was to offer an optional instanced version of Sarachnis alongside this change.
+
+Under this proposal, the instanced version would allow players to pursue the upgrade without excessive world-hopping, while leaving the existing non-instanced boss exactly as it is. The instance would have a 25K entry cost, with an appropriate discount for iron accounts.
+
+As this is a meaningful change in its own right, the instanced Sarachnis option will be presented as a separate poll question, allowing you to vote on the Herb Sack upgrade and the instanced boss independently.
+
+{{News Poll|15|Should we add an optional instanced version of Sarachnis, with an entry cost, as described in the blog?}}
+
+===Holy Moleys & Devout Boots===
+We’ve seen a lot of discussion around Holy Moleys and the exclusion of Devout Boots, particularly from iron players who don’t want to feel forced to regrind Holy Sandals.
+
+To be clear, allowing Devout Boots to be used in combination isn’t something we’re looking to change. Holy Moleys are designed to be a purely cosmetic item made from two lower-impact pieces, rather than a way to attach a novelty look to a best-in-slot upgrade. Using Devout Boots would blur that line, which isn't the intention here.
+
+That said, we do recognise the inconvenience this creates for some accounts. To address this without changing the core design, we’re proposing an additional poll question that would allow Devout Boots to be dismantled back into Holy Sandals. This would give Iron players a way to create Holy Moleys if they wish, without needing to regrind content they've already completed. 
+
+We can also confirm that Holy Moleys will count as warm clothing at Wintertodt, so you’ll have a perfectly valid excuse to go chop and burn in style.
+
+{{News Poll|16|Should Devout Boots be able to be dismantled back into Holy Sandals, as described in the blog?}}
+
+===Quetzal Whistle Unlimited Charges===
+We’ve also seen a lot of discussion around the Quetzal Whistle, particularly about the option for unlimited charges.
+
+You’re right to call this out. When the Perfected Quetzal Whistle was blogged back in September 2023, we said there would be an option to upgrade it to hold unlimited charges, and that hasn’t been delivered yet.
+
+That one’s on us.
+
+Based on your feedback, we’re now committing to adding an unlimited-use option for the Perfected Quetzal Whistle as part of this update. This will be unlocked by trading in a hefty amount of Hunter meat, as originally outlined, and will provide a permanent, charge-free version of the whistle once earned.
+
+We did previously consider tying this upgrade to the Varlamore Achievement Diary, but given what was promised earlier, we agree it’s better to deliver this directly rather than pushing it back behind a different system.
+
+Thanks for sticking with us on this one, and for continuing to hold us to account when something slips through the cracks!
+
+===Wilderness Teleport Changes Paused===
+We also wanted to address the proposed Wilderness teleport changes and explain why we’re choosing to hold off on this for now.
+
+The original aim of this idea was to make multi-combat fights healthier and more decisive by encouraging players to bring meaningful gear and commit to an encounter once two teams clash. In particular, it was intended to reduce situations where a smaller team manages to outplay a larger one, only for the larger team to repeatedly return in very low-risk setups, keeping the fight going indefinitely and slowly wearing the smaller team down through sheer volume rather than strategy.
+
+From a long-term health perspective, we still believe that addressing low-risk 'rag returning' is important. We’ve also seen a lot of agreement that endlessly returning in no gear isn’t great for the game overall. The idea of introducing a risk-based exemption (where players who die while risking a meaningful amount wouldn’t be subject to the teleport cooldown) is something we think has real potential when we revisit this.
+
+However, we also understand that for some players, repeated return fights offer something they genuinely enjoy, whether that’s the social side, the back-and-forth of multi-combat, or simply having something active to engage with. We don’t want to disrupt that without offering something in return, and introducing a restriction on its own would likely feel more frustrating than constructive, even with our long-term goal in mind.
+
+For that reason, we’ve decided to pause this proposal for now. 
+
+===Fight Pit Minigame Improvements===
+There’s been some understandable confusion around the intent behind this change, so we want to take a moment here to clarify.
+
+The TzHaar Fight Pits is a minigame that rarely sees much use today, outside of organised play such as events or clan nights. With that in mind, it’s reasonable to question what role changes like this are meant to play. 
+
+To add a little context, this proposal came about after a recent in-game Fight Pits community event we ran. During that event, a lot of rounds dragged on once players reached the later stages, as it was often optimal to sit in corners, pray Protect from Missiles, and wait out the fog. While effective, this didn’t always make for a particularly fun experience to play or watch, and we received a lot of suggestions about how those moments could be made more engaging and decisive.
+
+The changes here are aimed at addressing that specific issue, so that when the Fight Pits are used (events, clan nights, and hopefully more JMod/community competitions in future!) they reach a clearer and more satisfying conclusion. Making sure those experiences are fun to play and watch is part of future-proofing for that, rather than trying to turn Fight Pits into a popular hotspot overnight.
+
+One of the most common concerns we’ve seen is whether this change would take time away from other work. To reassure you, this is a very small, self-contained change built on systems and timers that already exist, and it would be delivered with very minimal developer time investment (only around a couple of hours in fact!).We’ve also seen a lot of suggestions about how the Fight Pits could be brought back to life more broadly, with things like rewards or other incentives. That’s definitely something we’re open to exploring should demand warrant it, it's just not something we’re trying to tackle here.
+
+We hope this additional context helps shed a bit more light on why this proposal exists and the problem it’s aiming to address.
+
+Thanks again for taking the time to share your thoughts and engage with these proposals. The discussion around changes like these genuinely helps us make better decisions and shape updates in a way that works for the wider community. As always, we’ll keep listening as polls open and results come in.
+
+==Getting Around==
+A new poll is here! We’re kicking off the year aimed at one simple goal: making moving around Gielinor less fiddly, without changing any of those well-trodden paths you know and love.
+
+You’ll find a stack of improvements that cut down clicks, reduce little travel annoyances, and make the day-to-day experience feel a bit more convenient. Nothing here is trying to rewrite the game or shake up metas - just less clicks and fewer sighs.
+
+Before we hit the road, though, we want to start with two long-requested community favourites.
+
+==Holy Moley, is that a Hooded Slayer Helm?!==
+Some ideas are sensible, some practical, and some so unmistakably Old School, we can't help but love them. 
+
+Holy Moleys fall firmly into that last category. 
+
+===Holy Moleys===
+[[File:Getting Around (1).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-08/holy.jpg here]!'']]
+
+For years now, you've been asking if it would be possible to combine Holy Sandals and Mole Slippers into a single entity. One that keeps the usefulness of the sandals, while embracing the comfort and charm of the slipper.
+
+We agree. It's time. 
+
+If this proposal passes, players would be able to combine Holy Sandals and Mole Slippers to create Holy Moleys. This would be a purely cosmetic combination that keeps all the existing functionality you care about, without introducing any balance concerns.
+
+====How Would It Work?====
+If this passes, players would be able to:
+
+* Combine Holy sandals and Mole Slippers to create Holy Moleys.
+* The resulting item would be untradeable, but fully reversible.
+
+Holy Moleys would retain all of the Holy Sandals’ existing properties, including:
+
+* +3 Prayer bonus and 31 Prayer requirement.
+* Counting as a Saradomin item (useful for God Wars Dungeon).
+
+A couple of notes:
+
+* Devout Boots would not be compatible.
+* Edit ''(12/01/26)'': We’ll be polling an option to allow Devout Boots to be dismantled back into Holy Sandals, giving iron players a way to create Holy Moleys without regrinding, should they wish. See the update section at the top of the blog for more details.
+* Holy Moleys could be dismantled at any time, returning both original items so they can be traded again.
+* If you die in PvP while wearing Holy Moleys, they would split back into Holy Sandals and Mole Slippers and be dropped accordingly.
+
+If this passes, combining Holy Sandals and Mole Slippers may involve a visit to Wyson the gardener in Falador Park, who’ll do what he does best: get mildly confused about moles, then agree to combine them for you.
+
+At its core, though, this proposal is exactly what it looks like - a harmless bit of fun that doesn’t mess with balance.
+
+{{News Poll|1|Should players be able to combine Holy Sandals and Mole Slippers to create Holy Moleys, as described in the blog?}}
+
+===Absolutely Slayin’: The Hooded Slayer Helmet===
+If you’ve reached 99 Slayer, you’ve earned the right to show it off.
+
+[[File:Getting Around (2).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-08/hood.jpg here]!'']]
+
+However, the moment you put your Slayer Helmet back on, your Slayer Skillcape hood gets benched - and suddenly that post-99 Turael skip just doesn’t hit the same.
+
+We think true Slayer masters shouldn’t have to choose between looking good and being effective, so we’re proposing a new cosmetic unlock: The Hooded Slayer Helmet.
+
+====How Would It Work?====
+Players with 99 Slayer could spend 1,000 Slayer points at any Slayer Master to unlock the ability: Absolutely Slayin'.
+
+Once unlocked, you’d be able to combine your Slayer Skillcape hood with your Slayer Helmet or Slayer Helmet (i) to create a hooded version of the Slayer helm.
+
+This new version would proudly display your mastery of the skill, while functioning exactly as your Slayer helmet does today.
+
+A few important notes:
+
+* You must have 99 Slayer (boosting won’t work).
+* The upgrade is purely cosmetic:
+** No stat changes.
+** No extra effects.
+* The imbued effects of the Slayer Helmet (i) will be fully supported once combined, remaining active on the Hooded Slayer Helmet too.
+* It wouldn't be possible to combine item cosmetic varients directly (such as the Araxyte or Black Slayer Helmet). These must first be dismantled back into the base Slayer Helmet, or Slayer Helmet (i) before combining with the Skillcape hood.
+* The Hooded Slayer Helm will always use the base grey Slayer helmet appearance, regardless of whether the Slayer Helmet used to combine it had a Combat Achievement reward cosmetic applied previously - for example, a Tzkal Slayer Helmet
+* The Hooded Slayer Helm can be dismantled at any time, returning both the Slayer helmet or Slayer helmet (i) and the Skillcape hood.
+
+We want you to be able to show off your mastery with style… and a cool hood.
+
+{{News Poll|2|Should we allow players with 99 Slayer to spend 1,000 Slayer points to unlock a Hooded Slayer Helm cosmetic, as described in the blog?}}
+
+==Getting Around Gielinor: Polled Changes==
+With the headliners out of the way, let’s talk travel. 
+
+===Portal Nexus Additions===
+The Portal Nexus is meant to be the ultimate teleport hub for player-owned houses - but right now, a handful of existing teleports are oddly missing.
+
+We'd like to add the following teleports to the Portal Nexus:
+
+* Trollheim (Standard)
+* Paddewwa (Ancient)
+* Lassar (Ancient)
+* Dareeyak (Ancient)
+* Ourania (Lunar)
+* Barbarian (Lunar)
+* Khazard (Lunar)
+* Ice plateau (Lunar)
+* Respawn (Arceuus)
+* Teleport to boat (Standard)
+
+These would function exactly like existing Nexus teleports:
+
+* Adding a teleport to the Portal Nexus would cost 1,000 times the normal cost.
+* All spellbook and level requirements still apply.
+
+Same setup - just more places to go!
+
+{{News Poll|3|Should we add the missing teleports described in the blog to the Portal Nexus?}}
+
+===Partially Charged Teleport Crystals===
+Ever had that annoying 'only 1 charge left' Teleport Crystal staring you down in the bank? Yep, we know the feeling.
+
+While Teleport Crystals are incredibly handy, managing them can be more awkward than it needs to be.
+
+Currently, if a crystal still has even a single charge left, Eluned won’t recharge it. You have to fully drain it first, which often means carrying around half-used crystals or deliberately wasting charges to tidy things up.
+
+We think that’s worth fixing.
+
+With this change, players would be able to:
+
+* Recharge Teleport Crystals regardless of how many charges they currently have.
+* Crystals would recharge up to 3 charges by default, or 5 charges if you’ve completed the the Western Provinces Hard Diary.
+
+{{News Poll|4|Should players be able to recharge partially used Teleport Crystals to full, as described in the blog?}}
+
+===Faster Agility Shortcuts===
+Between extra clicks, long animations, and awkward pauses, certain shortcuts can often feel slower than simply walking.
+
+We want to make sure shortcuts really ''feel'' like shortcuts.
+
+If that sounds good to you, we're proposing the following changes: 
+
+* Stepping stone shortcuts would require just a single click to cross.
+* Animations would be shortened, so you spend less time watching your character shuffle about.
+* Unnecessary delays would be removed, meaning you won’t be left standing around before crossing.
+
+These changes would apply to a range of existing shortcuts, including:
+
+* Draynor to Port Sarim tunnel
+* Falador crumbled wall
+* Rocks north-west of Corsair Cove
+* Kalphite Queen entrance
+* Falador fence jump
+* Dwarven Mine crevice
+* Alchemical Hydra shortcut
+
+We hope these changes will make shortcuts feel as they should - short, snappy, and worthwhile once you’ve unlocked them.
+
+{{News Poll|5|Should we update existing Agility shortcuts to reduce delays and unnecessary animations, making them quicker to use, as described in the blog?}}
+
+===Quetzal Whistle Improvements===
+The Quetzal Transport system is designed to make Varlamore travel easier, but using it can often feel a bit like you’re flying in circles.
+
+Currently, activating a Quetzal Whistle always sends you to Renu first, before asking where you actually want to go. This works, but it adds an extra step every time.
+
+We'd like to cut that out: 
+
+* Using a charged Quetzal Whistle would open the Quetzal Transport interface immediately.
+* You could select your destination directly, provided it’s unlocked.
+* A 'Last Destination' option would be added, allowing for quick repeat travel.
+* Players could toggle whether the whistle sends them straight to the Hunter Guild or opens the destination selection menu.
+
+We hope this change gets rid of the unnecessary back-and-forth, while still keeping the original behaviour available for those who prefer it.
+
+{{News Poll|6|Should we update Quetzal Whistles so that using one opens a destination selection menu, with a last-destination option, as described in the blog?}}
+
+===Lost Quetzal Whistles===
+Creating a Perfected Quetzal Whistle is no small task. Even after earning yourself the blueprint, there are multiple upgrade steps involved before you have the completed item.
+
+Right now, if you lose the whistle, that entire process has to be repeated from scratch, which, let's be honest, isn't very fun.
+
+We'd like to propose that players who have already obtained the Perfected Quetzal Whistle Blueprint, and who do not currently have a perfected whistle in their inventory, bank, or any item storage, should be able to reclaim a Perfected Quetzal Whistle from the Hunter Guild.
+
+This change would ensure the Blueprint still has to be earned as intended, but removes the frustration of having to re-grind upgrades you’ve already completed.
+
+{{News Poll|7|Should players who have unlocked the Perfected Quetzal Whistle Blueprint be able to reclaim a lost Perfected Quetzal Whistle from the Hunter Guild?}}
+
+===River Dougne Canoe Stations===
+Canoes are one of Old School’s earliest transport systems, and a very nostalgic one. Right now, though, they only cover a short stretch of river.
+
+We’re proposing a new canoe route along the River Dougne, adding five new stations to better connect key locations across Kandarin while keeping the system rooted in its original design.
+
+The River Dougne route would be separate from the existing River Lum canoe network -  you would not be able to canoe between River Dougne stations and River Lum stations.
+
+[[File:Getting Around (3).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-08/canoe.jpg here]!'']]
+
+New stations would include:
+
+* Near Castle Wars - Links up with the Ring of dueling and Balloon Network, and should be handy for Clue Scrolls.
+* West of Tree Gnome Village - Close to the Farming patch and Spirit Tree.
+* South of Ardougne Zoo - Provides easier access to central Ardougne.
+* East of Chaos Druid Tower - Improves travel to the Fishing Guild and North Ardougne.
+* North of Combat Training Camp - Connects Tree Gnome Village and Barbarian Assault.
+
+This expansion keeps everything you already know about canoes intact. Canoe types and level requirements would remain unchanged, and we’d like to make sure you can still use the route even if you forget to bring an axe.
+
+{{News Poll|8|Should we add new canoe stations along the River Dougne, as described in the blog?}}
+
+===Spirit Tree Level Progression===
+The way Spirit Trees currently scale with Farming levels can feel a little lopsided.
+
+At the moment, you unlock your first Spirit Tree at level 83, a second at 91, and then jump straight to unlimited trees at 99. That leap from 2 to unlimited is a big one, and it leaves very little room for progression.
+
+These limits date back to 2013, when the number of Spirit Tree locations was much smaller. Since then, the network has expanded, but the level requirements haven’t kept pace.
+
+[[File:Getting Around (4).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-08/tree.jpg here]!'']]
+
+We’d like to propose a more levelled progression by spreading the additional Spirit Tree unlocks more evenly across Farming levels. This would look like:
+
+* Level 83: 1 Spirit Tree
+* Level 88: 2 Spirit Trees
+* Level 93: 3 Spirit Trees
+* Level 96: 4 Spirit Trees
+* Level 99: Unlimited Spirit Trees
+
+Temporary boosts, like the Garden Pie, would still let players plant at lower levels as they do now.
+
+We hope this new system will streamline your progression and make levelling feel a little more rewarding. 
+
+{{News Poll|9|Should the level requirements for planting multiple Spirit Trees be rebalanced as described in the blog?}}
+
+===Tradeable Trouble Brewing Rum Teleports===
+We’d like to propose tapping into a small change for the Red and Blue Rum from Trouble Brewing.
+
+Right now, if you want to use these rums as a teleport to the Trouble Brewing minigame, you have to earn them yourself. That’s fine if you’re already playing the minigame, but it adds an extra hurdle if you just want to jump in for a first session.
+
+If this proposal passes, both the Red and Blue Rum would become tradeable, meaning:
+
+* Players could buy them from other players or via the Grand Exchange.
+* Players who regularly play Trouble Brewing could sell spare rum from the rewards shop.
+
+Quest progression would still apply - if you haven’t completed Cabin Fever, the rum won’t whisk you away just yet, and you’ll be politely reminded to finish the quest first.
+
+Overall, this should make it easier to start playing Trouble Brewing without the prep work, or provide a handy route to Mos Le'Harmless, while also giving dedicated minigame enjoyers a way to turn excess rum into a tidy profit.
+
+{{News Poll|10|Should the Red and Blue Rum from Trouble Brewing be made tradeable, as described in the blog?}}
+
+===Revenant Caves Teleport Changes===
+We’re looking to make travelling to the Revenant Caves a little more flexible, without changing how the teleport behaves by default.
+
+Currently, the Revenant Cave Teleport scroll only takes you to the northern entrance, which isn’t always ideal depending on your plans inside the caves!
+
+With this change, using a Revenant Cave Teleport will allow you to teleport to any of the cave’s entrances, giving you quicker access to the area you actually want to reach. This should be particularly welcome for players who prefer to play it a bit safer and start at the southern end of the caves.
+
+====How would this work?====
+
+* By default, nothing changes - left-clicking the teleport would still take you to the northern entrance, just as it does today.
+* A 'Configure' option would be added to the Scroll. With this, you'd be able to:
+** Manually choose a preferred entrance.
+** Set it to send you to your last used entrance.
+* This configuration would also apply when teleporting via the Master Scroll Box.
+
+{{News Poll|11|Should the Revenant Cave Teleport scroll allow players to select different cave entrances, as described in the blog?}}
+
+==Getting Around Gielinor: Unpolled Changes==
+Alongside the polled changes above, we’ve also got a few smaller travel tweaks lined up that aren’t going to a vote.
+
+These focus on trimming steps from things you can already do, rather than adding new destinations or changing how travel works. Think fewer menus, fewer repeated clicks, and less time spent doing the same setup over and over.
+
+Since they don’t meaningfully affect balance or access, we’re comfortable rolling them out without polling. As always, we’ll be keeping an eye on feedback and are happy to make changes if something doesn’t land quite right.
+
+===Fairy Ring Favourites===
+Fairy rings are one of the most widely used transport systems in Old School, but using them efficiently often involves a few more clicks than it should, or could.
+
+At the moment, even if you’ve favourited destinations on a Fairy ring, you still need to:
+
+* Right-click the ring.
+* Select Configure.
+* Open the favourites list.
+* Click your destination.
+
+We’d like to make this a bit more convenient.
+
+With this change, Fairy rings would gain a new 'Favourites' right-click option for players who have at least one destination marked as a favourite. Hovering over this option would display a sub-menu of your saved destinations, allowing you to teleport with a single click. Clicking a destination would teleport you there immediately, and players with no favourites would not see the option at all.
+
+We hope this change removes a few unnecessary clicks and reduces unnecessary menu navigation for players who know where they’re going.
+
+===The Grouping Teleport Spell===
+Navigating to minigames in Old School can be tricky. Currently, the teleport option is buried under Chat Channel → Grouping Tab → Minigame → Teleport, and even then, not every minigame actually has a teleport available.
+
+This can be confusing, particularly for newer or returning players who aren’t sure what’s available or why some options don’t work.
+
+To make this clearer, we’re adding a dedicated Grouping Teleport Spell, designed to make minigame travel easier to understand and quicker to use.
+
+[[File:Getting Around (5).png|thumb|300px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-08/minigame.jpg here]!'']]
+
+====What would change?====
+The new Minigame teleport menu would:
+
+* Be accessible from any spellbook with a single click.
+* Only display minigames, keeping the menu focused and clutter-free.
+* Clearly show whether a teleport is available, along with any requirements needed to use it.
+* Display the teleport’s cooldown timer, so you know when it’s ready to use again.
+* Note: The interface design here is '''not''' final and subject to changes.
+
+We’d also be adding teleport options for a small number of minigames that currently don’t have one:
+
+* Bounty hunter
+* Mastering mixology
+* Sorceress’s garden
+
+If you’re worried about this affecting your muscle memory, it’s worth noting that spellbook reordering is already supported on third-party clients, so you can move the icon to a spot that works for you.
+
+We want this change to present existing information more clearly and make minigame travel easier to navigate, especially if you’re not already familiar with the menus! 
+
+===Jewellery & Tab Wilderness Teleporting===
+*Edit ''(12/01/26)'': This proposal has been paused for now and won’t be included as part of Getting Around. We’ve added some additional context in the update section at the top of this blog.*
+
+Over the years, getting back into multi-combat fights in the Wilderness has become faster and lower-risk than ever.
+
+With modern teleports and gear setups, returning after a death can take very little time, and in some cases, that’s shifted fights away from good strategy, positioning, and high-risk play, towards an endurance race of who can re-enter the fastest in increasingly cheap gear.
+
+When dying carries very little consequence, fights can start to drag on without a clear or satisfying outcome. Instead of decisive moments, multi-combat encounters between teams or clans can turn into long wars of attrition, where both sides repeatedly return, typically without risk, until one team eventually runs out of patience rather than resources.
+
+We want to address that while keeping the impact centred around situations where this behaviour actually occurs.
+
+====What's changing?====
+While skulled, if you attack another player in the Wilderness in a multi-combat area, a 2-minute timer will begin.
+
+While this timer is active:
+
+* You won’t be able to teleport back to Wilderness locations using jewellery, spellbook teleports, or teleport tablets.
+** Note, this does '''not''' include the Ferox Enclave - this will still be allowed.
+
+If you attack another player again while skulled in a multi-combat area, the timer will reset back to 2 minutes.
+
+This restriction only applies while the timer is active, and only in the specific circumstances described above.
+
+====What isn’t affected?====
+
+* You can still teleport out of the Wilderness as normal, provided you aren’t teleblocked.
+* Players' PvMing and choosing to fight back will not be affected.
+* Players not intending to engage in PvP will not be affected.
+* Logging out and back in will not reset the timer.
+* Teleporting to the Ferox Enclave will not be restricted.
+
+The cooldown would be shared across all teleport methods, including jewellery, spellbook teleports, and teleport tablets, so it can't be bypassed by changing teleport methods.
+
+====Why we’re making this change====
+The aim here is to make multi-combat Wilderness fights healthier and more decisive.
+
+Teams that successfully outplay their opponents should be more likely to secure a win, and players taking on higher risk should feel that risk carries meaningful weight. By limiting rapid re-entry into ongoing fights, this change helps reward good preparation, positioning, and execution, rather than simply who can return for the longest period of time.
+
+At the same time, the conditions are deliberately narrow to avoid impacting players who are travelling through the Wilderness, PvMing, or defending themselves when attacked.
+
+As with all Wilderness changes, we’ll be watching how this plays out in practice and are open to adjusting it based on feedback.
+
+===Last Destination option to Spirit Trees===
+We’re trimming a few clicks from Spirit Tree travel with a small convenience tweak aimed at players who regularly bounce between the same locations.
+
+With this change, right-clicking a Spirit Tree would include a new 'Last Destination' option. Selecting it would teleport you straight to the last location you travelled to using any Spirit Tree, without needing to open the full destination menu.
+
+A few things to note:
+
+* The Last Destination is shared across all Spirit Trees.
+* If you haven’t travelled using a Spirit Tree yet, you’ll be told there’s no destination to return to.
+* If you’re already at your last destination, the game will let you know instead of teleporting you.
+
+This option will be available on all Spirit Trees except those in Player-Owned Houses. In houses, Spirit Trees share menu space with Fairy rings, and unfortunately, there isn’t room to add the Last Destination option there.
+
+===Lunar Return Orb===
+In a similar vein, we're making a small tweak to the Lunar return orb.
+
+Currently, the orb opens a confirmation dialogue before teleporting you back to Rellekka. That safeguard can be helpful, but if you use the orb regularly, it often just means one more click than necessary. With this change, players would be able to toggle whether the Return Orb teleports on left-click.
+
+
+* When the toggle is enabled, left-clicking the Return Orb would teleport you to Rellekka immediately, without opening a dialogue.
+* When the toggle is disabled, the Return Orb would behave exactly as it does today, showing the confirmation dialogue before teleporting.
+* The toggle would be enabled by default on release, but can be switched off at any time.
+
+This maintains the existing behaviour available for players who prefer the extra confirmation, while offering a quicker option for those who frequently use the orb.
+
+==Other Polled Changes==
+We’ve also got a small selection of other changes we’d like your say on, they don’t involve getting from A to B, but still feel worth tackling! 
+
+===Fight Pit Improvements===
+*Edit ''(12/01/26)'': We’ve added some additional clarification around the intent and scope of this minigame change in the update section at the top of the blog. We’ve also seen some understandable confusion between the Fight Pits and the Fight Caves, so to be clear: this proposal relates to the long-disused Fight Pits minigame. The Fight Caves (where you earn your Fire Cape) are not affected by this change.*
+
+The TzHaar Fight Pits are one of Old School’s most nostalgic PvP activities. For a lot of us, they were chaotic, loud, and unforgettable. A place where alliances formed and fell apart in seconds, and where being the last player standing actually meant something.
+
+Over time, though, the game has changed. Gear has become stronger, players have become better, and the Fight Pits haven’t really kept up. In some cases, the most optimal method to survive the later stages is simply by sitting in a corner, praying against Rangers, and waiting out the fog. While effective, it doesn’t always make for the most exciting end-game fights to play or watch.
+
+We think the Fight Pits should be more about who survives the chaos through skill and dexterity. 
+
+====What are we proposing?====
+We’re proposing a set of changes that make the later stages of Fight Pit matches faster, more dangerous, and more dramatic, so rounds reach a clear conclusion and feel exciting right through to the end.
+
+The proposed escalation would look like this:
+
+* Tz-Kih (Bats) would begin spawning after 1.5 minutes.
+* Tz-Kek (Blobs) after 3.5 minutes.
+* Tok-Xil (Rangers) after 5.5 minutes.
+
+As the fight pushes into its later stages, players would start facing the same iconic dangers you’d expect deep in TzHaar territory, not just a wall of Rangers. The Pit would become increasingly hostile, making it much harder to sit safely in one spot and wait things out.
+
+And yes - we know exactly which NPC fits that role.
+
+====Jad.====
+[[File:Getting Around (6).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-08/jad.jpg here]!'']]
+
+* Ket-Zek (Magers) would begin spawning after 7.5 minutes.
+* TzTok-Jad (Jads) after 9.5 minutes.
+* TzHaar gas after 11.5 minutes.
+
+NPCs would also roam and hunt more effectively, making it harder to hide indefinitely and encouraging players to keep moving. Improved pathfinding would prevent monsters from getting stuck or losing interest, ensuring pressure stays high as the match progresses.
+
+To keep this escalation exciting rather than unfair, Jads would have their maximum hit capped just above 50, reducing the risk of being instantly KO’d for a single missed prayer flick.
+
+====What does this change in practice?====
+The early stages of a Fight Pit match would still give players time to settle in, reposition, and size each other up. As the fight goes on, though, things will escalate quickly. More pressure. Fewer safe corners. Harder decisions.
+
+Sometimes it might be smarter to take out a Ranger or Mage rather than camp Protect from Missiles. Sometimes alliances will form, sometimes they’ll break, and sometimes the Pit will descend into absolute chaos.
+
+That’s the goal.
+
+These changes are about restoring what made the Fight Pits memorable in the first place: spectacle, tension, and a clear, dramatic finish that gets everyone back into the action sooner.
+
+{{News Poll|12|Should we update the TzHaar Fight Pits Minigame to escalate NPC spawns and improve monster behaviour, as described in the blog?}}
+
+===Pickpocketed Runes and the Rune Pouch===
+When pickpocketing certain NPCs, it’s common to end up with a steady trickle of runes filling up your inventory, even if you’re already carrying a Rune Pouch.
+
+We’d like to propose a small change so that Runes obtained from pickpocketing are placed directly into your Rune Pouch, provided it has space and can already store that Rune type.
+
+If not, Runes would continue to go into your inventory as they do today.
+
+{{News Poll|13|Should Runes obtained from pickpocketing be placed directly into a player’s Rune Pouch, if possible, as described in the blog?}}
+
+===Expanding the Herb Sack===
+If you’ve ever finished a Slayer task with a full Herb Sack and plenty more herbs still on the ground, you’ll know the feeling.
+
+We’re proposing a permanent upgrade to the Herb Sack that significantly increases its storage capacity, allowing players to extend trips and cut down on unnecessary banking. As this is a fairly impactful quality-of-life upgrade, you'll need to earn this reward through combat.
+
+====How would this work?====
+Under this proposal, players would be able to upgrade their existing Herb Sack into a new version, the Silklined Herb Sack, which can store up to 100 of each grimy herb (up from the current limit of 30).
+
+To obtain the upgrade, you’d need a new untradeable item: Pristine Spider Silk, dropped by Sarachnis. Using the silk on a standard Herb Sack would consume it and permanently upgrade it into a Silklined Herb Sack.
+
+Sarachnis is a piece of content that many players move on from relatively quickly, and adding a valuable, long-term reward here gives the boss renewed purpose without making the upgrade mandatory for progression elsewhere.
+
+The core idea, though, is straightforward: a larger Herb Sack that provides a clear quality-of-life benefit, as a suitably earned upgrade.
+
+A few extra details:
+
+* The Silklined Herb Sack would have a distinct visual appearance, clearly setting it apart from the standard version.
+* Players would only be able to own one Herb Sack at a time, whether standard or upgraded.
+* Extra Pristine Spider Silk drops could be exchanged for Grubby Keys, so duplicate drops aren’t wasted.
+
+The end result is straightforward: a larger Herb Sack that meaningfully improves long PvM trips, delivered as a permanent, earnable upgrade tied to underused content.
+
+{{News Poll|14|Should we add a permanent upgrade to the Herb Sack that increases its storage capacity to 100 of each herb, unlocked by upgrading it with a rare Sarachnis drop, as described in the blog?}}
+===Raid Unique Broadcast Tweaks===
+Finally, We’re looking at a small improvement to how raid unique drops are broadcast.
+
+Previously, when a raid unique was broadcast, the message also included its Grand Exchange value. That extra bit of context helped put drops into perspective in the moment, whether you were the one getting the loot or watching it pop up in your clan chat.
+
+We’d like to bring that back, so raid unique broadcasts once again show the item’s GP value alongside the drop.
+
+At the same time, we’re looking to reduce some unnecessary noise by no longer broadcasting duplicate copies of the Thread of Elidinis or Tombs of Amascut gems, which can otherwise clutter chats without adding much value.
+
+==Wrapping Up==
+That brings us to the end of the Getting Around Poll!
+
+This poll leans heavily into quality-of-life changes, with a mix of smaller convenience tweaks and a handful of more substantial updates where we felt a vote was important. As always, we’re keen to hear what you think, so make sure to let us know where you land.
+
+Before we close out, we also want to briefly touch on a couple of changes from Poll 85 that haven’t made it into the game just yet.
+
+These include:
+
+* Adding an ‘Empty’ option to Shades of Mort’ton coffins while banking, allowing remains to be deposited directly into the bank.
+* Improvements to container emptying from the bank, including better support for things like looting bags and other storage containers.
+
+These aren’t forgotten. Both changes are still in progress and involve some fairly hefty bank interface work behind the scenes. We want to ensure they land cleanly and consistently across the game, rather than rushing them out. You should expect to see them arrive either later this month or early next month, as soon as that work is complete.
+
+It’s also worth setting expectations that not everything in this poll will arrive all at once. Some of the smaller, self-contained changes will be able to land sooner, while others will take a bit more time.
+
+Assuming the poll passes, we’re aiming for Holy Moleys and the Hooded Slayer Helm to arrive later this month. Many of the broader 'Getting Around' changes will follow throughout February, with a handful of larger or more complex updates rolling out later in the year as they require more development time and collaboration across teams.
+
+As always, thanks for taking the time to read through the blog and share your thoughts. Polls are expected to open on Tuesday, January 13th, and we’ll be keeping a close eye on your discussions in the meantime.
+
+----
+
+You can also discuss this update on the <u>[https://www.reddit.com/r/2007scape/comments/1qauzxg/update_getting_around/ 2007Scape subreddit]</u>, the <u>[https://steamcommunity.com/app/1343370/discussions/ Steam forums]</u>, or the community-led <u>[http://discord.gg/OSRS OSRS Discord]</u> in the #gameupdate channel. For more info on the above content, check out the official <u>[[Old School Wiki]]</u>.
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+''The Old School Team.''

@@ -1,0 +1,164 @@
+{{Infobox Item
+|version1 = Normal
+|version2 = Locked
+|version3 = Broken
+|version4 = Locked and broken
+|version5 = Locked and mangled
+|name1 = Blessed Dizana's quiver
+|name2 = Blessed Dizana's quiver (l)
+|name3 = Blessed Dizana's quiver (broken)
+|name4 = Blessed Dizana's quiver (l) (broken)
+|name5 = Blessed Dizana's quiver (l) (mangled)
+|image1 = [[File:Blessed Dizana's quiver.png]]
+|image2 = [[File:Blessed Dizana's quiver (l).png]]
+|image3 = [[File:Blessed Dizana's quiver (broken).png]]
+|image4 = [[File:Blessed Dizana's quiver (l) (broken).png]]
+|image5 = [[File:Blessed Dizana's quiver (l) (mangled).png]]
+|release1 = [[20 March]] [[2024]]
+|release2 = [[20 March]] [[2024]]
+|release3 = [[20 March]] [[2024]]
+|release4 = [[17 June]] [[2026]]
+|release5 = [[17 June]] [[2026]]
+|update1 = Varlamore: Part One
+|update2 = Varlamore: Part One
+|update3 = Varlamore: Part One
+|update4 = Bank Tags, Trouver System Rework & More!
+|update5 = Bank Tags, Trouver System Rework & More!
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable1 = Yes
+|equipable2 = Yes
+|equipable3 = No
+|equipable4 = No
+|equipable5 = No
+|stackable = No
+|noteable = No
+|options1 = Wear, Open, Empty, Destroy
+|options2 = Wear, Open, Empty, Destroy
+|options3 = Empty, Destroy
+|options4 = Empty, Destroy
+|options5 = Empty, Destroy
+|destroy = You can get another from The Colosseum.
+|examine1 = A quiver awarded to those who have proved their worth in the Colosseum. It's been blessed by Ralos.
+|examine2 = A quiver awarded to those who have proved their worth in the Colosseum. It's been blessed by Ralos.
+|examine3 = A broken Quiver awarded to those who have proved their worth in the Colosseum. Blessed by Ralos.
+|examine4 = A broken Quiver. Blessed by Ralos. Perhaps Perdu could fix it.
+|examine5 = A mangled Quiver. Blessed by Ralos. Perhaps Perdu could fix it.
+|value = 100000
+|weight = 0.453
+|id1 = 28955
+|id2 = 28957
+|id3 = 28828
+|id4 = 33528
+|id5 = 33530
+}}
+
+{{Synced switch
+|version1 = [[File:Blessed Dizana's quiver detail.png|150px|left]]
+|version2 = [[File:Blessed Dizana's quiver (l) detail.png|left|150px]]
+|version3 = [[File:Blessed Dizana's quiver (broken) detail.png|150px|left]]
+|version4 = [[File:Blessed Dizana's quiver (l) (broken) detail.png|150px|left]]
+|version5 = [[File:Blessed Dizana's quiver (l) (mangled) detail.png|150px|left]]
+}}
+
+'''Blessed Dizana's quiver''' is an upgraded variant of [[Dizana's quiver]], made by using it on a [[Shrine of Ralos]] while having a total of 150,000 [[sunfire splinters]] and a Dizana's quiver in the player's inventory. Charging the quiver with sunfire splinters contributes to the required amount of splinters to upgrade.  
+
+The blessed quiver permanently gains the effects of ''Dizana's Sunfire'', where an additional +1 [[Ranged Strength]] and +10 [[Ranged accuracy]] is applied to stored [[arrows]] and [[bolts]] - essentially acting as a variant of the original with unlimited charges. The upgraded variant also retains its level 75 [[Ranged]] requirement to equip.
+
+It can also be combined with the [[max cape]] to change its appearance by turning it into [[Dizana's max cape]].
+
+[[File:Blessed Dizana's quiver interface.png|thumb|The quiver's interface when opening it]]
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Normal
+|version2 = Locked
+|version3 = Broken
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = +18
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = +3
+|mdmg = 0
+|prayer = 0
+|slot = cape
+|image = [[File:Blessed Dizana's quiver equipped male.png|130px]]
+|altimage = [[File:Blessed Dizana's quiver equipped female.png|130px]]
+}}
+
+==Upgrading==
+Players can bring the quiver to [[Ava]], along with [[Ava's assembler]], [[Ava's accumulator]], or their [[max cape]] equivalents, to apply the same ammunition-saving effect of her devices to the quiver. Doing so will '''not''' consume the devices. Upgrading the quiver with the [[ranging cape]] will only provide the effect of Ava's accumulator; the quiver must be combined with Ava's assembler to receive its effect. This upgrade applies to '''all''' quivers the player owns, now and in the future - if a player loses all of their quivers and obtains a new one, they will '''not''' need to go back to Ava to reobtain the ammo-saving effect. The interaction between Ava devices and metal torsos '''does not''' carry over when adding the Ava effects to the Dizana's quiver.
+
+Blessing the quiver retains any ammo-saving effects used on an unblessed [[Dizana's quiver]].
+
+==Wilderness==
+If the player dies below level 20 [[Wilderness]], it will remain in the player's inventory, but will be unusable and require 400,000 coins to repair. The killer will receive 400,000 coins as well as any ammo that the quiver was holding, though any sunfire charges will not be lost. Above level 20 Wilderness, a lesser amount will be dropped, along with any ammo in the quiver; the quiver itself and its charges will be destroyed in the process. The quiver - along with its [[Dizana's max cape|max cape variant]] - can be locked by bringing it, along with a [[Trouver parchment|Trouver Parchment]] and 500,000 coins, to [[Perdu]]. This will allow the quiver to be kept upon death to another player above level 20 Wilderness.
+
+==Creation==
+{{Recipe
+|members = Yes
+|ticks = 0
+|facilities = Shrine of Ralos
+|mat1 = Dizana's quiver
+|mat1cost = No
+|mat2 = Sunfire splinters
+|mat2quantity = 150000
+|output1 = Blessed Dizana's quiver
+|output1cost = No
+}}
+
+==Products==
+{{Uses material list|Blessed Dizana's quiver}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Dizana's quiver|Blessed Dizana's quiver}}
+
+==Comparison between other Ranged capes==
+{{Ranged cape comparison}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 August 2026
+|update = Summer Sweep Up - Hunter & Skilling
+|change = The item was renamed from "Blessed dizana's quiver" to "Blessed Dizana's quiver".
+}}
+{{Subject changes
+|date = 17 June 2026
+|update = Bank Tags, Trouver System Rework & More!
+|change = *New broken and mangled variants of the Blessed dizana's quiver have been added.
+**Locked Blessed dizana's quiver now breaks on death below level 20 Wilderness, adding a "(broken)" suffix after the existing "(l)" suffix.
+**Locked Blessed dizana's quiver now mangles on death above level 20 Wilderness, adding a "(mangled)" suffix after the existing "(l)" suffix.
+}}
+{{Subject changes
+|date = 17 April 2024
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|change = The item has been [[graphically updated]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Blessed dizana's quiver detail v1.png|center|300x150px]]
+|[[File:Blessed Dizana's quiver detail.png|center|300x150px]]
+|-
+|[[File:Blessed dizana's quiver v1.png|center]]
+|[[File:Blessed Dizana's quiver.png|center]]
+|-
+|20 March 2024 –<br/>17 April 2024
+|17 April 2024–<br/>present
+|}
+
+{{Fortis Colosseum}}
+{{Ranged armour}}
+{{Cape}}
+
+[[Category:Lockable items]]

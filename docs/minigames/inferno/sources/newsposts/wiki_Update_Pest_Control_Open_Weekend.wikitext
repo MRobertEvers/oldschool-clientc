@@ -1,0 +1,126 @@
+{{Update|date=8 June 2017|link=http://services.runescape.com/m=news/pest-control--open-weekend?oldschool=1|category=game}}
+[[File:Pest Control & Open Weekend newspost.png|right]]
+{{clear}}
+
+
+{{Headline|25|Pest Control & Open Weekend}}
+
+
+<center>'''Pest Control gets a little buff today, with the Void Knights awarding more points for winning. They expect more participation than before, though. Meanwhile Gilbert has come to Lumbridge, looking for help finding rainbows, and non-members can try out the members' worlds for the weekend.'''</center>
+
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Pest Control}}
+
+
+The Void Knights have become a little more generous with Pest Control points. Winning a battle now earns you '''3''' points from the easy boat, '''4''' points from the medium boat and '''5''' points from the hard boat, provided you've shown sufficient zeal in the fight.
+
+They've become a little more picky about who gets rewards, though. It's no longer enough to rack up 50 points of damage, then stand around like a lemon while your comrades do the rest of the work. To tackle this, the Void Knights have introduced a simple activity bar to ensure their recruits pull their weight. So long as you keep your activity bar above zero throughout the course of the battle they'll let you have your reward at the end. 
+
+[[File:Pest Control & Open Weekend (1).png|center]]
+
+Attacking monsters and portals increases your activity, as does repairing the defenses.
+
+Once the shields have begun dropping, the activity bar will begin ticking downwards. '''Don't let it get down to zero'''. If it ever reaches zero, it will stay on zero for the rest of the battle, and you'll be blocked from receiving rewards.
+
+[[File:Pest Control & Open Weekend (2).png|center]]
+
+So attack those portals, target the spinners, and defend the Void Knight from the marauding hordes - fight on to victory!
+
+The damage counter is still shown during Pest Control battles, since everyone likes their data, but it no longer determines whether or not you will receive rewards at the end.
+
+[[File:Pest Control & Open Weekend (3).png|center]]
+
+A few weeks we mentioned that we felt it would be good for the Void mage set to have more of a benefit. It currently gives a 30% buff to your Magic stat when calculating your magical accuracy, but has no effect on damage. We will be putting together another poll soon, and we welcome any discussion and suggestion pertaining to any buff we offer.
+
+You might particularly like to consider ways that the elite set could be made more beneficial than the standard Void kit, reflecting its higher requirements.
+
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Open Weekend}}
+
+
+For a very limited time, '''non-members can log into the members' worlds''' to experience Old School RuneScape with members’ features enabled. The Open Weekend starts from today's update, and will end on Monday 12th June.
+
+Maybe there’s a quest you’ve always wanted to try, a boss you’ve wanted to challenge, or you’d simply like to spin some flax; this weekend you can.
+
+To reduce the potential for this promotion to be abused, '''we’ve limited it so that only accounts created before 1am BST on 5th June 2017 are eligible'''. Any account created after that time will need a proper membership subscription to access the members' worlds.
+
+[[File:Pest Control & Open Weekend (4).png|center]]
+
+
+We're putting some '''extra members' worlds''' online to help with crowding during the weekend, but the Open Weekend is available on '''all''' members' worlds, not just these new ones.
+
+If you're happy as a free player and don't want members' features happening to your account, that's fine. Just stick to playing on the non-member worlds as usual; you won't be affected unless you log into the members' worlds.
+
+For players who can't get into their accounts, or can't remember their login details, the [https://support.runescape.com/hc/en-gb/categories/200977391-Your-account Support team] will be on hand to help you.
+
+Your account will still show as free-to-play, since Open Weekend doesn't truly make you a member. It simply lifts the restrictions that stop you playing on members' worlds and allows access to members-only in-game content. You will not be able to access members-only features such as changing your character name. 
+
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Gilbert's Colours}}
+
+
+A beautiful rainbow has appeared in Lumbridge, and where you get rainbows, you get leprechauns. Gilbert (he's a leprechaun) needs a little help. He's not asking for much, though, but he's having trouble showing his colours.
+
+
+[[File:Pest Control & Open Weekend (5).png|center]]
+
+Solve his riddles to find the other rainbows across the land, so you can bring him strands of their various colours, and he'll reward you with a colourful little scarf of your own.
+
+This event is open to both members and non-members alike, as a chance to celebrate the inclusivity and respect of the Old School RuneScape community in Pride Month 2017.
+
+Those who aren't able to complete the event in time will be able to purchase the scarf from Diango's Toy Store.
+
+
+{{Horizontal Line}}
+
+
+
+{{Headline|22|Inferno update}}
+
+
+[[File:Pest Control & Open Weekend (6).png|center]]
+
+Today marks a full week since the release of the Inferno and Mor Ul Rek. The Old School team would like to extend our congratulations to: ''Woox, Kelvino, Cpl Erik, Lettulainen, B0aty, DedWilson, Zulu, Bellis, Turnii, Pikachos, Smithy'', and ''Badideas'' as the first 12 players to earn the Infernal cape. 
+
+Special congratulations to ''Woox'' and ''Kelvino'' for besting TzKal-Zuk two times each. Finally, another special congratulations to ''Badideas'' as the first Ironman to complete the Inferno.
+
+''A few weeks ago we mentioned that we would be taking a firm stance on those players seeking to buy or sell Infernal cape services. To reiterate, this will not be allowed, and we will be taking action against those involved.'' 
+
+No one has yet received the pet! Remember you can gamble that precious Infernal cape for an extra chance. Good luck, JalYt!
+
+
+{{Horizontal Line}}
+
+
+'''In other news'''
+* A doorknob has been installed on the gong door in the God Wars Dungeon, allowing players inside the Bandos sector to click on the door to open it and leave. Previously, any player walking near that door would be teleported out whether they liked it or not; a simple doorknob renders this unnecessary.
+* Items dropped in the Inferno now stay on the ground for 30 minutes before despawning.
+* Teleports are no longer permitted inside the Inferno; there's no real need to teleport out of there, and players were triggering it by accident.
+* Zaff's barrel of staffs, used to sell extra staffs to players who'd completed the Achievement Diaries, now appears differently based on whether you have already bought your ration for the day.
+
+[[File:Pest Control & Open Weekend (7).png|center]]
+
+'''Bugfixes'''
+
+* The walls of the Monkey Madness II crash site cave no longer render over players and NPCs in the upper reaches of the cave.
+* The bank now remembers its scroll position more reliably when closed and re-opened.
+* The capitalisation of 'Lumbridge' has been corrected in a clue scroll.
+* The code for fermenting wine has been optimised to better handle larger quantities of wine in your bank.
+* The dragon scimitar ornament kit no longer has a graphical glitch when dropped on the ground.
+* God swords no longer cause the serpentine helm to appear as though your head is detached.
+* The Third Age robe top now renders more reliably over leg attire.
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,393,65919430 forums].
+
+'''Mods Archie, Ash, Ed, Ghost, Jed, John C, Kieren, Mat K, Maz, Ronan, Roq, Ry, Stone, Sween, TomH, Weath, West & Wolf'''
+
+''The Old School Team''

@@ -1,0 +1,146 @@
+{{Update|date=30 October 2019|rev=5 December 2019|link=https://secure.runescape.com/m=news/another-message-about-unofficial-clients?oldschool=1|category=website}}
+[[File:Another Message About Unofficial Clients newspost.png|right]]
+{{clear}}
+
+<u>'''Changelog 5th December 2019'''</u>
+
+'''We’ve added confirmation that OSBuddy have fully complied with the rules within this statement.'''
+
+<u>'''Changelog 8th November 2019'''</u>
+
+'''We've further clarified that manual tile markers are not prohibited by the rules which prohibit automatic tile markers.'''
+<br/>
+'''We've added confirmation that RuneLite have fully complied with the rules within this statement.'''
+
+In the week before RuneFest we published [https://secure.runescape.com/m=news/a-message-about-unofficial-clients?oldschool=1 a message about unofficial clients]. In that statement we outlined some of the client features that we consider to be unacceptable and anticipated that moving forwards we were going to be more proactive to the issue, whilst exploring exciting options for our own client. It has since become apparent that we didn't provide enough clarity – the list of unacceptable features was too ambiguous, confusing players and client developers.
+
+We'd like to thank RuneLite for their cooperation and for fully complying with the rules within this statement.
+
+We'd like to reiterate why we're doing this. Outlining and enforcing these rules is vital to protect the integrity of the game, as well as its economy and long-term health. This isn't about us unfairly punishing players by making the game more difficult.
+
+{{Horizontal Line}}
+
+'''To try and clear up any confusion, here’s a more detailed run-down of our intentions:'''
+
+<u>Any features which aid any boss fights by doing any of the following are prohibited ''(this includes all Raids sub-bosses, Slayer bosses, Demi-bosses, and wave-based minigames, including the Fight Caves and Inferno)'':</u>
+*Next attack prediction (timing or attack style)
+*Projectile targets, or target locations, as well as impact locations
+*Prayer switching indicators
+*Attack counters
+*Anything that indicates where to stand, or not to stand
+*Removal or swapping of menu entries on any entity
+
+<u>In addition, the following menu changes are prohibited:</u>
+*Any menu modifications on worn/equipped items
+*Any addition of new menu entries which cause actions to be sent to the server
+
+<u>The following interface changes are prohibited:</u>
+*Any unhiding of interface components, such as the special attack bar and including the minimap (for example, in Barrows)
+*Any movement or resizing of click zones for 3d components
+*Any movement or resizing of click zones for any interface or component under combat options, inventory, worn equipment, prayers or spell book
+
+{{Horizontal Line}}
+
+Here's a larger list of specific feature examples which are unacceptable. This is still not exhaustive but should give a clearer idea what is not acceptable.
+
+{|class=wikitable
+!'''Any feature which...'''
+!'''Category'''
+|-
+|Indicates where projectiles will land
+|Combat
+|-
+|Indicates the time where a boss mechanic may start or end
+|Combat
+|-
+|Adds additional visual or audio indicators of a boss mechanic
+|Combat
+|-
+|Indicates what prayers to use in what order, for example in the Cerberus boss fight
+|Combat
+|-
+|Indicates players in an opposing clan in PVP
+|Combat
+|-
+|Helps you to know when to 'flinch' your opponent
+|Combat
+|-
+|Indicates how long an opponent is frozen for
+|Combat
+|-
+|Automatically informs you where or where not to stand in a boss fight. This applies to only automatic indicators, and not tiles which have been manually marked.
+|Combat
+|-
+|Makes it easier to target 3D entities with a spell by removing some options
+|Combat
+|-
+|Indicates which player an NPC is focused on
+|Combat
+|-
+|Indicates when dropped items/loot will appear for everyone
+|Combat
+|-
+|Indicates multicombat zone boundaries
+|Combat
+|-
+|Indicates whom your opponent's opponent is in PVP
+|Combat
+|-
+|Indicates which prayer to use in any combat situation
+|Combat
+|-
+|Can unhide, hide, move, or resize interface components on the Prayer and Spellbook interfaces
+|Combat
+|-
+|Offers additional information about other players, with the purpose of scouting PvP targets
+|Combat
+|-
+|Which gives summary information about a group of players, such as how many players are attackable and not in your own CC, what prayers they are mostly using, etc
+|Combat
+|-
+|Removes or deprioritises attack, cast (or similar) options from the minimenu in any scenario
+|Combat
+|-
+|Removes dead NPC entities or the minimenu options from them
+|Combat
+|-
+|Reorders, moves, or resizes prayers or spells
+|Combat
+|-
+|Reveals the maze layout in the Sotetseg boss fight in Theatre of Blood
+|Combat
+|-
+|Adds additional menu entries which cause actions to be sent to the server
+|Menus
+|-
+|Modifies the menu options on worn/equipped items
+|Menus
+|-
+|Modifies menu options for blackjacking, such as 'Pickpocket' and 'Knock-out'
+|Menus
+|-
+|Modifies menu options for construction, such as prioritising build/remove options
+|Menus
+|-
+|Modifies menu options for pickpocketing, such as swapping 'Pickpocket' and 'Talk-to'
+|Menus
+|-
+|Reorders or removes player-based options, such as ‘Trade with’
+|Menus
+|-
+|Offers world interaction in any detached camera mode
+|Misc
+|-
+|Allows you to prioritise the walk-here option by holding a certain key, or similar
+|Misc
+|}
+
+'''Any features which act similarly to those described in the above list can also be considered unacceptable, and as we become aware of features we reserve the right to add features to the list in future.'''
+
+{{Horizontal Line}}
+
+We'll continue to work with players and developers alike in order to make it perfectly clear what is not acceptable. We do not wish to unfairly punish anybody, but we will take necessary action in order to protect our position. This includes banning accounts which use these features, as well as taking action against those who develop and share such features. We'll soon be formalising this stance in the official Rules of RuneScape, and we're actively improving our capability to detect these features.
+
+Thank you for working with us. We firmly believe that this is for the betterment of the game. With your assistance we can solve the issue of detrimental third-party features and focus our efforts on the improvement of our own client.
+
+'''''Mods Acorn, Archie, Ash, Bonsai, Bruno, Curse, Ed, Fed, Flippy, Gambit, Gee, Ghost, Husky, John C, Kieren, Lenny, Lottie, Nasty, Oasis, Roq, Ry, SteveW, Sween, Tide, Weath & West'''''<br/>''The Old School Team''

@@ -11,7 +11,7 @@ return {
         -- Quest Helper requirements: The Giant Dwarf + Fishing Contest (forget_meets_quest_reqs),
         -- Cooking 22 and Farming 17 (Veldaban's mesbox)
         "::complete quest_giantdwarf",
-        "::complete quest_fishingcompo",
+        "::complete quest_fishingcontest",
         "::setlevel cooking 22",
         "::setlevel farming 17",
         -- Quest Helper items brought along: 2 barley malt, 2 buckets of water, dibber, rake,
@@ -48,7 +48,8 @@ return {
             t.ticks(3)
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-            t.exec("goto-travelToKeldagrim", t.player.goto_tile, 3140, 3504, 0)
+            -- to the open tile beside the trapdoor (3140,3504 is the trapdoor's own blocking tile: goto_table "target tile solid")
+            t.exec("goto-travelToKeldagrim", t.player.goto_tile, 3141, 3504, 0)
             t.exec("travelToKeldagrim", t.player.click_loc, "ge_keldagrim_trapdoor", 1)
             t.exec("travelToKeldagrim-dialog", t.chat.play, {
                 "mesbox:The trapdoor leads down",
@@ -56,10 +57,16 @@ return {
                 "player:Yes please.",
             })
             t.ticks(6)
+            -- forget_keldagrim.rs2:19 p_teleport(^forget_veldaban_coord = 0_44_159_11_38 = 2827,10214,0):
+            -- the trapdoor puts the player INSIDE the Black Guard HQ (x 2825-2829 z 10208-10217), so
+            -- no goto is needed to reach Veldaban; the HQ is left by its door below.
             local _, tile = t.world.tile()
-            t.check("travelToKeldagrim-arrived", tile ~= nil, "after the trapdoor the player stands at " .. tostring(tile))
+            local _, tlvl = t.world.level()
+            t.check("travelToKeldagrim-arrived", type(tile) == "table" and tlvl == 0
+                and tile.x >= 2825 and tile.x <= 2829 and tile.z >= 10208 and tile.z <= 10217,
+                "after the trapdoor the player stands at " .. (type(tile) == "table" and (tile.x .. "," .. tile.z) or tostring(tile))
+                .. " level " .. tostring(tlvl) .. " (want the HQ, x 2825-2829 z 10208-10217 level 0)")
 
-            t.exec("goto-talkToVeldaban", t.player.goto_tile, 2826, 10215, 0)
             t.exec("talkToVeldaban", t.player.talk_to, "dwarf_city_black_guard_leader", 1)
             t.exec("talkToVeldaban-dialog", t.chat.play, {
                 "npc:Ah, human. The Consortium",
@@ -82,7 +89,17 @@ return {
             t.ticks(4)
             t.expect("quest.stage.talk_drunkdwarf", t.quest.expect_stage("talk_drunkdwarf"))
 
-            t.exec("goto-talkToDrunkDwarf", t.player.goto_tile, 2913, 10221, 0)
+            -- Veldaban's last line moves the player himself: forget_veldaban.rs2:91
+            -- p_teleport(movecoord(^forget_drunkdwarf_coord, 0, 0, -3)) = 2913,10218,0, the street
+            -- outside the Drunken Dwarf's door, so the HQ is left by the content, not by a goto.
+            -- The house (dwarf_keldagrim_door_poor 2913,10219, wall on its north edge: inside
+            -- z >= 10220; maps/m45_159.jl2) is entered through its door.
+            local _, vt = t.world.tile()
+            t.check("talkToVeldaban-sentOn", type(vt) == "table" and vt.x == 2913 and vt.z == 10218 and select(2, t.world.level()) == 0,
+                "after Veldaban the player stands at " .. (type(vt) == "table" and (vt.x .. "," .. vt.z) or tostring(vt))
+                .. " level " .. tostring(select(2, t.world.level())) .. " (want 2913,10218,0, forget_veldaban.rs2:91)")
+            t.exec("talkToDrunkDwarf.houseDoorIn", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
+                open = "dwarf_keldagrim_door_poor_open", at = { 2913, 10219, 0 }, near = { 2913, 10219 }, far = { 2913, 10220 } })
             t.exec("talkToDrunkDwarf", t.player.talk_to, "dwarf_city_drunken_dwarf", 1)
             t.exec("talkToDrunkDwarf-dialog", t.chat.play, {
                 "npc:*hic* Who're you?",
@@ -109,6 +126,8 @@ return {
 
             -- talkToRowdyDwarf: he names an item (a random one of 24); fetching arbitrary junk
             -- such as acne potions is not a guide step, so the named item is staged.
+            t.exec("talkToRowdyDwarf.houseDoorOut", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
+                open = "dwarf_keldagrim_door_poor_open", at = { 2913, 10219, 0 }, near = { 2913, 10220 }, far = { 2913, 10218 } })
             t.exec("goto-talkToRowdyDwarf", t.player.goto_tile, 2914, 10198, 0)
             t.exec("talkToRowdyDwarf", t.player.talk_to, "dwarf_city_rowdy_dwarf", 1)
             t.exec("talkToRowdyDwarf-dialog", t.chat.play, {
@@ -126,8 +145,10 @@ return {
             local item = rowdy_items[want]
             t.check("talkToRowdyDwarf-request", item ~= nil, "Rowdy asked for item index " .. tostring(want) .. " (" .. tostring(want_result) .. ")" .. " = " .. tostring(item))
             if item == nil then t.blocked("seam: cannot read forget_rowdy_item (" .. tostring(want_result) .. ")") return end
+            -- lint: kit-give rowdy draw: forget_keldagrim.rs2 [proc,forget_rowdy_talk] rolls one of 24 junk items per player at this talk (random(^forget_rowdy_item_count)); setup cannot know which, and all 24 do not fit beside the quest kit
             t.cheat("::give " .. item .. " 1")
             t.ticks(2)
+            local item_before = select(2, t.inv.count(item))
             t.exec("talkToRowdyDwarf-trade", t.player.talk_to, "dwarf_city_rowdy_dwarf", 1)
             t.exec("talkToRowdyDwarf-trade-dialog", t.chat.play, {
                 "player:The Drunken Dwarf said you might",
@@ -138,6 +159,9 @@ return {
             t.ticks(2)
             t.check("talkToRowdyDwarf-seed", select(2, t.inv.count("kelda_hop_seed")) == 2,
                 "kelda seeds held: " .. tostring(select(2, t.inv.count("kelda_hop_seed"))))
+            local item_after = select(2, t.inv.count(item))
+            t.check("talkToRowdyDwarf-itemTaken", item_before == 1 and item_after == 0,
+                item .. " held " .. tostring(item_before) .. " before the trade, " .. tostring(item_after) .. " after (forget_rowdy_take_item)")
 
             -- travelToWWM: the ticket first (getWWMTicket), then the cart
             t.exec("goto-getWWMTicket", t.player.goto_tile, 2906, 10171, 0)
@@ -157,11 +181,16 @@ return {
             t.ticks(2)
             t.check("getWWMTicket-ticket", select(2, t.inv.count("dwarf_minecart_ticket_kelda_whitewolf")) == 1,
                 "tickets held: " .. tostring(select(2, t.inv.count("dwarf_minecart_ticket_kelda_whitewolf"))))
-            t.exec("goto-travelToWWM", t.player.goto_tile, 2919, 10169, 0)
+            -- to the open platform tile beside the cart (2919,10169 is solid: goto_table "target tile solid")
+            t.exec("goto-travelToWWM", t.player.goto_tile, 2919, 10170, 0)
             t.exec("travelToWWM", t.player.click_loc, "keldagrim_train_cart", 1)
             t.ticks(8)
+            -- forget_tunnels.rs2:108-118: the ticket is taken, p_teleport(^forget_khorvak_coord = 2864,9878,0)
             local _, at = t.world.tile()
-            t.check("travelToWWM-arrived", at ~= nil, "after the cart the player stands at " .. tostring(at))
+            t.check("travelToWWM-arrived", type(at) == "table" and at.x == 2864 and at.z == 9878
+                and select(2, t.inv.count("dwarf_minecart_ticket_kelda_whitewolf")) == 0,
+                "after the cart the player stands at " .. (type(at) == "table" and (at.x .. "," .. at.z) or tostring(at))
+                .. " (want 2864,9878), tickets left " .. tostring(select(2, t.inv.count("dwarf_minecart_ticket_kelda_whitewolf"))))
 
             -- talkToKhorvak, then goGiveKhorvakBeer: one conversation in the content
             -- (forget_khorvak_talk): the drink offer, then the stout is handed over at once.
@@ -184,7 +213,8 @@ return {
                 .. ", stouts: " .. tostring(select(2, t.inv.count("dwarven_stout"))))
 
             -- back to Keldagrim by the return cart, then Gauss
-            t.exec("goto-takeCartFromWWMToKelda", t.player.goto_tile, 2875, 9868, 0)
+            -- to the open tile north-west of the cart (2875,9868 is the cart's own solid tile; reach.py: 2874,9870 REACH)
+            t.exec("goto-takeCartFromWWMToKelda", t.player.goto_tile, 2874, 9870, 0)
             t.exec("getKeldaTicket", t.player.talk_to, "dwarf_city_train_conductor6", 1)
             t.exec("getKeldaTicket-dialog", t.chat.play, {
                 "npc:Welcome to the cart station",
@@ -198,6 +228,12 @@ return {
             t.ticks(2)
             t.exec("takeCartFromWWMToKelda", t.player.click_loc, "whitewolfmountain_train_cart", 1)
             t.ticks(8)
+            -- forget_tunnels.rs2:126-135: the ticket is taken, p_teleport(^forget_conductor4_coord = 2906,10172,0)
+            local _, back = t.world.tile()
+            t.check("takeCartFromWWMToKelda-arrived", type(back) == "table" and back.x == 2906 and back.z == 10172
+                and select(2, t.inv.count("dwarf_minecart_ticket_whitewolf_kelda")) == 0,
+                "after the cart the player stands at " .. (type(back) == "table" and (back.x .. "," .. back.z) or tostring(back))
+                .. " (want 2906,10172), tickets left " .. tostring(select(2, t.inv.count("dwarf_minecart_ticket_whitewolf_kelda"))))
 
             t.exec("goto-talkToGauss", t.player.goto_tile, 2838, 10195, 0)
             t.exec("talkToGauss", t.player.talk_to, "dwarf_city_dwarf_man6", 1)
@@ -211,7 +247,7 @@ return {
             local _, sx = t.world.tile()
             local _, lvl = t.world.level()
             local _, stage = t.var.server("varb822_forget_quest")
-            t.check("leg.1.end", true, "tile " .. tostring(type(sx) == "table" and (tostring(sx.x) .. "," .. tostring(sx.z)) or sx) .. " level " .. tostring(lvl) .. ", forget_quest=" .. tostring(stage)
+            t.check("leg.1.end", stage == 30 and select(2, t.inv.count("kelda_hop_seed")) == 3, "tile " .. tostring(type(sx) == "table" and (tostring(sx.x) .. "," .. tostring(sx.z)) or sx) .. " level " .. tostring(lvl) .. ", forget_quest=" .. tostring(stage)
                 .. ", seeds " .. tostring(select(2, t.inv.count("kelda_hop_seed"))))
         end },
         { name = "kelda_patch", run = function(t)
@@ -260,9 +296,15 @@ return {
             t.expect("quest.stage.brew_stout", t.quest.expect_stage("brew_stout"))
 
             -- goUpstairsPub: forget_brewing.rs2:10 [oploc1,dwarf_keldagrim_stairs_lower] (2916,10196,0)
-            t.exec("goto-goUpstairsPub", t.player.goto_tile, 2914, 10196, 0)
-            t.exec("goUpstairsPub", t.player.click_loc, "dwarf_keldagrim_stairs_lower", 1)
-            t.ticks(2)
+            -- The Laughing Miner's doorway is 2914,10196 (north wall z 10197; maps/m45_159.jl2 holds the
+            -- leaf as dwarf_keldagrim_door_poor_open): goto the street outside, pass the door (a leaf
+            -- standing open is asserted, never pressed), climb the stairs (forget_brewing.rs2:10
+            -- p_teleport(^forget_pub_upstairs_coord = 1_45_159_36_17 = 2916,10193,1)).
+            t.exec("goto-goUpstairsPub", t.player.goto_tile, 2914, 10198, 0)
+            t.exec("goUpstairsPub.pubDoorIn", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
+                open = "dwarf_keldagrim_door_poor_open", at = { 2914, 10196, 0 }, near = { 2914, 10198 }, far = { 2914, 10195 } })
+            t.exec("goUpstairsPub", t.player.climb, { loc = "dwarf_keldagrim_stairs_lower", op_name = "Climb-up",
+                at = { 2915, 10196, 0 }, dest = { 2916, 10193, 1 } })
             local _, lvl2 = t.world.level()
             local _, tile2 = t.world.tile()
             t.check("goUpstairsPub-level", lvl2 == 1, "level " .. tostring(lvl2) .. " at "
@@ -290,28 +332,41 @@ return {
             t.ticks(2)
             t.check("buyYeast-held", n("ale_yeast") == 1, "yeast " .. tostring(n("ale_yeast")))
             local vat = t.player.by_symbol("loc", "brewing_vat_1")
+            -- forget_brewing.rs2:53-105 [oplocu,brewing_vat_1]: each use takes the guide's amount
             t.exec("addWater", t.player.use_on, "bucket_water", vat)
             t.exec("addWater-v", t.var.await_server, "varb736_brewing_vat_varbit_1", 1, 30)
-            t.check("vat-client-varp", true, "client farming_varp_9 = " .. tostring(select(2, t.var.varp("varp510_farming_varp_9"))) .. " / vat varbit = " .. tostring(select(2, t.var.varbit("varb736_brewing_vat_varbit_1"))))
+            t.check("addWater-items", n("bucket_water") == 0 and n("bucket_empty") == 2,
+                "buckets of water " .. tostring(n("bucket_water")) .. " (want 0), empty buckets " .. tostring(n("bucket_empty")) .. " (want 2)")
             t.exec("addMalts", t.player.use_on, "barley_malt", vat)
             t.exec("addMalts-v", t.var.await_server, "varb736_brewing_vat_varbit_1", 2, 30)
+            t.check("addMalts-items", n("barley_malt") == 0, "barley malt " .. tostring(n("barley_malt")) .. " (want 0: both went in)")
             t.exec("addKelda", t.player.use_on, "kelda_hops", vat)
             t.exec("addKelda-v", t.var.await_server, "varb736_brewing_vat_varbit_1", 68, 30)
+            t.check("addKelda-items", n("kelda_hops") == 0, "kelda hops " .. tostring(n("kelda_hops")) .. " (want 0)")
             t.exec("addYeast", t.player.use_on, "ale_yeast", vat)
             t.exec("addYeast-v", t.var.await_server, "varb736_brewing_vat_varbit_1", 69, 30)
+            t.check("addYeast-items", n("ale_yeast") == 0 and n("pot_empty") == 1,
+                "ale yeast " .. tostring(n("ale_yeast")) .. " (want 0), empty pots " .. tostring(n("pot_empty")) .. " (want 1: the pot comes back)")
             t.exec("waitBrewing-skip", t.clock.skip, 40)
             t.exec("waitBrewing", t.var.await_server, "varb736_brewing_vat_varbit_1", 71, 130)
             t.exec("turnValve", t.player.click_loc, "vat_valve_1", 1)
             t.exec("turnValve-v", t.var.await_server, "varb738_brewing_barrel_varbit_1", 3, 30)
             local barrel = t.player.by_symbol("loc", "brewing_barrel_1")
+            local glass0 = n("beer_glass")
             t.exec("useGlassOnBarrel", t.player.use_on, "beer_glass", barrel)
             t.exec("useGlassOnBarrel-v", t.inv.await, "kelda_stout", 1, 20)
+            t.check("useGlassOnBarrel-glass", glass0 >= 1 and n("beer_glass") == glass0 - 1, "beer glasses " .. tostring(glass0) .. " -> " .. tostring(n("beer_glass")) .. " (one filled with the stout, forget_brewing.rs2:168)")
             t.expect("quest.stage.give_stout", t.quest.expect_stage("give_stout"))
-            t.exec("goDownFromPub", t.player.click_loc, "dwarf_keldagrim_stairs_upper", 1)
-            t.ticks(2)
-            t.check("goDownFromPub-level", select(2, t.world.level()) == 0, "level " .. tostring(select(2, t.world.level())))
-            -- giveStout (goGiveDrunkenDwarfKelda): hand the drunken dwarf the stout, hear more
-            t.exec("goto-giveStout", t.player.goto_tile, 2913, 10221, 0)
+            -- forget_brewing.rs2:14 p_teleport(^forget_pub_stairs_lower_coord = 0_45_159_36_20 = 2916,10196,0)
+            t.exec("goDownFromPub", t.player.climb, { loc = "dwarf_keldagrim_stairs_upper", op_name = "Climb-down",
+                at = { 2915, 10196, 1 }, dest = { 2916, 10196, 0 } })
+            -- giveStout (goGiveDrunkenDwarfKelda): out of the pub by its doorway, the street, the
+            -- Drunken Dwarf's door in, hand him the stout, hear more, his door out
+            t.exec("giveStout.pubDoorOut", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
+                open = "dwarf_keldagrim_door_poor_open", at = { 2914, 10196, 0 }, near = { 2914, 10195 }, far = { 2914, 10198 } })
+            t.exec("goto-giveStout", t.player.goto_tile, 2913, 10218, 0)
+            t.exec("giveStout.houseDoorIn", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
+                open = "dwarf_keldagrim_door_poor_open", at = { 2913, 10219, 0 }, near = { 2913, 10219 }, far = { 2913, 10220 } })
             t.exec("giveStout", t.player.talk_to, "dwarf_city_drunken_dwarf", 1)
             t.exec("giveStout-dialog", t.chat.play, {
                 "player:I've brought you a kelda stout.",
@@ -319,6 +374,7 @@ return {
                 "npc:*glug glug glug*",
             })
             t.ticks(2)
+            t.check("giveStout-stout", n("kelda_stout") == 0, "kelda stout held " .. tostring(n("kelda_stout")) .. " (want 0: he drank it)")
             t.expect("quest.stage.hear_more", t.quest.expect_stage("hear_more"))
             t.exec("hearMore", t.player.talk_to, "dwarf_city_drunken_dwarf", 1)
             t.exec("hearMore-dialog", t.chat.play, {
@@ -329,6 +385,8 @@ return {
             t.ticks(2)
             t.expect("quest.stage.ask_conductor", t.quest.expect_stage("ask_conductor"))
             -- talkToCartConductor
+            t.exec("talkToCartConductor.houseDoorOut", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
+                open = "dwarf_keldagrim_door_poor_open", at = { 2913, 10219, 0 }, near = { 2913, 10220 }, far = { 2913, 10218 } })
             t.exec("goto-talkToCartConductor", t.player.goto_tile, 2922, 10168, 0)
             t.exec("talkToCartConductor", t.player.talk_to, "dwarf_city_train_conductor8", 1)
             t.exec("talkToCartConductor-dialog", t.chat.play, {
@@ -340,11 +398,15 @@ return {
             })
             t.ticks(2)
             t.expect("quest.stage.ask_director", t.quest.expect_stage("ask_director"))
+            -- gdwarf_consortium.rs2 [oploc1,dwarf_keldagrim_wide_stairs_lower] ~climb(1) (ladders.rs2
+            -- ~maplink_try): maplink.dbrow:8257 maplink_0_45_159_13_33_up (src 2893,10209,0) lands
+            -- 1_45_159_16_33 = 2896,10209,1, on the Consortium floor beside the copy pressed
             t.exec("goto-goUpToDirector", t.player.goto_tile, 2895, 10208, 0)
-            t.exec("goUpToDirector", t.player.click_loc, "dwarf_keldagrim_wide_stairs_lower", 1)
-            t.ticks(3)
-            t.check("goUpToDirector-level", select(2, t.world.level()) == 1, "level " .. tostring(select(2, t.world.level())))
-            t.exec("goto-talkToDirector", t.player.goto_tile, 2869, 10203, 1)
+            t.exec("goUpToDirector", t.player.climb, { loc = "dwarf_keldagrim_wide_stairs_lower", op_name = "Climb-up",
+                at = { 2894, 10209, 0 }, dest = { 2896, 10209, 1 } })
+            -- across the Consortium floor on foot (one open floor, no door between: reach.py level 1)
+            t.exec("walk-talkToDirector", t.player.walk_route, { { 2893, 10211 }, { 2887, 10209 }, { 2884, 10204 },
+                { 2876, 10204 }, { 2869, 10203 } }, { level = 1 })
             t.exec("talkToDirector", t.player.talk_to, "dwarf_city_director_blue_opal", 1)
             t.exec("talkToDirector-dialog", t.chat.play, {
                 "npc:Yes? I am busy",
@@ -355,10 +417,16 @@ return {
             })
             t.ticks(2)
             t.expect("quest.stage.tunnels_first", t.quest.expect_stage("tunnels_first"))
-            t.exec("goto-goDownFromDirector", t.player.goto_tile, 2895, 10212, 1)
-            t.exec("goDownFromDirector", t.player.click_loc, "dwarf_keldagrim_wide_stairs_upper", 1)
-            t.ticks(3)
-            -- takeSecretCart: empty hands, two free slots
+            -- back across the Consortium floor on foot (one open floor, no door between: reach.py
+            -- level 1) to the guide's stairs (upper copy 2895,10209,1); gdwarf_consortium.rs2
+            -- [oploc1,dwarf_keldagrim_wide_stairs_upper] ~climb(-1): maplink.dbrow:8299
+            -- maplink_1_45_159_16_33_down (src 2896,10209,1) lands 0_45_159_13_33 = 2893,10209,0, the street
+            t.exec("walk-goDownFromDirector", t.player.walk_route, { { 2869, 10205 }, { 2865, 10207 }, { 2872, 10208 },
+                { 2876, 10204 }, { 2884, 10204 }, { 2887, 10209 }, { 2893, 10211 }, { 2895, 10211 } }, { level = 1 })
+            t.exec("goDownFromDirector", t.player.climb, { loc = "dwarf_keldagrim_wide_stairs_upper", op_name = "Climb-down",
+                at = { 2895, 10209, 1 }, dest = { 2893, 10209, 0 } })
+            -- takeSecretCart: empty hands, two free slots; walk off the landing onto the street first
+            t.exec("goDownFromDirector.offStairs", t.player.walk_route, { { 2893, 10207 } }, { level = 0 })
             t.exec("goto-takeSecretCart", t.player.goto_tile, 2919, 10166, 0)
             t.exec("takeSecretCart", t.player.click_loc, "keldagrim_train_cart", 1)
             t.ticks(6)
@@ -429,6 +497,32 @@ return {
             local ROUTE2 = { [0] = 1, [1] = 2, [4] = 1 }
             local ROUTE3 = { [0] = 2 } -- puzzle3P1 only; leg 6 sets the rest (route 3: 300/302/305/306)
             local function stones(sym) return select(2, t.var.server(sym)) end
+            -- forget_puzzle.rs2:343-415: the hub box (level 1) holds 1 yellow 1 green in group 1, 2/1 in
+            -- group 2, 2/2 in group 3; a platform box (box 2 at x >= 1900) holds group 1: box 1 0/1, box 2
+            -- 1/0; group 2: 0/1; group 3: 1/1. The row is the counters' change across the search.
+            local function box_search(row, check, group)
+                local y0, g0 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
+                local _, box = t.world.loc_near("keldagrim_track_junction_card_box", 8, { level = "here" })
+                t.exec(row, t.player.click_loc, "keldagrim_track_junction_card_box", 1)
+                t.ticks(2)
+                local y1, g1 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
+                local _, lvl = t.world.level()
+                local wy, wg, where
+                if lvl == 1 then
+                    wy = (group == 1) and 1 or 2
+                    wg = (group == 3) and 2 or 1
+                    where = "hub box"
+                else
+                    local which = (type(box) == "table" and box.tile_x >= 1900) and 2 or 1
+                    wy = (group == 3 or (group == 1 and which == 2)) and 1 or 0
+                    wg = (group == 1 and which == 2) and 0 or 1
+                    where = "platform box " .. which .. " at " .. (type(box) == "table" and (box.tile_x .. "," .. box.tile_z) or tostring(box))
+                end
+                local ok = type(y0) == "number" and type(y1) == "number" and type(g0) == "number" and type(g1) == "number"
+                    and y1 - y0 == wy and g1 - g0 == wg
+                t.check(check, ok, where .. ", group " .. group .. ": yellow " .. tostring(y0) .. " -> " .. tostring(y1)
+                    .. " (want +" .. wy .. "), green " .. tostring(g0) .. " -> " .. tostring(g1) .. " (want +" .. wg .. ")")
+            end
             local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijkl"):sub(i + 1, i + 1) end
             local function clear(iface, count)
                 for i = 0, count - 1 do -- clear every junction first so its stone comes back
@@ -466,9 +560,7 @@ return {
             t.exec("takePuzzle2Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.check("platform2-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
-            t.exec("searchPuzzle2Box", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-            t.ticks(2)
-            t.check("stones-after-box2", true, "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
+            box_search("searchPuzzle2Box", "stones-after-box2", 1)
             t.exec("returnFromPuzzle2", t.player.click_loc, "forget_train_return_cart", 1)
             t.ticks(6)
             t.exec("startPuzzle3", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
@@ -555,6 +647,32 @@ return {
         { name = "puzzle_group_two_routes", run = function(t)
             -- LEG 7 BEGIN: puzzle4P3
             local function stones(sym) return select(2, t.var.server(sym)) end
+            -- forget_puzzle.rs2:343-415: the hub box (level 1) holds 1 yellow 1 green in group 1, 2/1 in
+            -- group 2, 2/2 in group 3; a platform box (box 2 at x >= 1900) holds group 1: box 1 0/1, box 2
+            -- 1/0; group 2: 0/1; group 3: 1/1. The row is the counters' change across the search.
+            local function box_search(row, check, group)
+                local y0, g0 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
+                local _, box = t.world.loc_near("keldagrim_track_junction_card_box", 8, { level = "here" })
+                t.exec(row, t.player.click_loc, "keldagrim_track_junction_card_box", 1)
+                t.ticks(2)
+                local y1, g1 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
+                local _, lvl = t.world.level()
+                local wy, wg, where
+                if lvl == 1 then
+                    wy = (group == 1) and 1 or 2
+                    wg = (group == 3) and 2 or 1
+                    where = "hub box"
+                else
+                    local which = (type(box) == "table" and box.tile_x >= 1900) and 2 or 1
+                    wy = (group == 3 or (group == 1 and which == 2)) and 1 or 0
+                    wg = (group == 1 and which == 2) and 0 or 1
+                    where = "platform box " .. which .. " at " .. (type(box) == "table" and (box.tile_x .. "," .. box.tile_z) or tostring(box))
+                end
+                local ok = type(y0) == "number" and type(y1) == "number" and type(g0) == "number" and type(g1) == "number"
+                    and y1 - y0 == wy and g1 - g0 == wg
+                t.check(check, ok, where .. ", group " .. group .. ": yellow " .. tostring(y0) .. " -> " .. tostring(y1)
+                    .. " (want +" .. wy .. "), green " .. tostring(g0) .. " -> " .. tostring(g1) .. " (want +" .. wg .. ")")
+            end
             local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijkl"):sub(i + 1, i + 1) end
             local function clear(iface, count)
                 for i = 0, count - 1 do
@@ -590,9 +708,7 @@ return {
             t.exec("takePuzzle4Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.check("platform4-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
-            t.exec("searchPuzzle4Box", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-            t.ticks(2)
-            t.check("stones-after-box4", true, "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
+            box_search("searchPuzzle4Box", "stones-after-box4", 2)
             t.exec("returnFromPuzzle4", t.player.click_loc, "forget_train_return_cart", 1)
             t.ticks(6)
             -- group 2 route 5: 500 yellow, 502 yellow, 505 green, 510 green
@@ -620,6 +736,32 @@ return {
         { name = "puzzle_group_two_library", run = function(t)
             -- LEG 8 BEGIN: takePuzzle5Cart
             local function stones(sym) return select(2, t.var.server(sym)) end
+            -- forget_puzzle.rs2:343-415: the hub box (level 1) holds 1 yellow 1 green in group 1, 2/1 in
+            -- group 2, 2/2 in group 3; a platform box (box 2 at x >= 1900) holds group 1: box 1 0/1, box 2
+            -- 1/0; group 2: 0/1; group 3: 1/1. The row is the counters' change across the search.
+            local function box_search(row, check, group)
+                local y0, g0 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
+                local _, box = t.world.loc_near("keldagrim_track_junction_card_box", 8, { level = "here" })
+                t.exec(row, t.player.click_loc, "keldagrim_track_junction_card_box", 1)
+                t.ticks(2)
+                local y1, g1 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
+                local _, lvl = t.world.level()
+                local wy, wg, where
+                if lvl == 1 then
+                    wy = (group == 1) and 1 or 2
+                    wg = (group == 3) and 2 or 1
+                    where = "hub box"
+                else
+                    local which = (type(box) == "table" and box.tile_x >= 1900) and 2 or 1
+                    wy = (group == 3 or (group == 1 and which == 2)) and 1 or 0
+                    wg = (group == 1 and which == 2) and 0 or 1
+                    where = "platform box " .. which .. " at " .. (type(box) == "table" and (box.tile_x .. "," .. box.tile_z) or tostring(box))
+                end
+                local ok = type(y0) == "number" and type(y1) == "number" and type(g0) == "number" and type(g1) == "number"
+                    and y1 - y0 == wy and g1 - g0 == wg
+                t.check(check, ok, where .. ", group " .. group .. ": yellow " .. tostring(y0) .. " -> " .. tostring(y1)
+                    .. " (want +" .. wy .. "), green " .. tostring(g0) .. " -> " .. tostring(g1) .. " (want +" .. wg .. ")")
+            end
             local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijkl"):sub(i + 1, i + 1) end
             local function clear(iface, count)
                 for i = 0, count - 1 do
@@ -646,9 +788,7 @@ return {
             t.exec("takePuzzle5Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.check("platform5-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
-            t.exec("searchPuzzle5Box", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-            t.ticks(2)
-            t.check("stones-after-box5", true, "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
+            box_search("searchPuzzle5Box", "stones-after-box5", 2)
             t.exec("returnFromPuzzle5", t.player.click_loc, "forget_train_return_cart", 1)
             t.ticks(6)
             -- group 2 route 6: 600 green, 601 green, 603 yellow, 609 green, 611 yellow (forget_puzzle.rs2:93)
@@ -680,6 +820,32 @@ return {
         { name = "library_and_puzzle_seven", run = function(t)
             -- LEG 9 BEGIN: searchBookcase
             local function stones(sym) return select(2, t.var.server(sym)) end
+            -- forget_puzzle.rs2:343-415: the hub box (level 1) holds 1 yellow 1 green in group 1, 2/1 in
+            -- group 2, 2/2 in group 3; a platform box (box 2 at x >= 1900) holds group 1: box 1 0/1, box 2
+            -- 1/0; group 2: 0/1; group 3: 1/1. The row is the counters' change across the search.
+            local function box_search(row, check, group)
+                local y0, g0 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
+                local _, box = t.world.loc_near("keldagrim_track_junction_card_box", 8, { level = "here" })
+                t.exec(row, t.player.click_loc, "keldagrim_track_junction_card_box", 1)
+                t.ticks(2)
+                local y1, g1 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
+                local _, lvl = t.world.level()
+                local wy, wg, where
+                if lvl == 1 then
+                    wy = (group == 1) and 1 or 2
+                    wg = (group == 3) and 2 or 1
+                    where = "hub box"
+                else
+                    local which = (type(box) == "table" and box.tile_x >= 1900) and 2 or 1
+                    wy = (group == 3 or (group == 1 and which == 2)) and 1 or 0
+                    wg = (group == 1 and which == 2) and 0 or 1
+                    where = "platform box " .. which .. " at " .. (type(box) == "table" and (box.tile_x .. "," .. box.tile_z) or tostring(box))
+                end
+                local ok = type(y0) == "number" and type(y1) == "number" and type(g0) == "number" and type(g1) == "number"
+                    and y1 - y0 == wy and g1 - g0 == wg
+                t.check(check, ok, where .. ", group " .. group .. ": yellow " .. tostring(y0) .. " -> " .. tostring(y1)
+                    .. " (want +" .. wy .. "), green " .. tostring(g0) .. " -> " .. tostring(g1) .. " (want +" .. wg .. ")")
+            end
             local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijklmnopqrst"):sub(i + 1, i + 1) end
             local function clear(iface, count)
                 for i = 0, count - 1 do
@@ -719,9 +885,7 @@ return {
             t.exec("leaveLibrary-dialog", t.chat.play, { "choose:Yes." })
             t.ticks(6)
             t.expect("quest.stage.tunnels_third", t.quest.expect_stage("tunnels_third"))
-            t.exec("searchBox3", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-            t.ticks(2)
-            t.check("stones-after-box3", true, "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
+            box_search("searchBox3", "stones-after-box3", 3)
             t.exec("startPuzzle7", t.player.click_loc, "keldagrim_track_junction_control_box", 1)
             t.exec("startPuzzle7-open", t.ui.await_open, "forget_puzzle3", 30)
             clear("forget_puzzle3", 19)
@@ -747,6 +911,32 @@ return {
         { name = "puzzle_seven_cart_and_eight", run = function(t)
             -- LEG 10 BEGIN: takePuzzle7Cart
             local function stones(sym) return select(2, t.var.server(sym)) end
+            -- forget_puzzle.rs2:343-415: the hub box (level 1) holds 1 yellow 1 green in group 1, 2/1 in
+            -- group 2, 2/2 in group 3; a platform box (box 2 at x >= 1900) holds group 1: box 1 0/1, box 2
+            -- 1/0; group 2: 0/1; group 3: 1/1. The row is the counters' change across the search.
+            local function box_search(row, check, group)
+                local y0, g0 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
+                local _, box = t.world.loc_near("keldagrim_track_junction_card_box", 8, { level = "here" })
+                t.exec(row, t.player.click_loc, "keldagrim_track_junction_card_box", 1)
+                t.ticks(2)
+                local y1, g1 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
+                local _, lvl = t.world.level()
+                local wy, wg, where
+                if lvl == 1 then
+                    wy = (group == 1) and 1 or 2
+                    wg = (group == 3) and 2 or 1
+                    where = "hub box"
+                else
+                    local which = (type(box) == "table" and box.tile_x >= 1900) and 2 or 1
+                    wy = (group == 3 or (group == 1 and which == 2)) and 1 or 0
+                    wg = (group == 1 and which == 2) and 0 or 1
+                    where = "platform box " .. which .. " at " .. (type(box) == "table" and (box.tile_x .. "," .. box.tile_z) or tostring(box))
+                end
+                local ok = type(y0) == "number" and type(y1) == "number" and type(g0) == "number" and type(g1) == "number"
+                    and y1 - y0 == wy and g1 - g0 == wg
+                t.check(check, ok, where .. ", group " .. group .. ": yellow " .. tostring(y0) .. " -> " .. tostring(y1)
+                    .. " (want +" .. wy .. "), green " .. tostring(g0) .. " -> " .. tostring(g1) .. " (want +" .. wg .. ")")
+            end
             local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijklmnopqrst"):sub(i + 1, i + 1) end
             local function clear(iface, count)
                 for i = 0, count - 1 do
@@ -773,9 +963,7 @@ return {
             t.exec("takePuzzle7Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.check("platform7-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
-            t.exec("searchPuzzle7Box", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-            t.ticks(2)
-            t.check("stones-after-box7", true, "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
+            box_search("searchPuzzle7Box", "stones-after-box7", 3)
             t.exec("returnFromPuzzle7", t.player.click_loc, "forget_train_return_cart", 1)
             t.ticks(6)
             -- route 8 (forget_puzzle.rs2:93): 800 yellow, 802 yellow, 804 yellow, 806 green, 808 green, 811 green
@@ -802,6 +990,32 @@ return {
         { name = "puzzle_eight_cart_and_nine", run = function(t)
             -- LEG 11 BEGIN: puzzle8P5
             local function stones(sym) return select(2, t.var.server(sym)) end
+            -- forget_puzzle.rs2:343-415: the hub box (level 1) holds 1 yellow 1 green in group 1, 2/1 in
+            -- group 2, 2/2 in group 3; a platform box (box 2 at x >= 1900) holds group 1: box 1 0/1, box 2
+            -- 1/0; group 2: 0/1; group 3: 1/1. The row is the counters' change across the search.
+            local function box_search(row, check, group)
+                local y0, g0 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
+                local _, box = t.world.loc_near("keldagrim_track_junction_card_box", 8, { level = "here" })
+                t.exec(row, t.player.click_loc, "keldagrim_track_junction_card_box", 1)
+                t.ticks(2)
+                local y1, g1 = stones("varb861_forget_num_left"), stones("varb862_forget_num_right")
+                local _, lvl = t.world.level()
+                local wy, wg, where
+                if lvl == 1 then
+                    wy = (group == 1) and 1 or 2
+                    wg = (group == 3) and 2 or 1
+                    where = "hub box"
+                else
+                    local which = (type(box) == "table" and box.tile_x >= 1900) and 2 or 1
+                    wy = (group == 3 or (group == 1 and which == 2)) and 1 or 0
+                    wg = (group == 1 and which == 2) and 0 or 1
+                    where = "platform box " .. which .. " at " .. (type(box) == "table" and (box.tile_x .. "," .. box.tile_z) or tostring(box))
+                end
+                local ok = type(y0) == "number" and type(y1) == "number" and type(g0) == "number" and type(g1) == "number"
+                    and y1 - y0 == wy and g1 - g0 == wg
+                t.check(check, ok, where .. ", group " .. group .. ": yellow " .. tostring(y0) .. " -> " .. tostring(y1)
+                    .. " (want +" .. wy .. "), green " .. tostring(g0) .. " -> " .. tostring(g1) .. " (want +" .. wg .. ")")
+            end
             local function com(iface, i) return iface .. ":switch_" .. ("abcdefghijklmnopqrst"):sub(i + 1, i + 1) end
             local function clear(iface, count)
                 for i = 0, count - 1 do
@@ -837,9 +1051,7 @@ return {
             t.exec("takePuzzle8Cart", t.player.click_loc, "forget_train_cart", 1)
             t.ticks(6)
             t.check("platform8-level", select(2, t.world.level()) == 3, "level " .. tostring(select(2, t.world.level())))
-            t.exec("searchPuzzle8Box", t.player.click_loc, "keldagrim_track_junction_card_box", 1)
-            t.ticks(2)
-            t.check("stones-after-box8", true, "yellow " .. tostring(stones("varb861_forget_num_left")) .. " green " .. tostring(stones("varb862_forget_num_right")))
+            box_search("searchPuzzle8Box", "stones-after-box8", 3)
             t.exec("returnFromPuzzle8", t.player.click_loc, "forget_train_return_cart", 1)
             t.ticks(6)
             -- route 9 (forget_puzzle.rs2:114): 900 green, 901 green, 903 yellow, 905 green, 907 yellow; the guide steps in this leg are the first three
@@ -904,7 +1116,11 @@ return {
             })
             t.ticks(2)
             t.expect("quest.stage.report_veldaban", t.quest.expect_stage("report_veldaban"))
-            t.exec("goto-goReturnToVeldaban", t.player.goto_tile, 2826, 10215, 0)
+            -- forget_story.rs2:141 woke the player at the cart station (2922,10166); the street to the
+            -- Black Guard HQ, then its door in (dwarf_keldagrim_door 2827,10218: inside z <= 10217)
+            t.exec("goto-goReturnToVeldaban", t.player.goto_tile, 2827, 10219, 0)
+            t.exec("goReturnToVeldaban.hqDoorIn", t.player.pass_door, { closed = "dwarf_keldagrim_door",
+                open = "dwarf_keldagrim_door_open", at = { 2827, 10218, 0 }, near = { 2827, 10218 }, far = { 2827, 10217 } })
             t.exec("goReturnToVeldaban", t.player.talk_to, "dwarf_city_black_guard_leader", 1)
             t.exec("goReturnToVeldaban-dialog", t.chat.play, {
                 "npc:Ah, you are back!",
@@ -918,7 +1134,14 @@ return {
             t.ticks(2)
             t.expect("quest.stage.eat_kebab", t.quest.expect_stage("eat_kebab"))
             -- the kebab needs a beer (forget_pub.rs2:forget_kebab_finale); a beer is 2 coins from the barmaid
-            t.exec("goto-bar", t.player.goto_tile, 2912, 10192, 0)
+            -- out of the HQ by its door, the street to the Laughing Miner, in by its doorway (the leaf
+            -- stands open in the map), then to the bar
+            t.exec("buyBeer.hqDoorOut", t.player.pass_door, { closed = "dwarf_keldagrim_door",
+                open = "dwarf_keldagrim_door_open", at = { 2827, 10218, 0 }, near = { 2827, 10217 }, far = { 2827, 10219 } })
+            t.exec("goto-bar", t.player.goto_tile, 2914, 10198, 0)
+            t.exec("buyBeer.pubDoorIn", t.player.pass_door, { closed = "dwarf_keldagrim_door_poor",
+                open = "dwarf_keldagrim_door_poor_open", at = { 2914, 10196, 0 }, near = { 2914, 10198 }, far = { 2914, 10195 } })
+            t.exec("walk-bar", t.player.walk_route, { { 2912, 10192 } }, { level = 0 })
             t.exec("buyBeer", t.player.talk_to, "dwarf_city_barmaid_poor", 1)
             t.exec("buyBeer-dialog", t.chat.play, {
                 "npc:Welcome! What can I get you?",

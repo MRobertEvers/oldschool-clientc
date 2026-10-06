@@ -1,0 +1,481 @@
+{{Update|date=12 August 2026|url=https://secure.runescape.com/m=news/summer-sweep-up---agility--chambers-of-xeric-changes?oldschool=1|category=game|rev=12 August 2026}}
+[[File:Summer Sweep Up - Agility & Chambers of Xeric Changes newspost.jpg|right]]
+__TOC__{{clear}}
+
+''The second batch of Summer Sweep Up changes are here, alongside a series of Wyrmscraig changes and more!''
+
+==Changelog - August 12th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Summer Sweep Up - Batch II'''
+
+'''Agility Changes:'''
+<u>The Hallowed Sepulchre</u>
+
+* Lowered the Floor 4 entry requirement to '''Level 77''', down from 82.
+* Lowered the Floor 5 entry requirement to '''Level 87''', down from 92.
+* You can now boost for Floor entry. For example, a player at 72 Agility can eat a bite of a Summer pie at the end of Floor 3 to gain entry to Floor 4.
+* Floor 5's Grand Coffin now requires 84 Thieving ''or'' 92 Agility to open. Boosting can be used for both requirements.
+
+<u>Colossal Wyrm Agility course</u>
+
+* Increased the duration of the Colossal Wyrm Agility course:
+** The basic course by ~25%.
+** The advanced course by ~40%.
+* Increased XP, Bone shards and Termites to match so that it's roughly the same XP/hr and termites/hr but fewer inputs/hr, meaning the course is lower intensity than before.
+
+<u>New Agility Shortcuts</u>
+
+* Level 49 - There is now a small gap in the west side of the Draynor Manor fence that you can pass through.
+* Level 52 - Added stepping stones across the River Lum, just south of the Champion's Guild.
+* Level 54 - You can now use the new shortcut on the south-west side of Giant's Plateau to climb up and down, providing easy access to and from the desert.
+* Level 60 - Added a pipe at the southern edge of Edgeville Dungeon, cutting down on travel time if you've lost your Brass key.
+* Level 52 & 62 - This new shortcut at the central area of the top and middle floors of the Arceuus Library allows you to jump down to the bottom floor.
+* Level 79 - Located north of Sophanem, we've added stepping stones for those of you who need to cross the River Elid in a flash.
+* Level 82 - Thanks to these new stepping stones at the small island north of Mos le'Harmless, your least favourite Treasure Trail step just got a whole lot better.
+* Level 83 - Added a shortcut west of Pollnivneach, allowing quick access from Ali the Hag's hut to the nearby plateau.
+
+Adjustments to several grapple/crossbow shortcuts so they no longer require any equipment to use: (As a result, their level requirements have been increased accordingly.) Keep in mind that any Achievement Diary tasks that involve a grapple shortcut will still require you to use the grapple to complete the task.
+
+* Level 8 Grapple - The broken raft in River Lum can now be used barehanded at Level 48.
+* Level 11 Grapple - The Falador rough wall can now be climbed barehanded at Level 52.
+* Level 32 Grapple - The rock-climb between Catherby and Taverley can now be used barehanded at Level 68. We've also made this a two-way shortcut.
+* Level 36 Grapple - You can now cross between the Water Obelisk island and Catherby barehanded at''' '''Level 72.
+* Level 39 Grapple - The Yanille rough wall can now be climbed barehanded at Level 69.
+* Level 53 Grapple - Strong trees just south of Karamja Volcano can now be used barehanded at Level 78.
+
+<u>Additional Agility improvements:</u>
+
+* Slightly opened up the fence around the Clock Tower, allowing you to pass through a new gap and walk around the building.
+* Zaryte crossbow will now be recognised as suitable to use for Crossbow Agility shortcuts.
+
+'''Miscellaneous Improvements:'''
+
+* Knight Waves Training Ground no longer resets your progress if you leave the trial using the door.
+* Reduced Chivalry's drain rate to match Deadeye and Mystic Vigour, draining 1 point per 3 seconds.
+* Removed thrall immunity from Menaphite Akh in Beneath Cursed Sands.
+* Removed the timeout/cooldown on making parties at the Theatre of Blood.
+* Lowered the Light & Heavy Ranged Defence for Abyssal Guardians and Abyssal Walkers to '''0''', down from 70 and 75 respectively.
+* Lowered the Crush Defence for Abyssal Guardians to '''0''', down from 70.
+* You can now re-enter the Fight Caves immediately after leaving, with no cooldown.
+* Increased the drop rate of the Rune Essence Pouch:
+** From Abyssal Guardian: up to '''1 in 8''' from 1 in 42.
+** From Abyssal Walker: up to '''1 in 5''' from 1 in 42.
+* Bonfire changes:
+** Added a "Tend to" option to add more logs to a bonfire.
+** If you have one type of log in your inventory, the 'Make-X' interface will no longer appear when you use a log on an existing bonfire.
+** If you have more than one type of logs in your inventory, the 'Make-X' interface will appear
+** Instead, you can use the logs to start adding, and either click away or keep going until you run out of logs.
+** Hand-warming animation will no longer persist once you run out of logs.
+
+'''Chambers of Xeric Loot Changes:'''
+
+* Adjusted the weighting of various unique rewards in both Normal and Challenge Mode Chambers of Xeric. Check the main body of the blog for a more detailed write-up and table.
+
+'''Wyrmscraig Changes'''
+
+* Upon defeating The Mad Angel during the Fallen From Grace quest, players will now be granted a killcount for the Mad Angel. Players who have already defeated the boss during the quest will receive the killcount retroactively upon logging in.
+* The Mad Angel now drops Medium clues instead of Hard ones.
+* The Mad Angel's clue drops now persist on the ground for the usual 3 hours.
+* Gems dropped from Golem Crafting will now go straight into an open Gem Bag, if you have one. Otherwise they'll fall to the floor as before.
+* Mr McGroot has been removed from the Skilling Pets section of the Collection Log, as he is only obtainable through Goat Hunting rather than the Hunting skill as a whole, which is inconsistent with other Skilling Pets.
+* Using the Jeweller's Chisel on Sunlight Antelope antlers now works without issues.
+* Ocean random events will no longer spawn in inaccessible areas of Wyrmscraig.
+* The stile on Wyrmscraig no longer requires players to complete The Fremennik Trials to cross.
+* We've shared the Wyrmscraig drop rates - find out more in its dedicated section.
+
+Additional Sailing Changes:
+
+* Super fishing potions can now be stored inside the Tackle box.
+* Corrected the messaging displayed when using the "Teleport to boat" spell on boats without a Greater Teleport Focus.
+
+'''Other Changes'''
+
+* Maggot King's Speed Chaser Combat Achievement has been moved up to Grandmaster tier to better reflect the task's actual difficulty, as mentioned in <u>[https://secure.runescape.com/m=news/a=13/wyrmscraig--sailing-changes?oldschool=1#BMR last week's game update blog]</u>. You might need to speak to Ghommal/Laidee Gnonock again to reobtain your Grandmaster Helm..
+* Sotfa Forest’s blood-hungry snail has now been enabled. It’s only accepting group bookings, and the guests are on the menu...
+* The northernmost Red Salamander spot at Ourania Altar now allows you to complete the Hard Ardougne Achievement Diary task.
+* The Chugging Barrel can now be used when you're near Eniola (the Ourania Altar banker), or the Wyrmscraig bank chest (provided you've built it) or the Lumbridge bank chest (on PvP worlds where it appears).
+* The Portal Nexus will no longer teleport you to the wrong destination after changing your configured teleports.
+* The Runecraft skill guide has been updated to remove an incorrect listing.
+* Various items have had the capitalisation of their names corrected, starting with pets like Mr McGroot, along with some god-themed items. More will follow in subsequent updates.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Summer Sweep Up Changes==
+[[File:Summer Sweep Up - Agility & Chambers of Xeric Changes (1).png|450px|center]]
+
+The second round of changes for this year's <u>[https://secure.runescape.com/m=news/summer-sweep-up-2026?oldschool=1 Summer Sweep Up]</u> have arrived! You can check out the Gear and PvM related changes that were already released <u>[https://secure.runescape.com/m=news/a=13/summer-sweep-up-gear--pvm-changes?oldschool=1 here]</u>.
+
+This batch focuses on Agility and the highly-anticipated Chambers of Xeric loot changes from the blog, as well as some miscellaneous one - so without further ado, let's dive into it!
+
+===Agility Course Changes===
+====The Hallowed Sepulchre====
+
+* Lowered the Floor 4 entry requirement to '''Level 77''', down from 82.
+* Lowered the Floor 5 entry requirement to '''Level 87''', down from 92.
+* You can now boost for Floor entry. For example, a player at 72 Agility can eat a bite of a Summer pie at the end of Floor 3 to gain entry to Floor 4.
+* Floor 5's Grand Coffin now requires 84 Thieving ''or'' 92 Agility to open. Boosting can be used for both requirements.
+
+====Colossal Wyrm Agility course====
+
+* Increased the duration of the Colossal Wyrm Agility course:
+** The basic course by ~25%.
+** The advanced course by ~40%.
+* Increased XP, Bone shards and Termites to match so that it's roughly the same XP/hr and termites/hr but fewer inputs/hr, meaning the course is lower intensity than before.
+
+===New Agility Shortcuts===
+We’ve added a series of Agility shortcuts across Gielinor to improve general traversal, save time on Treasure Trail steps, or simply provide a more intuitive route where it makes sense!
+
+====Level 49====
+[[File:Summer Sweep Up - Agility & Chambers of Xeric Changes (2).png|255px|center]]
+
+There is now a small gap in the west side of the Draynor Manor fence that you can pass through.
+
+====Level 52====
+[[File:Summer Sweep Up - Agility & Chambers of Xeric Changes (3).png|276px|center]]
+
+We've added stepping stones across the River Lum, just south of the Champion's Guild.
+
+[[File:Summer Sweep Up - Agility & Chambers of Xeric Changes (4).gif|450px|center]]
+
+====Level 54====
+
+[[File:Summer Sweep Up - Agility & Chambers of Xeric Changes (5).png|191px|center]]
+
+You can now use the new shortcut on the south-west side of Giant's Plateau to climb up and down, providing easy access to and from the desert.
+
+====Level 60====
+[[File:Summer Sweep Up - Agility & Chambers of Xeric Changes (6).png|250px|center]]
+
+We've added a pipe at the southern edge of Edgeville Dungeon, cutting down on travel time if you've lost your Brass key.
+
+====Levels 52 & 62====
+[[File:Summer Sweep Up - Agility & Chambers of Xeric Changes (9).png|287px|center]]
+
+This new shortcut at the central area of the middle and top floor (requiring 52 and 62 Agility respectively) of the Arceuus Library allows you to nimbly lower yourself down to the bottom floor, just make sure you don't slip!
+
+====Level 79====
+[[File:Summer Sweep Up - Agility & Chambers of Xeric Changes (10).png|226px|center]]
+
+Located north of Sophanem, we've added stepping stones for those of you who need to cross the River Elid in a flash.
+
+====Level 82====
+[[File:Summer Sweep Up - Agility & Chambers of Xeric Changes (11).png|267px|center]]
+
+Thanks to these new stepping stones at the small island north of Mos le'Harmless, your least favourite Treasure Trail step just got a whole lot better.
+
+====Level 83====
+[[File:Summer Sweep Up - Agility & Chambers of Xeric Changes (12).png|254px|center]]
+
+We've added a shortcut west of Pollnivneach, allowing quick access from Ali the Hag's hut to the nearby plateau.
+
+We've also updated several grapple/crossbow shortcuts so they no longer require any equipment to use. As a result, their level requirements have been increased accordingly. Keep in mind that any Achievement Diary tasks that involve a grapple shortcut will still require you to use the grapple to complete the task.
+
+These shortcuts that can be used without relying on a grappling hook are as follows:
+
+[[File:Summer Sweep Up - Agility & Chambers of Xeric Changes (13).gif|450px|center]]
+
+* Level 8 Grapple - The broken raft in River Lum can now be used barehanded at Level 48.
+* Level 11 Grapple - The Falador rough wall can now be climbed barehanded at Level 52.
+* Level 32 Grapple - The rock-climb between Catherby and Taverly can now be used barehanded at Level 68. We've also made this a two-way shortcut.
+* Level 36 Grapple - You can now cross between the Water Obelisk island and Catherby barehanded at''' '''Level 72.
+* Level 39 Grapple - The Yanille rough wall can now be climbed barehanded at Level 69.
+* Level 53 Grapple - Strong trees just south of Karamja Volcano can now be used barehanded at Level 78.
+
+Additional Agility improvements:
+
+* Slightly opened up the fence around the Clock Tower, allowing you to pass through a new gap and walk around the building.
+* Zaryte crossbow will now be recognised as suitable to use for Crossbow Agility shortcuts.
+
+===Miscellaneous Improvements===
+
+* Knight Waves Training Ground no longer resets your progress if you leave the trial using the door.
+* Reduced Chivalry's drain rate to match Deadeye and Mystic Vigour, draining 1 point per 3 seconds.
+* Removed thrall immunity from Menaphite Akh in Beneath Cursed Sands.
+* Removed the timeout/cooldown on making parties at the Theatre of Blood.
+* Lowered the Light & Heavy Ranged Defence for Abyssal Guardians and Abyssal Walkers to '''0''', down from 70 and 75 respectively.
+* Lowered the Crush Defence for Abyssal Guardians to '''0''', down from 70.
+* You can now re-enter the Fight Caves immediately after leaving, with no cooldown.
+* Increased the drop rate of the Rune Essence Pouch:
+** From Abyssal Guardian: up to '''1 in 8''' from 1 in 42.
+** From Abyssal Walker: up to '''1 in 5''' from 1 in 42.
+* Bonfire changes:
+** Added a "Tend to" option to add more logs to a bonfire.
+** If you have one type of log in your inventory, the 'Make-X' interface will no longer appear when you use a log on an existing bonfire.
+** If you have more than one type of logs in your inventory, the 'Make-X' interface will appear
+** Instead, you can use the logs to start adding, and either click away or keep going until you run out of logs.
+** Hand-warming animation will no longer persist once you run out of logs.
+
+===Chambers of Xeric Loot Changes===
+Chambers of Xeric unique weightings have been a hot topic for almost as long as the raid has existed, and this Summer Sweep-Up we'd sought to make further changes to address one of the most frequent complaints regarding the volume of purple lights that become Prayer scrolls.
+
+As we wrapped up our initial Sweep-Up blogs, we'd said that we'd like to take a conservative approach here and adjust incrementally over time. It would be an understatement to say that this wasn't a particularly popular stance to take, so a few weeks ago we proposed more radical for adjustments to the weightings of uniques in the Chambers of Xeric. These numbers make CoX a little more in-line with other raids when it comes to how many hours the content expects you to put in. They look like big shifts and in many cases they ''are ''big shifts but we believe they could make for a healthier raid long-term.
+
+The most significant shift here is Ancestral pieces, which do fetch a hefty price currently, but also serve as a huge source of frustration since ticking off the full set takes considerably longer on average than a Twisted Bow.
+
+Realistically these numbers are a big enough shift that it's impossible to predict exactly where things might shake out now that they're implemented, but we do expect that while individual item prices might shift, the GP/hr of the raid shouldn't drastically reduce. These changes aim to bring regular Chambers completions more in line with other raids while also improving the value proposition offered by Challenge Mode clears compared to regular raids.
+
+With all that said, let's take a look:
+
+<center>
+{| class="wikitable" style="text-align: center;"
+|-
+! Unique
+! Old Weighting (Total: 69)
+! New Regular Weighting (Total: 60)
+! % Increase
+! New CM Weighting (Total: 56)
+! % Increase
+|-
+| Ancestral Hat
+| 3
+| 4
+| +53.3
+| 4
+| +64.3
+|-
+| Ancestral Robe Bottoms
+| 3
+| 4
+| +53.3
+| 4
+| +64.3
+|-
+| Ancestral Robe Top
+| 3
+| 4
+| +53.3
+| 4
+| +64.3
+|-
+| Arcane Prayer Scroll
+| 20
+| 14
+| -19.5
+| 12
+| -26.1
+|-
+| Dextrous Prayer Scroll
+| 20
+| 14
+| -19.5
+| 12
+| -26.1
+|-
+| Dinh's Bulwark
+| 3
+| 3
+| +15
+| 3
+| +23.2
+|-
+| Dragon Claws
+| 3
+| 3
+| +15
+| 3
+| +23.2
+|-
+| Dragon Hunter Crossbow
+| 4
+| 4
+| +15
+| 4
+| +23.2
+|-
+| Elder Maul
+| 2
+| 2
+| +15
+| 2
+| +23.2
+|-
+| Kodai Insignia
+| 2
+| 2
+| +15
+| 2
+| +23.2
+|-
+| Twisted Bow
+| 2
+| 2
+| +15
+| 2
+| +23.2
+|-
+| Twisted Buckler
+| 4
+| 4
+| +15
+| 4
+| +23.2
+|}
+</center>
+
+In effect, this means scrolls are 20% less common in regular Chambers of Xeric, and 26% less common in Challenge Mode Chambers of Xeric, which puts it closer to how the Avernic defender hilt in terms of its relative weighting.
+
+We'll be keeping an ''extremely'' close eye on these, but appreciate that values, prices and in-game markets around major changes can shift wildly and take some time to settle down, so we won't make any immediate tweaks unless something is miles out of line. If things aren't landing where we'd like, then we will leave further tweaks on the table and revisit these changes to bring them more in line with our aims!
+
+==Wyrmscraig Changes==
+
+* Upon defeating The Mad Angel during the Fallen From Grace quest, players will now be granted a killcount for the Mad Angel. Players who have already defeated the boss during the quest will receive the killcount retroactively upon logging in.
+* The Mad Angel now drops Medium clues instead of Hard ones.
+* The Mad Angel's clue drops now persist on the ground for the usual 3 hours.
+* Gems dropped from Golem Crafting will now go straight into an open Gem Bag, if you have one. Otherwise they'll fall to the floor as before.
+* Mr McGroot has been removed from the Skilling Pets section of the Collection Log, as he is only obtainable through Goat Hunting rather than the Hunting skill as a whole, which is inconsistent with other Skilling Pets.
+* Using the Jeweller's Chisel on Sunlight Antelope Antlers now works without issues.
+* Ocean random events will no longer spawn in inaccessible areas of Wyrmscraig.
+* The stile on Wyrmscraig no longer requires players to complete The Fremennik Trials to cross.
+
+===Wyrmscraig Drop Rates===
+Now that we're two weeks into the Wyrmscraig release, it's time for the drop rates!
+
+====The Mad Angel Drop Rates:====
+
+* Hallowfell: 1 in 127
+* Ardeaglais Teleports: 1 in 25 (drops 2 at a time)
+* Medium Clue Scroll: 1 in 25
+* Jar of Light: 1 in 1,000
+* Aggy: 1 in 2,000
+
+====Goat Hunting Drop Rates:====
+
+* Wyrmscraig Goat Hoof: 1 in 48 on rumour
+* Mr McGroot: 1 in 40,000 base chance
+** This chance improves by -25 per Hunter level, reaching 1 in 37,525 at Level 99.
+** Players with 200 million XP in the Hunter skill are 15 times more likely to receive Mr McGroot, similar to the existing bonus for the Phoenix and Quetzin pets. We recognise that pets obtained through different skilling activities currently have different behaviour, and we’ll be keeping a close eye on your feedback. If there’s strong support for changing how these bonuses work, we can consider that in future.
+
+====Golem Crafting Drop Rates:====
+
+* Jeweller's Chisel: 1 in 300
+
+===Additional Sailing Changes===
+
+* Super fishing potions can now be stored inside the Tackle box.
+* Corrected the messaging displayed when using the "Teleport to boat" spell on boats without a Greater Teleport Focus.
+
+==Other Changes==
+
+* Maggot King's Speed Chaser Combat Achievement has been moved up to Grandmaster tier to better reflect the task's actual difficulty, as mentioned in <u>[https://secure.runescape.com/m=news/a=13/wyrmscraig--sailing-changes?oldschool=1#BMR last week's game update blog]</u>.  You might need to speak to Ghommal/Laidee Gnonock again to reobtain your Grandmaster Helm.
+* Sotfa Forest’s blood-hungry snail has now been enabled. It’s only accepting group bookings, and the guests are on the menu...
+* The northernmost Red Salamander spot at Ourania Altar now allows you to complete the Hard Ardougne Achievement Diary task.
+* The Chugging Barrel can now be used when you're near Eniola (the Ourania Altar banker), or the Wyrmscraig bank chest (provided you've built it) or the Lumbridge bank chest (on PvP worlds where it appears).
+* The Portal Nexus will no longer teleport you to the wrong destination after changing your configured teleports.
+* The Runecraft skill guide has been updated to remove an incorrect listing.
+* Various items have had the capitalisation of their names corrected, starting with pets like Mr McGroot, along with some god-themed items. More will follow in subsequent updates.
+
+==Player Support and Anti-Cheating Statistics==
+Welcome back to our monthly snapshot of Player Support and Anti-Cheating activity - your behind-the-scenes look at all the hard work going into keeping Gielinor fair and fun for everyone.
+
+Each month, we share key stats from our Player Support and Anti-Cheating teams so you can see exactly what’s been happening behind the curtain. From how quickly we’re responding to your queries, to the number of bots and rule breakers taken down, here’s the latest data for July 2026:
+
+<center>
+{| class="wikitable" style="text-align: center;"
+|-
+! Metric
+! July 2026
+! Year to Date**
+|-
+| Average Response Time
+| 22 hours
+| -
+|-
+| Support Queries Resolved
+| 77,541
+| 555K
+|-
+| Live Chat Queries Resolved
+| 5,605
+| 35,543
+|-
+| Report Action Messages
+| 107K
+| 1.01M
+|-
+| Macro Bans (OSRS)
+| Total - 159,791
+F2P - 140,011
+P2P*- 19,780
+| Total - 7.3M
+F2P - 6.96M
+P2P*- 386K
+|-
+| Wealth Removed (OSRS)
+| 4.68 Trillion
+| 25.4 Trillion
+|-
+| RWT Bans (OSRS)
+| Total - 18,302
+F2P - 5,666
+P2P* - 12,636
+| 120,014
+|-
+| Chat Spam Mutes
+| 2,663
+| 24,207
+|}
+</center>
+
+''*P2P refers to an account with access to members’ worlds and features, either through a Bond or direct payment.''
+
+''**“Year to Date” refers to the period from January 1st, 2026 through to the end of the month covered by the stats - in this case, the end of July 2026.''
+
+You can check these out in the [https://support.runescape.com/hc/en-gb/articles/34686319959441-Player-Support-Statistics Player Support Statistics] and [https://support.runescape.com/hc/en-gb/articles/46608582202001-Anti-Cheating-Statistics Anti-Cheat Statistics] pages. Our teams remain as dedicated as ever to tackling cheaters, scammers, and spammers to ensure a fair playing field for all. As a result of these ongoing efforts, we're seeing an overall decline in rule-breaking activity. We're also seeing that the average account age and average account level of bots are decreasing, indicating that longer-standing and higher-level bots are being detected and removed from the game. Thanks for all the reports and support you send our way - it really does make a difference!
+
+Additionally, we’ve had a few reports of some players being phished out of their accounts. As always, bad actors are always cooking up new tricks. We've heard of a new few ones including fake P-Mod application forms asking for login details and illegitimate Jagex Launcher downloads hosted on other websites. This is a quick reminder to stay safe out there and think twice before entering sensitive details or downloading anything advertised as relative to RuneScape. There are no P-Mod Application forms, and anything you download for RuneScape must be a subdomain of [http://jagex.com/ Jagex.com] or [http://runescape.com/ RuneScape.com] to be considered safe. Always download anything directly through our website or Launcher – nowhere else.
+
+Some rules we always recommend:
+
+* Don't click suspicious links or download unknown files.
+* Jagex will never ask for your password or verification codes via email or messages. Never give away credentials that could be used to access your account.
+* Use your browser's phishing filters.
+
+You can find out more about phishing on our '''[https://support.runescape.com/hc/en-gb/articles/115001257125-Phishing Support Centre]'''.
+
+==RuneScape Leagues II: EQUILIBRIUM==
+[[File:Summer Sweep Up - Agility & Chambers of Xeric Changes (14).png|600px|center]]
+
+'Scapers do love a League, and RuneScape has released their second League this Monday! If you want to try it out, your Old School membership will also allow you to play RuneScape.
+
+Leagues: CATALYST showed just how exciting Leagues could be in a parallel Gielinor, but it was just the start yet! Leagues II: EQUILIBRIUM builds on the learnings and player feedback from their first-ever League, bringing an even bigger and better League experience.
+
+Check out their <u>[https://secure.runescape.com/m=news/leagues-ii-equilibrium-launches-today blog]</u> for all the info you need to know!
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1vm9jdk/game_update_summer_sweep_up_agility_cox_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the official [https://discord.gg/OSRS OSRS Discord]. For more information, check the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Bulb, Chilly, Criminal, Curse, Daizong, Default, Doctor, Ed, Elena, Enigma, Entropi, Frogs, Fuzz, Gecko, Ghost, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lotus, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Oasis, Ori, Other, Otter, Pheasant, Philomel, Pork, Pumpkin, Puppi, Pyro, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spacebar, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora, Yume & Zaf'''
+
+''The Old School Team''

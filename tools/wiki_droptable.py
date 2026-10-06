@@ -6,6 +6,7 @@ table in server/scripts/drop_tables/scripts/ already uses.
 
     tools/wiki_droptable.py --report <gameval> [<gameval> ...]
     tools/wiki_droptable.py --batch <file-of-gamevals> --write
+    tools/wiki_droptable.py --regenerate <drop_tables/scripts/wiki_x.rs2> --write --out-dir <scratch>
 
 See docs/NPC_WIKI_DROPTABLES_PLAN.md §4. The id join is not re-derived here —
 it is read straight out of npc_stats/<shard>/<gameval>.stats, the same ledger
@@ -477,6 +478,9 @@ def resolve_obj_name(display_name: str, noted: bool = False) -> str | None:
 # ---------------------------------------------------------------------------
 
 _EXISTING_BINDINGS: dict[str, list[str]] | None = None
+# Generated files being regenerated (--regenerate): their own bindings are the
+# ones the run is rewriting, so they must not count as "already bound".
+_REGENERATING: set[str] = set()
 
 
 # A MINIGAME THAT OWNS AN NPC'S DEATH QUEUE. `[ai_queue3,<npc>]` is the one
@@ -532,6 +536,8 @@ def existing_bindings() -> dict[str, list[str]]:
     seen: dict[str, list[str]] = {}
     binding_re = re.compile(r"^\[ai_queue3,([A-Za-z0-9_]+)\]")
     for path in glob.glob(os.path.join(CONTENT, "server", "scripts", "**", "*.rs2"), recursive=True):
+        if os.path.realpath(path) in _REGENERATING:
+            continue
         with open(path, encoding="utf-8", errors="replace") as f:
             for line in f:
                 m = binding_re.match(line.strip())
@@ -539,6 +545,81 @@ def existing_bindings() -> dict[str, list[str]]:
                     seen.setdefault(m.group(1), []).append(os.path.abspath(path))
     _EXISTING_BINDINGS = seen
     return seen
+
+
+# ---------------------------------------------------------------------------
+# Quest-owned tertiary drops: the one part of a page's Tertiary table this
+# generator emits. Everything else there stays omitted (plan section 6: no
+# varp-check machinery in this table family) -- but a quest drop already has
+# its gate, written once in the quest's own proc, so emitting the call is the
+# whole job and leaving it out breaks the quest on every regeneration.
+#
+# Keyed on the obj gameval the Tertiary DropsLine resolves to (same exact-name
+# join as every other line, resolve_obj_name), so a hook lands on exactly the
+# npcs whose OWN drop version lists that item, and on no page that does not.
+# A rule whose proc or obj no longer exists fails the run before anything is
+# written (validate_quest_tertiary_hooks), the way gen_spawns.py fails on an
+# override rule that cannot apply: a silently skipped rule would undo the fix.
+#
+# This table is the audited source; never hand-add the call to a generated
+# wiki_*.rs2 -- add the rule here and regenerate (--regenerate/--out-dir).
+# ---------------------------------------------------------------------------
+
+QUEST_TERTIARY_HOOKS: dict[str, tuple[str, str]] = {
+    # Rag and Bone Man I. OSRS Wiki 'Goblin' rev 15290833: `Goblin skull`
+    # rarity=Always in the Tertiary block of BOTH 'Drop table 1' and 'Drop
+    # table 2' ("Goblin skulls are only dropped during Rag and Bone Man I").
+    # OSRS Wiki 'Rag and Bone Man I' rev 15292348, Collecting the bones: the
+    # Goblin skull comes from [[Goblin]]; "Each bone is a guaranteed drop"
+    # (Mod Ash, 21 March 2019). The quest gate (collecting stage, bone not yet
+    # handed in) is quest_ragandboneman/scripts/ragandboneman_drops.rs2.
+    "rag_goblin_bone": ("rag_try_quest_bone", "~rag_try_quest_bone(rag_goblin_bone);"),
+}
+
+
+def quest_tertiary_hooks(tertiary_blocks: list[dict]) -> list[str]:
+    """The quest-hook lines for this npc's own tertiary blocks, in wiki order,
+    each hooked obj at most once."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for b in tertiary_blocks:
+        for line in b["lines"]:
+            nm = line["name"]
+            if not nm:
+                continue
+            gameval = resolve_obj_name(nm, noted="(noted)" in line["quantity"].lower())
+            if gameval is None and line.get("alt"):
+                gameval = resolve_obj_name(line["alt"])
+            if gameval not in QUEST_TERTIARY_HOOKS or gameval in seen:
+                continue
+            seen.add(gameval)
+            out.append(f"// Tertiary '{nm}' ({line['rarity'].strip() or '?'}): quest-owned, gated by the quest's")
+            out.append("// own proc (tools/wiki_droptable.py QUEST_TERTIARY_HOOKS).")
+            out.append(QUEST_TERTIARY_HOOKS[gameval][1])
+    return out
+
+
+def validate_quest_tertiary_hooks() -> None:
+    problems = []
+    objs = {g for gs in obj_name_index().values() for g in gs}
+    procs = set()
+    proc_re = re.compile(r"^\[proc,([A-Za-z0-9_]+)\]")
+    for path in glob.glob(os.path.join(CONTENT, "server", "scripts", "**", "*.rs2"), recursive=True):
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                m = proc_re.match(line)
+                if m:
+                    procs.add(m.group(1))
+    for gameval, (proc, _call) in QUEST_TERTIARY_HOOKS.items():
+        if gameval not in objs:
+            problems.append(f"QUEST_TERTIARY_HOOKS[{gameval!r}]: no obj {gameval} in configs/all.obj")
+        if proc not in procs:
+            problems.append(f"QUEST_TERTIARY_HOOKS[{gameval!r}]: no [proc,{proc}] in server/scripts")
+    if problems:
+        print(f"wiki_droptable: {len(problems)} quest tertiary hook(s) cannot apply -- nothing written:", file=sys.stderr)
+        for p in problems:
+            print("  " + p, file=sys.stderr)
+        sys.exit(2)
 
 
 def report_one(gameval: str) -> dict:
@@ -598,11 +679,14 @@ def report_one(gameval: str) -> dict:
         # entirely by `param=death_drop,bones`, which `[ai_queue3,_]` restates
         # for it without any binding here.
         return {"gameval": gameval, "ok": False, "reason": f"no drops beyond remains/default on '{title}' -- no binding needed"}
+    quest_hooks = quest_tertiary_hooks(select_blocks(tertiary_blocks, target_dropversion))
+    rs2 = rs2 + quest_hooks
     manifest = manifest_row(title)
     return {
         "gameval": gameval, "ok": True, "title": title, "ids": ids,
         "dropversion": target_dropversion, "rs2": rs2, "skipped": skipped,
         "tertiary_present": bool(tertiary_blocks),
+        "quest_hooks": bool(quest_hooks),
         "revid": manifest[0] if manifest else "?",
         "fetch_date": manifest[1] if manifest else "?",
     }
@@ -671,9 +755,9 @@ def audit_owner(gameval: str, label: str) -> None:
         sys.exit(f"wiki_droptable: {MINIGAME_DEATH_QUEUES[gameval]}'s [ai_queue3,{gameval}] never calls ~{label}; nothing would drop")
 
 
-def write_group(title: str, results: list[dict]) -> str | None:
+def write_group(title: str, results: list[dict], out_dir: str = DROP_TABLES_DIR) -> str | None:
     slug = title_slug(title)
-    path = os.path.join(DROP_TABLES_DIR, f"wiki_{slug}.rs2")
+    path = os.path.join(out_dir, f"wiki_{slug}.rs2")
     if os.path.exists(path):
         return None  # do not clobber a prior run or a hand-authored collision
     groups = partition_by_table(results)
@@ -688,6 +772,9 @@ def write_group(title: str, results: list[dict]) -> str | None:
     if any(r["tertiary_present"] for r in results):
         lines.append(f"// A Tertiary drop table exists on this page and is intentionally omitted --")
         lines.append(f"// no varp-check machinery exists in this table family yet (plan section 6).")
+        if any(r.get("quest_hooks") for r in results):
+            lines.append("// Exception: its quest-owned lines are emitted, each gated by the quest's own")
+            lines.append("// proc (tools/wiki_droptable.py QUEST_TERTIARY_HOOKS).")
     if len(groups) > 1:
         lines.append("//")
         lines.append(f"// This page states {len(groups)} distinct drop tables and each npc below is")
@@ -755,12 +842,28 @@ def main() -> None:
     ap.add_argument("gamevals", nargs="*")
     ap.add_argument("--batch", help="file with one gameval per line")
     ap.add_argument("--write", action="store_true", help="write .rs2 files for clean (0-skip) results")
+    ap.add_argument("--regenerate", action="append", default=[], metavar="FILE",
+                    help="re-run a generated wiki_*.rs2: its [ai_queue3,...] gamevals, in file order, "
+                         "with that file's own bindings not counted as already bound (pair with --out-dir)")
+    ap.add_argument("--out-dir", default=DROP_TABLES_DIR,
+                    help="where --write puts files (default: the content tree's drop_tables/scripts); "
+                         "an existing file there is never clobbered")
     args = ap.parse_args()
+
+    validate_quest_tertiary_hooks()
 
     gamevals = list(args.gamevals)
     if args.batch:
         with open(args.batch) as f:
             gamevals += [ln.strip() for ln in f if ln.strip() and not ln.startswith("#")]
+    binding_re = re.compile(r"^\[ai_queue3,([A-Za-z0-9_]+)\]")
+    for path in args.regenerate:
+        _REGENERATING.add(os.path.realpath(path))
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                m = binding_re.match(line.strip())
+                if m and m.group(1) not in gamevals:
+                    gamevals.append(m.group(1))
 
     ok = 0
     clean_by_title: dict[str, list[dict]] = {}
@@ -781,7 +884,7 @@ def main() -> None:
     if args.write:
         written = 0
         for title, results in clean_by_title.items():
-            path = write_group(title, results)
+            path = write_group(title, results, args.out_dir)
             if path:
                 written += 1
                 print(f"wrote {os.path.relpath(path, REPO)} ({len(results)} gameval(s))")

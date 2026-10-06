@@ -1,0 +1,52 @@
+{{Deadman permanent|content=yes}}
+{{Infobox Monster
+|defver = 2
+|version1 = Annihilation
+|version2 = Permanent
+|name = Sol Heredit
+|image = [[File:Sol Heredit (Deadman).png|250px]]
+|release = [[21 January]] [[2026]]
+|update = Holy Moleys and the Hooded Slayer Helm are Here!
+|members = Yes
+|combat1 = 668
+|combat2 = 481
+|size = 5
+|examine = It's stompin' time!
+|xpbonus = 
+|max hit = 44
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Melee]]
+|attack speed = 7
+|hitpoints1 = 1500
+|hitpoints2 = 750
+|att = 350
+|str = 400
+|def = 200
+|mage = 300
+|range = 350
+|attbns = 250
+|strbns = 5
+|amagic = 0
+|mbns = 0
+|arange = 150
+|rngbns = 5
+|dstab = 65
+|dslash = 5
+|dcrush = 30
+|dmagic = 750
+|dlight = 825
+|dstandard = 825
+|dheavy = 825
+|poisonresistance = 100
+|venomresistance = 100
+|freezeresistance = 100
+|id = 15554
+|leagueRegion = No
+}}
+'''Sol Heredit''' is a monster which spawns from [[breach]]es in [[Deadman: Annihilation]]. Unlike the regular version of [[Sol Heredit]], he only attacks with the [[Fortis_Colosseum/Strategies#Phase_1_(100%_HP,_1500_HP)|Spear 2]] version of his auto-attack. The attack stops at scenery objects, so it is possible to dodge the attack by standing behind an object.
+
+{{DeadmanAnnihilationBreachDropTable}}
+
+{{Deadman: Breach Monsters}}
+{{Deadman: Annihilation}}

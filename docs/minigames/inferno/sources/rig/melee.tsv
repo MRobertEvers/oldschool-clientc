@@ -1,0 +1,15 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+inferno_creature_melee	7697	1690	seq	7595	jalimkot_ready	18	2.0 (60 client)	-	ready	bound	forcedpriority=None priority=None
+inferno_creature_melee	7697	1690	seq	7596	jalimkot_walk	18	2.0 (60 client)	-	walk	bound	forcedpriority=None priority=None
+inferno_creature_melee	7697	1690	seq	7597	jalimkot_attack	18	2.0 (60 client)	-	attack1	rig+name	forcedpriority=3 priority=None
+inferno_creature_melee	7697	1690	seq	7598	jalimkot_defend	18	2.0 (60 client)	-	defend	rig+name	forcedpriority=1 priority=None
+inferno_creature_melee	7697	1690	seq	7599	jalimkot_death	34	4.6 (139 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_creature_melee	7697	1690	seq	7600	jalimkot_digdown	22	3.7 (112 client)	-	transition	rig+name	forcedpriority=None priority=None; name states dig down/up (burrow), not a combat role
+inferno_creature_melee	7697	1690	seq	7601	jalimkot_digup	21	3.5 (105 client)	-	transition	rig+name	forcedpriority=None priority=None; name states dig down/up (burrow), not a combat role
+inferno_creature_melee_small	12594	1690	seq	7595	jalimkot_ready	18	2.0 (60 client)	-	ready	bound	forcedpriority=None priority=None
+inferno_creature_melee_small	12594	1690	seq	7596	jalimkot_walk	18	2.0 (60 client)	-	walk	bound	forcedpriority=None priority=None
+inferno_creature_melee_small	12594	1690	seq	7597	jalimkot_attack	18	2.0 (60 client)	-	attack1	rig+name	forcedpriority=3 priority=None
+inferno_creature_melee_small	12594	1690	seq	7598	jalimkot_defend	18	2.0 (60 client)	-	defend	rig+name	forcedpriority=1 priority=None
+inferno_creature_melee_small	12594	1690	seq	7599	jalimkot_death	34	4.6 (139 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_creature_melee_small	12594	1690	seq	7600	jalimkot_digdown	22	3.7 (112 client)	-	transition	rig+name	forcedpriority=None priority=None; name states dig down/up (burrow), not a combat role
+inferno_creature_melee_small	12594	1690	seq	7601	jalimkot_digup	21	3.5 (105 client)	-	transition	rig+name	forcedpriority=None priority=None; name states dig down/up (burrow), not a combat role

@@ -30,6 +30,21 @@ reverse), waits 30 ticks (the hull went from 2842,2332 to 2831,2343), presses
 `sail_to` legs drifted east and missed the waypoints. 250-tick legs about 20 tiles apart along
 x=2832 (2830,2395 / 2832,2410 / ... / 2832,2470) reached Red Rock.
 
+The same back-out is needed after Troubled Tortugans' Summer Shore berth (3177,2364), the Remote
+Island mooring and the Little Pearl mooring (matthew-mbp-m4-b55, `troubledtortugans.lua`). Take the
+helm, then `_press_sidepanel(1)`, 30 ticks, `_press_sidepanel(0)`, and only then `sails(true)`.
+
+#### A mooring that moves the stage does not board you (Troubled Tortugans, matthew-mbp-m4-b55)
+
+*Origin: author batch matthew-mbp-m4-b55 (troubledtortugans, accepted).*
+
+`[oploc1,sailing_mooring_remote_island]` (`troubledtortugans.rs2:285-294`) moves the stage from
+`sail` 8 to `boat` 10 ("Floopa climbs aboard your boat.") only when `vessel_nearest` finds your
+hull within the gangplank range. Bring the hull close first. The test sails to 2975,2588 and then
+to 2972,2598 with radius 1, presses Disembark on the mooring, and talks to Floopa. Op 1 then falls
+through to `@sailing_gangplank_use`, which opens the Board Boat window and does not board you.
+Board with `t.sail.board("sailing_mooring_remote_island")` (op 2) after the op 1 row.
+
 #### Port tasks (wiki Courier tasks)
 
 port tasks (wiki Courier tasks): `t.sail.task_board(board)`, `task_accept(index)`,

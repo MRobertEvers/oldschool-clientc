@@ -1,0 +1,17 @@
+mechanic_id	scope	note
+colosseum_music.song.id	all	one solo test: read the music-unlock flag / played track id
+colosseum_music.song.unlock_hint	all	one solo test: read the music-unlock flag / played track id
+colosseum_music.song.unlock_trigger	all	one solo test: read the music-unlock flag / played track id
+colosseum_music.song.unlock_not_on_entry	all	one solo test: read the music-unlock flag / played track id
+colosseum_music.song.unlock_once	all	one solo test: read the music-unlock flag / played track id
+colosseum_music.song.region_tiles_x	all	one solo test: walk the tiles, read the played track; open row
+colosseum_music.song.region_tiles_y	all	one solo test: walk the tiles, read the played track; open row
+colosseum_music.song.region_id	all	one solo test: walk the tiles, read the played track; open row
+colosseum_music.song.plays_in_lobby	all	one solo test: walk the tiles, read the played track; open row
+colosseum_music.song.wiki_number_conflict	all	one solo test: read the music-unlock flag / played track id
+colosseum_music.song.quest_unlock	all	one solo test: read the music-unlock flag / played track id
+colosseum_music.jingle.id	all	one solo test: read the music-unlock flag / played track id
+colosseum_music.jingle.trigger_sol_death	all	one solo test: read the music-unlock flag / played track id
+colosseum_music.jingle.duration	all	one solo test: read the music-unlock flag / played track id
+colosseum_music.jingle.not_other_waves	all	one solo test: read the music-unlock flag / played track id
+colosseum_music.jingle.tick_after_death	all	one solo test: walk the tiles, read the played track; open row

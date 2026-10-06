@@ -1,6 +1,6 @@
 # Verbs: shops and held items (section 3)
 
-`t.shop.*` and the backpack/worn-item verbs of `t.player`. The shop's purpose (buy only what the
+`t.shop.*`, `t.bank.*` and the backpack/worn-item verbs of `t.player`. The shop's purpose (buy only what the
 quest's own script makes you buy) is in `gaps-combat.md`.
 
 ## `shop` (`ui.lua`)
@@ -75,6 +75,47 @@ slot numbers three buys later.
 (`close_modal`), which runs `[if_close,shopmain]` server-side. Idempotent. Takes no argument, so
 record it with `t.check`/`t.step` -- `t.exec` grades a zero-argument call `bad verb/target`.
 
+## `bank` (`ui.lua`, matthew-mbp-m4-b56-seam2)
+
+The bank driven the way a player drives it. When to bank and the Dream Mentor recipe:
+`gaps-combat.md`, "Bank the fight food". The verbs reach v3 with batch matthew-mbp-m4-b56's PR.
+
+### `t.bank.open(booth_or_banker, op=2, opts)`
+
+`-> ok no_row not_visible timeout` / click_minimenu's own results. Presses the loc's or npc's
+numbered Bank op through `click_minimenu` (op 2 on 60 of the 78 booth records, op 1 on chests,
+`bank_booths.rs2`) and returns once `bankmain` AND the bank container have landed (two server
+messages). `opts.at = {x, z[, level]}` names the booth copy, as `click_loc` does; `opts.kind =
+"loc"|"npc"` when a symbol is both. A bank already on screen is closed first. The `ok` detail names
+the bank's used slots and the backpack's free slots.
+
+### `t.bank.withdraw(item, n|"all")` and `t.bank.deposit(item, n|"all")`
+
+`-> ok closed not_found refused no_row`. Withdraw presses `bankmain:items` cell <bank slot> with the
+fixed rungs (op 4 Withdraw-10, op 3 Withdraw-5, op 2 Withdraw-1, op 7 Withdraw-All; `bank.rs2`);
+deposit presses `bankside:items` cell <backpack slot> (op 5 Deposit-10, op 4 Deposit-5, op 3
+Deposit-1, op 8 Deposit-All; `bank_deposit.rs2`). `ok` only when the backpack AND the bank both moved
+by `n`, read back from the client's containers: `bank.withdraw: shark backpack 0 -> 12 (+12), bank 30
+-> 18 (-12), 12 asked; backpack free slots 28 -> 16 [Withdraw-10@8, ...]` (conformance row
+`bank.withdraw`). `closed` = no bank on
+screen; `not_found` = the source holds none and nothing was pressed; `refused` = the server moved
+less than asked, led by `backpack full --` and ending in the server's own sentence (`You don't have
+enough inventory space.`). The bank verbs assume every item is in the main tab; bank tabs are
+unproven.
+
+### `t.bank.count(item)` and `t.bank.close()`
+
+`count` -> `(ok, n)` from the OPEN bank, `closed` otherwise (the client keeps a closed bank's last
+copy, which is not a reading). `close` -> `ok timeout`, the ESC path, idempotent; it takes no
+argument, so record it with `t.check(name, t.bank.close())`.
+
+### `::bankgive <obj> <n>` -- SETUP only
+
+Stocks the bank (`general/scripts/misc/cheat_bank.rs2`, stored uncerted; replies `Banked N x <name>;
+the bank holds M.`). `t.cheat("::bankgive ...")` after `t.quest.bind` answers `refused ... SETUP
+cheat` and sends nothing (core.lua `QD.cheat`). `fresh_lumbridge.ini`'s bank already holds ten
+slots.
+
 ## Held-item verbs (section 3, `world` / `drive` / `player`)
 
 ### `t.player.inv_op(item, op=1)`
@@ -138,15 +179,26 @@ at all. `ok` means the worn count fell AND the backpack count rose, both, and th
 alternates worn and carried state -- Mourning's End Part I's paint device must be WORN to fire and
 CARRIED to reload.
 
+#### After `t.player.unequip`, a `-held` shot shows the Equipment tab
+
+`unequip` leaves the side panel on the worn tab, and nothing in the following rows switches it
+back. Desert Treasure (b61) unequipped its rune kit at the Draynor bank (rows 239-242), and every
+shot from there to the Entrana blessing (439-475) showed the empty Equipment tab: the rows
+`talkToRuantun-pot`, `talkToRuantun-bar` and `blessPot-blessed` were right by their counts, but
+their shots could not show the pot or the bar. Call `t.ui.tab("inventory")` after the last
+`unequip` so the next item row's shot shows the backpack it claims.
+
 ### `t.player.drop(item)` -- also `t.player.emote`
 
 `t.player.drop(item)` -> `ok` `timeout`. It is graded on the BACKPACK falling, with at least one of
 the item on the player's own tile; a ground count rising is not required. The detail is
 `drop <item>: backpack B -> A, ground on the player's tile G0 -> G1 (N row(s))`. A second identical
-non-stackable copy dropped on its twin's tile is `ok`, and its G1 equals G0. The client keeps one
-ground row per (tile, obj id) and overwrites its count, so the total cannot rise (seam-facts: Seam
-pass matthew-mbp-m4-b52-seam1 (a)). Do not plan to pick the second of two identical drops back up
-from one tile: the client shows none after the first pick (same entry, OPEN).
+non-stackable copy dropped on its twin's tile is `ok`, and since seam pass matthew-mbp-m4-b53-seam1
+its ground half rises too: `ground on the player's tile 1 -> 2 (2 row(s))`. The client keeps a LIST
+of ground rows per tile, one per OBJ_ADD, so two identical drops are two rows with a Take each, and
+picking one up leaves the other drawn and takeable (seam-facts: Seam pass matthew-mbp-m4-b53-seam1
+(a); conformance `seam.two_copies_one_tile_both_takeable`). Before b53-seam1 the client merged them
+into one row and the second copy vanished after the first pick (b52-seam1 (a), FIXED).
 
 #### A rake fills the backpack with weeds; dropping a second weeds copy FAILs (FIXED b52-seam1)
 
@@ -205,6 +257,32 @@ yourself (Sheep Herder's pen feed loop).
 
 Each retry presses from wherever that walk actually landed, not the approach tile it was aimed at,
 and a second candidate whose walk ends on a tile already tried is not pressed again.
+
+#### `use_on` walks off the tile the content checks: Betty's doorway (matthew-mbp-m4-b55)
+
+*Origin: author batch matthew-mbp-m4-b55 (handinthesand, accepted).*
+
+The Hand in the Sand's lens is used on Betty's counter from her doorway, 3016,3259. The counter is
+three tiles away. `[aplocu,handsand_counter_multiloc]` accepts the press from up to four tiles
+(`p_aprange(4)`, `handsand_betty.rs2:243`), and `handsand_counter_focus` then requires
+`coord = ^handsand_doorway_coord`. Otherwise it answers the mesbox "You need to stand in Betty's
+open doorway to focus the light on the vial." `t.player.use_on` walks into `walk_near` range 2 of
+the loc before it presses, so it leaves the doorway and gets that mesbox. `handinthesand.lua`
+(`useLensOnCounter`) does it like this. It runs `goto_tile 3016,3259`, then
+`t.player._arm_held(item, cell)`, then `t.drive.click_minimenu(loc, "select")`. The aplocu's own
+range holds the tile, and a `doorway.tile` row records where the player stood. The two helpers
+are private. Asking `use_on` to press without walking is a driver seam.
+
+#### `use_on` answers `timeout settle_after_click` when its walk outlasts the settle (b63-seam1)
+
+`use_on` waits a fixed settle for the server's answer and does not follow a long walk the way
+`click_loc` does ("the walk outlasted the 20-tick settle; followed it N more tick(s)"). From
+Haunted Mine's chisel crate (2801,4501) the walk to the lift valve is about 50 ticks: the use timed
+out with no chat line, and the next click (the guarded Turn) replaced the still-pending use. Walk
+beside the target first (`t.player.walk_to(2807, 4496, 60)`), then
+`t.exec("useKeyOnValve", t.player.use_on, ...)` and read its effect on the next row (the varbit,
+the line, the key kept). helper_coverage now refuses a use step with no effect row (coverage-and-gate:
+A goto through the only gate ... a use that did nothing).
 
 ### `t.player.use_item_on_item(item_a, item_b)`
 

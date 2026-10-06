@@ -1,0 +1,177 @@
+{{Update|date=9 February 2022|link=https://secure.runescape.com/m=news/land-of-the-goblins?oldschool=1|category=game}}
+[[File:Land of the Goblins newspost.png|right]]
+{{Clear}}
+
+<center>'''11:00 GMT:''' To allow our teams to perform essential maintenance, worlds will be offline for approximately 30 minutes during this week's game update at 11:30 GMT. World 330 has also been taken offline from 09:00 GMT and will come back up once the maintenance is complete.
+
+Apologies for any inconvenience caused, we'll be sure to update this post once the work is complete.
+
+'''12:00 GMT:''' The game worlds are coming back online.</center>
+
+==Issues and Hotfixes==
+{|class=wikitable style="text-align:center; width:665px;"
+!Last Updated
+!Issues Raised
+!Current Progress
+!Status
+|-
+|13:15 GMT - February 9th
+|We implemented a change prompting players to set their date of birth to comply with the ICO Children's Code in the UK. However, accounts which have not set their date of birth reported experiencing issues when logging in through permitted third-party logins such as Steam. This is because they cannot set their date of birth when trying to log in.
+|'''UPDATE - (13:15 GMT)''': We've temporarily removed this change whilst we investigate this further. Once we're confident the issue is resolved it will be added with a future game update.
+|'''Resolved'''
+|-
+|15:15 GMT - February 9th
+|Some Combat Achievement tasks for TzHaar-Ket-Rak's Challenges are not completing correctly.
+|'''(15:25 GMT)''' A hotfix to resolve this issue has been deployed.
+|'''HOTFIXED'''
+|}
+
+<center>''This week you’ll get the chance to journey to the Land of the Goblins, complete a new miniquest, and face six Jads… infinitely!''</center>
+
+==Land of the Goblins and Hopespear’s Will Miniquest==
+[[File:Land of the Goblins (1).png|600px|centre]]
+
+===Land of the Goblins===
+Land of the Goblins is an Experienced-level quest that advances the much-loved Dorgeshuun storyline that started all the way back in 2005.
+
+Although this quest launched after the Old School backup was made, a mostly-complete version of it still existed in the files. We’ve finished it off, given it a bit of polish, and we’re satisfied that it bears all the hallmarks of a modern Old School quest!
+
+And the best part? This new quest will finally allow players to wear the iconic Goblin Mail in-game!
+
+[[File:Land of the Goblins (2).png|600px|centre]]
+
+When we last left Zanik she had only just begun to realise her true destiny. Now, it’s time to fulfil it. Get ready for adventure in the Land of the Goblins!
+
+{{Collapsed section|18|Requirements and Rewards - Click here to expand...}}
+
+This is an Experienced-level quest with the following requirements:
+
+* Completion of ''Fishing Contest'' and ''Another Slice of H.A.M''.
+* 38 Agility
+* 40 Fishing
+* 45 Thieving
+* 48 Herblore
+
+Upon completion you'll be rewarded with:
+* 2 Quest Points
+* 8,000 XP in Agility, Fishing, Thieving & Herblore
+{{Collapsed section end}}
+
+===Hopespear’s Will===
+This miniquest was originally launched alongside Land of the Goblins. To complete it, you must help an old goblin spirit return the remains of his successors to the lost goblin homeland.
+
+{{Collapsed section|18|Requirements and Rewards - Click here to expand...}}
+
+* Completion of ''Land of the Goblins'', ''Desert Treasure'' and ''Fairytale II - Cure a Queen''
+* 50 Prayer
+* 90+ Combat Level is recommended
+
+Upon completion you'll be rewarded with:
+* 38,750 Prayer XP
+{{Collapsed section end}}
+
+===TzHaar-Ket-Rak's Final Challenge===
+[[File:Land of the Goblins (3).png|600px|centre]]
+
+So you’ve faced six Jads. Big deal! Now it’s time for you to face a real challenge: infinite six Jads!
+
+In TzHaar-Ket-Rak’s Final Challenge, you’ll be faced with six JalTok-Jads. Each time one dies, another one will take its place. There’s no downtime between each spawn as the Jads are all on the same attack cycle, meaning they can continue going round in circles and attacking continuously.
+
+To unlock TzHaar-Ket-Rak’s Final Challenge, speak to TzHaar-Ket-Rak in Mor Ul Rek after finishing the previous six challenges. You’ll need a Fire Cape to reach the Inner City, where they live.
+
+The Scoreboard next to TzHaar-Ket-Rak will track how many JalTok-Jads you’ve killed, both as a personal and global best. It will also display your personal and global deaths. Please note that your stats will only appear after you’ve completed the Final Challenge – until then, that section will be hidden.
+
+The Final Challenge awards TokKul based on how many JalTok-Jads you manage to defeat. Should you wish to leave the encounter, you may do so the exact same way you leave the other challenges.
+
+Good luck! You’ll need it.
+
+==Leagues III: Shattered Relics==
+[[File:Land of the Goblins (4).png|600px|centre]]
+
+In case you missed it in last week’s newspost, we’re delighted to announce that Leagues III: Shattered Relics has now been extended until March 16th!
+
+This week we’ve made the following fixes and improvements:
+* Added an ‘unequip all’ button to the Fragments menu, to make unequipping Fragments easier.
+* Fixed an issue where My Arm’s Farming patch was inaccessible to some players with a certain combination of unlocks.
+* Fixed an issue where the Ring of Charos was inaccessible even if a player had completed Creature of Fenkenstrain.
+* Blocked the ability to purchase a respawn point at Ferox Enclave or Edgeville in League worlds. This purchase provided no benefit, as the Leagues death system overrides respawn points regardless. These purchases can be refunded by speaking to the NPC that was used to make the initial purchase.
+* Fixed an issue where Barbarian Assault players were unable to level up roles to Level 5 at the end of the wave and could not complete the relevant tasks.
+* It is no longer possible to sneak into the Vorkath arena without having it unlocked.
+* Slayer Masters’ shops now restock Fishing Explosives faster on League worlds.
+* Fixed a typo in the Sage’s dialogue regarding the Dwarven Multicannon reward.
+* The Bank Chests at Trouble Brewing and Blast Furnace now count as Banks for all League purposes.
+
+Lastly, we’re excited to share the cost of this League’s rewards:
+
+{| class="wikitable" style="text-align:center;margin:0 auto;"
+!Rewards
+!Cost (League Points)
+|-
+|League Banner
+|500
+|-
+|Shattered Relics Home Teleport Scroll
+|1,000
+|-
+|Weapon Variety Kit (1 piece)
+|1,500
+|-
+|Void Ornament Kit (6 pieces)
+|6,500
+|-
+|Mystic Ornament Kit (5 pieces)
+|1,000
+|-
+|Dwarven Multi-Cannon Kit (4 pieces)
+|4,500
+|-
+|Tier 1 Relic Hunter Outfit
+|1,000
+|-
+|Tier 2 Relic Hunter Outfit
+|3,000
+|-
+|Tier 3 Relic Hunter Outfit
+|15,000
+|}
+
+We wanted to do something a little bit different with this Leagues and reward some of the biggest grinds!
+
+Alongside the amazing rewards you'll be able to purchase yourselves in-game, we're going to send some exclusive Leagues III medals for some of the biggest achievements in Shattered Relics. We'll have more information to share soon about how you could snag a medal for yourself, but for now, here's a little teaser of what they look like:
+
+[[File:Land of the Goblins (5).jpg|600px|centre|thumb|''Designed by Angels Scapes'']]
+
+==Wilderness Changes==
+* Added a free toggleable option in the Slayer Reward Shop to let players opt out of the new Wilderness tasks.
+* Increased the weighting of the new Wilderness Slayer tasks from 3 to 5.
+* Fixed an issue where Blighted Bind Sacks were only dropping between 1-5 items when they should have been dropping 1-10.
+* Wilderness Slayer monsters (Jellies, Nechryaels, Dust Devils and Abyssal Demons) now have a longer max range while retaining the same wander range, so that they don’t run away when you Barrage them.
+* When killing Superior creatures within the Wilderness Slayer cave, they will now always drop a Larran’s Key, an Ensouled Head, and Wilderness supplies alongside their standard loot.
+
+==Other Changes==
+* To comply with the ICO Children's Code in the UK (where Jagex is based) a small number of players may be asked to submit their date of birth when they next log in. Most players will not receive this prompt, but those that do will only need to enter their date of birth once and it should only take a few seconds to complete.
+* The recommended combat level for a given quest can now be seen in the Quest Journal. When starting a quest you will be warned if your combat level is lower than is recommended but will still be able to proceed.
+* Green Dragons in the Wilderness Slayer Cave can now drop the additional loot that was added to the neighbouring mods last week. Justice at last!
+* The Crystal of Memories no longer mentions the Sigil of Last Recall when checking it.
+* The Karamja Elite Diary task for making Nature Runes now checks whether you make 56 or more Nature Runes, rather than exactly 56 Nature Runes – and the same change has been made to the Fremennik Elite Diary task to craft 56 Astral Runes.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+----
+
+That's it for this week's game update newspost! Make sure to tune into this Thursday's Livestream where we'll be talking Land of the Goblins with Mods Ed, Errol, Kieren, Tide and Sarnie!
+
+Discuss this update on our [http://services.runescape.com/m=forum/ official forums], on the [https://www.reddit.com/r/2007scape/comments/soax7r/land_of_the_goblins_weekly_game_update_february/?utm_source=share&utm_medium=web2x&context=3 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the#gameupdatechannel. For reference on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Con, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, KT, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team.''

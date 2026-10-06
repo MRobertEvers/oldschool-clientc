@@ -1,0 +1,84 @@
+{{Update|date=3 March 2021|link=https://secure.runescape.com/m=news/tzhaar-ket-raks-challenges?oldschool=1|category=game}}
+[[File:TzHaar-Ket-Rak's Challenges newspost.png|right]]
+{{clear}}
+
+{{ToC}}
+
+==TzHaar-Ket-Rak's Challenges==
+So you think you're tough stuff, eh? Well, you may have defeated three JalTok-Jads, but can you defeat ''six''?
+
+[[File:TzHaar-Ket-Rak's Challenges (1).png|centre|600px]]
+
+
+Prove your worth with a set of new PvM scraps to test the very best fighters! These fearsome challenges are set by TzHaar-Ket-Rak, who can be found in eastern Mor Ul Rek, home of the mighty TzHaar. To access this part of Mor Ul Rek, players are required to have completed the Fight Caves.
+
+[[File:TzHaar-Ket-Rak's Challenges (2).png|thumb|centre|600px|''TzHaar-Ket-Rak waits for you to the east.'']]
+
+
+[[File:TzHaar-Ket-Rak's Challenges (3).png|thumb|centre|600px|''The location of TzHaar-Ket-Rak.'']]
+
+
+For each challenge, the player must face a steadily increasing number of JalTok-Jads, a stronger version of the iconic TzTok-Jad. For the first challenge you'll only face one, which then unlocks the next level - until finally you must defeat six of 'em! Each challenge is on the clock and a nearby scoreboard will show your best times. In order to unlock challenges 3-6, players must have completed the Inferno.
+
+Each time you complete a challenge you'll be rewarded with Tokkul, the TzHaar currency. Completion of all six will unlock a JalTok-Jad transmogrify option for the TzTok-Jad pet (we heard your requests)! Most importantly, you can be comfortable in the knowledge that you are indeed the best of the best...
+
+==Six Jads Competition==
+To kick off the release of the latest Karamjan Volcano challenges, we're throwing in some extra thrills with two competitions for fantastic prizes! Both start today and run until March 17th 23:59 GMT.
+
+===Fastest Times===
+The three fastest times of the Six Jad Challenge will receive a year's membership and a King Black Dragon building set!
+
+===Most Unique Kill===
+Submit your most creative set-ups for battling the six creatures - the more unusual, the better! Submit a screenshot/video of you successfully defeating the Six Jads with your set-up (please include your inventory and RSN). Tag your entry with the hashtag '''#SixJadChallenge''' on any relevant social media platform (Facebook, Twitter, Instagram, Reddit or the Official OSRS Discord) or by submitting your entry to [mailto:oldschoolcommunity@jagex.com oldschoolcommunity@jagex.com] with the subject line: '''Six Jad Challlenge'''. The winner will be selected by judges from the Old School team and receives six months' membership!
+
+Jump on it now, because every individual that completes the challenge within the next two weeks will also be entered into a raffle to win three months' membership!
+
+View all the Ts&Cs on [https://osrs.game/six-jad-competition our forum post].
+
+Good luck!
+
+==Soul Wars==
+Most Soul Wars-specific items no longer have a Destroy confirmation box and can now be quickly shift-dropped! This includes bandages, potions and barricades, but not bones and soul fragments.
+
+Soul Wars Clan mode will now award more Zeal points - the maximum amount of points earned has been increased from 20 to 30.
+
+The Soul Wars scoreboard will now count the games that the player did not finish.
+
+==Art Competition==
+Calling all creative types: ever wanted to own an item you created within Old School? Like, in real life? Well now you can! Get your paintbrushes ready and design a cosmetic hat for a chance to win 12 months' membership and a King Black Dragon building set!
+
+[[File:TzHaar-Ket-Rak's Challenges (4).png|centre|600px]]
+
+===RULES:===
+* You must use the colour of a Banana in your design.
+* Submit your artwork to any relevant social media platform (Facebook, Twitter, Instagram, Reddit or the Official OSRS Discord) or by submitting your entry to [mailto:oldschoolcommunity@jagex.com oldschoolcommunity@jagex.com] with the subject line '''Art Competition - Design A Hat'''.
+* Use the hashtag #OSRSDesignAHat and tag our social channel.
+
+You have until March 22nd 00:00 GMT (UK time) to submit your designs. Find out more, including all the Ts&Cs, by visiting [https://osrs.game/designcompetition our forum post].
+
+==PvP World Rota==
+The PvP world rota has moved to Period A:
+* The host for the High Risk PvP world will be W343 (Germany)
+* The host for the Standard PvP world will be W324 (US West)
+* The host for the free-to-play PvP world, W117 (US East)
+* The members-only LMS world will be W333 (UK)
+* The free-to-play LMS world will be W469 (US East)
+
+We also want your feedback on the current PvP World rota, and we've made a short survey - if you'd like to take part, just [https://osrs.game/pvp-world-rota-survey click here]!
+
+==In Other News==
+* We've made some behind the scenes improvement to the quest system. This shouldn't have any visible impact, but let us know if you encounter any issues.
+* Iron and non-Iron characters now have separate shops with Martin Thwait inside the Rogues' Den. In addition, the de-stock rate has been altered slightly for Iron players.
+* The Dawnbringer should now drop to the floor if a player uses Verzik's Teleport Crystal to exit the raid.
+* The quota of daily party formations in the Theatre of Blood has increased.
+* Loot broadcasts for pet drops will now appear correctly in the GWD boss rooms.
+* The people of Mort'ton once again permit players to light fires around their town.
+* All max capes now count as warm items at the Wintertodt, like the Firemaking skillcape does. Previously only the infernal max cape and fire max cape worked this way!
+
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums.ws?380,381,702,66206030 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+----
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gayns, Gecko, Gee, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

@@ -1,0 +1,139 @@
+{{Update|date=1 June 2017|link=http://services.runescape.com/m=news/the-inferno?oldschool=1|category=game}}
+[[File:The Inferno newspost.png|right]]
+{{clear}}
+
+
+[[File:The Inferno (1).webm|center|loop|autoplay]]
+
+<center>''An ancient, unfamiliar presence looms beneath the city of Mor Ul Rek. As each day passes, its intensity grows, and its grip on the TzHaar race strengthens.''</center>
+<br/>
+
+<center>''JalYt, your help is needed.''</center>
+
+
+
+{{Horizontal Line}}
+
+{{Headline|25|Mor Ul Rek}}
+
+The TzHaar race have used their vast array of knowledge to create a fruitful city for its slightly-molten inhabitants. However, only the most trusted of outsiders may enter.
+
+<center>'''If you wish to enter the city of Mor Ul Rek, present your Fire Cape to a city guard.''' </center>
+
+<center>'''You will not lose your Fire Cape while doing this.'''</center>
+
+
+[[File:The Inferno (2).png|center]]
+
+
+'''Lava Fishing'''
+
+If you're properly equipped, within the city of Mor Ul Rek you can fish from the lively lava rivers. Doing so requires an '''oily fishing rod''', '''ice gloves''', '''fishing bait''' and '''level 80 Fishing'''.
+
+
+[[File:The Inferno (3).png|center]]
+
+
+'''Thieving'''
+
+A careless stall owner found in Mor Ul Rek foolishly leaves their stock unguarded on a regular basis. Someone needs to show them the error of their ways.
+
+If you have '''level 75 Thieving''', you can steal from '''gem stalls'''. With '''level 82 Thieving''', you can steal from '''ore stalls'''.
+
+At '''level 90 Thieving''', you're able to pickpocket the '''TzHaar-Hur''' found wandering the city.
+
+
+[[File:The Inferno (4).png|center]]
+
+
+'''Obsidian Armour'''
+
+A newly accessible shop found within Mor Ul Rek stocks '''Obsidian Armour'''. Each piece of this set requires level 60 Defence to equip, and provides some great offensive melee bonuses.
+
+
+[[File:The Inferno (5).png|center]]
+
+
+In addition to the stats shown above, when the full Obsidian plate armour set is equipped (helmet, platebody, platelegs), Obsidian weaponry is given a +10% boost in melee accuracy and melee strength!
+
+In addition to being sold in a shop, Obsidian armour can also be received as a drop from the level 221 TzHaar-Ket found around the city.
+
+
+{{Horizontal Line}}
+
+
+{{Headline|25|The Inferno}}
+
+<center>''Mor Ul Rek isn't all sunshine, rainbows and killing the locals for cool, new equipment. At the center of the TzHaar city, the entrance of The Inferno can be found.''</center>
+
+<center>The Inferno is the greatest solo PvM challenge ever to be introduced into Old School RuneScape. Beyond sacrificing a Fire Cape, there are '''no requirements''' to attempt The Inferno.</center>
+
+
+[[File:The Inferno (6).png|center|500px]]
+
+
+<center>Once inside, you'll be faced with wave after wave of powerful monsters. You'll encounter many new kinds of creature, and you will truly be up against the odds.</center>
+
+<center>If you are able to endure the heat and take down TzKal-Zuk, you will earn yourself an '''Infernal Cape'''.</center>
+
+
+[[File:The Inferno (7).png|center]]
+
+
+<center>This cape is the new best-in-slot option for melee capes. But beyond stats, it is a symbol of your immense skill and ability to prevail when facing almost certain death.</center>
+
+
+<center>It is possible to combine the Infernal Cape with a Max Cape to create an Infernal Max Cape - the most prestigious of items in Old School.</center>
+
+
+<center>Few have what it takes to face TzKal-Zuk, and even fewer have what it takes to defeat him.</center>
+
+
+
+<center>'''Head to the center of Mor Ul Rek and dive into The Inferno to prove your skill!'''</center>
+
+
+{{Horizontal Line}}
+
+'''In other news'''
+
+*The world map can now be closed by clicking the Map button again. The Engine team are working on something to let you bind your ESC key to close this kind of interface in the future.
+*If you would find a piece of Rogue equipment, you will now instead find a Rogue's equipment crate allowing you to choose which piece you wish to get.
+*The engine team have further improved click-zones for a number of objects throughout Old School.
+
+'''Bugfixes'''
+
+*Vigroy & Hajedy’s fee calculations no longer malfunction if they see you're carrying lots of money.
+*The Karamja elite diary reward now applies to Vigroy & Hajedy’s dialogue options as well as their right-click options.
+*The Barbarian fishing rod now has a Destroy option to make it less likely to be dropped when fishing.
+*Otto's bed now lets you get spare copies of the Barbarian fishing rod without having to drop them on the floor.
+*Some messages in the Thieving chests found within the Chambers of Xeric are now less intrusive.
+*Corrected the location of the Kraken Boss in dialogue with Slayer Masters.
+*Corrected the location of the Thermonuclear Smoke Devil in dialogue with Slayer Masters.
+*Corrected the spelling of Taverley in dialogue with Slayer Masters.
+*Prices in the West Ardougne shop have been adjusted to reflect the Karamja shop.
+*Corrected mention of charge generator to jar generator.
+*Attempting to use a Twisted Bow for Barbarian Firemaking will now display a message to explain you can't.
+*Removed an incorrect space from the Tome of Fire.
+*Removed a double space from the examine text of prayer potions.
+*Added some missing capitalisation to the World Map.
+
+'''The First Three'''
+
+When we say that defeating TzKal-Zuk is no small feat, we mean it. It is such a feat, in fact, that we will be offering prizes to the first three players able to complete The Inferno!
+
+The first player to complete The Inferno will receive an '''IRL Infernal Cape, RuneFest 2017 ticket & travel, and lifetime membership.'''
+
+The second player to complete The Inferno will receive a '''RuneFest 2017 ticket & travel, and lifetime membership.'''
+
+The third player to complete The Inferno will receive a '''RuneFest ticket and lifetime membership.'''
+
+Being eligible is as simple as jumping into The Inferno and giving it a go. If you succeed and are one of the first three, we will contact you via the RuneScape message centre!
+
+'''Watch The Inferno LIVE!'''
+
+If there is one thing the Old School RuneScape community does right, it is livestreaming. Be sure to head over to the [https://www.twitch.tv/directory/game/RuneScape RuneScape section on Twitch.tv] to watch your fellow Old School players take on the greatest PvM challenge in Old School's history!
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,392,65916729 forums].
+
+'''''Mods Archie, Ash, Ed, Ghost, Jed, John C, Kieren, Mat K, Maz, Ronan, Roq, Ry, Stone, Sween, TomH, Weath, West & Wolf'''''<br/>''The Old School Team''

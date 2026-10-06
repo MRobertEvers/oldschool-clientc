@@ -1,0 +1,24 @@
+{{Otheruses|def=no|the mermaid guide|Gloria Kebbit-Monkfish}}
+{{Infobox NPC
+|name = Gloria
+|image = [[File:Gloria.png|110px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|location = [[Fortis Colosseum]]
+|options = Talk-to
+|examine = Keeps an eye on all the worthy contenders.
+|map = {{Map|x=1803|y=9512|r=4|plane=0|mtype=square|mapID=-1}}
+|id = 12809
+|leagueRegion = Varlamore
+}}
+[[File:Gloria chathead.png|left]]
+'''Gloria''' can be found in the [[Fortis Colosseum]]. She will inform the player about [[glory]] and direct them to the [[colosseum scoreboard]] for further details.
+
+==Treasure Trails==
+* {{CrypticNPC|Gloria|medium|Are you somewhat entertained?}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+{{Fortis Colosseum}}

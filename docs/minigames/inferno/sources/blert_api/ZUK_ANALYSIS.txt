@@ -1,0 +1,44 @@
+runs with wave 69 streams: 13
+shield spawn (x,y,tick)                              (2270, 5360, 0):13
+shield first move tick                               1:13
+shield first move dx                                 -1:7 1:6
+shield step dx per consecutive tick                  -1:2566 0:806 1:2668
+shield min x / max x                                 2257:13 / 2283:13
+shield dwell at extreme (x, ticks in a row)          (2257, 5):101 (2283, 1):1 (2283, 2):3 (2283, 4):1 (2283, 5):99
+shield ticks between arrivals at the max             60:91
+shield x at zuk attack ticks                         2257:88 2258:12 2259:13 2260:9 2261:9 2262:8 2263:75 2264:7 2265:11 2266:13 2267:71 2268:9 2269:8 2270:11 2271:7 2272:11 2273:77 2274:8 2275:10 2276:8 2277:73 2278:9 2279:11 2280:13 2281:8 2282:10 2283:90
+player.x - shield.x at the zuk attack tick           -3:2 -2:13 -1:206 0:70 1:86 2:88 3:206 4:8
+player.x - shield.x one tick before                  -3:3 -2:74 -1:65 0:154 1:74 2:167 3:72 4:70
+shield hp min per run                                [301, 378, 380, 396, 405, 409, 427, 464, 475, 475, 506, 548, 600]
+shield death tick                                    [252]
+zuk spawn (x,y,tick)                                 (2268, 5364, 0):13
+zuk hp at spawn                                      1200:13
+zuk first attack tick                                [13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13]
+zuk attacks per run                                  [27, 27, 31, 39, 52, 57, 58, 58, 60, 61, 67, 70, 72]
+zuk gap all                                          7:283 8:1 9:1 10:381
+zuk gap hp>240                                       7:202 10:378
+zuk gap hp<=240                                      7:81 8:1 9:1 10:3
+zuk first tick hp<=600                               [66, 88, 105, 115, 121, 132, 133, 144, 147, 156, 162, 187, 208]
+first tick hp<=480                                   [101, 120, 121, 157, 162, 191, 195, 207, 213, 219, 226, 237, 262]
+first tick hp<=240                                   [177, 198, 208, 228, 313, 327, 335, 338, 342, 369, 378, 380, 431]
+zuk despawn tick                                     [252]
+set spawns per run (npc count)                       0:1 2:12
+first set tick                                       [72, 72, 72, 72, 72, 72, 72, 72, 72, 72, 72, 72]
+gap between set groups                               
+set npc spawn offset in group (id, +ticks)           (7702, 0):12 (7703, 0):12
+zuk ranger tiles                                     (2275, 5351):12
+zuk mager tiles                                      (2266, 5351):12
+jad per run                                          1:13
+jad spawn tick                                       [101, 120, 121, 157, 162, 191, 195, 207, 213, 219, 226, 237, 262]
+jad spawn tile                                       (2270, 5347):13
+jad hp at spawn                                      350:13
+jad first attack - spawn                             [6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8]
+jad attack gaps                                      8:141
+jad healers per run                                  0:1 3:12
+mejjak per run                                       4:13
+mejjak spawn ticks                                   [177, 177, 177, 177, 198, 198, 198, 198, 208, 208, 208, 208, 228, 228, 228, 228, 313, 313, 313, 313, 327, 327, 327, 327, 338, 338, 338, 338, 341, 341, 341, 341, 342, 342, 342, 342, 369, 369, 369, 369, 378, 378, 378, 378, 380, 380, 380, 380, 437, 437, 437, 437]
+mejjak tiles                                         (2262, 5363):13 (2266, 5363):13 (2276, 5363):13 (2280, 5363):13
+mejjak group span                                    0:13
+zuk hp at the mejjak spawn tick                      166:4 167:4 188:4 196:4 201:4 206:4 215:4 217:4 218:4 219:4 222:4 227:4 228:4
+zuk heal per tick (positive hp deltas)               15:2 16:4 17:1 18:4 19:3 21:2 22:3 23:2 24:4 30:2 32:1 33:1 34:2 35:1 37:4 38:3 39:6 40:2 41:3 42:3 43:1 44:3 47:1 48:1 50:1 51:1 53:1 54:1 56:3 60:1 61:1 62:1 63:2 64:1 65:1 73:1 75:3 76:1 78:1 80:1 81:1 82:2 83:1 84:1
+ticks between heals                                  3:72

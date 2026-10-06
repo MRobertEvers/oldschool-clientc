@@ -48,7 +48,14 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
-        "::currentaffairs", -- debugproc: resets the quest varp, teleports to Arhein
+        "::currentaffairs", -- debugproc: resets the quest varp (and teleports to Arhein, undone below)
+        -- Door rule for the setup placement (owner 2026-10-05; b64-seam1 charges the net placement):
+        -- ::currentaffairs' own p_teleport lands at Arhein 2803,3430, north of the Taverley members'
+        -- gate membergater 2933,3320 -- the only walk from the Lumbridge fixture goes through it (reach.py
+        -- 3206,3233 -> 2803,3430: UNREACHABLE at 30, NEEDS-DOOR via membergater@2933,3320 at 80/160). So the net placement is the open ground just
+        -- SOUTH of that gate (reach.py 3206,3233 -> 2933,3318: REACH closed-doors len=388 at 30/80/160),
+        -- and the run crosses the gate by its verb before walking on to Catherby.
+        "::goto 2933 3318 0",
         "::give coins 50", -- Harry's mayoral-fishbowl-and-net purchase, a real currency cost
         "::setlevel sailing 22",
         "::setlevel fishing 10",
@@ -85,6 +92,37 @@ return {
             points = 1,
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
+
+        local function tile_text(r, tt)
+            return r == "ok" and (tt.x .. "," .. tt.z .. "," .. tt.level) or tostring(r)
+        end
+
+        -- Walk to a tile and check the player stands within 1 of it (walk_to is hollow on success,
+        -- so the row is graded on the tile read back).
+        local function walk_check(name, x, z, ticks)
+            t.player.walk_to(x, z, ticks or 30)
+            local r, tt = t.world.tile()
+            t.check(name, r == "ok" and tt.level == 0 and math.abs(tt.x - x) <= 1 and math.abs(tt.z - z) <= 1,
+                "walked to " .. x .. "," .. z .. ",0 -> " .. tile_text(r, tt))
+        end
+
+        -- The Catherby Council Office (Councillor Catherine, currentaffairs.spawn:25 2825,3454) is a
+        -- walled room x 2823-2827 z 3448-3454 whose only door, poordoor 2828,3450,0 (maps/m44_53.jl2,
+        -- rot 0: the west edge of 2828,3450), opens onto the street at 2828..2829,3450. Every visit
+        -- goes to the street tile 2829,3450 and walks in through that door, and out the same way.
+        local function office_in(prefix)
+            t.exec(prefix, t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = { 2828, 3450, 0 }, near = { 2828, 3450 }, far = { 2826, 3450 },
+                far_ok = function(tt) return tt.x <= 2827 and tt.x >= 2823 and tt.z >= 3448 and tt.z <= 3454 end,
+                far_desc = "inside the council office, x 2823-2827 z 3448-3454" })
+        end
+        local function office_out(prefix)
+            t.exec(prefix, t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = { 2828, 3450, 0 }, near = { 2827, 3450 }, far = { 2829, 3450 },
+                far_ok = function(tt) return tt.x >= 2828 end,
+                far_desc = "on the street east of the office door, x >= 2828" })
+        end
+
         t.ticks(3) -- the ::currentaffairs debug reset's effect is not client-side yet
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
@@ -94,6 +132,13 @@ return {
         -- "What's with the duck?" (^ca_arhein_start, :453). Levels/
         -- Pandemonium are already met (setup), so this is the meets-
         -- requirements=true / Yes branch straight through to ^ca_councillor. ----
+        -- The setup stands the player on open ground south of the Taverley members' gate (see the
+        -- setup note). The walk-through gate membergater 2933,3320 is pressed (gates.rs2
+        -- [label,member_fencegate_try]), graded on the tiles; then the open overland walk to Arhein
+        -- (reach.py 2933,3322 -> 2803,3430: REACH closed-doors len=450 at margins 80 and 160).
+        t.exec("startQuest.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+            near = { 2933, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2933) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320", far = { 2933, 3322 } })
         t.exec("goto-startQuest", t.player.goto_tile, 2803, 3430, 0) -- arhein.spawn (m43_53.spawn)
         t.exec("startQuest", t.player.talk_to, "arhein", 1)
         t.exec("startQuest-dialog", t.chat.play, {
@@ -113,7 +158,9 @@ return {
 
         -- ---- Councillor Catherine: "Red Tape" verbatim, ending with form
         -- cr-4p handed over (ca_councillor_first, currentaffairs.rs2:641). ----
-        t.exec("goto-talkToCouncillor", t.player.goto_tile, 2825, 3454, 0) -- currentaffairs.spawn row
+        -- Overland from Arhein's dock to the street outside the council office door, then in on foot.
+        t.exec("goto-talkToCouncillor", t.player.goto_tile, 2829, 3450, 0)
+        office_in("officeIn1")
         t.exec("talkToCouncillor", t.player.talk_to, "current_affairs_councillor", 1)
         t.exec("talkToCouncillor-dialog", t.chat.play, {
             "player:Hello there. Are you Councillor Catherine?",
@@ -143,7 +190,7 @@ return {
 
         -- ---- Charcoal from the cabinet ([oploc1,current_affairs_cabinet],
         -- currentaffairs.rs2:792) ----
-        t.exec("goto-cabinet", t.player.goto_tile, 2827, 3453, 0)
+        -- The cabinet (2827,3453) is in the same office: click_loc walks to it, no goto.
         t.exec("getCharcoal", t.player.click_loc, "current_affairs_cabinet", 1)
         -- A left-open objbox is a suspended [proc,objbox_scaled]; calling
         -- ~objbox again before this one is dismissed makes the engine drop
@@ -191,7 +238,7 @@ return {
         -- second click, straight through to Arhein-mayor (ca_councillor_
         -- form -> ca_councillor_form_taken, currentaffairs.rs2:671-727). The
         -- transcript's "Yes, I have it here." line is printed twice. ----
-        t.exec("goto-handInForm", t.player.goto_tile, 2825, 3454, 0)
+        -- Still inside the office (the form was filled at the cabinet): talk_to walks to her.
         t.exec("handInForm", t.player.talk_to, "current_affairs_councillor", 1)
         t.exec("handInForm-dialog", t.chat.play, {
             "player:Hello again.",
@@ -215,6 +262,7 @@ return {
             "npc:Then I wish you a very good day.",
         })
         t.expect("quest.stage.arhein_mayor", t.quest.expect_stage("arhein_mayor"))
+        office_out("officeOut1")
 
         -- ---- Arhein: "Long live the Mayor" verbatim story, sends the
         -- player to Harry (ca_arhein_mayor_story, currentaffairs.rs2:476). ----
@@ -256,7 +304,11 @@ return {
 
         -- ---- Harry: buy the mayoral election kit (ca_harry_talk,
         -- currentaffairs.rs2:878-932). ----
-        t.exec("goto-talkToHarry", t.player.goto_tile, 2834, 3445, 0) -- harry.spawn (m44_53.spawn)
+        -- Harry (m44_53.spawn:12, 2834,3445) keeps the fishing shop, a room with an open doorway
+        -- (no door loc) at 2833,3439-3440 on its south side. goto the street outside that doorway
+        -- and walk in; leave on foot the same way.
+        t.exec("goto-talkToHarry", t.player.goto_tile, 2833, 3437, 0)
+        walk_check("shopIn", 2832, 3444)
         t.exec("talkToHarry", t.player.talk_to, "harry", 1)
         t.exec("talkToHarry-dialog", t.chat.play, {
             "npc:Welcome! If you're looking for fishing equipment, you're in the right place.",
@@ -289,6 +341,13 @@ return {
         local mayor_result, mayor_detail = t.inv.await("current_affairs_mayor_of_catherby", 1, 10)
         t.check("mayor.received", mayor_result == "ok",
             "inv.await(current_affairs_mayor_of_catherby,1,10) -> " .. tostring(mayor_result) .. " " .. tostring(mayor_detail))
+        -- [oploc1,aquarium] (currentaffairs.rs2:968-969): the empty bowl becomes the mayor's, the
+        -- net is kept.
+        local bowl2_result, bowl2_count = t.inv.count("current_affairs_mayoral_fishbowl")
+        local net2_result, net2_count = t.inv.count("tiny_net")
+        t.check("catchMayor.bowlUsed", bowl2_result == "ok" and bowl2_count == 0 and net2_result == "ok" and net2_count == 1,
+            "after the aquarium: mayoral fishbowl=" .. tostring(bowl2_count) .. " (want 0), tiny_net=" .. tostring(net2_count) .. " (want 1)")
+        walk_check("shopOut", 2833, 3437)
 
         -- ---- Show the mayor to ARHEIN FIRST: this is what chains him and
         -- advances the stage to ^ca_show_mayor (ca_arhein_chain_mayor,
@@ -321,7 +380,8 @@ return {
         -- the same first row again matches every one, so
         -- ~ca_audit_all_correct is true on this pass and Catherine's
         -- ^ca_sign / form-7r4-5h hand-over lands in the same conversation. ----
-        t.exec("goto-doAudit", t.player.goto_tile, 2825, 3454, 0)
+        t.exec("goto-doAudit", t.player.goto_tile, 2829, 3450, 0) -- the street outside the office door
+        office_in("officeIn2")
         t.exec("doAudit", t.player.talk_to, "current_affairs_councillor", 1)
         t.exec("doAudit-dialog", t.chat.play, {
             "npc:Welcome to the Catherby Council Office. Your views are important to us. How can I help",
@@ -370,8 +430,10 @@ return {
         t.exec("signForm", t.player.use_item_on_item, "current_affairs_form_2", "current_affairs_mayor_of_catherby")
         t.exec("signForm-box", t.chat.play, { "*" }) -- doubleobjbox: The mayor eagerly signs the form for you...
         local signed_result, signed_detail = t.inv.await("current_affairs_form_2_signed", 1, 10)
-        t.check("form.signed", signed_result == "ok",
-            "inv.await(current_affairs_form_2_signed,1,10) -> " .. tostring(signed_result) .. " " .. tostring(signed_detail))
+        local unsigned_result, unsigned_count = t.inv.count("current_affairs_form_2")
+        t.check("form.signed", signed_result == "ok" and unsigned_result == "ok" and unsigned_count == 0,
+            "inv.await(current_affairs_form_2_signed,1,10) -> " .. tostring(signed_result) .. " " .. tostring(signed_detail)
+                .. "; unsigned form 7r4-5h left in pack: " .. tostring(unsigned_count) .. " (want 0, ca_sign_form inv_del)")
 
         -- ---- Hand the signed form back to Catherine: the by-law is
         -- amended (ca_councillor_sign, currentaffairs.rs2:760-767). ----
@@ -383,6 +445,10 @@ return {
             "npc:The by-law has now been amended. Good day.",
         })
         t.expect("quest.stage.news", t.quest.expect_stage("news"))
+        local signed_gone_result, signed_gone_count = t.inv.count("current_affairs_form_2_signed")
+        t.check("showCatherineForm.taken", signed_gone_result == "ok" and signed_gone_count == 0,
+            "signed form 7r4-5h left in pack after the hand-in: " .. tostring(signed_gone_count) .. " (want 0)")
+        office_out("officeOut2")
 
         -- ---- Tell Arhein the by-law changed, receive the Current duck
         -- (^ca_news branch, currentaffairs.rs2:429-449 -- unchanged by this
@@ -501,21 +567,28 @@ return {
         t.exec("home.leg3", t.sail.sail_to, 2792, 3344, 2, 200)
         t.exec("home.leg4", t.sail.sail_to, 2792, 3380, 2, 300)
         t.exec("home.leg5", t.sail.sail_to, 2793, 3396, 2, 300)
-        -- The berth leg can undershoot by a tile or two (driver steering);
-        -- disembark's own camera-aim + pick reaches the gangplank from
-        -- wherever the hull ends up, so this is a recorded reading, not the
-        -- leg's own proof -- home.disembark below is.
-        local berth_result, berth_detail = t.sail.sail_to(2793, 3407, 1, 200)
-        t.check("home.berth", berth_result == "ok" or berth_result == "timeout",
-            "sail_to(2793,3407,1,200) -> " .. tostring(berth_result) .. " " .. tostring(berth_detail))
+        -- The berth leg can undershoot by a tile or two (driver steering): a
+        -- radius of 2 takes that slack, and the leg must arrive (no accepted
+        -- timeout).
+        t.exec("home.berth", t.sail.sail_to, 2793, 3407, 2, 200)
         t.exec("home.furl", t.sail.sails, false)
         t.ticks(4)
         t.exec("home.disembark", t.sail.disembark, "sailing_gangplank_catherby")
+        local dock_result, dock_tile = t.world.tile()
+        t.check("home.ashore", dock_result == "ok" and dock_tile.level == 0 and math.abs(dock_tile.x - 2797) <= 8 and math.abs(dock_tile.z - 3413) <= 8,
+            "after disembarking at the Catherby gangplank -> " .. tile_text(dock_result, dock_tile) .. " (want level 0 within 8 of the gangplank 2797,3413)")
 
         -- Snapshot skills BEFORE the hand-in that grants Fishing + Sailing XP.
+        -- Fishing was staged at level 10 (1,154 xp) and nothing in the quest
+        -- trains it before the hand-in, so the baseline must read exactly that.
         local snapshot_result, snapshot = t.skill.snapshot()
-        t.check("preCompletion.snapshot", snapshot_result == "ok",
-            "skill.snapshot() -> " .. tostring(snapshot_result))
+        local coupons_before_result, coupons_before = t.inv.count("sawmill_coupon_oak")
+        local fishing_before = type(snapshot) == "table" and snapshot.fishing or nil
+        t.check("preCompletion.snapshot", snapshot_result == "ok" and type(fishing_before) == "table"
+                and fishing_before.base_level == 10 and fishing_before.experience == 1154,
+            "skill.snapshot() -> " .. tostring(snapshot_result) .. "; fishing level "
+                .. tostring(fishing_before and fishing_before.base_level) .. " xp " .. tostring(fishing_before and fishing_before.experience)
+                .. " (want 10 / 1154 before the hand-in)")
 
         -- ---- Tell Arhein, complete the quest. ca_arhein_talk's hello menu
         -- again (quest row now "I've charted the currents!", the chart bit
@@ -545,9 +618,13 @@ return {
         local sailing_gain_result, sailing_gain_detail = t.skill.expect_gain("sailing", 1400, snapshot)
         t.check("reward.sailingXp", sailing_gain_result == "ok",
             "skill.expect_gain(sailing,1400) -> " .. tostring(sailing_gain_result) .. " " .. tostring(sailing_gain_detail))
-        local coupon_result, coupon_detail = t.inv.expect_has("sawmill_coupon_oak", 25)
-        t.check("reward.coupons", coupon_result == "ok",
-            "inv.expect_has(sawmill_coupon_oak,25) -> " .. tostring(coupon_result) .. " " .. tostring(coupon_detail))
+        -- ~ca_quest_complete's inv_add(inv, sawmill_coupon_oak, 25): the literal delta, before -> after.
+        local coupons_after_result, coupons_after = t.inv.count("sawmill_coupon_oak")
+        t.check("reward.coupons", coupons_before_result == "ok" and coupons_after_result == "ok"
+                and type(coupons_before) == "number" and type(coupons_after) == "number"
+                and coupons_after - coupons_before == 25,
+            "sawmill_coupon_oak " .. tostring(coupons_before) .. " -> " .. tostring(coupons_after)
+                .. " (want a delta of exactly 25)")
         local duck_reward_result, duck_reward_detail = t.inv.expect_has("sailing_charting_current_duck", 1)
         t.check("reward.duck", duck_reward_result == "ok",
             "inv.expect_has(sailing_charting_current_duck,1) -> " .. tostring(duck_reward_result) .. " " .. tostring(duck_reward_detail))

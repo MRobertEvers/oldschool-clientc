@@ -1,0 +1,60 @@
+{{Incomplete|Could use a gif of the totem healing a monster}}
+{{Infobox Monster
+|name = Healing totem
+|image = [[File:Healing totem.png|180px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|combat = 
+|size = 1
+|examine = Good for your health.
+|xpbonus = 
+|max hit = 
+|aggressive = 
+|poisonous = 
+|attack style = 
+|attack speed = 
+|hitpoints = 1
+|att = 
+|str = 
+|def = 
+|mage = 
+|range = 
+|attbns = 
+|strbns = 
+|amagic = 
+|mbns = 
+|arange = 
+|rngbns = 
+|dstab = 
+|dslash = 
+|dcrush = 
+|dmagic = 
+|dlight = 
+|dstandard = 
+|dheavy = 
+|poisonresistance = 
+|venomresistance = 
+|id = 12825
+}}
+'''Healing totems''' are NPCs that can appear in the [[Fortis Colosseum]] when the "Totemic" modifier is active. When an enemy is reduced to 50% hitpoints or below, a healing totem will appear near them, and send healing projectiles to the target, healing them for 30% of their health every few ticks. They have 1 Hitpoint and will respawn two minutes after being destroyed. The totem will not heal the enemy if it is destroyed before the healing projectile reaches them. 
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 5 February 2025
+|update = Royal Titans
+|change = Healing totems once again respect the player's attack delay.
+}}
+{{Subject changes
+|date = 10 April 2024
+|update = Undead Pirates, Colosseum Changes & more!
+|change =
+* The healing totem's respawn timer has been increased from 1 minute to 2 minutes.
+* The totem's healing has been reduced from 40% to 30% of the targeted NPC's health.
+}}
+{{Subject changes footer}}
+
+{{Fortis Colosseum}}
+
+[[Category:Monster examine impossible]]

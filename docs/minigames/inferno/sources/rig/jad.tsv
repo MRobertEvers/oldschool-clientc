@@ -1,0 +1,31 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+inferno_jad	7700	1692	seq	7588	jaltokjad_walk	32	3.2 (96 client)	-	walk	bound	forcedpriority=4 priority=None
+inferno_jad	7700	1692	seq	7589	jaltokjad_ready	16	2.2 (65 client)	-	ready	bound	forcedpriority=3 priority=None
+inferno_jad	7700	1692	seq	7590	jaltokjad_attack_melee	24	2.4 (72 client)	-	attack (melee)	rig+name	forcedpriority=9 priority=None
+inferno_jad	7700	1692	seq	7591	jaltokjad_defend	18	1.8 (55 client)	-	defend	rig+name	forcedpriority=4 priority=None
+inferno_jad	7700	1692	seq	7592	jaltokjad_attack_magic	50	5.3 (160 client)	-	attack (magic)	rig+name	forcedpriority=10 priority=2
+inferno_jad	7700	1692	seq	7593	jaltokjad_attack_ranged	18	1.8 (55 client)	-	attack (ranged)	rig+name	forcedpriority=10 priority=2
+inferno_jad	7700	1692	seq	7594	jaltokjad_death	51	5.1 (154 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_jad	7700	1692	seq	8857	jaltokjad_walk_pet	32	1.1 (32 client)	-	unknown	rig	forcedpriority=4 priority=None; pet name words (JalRek-Jad pet), not combat
+inferno_jad	7700	1692	seq	8858	jaltokjad_chathead_pet	38	5.0 (150 client)	-	unknown	rig	forcedpriority=None priority=None; pet name words (JalRek-Jad pet), not combat
+inferno_jad_finalwave	7704	1692	seq	7588	jaltokjad_walk	32	3.2 (96 client)	-	walk	bound	forcedpriority=4 priority=None
+inferno_jad_finalwave	7704	1692	seq	7589	jaltokjad_ready	16	2.2 (65 client)	-	ready	bound	forcedpriority=3 priority=None
+inferno_jad_finalwave	7704	1692	seq	7590	jaltokjad_attack_melee	24	2.4 (72 client)	-	attack (melee)	rig+name	forcedpriority=9 priority=None
+inferno_jad_finalwave	7704	1692	seq	7591	jaltokjad_defend	18	1.8 (55 client)	-	defend	rig+name	forcedpriority=4 priority=None
+inferno_jad_finalwave	7704	1692	seq	7592	jaltokjad_attack_magic	50	5.3 (160 client)	-	attack (magic)	rig+name	forcedpriority=10 priority=2
+inferno_jad_finalwave	7704	1692	seq	7593	jaltokjad_attack_ranged	18	1.8 (55 client)	-	attack (ranged)	rig+name	forcedpriority=10 priority=2
+inferno_jad_finalwave	7704	1692	seq	7594	jaltokjad_death	51	5.1 (154 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_jad_finalwave	7704	1692	seq	8857	jaltokjad_walk_pet	32	1.1 (32 client)	-	unknown	rig	forcedpriority=4 priority=None; pet name words (JalRek-Jad pet), not combat
+inferno_jad_finalwave	7704	1692	seq	8858	jaltokjad_chathead_pet	38	5.0 (150 client)	-	unknown	rig	forcedpriority=None priority=None; pet name words (JalRek-Jad pet), not combat
+inferno_jad_healer	7701	163	seq	2634	lizard_cleric_walk	16	4.3 (128 client)	-	walk	bound	forcedpriority=None priority=None
+inferno_jad_healer	7701	163	seq	2635	lizard_cleric_defend	17	2.0 (61 client)	-	defend	rig+name	forcedpriority=None priority=None
+inferno_jad_healer	7701	163	seq	2636	lizard_cleric_ready	12	4.4 (132 client)	-	ready	bound	forcedpriority=None priority=None
+inferno_jad_healer	7701	163	seq	2637	lizard_cleric_attack	14	1.3 (38 client)	-	attack	rig+name	forcedpriority=6 priority=None
+inferno_jad_healer	7701	163	seq	2638	lizard_cleric_death	22	3.0 motion (90 client) + last frame held 20000 client; total 669.7 (20090 client)	-	death	rig+name	forcedpriority=10 priority=None; last frame length 20000 is a corpse hold, motion is 90 client (closer, configs/all.seq:47653)
+inferno_jad_healer	7701	163	seq	2639	lizard_cleric_heal	10	1.3 (38 client)	-	other (heal)	rig+name	forcedpriority=6 priority=None; Jagex name states heal
+inferno_jad_healer_finalwave	7705	163	seq	2634	lizard_cleric_walk	16	4.3 (128 client)	-	walk	bound	forcedpriority=None priority=None
+inferno_jad_healer_finalwave	7705	163	seq	2635	lizard_cleric_defend	17	2.0 (61 client)	-	defend	rig+name	forcedpriority=None priority=None
+inferno_jad_healer_finalwave	7705	163	seq	2636	lizard_cleric_ready	12	4.4 (132 client)	-	ready	bound	forcedpriority=None priority=None
+inferno_jad_healer_finalwave	7705	163	seq	2637	lizard_cleric_attack	14	1.3 (38 client)	-	attack	rig+name	forcedpriority=6 priority=None
+inferno_jad_healer_finalwave	7705	163	seq	2638	lizard_cleric_death	22	3.0 motion (90 client) + last frame held 20000 client; total 669.7 (20090 client)	-	death	rig+name	forcedpriority=10 priority=None; last frame length 20000 is a corpse hold, motion is 90 client (closer, configs/all.seq:47653)
+inferno_jad_healer_finalwave	7705	163	seq	2639	lizard_cleric_heal	10	1.3 (38 client)	-	other (heal)	rig+name	forcedpriority=6 priority=None; Jagex name states heal

@@ -37,6 +37,7 @@
 #include "torirs_server_scene.h"
 
 #include "ss_trigger.h"
+#include "ssvm.h"
 
 #include <assert.h>
 #include <math.h>
@@ -1845,6 +1846,24 @@ ToriRSServer_CombatHitPlayerFrom(
     ToriRSServer_CombatSyncHitpoints(player);
 
     /*
+     * The combat logout delay: every hit received, a 0 or a fully absorbed one
+     * included, re-arms it. OSRS Wiki, Logout button: "players in combat cannot
+     * log out until 16 game ticks, or 9.6 seconds, after they have last
+     * received a hit" (docs/minigames/inferno/sources/wiki/
+     * wiki_Logout_button.wikitext:9).
+     *
+     * The rule and its clock are content's (skill_combat/combat.rs2
+     * `[proc,combat_player_hit_received]`, interface_logout/scripts/logout.rs2);
+     * the engine's part is only to say "a hit landed", and to say it here
+     * because this is the one place every hit on a player ends -- an npc's
+     * default swing, a scripted projectile's queue, the `damage` opcode of a
+     * boss or of another player all arrive through it, and no single attack
+     * script sees them all. A tree without the proc (a selftest pack) runs
+     * nothing, which is the "no rule" it states.
+     */
+    ToriRSServer_ScriptsRunProc(srv, "[proc,combat_player_hit_received]", NULL, 0);
+
+    /*
      * The block animation is content's — [ai_opplayer2,_] plays
      * anim(%com_defendanim). The engine no longer drives it.
      */
@@ -2820,6 +2839,136 @@ death_hero_pid(
     return fallback;
 }
 
+/* The uid `npc_uid` hands content for this npc: generation:slot, the same
+ * packing SS_OP_NPC_UID pushes and SS_OP_NPC_FINDUID unpacks. */
+static int32_t
+death_npc_uid(
+    const struct ToriRSServer* srv,
+    int slot)
+{
+    assert(srv);
+    assert(slot >= 0);
+    assert(slot < TORIRSSERVER_NPC_MAX);
+    return (int32_t)(((uint32_t)srv->npcs[slot].generation << 16) | (uint32_t)(slot & 0xffff));
+}
+
+_Static_assert(TORIRSSERVER_QUEUE_MAX <= 64,
+               "death_handoff_queues holds one bit per player queue entry");
+
+/* Which of each player's queue entries are live, so the CORPSE stage can tell
+ * the entries `[ai_queue3]` added from the ones already there (a pending
+ * `combat_damage_player` from this npc's last swing also carries its uid). */
+static void
+death_queue_snapshot(
+    const struct ToriRSServer* srv,
+    uint64_t live[TORIRSSERVER_PLAYER_MAX])
+{
+    assert(srv);
+    assert(live);
+    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; pid++ )
+    {
+        live[pid] = 0;
+        if( !srv->players[pid].active )
+            continue;
+        for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
+        {
+            if( srv->players[pid].queue[i].active )
+                live[pid] |= (uint64_t)1 << i;
+        }
+    }
+}
+
+static int
+death_queue_entry_names(
+    const struct ToriRSServerQueued* entry,
+    int32_t uid)
+{
+    assert(entry);
+    for( int a = 0; a < entry->argc && a < TORIRSSERVER_QUEUE_ARG_MAX; a++ )
+    {
+        if( entry->args[a] == uid )
+            return 1;
+    }
+    return 0;
+}
+
+/* After `[ai_queue3]`: record every queue entry it added that names this npc. */
+static void
+death_record_handoff(
+    struct ToriRSServer* srv,
+    int slot,
+    const uint64_t before[TORIRSSERVER_PLAYER_MAX])
+{
+    struct ToriRSServerNpc* npc = &srv->npcs[slot];
+    int32_t const uid = death_npc_uid(srv, slot);
+
+    assert(before);
+    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; pid++ )
+    {
+        npc->death_handoff_queues[pid] = 0;
+        if( !srv->players[pid].active )
+            continue;
+        for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
+        {
+            const struct ToriRSServerQueued* entry = &srv->players[pid].queue[i];
+
+            if( !entry->active || (before[pid] & ((uint64_t)1 << i)) )
+                continue;
+            if( death_queue_entry_names(entry, uid) )
+                npc->death_handoff_queues[pid] |= (uint64_t)1 << i;
+        }
+    }
+}
+
+/*
+ * Whether the death is still waiting on a script `[ai_queue3]` handed it to.
+ *
+ * An entry holds while it is queued and still names this npc. Once it has run,
+ * it still holds while the script it started is parked with this npc bound
+ * (`npc_finduid` sets the primary npc, `host_tag` = slot + 1): a decision that
+ * pauses on a dialogue is still being made. Anything else releases its bit --
+ * the player logged out, the queue was cleared, the script finished.
+ */
+static int
+death_handoff_pending(
+    struct ToriRSServer* srv,
+    int slot)
+{
+    struct ToriRSServerNpc* npc = &srv->npcs[slot];
+    int32_t const uid = death_npc_uid(srv, slot);
+    int pending = 0;
+
+    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; pid++ )
+    {
+        const struct ToriRSServerPlayer* player = &srv->players[pid];
+        uint64_t mask = npc->death_handoff_queues[pid];
+
+        if( !mask )
+            continue;
+        if( !player->active )
+        {
+            npc->death_handoff_queues[pid] = 0;
+            continue;
+        }
+        for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
+        {
+            uint64_t const bit = (uint64_t)1 << i;
+
+            if( !(mask & bit) )
+                continue;
+            if( player->queue[i].active && death_queue_entry_names(&player->queue[i], uid) )
+                continue;
+            if( player->active_script && player->active_script->host_tag == slot + 1 )
+                continue;
+            mask &= ~bit;
+        }
+        npc->death_handoff_queues[pid] = mask;
+        if( mask )
+            pending = 1;
+    }
+    return pending;
+}
+
 static void
 npc_death_step(
     struct ToriRSServer* srv,
@@ -2997,11 +3146,15 @@ npc_death_step(
         {
             struct ToriRSServerPlayer* const saved_active = srv->active_player;
             int const hero_pid = death_hero_pid(srv, npc);
+            uint64_t queues_before[TORIRSSERVER_PLAYER_MAX];
 
+            death_queue_snapshot(srv, queues_before);
             if( hero_pid >= 0 )
                 ToriRSServer_WorldSetActive(srv, &srv->players[hero_pid]);
             ToriRSServer_WorldNpcDied(srv, slot);
             ToriRSServer_WorldSetActive(srv, saved_active);
+            if( npc->active )
+                death_record_handoff(srv, slot, queues_before);
         }
         srv->loot_credit_armed = 0;
         memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
@@ -3042,12 +3195,42 @@ npc_death_step(
         {
             npc->death_tick = -1;
             npc->death_stage = TORIRSSERVER_DEATH_NONE;
+            /* Revived: this death is over, and the next one is owed its own
+             * animation (`death_seq_sent` is once per LIFE, and this is one). */
+            npc->death_seq_sent = 0;
+            npc->death_seq_tick = -1;
+            memset(npc->death_handoff_queues, 0, sizeof(npc->death_handoff_queues));
+            return;
+        }
+        /*
+         * An `[ai_queue3]` that handed the death to a player's queue has not
+         * decided it yet.
+         *
+         * `[ai_queue3,black_knight_titan]` queues `queue_defeat_titan` with its
+         * `npc_uid`, and that script is what decides: heal him and say
+         * "Maybe you need something more", or (Excalibur worn) "Well done!",
+         * the drop and the death. In the reference nothing is removed until a
+         * script says `npc_del` -- NpcOps.ts NPC_DEL is the only removal and
+         * `[proc,npc_death]` (npc_death.rs2) the only caller on a death -- so
+         * the titan is standing when the queue runs and `npc_finduid` finds
+         * him. Reaped here on the tick `[ai_queue3]` returned, the queue found
+         * nothing and the Excalibur gate never ran. Held instead, one tick at a
+         * time, while he is still at zero and the queue (or the script it left
+         * parked on him) has not finished. Below the revive test on purpose: a
+         * script that has already healed him has decided, and a dialogue it
+         * goes on to hold must not keep a living npc in the death gate.
+         */
+        if( death_handoff_pending(srv, slot) )
+        {
+            npc->death_stage = TORIRSSERVER_DEATH_REAP;
+            npc->death_tick = srv->tick + 1;
             return;
         }
         ToriRSServer_WorldNpcOccupancy(npc, 0);
         ToriRSServer_WorldNpcFree(srv, slot);
         npc->death_tick = -1;
         npc->death_stage = TORIRSSERVER_DEATH_NONE;
+        memset(npc->death_handoff_queues, 0, sizeof(npc->death_handoff_queues));
         /*
          * Only a *world* npc comes back on its own — see `despawns_on_death`
          * for the two lifecycles and for what respawning both cost the Inferno.

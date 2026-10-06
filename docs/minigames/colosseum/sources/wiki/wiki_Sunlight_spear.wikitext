@@ -1,0 +1,89 @@
+{{Confuse|Sunspear}}
+{{Gone}}
+{{Infobox Item
+|name = Sunlight spear
+|image = [[File:Sunlight spear.png]]
+|release = [[27 November]] [[2024]]
+|update = Leagues V: Raging Echoes OUT NOW!
+|removal = [[12 November]] [[2025]]
+|removalupdate = No
+|members = Yes
+|quest = No
+|tradeable = No
+|bankable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wield, Drop
+|examine = A weapon from a being that truly worships gods.
+|value = 50000
+|weight = 4.535
+|id = 30369
+|leagueRegion = Varlamore
+}}
+[[File:Sunlight spear detail.png|130px|left]]
+The '''sunlight spear''' is a two-handed weapon that was a reward from completing all column 6 tasks in [[Grid Master]]. Every time the player attacks using the spear, they will gain a "Sunlight Stack", which can be stacked up to 20. Players will lose a Sunlight Stack if they have not attacked for 50 ticks (30 seconds). Additionally, teleporting will reset the Sunlight Stacks to zero.
+
+Despite the name, the Sunlight Spear is considered a Stab Sword and will not complete the Combat Achievement [[I Brought Mine Too]] for killing Sol Heredit with a spear.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +125
+|aslash = +75
+|acrush = 0
+|amagic = 0
+|arange = 0
+|dstab = +70
+|dslash = +70
+|dcrush = +70
+|dmagic = +28
+|drange = +70
+|str = +113
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = 2h
+|speed = 5
+|attackrange = 1
+|combatstyle = Stab Sword
+|image = [[File:Sunlight spear equipped male.png|180px]]
+|altimage = [[File:Sunlight spear equipped female.png|180px]]
+}}
+
+{{CombatStyles|Stab Sword|speed=5|attackrange=1}}
+
+==Special attack==
+[[File:Sol Slam.webp|thumb|350px|A player performing the sunlight spear's special attack, ''Sol Slam''.]]
+The sunlight spear has a [[special attack]], ''Sol Slam'', which consumes 7 Sunlight Stacks (rather than special attack energy). The special attack will hit all targets within three tiles of the player, with the damage dealt increasing by 3% per [[prayer bonus]] the player has. This does not require the player to be in combat, and deals typeless damage, so it can be used to damage enemies that are normally immune to melee, such as [[Nylocas Hagios]].
+
+Equipping the sunlight spear replaces the special attack interface with a unique graphic ([[File:Sunlight Stack.png|link=]]) that indicates the Sunlight Stack resource, however player's special attack energy continues to regenerate in the background normally.
+
+Additionally, the special attack is not a basic attack, meaning that the player can perform a regular attack followed by Sol Slam on the next game tick, though the animation of the special attack will prevent the player from attacking normally, so it is best used right after a regular attack.
+
+{{Bug|When the minimap has been minimised the normal special attack graphic is used instead}}
+
+==Past appearances==
+This item has appeared in a previous [[temporary event]]:
+*[[Raging Echoes League]]
+**The spear was dropped by [[Echo Sol Heredit]] at a rate of 1/5.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 November 2025
+|change = The sunlight spear was removed at the conclusion of [[Grid Master]].
+}}
+{{Subject changes
+|date = 15 October 2025
+|update = 
+|change = The sunlight spear was re-added at the start of [[Grid Master]].
+}}
+{{Subject changes
+|date = 22 January 2025
+|update = Bank QoL & Mini Menu Improvements
+|change = The sunlight spear was removed at the conclusion of [[Raging Echoes League]].
+}}
+{{Subject changes footer}}
+
+{{Grid Master}}
+{{Raging Echoes League}}

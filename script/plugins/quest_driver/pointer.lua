@@ -1077,9 +1077,40 @@ function QD.drive._frame(target, index, deadline, settle)
     -- Through the one camera call (QD.drive.camera_aim): a test run writes
     -- the pose and waits `deadline` for the projection, exactly as before;
     -- a watched client turns until the target projects.
+    --
+    -- SEAM private_vc_rat_projects_to_a_fixed_point (b63-seam1): A NAMED NPC
+    -- COPY IS PRESSED AT ITS OWN POSE'S PIXEL.  The level below resolves in
+    -- the pump that wrote the camera (EDGE + LEVEL, seam17 above), so the
+    -- unsettled read is the PREVIOUS pose's projection, and the pose loop
+    -- presses pose N at pose N-1's pixel.  For a body a tile wide that is
+    -- never under the press: Ratcatchers' mansion rats -- owner-private,
+    -- stationary, ONE tile from the stand tile -- answered `covered ...
+    -- element E at 382,102` for rats 2, 3, 4 and 6 on every try
+    -- (build/quest_gate/vcrat_full2 rows 65-75; ratcatchers_scratch4 63-78):
+    -- 382,102 is pose 4's (pitch 340, zoom 400) projection of a rat one tile
+    -- straight ahead, pressed at pose 5, and the hunt's re-frames read stale
+    -- the same way.  Measured with the eye given a tick to rebuild
+    -- (build/quest_gate/vcrat_occl1, stand 2860,5093,1): poses 4 and 5 HOLD
+    -- the rat at +0,+0 of their own projection; poses 1-3 face it from
+    -- behind the corridor's west wall.  So a press that NAMED its copy
+    -- through the press/talk_to selector (QD.player._click_npc_copy sets
+    -- `reach_fresh`) skips the first two polls -- the follow step rebuilds the
+    -- eye on the next frame, the two-frame wait QD.drive._face_named_npc
+    -- already takes -- and every other target keeps the unsettled read the
+    -- suite was measured on (seam17's three reasons; attack and cast name
+    -- their copy too, but do not set it).
+    -- The skip is the snap's (a test run's pose write); a watched client's
+    -- turn polls the projection on its own clock and keeps it unskipped.
+    local fresh = target.kind == "npc" and target.reach_fresh == true
+        and target.reach_element ~= nil and not QD.drive._camera_watched()
+    local polls = 0
     local camera_result = QD.drive.camera_aim({ yaw = yaw, pitch = pose.pitch, zoom = pose.zoom,
         purpose = "press",
         projects = function()
+            polls = polls + 1
+            if fresh and polls <= 2 then
+                return false
+            end
             local r = api_drive.screen_position(target.kind, target.id)
             return r == "ok"
         end,
@@ -1485,6 +1516,9 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry, single)
                 end
                 local order = QD.drive._hunt_order(seen, point)
                 local account = {}
+                -- b66-seam1: the projection at the pose the camera is at now,
+                -- for the model aim after the sweep (QD.drive._model_aim).
+                local model_pos = pos
                 for i = 1, #order do
                     local hunt_pos = order[i].pos
                     local framed_ok = true
@@ -1520,6 +1554,7 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry, single)
                         if pressed_at then
                             QD.drive._dismiss_menu(pressed_at)
                         end
+                        model_pos = hunt_pos
                         local hovered, hunt_detail =
                             QD.drive._hover_onto(target, hunt_pos, deadline, budget)
                         account[#account + 1] = "pose " .. tostring(order[i].index)
@@ -1550,6 +1585,33 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry, single)
                     end
                     if budget.left <= 0 then
                         break
+                    end
+                end
+                -- SEAM uzer_stairs_press_aims_where_the_renderer_draws_the_
+                -- model_not_at_the_stairwell_pit (b66-seam1): AFTER the whole
+                -- sweep, and only for a loc, probe where the model's own faces
+                -- are drawn (banner over QD.drive._model_aim).  Every press
+                -- that landed before this point is untouched: this runs only
+                -- where the verb used to answer `covered`.
+                if target.kind == "loc" and api_drive.model_points ~= nil then
+                    if pressed_at then
+                        QD.drive._dismiss_menu(pressed_at)
+                    end
+                    local aimed, aim_detail = QD.drive._model_aim(target, model_pos, deadline)
+                    account[#account + 1] = tostring(aim_detail)
+                    if aimed then
+                        QD.note("click_minimenu: " .. tostring(aim_detail))
+                        if before_retry then
+                            local arm_result, arm_detail = before_retry()
+                            if arm_result ~= "ok" then
+                                return arm_result, arm_detail
+                            end
+                        end
+                        pressed_at = aimed
+                        result, detail = QD.drive._press_row(target, aimed, action, deadline)
+                        if result ~= "covered" then
+                            return result, detail
+                        end
                     end
                 end
                 return "covered", tostring(detail) .. " -- " .. table.concat(account, "; ")
@@ -2321,11 +2383,23 @@ end
 -- not sufficient (a route can be replaced mid-walk -- docs/QUEST_DRIVER_PLAN
 -- .md S5.2), so this awaits the destination tile on the server_tick event
 -- rather than trusting a single settle.
+--
+-- -> (ok, "walk_to x,z: reached x,z,level from a,b in N tick(s)") on the
+-- exact tile, or (timeout|refused, "walk_to x,z from a,b stalled at c,d ...").
+-- SEAM walk_to_answers_ok_with_no_detail (matthew-mbp-m4-b62-seam1): the
+-- success used to answer (ok, nil), which t.exec grades FAIL `hollow`
+-- (core.lua's hollow rule), so a plain `t.exec("walk", t.player.walk_to, x, z)`
+-- could never PASS -- four b62 fixers (elena, grandtree, forgettabletale,
+-- dragon) wrapped it and rewrote each walk as a one-hop walk_route.  The
+-- detail names the tile READ back after the await (with its level), the start
+-- tile and the server ticks the walk took, so the row says where the player
+-- stands, not only that a wait was met.
 function QD.player.walk_to(x, z, ticks)
     -- SEAM-TOGETHER (raid seam27): inside t.together, press and do not wait.
     if QD._together ~= nil then
         return QD._together_move(x, z, "walk")
     end
+    local start_tick = api_drive.tick()
     local start_result, start = QD.world.tile()
     -- The deadline is the DISTANCE plus slack, not a flat 20.  One tile per
     -- server tick is the walking rate, so a flat deadline is a bet that no
@@ -2373,10 +2447,16 @@ function QD.player.walk_to(x, z, ticks)
         end,
         note = "walk_to",
     }, ticks)
-    if result == "ok" then
-        return "ok", nil
-    end
     local now_result, now = QD.world.tile()
+    if result == "ok" then
+        return "ok", string.format(
+            "walk_to %d,%d: reached %s from %s in %d tick(s)",
+            x, z,
+            (now_result == "ok" and now) and (now.x .. "," .. now.z .. "," .. tostring(now.level))
+                or (x .. "," .. z .. ",?"),
+            (start_result == "ok" and start) and (start.x .. "," .. start.z) or "?",
+            api_drive.tick() - start_tick)
+    end
     local text = string.format(
         "walk_to %d,%d from %s stalled at %s",
         x, z,
@@ -4622,14 +4702,13 @@ function QD.player.equip(item, opts)
 end
 
 -- How much of obj `obj_id` the client shows on the player's OWN tile:
--- (total, rows).  Every pool row of the obj on that tile is summed.  That is
--- NOT a count of the copies the server holds there: the client keeps ONE
--- pool row per (tile, obj id) and an OBJ_ADD for an id already on the tile
--- overwrites that row's count rather than adding a row
--- (App_WorldObjStackAdd, src/app/app_world_rebuild.c:172-180), so two
--- non-stackable logs dropped on one tile read 1 (1 row) for as long as both
--- lie there (build/quest_gate/dropseam_probe rows 2 and 4: `1/1` every tick
--- for six ticks after the second drop).  x/z only, like QD.world.obj_near:
+-- (total, rows).  Every pool row of the obj on that tile is summed.  Each
+-- OBJ_ADD is a row of its own (App_WorldObjStackAdd, as LostCity's client and
+-- the rev-239 deob keep a tile's objs as a list), so two non-stackable logs
+-- dropped on one tile read 2 (2 rows).  Until seam pass
+-- matthew-mbp-m4-b53-seam1 the client kept ONE row per (tile, obj id) and an
+-- OBJ_ADD overwrote its count, so they read 1 (1 row)
+-- (build/quest_gate/dropseam_probe rows 2 and 4).  x/z only, like QD.world.obj_near:
 -- the row's level is the grid level the obj was added on, which a bridge
 -- tile need not share with the player's.  (0, 0) when the player's tile
 -- cannot be read.
@@ -4662,8 +4741,8 @@ end
 -- rising.  Until seam pass matthew-mbp-m4-b52-seam1 the second half was "the
 -- nearest ground stack's count rose" (QD.world.obj_near(item, 1).count), and a
 -- second identical NON-STACKABLE item dropped on a tile that already holds one
--- does not raise anything the client shows (_ground_on_tile's banner: one
--- pool row per tile and id, its count overwritten), so a real drop read
+-- did not raise anything the client showed then (_ground_on_tile's banner: one
+-- pool row per tile and id, its count overwritten, until b53-seam1), so a real drop read
 -- `timeout ... backpack 1 -> 0, ground 1` (legends b51
 -- makeBowl.drop-spare-bar-2; build/quest_gate/dropseam_before row 3).  A
 -- ground count cannot grade that drop at all, so the backpack does.  The
@@ -5973,6 +6052,83 @@ function QD.drive._hover_onto(target, pos, deadline, budget)
         "none of %d pixels hittested around the projected %d,%d holds it"
             .. " (%d off-viewport%s, %d never hittested)",
         tried, pos.x, pos.y, skipped, ui_text, stale)
+end
+
+-- SEAM uzer_stairs_press_aims_where_the_renderer_draws_the_model_not_at_the_
+-- stairwell_pit (matthew-mbp-m4-b66-seam1): THE MODEL AIM, after everything
+-- else answered `covered`.
+--
+-- A loc's projection is its footprint centroid on the ground.  For a model
+-- that is a rim round a hole, that pixel is the hole: the Uzer ruin stairs
+-- (golem_insidestairs_top, model 6071) project into the open stairwell where
+-- nothing is drawn, and the stairs are held 75-105 px away -- outside the
+-- +-64 px ladder _hover_onto walks -- so every pose and every hunt answered
+-- "none of 99 pixels hittested ... holds it" (seam-facts b65 (c)).
+--
+-- api_drive.model_points lists the screen centroids of the element's visible
+-- faces, nearest the projection first.  Each is PROBED like a hunt pixel and
+-- pressed only when the renderer's own pickset holds the element there, so a
+-- point the C reprojection gets wrong costs one probe and nothing else.  b65
+-- moved the AIM to such a point instead and broke five greens (vampire's
+-- stairstop: an origin the renderer held was moved off the model); this runs
+-- only where the verb used to answer `covered`, so no press that landed
+-- before can move.  A binary without the verb answers by name, and the
+-- `covered` that follows is the one the verb answered before this seam.
+QD.drive._model_aim_probes = 12
+QD.drive._model_aim_last = nil
+
+function QD.drive._model_aim(target, pos, deadline)
+    if api_drive.model_points == nil then
+        return nil, "no model aim: this binary predates api_drive.model_points"
+    end
+    if pos == nil or pos.element_id == nil or pos.element_id < 0 then
+        return nil, "no model aim: no projected element"
+    end
+    local result, points = api_drive.model_points(
+        pos.element_id, pos.x, pos.y, QD.drive._model_aim_probes)
+    local faces = type(points) == "table" and points.faces or 0
+    if result ~= "ok" then
+        return nil, string.format("model aim: %s for element %d (%d face(s))",
+            tostring(result), pos.element_id, faces)
+    end
+    local point_result, point = api_drive.pick_point()
+    if point_result ~= "ok" then
+        point = nil
+    end
+    local tried = 0
+    local skipped = 0
+    local stale = 0
+    for i = 1, #points do
+        local x = points[i].x
+        local y = points[i].y
+        local inside = QD.drive._hover_inside(point, x, y)
+        if not inside then
+            skipped = skipped + 1
+        else
+            local held = QD.drive._hover_probe(pos.element_id, x, y, deadline)
+            if held == nil then
+                stale = stale + 1
+            else
+                tried = tried + 1
+                if held then
+                    local aimed = { x = x, y = y, element_id = pos.element_id }
+                    aimed.detail = string.format(
+                        "model aim: face centroid %d,%d (%+d,%+d off the projected %d,%d)"
+                            .. " held on probe %d of %d candidate(s) from %d face(s)",
+                        x, y, x - pos.x, y - pos.y, pos.x, pos.y, tried + stale, #points, faces)
+                    -- The last aim this found, for a reader that cannot see
+                    -- the note it folds into the next row (the conformance
+                    -- row seam.stairwell_pressed_on_its_model_from_the_arch).
+                    QD.drive._model_aim_last = aimed
+                    return aimed, aimed.detail
+                end
+            end
+        end
+    end
+    return nil, string.format(
+        "model aim: none of %d face centroid(s) probed holds element %d"
+            .. " (%d of %d candidate(s) off-viewport or under UI, %d never hittested, %d face(s))",
+        tried, pos.element_id, skipped, #points, stale, faces)
 end
 
 -- What the menu that just opened actually offers, as one line: the row text,
@@ -7631,9 +7787,13 @@ function QD.player._click_npc_copy(target, op, copy_text)
     if copy_text == nil then
         return QD.drive.click_minimenu(target, op)
     end
+    -- b63-seam1: every pose of this press reads its own projection
+    -- (QD.drive._frame's banner); cleared with the named element.
+    target.reach_fresh = true
     local click_result, click = QD.drive.click_minimenu(target, op)
     local named = target.reach_element
     target.reach_element = nil
+    target.reach_fresh = nil
     if click_result ~= "ok" then
         return click_result, "the copy named " .. copy_text .. ": " .. tostring(click)
     end
@@ -9094,7 +9254,9 @@ function QD.player.eat(item, opts)
     return QD.player._consume("eat", item, opts)
 end
 
-function QD.player.drink(item, opts)
+-- t.player.drink's item-list shape; the verb itself is combat.lua's
+-- dispatcher (QD.player.drink), which also answers a supply family.
+function QD.player._drink_items(item, opts)
     return QD.player._consume("drink", item, opts)
 end
 

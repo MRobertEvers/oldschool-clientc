@@ -1,0 +1,116 @@
+{{Update|date=17 March 2017|link=http://services.runescape.com/m=news/dev-blog-mor-ul-rek--the-inferno?oldschool=1|category=website}}
+[[File:Dev Blog- Mor Ul Rek & The Inferno newspost.png|right]]
+{{clear}}
+
+
+{{Headline|25|Dev Blog: Mor Ul Rek & The Inferno}}
+
+
+<center>'''Far beneath Karamja, found at the heart of the volcanic city of Mor Ul Rek, lies<br/> {{Colour|#b22222|The Inferno}}.'''</center>
+
+
+<center>'''Do you have what it takes to defeat TzKal-Zuk?'''</center>
+
+'''Changelog'''
+
+*The Inferno will now be located within the currently inaccessible TzHaar City. The TzHaar will open their gates to trusted and proven outsiders so they may take on The Inferno (if it passes a poll).
+*The prayer bonus of the Infernal Cape now matches that of the Fire Cape.
+
+{{Horizontal Line}}
+
+In early 2016 we polled The Inferno. Falling just shy of the 75% threshold as a small expansion to the Fight Cave, we saw an influx of requests to make The Inferno a bigger, better, standalone piece of content.
+
+Today's developer blog proposes exactly that. A relocated, expanded and truly standalone solo PvM challenge.
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Mor Ul Rek}}
+
+
+For years you have been able to visit the outskirts of the Tzhaar City of Mor Ul Rek, but the time has come for the TzHaar to open their gates to those who have earned their respect and trust.
+
+[[File:Dev Blog- Mor Ul Rek & The Inferno (1).png|center|450px]]
+
+{{Horizontal Line}}
+
+'''Mor Ul Rek Thieving'''
+
+You'll find new targets for pickpocketing, requiring '''level 90 Thieving''' and providing exactly what you might expect to find in a rocky settlement: gems and tokkul.
+
+The experience provided by TzHaar pickpocketing will be lower than those of Ardougne knights, but will provide greater profit per hour.
+
+'''Mor Ul Rek Fishing'''
+
+The lava which flows within Mor Ul Rek is surprisingly full of life. Infernal eels may be fished from the lava by players with Level 80 Fishing, providing they have an Oily Rod and are using Ice Gloves.
+
+As the Infernal eels are pulled from the lava they are cooled by your ice gloves and harden. They can be cracked open using a hammer to free up inventory space, and they'll provide a slim chance of receiving an onyx bolt tip, lava scale or maybe even some Tokkul.
+
+Fishing Infernal eels in Mor Ul Rek would provide '''roughly 35,000 Fishing experience per hour'''.
+
+'''New TzHaar Monsters & Obsidian Armour'''
+
+You'll also find yourself surrounded by attackable TzHaar. Found all throughout the city, the TzHaar within Mor Ul Rek are weak to elemental water spells. They can be killed for a chance at some interesting new gear: Obsidian plate armour.
+
+Obsidian plate armour is a rare drop from various Mor Ul Rek citizens. Each piece requires level 60 Defence to equip and offers some interesting offensive stats and effects.
+
+[[File:Dev Blog- Brimstone & The Inferno (2).png|centre]]
+
+When the full Obsidian plate armour set is equipped (helmet, platebody, platelegs), Obsidian weaponry is given a +10% boost in melee accuracy and melee strength.
+
+
+{{Horizontal Line}}
+
+
+{{Headline|22|The Inferno}}
+
+
+''In an attempt to discover the lost knowledge of their early ancestors, the TzHaar incubated ancient, unhatched TzHaar eggs within the deepest depths of The Inferno at the centre of Mor Ul Rek.''
+
+''Upon hatching, the incubated eggs revealed unfamiliar, unnatural TzHaar creatures. As the creatures aged, still within the bounds of The Inferno, they grew rapidly in strength - far surpassing the other inhabitants of Mor Ul Rek.''
+
+''When at last they could speak, they had not come acquire the wisdom of the Tzhaar’s ancestors but had instead been commandeered by one who had dwelled within the depths of the Inferno long before the Tzhaar.''
+
+''They now wish to feast on the Tzhaar and ingest their knowledge of the world beyond the Inferno for their new master.''
+
+{{Horizontal Line}}
+
+The Inferno is a wave-based PvM challenge found at the core of the volcanic city of Mor Ul Rek. Only the most skilled adventurers will stand a chance of making it to the final wave, and even fewer will survive their encounter with '''TzKal-Zuk'''.
+
+The TzHaar insist that outsiders must prove their strength before taking on the challenge of The Inferno. You must make a '''one-time sacrifice''' of a Fire Cape in order to convince the TzHaar you're worthy.
+
+The Inferno will put you up against many new TzHaar enemies and will be a brutal test of skill. Mistakes will not be forgiven - so play carefully.
+
+[[File:Dev Blog- Brimstone & The Inferno (3).png|thumb|centre|575px|<center>An ancient, unnatural ancestor of TzTok-Jad.</center>]]
+
+If you succeed within The Inferno, you'll truly earn the respect of the TzHaar and will be rewarded with an '''Infernal Cape'''. This cape offers some fantastic stats, greater than that offered by the Fire Cape.
+
+[[File:Dev Blog- Brimstone & The Inferno (4).png|centre]]
+
+'''Infernal Cape Design'''
+
+In late 2016, Mod Ghost was working with the community to find a design which truly belongs in Old School. If The Inferno makes it past a poll, we'll resume the discussion with the community to ensure that the final design is the right design.
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Poll Questions}}
+
+
+'''Question''': Should Mor Ul Rek and The Inferno be added to Old School RuneScape? The Inferno is an activity similar to the TzHaar Fight Cave, but much more challenging. Mor Ul Rek is the full TzHaar city, found beneath the Karamja volcano.
+
+'''Question''': Should the Infernal Cape, a new best-in-slot melee cape, be given as a reward for completing The Inferno? [http://cdn.runescape.com/assets/img/external/oldschool/2017/blogs/2017-03-15/infernal-cape-new.png Attached Image]
+
+'''Question''': If Mor Ul Rek & The Inferno are added to Old School RuneScape, should the Obsidian armour set be dropped by monsters found around Mor Ul Rek? [http://cdn.runescape.com/assets/img/external/oldschool/2017/blogs/2017-03-15/obsidian-poll.png Attached Image]
+
+'''Question''': If Mor Ul Rek & The Inferno are added to Old School RuneScape, should it be possible to Infernal eels within Mor Ul Rek? Fishing Infernal eels would provide roughly 35,000 Fishing experience per hour, requiring level 80 Fishing, an oily rod and ice gloves.
+
+'''Question''': If Mor Ul Rek & The Inferno are added to Old School RuneScape, should it be possible to pickpocket inhabitants of Mor Ul Rek if you have a Thieving level of 90? This form of pickpocketing would be less experience than Ardougne Knights, but would provide more profit.
+
+{{Horizontal Line}}
+
+Mor Ul Rek & The Inferno will be polled later on in March. We're still very much open to feedback, and we want to hear what you have to say!
+
+Discuss this blog on our [http://services.runescape.com/m=forum/forums.ws?380,381,372,65892043 forums].
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath, West & Wolf'''''<br/>''The Old School Team''

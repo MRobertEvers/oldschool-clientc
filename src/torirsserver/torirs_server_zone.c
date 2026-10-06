@@ -589,7 +589,18 @@ ToriRSServer_ZoneLocChanged(
      * over a map square's own loc (the deck facilities — the template parks
      * the mast, the placement arms its "Work") must survive as a record, or
      * the boarding resync replays a bare, unclickable baseline. */
-    if( loc->loc_id == loc->base_loc_id && loc->angle == loc->base_angle &&
+    /*
+     * Back to what the map says: nothing left to replay, so the record retires.
+     *
+     * "Nothing stands here" is one state whatever angle it is spelled with. A
+     * door's open leaf is a `loc_add` onto a tile the map leaves empty; its
+     * revert removes it and arrives here as loc -1 at the LEAF's angle (3, say)
+     * against a base of -1 at angle 0. Comparing the angles kept that record
+     * for good -- a LOC_DEL of nothing written into every later catch-up of
+     * the zone, and one more record per door ever opened.
+     */
+    if( ((loc->loc_id < 0 && loc->base_loc_id < 0) ||
+         (loc->loc_id == loc->base_loc_id && loc->angle == loc->base_angle)) &&
         ToriRSServer_LocOpsIsDefault(&loc->ops) )
     {
         int i = (int)(loc - zone->locs);

@@ -1,0 +1,22 @@
+# ladder olafsquest quest_dir=quest_olafsquest guide=src/main/java/com/questhelper/helpers/quests/olafsquest/OlafsQuest.java steps=19 legs=1:1-19@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToOlaf	NpcStep	npc:olaf	2722,3727,0	Talk to Olaf Hradson north east of Rellekka.			Yes.	quests/quest_olafsquest/scripts/olaf_hradson.rs2:12 opnpc1
+1	2	10	chopTree	ObjectStep	loc:olaf_windswept_tree	2749,3735,0	Chop a log from the Windswept Tree east of Olaf.		Any axe		quests/quest_olafsquest/scripts/olaf_overworld.rs2:6 oploc1; +1
+1	3	10	giveLogToOlaf	NpcStep	npc:olaf	2722,3727,0	Bring the logs to Olaf Hradson north east of Rellekka.		Windswept logs		quests/quest_olafsquest/scripts/olaf_hradson.rs2:12 opnpc1
+1	4	20	talkToIngrid	NpcStep	npc:olaf_ingrid	2670,3670,0	Talk to Ingrid Hradson near the well in southeast Rellekka.		Crude carving		quests/quest_olafsquest/scripts/olaf_family.rs2:7 opnpc1
+1	5	20	talkToVolf	NpcStep	npc:olaf_volf	2662,3700,0	Talk to Volf Olafson north of the longhall in Rellekka.		Cruder carving		quests/quest_olafsquest/scripts/olaf_family.rs2:26 opnpc1
+1	6	30	returnToOlaf	NpcStep	npc:olaf	2722,3727,0	Return to Olaf Hradson north east of Rellekka.				quests/quest_olafsquest/scripts/olaf_hradson.rs2:12 opnpc1
+1	7	40	useDampPlanks	ObjectStep	loc:olaf_multi_fire	2724,3728,0	Use the damp planks on Olaf's embers.		Damp planks		quests/quest_olafsquest/scripts/olaf_overworld.rs2:45 oplocu
+1	8	50	talkToOlafAfterPlanks	NpcStep	npc:olaf	2722,3727,0	Talk to Olaf again, and give him some food.		Food	Alright, here, have some food. Now give me the map.	quests/quest_olafsquest/scripts/olaf_hradson.rs2:12 opnpc1
+1	9	60	digHole	DigStep		2748,3732,0	Dig next to the Windswept Tree.				
+1	10	60	pickUpKey	ItemStep	obj:olaf2_gate_key_1		Pick up the dropped key.		Key		
+1	11	60	killSkeleton	NpcStep	npc:olaf2_undead_viking_lvl40 npc:olaf2_undead_viking_lvl40_b npc:olaf2_undead_viking_lvl40_c npc:olaf2_undead_viking_lvl50 npc:olaf2_undead_viking_lvl50_b npc:olaf2_undead_viking_lvl50_c npc:olaf2_undead_viking_lvl60 npc:olaf2_undead_viking_lvl60_b npc:olaf2_undead_viking_lvl60_c obj:olaf2_gate_key_1	2727,10141,0	Go deeper into the caverns and kill a Skeleton Fremennik for a key.	pickUpKey			quests/quest_olafsquest/scripts/olaf_dungeon.rs2:40 opnpc2; +17
+1	12	60	searchPainting	ObjectStep	loc:olaf2_skull_puzzle_wall	2707,10147,0	Search the picture wall in the north room.				quests/quest_olafsquest/scripts/olaf_dungeon.rs2:118 oploc1
+1	13	60	pickUpItems	DetailedQuestStep			Pick up 2 rotten barrels and 6 ropes from around the room.	pickUpItems2	Rotten barrel; Rope		
+1	14	60	useBarrel	ObjectStep	loc:olaf2_invis_hotspot_barrel1	2722,10168,0	WALK onto the walkway to the east, and use a barrel on it to repair it.		=		quests/quest_olafsquest/scripts/olaf_dungeon.rs2:195 oplocu
+1	15	60	useBarrel2	ObjectStep	loc:olaf2_invis_hotspot_barrel2	2724,10168,0	WALK on the walkway and repair the next hole in it.		=		quests/quest_olafsquest/scripts/olaf_dungeon.rs2:220 oplocu
+1	16	60	openGate	ObjectStep	loc:olaf2_rusty_gate_puzzle	2725,10168,0	Open the gate on the walkway, clicking the key hole which matches your key.	chooseCircle chooseCross chooseSquare chooseStar chooseTriangle	Key		quests/quest_olafsquest/scripts/olaf_dungeon.rs2:264 oploc1
+1	17	60	searchChest	ObjectStep	loc:olaf2_chest_closed loc:olaf2_chest_open	2740,10164,0	WALK off the remaining walkway, and search the chest in the wreck. Be prepared to fight Ulfric.				quests/quest_olafsquest/scripts/olaf_dungeon.rs2:325 oploc1; +1
+1	18	60	killUlfric	NpcStep	npc:olaf2_ulfric	2740,10164,0	Kill Ulfric.				quests/quest_olafsquest/scripts/olaf_dungeon.rs2:346 opnpc2; +1
+1	19	60	searchChestAgain	ObjectStep	loc:olaf2_chest_closed loc:olaf2_chest_open	2740,10164,0	Search the chest again to finish the quest.				quests/quest_olafsquest/scripts/olaf_dungeon.rs2:325 oploc1; +1

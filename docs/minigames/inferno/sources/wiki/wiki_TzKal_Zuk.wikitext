@@ -1,0 +1,156 @@
+{{External|rs}}
+{{redirect|Zuk|the pet|TzRek-Zuk}}
+{{HasStrategy|page=Inferno/Strategies#TzKal-Zuk}}
+{{Infobox Monster
+|version1 = Normal
+|version2 = Enraged
+|name = TzKal-Zuk
+|image = [[File:TzKal-Zuk.png|270px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|aka = Zuk
+|members = Yes
+|combat = 1400
+|size = 7
+|examine = An ancient adversary to the TzHaar.
+|xpbonus = 57.5
+|max hit = 148&thinsp;{{efn|The damage roll for Zuk's projectile attack consists of a single roll between 0 and the average of its maximum Magic hit and maximum Ranged hit.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1706977187717320812|date=27 September 2023|archiveurl=https://reldo.runescape.wiki/i/98224{{^|https://reldo.runescape.wiki/i/27964270}}|archivedate=27 September 2023|quote=Your description of "Zuk doing 1 damage roll, with the maxhit being the avg of it's mage+range maxhit" is the correct interpretation. (...)|name=damage}} The max hit of the mage attack is 128, while the range attack's max hit is 169. The melee max hit is 251, but it is never used.}}
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Typeless]] [[Magic]], [[Typeless]] [[Ranged]]
+|attack speed1 = 10
+|attack speed2 = 7
+|slayxp = 101890
+|cat = TzHaar
+|assignedby = chaeldar,nieve,duradel
+|hitpoints = 1200
+|att = 350
+|str = 600
+|def = 260
+|mage = 150
+|range = 400
+|attbns = 0
+|strbns = 200
+|amagic = 550
+|mbns = 450
+|arange = 550
+|rngbns = 200
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 350
+|dlight = 100
+|dstandard = 100
+|dheavy = 100
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|immuneburn = Immune to strong burns
+|id = 7706
+|leagueRegion = Karamja
+}}
+'''TzKal-Zuk''', often referred to as '''Zuk''', is the last monster encountered in the [[Inferno]]. It is currently the fourth [[strongest monster]] in ''[[Old School RuneScape]]'', and the third strongest monster that must be challenged alone.
+
+Zuk can be killed in place of a [[Slayer task/TzHaar|TzHaar]] slayer assignment after unlocking the perk ''Hot Stuff'' for 100 [[slayer reward point]]s. Unlike [[TzTok-Jad]], in order to be given the option to be assigned Zuk, the player must have defeated him at least once off-task. Players who defeat Zuk as part of a slayer task will be given 101,890 [[Slayer]] experience, and when accounting for the waves and its monsters, around ~125,000 experience in a successful attempt.
+
+==History==
+<!--Mod Ed approved, but not mentioned at all ingame: Zuk was originally a human warrior who led a tribe of people, until the invasion of the [[Zarosian Empire]] near the end of the [[Second Age]]. Having his lands invaded, his people were conquered and Zuk was sent to the colosseum of [[Senntisten]] to fight as a gladiator. Nothing, be it demons, dragons, or vampyres could defeat Zuk, and he eventually won his freedom after defeating [[Torva]], a powerful human who served under [[Nex]].
+
+With his newfound freedom, Zuk travelled in search of worthy foes to do battle with, and eventually discovered the {{RSL|Elder Kiln}}, where he battled with the {{RSL|TokHaar}}, the servants of the {{RSL|Elder God}} [[Ful]]. Having prevailed against the waves of TokHaar, he claimed the Elder Kiln as his prize, and was bestowed the title of TzKal - Champion of the Fire - as the first outsider to defeat them. Like TokHaar, who are reborn in the sacred lava, TzKal-Zuk was reborn within the Kiln, with his mind kept intact.
+
+Sometime during the [[Third Age]], Zuk became aware of the [[God Wars]] and sought to battle with the armies of the gods. With the TokHaar refusing to intervene, Zuk instead led the lava beasts that dwelled within the volcano to battle, and effortlessly defeated enemy forces. Eventually, Zuk encountered [[Bandos]] and fought him, and resulted in his defeat. Bandos subsequently sealed him behind the [[Ancestral Glyph]] within the Kiln.-->
+Sometime prior to the Fifth Age, TzKal-Zuk was imprisoned behind the [[Ancestral Glyph]] within the Inferno.
+
+The TzHaar in [[Mor Ul Rek]] sought to increase the depth in which they incubated their eggs in order to have newly hatched TzHaar gain distant memories of their ancestors.{{CiteNPC|npc=TzHaar-Ket-Keh|quote=TzHaar are born from eggs incubated in lava pools. When hatched, we retain memories. Memories and knowledge passed on from ancestors who returned to the lava. When TzHaar hatch, some memories are lost. Those about earliest ancestors are not retained. We experiment. [...] We increased the depth at which eggs are incubated. Over time, newly hatched TzHaar had more memories of lost history!}} However, when they attempted to incubate their eggs deeper and deeper within the birthing pool,{{CiteNPC|npc=TzHaar-Ket-Keh|quote=But we kept pushing. We wanted answers, but we went too deep.}} it collapsed and the [[Inferno]] was discovered by the TzHaar, which they believed to be an ancient incubation chamber.{{CiteNPC|npc=TzHaar-Ket-Keh|quote=Eventually the pool collapsed into a sinkhole. At the bottom we found some sort of ancient incubation chamber, from before earliest memories. We now call it the Inferno.}} Deciding to test the chamber, the TzHaar took eggs from [[Volcanic creatures|creatures]] in the [[Fight Cave]],{{CiteNPC|npc=TzHaar-Ket-Keh|quote=We decide to experiment more. We take eggs from creatures in Fight Cave and incubate them down there.}} only to realise that they became feral and much more powerful.{{CiteNPC|npc=TzHaar-Ket-Keh|quote=When eggs hatched, we see that it was not good decision. They were bigger and stronger, and fought each other for dominance.}}
+
+[[File:TzKal-Zuk artwork.jpg|thumb|right|A piece of artwork depicting a player facing TzKal-Zuk.]]
+Zuk, imprisoned within, managed to gain control over the feral TzHaar. Fearing that Zuk would escape in order to consume the TzHaar within Mor Ul Rek for their memories,{{CiteNPC|npc=TzHaar-Ket-Keh|quote=All we know is that TzKal-Zuk is hungry. Hungry for memories, memories beyond the Inferno. We think his goal is the city itself. Lots of TzHaar memories here for him.}} they sought to hold back him and his creatures (including the feral offspring of [[TzTok-Jad]]),{{CiteNPC|npc=TzHaar-Ket-Rak|quote=Deep in inferno, many offspring of TzTok-Jad [...] need dealing with. A challenge for you perhaps, if you're brave enough.}} with [[Player character|many adventurers]] offering to help.{{CiteNPC|npc=TzHaar-Ket-Keh|quote=We fear he can't be defeated, but maybe we can hold back his creatures and keep city safe.<br>'''Player:''' Well I definitely think I can help with that.}} Adventurers who have battled through many waves of them will witness the breaking down of TzKal-Zuk's prison, and must battle with him.{{CiteNPC|npc=TzHaar-Ket-Keh|quote=No! TzKal-Zuk's prison is breaking down. There's nothing I can do for you now, JalYt!}}
+
+==Fight overview==
+{{main|Inferno/Strategies#TzKal-Zuk}}
+As TzKal-Zuk is isolated from the platform the player is on, it cannot be attacked with melee. Only ranged or magic attacks will be able to reach Zuk.
+
+As the fight starts, a [[Ancestral Glyph|shield]] will appear to offer protection from Zuk's attacks. The shield will move, so players will need to move alongside it to avoid taking damage from Zuk. If the player is not covered by the shield when Zuk attacks, they run the risk of taking massive damage; Zuk is extremely accurate and can kill a player from full hitpoints (including over max) and its attacks cannot be [[Tick manipulation|tick-eaten]].
+
+The projectile attack performs a hybrid accuracy roll of a mage and range attack based off of the player's and Zuk's stats, which rolls the average of the player's effective Ranged defence and effective Magic defence against the average of Zuk's effective Ranged accuracy and effective Magic accuracy.{{CiteTwitter|url=https://twitter.com/JagexAsh/status/1546043065999269890|author=Mod Ash|date=10 July 2022|archiveurl=https://reldo.runescape.wiki/i/106414|archivedate=22 July 2022|quote=It looks at your effective ranged defence and your effective magic defence, and takes the average (i.e. add the two numbers, divide by 2). It does the same for the NPC's effective ranged & magic accuracy. It rolls the average accuracy against the average defence. The max hit's calculated off the NPC's stats too, taking its ranged max hit and magic max hit, and using an average of those two numbers.}} The same goes for the projectile's damage, which consists of a single roll between 0 and the average of Zuk's maximum Magic hit and maximum Ranged hit.{{NamedRef|damage}}
+
+Throughout the fight, Zuk will spawn minions:
+*Periodically, a [[Jal-Xil]] (ranger) and [[Jal-Zek]] (mager) will appear throughout the fight and attack the shield; once attacked, they will instead target the player. If the shield takes 600 damage, it will be destroyed, leaving the player fully vulnerable to Zuk's attacks.
+*At 480 hitpoints, a [[JalTok-Jad]] will appear and attack the shield.
+*At 240 hitpoints, Zuk will become enraged as it fights for its life, attacking 3 ticks (1.8s) faster and summoning four [[Jal-MejJak]]s on the lava in front of it. Once attacked, they will stop healing Zuk and bombard the player's area for 5-10 damage with area-of-effect attacks.
+
+Any remaining minions when TzKal-Zuk is killed will automatically die with it.
+
+==Drops==
+{{DropsTableHead}}
+{{DropsLine|name=Jal-Nib-Rek|quantity=1|rarity=1/100|raritynotes=<ref group="d">Jal-Nib-Rek drop rate is 1/75 if TzKal-Zuk is killed while on a TzHaar Slayer task.</ref>|altrarity=1/75|gemw=No}}
+{{DropsTableBottom}}
+
+===Rewards===
+Should players manage to defeat TzKal-Zuk, they will be awarded the untradeable [[infernal cape]], which is the best [[melee]] [[cape]] in the game, along with 16,440 [[Tokkul]] (doubled if the player has completed the Elite tier of the [[Karamja Diary]]).
+
+There is also a 1/100 chance of receiving a [[Jal-Nib-Rek]] [[pet]] upon defeating TzKal-Zuk. Outside, players may give [[TzHaar-Ket-Keh]] any unwanted infernal capes for a 2nd chance at a Jal-Nib-Rek, having also a 1/100 chance.
+
+When exchanging the cape, you increase your effective chance to ~1/50 to receive the pet (~1/43 on Slayer task).
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|TzKal-Zuk}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = TzKal-Zuk now has a 40% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes
+|date = 24 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Tweaks
+|change = The "Attack" option on Zuk is once again visible during the introductory cut scene.
+}}
+{{Subject changes
+|date = 19 January 2022
+|update = Leagues III - Shattered Relics Launch
+|change = Dying at the same moment as killing TzKal-Zuk now correctly subtracts one kill count from a Slayer task.
+}}
+{{Subject changes
+|date = 1 December 2021
+|update = PJ Timer Beta & Chat Changes
+|change = The minimum [[HiScores]] killcount required for TzKal-Zuk has been lowered from 2 to 1.
+}}
+{{Subject changes
+|date = 13 January 2021
+|update = God Wars Instancing and Soul Wars Improvements
+|change = Zuk's shield no longer vanishes right as he dies.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery>
+TzKal-Zuk (Trading Card).png|The TzKal-Zuk [[Steam Trading Cards|Steam Trading Card]].
+TzKal-Zuk (Profile Background).jpg| The TzKal-Zuk [[Steam Profile Backgrounds|Steam Profile Background]].
+</gallery>
+
+==Trivia==
+*"TzKal" in the [[TzHaar]] language translates into "Champion of the Fire".
+*Although TzKal-Zuk is referred to as "him" when it becomes enraged by [[TzHaar-Ket-Keh]], [[Jal-Nib-Rek]] mentions "Zuk is mum".
+*TzKal-Zuk is one of the first pieces of content conceived in ''Old School RuneScape'' that went on to be used in ''RuneScape 3''. {{RSL|TzKal-Zuk}} is a demigod warlord from the {{RSL|Second Age}} who acts as {{RSL|Ful|Ful's}} general in the {{RSL|Elder God Wars Dungeon}}.
+** The ''RuneScape 3'' variant of Zuk uses a full humanoid model (with feet) and primarily attacks with a {{RSL|Ek-ZekKil|massive obsidian sword}}, though he is also capable of using magic attacks; he is not capable of using ranged attacks. None of his auto-attacks are able to kill the player in a single hit, though he has mechanics which do.
+** The ''RuneScape 3'' variant also has a combat level of 14,000, ten times that of the ''Old School RuneScape'' variant.
+*Previously, TzKal-Zuk was described by [[TzHaar-Ket-Keh]] as being one of the many newly-hatched feral TzHaar that rose to dominance over its brethren. This no longer appears to be true, and Keh now states that he doesn't know where TzKal-Zuk came from. This change was likely done to keep TzKal-Zuk's lore in ''Old School RuneScape'' consistent with his backstory in ''RuneScape 3''.
+*TzKal-Zuk had a festive override wearing a [[santa hat]] during the [[2020 Christmas event/Gallery|2020]], [[2021 Christmas event/Gallery|2021]], [[2022 Christmas event/Gallery|2022]], [[2023 Christmas event/Gallery|2023]], [[2024 Christmas event/Gallery|2024]], and [[2025 Christmas event/Gallery|2025]] Christmas events.
+*If you log out and then run out of membership during an Inferno run, you will not lose your slayer task.
+*If you log out and then run out of membership and renew on the website before logging back in you will not lose your progress.
+
+==Notes==
+{{notelist}}
+
+==References==
+{{Reflist}}
+
+{{Succession|predecessor=[[Great Olm]]|title=[[Strongest monster|Strongest monster in ''Old School RuneScape'']]|successor=[[Verzik Vitur]]}}
+
+{{Inferno}}
+{{Bosses}}

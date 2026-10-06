@@ -145,6 +145,42 @@ import ledger  # noqa: E402
 import quest_list  # noqa: E402
 
 MIN_SHOT_BYTES = 1000
+
+# THE SHOT'S FILE NAME (TEST-3, waves seam pass 7, 2026-10-05). The client's
+# screenshot slot (app.h, struct App's plugin_screenshots[].name) holds 71
+# characters, so a row's shot name longer than 67 (71 less ".png") is written
+# under a SHORTENED file name by torirs_plugin_drive_ui.c's
+# drive_ui_shot_file_stem: the first 49 characters, "~", eight hex digits of
+# the FNV-1a 32 hash of the whole name, "~", the last 8 characters. Before
+# that it was cut at 71, ".png" and all, and this gate failed a green row for
+# claiming a shot that was not on disk. The ledger's `shots` column keeps the
+# row's own name; the file is found through this mirror of the C rule (the
+# row's detail also says "shot <name> is file <file>.png"). A name that fits
+# is its own file, byte for byte, so every existing quest's shots are found
+# exactly as before.
+SHOT_STEM_MAX = 71 - len(".png")
+SHOT_STEM_HASH_DIGITS = 8
+SHOT_STEM_TAIL = 8
+
+
+def shot_name_hash(name):
+    """FNV-1a 32 over the name's UTF-8 bytes (drive_ui_shot_name_hash)."""
+    value = 2166136261
+    for byte in name.encode("utf-8"):
+        value ^= byte
+        value = (value * 16777619) & 0xFFFFFFFF
+    return value
+
+
+def shot_file_stem(name):
+    """The file stem (no ".png") the client writes the shot `name` under."""
+    raw = name.encode("utf-8")
+    if len(raw) <= SHOT_STEM_MAX:
+        return name
+    head = SHOT_STEM_MAX - SHOT_STEM_HASH_DIGITS - SHOT_STEM_TAIL - 2
+    stem = raw[:head] + b"~" + (b"%08x" % shot_name_hash(name)) + b"~" + raw[-SHOT_STEM_TAIL:]
+    return stem.decode("utf-8", "surrogateescape")
+
 FINGERPRINTS_DIR = os.path.join(HERE, "fingerprints")
 FINGERPRINT_NAMES = ("character_creator", "pre_login", "title_screen")
 # character_creator: the shot's own top-left 64x64 corner against
@@ -786,7 +822,7 @@ def logout_row_shots(rows):
     names = set()
     for row in rows or []:
         if row["verdict"] == "PASS" and LOGOUT_DETAIL_RE.match(row["detail"] or ""):
-            names.update(ledger.shot_names(row))
+            names.update(shot_file_stem(shot_name) for shot_name in ledger.shot_names(row))
     return names
 
 
@@ -1110,7 +1146,7 @@ def check_quest(name, allow_blocked):
 
     for row in rows:
         for shot_name in ledger.shot_names(row):
-            shot_path = os.path.join(shots_dir, "%s.png" % shot_name)
+            shot_path = os.path.join(shots_dir, "%s.png" % shot_file_stem(shot_name))
             if not os.path.isfile(shot_path):
                 findings.append("step %r claims shot %r, which is not on disk (%s)"
                                  % (row["step"], shot_name, shot_path))

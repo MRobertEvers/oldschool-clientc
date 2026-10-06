@@ -1,0 +1,33 @@
+# ladder atfirstlight quest_dir=quest_atfirstlight guide=src/main/java/com/questhelper/helpers/quests/atfirstlight/AtFirstLight.java steps=30 legs=1:1-30@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToApatura	NpcStep	npc:hg_apatura	1554,3033,0	Talk to Guildmaster Apatura in the Hunter Guild, south-west of Civitas illa Fortis.			Can I help you with anything? | Yes.	quests/quest_atfirstlight/scripts/atfirstlight.rs2:109 opnpc1
+1	2	0	goDownTree	ObjectStep	loc:hunterguild_stairs_down01_combined	1557,3048,0	Go down the stairs in the tree in the guild.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +2
+1	3	0	talkToVerity	NpcStep	npc:hg_verity	1559,9464,0	Talk to Guild Scribe Verity behind the bar.				quests/quest_atfirstlight/scripts/atfirstlight.rs2:154 opnpc1
+1	4	0	talkToWolf	NpcStep	npc:hg_wolf	1555,9462,0	Talk to Guild Hunter Wolf (Master), next to the bar.				quests/quest_atfirstlight/scripts/atfirstlight.rs2:199 opnpc1
+1	5	0	windUpToy	DetailedQuestStep			Wind up a toy mouse.		Toy mouse		
+1	6	0	useToyOnKiko	NpcStep	npc:afl_kiko	1552,9460,0	Use the wound up toy mouse on Guild Hunter Kiko near the bar.		Toy mouse (wound)		quests/quest_atfirstlight/scripts/atfirstlight.rs2:266 opnpc1; +1
+1	7	0	checkBed	ObjectStep	loc:afl_catbed_op	1552,9460,0	Check the cat's bed.				quests/quest_atfirstlight/scripts/atfirstlight.rs2:273 oploc1; +1
+1	8	0	returnToWolf	NpcStep	npc:hg_wolf	1555,9462,0	Return to Guild Hunter Wolf (Master), next to the bar.				quests/quest_atfirstlight/scripts/atfirstlight.rs2:199 opnpc1
+1	9	4	goUpTree	ObjectStep	loc:hunterguild_stairs_up01	1557,9449,0	Go back up the stairs.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +1
+1	10	4	buyBoxTrap	NpcStep	npc:hg_mixedhide_seller	1562,3060,0	Get a box trap. You can buy one from Imia in the north of the Hunter Guild's surface for 41gp.				shop/hunter_guild/scripts/hunter_guild_shops.rs2:8 opnpc1; +1
+1	11	4	talkToFox	NpcStep	npc:afl_hunter_fox	1623,2982,0	Talk to Guild Hunter Fox near the crevice south-east of the Hunter Guild.				quests/quest_atfirstlight/scripts/atfirstlight.rs2:318 opnpc1; +1
+1	12	5	takeLeaf	ObjectStep	loc:afl_bush1	1618,2979,0	Search the leafy bush south of the crevice for a smooth leaf.				quests/quest_atfirstlight/scripts/atfirstlight.rs2:405 oploc1
+1	13	5	takeSecondLeaf	ObjectStep	loc:afl_bush2	1673,2992,0	Search the rough-looking bush on the west side of the Locus Oasis.				quests/quest_atfirstlight/scripts/atfirstlight.rs2:408 oploc1
+1	14	5	catchJerboa	DetailedQuestStep		1664,3003,0	Catch two Embertailed Jerboa for their tails.		Box trap		
+1	15	5	useTailOnLeaves	DetailedQuestStep			Use the tails on the leaves.		Jerboa tail; Smooth leaf		
+1	16	5	returnToFox	NpcStep	npc:afl_hunter_fox	1623,2982,0	Bring the poultice back to Guild Hunter Fox near the crevice.		Makeshift poultice		quests/quest_atfirstlight/scripts/atfirstlight.rs2:318 opnpc1; +1
+1	17	6	talkToFoxAfterPoultice	NpcStep	npc:afl_hunter_fox	1623,2982,0	Talk to Guild Hunter Fox.				quests/quest_atfirstlight/scripts/atfirstlight.rs2:318 opnpc1; +1
+1	18	8	talkToAtzaAfterHandingFur	NpcStep	npc:afl_atza	1696,3063,0	Talk to Atza in one of the buildings outside Civitas illa Fortis' south wall, west of the general store.				quests/quest_atfirstlight/scripts/atfirstlight.rs2:455 opnpc1
+1	19	7	talkToAtza	NpcStep	npc:afl_atza	1696,3063,0	Talk to Atza in one of the buildings outside Civitas illa Fortis' south wall, west of the general store.	talkToAtzaAfterHandingFur	Fur sample		quests/quest_atfirstlight/scripts/atfirstlight.rs2:455 opnpc1
+1	20	8	takeHammer	ItemStep		1696,3070,0	Take a hammer from the house north of Atza.		Hammer		
+1	21	8	makeEquipmentPile	ObjectStep	loc:afl_housetrap_multi	1697,3063,0	Set-up the pile of equipment next to Atza.		=		quests/quest_atfirstlight/scripts/atfirstlight.rs2:499 oploc1; +1
+1	22	8	talkToAtzaForTrim	NpcStep	npc:afl_atza	1696,3063,0	Talk to Atza again for some trimmed fur.				quests/quest_atfirstlight/scripts/atfirstlight.rs2:455 opnpc1
+1	23	10	getReportFromFox	NpcStep	npc:afl_hunter_fox	1623,2982,0	Return back to Fox to get his report.				quests/quest_atfirstlight/scripts/atfirstlight.rs2:318 opnpc1; +1
+1	24	9	returnToFoxAfterTrim	NpcStep	npc:afl_hunter_fox	1623,2982,0	Return to Guild Hunter Fox near the crevice south-east of the Hunter Guild to get his report.	getReportFromFox	Trimmed fur		quests/quest_atfirstlight/scripts/atfirstlight.rs2:318 opnpc1; +1
+1	25	10	takeNeedle	ItemStep	obj:needle	1566,3035,0	Take the needle in the Hunter Guild's surface area, in its south-east corner.		Needle		skill_crafting/scripts/leather/leather.rs2:10 opheldu
+1	26	10	goDownTreeEnd	ObjectStep	loc:hunterguild_stairs_down01_combined	1557,3048,0	Go down the stairs in the tree in the Hunters Guild.		Fox's report; Trimmed fur; Jerboa tail; needleOrCostumeNeedle		ladders_stairs/scripts/ladders.rs2:178 oploc1; +2
+1	27	10	talkToVerityEnd	NpcStep	npc:hg_verity	1559,9464,0	Talk to Guild Scribe Verity behind the bar again.				quests/quest_atfirstlight/scripts/atfirstlight.rs2:154 opnpc1
+1	28	10	useJerboaTailOnBed	ObjectStep	loc:afl_catbed_op	1552,9460,0	Use a jerboa tail on the cat bed.		Jerboa tail; Trimmed fur; needleOrCostumeNeedle		quests/quest_atfirstlight/scripts/atfirstlight.rs2:273 oploc1; +1
+1	29	11	talkToApaturaToFinishQuest	NpcStep	npc:hg_apatura	1554,3033,0	Talk to Guildmaster Apatura to finish the quest.				quests/quest_atfirstlight/scripts/atfirstlight.rs2:109 opnpc1
+1	30	11	goUpTreeToFinishQuest	ObjectStep	loc:hunterguild_stairs_up01 npc:hg_apatura	1557,9449,0	Go back up the stairs and talk to Guildmaster Apatura to finish the quest.	talkToApaturaToFinishQuest			quests/quest_atfirstlight/scripts/atfirstlight.rs2:109 opnpc1

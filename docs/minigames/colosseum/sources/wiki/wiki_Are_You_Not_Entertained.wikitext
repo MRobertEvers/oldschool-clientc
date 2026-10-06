@@ -1,0 +1,43 @@
+{{Infobox Music
+|name = Are You Not Entertained?
+|number = 760
+|file = [[File:Are You Not Entertained.ogg]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|location = [[Fortis Colosseum]]
+|hint = This track unlocks in the Fortis Colosseum.
+|quest = No
+|instruments = Brass Section, String Ensemble 1, Marimba, FX 5 (brightness), Trumpet, Distortion Guitar, Percussive Organ, Choir Ohhs, Tremolo Strings, Standard Drum Kit, Reverse Cymbal, Tubular Bells, Pad 1 (new age), Orchestra Hit, Pad 8 (sweep), Timpani
+|duration = 05:29
+|signature = 4/4
+|tempo = 135 BPM
+|album = ''[[RuneScape-_Varlamore|RuneScape: Varlamore]]''
+|composer = Artur Baryshev
+|map = {{Map|mtype=polygon|1823,3125|1820,3125|1818,3124|1817,3124|1813,3122|1810,3119|1808,3115|1808,3114|1807,3112|1807,3109|1809,3109|1809,3105|1807,3105|1807,3102|1808,3100|1808,3099|1810,3095|1813,3092|1816,3090|1818,3090|1820,3089|1823,3089|1823,3091|1827,3091|1827,3089|1830,3089|1832,3090|1833,3090|1837,3092|1840,3095|1842,3099|1842,3103|1840,3103|1840,3111|1842,3111|1842,3115|1840,3119|1837,3122|1833,3124|1831,3124|1829,3125|1827,3125|1827,3123|1823,3123|bucket=yes}}
+|cacheid = 782
+|sortname = Are You Not Entertained?
+|unlockdetail = Unlocked in the [[Fortis Colosseum]]. It only unlocks upon starting the first wave, not by simply entering the colosseum.
+}}
+'''Are You Not Entertained?''' is a [[music]] track that is unlocked in the [[Fortis Colosseum]]. It only unlocks upon starting the first wave, not by simply entering the colosseum. This track is unlocked during the quest [[Meat and Greet]].
+
+==Versions==
+{{Music changes header}}
+{{Music changes
+|version=1
+|date=20 March 2024
+|file=[[File:Are You Not Entertained (8-bit).ogg]]
+}}
+{{Music changes
+|version=1
+|date=9 April 2025
+|change= [[Audio#16-bit_music|16-bit Music Update]]
+|file=[[File:Are You Not Entertained.ogg]]
+}}
+{{Music changes footer}}
+==Trivia==
+* The name of this music track is a reference to an [https://youtu.be/BPNOdkLcL_g?t=92 iconic line] from the 2000 film ''{{WP|Gladiator (2000 film)|Gladiator}}''.
+
+{{Fortis Colosseum}}
+{{Music}}
+[[Category:Old School-exclusive music]]

@@ -27,8 +27,10 @@ local plugin = {
 -- later. Counting them at on_start is what turns that into one line at boot.
 local PARTS = { "chat", "scroll", "levelup", "player", "var", "inv", "msg",
                 "ui", "npc", "world", "drive", "t",
-                -- the raid seam's parts (docs/RAID_ORCHESTRATOR.md section 4)
-                "prayer", "raid", "ticklog" }
+                -- the raid seam's parts (docs/RAID_ORCHESTRATOR.md section 4),
+                -- and QD.wave (waves.lua: t.wave.enter / state / await_wave /
+                -- await_clear / pause / resume, waves seam pass 2).
+                "prayer", "raid", "ticklog", "wave" }
 
 function plugin.on_start(api)
     -- The quest coroutine is resumed from C with no `api` of its own (it

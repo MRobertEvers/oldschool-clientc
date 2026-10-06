@@ -1,0 +1,25 @@
+# ladder swansong quest_dir=quest_swansong guide=src/main/java/com/questhelper/helpers/quests/swansong/SwanSong.java steps=22 legs=1:1-22@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToHerman	NpcStep	npc:swan_herman	2345,3651,0	Talk to Herman Carnos outside the Fishing Colony.			What's the rush? | Do you need any help? | I'm a brave adve…	quests/quest_swansong/scripts/swansong_colony.rs2:151 opnpc1; +1
+1	2	10	talkToWom	NpcStep	npc:wise_old_man	3089,3253,0	Talk to the Wise Old Man in Draynor Village.		Blood rune; Lava rune; Mist rune	Draynor Village | You used to be a famous adventurer, didn'…	quests/quest_makingfriendswithmyarm/scripts/makingfriendswithmyarm.rs2:324 opnpc1; +1
+1	3	50	enterColony	ObjectStep	loc:swan_hole	2344,3651,0	Enter the Fishing Colony, prepared to fight trolls.		Combat gear; Any log; Tinderbox; Iron bar; Hammer		quests/quest_swansong/scripts/swansong_colony.rs2:92 oploc1
+1	4	30	talkToWomAtColony	NpcStep	npc:wom_cutscene_2 loc:swan_hole	2345,3651,0	Talk to the Wise Old Man outside the Fishing Colony. Be prepared to fight sea trolls.	enterColony	Combat gear	I'm ready to fight.	quests/quest_swansong/scripts/swansong_finale.rs2:87 opnpc1; +2
+1	5	50	kill79Trolls	NpcStep	npc:swan_troll_ambush	2343,3657,0	Kill the sea trolls.				quests/quest_swansong/scripts/swansong_colony.rs2:133 opnpc2; +1
+1	6	55	talkToHermanInBuilding	NpcStep	npc:swan_herman	2354,3683,0	Talk to Herman in the east of the Fishing Colony.				quests/quest_swansong/scripts/swansong_colony.rs2:151 opnpc1; +1
+1	7	70	talkToFranklin	NpcStep	npc:swan_franklin	2341,3667,0	Talk to Franklin in the middle of the Fishing Colony.				quests/quest_swansong/scripts/swansong_colony.rs2:209 opnpc1
+1	8	70	useLog	ObjectStep	loc:swan_firebox	2344,3676,0	Add some logs to the firebox in the building with a furnace.		Any log		quests/quest_swansong/scripts/swansong_colony.rs2:239 oplocu
+1	9	70	useTinderbox	ObjectStep	loc:swan_firebox	2344,3676,0	Light the logs in the firebox in the building with a furnace.		Tinderbox		quests/quest_swansong/scripts/swansong_colony.rs2:239 oplocu
+1	10	70	talkToFranklinAgain	NpcStep	npc:swan_franklin	2341,3667,0	Talk to Franklin again.				quests/quest_swansong/scripts/swansong_colony.rs2:209 opnpc1
+1	11	70	talkToArnold	NpcStep	npc:swan_arnold	2329,3688,0	Talk to Arnold at the bank in the Fishing Colony.				quests/quest_swansong/scripts/swansong_colony.rs2:339 opnpc1
+1	12	80	talkToHermanAfterTasks	NpcStep	npc:swan_herman	2354,3683,0	Talk to Herman in the east of the colony again.				quests/quest_swansong/scripts/swansong_colony.rs2:151 opnpc1; +1
+1	13	90	enterWizardsBasement	ObjectStep	loc:ladder_cellar	2594,3085,0	Talk to Wizard Frumscone in the Wizards' Guild basement.				ladders_stairs/scripts/ladders.rs2:202 oploc1; +2
+1	14	90	talkToFruscone	NpcStep	npc:wizard_frumscone loc:ladder_cellar	2587,9488,0	Talk to Wizard Frumscone in the Wizards' Guild basement.	enterWizardsBasement		I'll see what the necromancer needs me to do.	areas/area_yanille/scripts/yanille_thin_npcs.rs2:47 opnpc1; +3
+1	15	100	talkToMalignius	NpcStep	npc:elemental_wizard_boss	2993,3269,0	Talk to Malignius Mortifer near Port Sarim.		Bones	I need help with saving a fishing colony.	quests/quest_swansong/scripts/swansong_army.rs2:20 opnpc1
+1	16	120	talkToCrafter	NpcStep	npc:master_crafter_3	2937,3290,0	Talk to a Master Crafter with dreadlocks in the Crafting Guild.		Brown apron	Swan Song.	quests/quest_swansong/scripts/swansong_army.rs2:66 opnpc1
+1	17	130	makeAirtightPot	DetailedQuestStep			Add a pot lid to a pot.		Pot; Pot lid		
+1	18	130	talkToMaligniusWithPot	NpcStep	npc:elemental_wizard_boss	2993,3269,0	Bring the airtight pot and 7 bones to Malignius Mortifer near Port Sarim. Make sure you're equipped for the fight before speaking to Malignus.		Airtight pot	I've spoken to the master crafter...	quests/quest_swansong/scripts/swansong_army.rs2:20 opnpc1
+1	19	140	talkToHermanWithPot	NpcStep	npc:swan_herman	2354,3683,0	Be prepared to fight, and talk to Herman in the colony.		Ranged or melee combat gear; Bone seed	I've lost the army!	quests/quest_swansong/scripts/swansong_colony.rs2:151 opnpc1; +1
+1	20	150	talkToHermanForFinalFight	NpcStep	npc:swan_herman	2354,3683,0	Be prepared to fight, and talk to Herman in the colony.	talkToHermanWithPot	Ranged or melee combat gear	I'm ready. Let's fight!	quests/quest_swansong/scripts/swansong_colony.rs2:151 opnpc1; +1
+1	21	170	killQueen	NpcStep	npc:swan_seatroll_queen	2347,3704,0	Kill the Sea Troll Queen.		=	No, I'm ready to move on with the quest.	quests/quest_swansong/scripts/swansong_finale.rs2:72 opnpc2; +1
+1	22	180	talkToHermanToFinish	NpcStep	npc:swan_herman	2354,3683,0	Talk to Herman to finish the quest.				quests/quest_swansong/scripts/swansong_colony.rs2:151 opnpc1; +1

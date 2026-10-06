@@ -1,0 +1,88 @@
+'''Fast foods''' refer to a category of [[food]] that incur non-standard attack or eating delays when they are consumed. This means you may be able to eat them faster, or attack more quickly after eating one than you could with standard foods.  
+
+==Food delays==
+{{Main|Tick manipulation}}
+Game time is measured in ticks, and 1 tick is 0.6 seconds. Standard [[food]], when eaten, adds a {{ticks|3}} penalty to when a player may eat again. If the player has attacked recently and is currently waiting on a weapon delay to attack again, this also adds a {{ticks|3}} delay before that attack. These timers are separate and can be influenced independently.
+
+===Attack delay===
+The '''attack delay''' refers to the time which a player must wait before they may attack again with a weapon in combat. When a player eats a piece of food while they are waiting to attack again, an additional delay of {{ticks|3}} is normally added. Non-standard '''attack delay''' food includes [[gnome cooking]], [[cooked karambwan]], and [[halibut]] which have a {{ticks|2}} '''attack delay''', meaning a player may attack {{ticks|1}} faster after eating one in combat.
+* A player utilising foods with a lower delay will get more attack actions than a player using standard food.
+** Compared to standard food, with an attack speed of 4 ticks, players utilising these faster foods can expect an additional attack for every 4 food consumed.
+* Foods only add to an existing attack delay between weapon attacks. If your weapon is ready to attack again then eating does not add any new delay.
+** This means eating should always be performed before starting to attack a monster.
+** A good example would be [[Zulrah]], where combo-eating at the start of a phase before attacking can result in one more attack on the boss, when compared to attacking first and then starting to eat.
+
+===Eat delay===
+The '''eat delay''' refers to the time which a player must wait before they can consume another piece of food. For most standard foods this delay is {{ticks|3}}. Non-standard '''eat delay''' food includes the first slice of [[anchovy pizza]] or the first slice of [[apple pie]], both of which have a 1 tick '''eat delay'''. This means a player has only a 0.6 second delay before eating another piece of food. This can be chained in sequence.
+* By eating the first slice off three different anchovy pizzas, a F2P player can restore nearly twice the amount of hitpoints (27) a swordfish (14) would restore in the same amount of time.
+** This would still incur a 3 tick '''attack delay''' on all three bites, leaving the player unable to attack for 9 ticks total.
+* Pizza halves, as well as apple pie halves, have a higher '''eat delay''' of 2 ticks, so you may wish to recombine your pizza slices into a faster full pizza. Note that single pie slices cannot be combined.
+* Members' pies have a 1 tick '''eat delay''' for both slices, meaning that [[wild pie]] and [[summer pie]], both at 11 hitpoints per bite, can be competitive with [[manta ray]]s (22) in some situations, since three bites (33) can be consumed in the same time as a single manta ray.
+
+==Combo eating==
+[[File:Combo food.gif|right]]
+'''Combo eating''' is a strategy that allows the healing effect from multiple foods to apply in a single server tick. This is because "combo foods" do not respect the '''eat delay''' incurred by other foods, allowing you to eat both at the same time. A player can combo eat by clicking a regular food and then a combo food later in the same tick; both items will be consumed and apply their healing in one game tick.
+
+This is most commonly performed by eating a standard food such as a [[shark]] followed by a combo food like [[cooked karambwan]]. The 3 tick '''Eat delay''' is then incurred normally. Combo eating allows a player to restore large chunks of [[Hitpoints]] much faster than other eating methods, and is commonly used for tackling difficult content. However, note that combo eating stacks the attack delay, meaning eating a shark with a karambwan results in a 3 + 2 = 5 tick attack delay.
+
+* [[Gnome cooking]] foods are also capable of combo eating and can be considered as cheaper alternatives to karambwan.
+* Non-barbarian potions respect a different delay timer, meaning a sip of any non-mix potion can be included in a combo eat action. For example consuming a [[marlin]], [[Saradomin brew]], and [[halibut]] - in that order - allows 60 hitpoints to be healed at once.
+
+===Pseudo combo eating===
+Pseudo combo eating (also known as F2P combo eating) consists of using a 1 tick '''eat delay''' food such as the first slice of an [[anchovy pizza]] or [[apple pie]] and immediately following it up with another food such as a [[swordfish]]. This results in both the heals occurring 1 tick apart, which is slower than possible with combo foods but still faster than simply eating multiple swordfish.
+
+This can be combined with regular combo-eating, by first eating a fast food and then on the subsequent tick doing the 3-food combo mentioned above.
+
+==Table of fast foods==
+{{Fast_foods_table}}
+
+==Healing potions==
+Potions do not incur the standard 3 tick (1.8 second) attack or eat delay. This can make them the best source of healing for some types of PvP; or a powerful tool for PvM situations where damage is a higher priority than inventory space, such as competing for bossing drops, or speed related combat achievements.
+
+For example, a player releasing [[snowy knight (item)|snowy knights]] instead of eating normal foods would be able to heal for 15 hitpoints every 1.8 seconds without losing any attacks. This can be a substantial amount of damage and outperform even Karambwans which only add a 2-tick (1.2 second) delay to attacking.
+
+{|class="wikitable sortable align-center-1 align-center-3"
+! colspan="2" | Item
+! Effect
+! Health Restored
+|-
+|[[File:Armadyl brew.png|link=]]
+|[[Armadyl brew]]
+|Raises Hitpoints by 10% + 2 and raises Ranged by 10% + 4 of their base levels.
+Reduces Attack, Strength, Defence, and Magic by 10% + 2 of their base levels.
+|10% + 2
+|-
+|[[File:Saradomin brew.png|link=]]
+|[[Saradomin brew]]
+|Raises Hitpoints by 15% + 2 and raises Defence by 20% + 2 of their base levels.
+Reduces Attack, Strength, Ranged, and Magic by 10% + 2 of their base levels.
+|15% + 2
+|-
+|[[File:Guthix rest.png|link=]]
+|[[Guthix rest]]
+|Heals 5 Hitpoints per use (4 total uses).
+|5 x 4
+|-
+|[[File:Snowy knight mix.png|link=]]
+|[[Snowy knight mix]]
+|Heals 8 Hitpoints per use (2 total uses).
+|2 x 8
+|-
+|[[File:Snowy_knight_(item).png|link=]]
+|[[Snowy knight (item)]]
+|Heals 15 Hitpoints.
+|15
+|-
+|[[File:Sunlight moth mix.png|link=]]
+|[[Sunlight moth mix]]
+|Heals 8 Hitpoints and 6 + 20% of reduced stat levels per use (2 total uses).
+|2 x 8
+|-
+|[[File:Sunlight_moth_(item).png|link=]]
+|[[Sunlight moth (item)]]
+|Heals 8 Hitpoints and 6 + 20% of reduced stat levels excluding Prayer.
+|8
+|-
+|}
+
+[[Category:Food]]

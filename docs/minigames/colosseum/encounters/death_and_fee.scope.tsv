@@ -1,0 +1,30 @@
+mechanic_id	scope	note
+death.respawn.lobby_with_grave	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.grave.created_at_death_coord	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.fee.reduction_percent	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.fee.reduction_until_waves	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.fee.reduction_waves_superseded	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.fee.counter_var	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.fee.zone_packed_corners	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.fee.cap_coins	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.fee.after_threshold	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.grave.contents	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.loot.forfeited_on_death	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.loot.forfeited_on_logout	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.loot.forfeited_on_teleport	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.cash_out.between_waves_only	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.stats.restored_on_minimus_exit	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.stats.not_restored_on_teleport_or_logout	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.logout.return_location	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.logout.combat_delay	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.pause.none	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.doom.kill_caps	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.doom.stacks_reset_each_wave	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.doom.stack_source	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.presentation.doom_death	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.presentation.ordinary_death	all	one solo test: die (or log out/teleport) in a run and read the outcome against this row, with varp4131 set below and at 100
+death.blert.player_death_events	stat	settled by the recorder sample (verify_blert export, 18 runs); not one solo test
+death.blert.deaths_per_run	stat	settled by the recorder sample (verify_blert export, 18 runs); not one solo test
+death.blert.death_waves	stat	settled by the recorder sample (verify_blert export, 18 runs); not one solo test
+death.blert.death_ticks_in_wave	stat	settled by the recorder sample (verify_blert export, 18 runs); not one solo test
+death.blert.doom_hitsplats_in_death_wave	stat	settled by the recorder sample (verify_blert export, 18 runs); not one solo test

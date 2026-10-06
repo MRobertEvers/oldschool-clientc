@@ -239,27 +239,25 @@ App_Logout(struct App* app)
  * to leave, which is the one moment the two can disagree: ten seconds of
  * combat logout delay looked, from the client, exactly like a logout.
  *
+ * The wait has no end of its own. This used to count the 250 cycles down and
+ * end the session locally when they ran out, so a logout the server REFUSED
+ * (the 16-tick combat rule) still put the title screen up about eight ticks
+ * later, with the player's fight going on under it (CONTENT_BUGS ENG-29;
+ * waves seam pass 5, build/quest_gate/sf_logout_before2: refused at server
+ * tick 12, title at 20, hits still landing at 16 and 20). The rev-239 client
+ * (toolchains/unpacked_deob/deob/gamepack-deob.jar, `javap -c -p`) never
+ * counts its logoutTimer down: the field (client.field865) has four uses --
+ * set to 250 by CS2 op 5630 (method6568) and by CS1 clientCode 205
+ * (method8893), set to 0 by the session reset, and read once, on a lost
+ * socket (method6722: armed -> back to the title, else connection lost and
+ * redial). So the session ends when the server ends it, and not before.
+ *
  * Run once per logic tick. True when the screen changed.
  */
 bool
 app_logout_tick(struct App* app)
 {
     assert(app);
-
-    /* Ahead of this tick's request, so a wait armed below keeps its whole
-     * window rather than spending the first cycle of it on the tick that
-     * armed it. */
-    if( app->logout_wait_cycles > 0 && --app->logout_wait_cycles == 0 )
-    {
-        /* Nothing answered. @see APP_LOGOUT_WAIT_CYCLES: the reference would
-         * wait here forever, and a client pointed at more than one server
-         * cannot. */
-        TORIRS_LOG(
-            "logout: no answer from the server in %d ms; ending the session anyway\n",
-            APP_LOGOUT_WAIT_CYCLES * APP_LOGIC_TICK_MS);
-        App_Logout(app);
-        return true;
-    }
 
     if( !app->logout_requested )
         return false;
@@ -278,17 +276,10 @@ app_logout_tick(struct App* app)
     }
 
     /*
-     * A second click while the first is still waiting does NOT restart the
-     * clock.
-     *
-     * The deadline belongs to the request, and the request has already been
-     * made -- this click's IF_BUTTON goes out beside the first one's, and the
-     * server answers whichever it likes. Re-arming here instead is what turned
-     * a slow button into a dead one: a person who clicks again because nothing
-     * happened pushes the fallback out by another five seconds, and a person
-     * who keeps clicking never reaches it at all. The fallback is ours, not
-     * the reference's (@see APP_LOGOUT_WAIT_CYCLES), so its "five seconds from
-     * when you asked" is ours to mean literally.
+     * A second click while the first is still waiting changes nothing here:
+     * its IF_BUTTON goes out beside the first one's, and the server answers
+     * whichever it likes -- a click after the combat delay has run out is the
+     * one it says yes to. The wait is already armed and stays armed.
      */
     if( app->logout_wait_cycles > 0 )
         return false;

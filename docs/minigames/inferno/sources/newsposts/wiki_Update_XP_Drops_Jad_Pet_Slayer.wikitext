@@ -1,0 +1,83 @@
+{{Update|date=6 August 2015|link=http://services.runescape.com/m=news/xp-drops-jad-pet--slayer?oldschool=1|category=game}}
+[[File:XP Drops, Jad Pet & Slayer newspost.png|right]]
+{{clear}}
+
+<center><font style="font-family:Trajan Pro,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">XP Drops, Jad Pet & Slayer</font></center>
+It is a big week for Old School with the addition of experience trackers and drops! Tracking your progress and setting goals has never been as easy. We've also got the addition of the unlockable TzHaar and Jad tasks alongside the release of TzHur-Jad, the Jad pet!
+
+<font style="font-family:Trajan Pro,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">Experience drops & tracker</font>
+
+Experience drops are here with a huge number of features for all your experience tracking needs!
+[[File:XP Drops, Jad Pet & Slayer (1).png|centre]]
+If you have minimap orbs enabled you will notice the addition of an XP button. Clicking this will display an experience tracker on your screen. You can right-click the orb and select 'setup' to be given a wide selection of different settings for your experience tracker and drops.
+[[File:XP Drops, Jad Pet & Slayer (2).png|centre]]
+
+'''Position, size & duration'''
+
+The position and size options allow you to select where on the screen you would like the experience tracker to appear and how large it is.
+
+Setting the duration to permanent will cause the experience tracker to be constantly visible. Setting it to anything else will cause the experience tracker to appear whenever you gain experience and disappear after the selected period of time.
+
+'''Goals, progress bar & counter'''
+
+[[File:XP Drops, Jad Pet & Slayer (3).png|centre]]
+It is possible to set an experience or level goal for any skill (including total level/experience). Once you've chosen a goal you can choose to enable the progress bar in order to keep up-to-date on how close you are to your goal.
+
+The progress bar option allows you to choose which skill you would like to display your progress bar for (if any). This will add a small bar to the bottom of your experience tracker that shows your progress towards any goals you have set for a skill.
+[[File:XP Drops, Jad Pet & Slayer (4).png|centre]]
+The counter option allows you to decide which skill you would like to display experience for. Options for total experience and the skill that you've most recently trained are included alongside an option for each individual skill.
+
+'''Colour & grouping'''
+
+The colour option allows you to change the colour of experience drops to make them easier to read on any background.
+
+Enabling the group option will cause experience gained at the same time in multiple skills to appear as a single experience drop with multiple skill icons rather than several experience drops.
+
+[[File:XP Drops, Jad Pet & Slayer (5).png|centre]]
+
+
+<font style="font-family:Trajan Pro,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">TzHaar slayer assignment & Jad task</font>
+
+You can now unlock TzHaar monsters as a potential slayer assignment for the low, low cost of 100 slayer reward points. Both Nieve and Duradel will be able to assign TzHaar as a task.
+[[File:XP Drops, Jad Pet & Slayer (6).png|centre]]
+If you receive a TzHaar task, and do not have a slayer partner, you will be given the option to take on the challenge of defeating TzTok-Jad instead of measly TzHaar. If you succeed in the fight cave and take down Tztok-Jad you will receive a bonus 25,000 slayer experience (in addition to the experience gained throughout the cave).
+[[File:XP Drops, Jad Pet & Slayer (7).png|centre]]
+
+Another small Jad-related tweak we have made this week is TzTok-Jad kills are now tracked on the boss log found on the ring of wealth.
+
+<font style="font-family:Trajan Pro,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">TzHur-Jad</font>
+
+Have you ever been mid-way through a TzTok-Jad kill and thought, "boy, I'd love one of these following me around all day"? Well, if you have, it is your lucky day! Players who kill TzTok-Jad will now have a slim chance of receiving a Jad pet, TzHur-Jad. If you're on a TzTok-Jad slayer task when you kill Jad you will have an increased chance of receiving a Jad pet.
+[[File:XP Drops, Jad Pet & Slayer (8).png|centre|700px]]
+You can get another shot at getting yourself a TzHur-Jad by talking to TzHaar-Mej-Jal just outside of the fight cave and sacrificing a fire cape.
+
+<font style="font-family:Trajan Pro,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">Grand Exchange Web Pages</font>
+
+The [http://services.runescape.com/m=itemdb_oldschool/ Old School Grand Exchange web pages] are here! You can find all of the price and trade information you may ever need using the new Grand Exchange section of the Old School website.
+[[File:XP Drops, Jad Pet & Slayer (9).png|centre|500px]]
+You can find information for every item on the Grand Exchange dating back to the release of the Grand Exchange as well as information on the number of items traded each day.
+[[File:XP Drops, Jad Pet & Slayer (10).png|centre|200px]]
+[[File:XP Drops, Jad Pet & Slayer (11).png|centre|200px]]
+There has never been a better time to whip out your cash stack and get flipping. So, what are you waiting for? Head over to the [http://services.runescape.com/m=itemdb_oldschool/ Grand Exchange pages] today!
+
+'''In other news...'''
+
+*Barbarian Assault has now been re-enabled.
+*The spawns of the Fight Caves creatures will remain the same if you logout and in on to repeat a wave.
+*It is now possible to be attacked by a player in single combat wilderness zones if you are fighting a Zamorak Mage when attempting to dig for your clue scroll.
+*Vet'ion is no longer able to take damage when lured far enough away from his dogs.
+*The Kandarin diary task to buy a candle from the Catherby store now cannot be completed by buying a candle from the Tai Bwo Wannai store.
+*It is no longer possible to complete the Varrock Diary task, "Make 20 Mahogany Planks in one go" without having enough coins to pay the Sawmill Operator.
+*It is no longer possible to search a panning tray inside a duel at the Duel Arena.
+*The "Create a Super Antipoison potion from scratch in the Seers/Catherby Area." Kandarin Diary task now includes more than just half of Catherby.
+*It is no longer possible to waste Ugthanki dung attempting to recharge the Camulet when it is already fully charged.
+*The Monks of Entrana now get suitably angry if you attempt to take Ghostly Robes to the island.
+*Players who intentionally overheat by using the pump too much at Blast Furnace will now be kicked out temporarily.
+*The teleports on the Morytania Legs and Karamja Gloves are now in consistent orders.
+*Players can now click slightly beyond the visible region of the mini-map in fixed mode, as they could before resizable mode was released.
+*Ironmen can now unlock the Fishing Trawler music tracks in order to attain the Music Cape.
+*Players who hadn't received the music track "Sigmond's Showdown" despite completing Death to the Dorgeshuun should now have it unlocked.
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,207,65662057 forums].
+
+'''''Mods Alfred, Archie, Ash, Day, Ghost, Ian, John C, Kieren, Krista, Mat K, Maz, Ronan, Weath'''''<br/>''The Old School Team''

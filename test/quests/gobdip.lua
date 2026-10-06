@@ -16,10 +16,29 @@ return {
         local snap_r, snap = t.skill.snapshot()
         local r, d, res, det
 
-        t.exec("g1.approach", t.player.goto_tile, 2957, 3507, 0)
-        t.exec("g1.door", t.player.click_loc, "goblin_outpost_poordoor_double_inner", 1)
-        t.ticks(3)
-        t.exec("g1.inside", t.player.goto_tile, 2957, 3510, 0)
+        -- Goblin Village is open ground from Lumbridge (reach.py 3206,3233 ->
+        -- 2957,3507: REACH closed-doors len=563): the first goto lands on the
+        -- open yard south of the generals' hall. The hall is entered and left
+        -- by its double door (goblin_outpost_poordoor_double_inner 2957,3509,
+        -- north wall; doubledoors.rs2 ~open_double_door_left) on every visit.
+        local function hall_in(name)
+            t.exec(name, t.player.pass_door, { closed = "goblin_outpost_poordoor_double_inner",
+                open = "goblin_outpost_openpoordoor_double_inner", at = { 2957, 3509, 0 },
+                near = { 2957, 3509 }, far = { 2957, 3510 } })
+        end
+        local function hall_out(name)
+            t.exec(name, t.player.pass_door, { closed = "goblin_outpost_poordoor_double_inner",
+                open = "goblin_outpost_openpoordoor_double_inner", at = { 2957, 3509, 0 },
+                near = { 2957, 3510 }, far = { 2957, 3508 } })
+        end
+        -- The crate2 hut's door: goblin_outpost_poordoor 2954,3505 (west wall
+        -- of that tile; the hut is 2952-2953 x 3505-3508).
+        local function hut_door(name, near, far)
+            t.exec(name, t.player.pass_door, { closed = "goblin_outpost_poordoor",
+                open = "goblin_outpost_openpoordoor", at = { 2954, 3505, 0 }, near = near, far = far })
+        end
+        t.exec("goto-village", t.player.goto_tile, 2957, 3507, 0)
+        hall_in("g1.hallDoorIn")
         t.ticks(2)
         -- stage 0: every menu branch, decline, then accept
         t.exec("s0a.talk", t.player.talk_to, "general_bentnoze_red", 1)
@@ -95,24 +114,34 @@ return {
             "npc:Come back when you have some.",
         })
         -- the crates
-        t.exec("goto-crate1", t.player.goto_tile, 2959, 3515, 0)
+        -- crate1 (2959,3514) stands OUTSIDE the hall, north of its wall:
+        -- out by the double door, then round the east side on foot
+        -- (reach.py 2957,3508 -> 2959,3515: REACH closed-doors len=15).
+        hall_out("crate1.hallDoorOut")
+        t.exec("crate1.walk", t.player.walk_to, 2959, 3515)
         t.exec("crate1", t.player.click_loc, "goblin_outpost_large_crate_armour1", 1)
         t.check("crate1.mail", t.inv.await("goblin_armour", 1, 10))
         t.exec("crate1.dismiss", t.chat.play, { "mesbox:You find some goblin mail" })
-        t.exec("goto-hutdoor", t.player.goto_tile, 2955, 3505, 0)
-        t.exec("hutdoor.open", t.player.click_loc, "goblin_outpost_poordoor", 1)
-        t.ticks(3)
+        -- crate2 (2951,3508) is in the west hut: walk to its door, in, search, out.
+        t.exec("crate2.walk", t.player.walk_to, 2955, 3505)
+        hut_door("crate2.hutDoorIn", { 2955, 3505 }, { 2953, 3505 })
         t.exec("crate2", t.player.click_loc, "goblin_outpost_large_crate_armour2", 1)
         t.check("crate2.mail", t.inv.await("goblin_armour", 2, 10))
         t.exec("crate2.dismiss", t.chat.play, { "mesbox:You find some goblin mail" })
-        t.exec("goto-ladder", t.player.goto_tile, 2954, 3497, 0)
-        t.exec("ladder.up", t.player.click_loc, "goblin_ladder_bottom", 1)
-        t.ticks(3)
+        hut_door("crate2.hutDoorOut", { 2953, 3505 }, { 2955, 3505 })
+        -- crate3 (2955,3498, level 2) is on the platform the two-plane ladder
+        -- goblin_ladder_bottom 2954,3497 climbs to (gobdip_crates.rs2:61
+        -- ~climb_ladder_to(movecoord(coord, 0, 2, 0)): the player's own tile,
+        -- two planes up). Stand on the open tile west of the ladder (the
+        -- ladder's tile is solid) and climb from there both ways.
+        t.exec("crate3.walk", t.player.walk_to, 2953, 3497)
+        t.exec("crate3.ladderUp", t.player.climb, { loc = "goblin_ladder_bottom", op = 1, op_name = "Climb-up",
+            at = { 2954, 3497, 0 }, src = { 2953, 3497 }, dest = { 2953, 3497, 2 } })
         t.exec("crate3", t.player.click_loc, "goblin_outpost_large_crate_armour3", 1)
         t.check("crate3.mail", t.inv.await("goblin_armour", 3, 10))
         t.exec("crate3.dismiss", t.chat.play, { "mesbox:You find some goblin mail" })
-        t.exec("ladder.down", t.player.click_loc, "goblin_ladder_top", 1)
-        t.ticks(3)
+        t.exec("crate3.ladderDown", t.player.climb, { loc = "goblin_ladder_top", op = 1, op_name = "Climb-down",
+            at = { 2954, 3497, 2 }, src = { 2953, 3497 }, dest = { 2953, 3497, 0 } })
         -- dye
         t.exec("dye.orange", t.player.use_item_on_item, "goblin_armour", "orangedye")
         t.check("dye.orange.have", t.inv.await("goblin_armour_orange", 1, 6))
@@ -121,8 +150,9 @@ return {
         local _, brown_n = t.inv.count("goblin_armour")
         t.check("dye.brown.left", brown_n == 1, "goblin_armour left " .. tostring(brown_n) .. " (want 1)")
         -- back to the generals
-        t.exec("g2.approach", t.player.goto_tile, 2957, 3507, 0)
-        t.exec("g2.inside", t.player.goto_tile, 2957, 3510, 0)
+        -- (reach.py 2953,3497 -> 2957,3508: REACH closed-doors len=19)
+        t.exec("g2.walk", t.player.walk_to, 2957, 3508)
+        hall_in("g2.hallDoorIn")
         t.ticks(2)
         -- wrong colour rebuke (blue while orange wanted)
         t.exec("rebuke.use", t.player.use_on, "goblin_armour_darkblue", t.player.by_symbol("npc", "general_bentnoze_red"))

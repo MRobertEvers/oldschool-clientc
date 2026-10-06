@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = Denied
+|image = [[File:Minotaur (Fortis Colosseum).png|150px]]
+|release = [[17 April]] [[2024]]
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|members = Yes
+|description = Complete Wave 7 without the Minotaur ever healing other enemies.
+|tier = Elite
+|monster = Fortis Colosseum
+|type = Mechanical
+|id = 545
+|leagueRegion = Varlamore
+}}
+'''Denied''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to complete wave 7 without the [[Minotaur (Fortis Colosseum)|minotaur]] ever healing other enemies.
+
+==Strategy==
+A minotaur will spawn 40 seconds into the wave. This wave will also include a Fremennik Warband (one [[Fremennik warband archer|archer]], [[Fremennik warband berserker|berserker]] and [[Fremennik warband seer|seer]]), a [[manticore]], [[javelin colossus]] and a [[Shockwave Colossus|shockwave colossus]]. If the '''Quartet''' and/or '''Dynamic Duo''' handicaps are active, this will include an additional warbander and shockwave colossus.
+
+The minotaur will heal enemies within a six tile radius from its centre tile '''only''' if it is not attacking the player. Ideally, the minotaur should spawn to the north and walk south-west towards the north-western pillar's upper area. 
+
+Once the wave starts, '''immediately''' kill the warband. If something spawns to the south, they can be lured to the bottom of the north-west pillar. The minotaur will not be able to heal any large enemies as long as it is positioned north of said pillar. Do not attack any enemies east of the north-west pillar, as they will be healed by the minotaur if not killed off.
+
+==Other tasks==
+{{Combat Achievements list|Fortis Colosseum}}
+
+{{Combat Achievements}}

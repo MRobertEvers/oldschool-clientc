@@ -56,6 +56,10 @@ Usage:
       (a legs file only: resume from checkpoint K-1 under build/quest_gate/<quest>.leg<K>/;
       exit 2 when it is missing or stale; never published, never graded --
       docs/quest_authoring/relay.md "Checkpoints")
+  TORIRS_QUEST_NO_PUBLISH=1 tools/quest_gate/run.py <quest> ...
+      (as --no-publish on every run.py the environment reaches -- a seam
+      pass or any private-binary run must never replace the evidence
+      published under OSRS-Content selftest/quests/<quest_dir>/play/)
   tools/quest_gate/run.py <quest> --no-build --no-publish --detach   (then:)
   tools/quest_gate/run.py --wait <quest> [--timeout 540]
       (a run longer than a 10-minute shell call: --detach starts it in the
@@ -194,6 +198,21 @@ def quest_dir_for(test_id):
     if row and row.get("quest_dir"):
         return row["quest_dir"]
     return "quest_%s" % test_id
+
+
+def play_dir_for(test_id):
+    """The folder under PUBLISH_DIR/<quest_dir>/ that holds this test's
+    evidence: `play`, or `play-<test_id>` for a second test of the same
+    quest (misc_astrid beside misc on quest_misc -- b59's sampler found
+    misc's 410 shots replaced by misc_astrid's 422 because both published
+    to one `play/`). The test whose id the quest_dir is named for keeps
+    `play`."""
+    quest_dir = quest_dir_for(test_id)
+    if quest_dir == "quest_%s" % test_id:
+        return "play"
+    rows = quest_queue_tsv.load_rows(QUEUE_TSV_PATH)
+    shared = [r["test_id"] for r in rows if r.get("quest_dir") == quest_dir and r["test_id"] != test_id]
+    return "play-%s" % test_id if shared else "play"
 
 FIXTURE_RE = re.compile(r'fixture\s*=\s*"([^"]+)"')
 MAX_FRAMES_RE = quest_list.MAX_FRAMES_RE
@@ -2009,7 +2028,7 @@ def publish(result):
     incomplete = publish_refusal_incomplete(result["name"], ledger_path)
     if incomplete:
         return None, incomplete
-    target = os.path.join(PUBLISH_DIR, quest_dir_for(result["name"]), "play")
+    target = os.path.join(PUBLISH_DIR, quest_dir_for(result["name"]), play_dir_for(result["name"]))
     if os.path.isdir(target):
         shutil.rmtree(target)
     os.makedirs(target)
@@ -2488,7 +2507,9 @@ def main():
     parser.add_argument("--no-publish", action="store_true",
                         help="do not copy a PASSING quest's ledger and shots into "
                              "OSRS-Content (%s/<quest_dir>/play/); by default every "
-                             "quest run does"
+                             "quest run does. TORIRS_QUEST_NO_PUBLISH=1 in the environment "
+                             "does the same for every run.py it reaches (a seam pass, a "
+                             "private-binary regression run)"
                              % os.path.relpath(PUBLISH_DIR, REPO_ROOT))
     parser.add_argument("--script", default=None,
                         help="advanced: run this .lua file directly as a single session "
@@ -2527,6 +2548,17 @@ def main():
     arguments = parser.parse_args()
     global RENDER_SKIP
     RENDER_SKIP = not arguments.render_every_frame
+    # A harness that must never publish (a seam pass, a private-binary
+    # regression run) sets TORIRS_QUEST_NO_PUBLISH once instead of trusting
+    # every command line it hands out to carry --no-publish: before this a
+    # seam fixer's `run.py cooks_assistant --no-build` replaced the committed
+    # evidence under OSRS-Content selftest/quests/quest_cook/play/ with its
+    # private-binary shots. Any value but empty or "0" means "never publish".
+    no_publish_env = os.environ.get("TORIRS_QUEST_NO_PUBLISH", "")
+    if no_publish_env not in ("", "0") and not arguments.no_publish:
+        print("run.py: TORIRS_QUEST_NO_PUBLISH=%s -- this run publishes nothing "
+              "(as --no-publish)" % no_publish_env, flush=True)
+        arguments.no_publish = True
     detach_code = detach_dispatch(parser, arguments)
     if detach_code is not None:
         return detach_code

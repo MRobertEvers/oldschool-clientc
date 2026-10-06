@@ -288,6 +288,11 @@ within five tiles) has to find its subject, not assume it.
 nothing -- a prerequisite cheat that silently does nothing leaves the whole downstream cascade
 looking like a content bug (Heroes' Quest lost its entire Herblore leg to it).
 
+The Dig Site is the same trap: its folder is `quest_itexam` and its dbrow is `quest_digsite`.
+Bone Voyage's first run (matthew-mbp-m4-b54) staged `::complete quest_itexam`, got no line back,
+and the dig-site gate stayed shut; `::complete quest_digsite` works. The arm list in
+`quests/scripts/quest_cheat.rs2` names every dbrow that has one.
+
 ## `::complete has no arm for that quest.`: Tourist Trap, Temple of Ikov, Troll Stronghold and Wanted! have arms now
 
 *Origin: sampler sonnet-b40 (deserttreasure and deviousminds reviews); fixed by seam33
@@ -387,6 +392,31 @@ defence params (configs/all.npc [elvarg]; OSRS wiki Elvarg). The proof run read 
 52/60 after a 10 hitsplat and killed her in 68 ticks with five lobsters eaten. A quest boss whose
 spawn is a multinpc parent needs its stats on the parent; the client only draws the child.
 
+## A level-191 boss dies in seven ticks and never hits back: it has no `.npc` block at all (Contact!)
+
+*Origin: sampler matthew-mbp-m4-b53, round 3 (contact sent back).*
+
+**FIXED for Contact! by seam pass matthew-mbp-m4-b53-seam4 (OSRS-Content 4fa2748185).** The new
+`quest_contact/configs/contact.npc` carries the wiki block (oldid 15328051) and the Contact!
+summons (`_b`, levels 66/68). Proof: `b53s4_scarab_fight_e` read 130/130 from the server, 108/130
+after 8 ticks, dead after 131 ticks with 13 sharks eaten. The check below still applies to any other
+`npc_add` boss. How to stage the fight now: "A real level-191 boss beats a whip" (end of this file).
+
+Contact!'s Giant Scarab (`contact_scarab_boss`) has no block in any server `.npc` file. The only
+entry is `npc_anims.generated.npc`, which holds animations and no stats. The engine does not seed
+combat stats from the cache's `stat1..stat5` (`npc_def_seed_from_cache` copies only the bonuses), so
+the boss spawns with `init_defaults`' 10 hitpoints and attack/strength/defence 1. Its minions
+(`contact_insectoid_mage`, `contact_locust_lance`, `contact_locust_bow`) have the same defaults. The
+run read the bar at 21/30 after one 3 hitsplat. The boss died 7 ticks after the first swing, and the
+player stayed at 99/99. The wiki (Giant_Scarab_(Contact!) oldid 15328051) gives level 191, 130
+hitpoints, attack 169, strength 190, defence 169, ranged 190 and a max hit of 20.
+
+The pack report prints `hp` beside `vislevel` for every SPAWNED npc. An npc added by `npc_add` in a
+script is not in that report, so grep the server `.npc` files for its `hitpoints=` line. If there is
+none, the fight is not real. Author the block, or a `quest_<x>.npc` block for the multinpc parent,
+before you write the kill rows. Elvarg (above) had a block without `hitpoints=`. This boss has no
+block at all.
+
 ## Troll Stronghold: Dad's surrender page is closed by a pending attack click
 
 *Origin: the Troll Stronghold author (sonnet-b36).*
@@ -420,13 +450,27 @@ in 8 ticks, player still on 2780,3198).
 
 ## A drain row reads the stat back at base; an owner-raised boss stands still (Porcine of Interest, b52-seam1)
 
-Two engine facts that bite a row asserting a boss's special effect. First, ANY xp gain raises a
-drained stat back to its base level (torirs_server_combat.c:1174), which LostCity's `addXp` does not
-do. So a Sourhog spit's 90% Attack drain is gone the moment you earn Attack xp. Fight on a style
-that pays the asserted stat no xp (aggressive pays Strength only) and poll the stat each tick.
+Two engine facts that bite a row asserting a boss's special effect. First (FIXED b53-seam2, see
+the next heading): ANY xp gain used to raise a drained stat back to its base level, which LostCity's
+`addXp` does not do, so a Sourhog spit's 90% Attack drain was gone the moment you earned Attack xp.
+A drain now survives xp; still poll the stat each tick.
 Second, a quest boss raised with `npc_setowner` + `npc_setmode(opplayer2)` (`porcine_sourhog_second`)
 does not walk to an idle owner. Engage it with `t.player.attack` before you wait on its attacks.
-Both are OPEN engine seams (seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (d)).
+The second is an OPEN engine seam (seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (d)).
+
+## "Your Magic level is not high enough" after a draining walk; "Your hands are full, mister!" (Desert Treasure, b53-seam2)
+
+A drained stat now STAYS drained through xp gains (LostCity `Player.ts:1841-1851`; seam-facts: Seam
+pass matthew-mbp-m4-b53-seam2 (a)), and a level-up adds only the levels gained. So a content drain
+(the Ice Path cold, the Sourhog spit, a `stat_sub`) is real for the rest of the walk, and a cast or
+wield gated on that stat can refuse after it. That is the game, not a driver bug: bring the guide's
+restore potions and drink them before the gated action. Desert Treasure leg 5: the cold leaves
+Magic 57/99 at Kamil and Fire Blast needs 59; `::give 4dosestatrestore 2` as a bring-along (Quest
+Helper DesertTreasure.java:685 `restorePotions`), then `t.player.inv_op(<dose>, 1)` per dose. Prove
+the drink with the skill reading (`attack 57/99 -> 96/99`), not the verb's settle: a dose swaps the
+obj. A hand-over into a full pack refuses ("Your hands are full, mister!", deserttreasure.rs2:1163),
+and `::give shark N` fills free slots only ("Gave 4 x Shark, 12 did not fit"), so eat or drop one
+first (`freeSlot-eatShark`).
 
 ## A drop hunt lands too few drops for its kills, or the kill loop reads "I'm already under attack." (In Search of Knowledge, matthew-mbp-m4-b52)
 
@@ -446,3 +490,305 @@ of Knowledge needs twelve tattered pages, and red dragons drop one in 10 (`[proc
 
 Before raising `max_frames`, count the kills: pages needed times the drop rate. A `::give` of the
 drops is not the fix (coverage-and-gate: "A `-- GUIDE-GAP:` over a `::give` of a quest drop").
+
+## A boss's first bar reading cannot tell 130 hitpoints from 10: read the server
+
+*Origin: seam pass matthew-mbp-m4-b53-seam4 (Contact!'s Giant Scarab).*
+
+The client health bar is 30 units wide whatever the npc's hitpoints, so `hp no bar -> 21/30,
+hitsplat 3` reads the same on a 10-hp npc and on a 130-hp one. To prove a boss carries its real
+block, read the server. Contact! has `t.cheat("::contact_scarab_hp")`, answered by
+`t.msg.expect("Giant Scarab hitpoints")` with `Giant Scarab hitpoints 130/130 attack 169 strength
+190 defence 169 ranged 190` (`[debugproc,contact_scarab_hp]`, `contact_scarab.rs2`). For another
+boss, a `[debugproc]` that prints `npc_stat(hitpoints)`/`npc_basestat(...)` of the nearest copy is a
+test read, not a content change. Then check the bar falls slowly: Contact!'s boss read 108/130
+after 8 ticks of melee.
+
+## A real level-191 boss beats a whip, no armour and 10 lobsters: stage the guide's gear
+
+*Origin: seam pass matthew-mbp-m4-b53-seam4 (Contact!).*
+
+Once Contact!'s Giant Scarab had its wiki block (130 hp, max hit 20, poison 9, four level-66/68
+summons), the round-3 staging (abyssal whip, no armour, 10 lobsters, eat below 50) died 73 ticks
+into `await_dead_engaged`. Slash against its slash defence 99 barely lands. The staging that wins is
+`rune_full_helm`, `rune_chainbody`, `rune_platelegs`, a `zamorak_spear` (the wiki's advice: weaker
+to stab) and sharks. It took 131 to 213 ticks. `rune_platebody` refuses without Dragon Slayer, so
+use `rune_chainbody`.
+
+Food is not reproducible from one run. The embedded server's clock is not locked, so the same staging
+ate 18 sharks in one run and all 20 in the next (lowest hp 19/99). Give a quarter more food than the
+worst run you saw (Contact!: 25 sharks), or add prayer. Take the gear from the guide's
+"recommended" list and the boss page's weakness. Do not take it from the last green run.
+
+## "You have been poisoned!" right after a death respawn
+
+*Origin: seam pass matthew-mbp-m4-b53-seam4 (open, not fixed).*
+
+A ranged hit that poisons is queued. If the player dies before it lands, it lands after the
+respawn: `b53s4_scarab_fight_b` printed "You have been poisoned!" in Lumbridge. Death does not clear
+the queue (`skill_combat/scripts/poison.rs2`, engine/shared). If a row after a death reads poison or
+hp, expect it. The fix is an engine/shared seam.
+
+## A boss you cannot reach on foot drains 21 Prayer a swing at range, and outlasts the food (Swan Song's Sea Troll Queen, b54-seam3)
+
+The Sea Troll Queen stands in the sea at 2347,3704. No route reaches a tile beside her: an Attack from
+melee answered `I can't reach that!` (`b54s3_queen_melee_a`), and `m36_57` blocks the shore at z 3702
+and 3703. So the wiki's strategy, melee with Protect from Magic, cannot be used, and the fight is at
+range. Fight from the open beach tile `goto_tile(2347, 3701, 0)`.
+
+- **With any overhead protection prayer on, at range, every swing drains 21 Prayer and does no damage**
+  (wiki Sea_Troll_Queen oldid 15215925: "drains over 20 Prayer points at once"). Measured: Protect from
+  Magic on, prayer 99 -> 34 in 9 ticks, hitpoints unchanged (`b54s3_queen_rcb_a`). Prayer potions cannot
+  keep up. A dose restores 31, she drains 21 every 4 ticks, and `t.player.inv_op` on a potion took
+  14-18 ticks to settle (`b54s3_queen_pray_d` died with the Queen at 85/200).
+- **Without prayer she hits Water Wave for 30+ every 4 ticks.** With 99 Ranged, a magic shortbow and rune
+  arrows, a coif, d'hide chaps and vambraces, and Defence 80, the kill ate 16 sharks
+  (`b54s3_round4_copy_a`, lowest hp 23/99) and 22 sharks (`b54s3_queen_kit_b`, lowest 13/99). One run
+  died after 23 sharks with her bar at 28/80 (`b54s3c_full_franklin`). That is more food than the setup
+  can hold beside the quest's own items. A mid-run `::give` of food is a trap 16 cheat. The driver now
+  has bank verbs (below, "Bank the fight food"), so the food can wait in a bank; the reach from the
+  beach is still an open map seam. Do not paper over it in the test.
+- Her bar is 80 units wide, so read the server: `t.cheat("::swansong_queen_hp")` then
+  `t.msg.expect("Sea Troll Queen hitpoints 200/200")` (seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (a)).
+
+## Bank the fight food: `::bankgive` in setup, `t.bank.withdraw` before the fight (b56-seam2)
+
+*Origin: seam bank_withdraw_and_deposit_verbs, matthew-mbp-m4-b56-seam2, for Dream Mentor (ecd69a678).
+The verbs live on batch branch matthew-mbp-m4-b56 and reach v3 with its PR.*
+
+- **Stock the bank in `setup`, never in `run()`.** `::bankgive <obj> <n>`
+  (`general/scripts/misc/cheat_bank.rs2`) puts objs straight into the bank and replies `Banked N x
+  Shark; the bank holds N.` It is the bank-side twin of a setup `::give`: only what the guide lists as
+  brought along. `t.cheat("::bankgive ...")` after `t.quest.bind` answers `refused ... SETUP cheat`
+  and sends nothing (core.lua `QD.cheat`).
+- **Open the bank by its booth, walked to.** `t.bank.open("lunar_moonclan_bankbooth", 2, { at = {
+  2099, 3920 } })` presses the booth's own Bank op (op 2 on 60 of the 78 booth records, op 1 on
+  chests, `bank_booths.rs2`) and waits for `bankmain` and the bank container. Walk into the bank room;
+  never `goto_tile` past its door. The Lunar Isle bank's south doorway at x 2099 has no door loc.
+- **Free slots first, then withdraw.** Deposit the tools whose steps are done
+  (`t.bank.deposit("hammer", 1)`), then `t.bank.withdraw("shark", n)`. Leave a slot for a reward item.
+  `ok` means both counts moved: `bank.withdraw: shark backpack 2 -> 24 (+22), bank 24 -> 2 (-22)`
+  (build/quest_gate/s2dm_bank3 row 213). A full backpack is `refused backpack full -- ... the server
+  said: You don't have enough inventory space.`; an obj the bank does not hold is `not_found` with no
+  press. `n` may be `"all"`.
+- **Close it with `t.check("x-bank-close", t.bank.close())`.** `t.exec(name, t.bank.close)` is `bad
+  verb/target`, because close takes no argument. `t.bank.count(item)` reads only an OPEN bank and is
+  `closed` otherwise.
+- **The fixture's bank is not empty.** `fresh_lumbridge.ini` carries ten bank slots, 250000 coins
+  among them (`s2bank_probe1` row 9). Do not assume a fresh bank holds nothing.
+
+## Fewer sharks at the boss than the setup gave; the food runs out and the kill still passes at 1 hp (Swan Song round 5, b54 sampler)
+
+*Origin: the matthew-mbp-m4-b54 round-5 author and reviewer doc_gaps, and the sampler's send-back.*
+
+- **`::wield` in setup frees the slot, so wear the gear before the food is given.** A `::give X` then
+  `::wield X` pair leaves the backpack empty of X. Give and wield the bow, arrows and armour first,
+  then `::give shark N` last. Round 5's first run gave 14 sharks while the gear was still in the pack,
+  and only 11 fit.
+- **`::give` truncates and the setup still passes.** The server prints "Gave 4 x Shark, 12 did not fit",
+  but no row fails. Read the food you really carry at the fight (`t.inv.count("shark")` in a
+  `killQueen-food` row). The ledger is the only place that shows it.
+- **The food is capped by the leg where the pack peaks, unless you bank it** (next section: the bank
+  verbs landed in matthew-mbp-m4-b56-seam2). Without a bank, count the slots there, not at the boss. Swan Song peaks on the fishing leg: 4 bones, 2 soft clay, the hammer, the net
+  and 5 raw monkfish leave room for 15 sharks, and with 16 the fifth cast failed (`inv.await` 4 -> 4).
+  Drop each tool once its step is done (tinderbox and logs after the firebox, the net after Arnold,
+  the hammer after the walls) with `t.player.drop` and an `expect_absent` row.
+- **A kill that ate every shark is not a green.** `await_dead_engaged`'s detail saying `OUT OF shark`,
+  or a death shot whose hitpoints orb reads 1, means the next run can die. The sampler sent round 5
+  back for that: 15 sharks eaten, the Queen at 4/80 when they ran out, the player at 1 hp at the scroll.
+  Lower her hit chance with gear before you add food. `black_dragonhide_body` (magic defence +45) is
+  not quest-gated: `levelrequire.rs2:178` gates only the green `dragonhide_body`. With the coif, chaps
+  and vambraces that takes magic defence from 35 to 80. Eat to full before the first Attack, too
+  (round 5 opened the fight at 72/99 because 72 was above `below=60`).
+
+## A note says one more food item cannot fit: count the pack leg by leg first (Swan Song round 6, b54 sampler)
+
+*Origin: the matthew-mbp-m4-b54 sampler's check of round 6.*
+
+- **Round 6 kept 15 sharks** and noted that a 16th was impossible because of the hammer slot at Franklin.
+  Counted leg by leg, 16 fits:
+  - setup: 3 rune stacks, 5 bars, 2 soft clay, logs, tinderbox and 16 sharks make 28 slots;
+  - entrance: the runes are gone and 3 bones are added, so 28;
+  - Franklin: the log is burned, the tinderbox dropped and the hammer added, so 27;
+  - fishing: the sheets are used and the hammer dropped; 4 bones, 2 clay, the net, 5 raw monkfish and
+    16 sharks make 28.
+  The sampler's scratch copy proved it (`fish-cast-5-raw` 4 -> 5), and the fight ended with 4 sharks
+  left instead of 3.
+- **Prove a slot claim with a scratch copy, not a note.** Run
+  `run.py --script <copy.lua> --name <name> --no-build --no-publish`; Swan Song takes 18 seconds.
+- **Put the margin in the margin row.** `t.exec` returns the verb's detail. Read the lowest hp and the
+  ticks from it: `local _, d = t.exec("killQueen-dead", t.npc.await_dead_engaged, ...)`, then
+  `d:match("lowest hp (%d+)/")` and `d:match("dead after (%d+) tick")`. Record the food staged, eaten
+  and left beside them.
+- **A rerun of the same file is not a variance sample here.** Five quest-mode runs (two with 15 sharks,
+  three with 16) all read 144 ticks, 12 eaten and lowest hp 24. The same 16-shark kit run through
+  `--script` read 130 ticks and 11 eaten. Two identical greens are one data point, so a quarter more
+  food than the worst run is still the rule.
+
+## An Evil Creature's bar reads `30/30` and the hp orb falls: it is 1 hp, and it hits back for at most 1 (The Eyes of Glouphrie, matthew-mbp-m4-b55)
+
+*Origin: the round-3 reviewers and sampler of matthew-mbp-m4-b55.*
+
+The reviewers wrote that Evil Creatures are 30 hp here, against the wiki's 1 hp. Half of that is
+wrong. `30/30` is the health bar, which is 30 units wide whatever the npc's hitpoints (see "A
+boss's first bar reading" above). All twelve blocks in `quest_theeyesofglouphrie/configs/eyeglo.npc`
+say `hitpoints=1`. The fights took 4 to 24 ticks only because the staged player had Strength 1:
+a bronze sword's max hit is then 1, and half the rolls are 0.
+
+The other half is true, and it is the real game. The creatures hit back, at most 1 a swing. In
+the round-3 run the player went from 40 to 35 hp over the six fights, with no food eaten.
+Settled by seam matthew-mbp-m4-b55-seam1 from the source: wiki Evil_Creature oldid 15349482's
+infobox gives `max hit = 1`, Crush, attack speed 4, and an "Attacking" sound effect, and nothing on
+the page says they do not fight back. The cache ships the swing (`all.seq [eyeglo_fluffie_attack]`).
+An earlier version of this note, and the parity manifest ("retaliate off", "never swings back"),
+said the opposite; both were wrong.
+
+`~npc_retaliate(0)` in each `[opnpc2,eyeglo_fluffie_N]` is not what makes them swing. The engine
+starts retaliation on every hit (`torirs_server_combat.c` `ToriRSServer_CombatHitNpc`, opted out
+only by `retaliate=no`). The proc only starts the fight on the Attack click instead of on the
+first splat. Their max hit is 1 because of `strength=1` and `param=strengthbonus,0` in
+`configs/eyeglo.npc`: `[proc,npc_melee_maxhit]` gives (1 + 9) * 64 = 640, then (640 + 320) / 640
+= 1. `check_theeyesofglouphrie` refuses a `retaliate=no` or any strength other than 1.
+
+What an author does: stage hitpoints and a little food, and record the measured numbers in each
+kill row (ticks to death, and hp before and after from `t.skill.read`). Expect the orb to fall by
+a point or two on the slower kills. Do not write "30 hp" in a comment. Do not write "hp untouched"
+or "they never retaliate" either.
+
+## `t.player.attack` never answers on an npc with no hitpoints: press op 2 (Tale of the Righteous, matthew-mbp-m4-b56)
+
+Tale of the Righteous' Strange Device (`shayzienquest_puzzle_piece`) offers "Attack" but has no
+hitpoints, so it never takes a hit and shows no health bar. `t.player.attack` settles on the fight
+it expects, and on this npc that fight never starts, so the verb does not answer `ok`, even though
+the content ran (`The strange device hums and a crystal turns white.`).
+
+Press the op directly instead:
+
+```lua
+local device = t.player.by_symbol("npc", "shayzienquest_puzzle_piece")
+t.exec("attackWithMelee", t.drive.click_minimenu, device, 2)
+t.exec("attackWithMelee.cleansed", t.msg.expect, "crystal turns white")
+```
+
+`click_minimenu`'s `option` is the numeric op slot (2 = Attack here). It is not the menu label.
+Grade the content's own message, because no kill row can prove the step. A spell on the same
+device still goes through `t.player.cast`.
+
+## A melee quest npc hits once and then stands still: applayer2 with no `[ai_applayer2]` handler (Ghosts Ahoy giant lobster, FIXED matthew-mbp-m4-b56-seam1)
+
+The hp orb stays flat for the whole fight after one hit (quest_ghostsahoy/play 885-896, 23/40).
+`ahoy_book.rs2` put the melee giant lobster in `applayer2`, the ranged/magic AP mode ("mostly used
+for ranged and magic npc's", LostCity skill_combat/scripts/npc/npc_combat.rs2:22), from its spawn
+proc, `[ai_spawn]` and `[ai_queue1]`, with no `[ai_applayer2,giant_lobster]` and no
+`[ai_applayer2,_]`: every hit the player landed re-armed a mode with no swing. Fixed in
+OSRS-Content 83c8fa8b73: the spawn sets `npc_setmode(opplayer2)` (LostCity
+quest_ball/scripts/witches_experiement.rs2:8-9) and the default `[ai_queue1,_]` rung answers
+retaliation; `check_quest_combat_contract.py` now refuses applayer2 for it. The lobster hits now
+(wiki oldid 15272821: max hit 4): ghostsahoy took the player 23 -> 14 hp, and from about 17 hp
+without food a probe ended at 3, so a test should carry food for it. The OPEN rest of this
+entry is FIXED in matthew-mbp-m4-b56-seam2 (next section).
+
+## Three more quest monsters never swung: the Slagilith, the Kendal and the Skeleton Hellhound (FIXED matthew-mbp-m4-b56-seam2)
+
+*Origin: seam applayer2_npcs_that_never_swing, matthew-mbp-m4-b56-seam2. All 66
+`npc_setmode(applayer2)` calls under `quests/` were audited.*
+
+- **The symptom.** The fight passes, but the hp orb never moves and no health bar shows over the
+  player. A Defence 1 probe took 0 hp drops in 60 ticks from each of One Small Favour's Slagilith,
+  Mountain Daughter's Kendal (`mdaughter_bearman_fighter`) and In Search of the Myreque's Skeleton
+  Hellhound. The hound's own `[ai_opplayer2]` only re-set applayer2, so every swing on its attack
+  clock was spent on a mode change.
+- **The fix**, the lobster's: the spawn proc sets `npc_setmode(opplayer2)` and the applayer2
+  `[ai_spawn]`/`[ai_queue1]`/`[ai_opplayer2]` overrides are gone, so the default melee rungs answer
+  (`[ai_queue1,_]`, `[ai_opplayer2,_]`; LostCity skill_combat/scripts/npc/npc_combat.rs2:1-4).
+  After it the probe read 10 / 7 / 10 drops with largest steps 13 / 9 / 12, the wiki max hits
+  (Slagilith oldid 15258101, The_Kendal 15199460, Skeleton_Hellhound 15199509).
+  `check_quest_combat_contract.py` pins opplayer2 and refuses applayer2 for all three.
+- **What a test sees now.** These fights cost hp: routequest's hound took the player to 41-50/80,
+  onesmallfavour's Slagilith to 70, mountaindaughter's Kendal to 49. All three committed tests stay
+  fail=0, but carry food and write a margin row.
+- **The rest swing.** thrantax, bim_golem_boss, ga_beast (its own `[ai_opplayer2]`) and
+  hauntedmine_boss_ghost (it swings from `[ai_timer]`) hit the probe player; every other applayer2
+  quest npc has its own or a category `[ai_applayer2]`. The 218 calls outside `quests/` are not
+  audited.
+- **Rule for content.** A quest monster that attacks the player is spawned in `opplayer2`.
+  `applayer2` is only for an npc with an `[ai_applayer2,<npc>]` handler; with none the engine fires
+  nothing (`torirs_server_world.c:5249`, `torirs_server_combat.c:3013`).
+- **Probe recipe.** `::spawn <npc>` fires `[ai_spawn]` (`world.c:15056`), so "stand beside it at
+  Defence 1, attack, count the hp drops over 60 ticks" tests any quest monster's swing without
+  staging the quest; only the varps its `[opnpc2]` gate reads need `::setvar`
+  (`build/seam_state/matthew-mbp-m4-b56-seam2/a2probe/`).
+- **Not fixed:** `aggressive_melee` huntmode never aggroes (`torirs_server_content.c:1851` maps
+  only `aggressive`), and the Slagilith's and Kendal's attackrate is 6 where the wiki says 4.
+
+## A margin row reads full hp after a real fight: prove the npc swung (Ides of Milk's Brutus, b60 sampler; Brutus FIXED b62-seam1)
+
+`killBrutus.margin` read `lowest hp 99/99, eaten 0` in all three fixer runs. That looks like a
+fight that never threatened anyone. It was a real fight. Brutus's melee has attack 12
+(idesofmilk.npc:31), so it cannot land on 99 Defence and rune armour. His specials ignore defence
+(`~cowboss_special_damage`, idesofmilk_locs.rs2), but each one rolls `randominc(19)`.
+The sampler's probe run read the chat ring after the kill with `t.msg.last(40)`. It found three
+`You dodge out of the way of Brutus's charge.` lines while the player stood still, attacking.
+
+Most likely the growl lane (`~cowboss_growl_hit`) is measured from `npc_coord`, which is a
+multi-tile npc's south-west tile. A player beside his east side at z+2 is then outside the
+lane's `abs(cz - oz) <= 1`, so a stationary attacker on that side dodges every charge. This is a
+content seam and not a test defect. FIXED matthew-mbp-m4-b62-seam1 (seam-facts: Seam pass
+matthew-mbp-m4-b62-seam1 (d)): both specials are measured from his 3x3 footprint and resolve after
+3 ticks; the re-run's `killBrutus.margin` read 85/99 and 95/99.
+
+When a margin row reads full hp, put the npc's own attack evidence in the detail: its attack or
+special chat lines from `t.msg.last`, or a block hitsplat. A reviewer can then tell "it swung and
+missed" from "it never swung" (see "Three more quest monsters never swung" above).
+
+## A margin at 99 Defence and 99 Hitpoints proves nothing when the guide names no levels (Vampyre Slayer, b60)
+
+The committed Vampyre Slayer stages 99 Attack, Strength, Defence and Hitpoints. Count Draynor
+then never hits, so `killDraynor.margin` reads `lowest hp 99/99` and the margin row checks nothing.
+Quest Helper names no combat levels for the fight. A copy staged at the gear's own minimum levels
+(Attack 40, Strength 40, Defence 30, Hitpoints 40 for the committed weapon and armour) still
+passed 60/60. Its lowest hp was 39/40 with no food eaten, because the garlic weakens him
+(`build/orchestrator/fix_b60/r2/vampire_guidelevels.lua`, `vampire.run2-guidelevels.log`).
+
+When the guide names no levels, stage the lowest levels the staged gear needs to be worn, not 99.
+The fight is then a real one, and a full-hp margin row is evidence and not an artefact of
+staging. Spirits of the Elid's golems read 60/60 at Defence 50 for the same reason. A probe at
+Defence 1 showed them landing hits.
+
+## A quest boss with no `hitpoints=` fights on the engine's 10: `hp no bar -> 24/30` after one hit on a "level-150" (matthew-mbp-m4-b67-seam1, b68-seam1)
+
+*Origin: the b67 triage of Rum Deal's Evil spirit and Wanted!'s Solus Dellagar.*
+
+A quest boss with no `hitpoints=` in any `.npc` section fights on the engine default (10 hp, stats
+1). The ledger tell is the first bar reading: `hp no bar -> 24/30` after one ordinary hit on a boss
+the wiki gives 90 hp, and a kill in a handful of ticks. **FIXED for both in b67-seam1:**
+`quest_rumdeal/configs/rumdeal.npc [deal_evil_spirit]` (wiki Evil_spirit oldid 15199641: hp 90,
+170/146/100, crush, speed 4, aggressive, 30% Air weakness) and `wanted.npc [solus]` (wiki
+Solus_Dellagar oldid 15204754: hp 40, 25/25/25, strbns 16, magic def 72, speed 3). The spirit now
+reads `27/30, hitsplat 7` after the first hit and dies in 56 ticks (was 16); Solus in 36 (was 8).
+
+A page max hit above what the sourced stats roll through `~npc_melee_maxhit` (the Evil spirit's 28
+against 16) is a sourced disagreement, not a reason to invent a strength bonus: the fix is the
+boss's own swing rolling a constant (Swan Song's `ssq_queen_melee` pattern). **FIXED for the spirit
+in matthew-mbp-m4-b68-seam1:** `[ai_opplayer2,deal_evil_spirit]` (`deal_combat.rs2`) rolls
+`^deal_evil_spirit_melee_maxhit = 28` (`rumdeal.constant`) with the spirit's own crush accuracy and
+lands through `~playerhit_n_melee`. A scratch fight at Defence 1 read one-tick hp drops of
+`26,26,16,16,24,24,...,27` (largest 27; the default roll could never pass 16). The committed Rum
+Deal fight on 99 Defence then ate all 10 sharks (`killSpirit.margin` lowest 44/99, sharks left 0,
+and `killSpider.margin` has none left): pray Protect from Melee for it (the test stages Prayer 47;
+the page and `docs/quests/rum_deal.md` section 4 say it negates the swing).
+
+**The other 29 test-fought npcs FIXED in matthew-mbp-m4-b68-seam1**, one quest-local block each
+(wiki oldid and `configs/all.npc` line in the block's header; `tools/check_quest_combat_contract.py`
+`check_test_fought_npc_blocks` pins every line and the manifest row pins the oldid): the Elid golems
+(`spiritsoftheelid.npc`), the Feud's Tough Guy and Bandit champion (`thefeud.npc`), both Mourners on
+their multinpc ROOT records (`area_ardougne_west/configs/mourner.npc` `mournerstew2`, `mend1.npc`
+`mourning_overpass_mourner`), Sir Leye, the drink troll, the Ancient Guardian, Cuthbert, the Sand
+Snake, Ulfric, the Sourhog, A Soul's Bane's ten (`soulbane_confu_creeper` is cache id 1067, the page's
+version 2, STAB; the four fakes are version 1, crush), Twig and Berry (merged into the existing
+awake sections of `quest_troll.npc`) and Nazastarool's three forms. Real stats move these fights:
+a green test that goes red on one is fixed in the TEST (wait budget, food, a protection prayer),
+never by weakening the npc. Two page max hits are still not what the stats roll: the Sourhog's
+melee 6 against 4 (its `[ai_opplayer2]` already throws the 20-30 spit), and the hybrid Tolna and
+Hopeless creature swing melee only; both are in the combat manifest's known_gaps (those rows stay
+`audit-pending`: only the stat blocks were audited, not the encounters' triggers and loot).

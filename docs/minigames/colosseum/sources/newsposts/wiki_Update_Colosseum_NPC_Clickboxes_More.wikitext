@@ -1,0 +1,114 @@
+{{Update|date=26 June 2024|rev=26 June 2024|url=https://secure.runescape.com/m=news/colosseum-npc-clickboxes--more?oldschool=1|category=game}}
+[[File:Colosseum NPC Clickboxes & More newspost.jpg|right]]
+{{clear}}
+__TOC__
+'''PSA: We're deploying a hotfix which reduces your chance to roll on the Undead Pirates' drop table from 50% to 15% if you have not completed the Wilderness Medium Diary. In the next Game Update, we'll also be removing Larran's keys from their loot.'''
+
+'''We expect this change to allow our anti-cheating team more time to improve our detection tools and to action offences against the cheaters. We'll continue to monitor the content and make further changes if needed.'''
+
+''This week we have a handful of small updates as we get ourselves ready for While Guthix Sleeps!''
+
+==Changelog June 26th==
+As we prepare for the launch of While Guthix Sleeps, we’re taking some time to fine-tune a few areas. Next week there will be no update, and while this means none of the usual downtime, we will be rebooting the worlds and swapping the PvP rota.
+
+* Improved clickboxes at the Colosseum. All Colosseum NPCs are included, as well as their shadows!
+* In Bounty Hunter, the Teleport to Target Spell is now accessible via the Arceuus spellbook.
+* Updated the Kiss the Frog random event such that players no longer need to kiss the frog to get the rewards – the royals will be happy with a simply pat on the head. You are still able to choose to kiss the frog and transform into a frog as before.
+* Additionally, you may now choose between all rewards from this event regardless of which body type your character has.
+* Thessalia will now exchange extra Frog Tokens for XP Lamps.
+* The Ethereal Man or Woman in Lunar Diplomacy is now an Ethereal Being, and their body type will accurately match your character’s.
+* Added a handy Bronze Axe spawn to the muttadile room in the Chambers of Xeric raid, useable by main and iron accounts alike!
+* Probita can now look harder for missing pets if her first search failed for some reason.
+* Upper levels of the bat rooms in Chambers of Xeric should no longer render over the player character model.
+* TzHaar-Hur-Rin now has the same default stock quantities for all players regardless of account mode.
+* The word "heavy" no longer appears in daggers' combat style tooltips.
+* Improved dialogue and other text in Ratcatchers.
+
+==Deadman All Stars==
+On Saturday night we witnessed Old School history in the making! Six teams made up of 30 all-star creators battled it out to win the biggest grand slam we've ever seen, all orchestrated by Solo Mission.
+
+[[File:Colosseum NPC Clickboxes & More (1).png|600px|center]]
+
+Team captains Odablock, Solo Mission, Dino, Torvesta, B0aty and Faux lead their teams through 10 epic battles to see who would emerge as champions. Following a week of intense grinding and item gathering, the whole crew came together to deliver a battle for the ages. We streamed the finale live on our Twitch channel, with our own Mod Manked and special guest PureSpam expertly shoutcasting the event.
+
+We wanted to thank all the contestants for stepping up to the plate and playing at their sweatiest, all in the name of victory! The biggest congratulations, of course, go to the winning team, Dino Nuggets, made up of Westham, Mika, Muts, Raikesy and of course, Dino. They faced off against the Odablock Warriors in the final, nail-biting round, and came out on top.
+
+We also want to thank ''you'' for turning out in your droves to support the event, whether you were watching the Finale on our channel, or tuning into your favourite participant and cheering them on in their chat. This event made for the biggest viewership we've ''ever'' seen across all platforms - a monumental achievement!
+
+If you didn't manage to watch it live, you can check in with [https://www.youtube.com/@SoloMission Solo Mission] himself for a catch up, or rewatch the whole thing via our [https://www.twitch.tv/oldschoolrs Twitch channel]. There's also this handy [https://www.youtube.com/playlist?list=PLRs68iqW7gYssv25SBlzjiNZIofdBZWKr YouTube playlist] of all the action leading up to the finale.
+
+Itching to test your own metal in a PvP showdown? Deadman Armageddon begins Friday July 19th!
+
+==Mega Merch Updates!==
+===Hot Vinyl News!===
+The Gold Deluxe Original Soundtrack Classics album is now shipping from both Laced and the Official Merch Store. If you missed out on the original release, there’s currently a ''very'' limited amount of stock left, so get your order in quick!
+
+[[File:Colosseum NPC Clickboxes & More (2).jpg|600px|center]]
+
+In addition to the classic originals, composer Mykel Dunn from Regen Audio has reinterpreted some iconic Old School tunes including “Scape Main”, “Sea Shanty 2” and “Autumn Voyage” as epic battle metal tracks. Put your hands together for our most awesome album yet – ''RuneScape: Battleaxes and Ballads!''
+
+Available now to stream on all major music platforms, and to pre-order on vinyl direct from [https://www.lacedrecords.co/collections/runescape Laced Records] or the [https://runescape.backstreetmerch.com/ Official Merch Store].
+
+[[File:Colosseum NPC Clickboxes & More (3).jpg|600px|center]]
+
+[https://x.com/OceanBytes12 OceanBytes]’ OSRS inspired pixel art is featured on the album cover and they have also created unique pixel art animations to accompany the full album. You can view all the videos and listen to the full album on [https://youtu.be/uoB3s5Tdg_E?si=IKVxh0OJMG7QjK3_ our YouTube channel] - add them to your playlist today!
+
+===Crafted by Foxes!===
+Check out this new limited-edition collection crafted by Foxes exclusively for the [https://runescape.backstreetmerch.com/ Official Merch Store].
+
+Show your love for Theatre of Blood with some truly metal apparel – who can resist this long-sleeved metalcore Verzik Vitur tee and chunky, super-soft hoodie?
+
+[[File:Colosseum NPC Clickboxes & More (4).jpg|600px|center]]
+
+
+[[File:Colosseum NPC Clickboxes & More (5).jpg|600px|center]]
+
+You might get some odd looks walking about in full Masori Armour, but the Tombs of Amascut pocket tee is the next best thing!
+
+[[File:Colosseum NPC Clickboxes & More (6).png|600px|center]]
+
+Last but by no means least, we have the Desert Treasure II tees featuring all four fearsome bosses from the quest. This one’s available in two different (but very stylish) colours.
+
+[[File:Colosseum NPC Clickboxes & More (7).jpg|600px|center]]
+
+For full details of the range and collaboration with Foxes, check out [https://osrs.game/crafted-by-foxes this blog] or visit the [https://runescape.backstreetmerch.com/ Merch Store]! Orders close July 22nd.
+
+===StarForge x OSRS===
+<center>
+{{Youtube|tFbGJQKDTlE}}
+''If you can’t view the video above, click [https://youtu.be/tFbGJQKDTlE?si=hFfgkIVoRQmtz_p2 here] to watch it!''
+</center>
+
+We're delighted to announce another official collaboration, this time with '''StarForge Systems'''! The iconic artwork, with its spin on the RuneScape login screen, was brought to life by Golden Gnome winner [https://x.com/Volcaban Volcaban].
+
+[[File:Colosseum NPC Clickboxes & More (8).jpg|600px|center]]
+
+
+[[File:Colosseum NPC Clickboxes & More (9).jpg|600px|center]]
+
+StarForge are selling [https://starforgesystems.com/products/old-school-runescape-pc a powerful pre-built PC] (it might even be able to run OSRS!), a [https://starforgesystems.com/products/old-school-runescape-case case] just by itself, as well as [https://starforgesystems.com/collections/plate-lights six themed platelights]! For a limited time, there's a bundle that combines the platelights and 12 Months of Old School membership, too!
+
+Check out the [https://starforgesystems.com/ StarForge website] to learn more. 
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''activated''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>’ loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nin, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

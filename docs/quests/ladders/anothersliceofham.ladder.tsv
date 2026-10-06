@@ -1,0 +1,32 @@
+# ladder anothersliceofham quest_dir=quest_anothersliceofham guide=src/main/java/com/questhelper/helpers/quests/anothersliceofham/AnotherSliceOfHam.java steps=29 legs=1:1-29@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	goDownIntoBasement	ObjectStep<goTalkToUrtag	loc:qip_cook_trapdoor_open	3209,3216,0	Enter the Lumbridge Castle basement.				ladders_stairs/scripts/ladders.rs2:202 oploc1; +2
+1	2	0	enterCity	ObjectStep<goTalkToUrtag	loc:cave_goblin_city_doorr	3317,9601,0	Enter Dorgesh-Kaan.				quests/quest_landofthegoblins/scripts/lotg_intro.rs2:67 oploc1
+1	3	0	talkToKazgar	NpcStep<goTalkToUrtag	npc:lost_tribe_guide_2ops	3230,9610,0	Travel with Kazgar to shortcut to Mistag.				quests/quest_losttribe/scripts/losttribe_finish.rs2:102 opnpc1; +3
+1	4	0	climbThroughHole	ObjectStep<goTalkToUrtag	loc:lost_tribe_cellar_wall?	3219,9618,0					
+1	5	0	climbToF1City	ObjectStep<goTalkToUrtag	loc:dorgesh_1stairs_posh	2721,5360,0	Climb up to the next floor.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +1
+1	6	0	talkToTegdak	NpcStep<goTalkToTegdak	npc:slice_goblin_archaeologist	2512,5564,0					quests/quest_anothersliceofham/scripts/slice_tegdak.rs2:16 opnpc1; +1
+1	7	0	enterRailway	ObjectStep<goTalkToTegdak	loc:slice_goblin_station_entrance	2695,5277,1	Enter the railway entrance in the south west of Dorgesh-Kaan.				ladders_stairs/scripts/maplink.rs2:77 oploc1; +2
+1	8	0	showTegdakArtefacts	NpcStep<goGetArtefacts	npc:slice_goblin_archaeologist	2512,5564,0	Show Tegdak the artefacts.		Armour shard; Shield fragment; Helmet fragment; Sword fragment; Axe head; Mace		quests/quest_anothersliceofham/scripts/slice_tegdak.rs2:16 opnpc1; +1
+1	9	0	cleanArtefacts	ObjectStep<goGetArtefacts	loc:slice_table_01	2513,5559,0	Clean the artefacts on the specimen table.		Artefact		quests/quest_anothersliceofham/scripts/slice_tegdak.rs2:176 oploc1; +1
+1	10	0	dig6	ObjectStep<goGetArtefacts	loc:slice_artifact_hotspot_06	2513,5539,0			Trowel		quests/quest_anothersliceofham/scripts/slice_tegdak.rs2:118 oploc1
+1	11	0	talkToScribe	NpcStep<goTalkToScribe	npc:dorgesh_male_scribe	2716,5369,1					quests/quest_anothersliceofham/scripts/slice_zanik.rs2:69 opnpc1
+1	12	0	leaveRailway	ObjectStep<goTalkToScribe	loc:slice_underground_wall_exit_goblin	2521,5607,0	Leave the railway.				quests/quest_anothersliceofham/scripts/slice_zanik.rs2:119 oploc1
+1	13	0	talkToZanikRailway	NpcStep<goTalkToScribe	npc:slice_zanik_multi_there	2512,5564,0	Talk to Zanik.				quests/quest_anothersliceofham/scripts/slice_zanik.rs2:13 opnpc1; +1
+1	14	0	talkToOldak	NpcStep<goTalkToOldak	npc:lotg_oldak_cutscene	2704,5365,0					
+1	15	0	goDownToF0City	ObjectStep<goTalkToOldak	loc:dorgesh_1stairs_posh_top	2721,5360,1	Go downstairs.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +2
+1	16	5	talkToGenerals	NpcStep	npc:general_wartface_green	2957,3512,0	Talk to General Wartface and General Bentnoze in Goblin Village.		Magic or ranged combat gear		quests/quest_anothersliceofham/scripts/slice_generals.rs2:11 opnpc1
+1	17	6	goToGoblinVillage	DetailedQuestStep<goKillHamRangers[default]		2955,3501,0	Go to Goblin Village, ready to fight.		=		
+1	18	6	goUpLadder	ObjectStep	loc:slice_goblin_ladder_bottom	2442,5417,0	Make your way to the tower to the south, using the buildings as cover, and climb up the ladder.				quests/quest_anothersliceofham/scripts/slice_hammage.rs2:27 oploc1
+1	19	6	killHamMageAndArcher	NpcStep	npc:slice_ham_mage	2447,5417,2	Kill the H.A.M. Mage and H.A.M. Archer with a ranged/magic weapon.		Magic or ranged combat gear		quests/quest_anothersliceofham/scripts/slice_hammage.rs2:53 opnpc2; +3
+1	20	7	talkToGeneralsAgain	NpcStep	npc:general_wartface_green	2957,3512,0	Talk to General Wartface and General Bentnoze in Goblin Village again.				quests/quest_anothersliceofham/scripts/slice_generals.rs2:11 opnpc1
+1	21	8	talkToSergeant	NpcStep	npc:slice_sergeant_slimetoes	3170,3170,0	Talk to the Sergeants in Lumbridge Swamp.		Combat gear; Ancient mace; A light source		quests/quest_anothersliceofham/scripts/slice_sergeants.rs2:175 opnpc1; +2
+1	22	9	enterSwamp	ObjectStep	loc:goblin_cave_entrance	3169,3172,0	Enter the Lumbridge Swamp Caves.		Combat gear; Ancient mace; A light source; Rope		quests/quest_anothersliceofham/scripts/slice_sergeants.rs2:62 oploc1
+1	23	9	climbEnterHamBase	ObjectStep	loc:slice_ladder_swamp?	3171,9568,0	Climb down the ladder to the secret H.A.M. base.				
+1	24	9	goToCrate	ObjectStep	loc:slice_stealth_crate_stacked	2408,5538,0	Hide behind the marked crate, and wait for the guards to walk past and around the corner.	waitAtCrate			quests/quest_anothersliceofham/scripts/slice_sergeants.rs2:218 oploc1
+1	25	9	lureHamMember	DetailedQuestStep		2412,5537,0	Run out in front of the final guard, and wait for one of the sergeants to attack them.				
+1	26	9	enterFinalFight	ObjectStep	loc:slice_laddertop	2413,5526,0	Climb down the ladder.				quests/quest_anothersliceofham/scripts/slice_sigmund.rs2:34 oploc1
+1	27	9	defeatSigmund	NpcStep	npc:slice_sigmund_noprayer	2543,5511,0	Defeat Sigmund.				quests/quest_anothersliceofham/scripts/slice_sigmund.rs2:102 opnpc2; +1
+1	28	9	useSpecial	NpcStep	npc:slice_sigmund_showdown npc:slice_sigmund_noprayer	2543,5511,0	When Sigmund starts using protection prayers, use the ancient mace's special attack on Sigmund to remove them and then defeat him.	defeatSigmund	Ancient mace		quests/quest_anothersliceofham/scripts/slice_sigmund.rs2:50 opnpc2; +3
+1	29	10	untieZanik	ObjectStep	loc:slice_zanik_tied_up	2542,5513,0	Untie Zanik.				quests/quest_anothersliceofham/scripts/slice_sigmund.rs2:134 oploc1

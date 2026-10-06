@@ -1,0 +1,1636 @@
+{{Dangerous|instance=yes}}
+
+The '''Fortis Colosseum''' is a very difficult solo PvM challenge, being a spiritual successor of the [[Inferno]]. Players who are successful will be rewarded with [[Dizana's quiver]].
+
+Before attempting it, it is highly recommended that you have the best gear that you can afford and maxed or very high combat stats. However, completions are possible with inexpensive gear, though at least a [[bow of Faerdhinen]] with full [[crystal armour]] along with an [[abyssal tentacle]] is recommended for a first quiver. More importantly, do not expect to complete it on your first few attempts; be mentally prepared to fail a lot and learn from your mistakes. 
+
+==Suggested skills==
+The stats below are suggested as a minimum for completing the Colosseum for the first time. However, having higher stats will be very helpful, particularly with dealing with bad double-south spawns which place heavy pressure on the player to kill at least one NPC before reinforcements arrive.
+*{{SCP|Attack|95+}}
+*{{SCP|Strength|95+}}
+*{{SCP|Defence|95+}}
+*{{SCP|Prayer|85+}}
+*{{SCP|Ranged|95+}}
+**{{SCP|Ranged|97+}} is very helpful for one-shotting the [[Fremennik warband seer]] with a [[venator bow]], [[dragon arrow]]s and [[Rigour]].
+*{{SCP|Magic|94+}}
+**If not using a mage-based setup, {{SCP|Magic|99}} is very helpful for one-shotting the [[Fremennik warband berserker]] with a [[Tumeken's shadow]], [[occult necklace]], [[tormented bracelet]], and one piece of [[Ancestral robes]].
+*{{SCP|Hitpoints|95+}}
+
+==Equipment==
+Due to [[Sol Heredit|Sol Heredit's]] incredibly high ranged and magic defence, a strong slashing melee weapon (i.e., [[abyssal tentacle]] or better) is essential for completing the Colosseum. However, the waves can effectively be cleared with strong ranged or magic setups, and at least one of these options is highly recommended for learners to simplify waves. In particular, dealing with south spawns while on the NW pillar is difficult without a ranged or magic option.
+
+A [[twisted bow]] setup is the strongest option overall for a first quiver; a [[Tumeken's shadow]] setup provides significant QoL by one-shotting the melee frem, but suffers later into the wave from lower damage output against the other NPCs, along with minimal defensive bonuses. Note that even with a [[Scythe of Vitur]], '''a melee-only setup is extremely difficult to use on a first quiver'''. Learning proper wave-solving procedures, becoming comfortable with the prayer flicking needed for pillar stack solves, and being able to recover from mistakes quickly are more important than any given gear optimisation, '''but not bringing some kind of ranged option will make your first quiver much harder to obtain.'''
+
+<tabber>
+Ranged=
+Notes on gear:
+*A [[twisted bow]] is the strongest ranged weapon for Colosseum waves, beating the [[Tumeken's shadow]] by a fair margin but losing to the [[scythe of Vitur]]. Against the [[jaguar warrior]], melee weapons do better damage than the twisted bow, so melee the jaguar if it is safe to do so.
+*A [[bow of Faerdhinen]] with crystal armour is a reasonably strong budget setup, though you should avoid taking handicaps that hurt more with low DPS, such as Reentry.
+*As minimal magic switches are brought, runes for [[Death Charge]] and thralls (optional) are much more useful than runes for Ancient Magicks.
+*A 4-way shadow setup is very convenient for one-shotting the melee frem, but it eats into inventory space. For your first quiver, a single way switch with a [[Sanguinesti staff]], [[trident of the swamp]] or [[Eye of Ayak]] to two-shot the melee frem will suffice. [[Sanguinesti staff]] offers some healing occasional while [[Eye of Ayak]] is 3-tick compared to 4-tick for the other two options and [[Trident of the Swamp]] is the most affordable option and easiest to obtain for [[Ironmen]]. You can bring the 4-way shadow if you find supplies are sufficient.
+*You can opt to cut melee switches down to a minimum until you learn to clear waves semi-consistently.
+*The [[Saradomin godsword]] is very useful to have to one-shot the ranged frem with minimal switches, and the special attack can restore large amounts of health and prayer to stabilise from a rough wave start, or to heal from mistakes later during the wave.
+*Dumping [[dragon claws]]/[[burning claws]] special attacks is a very effective way to finish the Sol fight once he goes below 10% HP. Claws are also very useful for finishing NPCs before reinforcements spawn. For a first quiver, dragon claws are easier to use than burning claws, due to the higher burst of damage.
+{{Recommended equipment
+|style = Ranged
+|head1 = {{plink|Torva full helm}}  / {{plink|Masori mask (f)}}
+|head2 = {{plink|Oathplate helm}}{{efn|For a first quiver, the defence from Torva is more useful than the offensive stats from Oathplate.|name=oath}} / {{plink|Crystal helm}}
+|head3 = {{plink|Neitiznot faceguard}} / {{plink|Serpentine helm}} + {{plink|Crystal helm}}
+|neck1 = {{plink|Amulet of blood fury}} / {{plink|Amulet of rancour}}{{efn|Not worth the inventory space on a first quiver, unless you are an iron and limited on blood shards.|name=bf}} + {{plink|Necklace of rupture}}
+|neck2 = {{plink|Amulet of torture}} + {{plink|Necklace of anguish}}
+|cape1 = {{plink|Infernal cape}} + {{plink|Dizana's quiver}}
+|cape2 = {{plink|Fire cape}} + {{plink|Ava's assembler}}
+|body1 = {{plink|Torva platebody}} + {{plink|Masori body (f)}}
+|body2 = {{plink|Oathplate chest}}{{efn|For a first quiver, the defence from Torva is more useful than the offensive stats from Oathplate.|name=oath}} + {{plink|Masori body (f)}}
+|body3 = {{plink|Bandos chestplate}} + {{plink|Crystal body}}
+|body4 = {{plink|Fighter torso}} / {{plink|Blood Moon chestplate}} + {{plink|Crystal body}}
+|legs1 = {{plink|Torva platelegs}} + {{plink|Masori chaps (f)}}
+|legs2 = {{plink|Oathplate legs}}{{efn|For a first quiver, the defence from Torva is more useful than the offensive stats from Oathplate.|name=oath}} + {{plink|Crystal legs}}
+|legs3 = {{plink|Bandos tassets}} / {{plink|Blood Moon tassets}} + {{plink|Crystal legs}}
+|weapon1 = {{plink|Scythe of Vitur}} + {{plink|Tumeken's shadow}} + {{plink|Twisted bow}} &{{plink|Venator bow}}
+|weapon2 = {{plink|Soulreaper axe}} / {{plink|Blade of Saeldor}} + {{plink|Eye of Ayak}} + {{plink|Bow of Faerdhinen}} & {{plink|Toxic blowpipe}} 
+|weapon3 = {{plink|Abyssal tentacle}} / {{plink|Noxious halberd}}{{efn|Makes the Sol fight significantly more difficult due to its range if Myopia is not taken.}} + {{plink|Sanguinesti staff}} / {{plink|Trident of the Swamp}} + {{plink|Bow of Faerdhinen}} & {{plink|Eclipse atlatl}}
+|shield1 = {{plink|Elysian spirit shield}} / {{plink|Avernic defender}} (if using a 1H weapon)
+|shield2 = {{plink|Crystal shield}} / {{plink|Dragon defender}} (if using a 1H weapon) 
+|ammo1 = {{plink|Seeking dragon arrow}}
+|ammo2 = {{plink|Dragon arrow}}
+|hands1 = {{plink|Ferocious gloves}} + {{plink|Zaryte vambraces}}
+|hands2 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Aranea boots}}
+|feet4 = {{plink|Echo boots}}
+|ring1 = {{plink|Ultor ring}} / {{plink|Lightbearer}}
+|ring2 = {{plink|Bellator ring}}
+|ring3 = {{plink|Berserker ring (i)}}
+|special1 = {{plink|Saradomin godsword}} + {{plink|Dragon claws}}
+|special2 = {{plink|Burning claws}} / {{plink|Voidwaker}}{{efn|One-shotting melee frem|name=frem}} / {{plink|Elder maul}}{{efn|Sol Heredit only, not recommended for first quiver|name=sol}} / {{plink|Dragon warhammer}}{{efn|name=sol}} / {{plink|Eldritch Nightmare staff}}{{efn|name=frem}}
+}}
+{{Notelist}}
+
+==Inventory==
+{| class="floatright"
+|{{Equipment
+|head = Torva full helm
+|cape = Dizana's quiver
+|neck = Necklace of rupture
+|ammo = Seeking dragon arrow
+|weapon = Twisted bow
+|torso = Masori body (f)
+|legs = Masori chaps (f)
+|gloves = Barrows gloves
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+|{{Inventory
+|1=Eye of Ayak
+|2=Scythe of Vitur
+|3=Infernal cape
+|4=Dragon claws
+|5=Venator bow
+|6=Amulet of blood fury
+|7=Oathplate chest
+|8=Divine rune pouch
+|9=Saradomin godsword
+|10=Saradomin brew(4)
+|11=Super restore(4)
+|12=Super restore(4)
+|13=Saradomin brew(4)
+|14=Saradomin brew(4)
+|15=Super restore(4)
+|16=Super restore(4)
+|17=Saradomin brew(4)
+|18=Saradomin brew(4)
+|19=Super restore(4)
+|20=Super restore(4)
+|21=Bastion potion(4)
+|22=Saradomin brew(4)
+|23=Super restore(4)
+|24=Super restore(4)
+|25=Divine bastion potion(4)
+|26=Divine super combat potion(4)
+|27=Super restore(4)
+|28=Sanfew serum(4)
+}}
+|-
+| colspan="2" |{{Rune pouch|align=center
+|1=Blood rune\8000
+|2=Soul rune\8000
+|3=Death rune\8000
+}}
+|}
+*4-way mage switch to one-shot the melee frem, or replace with a one way [[Eye of Ayak]] or [[sanguinesti staff]] / [[trident of the swamp]] switch to make room for supplies
+*If not using a [[twisted bow]], use a [[venator bow]] with [[dragon arrows]] to one-shot the mage frem, or a [[toxic blowpipe]] with [[dragon darts]]. If using a twisted bow, the venator bow can be substituted with an extra [[Saradomin brew]] or a piece of melee armour.
+*[[Rune pouch]] containing [[death rune]]s, [[blood rune]]s, and [[soul rune]]s for [[Death Charge]]
+*[[Saradomin godsword]] to one-shot ranged frem
+*[[Saradomin brew]]s and [[super restore]]s; the quantity may differ from person to person, depending on how much you [[prayer flick]]
+*[[Sanfew serum]] to remove venom if picking the Mantimayhem II invocation. Noxious halberd special attack can be used alternatively to remove venom if bringing one.
+*1 [[divine bastion potion]] and 1 [[bastion potion]]
+*1 [[divine super combat potion]]
+{{Clear}}
+|-|
+Magic=
+Notes on gear:
+*[[Tumeken's shadow]] is the only viable magic weapon for clearing waves, as enemy NPCs have high magic defences. 
+*A [[saturated heart]] is convenient as it can be used to boost more than 4 times in a run, but its effects are lost until the cooldown ends if you drink a dose of [[Saradomin brew]]. 
+*You may choose between Ancient Magicks and the Arceuus spellbook for [[death charge]]; blood barraging can help save supplies, though it will not help you in a high-pressure situation. It is better to one-shot the melee frem with the [[Tumeken's shadow]] than to freeze it.
+*You can opt to cut melee switches down to a minimum until you learn to clear waves semi-consistently.
+*The [[Saradomin godsword]] is very useful to have to one-shot the ranged frem with minimal switches, and the special attack can restore large amounts of health and prayer to stabilise a rough wave start. 
+*Dumping [[dragon claws]]/[[burning claws]] special attacks is a very effective way to finish the Sol fight once he goes below 10% HP. Claws are also very useful for finishing NPCs before reinforcements spawn. For a first quiver, dragon claws are easier to use than burning claws.
+{{Recommended equipment
+|style = Mage
+|head1 = {{plink|Torva full helm}}  / {{plink|Ancestral hat}}
+|head2 = {{plink|Oathplate helm}}{{efn|For a first quiver, the defence from Torva is more useful than the offensive stats from Oathplate.|name=oath}} / {{plink|Virtus mask}}
+|head3 = {{plink|Neitiznot faceguard}} / {{plink|Serpentine helm}} + {{plink|Virtus mask}}
+|neck1 = {{plink|Amulet of blood fury}} / {{plink|Amulet of rancour}}{{efn|Not worth the inventory space on a first quiver, unless you are an iron and limited on blood shards.|name=bf}} + {{plink|Occult necklace}}
+|neck2 = {{plink|Amulet of torture}} + {{plink|Occult necklace}}
+|cape1 = {{plink|Infernal cape}} + {{plink|Imbued god capes|txt=Imbued god capes|pic=Imbued Saradomin cape}}
+|cape2 = {{plink|Fire cape}} + {{plink|Imbued god capes|txt=Imbued god capes|pic=Imbued Saradomin cape}}
+|body1 = {{plink|Torva platebody}} + {{plink|Ancestral robe top}}
+|body2 = {{plink|Oathplate chest}}{{efn|For a first quiver, the defence from Torva is more useful than the offensive stats from Oathplate.|name=oath}} + {{plink|Virtus robe top}}
+|body3 = {{plink|Bandos chestplate}} / {{plink|Blood Moon chestplate}} + {{plink|Virtus robe top}}
+|body4 = {{plink|Fighter torso}} + {{plink|Virtus robe top}}
+|legs1 = {{plink|Torva platelegs}} + {{plink|Ancestral robe bottom}}
+|legs2 = {{plink|Oathplate legs}}{{efn|For a first quiver, the defence from Torva is more useful than the offensive stats from Oathplate.|name=oath}} + {{plink|Virtus robe bottom}}
+|legs3 = {{plink|Bandos tassets}} / {{plink|Blood Moon tassets}} + {{plink|Virtus robe bottom}}
+|weapon1 = {{plink|Tumeken's shadow}} + {{plink|Scythe of Vitur}} + {{plink|Venator bow}}
+|weapon2 = {{plink|Tumeken's shadow}} +{{plink|Soulreaper axe}} / {{plink|Blade of Saeldor}} + {{plink|Toxic blowpipe}}
+|weapon3 = {{plink|Tumeken's shadow}} +{{plink|Abyssal tentacle}} / {{plink|Noxious halberd}}{{efn|Makes the Sol fight significantly more difficult due to its range if Myopia is not taken.}} +  {{plink|Eclipse atlatl}}
+|shield1 = {{plink|Elysian spirit shield}} / {{plink|Avernic defender}} (if using a 1H weapon)
+|shield2 = {{plink|Crystal shield}} / {{plink|Dragon defender}} (if using a 1H weapon) 
+|ammo1 = {{plink|Dragon arrow}}
+|ammo2 = {{plink|Atlatl dart}}
+|hands1 = {{plink|Ferocious gloves}} + {{plink|Confliction gauntlets}}
+|hands2 = {{plink|Barrows gloves}} + {{plink|Tormented bracelet}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Eternal boots}}{{efn|With a shadow setup, Eternal boots give a sorely needed damage boost to the Shadow, which is the main weapon for waves.|name=eternals}} > {{plink|Primordial boots}} 
+|feet3 = {{plink|Aranea boots}}
+|ring1 = {{plink|Ultor ring}} / {{plink|Magus ring}}
+|ring2 = {{plink|Bellator ring}} / {{plink|Lightbearer}}
+|ring3 = {{plink|Berserker ring (i)}}
+|special1 = {{plink|Saradomin godsword}} + {{plink|Dragon claws}}
+|special2 = {{plink|Burning claws}} / {{plink|Elder maul}}{{efn|Sol Heredit only, not recommended for first quiver|name=sol}} / {{plink|Dragon warhammer}}{{efn|name=sol}}
+}}
+{{Notelist}}
+
+==Inventory==
+{| class="floatright"
+|{{Equipment
+|head = Ancestral hat
+|cape = Imbued Saradomin cape
+|neck = Occult necklace
+|ammo = Dragon arrow
+|weapon = Tumeken's shadow
+|torso = Ancestral robe top
+|legs = Ancestral robe bottom
+|gloves = Confliction gauntlets
+|boots = Avernic treads (max)
+|ring = Magus ring
+}}
+|{{Inventory
+|1=Venator bow
+|2=Scythe of Vitur
+|3=Ultor ring
+|4=Amulet of blood fury
+|5=Saradomin godsword
+|6=Ferocious gloves
+|7=Torva platebody
+|8=Infernal cape
+|9=Kodai wand 
+|10=Dragon claws
+|11=Super combat potion(4)
+|12=Super restore(4)
+|13=Saradomin brew(4)
+|14=Saradomin brew(4)
+|15=Super restore(4)
+|16=Super restore(4)
+|17=Saradomin brew(4)
+|18=Saradomin brew(4)
+|19=Super restore(4)
+|20=Super restore(4)
+|21=Saradomin brew(4)
+|22=Forgotten brew(4)
+|23=Super restore(4)
+|24=Super restore(4)
+|25=Saturated heart
+|26=Divine rune pouch
+|27=Super restore(4)
+|28=Sanfew serum(4)
+}}
+|-
+| colspan="2" |{{Rune pouch|align=center
+|1=Soul rune\8000
+|2=Blood rune\8000
+|3=Death rune\8000
+|4=Water rune\8000
+}}
+|}
+*Melee switches as comfortable
+*[[Scythe of Vitur]] or a strong slash weapon
+*[[Rune pouch]] containing runes for [[Ancient Magicks]] or [[Death Charge]]
+*If using Ancients, bring a weapon that can autocast, such as a [[blood ancient sceptre]], [[Nightmare staff]], or [[kodai wand]].
+*[[Saradomin godsword]] to one-shot ranged frem
+*[[Saradomin brew]]s and [[super restore]]s; the quantity may differ from person to person, depending on how much you [[prayer flick]]
+*[[Sanfew serum]] to remove venom when picking the Mantimayhem II invocation. Noxious halberd special attack can be used alternatively to remove venom if bringing one.
+*[[Saturated heart]]
+*1 [[divine super combat potion]]
+*1 [[forgotten brew]] to re-boost if forced to drink [[Saradomin brew]]
+{{Clear}}
+|-|
+Budget=
+Notes on gear:
+*In a budget setup, your best DPS will come from your melee setup. You should try to melee where possible, but make sure to use the ranged setup for tough situations.
+*[[Osmumten's fang]] is slightly better DPS than the [[Noxious halberd]] on all NPCs except Sol Heredit; however, many players enjoy using the halberd for its reach and utility, such as trivialising Solarflare. Reaching Sol with a Noxious halberd without having taken Myopia during the waves will result in a significantly harder fight.
+*If you have a [[sanguinesti staff]], you can uncharge it for blood runes and bring a [[book of the Dead]] in your offhand to use both thralls and Death Charge.
+*Without access to a [[bow of Faerdhinen]], your next-best ranged option is a [[scorching bow]] with [[Masori armour]]. The [[hunters' sunlight crossbow]] underperforms the scorching bow, and its low range on the rapid attack style can make Myopia III a serious detriment. '''It is highly recommended to obtain a bowfa setup for a first quiver.'''
+*The [[Saradomin godsword]] is very useful to have to one-shot the ranged frem with minimal switches, and the special attack can restore large amounts of health and prayer to stabilise a rough wave start. 
+*Dumping [[dragon claws]]/[[burning claws]] special attacks is a very effective way to finish the Sol fight once he goes below 10% HP. Claws are also very useful for finishing NPCs before reinforcements spawn. For a first quiver, dragon claws are easier to use than burning claws.
+{{Recommended equipment
+|style = Budget
+|head1 = {{plink|Serpentine helm}}{{efn|Better than the Neitiznot faceguard as the additional strength bonus from the faceguard does not give either melee weapon a max hit.}} + {{plink|Crystal helm}}
+|head2 = {{plink|Neitiznot faceguard}} + {{plink|Crystal helm}}
+|neck1 = {{plink|Amulet of blood fury}} + {{plink|Necklace of anguish}}
+|cape1 = {{plink|Infernal cape}}{{efn|Ava's assembler gives extremely minimal bonuses to the bofa and is not worth bringing.}}
+|cape2 = {{plink|Fire cape}}
+|body1 = {{plink|Fighter torso}} / {{plink|Blood Moon chestplate}} + {{plink|Crystal body}}
+|legs1 = {{plink|Crystal legs}}
+|weapon1 = {{plink|Osmumten's fang}} / {{plink|Noxious halberd}}{{efn|Makes the Sol fight significantly more difficult due to its range if Myopia is not taken.}} + {{plink|Bow of Faerdhinen}} + {{plink|Sanguinesti staff}} / {{plink|Trident of the Swamp}} + {{plink|Venator bow}} / {{plink|Toxic blowpipe}}
+|shield1 = {{plink|Dragon defender}}
+|ammo1 = {{plink|Dragon arrow}} (if using a [[venator bow]]) / {{plink|Rada's blessing 4}} (if using a [[toxic blowpipe]])
+|hands1 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Echo boots}}
+|feet2 = {{plink|Aranea boots}}
+|feet3 = {{plink|Dragon boots}}
+|ring1 = {{plink|Berserker ring (i)}} / {{plink|Lightbearer}}{{efn|If using a Voidwaker to one-shot the melee frem}}
+|special1 = {{plink|Saradomin godsword}} + {{plink|Dragon claws}}
+|special2 = {{plink|Burning claws}} / {{plink|Voidwaker}}{{efn|One-shotting melee frem|name=frem}} / {{plink|Dragon warhammer}}{{efn|Sol Heredit only, not recommended for first quiver|name=sol}}
+}}
+{{Notelist}}
+
+==Inventory==
+{| class="floatright"
+|{{Equipment
+|head = Serpentine helm
+|cape = Infernal cape
+|neck = Amulet of blood fury
+|ammo = Dragon arrow
+|weapon = Trident of the Swamp
+|shield = Dragon defender
+|torso = Fighter torso
+|legs = Crystal legs
+|gloves = Barrows gloves
+|boots = Echo boots
+|ring = Berserker ring (i)
+}}
+|{{Inventory
+|1=Venator bow
+|2=Osmumten's fang
+|3=Bow of Faerdhinen
+|4=Necklace of anguish
+|5=Saradomin godsword
+|6=Dragon claws
+|7=Crystal body
+|8=Crystal helm
+|9=Saradomin brew(4) 
+|10=Saradomin brew(4)
+|11=Super restore(4)
+|12=Super restore(4)
+|13=Saradomin brew(4)
+|14=Saradomin brew(4)
+|15=Super restore(4)
+|16=Super restore(4)
+|17=Saradomin brew(4)
+|18=Saradomin brew(4)
+|19=Super restore(4)
+|20=Super restore(4)
+|21=Super combat potion(4)
+|22=Ranging potion(4)
+|23=Super restore(4)
+|24=Super restore(4)
+|25=Divine super combat potion(4)
+|26=Divine ranging potion(4)
+|27=Abyssal tentacle
+|28=Divine rune pouch
+}}
+|-
+| colspan="2" |{{Rune pouch|align=center
+|1=Soul rune\16000
+|2=Blood rune\16000
+|3=Death rune\16000
+}}
+|}
+*
+*A [[venator bow]] with [[dragon arrows]], or [[toxic blowpipe]] with [[dragon darts]] for the mage frem
+*[[Saradomin godsword]] to one-shot ranged frem
+*[[Dragon claws]] or [[burning claws]] for special attacks and ending the Sol fight
+*[[Abyssal tentacle]] for Sol; you may opt to bring this even if you use a [[noxious halberd]], as not being offered Myopia in the waves will make Sol difficult to control with the halberd's reach
+*[[Rune pouch]] containing runes for [[Death Charge]]
+*[[Saradomin brew]]s and [[super restore]]s; the quantity may differ from person to person, depending on how much you [[prayer flick]]
+{{Clear}}
+|-|
+Melee only (not recommended for first quiver)=
+Notes on gear:
+*'''A melee-only setup is strongly discouraged for first quivers, as dealing with south spawns and certain pillar stacks on NW pillar are nearly impossible on a first quiver.''' Meleeing NPCs also '''increases handicap difficulty''' by making it more troublesome to manage Solarflares, Javelin Colossus sky javelins and Reentry pools, and Volatility explosions. Excessive supplies in a melee-only setup will rarely save you from mistakes, as NPCs in the Colosseum hit extremely hard and accurately.
+*If attempting a melee-only first quiver, a [[scythe of Vitur]] should be considered mandatory, and you may want to consider learning to play around the south-west pillar. If you decide to play around the south-western pillar, prepare to face the equivalent of '''double south spawns at nearly 4x frequency.'''
+*A [[scythe of Vitur]] with good strength gear is the highest-DPS option in the game for every NPC except the [[serpent shaman]]. You may wish to bring a one-handed weapon such as a [[Ghrazi rapier]] or an [[Osmumten's fang]] for the shamans.
+*A strength ring is highly recommended, as the [[scythe of Vitur]] benefits immensely from increased max hits. However, a [[lightbearer]] is also an option to allow for more special attacks.
+*As a melee-only setup has excessive space for supplies, a 4-way [[Tumeken's shadow]] switch is very helpful for one-shotting the melee frem.
+*An [[amulet of blood fury]] is very useful for healing through the waves and in the Sol fight, especially with the [[scythe of Vitur]]. However, it will not save you from frequent mistakes.
+*As minimal magic switches are brought, runes for [[Death Charge]] and thralls (optional) are much more useful than runes for Ancient Magicks.
+**Thralls can increase DPS but players who cannot manage damage should not bring them, as this will deplete supplies even faster.
+*The [[Saradomin godsword]] is very useful to have to one-shot the ranged frem with minimal switches, and the special attack can restore large amounts of health and prayer to stabilise a rough wave start. 
+*Dumping [[dragon claws]]/[[burning claws]] special attacks is a very effective way to finish the Sol fight once he goes below 10% HP. Claws are also very useful for finishing NPCs before reinforcements spawn. For a first quiver, dragon claws are easier to use than burning claws.
+{{Recommended equipment
+|style = Melee
+|head1 = {{plink|Torva full helm}} > {{plink|Oathplate helm}} 
+|head2 = {{plink|Neitiznot faceguard}} / {{plink|Serpentine helm}}
+|neck1 = {{plink|Amulet of blood fury}} + {{plink|Amulet of rancour}}{{efn|Not worth the inventory space on a first quiver, unless you are an iron and limited on blood shards.|name=bf}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|body1 = {{plink|Torva platebody}} 
+|body2 = {{plink|Oathplate chest}}
+|body3 = {{plink|Bandos chestplate}}
+|body4 = {{plink|Fighter torso}} / {{plink|Blood Moon chestplate}}
+|legs1 = {{plink|Torva platelegs}}
+|legs2 = {{plink|Oathplate legs}}
+|legs3 = {{plink|Bandos tassets}}
+|legs4 = {{plink|Blood Moon tassets}}
+|weapon1 = {{plink|Scythe of Vitur}} + {{plink|Tumeken's shadow}} + {{plink|Venator bow}}
+|weapon2 = {{plink|Soulreaper axe}} + {{plink|Sanguinesti staff}} + {{plink|Toxic blowpipe}}
+|weapon3 = {{plink|Osmumten's fang}}{{efn|In Bandos-tier gear, the Fang outperforms even a blade of Saeldor on every NPC except Sol Heredit.}} + {{plink|Abyssal tentacle}} / {{plink|Noxious halberd}} {{efn|Makes the Sol fight significantly more difficult due to its range if Myopia is not taken.}} + {{plink|Trident of the Swamp}} + {{plink|Eclipse atlatl}}
+|shield1 = {{plink|Elysian spirit shield}} / {{plink|Avernic defender}} 
+|shield2 = {{plink|Crystal shield}} / {{plink|Dragon defender}} 
+|ammo1 = {{plink|Dragon arrow}}
+|ammo2 = {{plink|Atlatl dart}}
+|hands1 = {{plink|Ferocious gloves}}
+|hands2 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Aranea boots}}
+|feet4 = {{plink|Dragon boots}}
+|ring1 = {{plink|Ultor ring}} / {{plink|Lightbearer}} (if not using a scythe of Vitur)
+|ring2 = {{plink|Bellator ring}}
+|ring3 = {{plink|Berserker ring (i)}}
+|special1 = {{plink|Saradomin godsword}} + {{plink|Dragon claws}}
+|special2 = {{plink|Burning claws}} / {{plink|Voidwaker}}{{efn|One-shotting melee frem|name=frem}} / {{plink|Elder maul}}{{efn|Sol Heredit only, not recommended for first quiver|name=sol}} / {{plink|Dragon warhammer}}{{efn|name=sol}} / {{plink|Eldritch Nightmare staff}}{{efn|name=frem}}
+}}
+{{Notelist}}
+
+==Inventory==
+{| class="floatright"
+|{{Equipment
+|head = Torva full helm
+|cape = Infernal cape
+|neck = Amulet of blood fury
+|ammo = Dragon arrow
+|weapon = Scythe of Vitur
+|torso = Torva platebody
+|legs = Torva platelegs
+|gloves = Ferocious gloves
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+|{{Inventory
+|1=Tumeken's shadow
+|2=Occult necklace
+|3=Venator bow
+|4=Dragon claws
+|5=Tormented bracelet
+|6=Ancestral hat
+|7=Saradomin godsword
+|8=Dinh's bulwark
+|9=Saradomin brew(4)
+|10=Saradomin brew(4)
+|11=Super restore(4)
+|12=Super restore(4)
+|13=Saradomin brew(4)
+|14=Saradomin brew(4)
+|15=Super restore(4)
+|16=Super restore(4)
+|17=Saradomin brew(4)
+|18=Saradomin brew(4)
+|19=Super restore(4)
+|20=Super restore(4)
+|21=Divine super combat potion(4)
+|22=Saradomin brew(4)
+|23=Super restore(4)
+|24=Super restore(4)
+|25=Divine super combat potion(4)
+|26=Super combat potion(4)
+|27=Sanfew serum(4)
+|28=Divine rune pouch
+}}
+|-
+| colspan="2" |{{Rune pouch|align=center
+|1=Blood rune\8000
+|2=Soul rune\8000
+|3=Death rune\8000
+}}
+|}
+*4-way mage switch to one-shot the melee frem
+*A [[venator bow]] with [[dragon arrows]] to one-shot the mage frem, or a [[toxic blowpipe]] with [[dragon darts]]
+*[[Rune pouch]] containing [[death rune]]s, [[blood rune]]s, and [[soul rune]]s for [[Death Charge]]
+*[[Saradomin godsword]] to one-shot ranged frem
+*[[Saradomin brew]]s and [[super restore]]s; the quantity may differ from person to person, depending on how much you [[prayer flick]]
+*[[Sanfew serum]] to remove venom when picking the Mantimayhem II invocation. Noxious halberd special attack can be used alternatively to remove venom if bringing one.
+*2 [[divine super combat potion]]s and 1 [[super combat potion]] (to restore boosts after brewing)
+{{Clear}}|-|
+GM time=
+Notes on gear:
+*Many inventory setups are usable for GM time, and the time threshold can be comfortably reached without any megarares. Adjust the setup to what you have.
+*The [[venator bow]] should be used whenever triple bounces are possible - mainly on waves 1-6, and on 10-11. Scything large NPCs is the next-best DPS, though the [[twisted bow]] is still useful for tick-filling and tight situations.
+*You can opt to bring an [[amulet of rancour]] switch if you can spare the inventory space.
+*Instead of the [[dragon warhammer]], you can opt to bring an [[elder maul]] at the cost of one inventory space.
+*Adjust other supplies according to your preference. With some lazy flicking of offensive prayers, 7 [[super restores]] is a comfortable amount of prayer to have per KC.
+*You can bring a [[saturated heart]] instead of the [[occult necklace]] to cut a switch, but [[brewing|Saradomin brew]] will render you unable to one-shot the melee frem until the heart boost cooldown ends.
+*The difference between [[burning claws]] and [[dragon claws]] is very minimal for most players. To use burning claws effectively, you have to avoid staying on 100% special attack energy, and do your best to get the maximum burn time on NPCs.
+{{Recommended equipment
+|style = GM time
+|head1 = {{plink|Torva full helm}}
+|head2 = {{plink|Neitiznot faceguard}}
+|neck1 = {{plink|Amulet of rancour}}{{efn|Can be dropped for more inventory space.|name=rancour}} + {{plink|Amulet of blood fury}} + {{plink|Necklace of rupture}}
+|neck2 = {{plink|Amulet of blood fury}} + {{plink|Necklace of anguish}}
+|cape1 = {{plink|Infernal cape}} + {{plink|Dizana's quiver}}
+|body1 = {{plink|Oathplate chest}} > {{plink|Torva platebody}} + {{plink|Masori body (f)}}
+|body2 = {{plink|Bandos chestplate}} + {{plink|Masori body}}
+|body3 = {{plink|Fighter torso}} / {{plink|Blood Moon chestplate}} + {{plink|Crystal body}}
+|legs1 = {{plink|Oathplate legs}} > {{plink|Torva platelegs}} + {{plink|Masori chaps (f)}}
+|legs2 = {{plink|Bandos tassets}} + {{plink|Masori chaps}}
+|legs3 = {{plink|Blood Moon tassets}} + {{plink|Crystal legs}}
+|weapon1 = {{plink|Scythe of Vitur}} + {{plink|Tumeken's shadow}} + {{plink|Twisted bow}} + {{plink|Venator bow}}
+|ammo1 = {{plink|Seeking dragon arrow}}
+|ammo2 = {{plink|Dragon arrow}}
+|hands1 = {{plink|Ferocious gloves}} + {{plink|Zaryte vambraces}}
+|hands2 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Aranea boots}}
+|ring1 = {{plink|Ultor ring}}
+|ring2 = {{plink|Bellator ring}}
+|ring3 = {{plink|Berserker ring (i)}}
+|special1 = {{plink|Burning claws}} / {{plink|Dragon claws}} + {{plink|Dragon warhammer}} / {{plink|Elder maul}}{{efn|Requires one more inventory space, as you can no longer offhand the [[book of the Dead]].|name=maul}}
+}}
+{{Notelist}}
+
+==Inventory==
+{| class="floatright"
+|{{Equipment
+|head = Torva full helm
+|cape = Infernal cape
+|neck = Amulet of blood fury
+|ammo = Seeking dragon arrow
+|weapon = Dragon warhammer
+|shield = Book of the Dead
+|torso = Oathplate chest
+|legs = Oathplate legs
+|gloves = Ferocious gloves
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+|{{Inventory
+|1=Twisted bow
+|2=Masori body (f)
+|3=Necklace of rupture
+|4=Scythe of Vitur
+|5=Zaryte vambraces
+|6=Masori chaps (f)
+|7=Dizana's quiver
+|8=Dragon claws
+|9=Tumeken's shadow
+|10=Confliction gauntlets
+|11=Saradomin godsword
+|12=Super combat potion(4)
+|13=Occult necklace
+|14=Venator bow
+|15=Divine ranging potion(4)
+|16=Divine super combat potion(4)
+|17=Saradomin brew(4)
+|18=Saradomin brew(4)
+|19=Saradomin brew(4)
+|20=Sanfew serum(4)
+|21=Sanfew serum(4)
+|22=Sanfew serum(4)
+|23=Sanfew serum(4)
+|24=Sanfew serum(4)
+|25=Sanfew serum(4)
+|26=Sanfew serum(4)
+|27=Sanfew serum(4)
+|28=Divine rune pouch
+}}
+|-
+| colspan="2" |{{Rune pouch|align=center
+|1=Fire rune\16000
+|2=Aether rune\16000
+|3=Death rune\16000
+|4=Blood rune\16000
+}}
+|}
+*Strong equipment to complement a [[scythe of Vitur]] or [[twisted bow]]
+*6-way [[twisted bow]] and [[venator bow]] switch
+*Thralls and [[Death Charge]]
+*[[Saradomin brew]](s) and [[super restore]]s; the quantity may differ from person to person, depending on how much you [[prayer flick]]
+*[[Sanfew serum]] to remove venom when picking the Mantimayhem II invocation. Noxious halberd special attack can be used alternatively to remove venom if bringing one.
+*1 [[divine ranging potion]] - as your Defence level will be boosted from the super combat potion, a [[divine bastion potion]] is unnecessary
+*1 [[divine super combat potion]]
+
+If you are pushing to go faster but aren't comfortable with these supplies, drop switches as needed, switch the 3-way [[Tumeken's shadow]] for a 1-way [[Eye of Ayak]], or run [[Barrows gloves]].
+{{Clear}}
+|-|
+High efficiency=
+Notes on gear:
+*This assumes you are comfortable with completing the Colosseum and are capable of, or aiming to do consistent sub-20 minute runs.
+*The [[venator bow]] should be used whenever triple bounces are possible - mainly on waves 1-6, and on 10-11. Scything large NPCs is the next-best DPS, though the [[twisted bow]] is still useful for tick-filling and tight situations.
+*If not wearing [[Avernic treads (max)]], the [[venator ring]] gives 3 max hits for the [[venator bow]], but can be dropped for more supplies.
+*You can opt to camp the [[amulet of blood fury]] for more supplies.
+*Instead of the 4-tick weapon, you can still opt to bring a [[Saradomin godsword]], or simply scythe the ranged frem in max melee. This will require you to free up one more inventory slot.
+*Adjust other supplies according to your preference. With some lazy flicking of offensive prayers, 7 [[super restores]] is a comfortable amount of prayer to have per KC.
+*You can bring a [[saturated heart]] instead of the [[Ancestral hat]] to cut a switch, but [[brewing|Saradomin brew]] will render you unable to one-shot the melee frem until the heart boost cooldown ends.
+*The difference between [[burning claws]] and [[dragon claws]] is very minimal for most players. To use burning claws effectively, you have to avoid staying on 100% special attack energy, and do your best to get the maximum burn time on NPCs.
+{{Recommended equipment
+|style = High efficiency
+|head1 = {{plink|Torva full helm}} + {{plink|Masori mask (f)}}
+|head2 = {{plink|Neitiznot faceguard}} + {{plink|Masori mask}}
+|neck1 = {{plink|Amulet of rancour}} + {{plink|Amulet of blood fury}} + {{plink|Necklace of rupture}}
+|neck2 = {{plink|Amulet of blood fury}} + {{plink|Necklace of anguish}}
+|cape1 = {{plink|Infernal cape}} + {{plink|Dizana's quiver}}
+|body1 = {{plink|Oathplate chest}} > {{plink|Torva platebody}} + {{plink|Masori body (f)}}
+|body2 = {{plink|Bandos chestplate}} + {{plink|Masori body}}
+|body3 = {{plink|Fighter torso}} / {{plink|Blood Moon chestplate}} + {{plink|Crystal body}}
+|legs1 = {{plink|Oathplate legs}} > {{plink|Torva platelegs}} + {{plink|Masori chaps (f)}}
+|legs2 = {{plink|Bandos tassets}} + {{plink|Masori chaps}}
+|legs3 = {{plink|Blood Moon tassets}} + {{plink|Crystal legs}}
+|weapon1 = {{plink|Scythe of Vitur}} + {{plink|Tumeken's shadow}} + {{plink|Twisted bow}} + {{plink|Venator bow}}
+|ammo1 = {{plink|Seeking dragon arrow}}
+|ammo2 = {{plink|Dragon arrow}}
+|hands1 = {{plink|Ferocious gloves}} + {{plink|Zaryte vambraces}}
+|hands2 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Aranea boots}}
+|ring1 = {{plink|Ultor ring}}
+|ring2 = {{plink|Bellator ring}}
+|ring3 = {{plink|Berserker ring (i)}}
+|special1 = {{plink|Burning claws}} / {{plink|Dragon claws}} + {{plink|Elder maul}} / {{plink|Dragon warhammer}}
+}}
+{{Notelist}}
+
+==Inventory==
+{| class="floatright"
+|{{Equipment
+|head = Torva full helm
+|cape = Infernal cape
+|neck = Amulet of rancour
+|ammo = Seeking dragon arrow
+|weapon = Abyssal tentacle
+|shield = Book of the Dead
+|torso = Oathplate chest
+|legs = Oathplate legs
+|gloves = Ferocious gloves
+|boots = Avernic treads (max)
+|ring = Ultor ring
+}}
+|{{Inventory
+|1=Twisted bow
+|2=Masori body (f)
+|3=Masori mask (f)
+|4=Dizana's quiver
+|5=Zaryte vambraces
+|6=Masori chaps (f)
+|7=Necklace of rupture
+|8=Dragon claws
+|9=Tumeken's shadow
+|10=Confliction gauntlets
+|11=Venator bow
+|12=Amulet of blood fury
+|13=Surge potion
+|14=Occult necklace
+|15=Scythe of Vitur
+|16=Elder maul
+|17=Divine super combat potion(4)
+|18=Divine ranging potion(4)
+|19=Saradomin brew(4)
+|20=Guthix rest(4)
+|21=Sanfew serum(4)
+|22=Sanfew serum(4)
+|23=Sanfew serum(4)
+|24=Sanfew serum(4)
+|25=Sanfew serum(4)
+|26=Sanfew serum(4)
+|27=Sanfew serum(4)
+|28=Divine rune pouch
+}}
+|-
+| colspan="2" |{{Rune pouch|align=center
+|1=Fire rune\16000
+|2=Aether rune\16000
+|3=Death rune\16000
+|4=Blood rune\16000
+}}
+|}
+*Strong equipment to complement a [[scythe of Vitur]] or [[twisted bow]]
+*6- or 7-way [[venator bow]] switch; a [[venator ring]] can be taken as an 8th switch if not bringing [[Avernic treads (max)]]
+*Thralls and [[Death Charge]]
+*4-tick weapon to one-shot ranged frem; a [[Saradomin godsword]] may also be used
+*[[Saradomin brew]](s) (if needed) and [[super restore]]s; the quantity may differ from person to person, depending on how much you [[prayer flick]]
+*[[Sanfew serum]] to remove venom when picking the Mantimayhem II invocation. Noxious halberd special attack can be used alternatively to remove venom if bringing one.
+*1 [[divine ranging potion]] - as your Defence level will be boosted from the super combat potion, a [[divine bastion potion]] is unnecessary
+*1 [[divine super combat potion]]
+
+If you are pushing to go faster but aren't comfortable with these supplies, drop the surge potion, Masori mask, and maybe even consider camping the Amulet of blood fury, or running [[Barrows gloves]].
+{{Clear}}
+</tabber>
+
+<gallery mode="packed" heights="500" style="text-align:centre">
+File:Colosseum DPS table.png|DPS comparison on each enemy for different setups, assuming 99s in all offensive stats, potion boosts, and usage of the highest-tier offensive prayers. Visit the [https://tools.runescape.wiki/osrs-dps/ DPS calculator] to calculate the results for your current loadout.
+</gallery>
+
+== Monsters ==
+
+===Fremennik Warband [[Fremennik warband berserker|Berserker]], [[Fremennik warband seer|Seer]], and [[Fremennik warband archer|Archer]]===
+{|class="wikitable floatright" width="25%"
+!{{SCP|Combat}} Max hit
+!{{SCP|Hitpoints}}
+!{{SCP|Magic}}
+!Size
+!Attack speed
+|-
+|12 (seer) <br/> 14 (ranger) <br/> 29 (berserker)
+|50 (seer) <br/> 50 (ranger) <br/> 48 (berserker)
+|110
+|1x1
+|6
+|}
+
+<gallery>
+File:Fremennik warband berserker.png
+File:Fremennik warband seer.png
+File:Fremennik warband archer.png
+</gallery>
+
+The Fremennik warband are the weakest monsters in the Colosseum, but can quickly overwhelm new players. Similarly to the [[Jal-Nib]]s from the Inferno, the warband will spawn in the centre of the arena, though unlike the nibs, they will immediately dart towards the player upon spawning. Despite the archer and seer using ranged weapons, the trio will only attack upon reaching '''melee range''' of the player. Upon reaching the player, the trio will begin attacking on different ticks, starting with melee, magic then ranged. The warband will position themselves accordingly, provided that there is space for them to stand there; the berserker will prioritise standing north of the player, the seer to their east and the ranger to the west. If these tiles are blocked by an obstacle they will attack from a different position, but the attack rotation is still the same.
+
+If players use a hit and run tactic on the frems to avoid having them hit, this may cause their attack sequence to stagger with some members skipping attacks, such as the seer attacking first instead of the berserker. Learners frequently sabotage themselves by doing this, as it is important to kill them as quickly as possible, especially if other enemies have sight of the player, which can likely prove fatal.
+
+If the '''Quartet''' handicap is active, a fourth member will spawn to the south, creating a diamond-like formation. This fourth member will attack on the same tick as its fellow.
+
+Despite their weapons, their combat stats are identical; 50 hitpoints (48 for the Berserker), with an Attack, Strength, Ranged, and Magic level of 110, and 80 Defence. The seer has a max hit of 12, the archer has a max hit of 14 and the berserker has a max hit of 29. The trio are very accurate regardless of the player's defensive gear, so it is necessary to kill them once it is safe to do so to minimise damage taken.
+
+When using a combat style corresponding to their weakness, the player's attacks will always hit and for a [[maximum hit]]. The only exception is [[Ice Barrage]] on the berserker; a minimum magic attack bonus of +104 and [[Augury]] is needed to guarantee a freeze on it and the other frems. The table below shows the strongest options for each NPC.
+
+{| class="wikitable sortable" style=width:960px;
+! style="width: 20%" |Frem
+!style="width: 40%" |Weapon
+!Details
+|-
+| rowspan="3" |[[File:Fremennik warband berserker.png|center|width=124x124]]
+|{{plink|Tumeken's shadow}} + {{plink|Confliction gauntlets}} + {{plink|Avernic treads (max)}} with {{plink|Saturated heart}} or {{plink|Occult necklace}}
+|This is the simplest switch capable of one-shotting the melee frem without use of a special attack, and also requiring no prayer usage. If you use a Saturated heart, drinking [[Saradomin brew]] will prevent you from reaching the one-shot threshold until the heart comes off cooldown.
+|-
+|{{plink|Eye of Ayak}} x2 > </br> {{plink|Sanguinesti staff}}, {{plink|Trident of the Swamp}}, {{plink|Trident of the Seas}} x2
+|The two-shot threshold changes with Magic level; see each weapon's respective page. You need to hit a 24 to two-shot the melee frem. The Eye of Ayak is slightly better due to its faster attack speed.
+|-
+|[[File:Ice Barrage.png]] [[Ice barrage]], [[File:Blood Barrage.png]] [[Blood barrage]], or [[File:Undead_Grasp.png]] [[Undead grasp]] x2
+|Slower than using a powered staff. [[Ice Barrage]] needs a minimum magic attack bonus of +104 and {{plink|Augury}}, or +140 without Augury to guarantee a freeze. '''Do not barrage the other frems after the melee is dead!'''
+|-
+| rowspan="3" |[[File:Fremennik warband seer.png|center|width=118x118]]
+|{{plink|Venator bow}} + [[File:Dragon arrow 5.png]] [[Dragon arrows]] + {{plink|Rigour}}
+|The only weapon that can one-shot the frem with a one-way switch at base stats.
+|-
+|{{plink|Twisted bow}}+ [[File:Dragon arrow 5.png]] [[Dragon arrows]] + {{plink|Necklace of anguish}} + {{plink|Masori body}} + {{plink|Rigour}}
+|If potted, fewer ranged switches are needed. Slower than the venator bow.
+|-
+|{{plink|Toxic blowpipe}} with {{plink|Dragon dart}}s + {{plink|Necklace of anguish}} or {{plink|Masori body}} + {{plink|Rigour}} x2
+|If potted, fewer ranged switches are needed. You can use a special attack to get some extra healing, if needed.
+|-
+|[[File:Fremennik warband archer.png|center|width=134x134]]
+|{{plink|Saradomin godsword}} special attack on Aggressive + {{plink|Piety}} + {{plinkp|Barrows gloves}} {{plinkp|Berserker ring (i)}} {{plinkp|Dragon boots}} {{plinkp|Fire cape}} 28 strength bonus
+|Extremely useful even for experienced players due to the guaranteed large heal in the hardest part of the wave. If potted, fewer melee switches are needed.
+|}
+
+====Other options for the Berserker (at 99 Magic)====
+* [[Tumeken's shadow]] with an [[Occult necklace]], [[Tormented bracelet]], and either a [[Saturated heart]] boost or any piece of [[Ancestral robes]], preferably an [[Ancestral hat]] for minimal defence loss (50) - drinking [[Saradomin brew]] will remove a heart boost
+* [[Eldritch Nightmare staff|Eldritch]] or [[Volatile Nightmare staff]] special attack (50, 66)
+* [[Voidwaker]] special attack with 99 strength, Piety, and an additional 15 [[Strength bonus]] (48)  (can also kill Archer with super combat, Piety, and 61 additional [[Strength bonus]])
+* Any [[surge spell]] (24 x2)
+* The [[Dragon_crossbow#Special_attack|Dragon crossbow]] special attack can always one-shot both the seer and berserker at the same time if the player's normal max hit with the crossbow's regular attacks is at least 42. This is possible at a much lower ranged level than the 95 required to one shot the Seer with a venator bow or dark bow on accurate. The berserker will usually stay next to the seer after it gets close to you, but it may go around the pillar before doing so, and may break formation if you walk next to a wall just as you attack.
+
+====Other options for the Seer (at 99 Range with [[Rigour]])====
+
+* [[Eclipse atlatl]] with [[Strength bonus|melee strength bonus]] gear (25x2)
+* [[Dark bow]] with [[dragon arrows]] (8 tick delay)
+
+====Other options for the Archer (at 99 Strength with [[Piety]])====
+
+* An [[Abyssal whip]] or stronger in full melee gear with a super combat potion (50+)
+* [[Scythe of Vitur]] in full Torva, with [[Amulet of blood fury]] (50), or [[Amulet of rancour]] / in [[Torva full helm]] + [[Oathplate chest]] + [[Oathplate legs]]
+
+
+===Serpent shaman===
+{|class="wikitable floatright" width="25%"
+!{{SCP|Combat}} Max hit
+!{{SCP|Hitpoints}}
+!{{SCP|Magic}}
+!Size
+!Attack speed
+|-
+|27
+|125
+|220
+|1x1
+|5
+|}
+
+[[File:Serpent shaman.png|left|25px]]
+
+[[Serpent shaman]]s (also known as magers) are simple enemies in the Colosseum that use a moderately strong magic attack against the player. They have a range of 10 tiles, and no other special mechanics. However, they are particularly troublesome enemies due to their small size and high accuracy, especially when handling other monsters.
+
+Shamans appear during waves 1-6 as normal enemies, alongside said waves in addition to waves 10 and 11 as reinforcements.
+
+===Jaguar warrior===
+{|class="wikitable floatright" width="25%"
+!{{SCP|Combat}} Max hit
+!{{SCP|Hitpoints}}
+!{{SCP|Magic}}
+!Size
+!Attack speed
+|-
+|47 per hit (3 hits)
+|125
+|100
+|2x2
+|5
+|}
+
+[[File:Jaguar warrior.png|left|25px]]
+
+[[Jaguar warrior]]s (also known as meleers) are enemies in the Colosseum armed with a pair of claws. These enemies only appear as reinforcements from waves 1-6.
+
+Their claws will allow them to strike the player three times per attack. Each of these attacks makes their own independent roll on accuracy and damage like that of [[nail beast]]s. With a maximum hit of 47 and high melee stats, this means that the warrior can easily kill players, potentially dealing up to 141 damage in a single attack. Therefore, keep Protect Melee on at '''all times''' if the warrior is not in position and isolate them from other enemies to avoid such a scenario.
+
+===Javelin Colossus===
+{|class="wikitable floatright" width="25%"
+!{{SCP|Combat}} Max hit
+!{{SCP|Hitpoints}}
+!{{SCP|Magic}}
+!Size
+!Attack speed
+|-
+|48
+|220
+|225
+|3x3
+|5
+|}
+
+[[File:Javelin Colossus.png|left|63x63px]]
+[[Javelin Colossus|Javelin Colossi]] (also known as rangers) are one of the more dangerous enemies in the Colosseum. They attack by throwing a pair of javelins at the player, which can deal up to 48 damage. They also have an incredibly long attack range of 15 tiles, making them impossible to safespot even when other enemies are in front of it.
+
+After every four auto-attacks, the colossus will launch a javelin into the air, which will proceed to land on the player's position 6 ticks afterwards. ''If they do not move out of the way'', they will take up to 40 [[typeless]] damage.  
+
+The '''Reentry 1''' modifier causes the special attack to leave behind a pool of [[Molten Sand|molten sand]] on the targeted tile, which will deal up to 15 damage every two ticks while standing on them. This is cleared at the end of the wave.
+
+The '''Reentry 2''' modifier causes the special attack to leave behind a pool of molten sand on the targeted tile, along with the tile to its south-west (or a random tile if that tile is blocked/covered). This also makes the sand '''permanent''', making players be cautious about how they place the special attack to avoid ragging vital tiles.
+
+The '''Reentry 3''' modifier causes the special attack to leave behind a pool of molten sand on the targeted tile, the tile to its south-west (or a random tile if that tile is blocked/covered), and then the tile to its west (or a random tile if that tile is blocked/covered). As with the previous level, the sand is permanent.
+
+===Manticore===
+{|class="wikitable floatright" width="25%"
+!{{SCP|Combat}} Max hit
+!{{SCP|Hitpoints}}
+!{{SCP|Magic}}
+!Size
+!Attack speed
+|-
+|34 per hit (3 hits)
+|250
+|300
+|3x3
+|10
+|}
+
+[[File:Manticore.png|left|56x56px]]
+[[Manticore]]s are another dangerous enemy in the Colosseum. Unlike other monsters, the Manticore will charge up a three-hit attack which takes 10 ticks to complete. Similarly to colossi, the manticore has an attack range of 15. The attack arrangement is dependent on spawn, and it will utilise a magic-ranged or ranged-magic as the first two attacks in sequence; the third attack is always melee. The magic attack is a bright blue orb, the ranged attack is a green arrowhead, and the melee attack is an orange spiky ball. These attacks are launched one tick after each other, followed by a 7-tick lull while the Manticore recharges. The melee and magic orbs deal up to 31 damage, while the ranged orb deals up to 36 instead. This can deal a total of 98 damage if all three hits land as maximum hits; although such a scenario is unlikely, the rapid attacks can overwhelm a player if not properly prepared.
+
+Because of this, manticores can be potentially dangerous when paired with colossi, such as a manticore stacked alongside a ranger and shocker, as it is impossible to flick against all three.
+
+'''Beware:''' Despite their visual similarity to the [[The Leviathan|The Leviathan's]] projectile attacks, '''you must pray accordingly against projectiles before they are launched''', as opposed to being able to pray against the projectiles while they are mid-flight.
+
+The '''Mantimayhem 1''' modifier changes the Manticores damage output, causing 2 attacks per style for a total of 6, but not changing how you would handle prayer flicking them. These attacks roll separate accuracy checks and damage. While harmless if the player can flick their attacks, they will be severely punished if they fail to do so, as each set of orbs can deal up to 62/72 damage and cause an even quicker death.
+
+The '''Mantimayhem 2''' modifier causes the Manticores attacks to inflict [[venom]] upon an unprotected hit, though it clears at the end of the wave. With this modifier, a [[sanfew serum]] is necessary to avoid taking unnecessary damage while clearing a wave, especially if envenomed early. Other forms of venom curing are generally unhelpful due to the nature of the fight.
+
+The '''Mantimayhem 3''' modifier will unlock any pattern of the manticore's attacks, allowing for attack patterns such as Melee-Mage-Ranged, Ranged-Melee-Mage, etc. This can adversely affect the way pillar solves work and makes them extremely dangerous due to their increased damage and venoming capabilities. 
+
+In wave 9, 10 and 11, two manticores will appear. When one of these manticores has sight of the player, the other manticore that is within 15 tiles of them and also having sight on the player will copy the pattern of the first one. If the first manticore is killed before that happens, the second one will pick a random attack pattern. This can be used to manipulate their first or second attack to handle pillar solves depending on what else is behind them. When two manticores have sight of the player and are able to attack them, one manticore will dump its attacks on the player, and 5 ticks after that, the second manticore will do so, resulting in their attack speed effectively being reduced to 15 ticks.
+
+'''Warning: It is possible for two manticores to attack in rapid succession and ignore the 5 tick delay if the player hides from one's line of sight and then pops out while the other is attacking. The manticores will not stagger their attack speed if this occurs, and can result in swift death if unprepared.'''
+
+===Shockwave Colossus===
+{|class="wikitable floatright" width="25%"
+!{{SCP|Combat}} Max hit
+!{{SCP|Hitpoints}}
+!{{SCP|Magic}}
+!Size
+!Attack speed
+|-
+|56
+|125
+|350
+|3x3
+|5
+|}
+
+[[File:Shockwave Colossus.png|left|62x62px]]
+[[Shockwave Colossus|Shockwave Colossi]] (occasionally known as shockers) are enemies in the Colosseum. They attack using magic, and much like their ranged counterparts, they have a very long attack range of 15 tiles. While they are more accurate and damaging than them, they do not have any special mechanics and are less durable. Nonetheless, they are still very dangerous, as they have an even higher max hit than their ranged counterparts.
+
+If the handicap '''Dynamic Duo''' is active, players will have to face two of these enemies when they appear, and this second colossus will spawn around the location of the first.
+
+===Minotaur===
+{|class="wikitable floatright" width="25%"
+!{{SCP|Combat}} Max hit
+!{{SCP|Hitpoints}}
+!{{SCP|Magic}}
+!Size
+!Attack speed
+|-
+|74
+|225
+|250
+|3x3
+|5
+|}
+
+[[File:Minotaur (Fortis Colosseum).png|left|25px]]
+
+[[Minotaur (Fortis Colosseum)|Minotaurs]] are the final common enemy encountered in the Colosseum, starting from wave 7 and ending at 11 as reinforcements. Unlike other reinforcements, minotaurs '''immediately move''' upon spawning, and with a maximum hit of 74 and high melee stats, it is important to stay well away from the reinforcement spawn points.
+
+Unlike most melee-using monsters, a minotaur's damage is calculated one tick after the melee attack animation.
+
+Similarly to the [[Yt-MejKot]] of the Fight Caves, Minotaurs will heal other enemies if they have been damaged. However, the minotaur will continuously heal them to '''full health''' if they are within 6 tiles of them and in line of sight. Their line of sight is based on their centre tile, so their healing can be blocked by the pillars under certain circumstances, such as the minotaur standing north of a pillar and a large enemy south of the pillar. If in melee range, they will prioritise attacking the player over healing damaged NPCs.
+
+If the handicap '''Red Flag''' is active, the minotaur will gain the ability to routefind and become capable of moving around pillars; other NPCs, such as the reinforcement serpent shamans in waves 10 and 11, will also be able to move into the minotaur's occupied tiles. Routefinding minotaurs have a different NPC ID from the regular minotaurs, so players using NPC tile markers or radius markers should be mindful of this.
+
+==Wave breakdown==
+[[File:Wave Break Down - Cheat Sheet.png|450px|right|thumb|Wave Break Down Visual]]
+
+If the wave is not cleared within 40 seconds, the reinforcement NPCs will spawn. Realistically, only waves 1, 2, and 4 can be cleared without letting any reinforcements spawn. If reinforcements spawn in the same tick that the wave is considered cleared, they will be automatically killed off.
+
+Generally, the hardest waves are waves 6, 8, 10, and 11 due to the large number of NPCs. The [[serpent shaman]] reinforcements in 4, 5, 6, 10, and 11 can be challenging as there is a chance for them to spawn in front of the melee NPC. There is an exception on waves 10 and 11; standing next to the minotaur's spawn point when it appears will instead cause the shaman to spawn in the centre of the arena. However, given the large amount of enemies that are likely to attack the player, this is not recommended.
+
+If this is not met and you are busy handling a south NPC and the shaman spawns in front, you may need to manually offtick it before it arrives. If it spawns behind, the melee NPC will block the shaman until it is un-safespotted or killed.
+
+*Wave 1: Fremennik Warband, [[Serpent shaman]]
+**Reinforcement: [[Jaguar warrior]]
+*Wave 2: Fremennik Warband, Serpent Shaman, [[Javelin Colossus]]
+**Reinforcement: Jaguar Warrior
+*Wave 3: Fremennik Warband, Serpent Shaman, 2x Javelin Colossus
+**Reinforcement: Jaguar Warrior
+*Wave 4: Fremennik Warband, Serpent Shaman, [[Manticore]]
+**Reinforcements: Jaguar Warrior, Serpent Shaman
+*Wave 5: Fremennik Warband, Serpent Shaman, Javelin Colossus, Manticore
+**Reinforcements: Jaguar Warrior, Serpent Shaman
+*Wave 6: Fremennik Warband, Serpent Shaman, 2x Javelin Colossus, Manticore
+**Reinforcements: Jaguar Warrior, Serpent Shaman
+*Wave 7: Fremennik Warband, Javelin Colossus, Manticore, [[Shockwave Colossus]]
+**Reinforcement: [[Minotaur (Fortis Colosseum)|Minotaur]]
+*Wave 8: Fremennik Warband, 2x Javelin Colossus, Manticore, Shockwave Colossus
+**Reinforcement: Minotaur
+*Wave 9: Fremennik Warband, Javelin Colossus, 2x Manticore
+**Reinforcement: Minotaur
+*Wave 10: Fremennik Warband, 2x Javelin Colossus, 2x Manticore
+**Reinforcements: Minotaur, Serpent Shaman
+*Wave 11: Fremennik Warband, Javelin Colossus, 2x Manticore, Shockwave Colossus
+**Reinforcements: Minotaur, Serpent Shaman
+*Wave 12: [[Sol Heredit]]
+
+==Modifiers==
+Before starting a run, the player will be allowed to set up where they may choose to go before speaking to Minimus, who will then offer three modifiers to choose from before the wave begins. After the first wave is cleared, the player will not be able to move when Minimus appears until they make a selection. '''You must return near to the start tile (see below) immediately after killing the last NPC in a wave, or you are likely to be caught out of position and die to the next wave.'''
+
+The first wave will always consist of a selection of '''Relentless''', '''Blasphemy''' and '''Frailty'''. '''Red Flag''' and '''Dynamic Duo''' become available before wave 7 starts. The remaining modifiers are picked at random with a preference towards upgrades to previously picked Tier 1 and Tier 2 modifiers. Picking multiple, manageable T1 modifiers as soon as possible will reduce the chance of being forced to pick an undesirable modifier in the later waves.
+
+The suggestions assume that the player is learning for their first quiver, have a few completions under their belt or are not going for the [[One-off]] or [[Reinforcements]] [[Combat Achievements]], which requires players to pick bad modifiers. The player should ideally have experience in more challenging content. In addition, the choices you make will depend on currently active modifiers, gear, skill level and preference. However, if the player is able to handle less desirable modifiers, they will be able to clear later waves or the entire Colosseum without relying on a reset in the event of very bad offerings.
+
+{| class="wikitable sortable" style=width:960px;
+!colspan="2" style="width: 20%"|Modifier
+!style="width: 40%" |Effect
+!Recommendation
+!Details
+|-
+|[[File:Fortis Colosseum - Bees!.png|centre]]
+|Bees!
+|A jar will be thrown into the arena, releasing a [[Bee Swarm]] that tracks the player; this swarm moves every 12 ticks and has psuedo smart pathing. If underneath the player, it will deal 15-20 unblockable poison damage every tick, and inflict poison starting at 1 damage. This damage is halved when under the effects of [[antipoison]].
+
+Bee Swarms are 2x2, have 1 Hitpoint and will respawn after 30 seconds. The location of future spawns can be seen on the minimap and standing under those tiles when the swarm has not appeared will not damage the player.
+| {{No}}
+| rowspan="3" |This is universally deemed as one of the worst modifiers - it wastes time and demands attention like Quartet, but throughout the whole wave instead of just at the start. Even worse, it can mess with your positioning if you attack the Bees in melee range, making you step out of the pillar or melee safespot. The damage Bees can do to your run far outweighs any benefit gained from using them for SGS specs or Death Charge. This is almost certain to kill you in the Sol fight.
+|-
+|[[File:Fortis Colosseum - Bees! (II).png|centre]]
+|Bees! (II)
+|The amount of bee swarms is increased to '''two'''.
+| {{No}}
+|-
+|[[File:Fortis Colosseum - Bees! (III).png|centre]]
+|Bees! (III)
+|The amount of bee swarms is increased to '''three'''.
+| {{No}}
+|-
+!
+!
+!
+!
+!
+|-
+|[[File:Fortis Colosseum - Blasphemy.png|centre]]
+|Blasphemy
+|The player's prayer points are drained by 20% of damage taken from enemies.
+| {{Yes}}
+| rowspan="3" |This modifier is a drain on resources, but requires no conscious effort to deal with, and you are far more likely to die to a mistake that doesn't involve running out of prayer supplies. The only way this kills you is if you habitually camp low prayer.
+|-
+|[[File:Fortis Colosseum - Blasphemy (II).png|centre]]
+|Blasphemy (II)
+|Prayer drain is increased to 40% of damage taken.
+| {{Yes}}
+|-
+|[[File:Fortis Colosseum - Blasphemy (III).png|centre]]
+|Blasphemy (III)
+|Prayer drain is increased to 60% of damage taken.
+| {{Yes}}
+|-
+!
+!
+!
+!
+!
+|-
+|[[File:Fortis Colosseum - Doom.png|centre]]
+|Doom
+|A stack of Doom is gained whenever damage is taken, indicated by a [[hitsplat]] [[File:Doom stack hitsplat.png]]. The player is killed upon gaining 15 stacks.
+
+Stacks of doom are cleared after completing a wave.
+| {{Yes}}
+| rowspan="3" |This takes no conscious effort, but higher tiers can kill you on a wave that you should have lived through by spamming brews. Extra sources of damage such as Mantimayhem or Volatility make this a worse pick. Doom II is not a strong option but can be manageable with sufficient experience. Doom III will likely kill the player and should be avoided if possible.
+|-
+|[[File:Fortis Colosseum - Doom (II).png|centre]]
+|Doom (II)
+|The player is now killed upon gaining 10 stacks.
+| {{Maybe}}
+|-
+|[[File:Fortis Colosseum - Doom (III).png|centre]]
+|Doom (III)
+|The player is now killed upon gaining 5 stacks.
+| {{No}}
+|-
+!
+!
+!
+!
+!
+|-
+|[[File:Fortis Colosseum - Dynamic Duo.png|centre]]
+|Dynamic Duo
+|[[Shockwave Colossus|Shockwave Colossi]] will now spawn in pairs.
+
+The paired Colossus spawns near the main Colossus, but not necessarily on one of the 12 default spawns.
+| {{No}}
+|This modifier has a decent chance of ruining a wave start if a double south scenario occurs, although it is not considered a bad option if other worse options are offered.
+|-
+!
+!
+!
+!
+!
+|-
+|[[File:Fortis Colosseum - Frailty.png|centre]]
+|Frailty
+|The player's base [[Hitpoints]] are reduced by 10%, and overhealing is disabled.
+| {{Yes}}
+| rowspan="3" |At level 99 Hitpoints, (I) reduces health to 90 and (II) to 80. This is not a big problem especially with good sustain and damage management. It is nowhere near as dangerous as the reduced health implies as long as the player is cautious. (III) should be completely avoided at all costs, as this will bring a player with 99 Hipoints to 60. With such low health, the player can risk being one-hit or combo'ed out by a large amount of hazards while having next to no chance of survival in a bad situation. This is especially true at Heredit, where a combo attack can easily kill the player if two hits are missed and the lasers being a guaranteed death if caught in them.
+|-
+|[[File:Fortis Colosseum - Frailty (II).png|centre]]
+|Frailty (II)
+|Base Hitpoints are reduced by '''20%'''.
+| {{Yes}}
+|-
+|[[File:Fortis Colosseum - Frailty (III).png|centre]]
+|Frailty (III)
+|Base Hitpoints are reduced by '''40%'''.
+| {{No}}
+|-
+!
+!
+!
+!
+!
+|-
+|[[File:Fortis Colosseum - Mantimayhem.png|centre]]
+|Mantimayhem (I)
+|[[Manticore]]s now add an additional projectile per orb, effectively attacking twice per attack cycle.
+
+Will not be given as an option after wave 11 if not chosen.
+| {{Maybe}}
+| rowspan="3" |If the player is able to flick manticores easily, this is an easy pick. However, if they struggle to, or make a mistake, especially with Relentless active, the player will likely be severely punished for a missed flick. The venom from (II) is a non-issue if you bring [[Sanfew serum]]s or a Noxious halberd and use the special attack to cure it, but you still take heavy damage from the doubled orbs. (III) has a high chance of ruining pillar stacks and should not be taken unless as a last resort.
+|-
+|[[File:Fortis Colosseum - Mantimayhem (II).png|centre]]
+|Mantimayhem (II)
+|Manticores are now [[venom]]ous, applying it if its attacks are not prayed against. Venom is cured at the end of each wave.
+| {{Yes}}
+|-
+|[[File:Fortis Colosseum - Mantimayhem (III).png|centre]]
+|Mantimayhem (III)
+|The manticore's attack patterns are now less predictable, now being set in any order of magic, range, and melee.
+| {{No}}
+|-
+!
+!
+!
+!
+!
+|-
+|[[File:Fortis Colosseum - Myopia.png|centre]]
+|Myopia
+|The player's attack range is reduced by two tiles. Manually casted spells are unaffected.
+| {{Yes}}
+| rowspan="3" |While (I) does nothing for the most part, higher tiers can be dangerous if you carelessly get dragged out of a safe position. If using short range weapons, you may want to consider the '''long range''' option on the weapons to circumvent distance loss unless all options provide the same attacking range. Myopia is a free pick for melee users (since they have to get up close and personal anyways), although it will prevent halberds from attacking from a distance in cardinal directions; diagonally attacking with halberds are unaffected by all myopia levels.
+|-
+|[[File:Fortis Colosseum - Myopia (II).png|centre]]
+|Myopia (II)
+|Attack range is now reduced by '''four''' tiles.
+| {{Yes}}
+|-
+|[[File:Fortis Colosseum - Myopia (III).png|centre]]
+|Myopia (III)
+|Attack range is now reduced by '''six''' tiles.
+| {{Maybe}}
+|-
+!
+!
+!
+!
+!
+|-
+|[[File:Fortis Colosseum - Reentry.png|centre]]
+|Reentry
+|Javelins launched into the air by [[Javelin Colossus|Javelin Colossi]] are now ignited and will leave behind a pile of [[molten sand]] on the targeted tile, lasting until the end of the wave.
+| {{Maybe}}
+| rowspan="3" |With a strong ranged option this can be managed at tier (I), but as a learner, you are likely to rag important tiles while starting out. (II) can be taken at wave 10 or later, but should be avoided before that. This modifier becomes extremely bad if running a budget setup, because the Javelin Colossus will rag many more tiles before you can kill it. '''If you are using a melee-only setup, make sure to count the colossi's attacks to avoid ragging vital tiles if this has to be picked.'''
+|-
+|[[File:Fortis Colosseum - Reentry (II).png|centre]]
+|Reentry (II)
+|The molten sand is now '''permanent''', and now affects two tiles, with the second tile affected being south-west of it, permitted that there is space. If not, it will pick a random unaffected tile.
+
+This will also cause the sand created from the explosion of Volatility III to become permanent.
+| {{No}}
+|-
+|[[File:Fortis Colosseum - Reentry (III).png|centre]]
+|Reentry (III)
+|The tiles where molten sand is left behind now includes the tile west of the second tile, permitted that there is space. If not, it will pick a random unaffected tile.
+| {{Yes}}
+|-
+!
+!
+!
+!
+!
+|-
+|[[File:Fortis Colosseum - Red Flag.png|centre]]
+|Red Flag
+|[[Minotaur (Fortis Colosseum)|Minotaurs]] gain the ability to routefind, allowing it to move around obstacles and becoming impossible to safespot.
+| {{No}}
+|This is highly likely to kill learners and experienced players alike, especially if they are slow in killing south spawns and may staggering the minotaur's attacks to flick them alongside any other monsters. If this option has to be picked, it is recommended to do so only for wave 11 if the other modifiers are worse, such as Bees! or Totemic.
+|-
+!
+!
+!
+!
+!
+|-
+|[[File:Fortis Colosseum - Relentless.png|centre]]
+|Relentless
+|Enemy attacks will now bypass 33% of the player's Defence level and have their max hit increased by 1.
+| {{Yes}}
+| rowspan="3" |This modifier takes no conscious effort to handle. It causes you to take more damage if attacks are not blocked as enemies' accuracy skyrocket even further, punishing you harder for missed prayers and sloppy frem kills. This also reduces the effectiveness of pillar running, and if the player has to do this it is highly recommended to avoid picking this modifier. If you are able to solve triple stacks without issue then this option is essentially free.
+|-
+|[[File:Fortis Colosseum - Relentless (II).png|centre]]
+|Relentless (II)
+|Attacks now bypass '''66%''' of the player's Defence, and max hits are now increased by '''3'''.
+| {{Maybe}}
+|-
+|[[File:Fortis Colosseum - Relentless (III).png|centre]]
+|Relentless (III)
+|Enemies will fully ignore [[Damage per second/Melee#Step six: Calculate the hit chance|accuracy checks]], and max hits are now increased by '''6'''.
+| {{Maybe}}
+|-
+!
+!
+!
+!
+!
+|-
+|[[File:Fortis Colosseum - Solarflare.png|centre]]
+|Solarflare
+|A damaging orb circles around the pillars, moving every 2 ticks, then stopping for 7 ticks when it reaches a corner.
+
+During wave 12, they will circle a set pattern within the allotted arena.
+| {{Maybe}}
+| rowspan="3" |Does little damage at (I) and (II), and can often be trivialised with ranged weapons. (III) can be annoying at wave start if not used to dodge timing, but the prayer-disabling effect is rarely a direct cause of death. However, learners attempting Sol are likely to be overwhelmed, especially without tile markers.
+|-
+|[[File:Fortis Colosseum - Solarflare (II).png|centre]]
+|Solarflare (II)
+|The orb now moves every two ticks without stopping, and deals more damage.
+| {{Maybe}}
+|-
+|[[File:Fortis Colosseum - Solarflare (III).png|centre]]
+|Solarflare (III)
+|The orb now moves every tick, stopping for 2 ticks when it reaches a corner. It will also now disable prayers if hit, alongside dealing even more damage.
+| {{Maybe}}
+|-
+!
+!
+!
+!
+!
+|-
+|[[File:Fortis Colosseum - Quartet.png|centre]]
+|Quartet
+|An extra random Fremennik Warbander spawns every wave. This extra warbander will spawn to fill the '''south''' end of the formation when possible and will '''always attack''' on the same tick as its fellow; e.g a berserker/seer/berserker/ranger formation means that both berserkers attack first, then the seer and finally ranger, rather than the berserker, seer, other berserker and ranger.
+| {{No}}
+|While [[Fremennik warband|Fremmies]] can be killed quickly, this modifier robs you of valuable time in the wave opening, which is extremely important when handling a wave start. This is further exacerbated if two berserkers spawn, the player has Volatility active or is unable to kill them in a single hit. While not as bad as Bees! or Red Flag, it is not recommended to pick this modifier, especially as a learner.
+|-
+!
+!
+!
+!
+!
+|-
+|[[File:Fortis Colosseum - Totemic.png|centre]]
+|Totemic
+|When an enemy is reduced to 50% hitpoints or below, a healing totem will appear to their south-west if space permits, spawning elsewhere if this is not possible. There is a slight delay (~5 or so ticks) before the totem attempts to heal its target, launching a snake projectile at them. When this projectile reaches them, they will heal for 30% of their maximum hitpoints, and the totem will continually heal them until they are back to full health.
+
+They have 1 Hitpoint and will respawn two minutes after being destroyed, or after the enemy dies. Additionally, it will not heal the enemy if they are destroyed before their healing projectile reaches them.
+
+| {{No}}
+|Similarly to Bees!, this forces you to divert attention and damage away from important targets throughout the wave, especially with bad starts and Myopia. It is not as threatening as Bees!, however this option is only recommended for Sol since you are likely to get killed in most other situations, especially when handling stacks.
+|-
+!
+!
+!
+!
+!
+|-
+|[[File:Fortis Colosseum - Volatility.png|centre]]
+|Volatility
+|Upon death, the enemy will explode one tile greater than their size. For example, a [[manticore]], whose size is 3x3 tiles, will explode in a 5x5 radius.
+| {{Maybe}}
+| rowspan="3" |While the explosions don't do heavy damage and can be dodged, they are easy to forget and make hard spawns more difficult to deal with, especially when using melee. (II) significantly reduces room for error while killing the Fremmies at wave start. This modifier is worse if Doom and/or Quartet were selected, because it requires the players to make use of more tiles which can expose them to further enemy attacks.
+|-
+|[[File:Fortis Colosseum - Volatility (II).png|centre]]
+|Volatility (II)
+|The explosion radius is now '''two''' tiles greater, ex. a 3x3 monster will now explode in a 7x7 radius.
+| {{Maybe}}
+|-
+|[[File:Fortis Colosseum - Volatility (III).png|centre]]
+|Volatility (III)
+|The tile at the centre of the explosion now leaves behind a '''temporary''' pool of molten sand, disappearing after the wave ends.
+
+Reentry II or III will cause this pool of molten sand to become '''permanent'''. 
+| {{Yes}}
+|}
+
+==Wave clearing procedure==
+[[File:Colosseum NW start.png|alt=Lumberjack outfit not recommended for first quivers.|thumb|Start each wave on this tile. The pillar shown is the NW pillar.]]
+For waves 1-11, follow these steps to maximise your chances of survival:
+
+# Start by waiting on the start tile as shown. This prevents NPCs from spawning too close. Pray [[Protect from Magic]]  on waves 1, 4, 7, 8, and 11, and [[Protect from Missiles]] on all other waves.
+# On the 5th game tick after the handicap selection menu disappears, click towards either tile A or tile B as shown on the NW pillar. Using RuneLite metronome plugins, or simply walking in place, can be used to time this properly.
+# As you move towards the pillar, look to the south to see if any NPCs spawned in the two south spawn locations, and pray accordingly. The [[serpent shaman]] has a much lower maximum hit than the [[Javelin Colossus]], which in turn has a lower max hit than the [[Shockwave Colossus]]. Remember that a [[Manticore]] needs 10 ticks to charge up once it sees you, so you have some time before it fires.
+# Kill the fremmies. Start by killing the melee, followed by the mage and finally the ranger. You can use a [[Saradomin godsword]] special attack to get a large heal off the ranger if needed. It is best to kill them one by one, as fast as possible. Another good option is to Ice Barrage all three of them and stand a short distance away, thus taking no damage while finishing them off. '''If you opt to do this, use the correct weapons for the mage and range frem, as barraging them wastes precious time that you need to set up for reinforcements.''' There is a significant chance you will need to barrage seven times or more.
+# Kill south spawns. This is simple if only one NPC spawned south; if two spawned south, it is challenging but still possible to pray against their attacks. By standing on tile A, you can drag the closest south spawn. Standing one south of the B tile, you will always be able to hit the closest south NPC with a 10-range weapon, even with Myopia 3. 
+# (Once 40 seconds have passed) Kill reinforcements. If a reinforcement serpent shaman is going to arrive first and south NPCs are still alive, it may need to be manually offticked. If a jaguar warrior or minotaur will arrive first, make sure you safespot it.
+# Kill the pillar stack NPCs. You will need to step out of the pillar in a specific way to offtick their attacks and be able to pray against them. See the relevant section below (WIP) for examples of how to offtick various pillar stacks.
+# '''Return to the start tile''' before the next wave begins.
+[[File:Fortis Colosseum markers.png|thumb|A set of tiles useful in the Colosseum.]]
+===Tile markers===
+This is a set of tile markers that can be used in the Colosseum. It includes:
+
+* Wave start tiles for both NW and SW pillars
+* Commonly-used A and B tiles for offticking double south spawns
+* Deadzones (tiles on the edge of the arena that you cannot enter)
+* Solarflare paths for the Sol fight
+* Destacking tiles
+* NW jaguar trap tiles
+* Tiles for offticking (NW) or stalling (SW) the reinforcement serpent shamans
+* A marker for the starting tile used to offtick a shaman + ranger stacked, in any order, on the south side of the pillar
+* A tile for dragging a shaman out if it gets caught on a triangle stack.
+{{Tile markers box|Module:Tile markers/Colosseum.json}}
+
+===Wave start===
+The pillar recommended for first quivers is the NW pillar. This is because:
+* It minimises the risk of being attacked by two NPCs on wave start. You have a 1 in 6 chance to get a double south spawn on waves 8, 10, and 11. '''On SW, you have nearly a 2 in 3 chance for double north!'''
+* It allows the melee reinforcement NPCs to be safespotted while dealing with the south spawns on the west side.
+* It maximises opportunities to set up double ricochets with the [[venator bow]], which does better damage than even a [[scythe of Vitur]] if Masori armour is equipped. This is not a consideration for a first quiver.
+* By clicking towards the pillar on the 5th tick, NPCs are prevented from spawning in the west area, minimising the number of NPCs the player has to deal with at wave start.
+For more details on the tradeoffs of SW and why it is not recommended for a first quiver, [[Guide:Fortis Colosseum - SW pillar breakdown|you may refer to this guide.]]
+
+===Kill fremmies===
+As fremmies have routefinding, chase you constantly at running speed, and can do serious damage, they must be killed at the start of the wave. Failing to kill fremmies quickly results in a spiral of taking more and more damage.
+
+Fremmies attack on a fixed 6-tick cycle relative to wave start. It is not worth devoting extra clicks to pray against their attacks, especially when south spawns are present. '''Kill them ASAP''' and get to dealing with south spawns. '''If and only if you can squeeze in the clicks without losing ticks,''' you can ctrl+click or turn off run to walk between hits and avoid some frem damage.
+
+Note that walking to avoid frem damage is an '''extremely common  trap''' that learners tend to internalise early, only to sabotage themselves repeatedly by continuing to walk away from frems late into the wave with no damage done to south spawns. '''It is worth standing still and taking damage from frems to kill them as fast as possible! If there is a double south spawn, walking frems will likely get you killed as a result of wasting clicks by walking instead of prioritizing prayers.''' If your frems tend to be alive past '''12-14 seconds into the wave''', you are sacrificing frem kill speed and will '''die more to mage first reinforcements''' as a result.
+
+Kill fremmies in the order: melee, mage, range. The only exception to this is to kill the ranger with a [[Saradomin godsword]] special attack before the mager if the player is critically low on HP due to a mistake. '''Barraging the non-melee fremmies is slow, inconsistent, and may indirectly get you killed more often by reinforcements.'''
+
+===Deal with south spawns / double south===
+When only one NPC spawns south, it can be easily drawn in by standing on the A or B tile and killed safely from behind the pillar. However, being attacked by two south NPCs at wave start is a common cause of death for learners, as they struggle to juggle the movement and menu management of killing frems with flicking prayers between two NPCs. Learning to survive double south spawns makes a dramatic difference in the likelihood of achieving a completion.
+
+To maximise your chances of surviving double south spawns:
+
+* '''''Practice good inventory management and awareness.''''' Do you know where your weapons used to kill the frems are? Do you use F-keys to quickly swap menus and avoid wasted clicks?
+* Avoid Quartet and Volatility if possible, since these handicaps make dealing with fremmies more difficult.
+* Watch examples of double south spawn offticks to learn them, then practice applying the solves in your own runs.
+There are two main methods for solving double south: rotating north, and the A/B method.
+
+==== Rotating north for double south ====
+This method has you rotate north to set up a familiar offtick with double south. In many cases, you will exploit the long 10-tick charging time a manticore needs before it fires at you.
+
+This method has several benefits:
+
+* Since you rotate and use the manticore charge-up times, you can usually comfortably kill at least two frems before having to rotate back west and flick the south spawns.
+* The flick patterns are common two-stack patterns you would have learned elsewhere in the Colosseum.
+* You take less damage from frems, since you spend time rotating.
+* You can avoid taking explosion damage from Volatility frems easily.
+
+However, there are several downsides:
+
+* You need to make 2-3 more clicks than you would with the A/B method.
+* If both a ranged and magic NPC are east, you may need to tank a hit on the east side before quickly returning west, unless you can pull off a fast one-tick south peek.
+* If the east NPCs are side-by-side, you need to avoid staying on the corner on the north side, or offticking the south spawns will become more difficult.
+
+The general procedure for this method is as follows. You may want to refer to [https://www.youtube.com/watch?v=t1qDqa_SXpk this video guide.]
+
+===== 1. Kill melee frem and rotate north =====
+
+* Stand in place on the A or B tile and kill the melee frem when it approaches you.
+* Click to go north as soon as you see the XP drop for the frem kill.
+* Switch your prayer, if necessary.
+
+===== 2. Kill mage frem and rotate west =====
+
+* Kill the mage frem.
+* Glance at the south spawns. If they start with the same style, prepare to same-tick them from the pillar edge. If they start with different styles, prepare to offtick them from the middle of the pillar.
+* There is a specific set of tiles you need to use if a [[Serpent shaman|shaman]] and [[Javelin Colossus|ranger]] are stacked on the south side -  it is included in the tile pack.
+* Click to go back west.
+
+===== 3. Flick south spawns and finish frem(s) =====
+
+* Flick the south spawns.
+* Kill the remaining frem(s).
+
+You may adjust this as needed, such as not killing the mage frem on the north and immediately rotating back instead if there are a ranger and mager on the east side.
+
+===== Harder situations =====
+There are a few situations where you will need to be careful with this method:
+
+'''If a shaman has made it all the way to the NW pillar'''
+
+You cannot rotate back west safely if a shaman sees you from the corner of the NW pillar, as it will follow you back down west; you need to kill it. 
+
+If you freed a ranger from the NE pillar while rotating north, they will be offticked.
+
+'''If there are a shocker/shaman and ranger east'''
+
+You can tank a hit from the ranger or shaman, then rotate back immediately. You may also do a 1-tick south peek, if you were fast enough.
+
+If one of them was caught on the NE pillar, it will be offticked. 
+
+'''If the east spawns are side-by-side'''
+
+The south spawns will become harder to offtick if you let the nearest south spawn hug the pillar (you will need to do the triangle stack offtick, one tile away from the pillar). To prevent this, avoid staying on the corner of the north side when you rotate.
+
+<gallery mode="packed" heights="200" style="text-align:left">
+Same style double south.mp4|The basic plan for same-style south spawns.
+Different style double south.mp4|The basic plan for different-style south spawns.
+Shaman slow double south.mp4|A basic example of offticking a ranger and shaman south.
+Shaman fast double south.mp4|A faster example of offticking a ranger and shaman south, since there is time pressure from the manticore.
+Shaman reverse double south.mp4|The shaman offtick tiles work no matter what order the ranger and shaman are in.
+Shaman manti double south.mp4|You can wiggle a south shaman out from under a manticore. Beware of the manticore's line of sight on the corner.
+Shaman pillar double south.mp4|If a shaman walks all the way up to the pillar, you have to kill it on north. You can offtick any NPC that was caught on NE.
+Triple south.mp4|If you get triple south, stay on the north side until reinforcements arrive, using the Jaguar safespot.
+Shocker ranger double south.mp4|If a shocker and ranger spawn south, you can kill one frem north, then rotate back.
+Shocker ranger east double south.mp4|If the shocker and ranger are east, you can tank a ranged hit, or do a 1-tick south peek.
+</gallery>
+
+==== A/B offtick for double south ====
+[[File:Flick patterns.png|thumb|The prayer flick patterns for the north method and the A/B method. A/B flicks give you less free time, and you have to focus hard to start flicking early. The north method flicks are the same as those for regular pillar stacks.]]
+
+This method has you stand still on either the A or B tile (except for the double south manticore spawn) to offtick double south. You need to stay on the tile until the rear NPC sees you.
+
+This method has a few benefits:
+
+* You need to make 2-3 fewer clicks, since you do not rotate.
+* You never have to tank off-prayer hits, since there is no chance you rotate into a pair of ranged- and magic-using NPCs.
+
+However, there are several downsides:
+
+* You take more damage from frems, since you stay still for longer.
+* If a manticore spawned south, you need to flick it earlier than if you had rotated north.
+* The prayer flick patterns involving a manticore are more difficult than the standard two-stack flick patterns, and give you less breathing room to kill frems.
+* Volatility frems become much more troublesome to deal with.
+
+===== Shaman + Javelin Colossus =====
+The serpent shaman works differently from the other 3x3 NPCs, as due to his size he does not get caught behind the pillar for several spawn locations which 'catch' the other 3x3 NPCs. You may have to manually offtick them by stepping away from the pillar as the shaman approaches. Generally, the A tile will offtick them. 
+
+===== Manticore + Javelin Colossus / Shockwave Colossus =====
+When a manticore and another 3x3 NPC spawn south, they can be offticked by staying on the A tile if the manticore spawned close, and on the B tile if the manticore spawned far. Once both NPCs stop moving, it is safe to start moving to dodge hits from the frems. It is always possible to kill at least 2 frems before the manticore attacks you. 
+
+===== Manticore + Manticore =====
+You have two options: one, you can stay on the south corner of the pillar or walk one west of B and let them see you at the same time, then pray against their staggered attacks. Two, you can run to the A tile to cause them to attack you for 6 ticks in a row without interruption, followed by a 4-tick breathing period. If you opt for the first option, be very careful to wait for the closer manticore to attack first before dragging them in by running to the A tile or around the north side, as you may cause them to overlap their attacks by interrupting their line-of-sight.
+
+===== Javelin Colossus + Shockwave Colossus =====
+These spawns will always be offticked by staying on the A or B tiles. The NPC that spawns close will attack first, and the rear NPC will attack 2 (if on B) or 3 (if on A) ticks later. Focus on getting the prayers right, equip your weapons, and click the frems when you have breathing room. Momentarily rounding the corner can be useful for buying time to kill a frem, but make sure to return if things get dangerous or if reinforcements are about to spawn.
+
+<gallery mode="packed" heights="200" style="text-align:left">
+Shaman Ranger south stack.mp4|If a shaman and ranger are about to see you, you can opt to pray range and go north, then offtick them as shown on the way back. Be careful if a Manticore will see you on the north side.
+Manti Ranger.mp4|Since the Manticore spawned closer than the Javelin Colossus, you can offtick them on the A tile.
+Manti Manti 1.mp4|You can make two Manticores see you on the same tick by walking 1 tile west of B.
+Shocker Ranger.mp4|If a Javelin Colossus and Shockwave Colossus spawned south, pray against the closer one first.
+</gallery>
+
+===== Running pillars for double south =====
+Running to a different pillar is a flimsy survival strategy often used to cover for not learning frem procedure and panicking. In tanky armour such as [[Torva armour]], you can sometimes buy a few seconds of survival if you are lucky, but there are many downsides: 
+
+* You are still able to die from unlucky hits - if only camping [[Protect from Magic]], rangers and Manticores can easily hit and kill you.
+* Reinforcements - since you are panic running, you will probably be too busy healing, clearing frems, or panicking after your pillar run to set up safely for reinforcements. This will usually just kill you from 2-3 enemies hitting you at the same time, or prompt another desperate pillar run. 
+
+'''Running pillars to survive double south is not an advisable option for learning to survive the content, and relying on running pillars will often get you killed by reinforcements.'''
+
+==== How to survive mage-first reinforcements ====
+These are your three main options.
+
+Regardless of which option you choose, the most important point is to '''plan ahead instead of being caught off-guard and panicking.''' It is very useful to enable the wave timers using the Fortis Colosseum plugin to be aware of when reinforcements are about to spawn.
+
+===== Pray against the shaman =====
+Even if you do not move and continue to hug the NW pillar, you have a decent chance (40-80%, depending on the south NPCs still alive) of having the shaman naturally offticked.
+[[File:Manual offtick.mp4|thumb|Manually offticking the shaman by running into its line of sight early.]]
+To ensure your safety, you can step out to the offtick tile to do a manual offtick as the shaman is about to reach the middle of the pillar. While challenging, this is the only way to guarantee safety with mage-first reinforcements.
+
+===== Dump special attacks on the shaman =====
+If you have the special attack energy and brought a strong special attack weapon such as [[dragon claws]], [[burning claws]], or a [[voidwaker]], using special attacks on the shaman can kill it quickly before it has the chance to do a lethal amount of damage. Once the shaman rounds the corner (stand on B or south of B to force it to do so), you can damage the shaman without letting any minotaurs heal it by attacking it from the A tile.
+
+===== Run pillars =====
+Running to another pillar while praying against as many attacks as possible can sometimes give you another chance to solve the wave under low pressure. This can work remarkably well in tanky armour such as Torva armour or [[Justiciar armour]], even with a few missed prayers. However, overreliance on running pillars comes with the following issues:
+
+* You can still easily die to unlucky hits - even more so if you picked Relentless, or only rely on Protect from Magic.
+* You might drag the reinforcements into the middle of the stack, leading to unsolvable stacks that require you to tank more hits or run again.
+
+=== Deal with pillar stack ===
+Killing NPCs stacked on the pillar requires that they be offticked, or you will take massive damage. A set of summary graphics and examples are shown below. 
+
+Mantimayhem 3 adds three potential stacks in total that require z-solves; two of them are standard double line and triangle stacks which might now require stepping in and out of the pillar depending on the manticore's orb order. A triple line stack with a middle manticore that is melee orb first and the opposite style of the closest mob second also requires stepping back behind the pillar. There is one last unique stack: a T-stack where a manticore between a ranger and a mager has melee orb second and the opposite style of the closest mob third, which can be solved with one click of movement [https://los.colosim.com/?11112.11082.14094m.17096.#2306x2.2817.3329x5 like this]. '''Mantimayhem 3 is strongly not recommended on a first quiver.'''
+<gallery heights="600" style="text-align:left" widths="400" perrow="3">
+File:Colosseum pillar stacks 1.png|Basic, common stacks. If not confident, the Z-stack can be destacked instead.
+File:Colosseum pillar stacks 2.png|More complicated stacks.
+File:Colosseum pillar stacks 3.png|More complicated stacks. If a manticore is in the front or back position and is not charged, it is recommended to run south.
+File:Colosseum Southwest pillar run strategy.png|Stacks may be safely split up by running to the southwest pillar after reinforcements have arrived and the start of the wave is solved.
+File:Colosseum northeast enemy block strategy revised.png|If an enemy spawned behind the northeast pillar, running to the southwest pillar results in certain enemies getting stuck behind it, granting an even easier solve.
+</gallery>
+
+==Sol Heredit==
+[[File:Sol Heredit chathead.png|left|100px]]
+{|class="wikitable floatright" width="25%"
+!{{SCP|Combat}} Max hit
+!{{SCP|Hitpoints}}
+!{{SCP|Magic}}
+!Size
+!Attack speed
+|-
+|45
+|1500
+|300
+|5x5
+|Varies
+|}
+
+[[Sol Heredit]] is the final boss of the Colosseum. When his wave starts, groups of gladiators will barricade the centre of the arena, limiting the player's movement against him to the area within the four pillars (roughly a 16x15 arena).
+
+Sol is weak to slash, making the [[scythe of Vitur]] the strongest option; a [[soulreaper axe]], [[blade of Saeldor]], or [[abyssal tentacle]] are acceptable alternatives. A [[noxious halberd]] can outdamage an abyssal tentacle, but it is very difficult to use if Myopia was not taken or offered during the waves, as you will have to manually path. It is not recommended to use magic or ranged as Heredit has massive bonuses against them with a high Magic level of 300, with +750 magic and +825 ranged defence bonuses. He is not immune to stat reduction, so a [[dragon warhammer]] or [[elder maul]] can help make him easier to hit; however, for a first quiver, [[dragon claws]] or a similar special weapon are much more valuable to end the fight quickly once he goes below 10% HP.
+
+'''Preparation before starting wave 12:'''
+
+* If you are using NPC highlights, make sure to tag Sol Heredit. You can do this on any of the previous waves. He is sat above the north gate.
+* If you use game sounds, make sure both game sounds AND area sounds are turned up. Sol's attack sounds are area sounds. Also, if you use RuneLite check the default Music plugin, make sure "Mute NPCs' area sounds" is unchecked.
+* Make sure you are not zoomed in too much, as one of Sol's special attacks shows a cue above his head.
+
+=== Phase 1 (100% HP, 1500 HP) ===
+'''''Let's start by testing your footwork.'''''
+
+Sol Heredit primarily attacks with dodgeable AOE attacks. They deal up to 45 [[Typeless|Typeless Melee]] damage which can be completely avoided if dodged correctly. Keeping your [[Protect from Melee]] prayer on should be '''avoided''', as it does not reduce his AOE damage, and having the prayer on during the start of his Triple Attack will prevent you from blocking the first hit.
+
+It is recommended to have enough space to run at least two tiles away from Sol; while both trident attacks and the first shield slam can be avoided by walking one tile away from him, the second shield bash requires two tiles.
+
+The attack patterns follow a rule in which if two of the same style, Spear attack or Shield attack, are used in a row, the second one will use a different pattern. Using a single Spear attack and following up with a Shield attack, or vice-versa, will reset the pattern back to its first one. Sol will remember his previous attack during a phase transition, but will reset if a special attack (grapple or combo) was used. '''Sol Heredit will always use a Spear attack first after phase transitions; if his previous attack was Spear 1, his next attack will be Spear 2.'''
+
+Sol will be unable to move for 4 ticks starting on the tick he uses an AOE attack. Additionally, Sol must be next to the player at the start of a tick (before movement is calculated) to initiate an AOE attack. If the player walks away from Sol on a tick before Sol finishes his attack cooldown, they can delay Sol's next attack. This works on all attacks except for phase transitions, which Sol will begin regardless of player position. 
+
+Sol Heredit has 4 different AOE patterns:
+*'''Spear 1:''' '''Sol Heredit begins the fight with this attack.''' 5x6 (under him+ in front) with two 4x1 lines towards the player's direction. Avoided by stepping back 1 tile from his centre tile, or his corner tiles.
+* '''Spear 2:''' 5x5 (under him) with three 4x1 lines towards the player's direction. Avoided by stepping back 1 tile diagonally on either side of his centre tile.
+*'''Shield 1:''' large 15x15 AoE with a safe line at 9x9. Avoided by stepping back 1 tile from his melee range.
+*'''Shield 2:''' large 15x15 AoE with a safe line at 11x11. Avoided by stepping back 2 tiles from his melee range.
+
+<gallery mode="packed" heights="500" style="text-align:centre">
+File:Sol Spear.mp4|Spear attacks and safe zones
+File:Sol Shield.mp4|Shield attacks and safe zones
+File:Spear 2 Phase.mp4|After a phase transition, if the previous attack was Spear 1, the next attack will always be Spear 2.
+</gallery>
+
+Sol Heredit's attack speed is based on the attack he previously used, with the spear stabs being a 7-tick attack and the shield slam a 6-tick attack. These attacks speed up by 1 tick each after he goes below 75% health and does his phase transition.
+
+=== How to dodge Sol's attacks ===
+There are two main strategies to dodge Sol's regular attacks.
+
+==== The hover method ====
+Based on Sol's previous attack, there will be a tile that is '''always safe from his next regular attack.''' See the video below for demonstrations.
+{| class="wikitable"
+|+
+!Previous attack
+!Hover tile
+|-
+|Any special attack
+|1 tile back, sides or middle
+|-
+|Shield 1
+|2 tiles back, sides or middle
+|-
+|Shield 2
+|1 tile back, sides or middle
+|-
+|Spear 1
+|1 tile back, off-centre tiles
+|-
+|Spear 2
+|1 tile back, sides or middle
+|}
+This method takes a bit of practice to learn, but '''lets you anticipate every regular attack''',  gives the '''greatest control and movement options''' for manoeuvering around molten sand.
+
+==== The L method ====
+By moving in an L shape from Sol's corner, you will '''automatically dodge Spear 1, Spear 2, and Shield 2.''' This is '''always safe after a phase transition''', as Sol is guaranteed to use a Spear attack out of phasing.
+
+However, unlike the normal method which lets you preemptively hover your mouse over the next tile, '''you must react to Shield 1.'''
+
+As this method forces you to react, and thus '''takes your attention away from other reactionary hazards''' like his special attacks or lasers, '''it is most helpful to master the hover method,''' with the L method as a backup for when you forget Sol's previous attack after a phase transition.
+
+<gallery mode="packed" heights="500" style="text-align:centre">
+File:Sol Heredit hover method.mp4 |Using the hover method to preempt all standard attacks. This gives the most options for manoeuvering around the arena.
+File:Sol Heredit L method.mp4 |The L method dodges all attacks except for Shield 1, but restricts your positioning options. This is always safe after a phase change.
+</gallery>
+
+=== Phase 2 (90% HP, 1350 HP) ===
+'''''Not bad. Let's try something else...'''''
+
+Sol Heredit will continue to use his primary AOE attacks like in Phase 1, but with the addition of arena obstacles and the triple combo special attack.
+
+==== Molten Sand ====
+During the phase transition, 6 random tiles will be marked with a pillar of light, leaving behind a puddle of molten sand that will remain for the rest of the encounter. One of these will always target the player's tile.
+*Stepping on them will damage the player for ~6-8 damage (and increment Doom, if applicable) per tick.
+*Additional tiles will be affected at the start of each phase.
+*Molten sand will only spawn in a 9 by 9 square centered on the player's tile.
+*If Sol attempts to spawn molten sand on a tile already covered, it will have no additional effect.
+*If the player is at an edge or corner of the arena, all 6 tiles will spawn inside of the arena, provided space exists.
+
+==== Triple Attack ====
+Sol Heredit will charge up an attack and strike 3 times. This attack must be prayed against with [[Protect from Melee]], or you will receive heavy damage. The attack requires you to activate your prayer tick-perfectly with the attack landing. The initial attack hits 3 ticks after the start of the charging animation, the second attack hits 3 ticks after that, and the final attack after another 3 ticks. On phases 4 and 5 and 6, the final attack is delayed by a tick, meaning that it will hit 4 ticks from the second hit.
+*Activating any protection prayer too early will disable it and force you to take the damage. 
+*On phase 1-3, each attack will deal 15, 25, and 35 damage, respectively, if not properly prayed against. In phase 4 onwards, the second and third hits are increased to 30 and 45 respectively if not blocked.
+
+==== Light Beam ====
+A crystal will spawn on the outside of the arena and move a random distance. Afterwards, it will stop and project a beam of light, which after a few seconds, will shoot a ball of light which can damage the player for 70+ damage.
+*An additional beam is added at the start of each phase.
+*If your position is targeted, you have 3 ticks to react and move out of the way.
+*This is by far the most dangerous hazard during the fight. While it is possible to theoretically survive a hit, having Blasphemy enabled will likely result in your prayer being smited, which in turn can cause you to die to the triple attack.
+
+<gallery mode="packed" heights="500" style="text-align:centre">
+File:Sol Puddles.mp4|Sol drops molten sand puddles on the ground every phase transition around your current tile.
+File:Sol Lasers.mp4|Lasers fire at semi-regular intervals. In enrage phase, they fire very often and very quickly.
+File:Sol Triple Attack.mp4|Sol's Triple Attack must be prayed tick-perfectly. The final hit is delayed by 1 tick after the 50% HP phase transition.
+</gallery>
+
+=== Phase 3 (75% HP, 1125 HP) ===
+'''''Impressive. Let's see how you handle this...'''''
+
+Phase 3 starts with the addition of another new Light Beam, 6 more Molten Sands, and the grapple special attack. 
+
+Additionally, Sol Heredit's primary AOE attacks will have their attack speed increased by 1 tick. 
+
+==== Grapple Attack ====
+Sol Heredit will announce a message over his model and in the chat-box indicating one of 5 slots he will be targeting. If the player does not defend the armour slot in time, or clicks on the wrong slot, he will deal heavy damage (up to 45). Defending a gear slot will not unequip the item for the duration of this attack.
+*This attack will be used even if the player doesn't have anything worn in that slot, and will therefore be unable to defend.
+*Countering the attack within 3 ticks will result in the chat message "''You successfully defend from Sol Heredit's grapple!",'' blocking the damage. Countering it on the last possible tick, however,  results in the chat message ''"You perfectly parry Sol Heredit's grapple!",'' which will also empower your next attack (within 5 game ticks) with a max hit. Sol Heredit's arm extending can be used as a visual cue to perfectly parry the attack.
+*The chat messages indicating which armour piece to remove are as follows:
+** ''I'LL CRUSH YOUR '''BODY'''!'' indicates that you must defend the gear in the platebody slot.
+** ''I'LL BREAK YOUR '''BACK'''''<nowiki/>'''!''' indicates that you must defend the gear in the cape slot.
+** ''I'LL TWIST YOUR '''HANDS''' OFF!'' indicates that you must defend the gear in the gloves slot.
+** ''I'LL BREAK YOUR '''LEGS'''!'' indicates that you must defend the gear in the platelegs slot.
+** ''I'LL CUT YOUR '''FEET''' OFF!'' indicates that you must defend the gear in the boots slot.
+
+<gallery mode="packed" heights="500" style="text-align:centre">
+File:Sol Grapple.mp4|Once Sol calls out a body part, you have 4 ticks to defend the slot. Defending on the last tick will give a perfect parry.
+</gallery>
+
+=== Phase 4 (50% HP, 750 HP) ===
+'''''You can't win!'''''
+
+Phase 4 starts with the addition of another new Light Beam and 6 more Molten Sands.
+
+In addition, Sol Heredit's Triple Attack is slightly modified. The final hit in the combo is delayed by 1 tick to catch the player off guard. If not blocked, it will inflict 45 damage.
+
+=== Phase 5 (25% HP, 375 HP) ===
+'''''Ralos guides my hand!'''''
+
+This phase is exactly the same as Phase 4, with the addition of another new Light Beam and 6 more Molten Sands.
+
+No more Light Beams are added from this point, for a total of 4. 
+
+=== Enrage Phase (10% HP, 150 HP) ===
+'''''LET'S END THIS!'''''
+
+During Enrage Phase, Sol Heredit adds an initial 5 Molten Sands, and 1 extra Molten Sand every 1.8 seconds (3 game ticks), targeting a random unaffected tile in the arena. Like the phase transition sand, this sand is also in a 9 by 9 grid around the player, and can fail to spawn if Sol attempts to spawn sand on a tile already covered by it. It's important to finish the boss off quickly before too much of the arena is covered. Special attack weapons like [[dragon claws]] or [[burning claws]] can help with this, if you do not fumble the switches and special attack selection.
+
+Light beams '''fire much faster''' and more frequently, sending out an attack approximately every 7 seconds. '''You have only 2 ticks to react''' from the moment a beam targets your position. During the chaos of the fight, dodging the light beams must be of highest priority, as it will result in your prayer getting smited and in turn being unable to react to the triple parry attack.
+
+'''Warning: Even if Sol is killed, be aware of your Doom stacks and Volatility! Doom will still continue even after Sol dies and will kill the player if it reaches its max stacks. Likewise, Volatility will cause Sol to explode, which can kill the player if their health is low/doom stack is near max. If this occurs, you WILL lose all loot in the chest, including the quiver.'''
+
+=== Modifiers ===
+
+*Because Sol is fought in the middle of the arena, players who have '''Reentry''' 2 or 3 active should avoid splattering the centre with molten sand, as this will severely limit space to avoid his attacks.
+*If '''Quartet''' is active, a random Fremennik warband member will spawn at the start of the fight and should be dealt with immediately.
+*'''Bees''' will continually spawn if active, making it necessary to kill them with the limited amount of space.
+*'''Solarflare''' orbs will continually rotate in a 5x5 pattern by the corners of the improvised arena.
+*If '''Totemic''' is active, the totems will begin spawning when Sol Heredit reaches 50% of his health and will heal him for 75 hitpoints every 4.2 seconds if given the chance until destroyed. You can safely one-shot it with any manually casted spell; any weapon attack also works, but be careful of being dragged under him or onto molten sand. After the first totem is destroyed, it will respawn in 2 minutes, giving you plenty of time to finish the fight.
+
+<gallery mode="packed" heights="400" style="text-align:centre">
+File:Sol Reentry.mp4|Any puddles left behind by Reentry 2 will still damage you in the Sol fight.
+File:Sol Quartet.mp4|Dealing with the extra frem with Quartet on is a common cause of death. You must shift-click while dodging and switching weapons, or you will red-click the frem and get hit by Sol.
+File:Sol Solarflare.mp4|Solarflares orbit on fixed paths. The areas inside and in between the boxes are safe.
+File:Sol Totemic.mp4|With Totemic on, a single totem spawns near Sol's SW tile at 50% HP. It respawns in 2 minutes, which is plenty of time to kill Sol.
+</gallery>
+
+==Tips==
+=== RuneLite plugins ===
+The following RuneLite plugins are useful in the Colosseum:
+
+* '''Better NPC Highlight''': highlight the true tiles of the NPCs, and optionally colour-code them using the Presets. It is recommended to turn off Hull Highlight. 
+** 12810 Jaguar warrior
+** 12811 Serpent shaman 
+** 12812 Minotaur
+** 12813 Minotaur (with Red Flag active)
+** 12814 Fremennik warband archer 
+** 12815 Fremennik warband seer 
+** 12816 Fremennik warband berserker 
+** 12817 Javelin Colossus 
+** 12818 Manticore 
+** 12819 Shockwave Colossus 
+** 12821 Sol Heredit 
+** 12823 Bees 
+** 12825 Healing totem 
+** 12826 Solarflare
+** 12810,12811,12812,12813,12814,12815,12816,12817,12818,12819,12821,12823,12825,12826
+* '''Fortis Colosseum''': displays wave information, a handicap overlay, and a timer (used to anticipate reinforcements spawning, which occurs 40 seconds after the wave starts).
+* '''Visual Metronome''': useful for counting ticks at wave start and flicking Manticores.
+* '''Custom Menu Swaps''': allows you to prioritise certain actions, e.g., always left-click the melee frem when its clickbox overlaps with another frem.
+* '''Spell Reminders''': helps with Death Charge uptime.
+* '''Attack Ranges''': may be useful for keeping track of attack range with Myopia. 
+** As of May 5th 2025, Attack ranges is bugged within the colosseum. Upon switching ranged weapons with a larger attack range than currently equipped, the plugin does not take into account any active Myopia modifier. For example, switching from a Venator bow with Myopia 1 to a Bowfa will show the attack range as 10 tiles, instead of 8 tiles. As an alternative, you can use the Line of Sight plugin and manually decrease the range setting when taking each tier of Myopia between rounds. Though this only allows you to show ranges for one weapon at a time, manually. 
+
+===Safespot the melee NPCs===
+Melee NPCs can be safespotted on NW pillar by hugging the west side of the pillar; if '''Red Flag''' is active then this will not work for minotaurs.
+
+=== Don't let manticores charge ===
+Wherever possible, avoid letting east manticores gain line-of-sight until the south spawns and reinforcements are dealt with. Leaving the manticores in the stack uncharged makes it much easier to safely run to another pillar or destack.
+
+=== Running pillars ===
+Running to a different pillar (usually SW or SE) is a method used to simplify complicated stacks, potentially making them easier to deal with by breaking up a group of three or four stacked NPCs.
+
+On your first quiver, it is likely that you will run pillars. It is strongly recommended to use the [https://los.colosim.com/ Line of Sight tool] to plan your pillar run so that the NPCs settle in a way that you can deal with. In addition:
+
+* You should do your best to pray against the incoming attacks as you run. Even in strong melee armour, enemies in the Colosseum can hit very hard.
+* As stated above, having Manticores uncharged greatly simplifies a pillar run.
+
+Although pillar runs are very useful for simplifying complicated stacks, it is '''not recommended to pillar run for easier stacks - i.e., two NPCs''', or three NPCs that are not in a Z-stack pattern (range, mage, range). Excessive pillar running is not only a waste of time, but it '''deprives you of valuable practice''' for flicking the enemies in the Colosseum, and may not be viable if you have Doom stacks. Running pillars as a panic response to stressful situations is risky and often will get you killed later in the wave.
+
+=== Jaguar Warrior safespot ===
+[[File:Jaguar safespot.mp4|thumb|Safespotting the Jaguar Warrior]]
+You can use the jaguar safespot tiles from the tile pack above to safespot the reinforcement Jaguar Warrior as it spawns. Both tiles can be used; if you already have a ranger attacking you, you can use the tiles to dodge the sky javelins while praying against the ranger and shaman. This does not work for the Minotaur, as it is too large.
+
+===Stand on tile A as reinforcements spawn===
+If dealing with a triangle or T stack, this prevents the reinforcements from getting caught on the stack.
+
+===Solarflare skip===
+[[File:Solar flare skip.mp4|thumb|Solarflare skip]]
+Solarflares can be skipped in different ways depending on the handicap level.
+
+At Solarflare I & II, the flare moves every two ticks between corners. Only the second tick is damaging; you can wait until the flare's true tile overlaps with yours, and immediately click away to move without taking any damage.
+
+At Solarflare III, the flare moves every tick between corners. You can skip it easily by clicking on its true tile as it is moving; by the time you move, the flare would have moved to the next tile.
+{{Fortis Colosseum}}
+[[Category:Strategies]]

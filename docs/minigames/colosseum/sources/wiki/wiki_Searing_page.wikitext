@@ -1,0 +1,41 @@
+{{Infobox Item
+|name = Searing page
+|image = [[File:Searing page.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = It's still warm to the touch.
+|value = 200
+|weight = 0.000
+|exchange = Yes
+|id = 28931
+}}
+[[File:Searing page detail.png|130px|left]]
+'''Searing pages''' are an upgraded variant of [[burnt pages]] made by adding 100 [[sunfire rune]]s to one page. When used on a [[tome of fire]] to charge it, the tome gains a 10% minimum hit on their target when casting any [[standard spellbook]]'s [[fire spells]]. However, the minimum hit is based on the player’s maximum hit ''before'' the tome’s 10% damage boost is applied. For example, a player with a pre-tome maximum hit of 19 would have a minimum hit of 1 when using sunfire runes. If the player equips a tome charged with searing pages, the maximum hit will be boosted to 20, but the minimum hit will remain 1.
+
+Each searing page adds 20 charges to the tome, and one charge is consumed when an elemental [[Fire spells|fire spell]] is cast with the tome equipped. Players may remove the pages from the tome should they wish to do so.
+
+Searing pages are more cost-effective for Fire Wave/Surge when using Sunfire runes. Fire Wave consumes 7 fire runes per cast. One searing page (20 charges) therefore replaces 140 fire runes, saving 40 Sunfire runes (28%). Fire Surge consumes 10 fire runes per cast. One searing page (20 charges) therefore replaces 200 fire runes, saving 100 Sunfire runes (50%).
+
+==Creation==
+{{Recipe
+|skill1 = 
+|skill1lvl = 
+|skill1boostable = 
+|skill1exp = 
+|members = yes
+|ticks = 1
+|facilities = 
+|mat1 = Burnt page
+|mat2 = Sunfire rune
+|mat2quantity = 100
+|output1 = Searing page
+}}
+
+{{Fortis Colosseum}}

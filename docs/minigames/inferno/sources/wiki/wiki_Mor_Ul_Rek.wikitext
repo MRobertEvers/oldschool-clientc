@@ -1,0 +1,120 @@
+{{External|rs=TzHaar City}}
+{{otheruses|the location|the [[Music|music]] track|Mor Ul Rek (music track)}}
+{{Infobox Location
+|name = Mor Ul Rek
+|image = [[File:Mor Ul Rek.png|300px]]
+|release = [[19 September]] [[2005]]
+|update = Massive minigame - Fight Pits
+|aka = TzHaar City
+|members = Yes
+|location = [[Karamja]]
+|race = [[TzHaar]]
+|teleport = {{*}} [[Fairy ring]] ({{fairycode|BLP}}) <br/> {{*}} [[Minigame Teleport]] <br/> {{*}} [[Ghommal's hilt 4]] <br/> {{*}} [[Ghommal's hilt 5]] <br/> {{*}} [[Ghommal's hilt 6]]
+|music = {{*}} [[In the Pits]]<br/> {{*}} [[Mor Ul Rek (music track)|Mor Ul Rek]]
+|map = [[File:Mor Ul Rek map.png|300px]]
+|leagueRegion = Karamja
+}}
+'''Mor Ul Rek''', also known as the '''TzHaar City,''' is a city located underneath the [[Karamja Volcano|volcano]] on [[Karamja]]. It is inhabited by the [[TzHaar]], a race of golem-like volcanic creatures. It is home to multiple combat-focused [[minigame]]s, and uses the currency of [[Tokkul]]. Having a [[fire cape]] or [[fire max cape]] is required to enter the interior portion of the city.
+
+In the [[TzHaar#Language|TzHaar language]], the words ''mor'', ''ul'', and ''rek'' are translated as old/retired, circle/ring and young/youth respectively.
+{{Map|name=Mor Ul Rek|x=2856|y=3168|r=4|mtype=square|align=left|caption=The entrance to the volcano.}}
+
+==History==
+{{References needed}}
+Mor Ul Rek was founded by the TzHaar people. The TzHaar led an isolated life with four castes; the Ket, Xil, Mej and Hur castes. The TzHaar-Ket patrol the city to protect its inhabitants from any dangers. The TzHaar-Xil hunt [[volcanic creatures]] to feed their society. The TzHaar-Mej work as advisors, while a few also act as leaders. The TzHaar-Hur craft various items and equipment.
+
+The TzHaar were eventually discovered by [[humans]], who immediately began to establish diplomatic ties with them. The TzHaar are cautious of the humans, dubbed JalYt, as the rest of their city is closed off while the TzHaar decide if the JalYt can be trusted to enter. To prove their trustworthiness, the JalYt may enter the bigger portion of the city if they show the TzHaar guards their [[fire cape]], obtained from defeating [[TzTok-Jad]]. After passing the barrier once, one does not need to bring the fire cape anymore to pass the barrier.
+
+Mor Ul Rek had a very large incubation chamber (this is most likely why it was closed off). Following TzHaar biology as they gain memories of their ancestors while in the lava, the TzHaar realised that the deeper the [[egg (TzHaar)|egg]] was placed in the lava, the more memories they would absorb. They continued to repeat this process to gain ancient knowledge, though they eventually drained the chamber of all lava and discovered an ancient incubation chamber inside. The TzHaar decided to place the eggs of [[Volcanic creatures|creatures]] from the [[Fight Caves]] in there, but it was a grave mistake; the hatched eggs became feral monsters (referred to as Jal) who fought each other for dominance. An ancient being sealed inside the chamber, [[TzKal-Zuk]], eventually took control of the Jal, and the TzHaar offered it sacrifices to appease it, fearing that it would attempt to surface. These feral creatures are very intimidating and much more powerful than their current counterparts; even the stronger TzHaar-Ket are hesitant to challenge them.
+
+The TzHaar, wary of JalYt interference, refuse to let players enter the Inferno until they give up a fire cape.
+
+==Transportation==
+*[[Cave entrance (to Mor Ul Rek)|Cave entrance]] — from the [[Crandor and Karamja Dungeon]]
+*[[Fairy rings|Fairy ring]] — {{Fairycode|BLP}}
+*[[Minigame Teleport]] — to [[TzHaar Fight Pit]]
+*[[Achievement Diary Cape]] — to [[TzHaar-Mej (Diary)|TzHaar-Mej]]
+*[[Ghommal's hilt]] — with at least [[Combat_Achievements/Elite|Elite Combat Achievements]] completed
+
+==Inhabitants==
+*[[TzHaar-Ket]] (levels 149 and 221)
+*[[TzHaar-Xil]] (level 133)
+*[[TzHaar-Mej]] (level 103)
+*[[TzHaar-Hur]] (level 74)
+
+==Features==
+'''Note: The shops will not accept [[coins]] as currency; only {{plink|Tokkul|size=5px}}. If players sell any items to the shops, they will also receive Tokkul in return, instead of coins.'''
+
+Additionally, there are '''sulphur vents''' scattered all over the city which can be used as [[Fire#Permanent fires|permanent fires]] to cook food on and safespots against the TzHaar. 
+
+===Outer area===
+[[File:TzHaar City.png|thumb|The TzHaar City]]
+====Shops====
+*An [[TzHaar-Hur-Lek's Ore and Gem Store|ore & gem shop]] - owned by [[TzHaar-Hur-Lek]].
+**This is the only place where players can buy an [[uncut onyx]], costing {{Currency|Tokkul|300,000}}. Or only {{Currency|Tokkul|260,000}} while wearing [[Karamja gloves 1]] or higher, awarded from the easy [[Karamja Diary]].
+*A [[TzHaar-Hur-Tel's Equipment Store|weapons shop]] - owned by [[TzHaar-Hur-Tel]]. A wide range of obsidian-crafted materials are sold here.
+*A [[TzHaar-Mej-Roh's Rune Store|runes shop]] owned by [[TzHaar-Mej-Roh]].
+
+====Combat====
+*The [[Fight Pit]] [[minigame]].
+*The [[Fight Cave]] minigame.
+*Killable [[TzHaar-Hur]], [[TzHaar-Mej]], [[TzHaar-Xil]], and [[TzHaar-Ket|TzHaar-Ket (Level 149)]]
+====Facilities====
+The following places exist in the outer area of Mor Ul Rek. The TzHaar allow all JalYt to enter this area.
+*[[Mor Ul Rek north bank|A bank]], minded by [[TzHaar-Ket-Zuh]], in the northern-most portion of the city.
+*[[Lava forge]] - a [[Furnace]] for smelting ores and crafting gold and silver items.
+[[File:Lavaforge.png|thumb|right|A lava forge, which acts as a furnace for the TzHaar.]]
+*A [[fairy ring]], code {{Fairycode|BLP}}.
+====Skilling and resources====
+*A [[North Mor Ul Rek mine|mine]] containing 3 [[gold rocks|gold]] and [[silver rocks]] near the bank.
+
+===Inner area===
+The following places exist within the inner area of Mor Ul Rek. The TzHaar will only allow JalYt who show a [[fire cape]] to the TzHaar-Ket guarding the entrance to enter this area.
+*Two TzHaar resting terminal chambers, guarded by [[TzHaar-Mej-Bal]] and [[TzHaar-Mej-Dir]], which TzHaar use to prolong their lives. 
+**This has no use to the players themselves.
+====Facilities====
+*[[Mor Ul Rek east bank|A bank]], minded by [[TzHaar-Ket-Yil]]. A sulphur vent is found 0 tiles away from the bank chest, making it one of the best spots to cook food.
+*A second [[Lava forge]] just north-west of the bank.
+
+====Combat====
+*[[TzHaar-Ket-Rak's Challenges]], a minigame involving increasing numbers of [[JalTok-Jad]]s.
+*The [[Inferno]] minigame.
+*Stronger [[TzHaar-Ket#Drops_(Level_221)|Tzhaar-Ket]] which can drop [[obsidian armour]] upon death.
+====Shops====
+*An [[TzHaar-Hur-Rin's Ore and Gem Store|ore & gem shop]] - owned by [[TzHaar-Hur-Rin]], sharing the same items as the shop in the outer area but has larger stock.
+*An [[TzHaar-Hur-Zal's Equipment Store|obsidian equipment shop]] - owned by [[TzHaar-Hur-Zal]], sharing the same items as the shop in the outer area but also offering obsidian armour.
+====Skilling & resources====
+*A [[South Mor Ul Rek mine|mine]] containing 7 [[gold rocks]], 6 [[silver rocks]], 4 [[coal rocks]], 3 [[iron rocks]], 2 [[adamantite rocks]], and 3 [[runite rocks]], located in the south-east part of the city.
+*[[TzHaar-Hur]] which can be pickpocketed, requiring [[ice gloves]] and 90 [[Thieving]].
+*A gem stall requiring 75 Thieving and an ore stall requiring 82 Thieving to steal from.
+*Three [[infernal eel]] fishing areas, requiring 80 Fishing, [[ice gloves]], an [[oily fishing rod]] and fishing bait.
+
+==Collection log==
+There are 14 [[collection log]] items that can be found within Mor Ul Rek. See the [[TzHaar#Collection log|TzHaar]], [[TzHaar Fight Cave#Collection log|Fight Caves]], and [[Inferno#Collection log|Inferno]] pages for more information.
+
+==Gallery==
+<gallery>
+Inferno entrance.png|The large sinkhole in the centre of Mor Ul Rek, which leads to the [[Inferno]].
+TzHaar eggs incubating.png|A player fishing for infernal eels. Incubating TzHaar eggs can be seen in the lava throughout the city.
+TzHaar resting terminal chamber west.png|[[TzHaar-Mej-Bal]] looking after the western TzHaar terminal chamber.
+TzHaar resting terminal chamber east.png|[[TzHaar-Mej-Dir]] looking after the eastern TzHaar terminal chamber.
+Haar-Tok.png|A [[Haar-Tok]], a former TzHaar that has cooled to rock form in old age.
+</gallery>
+
+==Changes==
+[[File:Mor Ul Rek pre-expansion map.png|thumb|Map of Mor Ul Rek prior to its expansion]]
+{{Subject changes header}}
+{{Subject changes
+|date = 1 June 2017
+|update = The Inferno
+|poll = Mor Ul Rek and The Inferno
+|change = Mor Ul Rek has been expanded, adding the inner area and alongside it, the [[Inferno]].
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* If the player enters Mor Ul Rek via the volcano with [[Karamjan rum]] in their inventory, it will explode due to the heat, dealing 1 damage per rum in the inventory.
+** Rum that was smuggled out via other methods can be safely taken out of either of the banks inside Mor Ul Rek without exploding. Only entering from the volcano entrance will cause the rum to explode.
+
+{{Mor Ul Rek}}
+[[Category:Karamja]]

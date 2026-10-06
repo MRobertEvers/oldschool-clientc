@@ -1,0 +1,6 @@
+# Zone-trigger tiles reach.py / comp.py / helper_coverage.py MapWalls treat as blocked (a step onto one fires a hazard).
+# timer<TAB>loc symbols<TAB>player tile offsets from each loc origin (dx:dz)<TAB>the [zone,L_mx_mz_lx_lz] (8x8) or [mapzone,L_mx_mz] (64x64) coords that arm the timer<TAB>source
+# A tile counts only when its 8x8 zone is one of the listed zones. Paths are under OSRS-Content/osrs239-content/server/scripts/.
+regicide_tripwire_walk	regicide_trap_tripwire	0:0,0:1,1:0	0_34_49_32_16,0_34_49_40_16,0_35_49_8_32,0_35_49_40_48,0_35_50_48_40	quests/quest_regicide/scripts/regicide_traps.rs2:118-130
+regicide_pitfall_walk	regicide_pitfall_side,regicide_pitfall_corner,regicide_pitfall_mid	0:0	0_34_50_32_0,0_35_49_32_32,0_35_49_32_40,0_35_50_24_0,0_35_50_32_56,0_35_50_40_56	quests/quest_regicide/scripts/regicide_traps.rs2:139-153
+upass_trap	upass_speartrap	0:0,0:1	0_38_151,0_37_151	quests/quest_upass/scripts/upass_obstacles.rs2:21-24,227-228

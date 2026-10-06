@@ -1,0 +1,137 @@
+{{Update|date=15 August 2019|link=https://secure.runescape.com/m=news/small-game-updates-and-betas?oldschool=1|category=game}}
+[[File:Small Game Updates and Betas newspost.jpg|right]]
+{{clear}}
+<center>''This week sees the release of some small game improvements following Poll 68, SOTE feedback changes, and the Line-of-Sight and LMS Betas.''</center>
+{{Horizontal Line}}
+
+{{Headline|22|Small Game Updates and Betas}}
+
+We've implemented some of the following small in-game improvements below:
+
+'''Lectern Interfaces'''
+[[File:Small Game Updates and Betas (1).png|center]]
+
+We've added quantity buttons to the POH lecterns and the Arceuus lectern. We've also changed the POH lecterns' menu on mobile devices so that it shows the tablets' names without relying on hover-over text. This does not affect the desktop version of the menu. 
+
+
+'''Marble Lectern'''
+[[File:Small Game Updates and Betas (2).png|center]]
+Players may now build a Marble lectern in their POH. This combines the functionality of a Demon and Eagle lectern. This requires 77 Construction, a marble block, a magic stone, and a gold leaf to create. 
+
+
+'''Clue Reward Caskets Graphic Change'''
+[[File:Small Game Updates and Betas (3).png|200px|center]]
+The graphic for Clue Reward Caskets now match their clue scroll tier colour. Caskets found during a clue have remained unchanged. 
+
+
+'''Fishing Trawler'''
+[[File:Small Game Updates and Betas (4).png|center]]
+
+The following changes have been made to Fishing Trawler to improve the minigame experience:
+
+* Leaky holes in the Fishing Trawler now allow more people to attempt to patch them simultaneously without giving dead clicks.
+* The minigame's timer has been corrected as it previously claimed the trip lasted 12 minutes, though it was only 10 minutes long in reality. The true duration has not changed in this update though we are open to polling it in the future.
+* The activity bar in Fishing Trawler will no longer decrease if there's no activity left to do.
+
+{{Horizontal Line}}
+
+{{Headline|22|SOTE Changes}}
+
+The following changes have been made to Song of the Elves following player feedback: 
+
+'''Quest Boss Fight Replayability'''
+[[File:Small Game Updates and Betas (5).png|center|400px]]
+The Fragment of Seren encounter can now be replayed from the memoriam device atop the Tower of Voices in Prifddinas. This is a safe death. 
+
+
+'''Quest Cutscene Replayability'''
+[[File:Small Game Updates and Betas (6).png|center|400px]]
+All cutscenes in the Song of the Elves quest can now be replayed via the memoriam device atop the Tower of Voices in Prifddinas. 
+
+
+'''Nightmare Zone Additions'''
+[[File:Small Game Updates and Betas (7).png|center]]
+The Elven traitor and Essylt have been added to the Nightmare Zone after completion of Song of the Elves.
+
+
+'''Ardougne Knight Armour'''
+[[File:Small Game Updates and Betas (8).png|center]]
+Ardougne knight armour can now be stored in a Player Owned House.
+
+
+'''Gauntlet Crystal Singing Interface'''
+[[File:Small Game Updates and Betas (9).png|center]]
+When using the crystal singing bowl in The Gauntlet, you will now be presented with all types of items you can make.
+
+
+'''Grand Library Optimization'''
+[[File:Small Game Updates and Betas (10).png|200px|center]]
+The Grand library of Prifddinas has been improved graphically to help with frame rate issues some players were experiencing.
+
+
+{{Horizontal Line}}
+{{Headline|22|Line-of-Sight Beta}}
+[[File:Small Game Updates and Betas (11).png|center|100px]]
+For the last 15 years, the way the algorithm calculated line-of-sight was not symmetrical, meaning that a player might be able to range/mage their target without the target having line-of-sight to range/mage back. The reason for making these changes is to have more accurate and fairer PvP and PvM challenges.
+
+In June 2009, RuneScape released an update that changed the way line-of-sight was calculated in order to make it symmetrical. As we all know Old School was released based on a 2007 version of the game, and as such, we still have a non-symmetrical algorithm. We plan to implement the updated line-of-sight algorithm in Old School and as a result, we have opened up the beta worlds to allow you to test it .
+
+The algorithm change could affect a number of things, including but not limited to: 
+
+* Line-of-sight minigames such as: Sorceress's Garden, Piscarilius Thieving Challenges, etc.
+* NPCs attacking you and vice versa from a distance while not being blocked by scenery
+* NPCs such as the Pestilent Bloat in Theatre of Blood
+
+Please go out and explore all of Old School Runescape in the beta and provide us feedback via the channels at the end of this blog post.
+
+Note: As usual, the Inferno is closed on these worlds, since we'd prefer not to enable free practice runs there for all players. The Inferno itself is still being adjusted to handle the line-of-sight changes, since we would prefer the update not to affect how players fight Zuk in there. However, these changes are not yet ready, and when they are, we'll need to arrange a more selective test, rather than sending in the entire community.
+
+{{Horizontal Line}}
+{{Headline|22|Last Man Standing Beta Changes}}
+[[File:Small Game Updates and Betas (12).png|center]]
+The Last Man Standing Beta is now open again. We have made the following changes since the last beta:
+
+'''Gear Changes'''
+
+* Removed Occult Necklace from opening load out. This has now been placed in the offensive loot table for crates and keys.
+* Starting positions of the Black D'hide top and Mystic top have been swapped.
+* The number of Morgan's Javelins has been increased from 10 to 1000.
+
+'''Capped Food in Inventory'''
+
+Players will no longer be able to have more than 11 sharks in their inventory at any time. The same applies for having more than 2 karambwans.
+
+'''Infinite Run Energy'''
+
+Players will no longer have their run energy decreased inside Last Man Standing. As a result, the Stamina potion has been removed from their inventory.
+
+{{Horizontal Line}}
+{{Headline|22|In Other News}}
+
+* A stretching issue when Ahrim's skirt was worn while using the pestle and mortar has now been fixed.
+* Vesta's equipment no longer stretches when holding a crossbow.
+* Third Age Druidic bottoms no longer stretch when teleporting.
+* Cormorant's glove no longer stretches when worn with the Dragon plateskirt on female characters.
+* The Chronicle book no longer stretches when worn with the Mythical cape.
+* Moss Giants should no longer have random stretching in their death animation.
+* The in-game world switcher menu now shows the F2P PvP world with silver text rather than gold, reflecting that it is F2P.
+* Major reset events that restore stat-boosts, such as death, will now reset the imbued heart's timer if you have used that.
+* The mine cart info regarding the Hosidius station now reflects the new layout of Hosidius.
+* The newly charged form of the crystal halberd now offers the special attack button.
+* A typo has been fixed in crystal singing in Prifddinas.
+* A typo has been fixed in the crystal pickaxe's special attack tooltip.
+* A typo has been fixed in Elena's dialogue.
+* A ladder in Prifddinas has had its description changed.
+* Prifddinas moss giants now work for Slayer assignments and drop big bones.
+* The Mining in-game skill guide now lists certain training areas that have level requirements.
+* Snowballs are no longer welcome in the Gauntlet.
+* Some hover-over text has been corrected in the book of scrolls.
+* Clue scroll bottles can now be toggled via Arthur the Clue Hunter, who can be found in The Sheared Ram pub in Lumbridge.
+
+Stay tuned in the coming weeks for separate K/D Ratios for PvP and BH worlds and the Elven chathead rework as voted on by you!
+
+{{Horizontal Line}}
+Discuss this update on our '''[https://services.runescape.com/m=forum/forums.ws?380,381,593,66116031 official forums]''', the community-led '''[https://www.reddit.com/r/2007scape/ 2007Scape Reddit]''', or the community-led '''[https://discord.gg/osrs OSRS Discord]''' in the '''#gameupdate''' channel. For reference on the above content, check out the '''[[Old School RuneScape Wiki|official Wiki.]]'''
+
+'''''Mods Acorn, Archie, Ash, Bruno, Curse, Ed, Flippy, Gambit, Gee, Ghost, Husky, John C, Kieren, Lenny, Lottie, Maz, Nasty, Roq, Ry, Sween, Tide, Weath, West & Wolf''''' <br/>
+''The Old School Team''

@@ -1,0 +1,15 @@
+{{Otheruses|def=no|eating food without delay ticks|Food/Fast foods}}
+[[File:Tick-eating Vorkath.gif|right|thumb|Tick-eating an attack that would almost certainly otherwise kill the player.]]
+'''Tick-eating''' is the act of eating a piece of [[food]] between the time a monster's attack calculates its damage and when it hits the player.
+
+Almost all monster attacks are capped to the player's current hp when the damage is first calculated. If a player stays at low hp when a monster first attacks, they can artificially lower the monster's maximum possible damage to their current hp. By healing after the attack calculates its damage but before the damage is actually applied, players can guarantee that they will survive the next attack even if the monster's (uncapped) maximum hit would have been sufficient to kill them.
+
+This is only normally possible with attacks which have some delay between damage calculation and application, such as most ranged and magic attacks. [[Dusk]] and [[Vardorvis]]'s melee attacks also have one tick of delay and can be tick-eaten, however [[TzTok-Jad]]'s magic attack has no delay if the player is directly adjacent to the boss and therefore cannot be tick-eaten in this situation. 
+
+Although risky, this technique can be extremely beneficial to preserve supplies or survive highly damaging attacks (such as [[Sotetseg]]'s energy ball) and, if done consistently, skilled players can use this to complete activities that would otherwise require [[Protection prayer]]s to mitigate damage, such as the [[Fight Caves]]. [[Purple sweets]] are often used for tickeating as they are stackable, although any food can be used. Purple sweets cannot be used in the [[Inferno]] or [[Colosseum]] to prevent this.
+
+Player attacks in [[PvP]] situations, as well as some boss attacks such as [[TzKal-Zuk]] and [[Maiden of Sugadinti]], do not cap their damage on calculation and cannot be tick-eaten.
+
+Although melee attacks usually cannot be tick-eaten with regular food, certain strategies such as delayed heals can be used to tick-eat these attacks. This is much more difficult to set up, however.
+
+{{Mechanics}}

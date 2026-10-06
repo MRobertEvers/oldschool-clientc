@@ -1,0 +1,65 @@
+{{Gone}}
+{{Infobox Monster
+|name = Sol Heredit (Echo)
+|image = [[File:Sol Heredit (Echo).png|250px]]
+|release = [[27 November]] [[2024]]
+|update = Leagues V: Raging Echoes OUT NOW!
+|removal = [[22 January]] [[2025]]
+|removalupdate = Bank QoL & Mini Menu Improvements
+|members = Yes
+|combat = 1953
+|size = 5
+|examine = Its stompin' time!
+|attributes = <!-- if no monster attributes apply, remove this parameter -->
+|xpbonus = 
+|max hit = 44
+|aggressive = Yes
+|poisonous = No
+|attack style = All
+|attack speed = 4
+|hitpoints = 1725
+|att = 350
+|str = 400
+|def = 220
+|mage = 300
+|range = 350
+|attbns = 250
+|strbns = 5
+|amagic = 0
+|mbns = 0
+|arange = 150
+|rngbns = 5
+|dstab = 65
+|dslash = 5
+|dcrush = 30
+|dmagic = 750
+|dlight = 825
+|dstandard = 825
+|dheavy = 825
+|poisonresistance = 100
+|venomresistance = 100
+|immunethrall = Yes
+|id = override12821
+|leagueRegion = Varlamore
+}}
+'''Sol Heredit (Echo)''' is a more challenging variant of [[Sol Heredit]] that was accessible during the [[Raging Echoes League]]. To fight it the player must carry a [[Varlamore echo orb]], which is a reward from completing the [[Fortis Colosseum]]. Challenging Sol Heredit (Echo) skips the waves of the Colosseum and begins the boss fight immediately.
+
+The unique drops of Sol Heredit (Echo) are the [[Sunlight spear]], a powerful melee weapon, and the [[Sunlit bracers]], gloves with a unique passive that doubles all sources of healing while worn.
+
+The fight differs from the regular Sol Heredit fight in a few ways:
+
+* Random pools will begin spawning immediately at the beginning of the fight, every 3 ticks, similar to how the regular fights enrage phase works.
+* At the regular phase change HP percentages, after Sol Heredit phases, he will spawn multiple Healing Totems that, after a delay, will begin healing Sol Heredit (Echo) for 17 HP per totem. The totems can be shot with no tick delay. The final phase totems should be skipped if possible (if your setup allows it), as their location in the corners of the arena make it very difficult to click consistently. Using the [[Sunlight spear|Sunlight Spear]] special attack will destroy any totems in its 7x7 AoE, which can be useful.
+* The orbs of light that surround the arena will line up with the player more aggressively, with at least one of them constantly following the player. This will force you to have to move more often when they fire their beam.
+
+Aside from these points, the fight is otherwise exactly the same as the normal Sol Heredit fight barring the handicaps.
+
+==Drops==
+{{Main|Rewards_Chest_(Fortis_Colosseum)#Wave_12}}
+Sol Heredit (Echo) rolls the same drops as wave 12 of the regular Fortis Colosseum, in addition to a roll for one of its unique echo items. It is possible to receive the pet from the Rewards Chest after defeating Sol Heredit (Echo). 
+{{DropsTableHead|bucket=no}}
+{{DropsLine|name=Sunlight spear|quantity=1|rarity=1/5|gemw=No|raritynotes={{refn|group=d|In addition to having a 1/5 chance to drop, players will '''always''' receive a sunlight spear on their 10th Sol Heredit (Echo) kill if they haven't received one yet.}}}}
+{{DropsLine|name=Sunlit bracers|quantity=1|rarity=1/7|gemw=No|raritynotes={{refn|group=d|In addition to having a 1/7 chance to drop, players will '''always''' receive a sunlit bracers on their 14th Sol Heredit (Echo) kill if they haven't received one yet.}}}}
+{{DropsTableBottom}}
+
+{{Raging Echoes League}}

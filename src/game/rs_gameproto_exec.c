@@ -450,6 +450,141 @@ RS_GameProto_FlushPendingZone(struct RS_GameProtoCtx const* ctx)
     app->pending_zone_count = 0;
 }
 
+/* One loc-change record's key: the reference's locChanges identity
+ * (Client-TS locChangeCreate matches level, x, z and layer). */
+static int
+zone_loc_change_same_key(
+    struct World_LocChange const* a,
+    struct World_LocChange const* b)
+{
+    assert(a);
+    assert(b);
+    return a->level == b->level && a->layer == b->layer && a->x == b->x && a->z == b->z;
+}
+
+static int
+zone_loc_change_in_zone(
+    struct World const* world,
+    struct World_LocChange const* rec,
+    int base_x,
+    int base_z,
+    int zone_level)
+{
+    assert(world);
+    assert(rec);
+    if( rec->x < base_x || rec->x >= base_x + 8 || rec->z < base_z || rec->z >= base_z + 8 )
+        return 0;
+    /* Records keep the level the loc was applied at, which is the CACHE level
+     * (zone_loc_tile_at's bridge climb); the header names the walked plane. */
+    return rec->level == World_LocCacheLevel(world, rec->x, rec->z, zone_level);
+}
+
+/*
+ * UPDATE_ZONE_FULL_FOLLOWS resets the client's memory of the zone's LOCS as
+ * well as its obj stacks: every loc this client changed inside the 8x8, on the
+ * header's plane, goes back to what the map put there, and the state the
+ * server writes behind the header re-applies whatever still differs.
+ *
+ * Reference: Client-TS Client.ts, UPDATE_ZONE_FULL_FOLLOWS (~7463), sets
+ * `endTime = 0` on every locChanges entry in the zone on minusedlevel, and the
+ * next locChangeDoQueue puts that entry's oldType/oldAngle/oldShape back and
+ * unlinks it. The server half is the zone catch-up (Engine-TS
+ * src/engine/zone/Zone.ts writeFullFollows: "this completely resets the client
+ * zones to default ... the original locs"; here torirs_server_zone.c
+ * write_state): it describes only what differs from the map, so a loc that
+ * changed AND CHANGED BACK while this client was not being
+ * told about the zone is described by nothing at all, and without the reset
+ * the client keeps whatever it last drew. That was the Miscellania castle gate
+ * (2510,3860): opened, its 500-tick revert fired while the player was ~40 tiles
+ * away -- outside the 7x7 zone window, same scene -- and on the way back the
+ * client still had the closed leaf deleted; the state named only the open
+ * leaf's tile, so the doorway drew neither leaf while the server's door was
+ * shut and every walk stalled against it. A revert landing on the tick the
+ * player changes plane is the same hole (the new plane's zones are
+ * FULL_FOLLOWSed and that tick's events skipped): the level-1 landing door
+ * 2506,3851.
+ *
+ * Our list differs from the reference's in the one way that matters here: the
+ * reference keys locChanges by (level, x, z, layer) and keeps the FIRST
+ * change's old loc, while World_LocChangePush appends a record per applied
+ * change that remembers what stood there just before it. So the map's own loc
+ * is the OLDEST record's old_* for the key, and the restore is taken from it.
+ *
+ * The restore goes through App_WorldLocChange, so it rides the loc lane in
+ * order: after any change already queued, before the LOC_* state that follows
+ * this header. Its apply pushes one more record (old = what it replaced, new =
+ * the map's loc). So that record is never read as "the map's loc" by the next
+ * reset, the key keeps ONE record ahead of it, rewritten to old = new = the
+ * map's loc; the rest of the key's records are dropped.
+ *
+ * A world still loading is being rebuilt from the cache, so its zone already
+ * IS the map's: the records are dropped and nothing is queued.
+ */
+static void
+zone_full_reset_locs(struct App* app)
+{
+    struct World* world;
+    unsigned char drop[WORLD_LOC_CHANGE_MAX];
+    int count;
+    int write = 0;
+
+    assert(app);
+    assert(app->world);
+    world = App_ActiveWorldview(app)->world;
+    count = world->loc_change_count;
+    memset(drop, 0, sizeof(drop));
+    for( int i = 0; i < count; i++ )
+    {
+        struct World_LocChange* rec = &world->loc_changes[i];
+        struct World_LocChange const* latest = rec;
+        int first = 1;
+
+        if( !zone_loc_change_in_zone(world, rec, app->zone_base_x, app->zone_base_z, app->zone_level) )
+            continue;
+        for( int j = 0; j < i; j++ )
+        {
+            if( zone_loc_change_same_key(&world->loc_changes[j], rec) )
+            {
+                first = 0;
+                break;
+            }
+        }
+        if( !first || !world->load_complete )
+        {
+            drop[i] = 1;
+            continue;
+        }
+        /* Where no loc stood, World_LocChangePush records old_shape -1; the
+         * delete still needs a shape, and only for its LAYER, which every
+         * record of the key shares -- so the change's own shape stands in,
+         * and is kept on the record for the next reset. */
+        int shape = rec->old_shape >= 0 ? rec->old_shape : rec->new_shape;
+
+        for( int k = i + 1; k < count; k++ )
+            if( zone_loc_change_same_key(&world->loc_changes[k], rec) )
+                latest = &world->loc_changes[k];
+        if( !(rec->old_type < 0 && latest->new_type < 0) &&
+            !(rec->old_type == latest->new_type && rec->old_angle == latest->new_angle &&
+              shape == latest->new_shape) )
+            App_WorldLocChange(app, rec->x, rec->z, rec->level, rec->old_type, shape, rec->old_angle);
+        rec->old_shape = shape;
+        rec->new_type = rec->old_type;
+        rec->new_angle = rec->old_angle;
+        rec->new_shape = shape;
+        rec->start_time = -1;
+        rec->end_time = -1;
+    }
+    for( int i = 0; i < count; i++ )
+    {
+        if( drop[i] )
+            continue;
+        if( write != i )
+            world->loc_changes[write] = world->loc_changes[i];
+        write++;
+    }
+    world->loc_change_count = write;
+}
+
 static void
 exec_zone_sub_packet(
     struct RS_GameProtoCtx const* ctx,
@@ -1610,9 +1745,13 @@ RS_GameProto_Exec(
             app->zone_base_x = packet->_update_zone_full_follows.base_x;
             app->zone_base_z = packet->_update_zone_full_follows.base_z;
             app->zone_level = zone_header_level(app, packet->_update_zone_full_follows.level);
-            /* Full update: the zone's client-side obj stacks reset. */
+            /* Full update: the zone's client-side locs and obj stacks reset. */
             if( app->world )
             {
+                /* Arrival order: whatever the load window queued lands first. */
+                if( App_ActiveWorldview(app)->world->load_complete && app->pending_zone_count > 0 )
+                    RS_GameProto_FlushPendingZone(ctx);
+                zone_full_reset_locs(app);
                 for( int dz = 0; dz < 8; dz++ )
                     for( int dx = 0; dx < 8; dx++ )
                         App_WorldObjStackClearTile(

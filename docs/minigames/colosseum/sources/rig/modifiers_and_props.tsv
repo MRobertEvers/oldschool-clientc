@@ -1,0 +1,70 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+colosseum_modifier_bees	12823	1815	seq	8083	tob_bloat_flies_large	16	2.0		unknown	rig	on the rig but belongs to another monster (Bloat) by name, not the bee swarm
+colosseum_modifier_bees	12823	1815	seq	8084	tob_bloat_flies_small	16	2.0		unknown	rig	on the rig but belongs to another monster (Bloat) by name, not the bee swarm
+colosseum_modifier_bees	12823	1815	seq	8628	nightmare_flies_projectile	16	2.0		unknown	rig	on the rig but belongs to another monster (Nightmare) by name, not the bee swarm
+colosseum_modifier_bees	12823	1815	seq	10821	npc_colosseum_bees_spawn_01	31	3.0	2:varl_audio_modifier_bee_swarm_spawn04	spawn	rig+name	name says spawn [forcedpriority=9]
+colosseum_modifier_bees	12823	1815	seq	10822	npc_colosseum_bees_idle_01	32	4.0		ready	bound	npc record names it as ready and walk [forcedpriority=4]
+colosseum_modifier_bees	12823	1815	seq	10823	npc_colosseum_bees_attack_01	30	2.0	1:varl_audio_modifier_bee_swarm_attack06	attack	rig+name	name says attack; frame sounds present [forcedpriority=6]
+colosseum_modifier_bees	12823	1815	seq	10824	npc_colosseum_bees_despawn_01	31	3.1	1:varl_audio_modifier_bee_swarm_despawn01	death	rig+name	name says despawn/death; the monster is removed, not killed [forcedpriority=10]
+colosseum_beam_crystal	12824	2227	seq	10798	npc_colosseum_crystal_spawn_01	20	2.0	1:varl_colossi_crystal_proj_spawn_02;3:varl_colossi_crystal_proj_spawn_bass_01;4:varl_colossi_crystal_beam_crystal_spawn_01	spawn	rig+name	name says spawn [forcedpriority=9]
+colosseum_beam_crystal	12824	2227	seq	10799	npc_colosseum_crystal_idle_01	32	4.0		ready	bound	npc record names it as ready and walk [forcedpriority=4]
+colosseum_beam_crystal	12824	2227	seq	10800	npc_colosseum_crystal_despawn_01	15	2.0		death	rig+name	name says despawn; the crystal is removed, not killed
+colosseum_beam_crystal	12824	2227	seq	10801	npc_colosseum_crystal_charge_01	20	2.0		transition	rig+name	name says charge: windup before the beam attack; role from name only, order against attack_01 needs a recording
+colosseum_beam_crystal	12824	2227	seq	10802	npc_colosseum_crystal_attack_01	10	1.0		attack	rig+name	name says attack; 10 client ticks; no frame sound
+colosseum_beam_crystal	12824	2227	seq	10803	vfx_colosseum_crystal_charge_01_beam_01	43	4.1		other	rig+name	the seq of spotanim crystal_charge_01_beam_01 (beam or impact graphic), not a body animation; name says vfx crystal
+colosseum_beam_crystal	12824	2227	seq	10804	vfx_colosseum_crystal_charge_01_beam_02	43	4.1		other	rig+name	the seq of spotanim crystal_charge_01_beam_02 (beam or impact graphic), not a body animation; name says vfx crystal
+colosseum_beam_crystal	12824	2227	seq	10805	vfx_colosseum_crystal_charge_01_beam_03	43	4.1		other	rig+name	the seq of spotanim crystal_charge_01_beam_03 (beam or impact graphic), not a body animation; name says vfx crystal
+colosseum_beam_crystal	12824	2227	seq	10806	vfx_colosseum_crystal_charge_01_beam_04	43	4.1		other	rig+name	the seq of spotanim crystal_charge_01_beam_04 (beam or impact graphic), not a body animation; name says vfx crystal
+colosseum_beam_crystal	12824	2227	seq	10807	vfx_colosseum_crystal_attack_01_beam_01	27	4.1		other	rig+name	the seq of spotanim crystal_attack_01_beam_01 (beam or impact graphic), not a body animation; name says vfx crystal
+colosseum_beam_crystal	12824	2227	seq	10808	vfx_colosseum_crystal_attack_01_beam_02	27	4.1		other	rig+name	the seq of spotanim crystal_attack_01_beam_02 (beam or impact graphic), not a body animation; name says vfx crystal
+colosseum_beam_crystal	12824	2227	seq	10809	vfx_colosseum_crystal_attack_01_beam_03	27	4.1		other	rig+name	the seq of spotanim crystal_attack_01_beam_03 (beam or impact graphic), not a body animation; name says vfx crystal
+colosseum_beam_crystal	12824	2227	seq	10810	vfx_colosseum_crystal_attack_01_beam_04	27	4.1		other	rig+name	the seq of spotanim crystal_attack_01_beam_04 (beam or impact graphic), not a body animation; name says vfx crystal
+colosseum_beam_crystal	12824	2227	seq	10811	vfx_colosseum_crystal_attack_01_impact_01	10	1.0		other	rig+name	the seq of spotanim crystal_attack_01_impact_01 (beam or impact graphic), not a body animation; name says vfx crystal
+colosseum_beam_crystal	12824	2227	seq	10812	vfx_colosseum_sunfire_lightning_01_beam_01	50	5.0		unknown	rig	graphic seq named sunfire lightning; on the crystal rig but belongs to another effect by name
+colosseum_beam_crystal	12824	2227	seq	10907	spotanim_colossi_finalboss_01_triple_attack_shorter	64	11.0		unknown	rig	on the rig but named for the final boss (Sol Heredit) triple attack graphic, not the crystal
+colosseum_beam_crystal	12824	2227	seq	10908	spotanim_colossi_finalboss_01_triple_attack	64	12.0		unknown	rig	on the rig but named for the final boss (Sol Heredit) triple attack graphic, not the crystal
+colosseum_healing_totem	12825	2231	seq	10827	npc_colosseum_totem_idle_01	51	4.0	3:varl_audio_modifier_totem_idle_start;15:varl_audio_modifier_totem_idle	ready	bound	npc record names it as ready and walk [forcedpriority=4]
+colosseum_healing_totem	12825	2231	seq	10828	npc_colosseum_totem_attack_01	31	4.0	1:varl_audio_modifier_totem_attack	attack	rig+name	name says attack; frame sounds present [forcedpriority=6]
+colosseum_doom_scorpion	12822	1426	seq	6252	scorpion_update_ready	8	1.6		ready	bound	CLOSER added: npc record names it (readyanim)
+colosseum_doom_scorpion	12822	1426	seq	6253	scorpion_update_walk	8	1.07		walk	bound	CLOSER added: npc record names it (walkanim)
+colosseum_doom_scorpion	12822	1426	seq	6254	scorpion_update_attack_tail	11	1.27		attack1	rig+name	CLOSER added: same family as the bound ready/walk (scorpion_update_*); generic Scorpion set, not Doom-specific [forcedpriority=6]
+colosseum_doom_scorpion	12822	1426	seq	6255	scorpion_update_defend	11	1.37		defend	rig+name	CLOSER added: same family as the bound ready/walk; generic Scorpion set [forcedpriority=6]
+colosseum_doom_scorpion	12822	1426	seq	6256	scorpion_update_death	16	4.13		death	rig+name	CLOSER added: same family as the bound ready/walk; generic Scorpion set [forcedpriority=10]
+colosseum_doom_scorpion	12822	1426	seq	6257	small_scorpion_update_walk	8	0.8		walk	rig+name	CLOSER added: the small scorpion family on the same rig; not the bound family
+colosseum_doom_scorpion	12822	1426	seq	6258	small_scorpion_update_ready	8	1.87		ready	rig+name	CLOSER added: the small scorpion family on the same rig; not the bound family
+colosseum_doom_scorpion	12822	1426	seq	6259	small_scorpion_update_defend	11	1.73		defend	rig+name	CLOSER added: the small scorpion family on the same rig; not the bound family [forcedpriority=6]
+colosseum_doom_scorpion	12822	1426	seq	6260	small_scorpion_update_death	16	4.13		death	rig+name	CLOSER added: the small scorpion family on the same rig; not the bound family [forcedpriority=10]
+colosseum_doom_scorpion	12822	1426	seq	6261	small_scorpion_update_attack	11	1.27		attack2	rig+name	CLOSER added: the small scorpion family on the same rig; not the bound family [forcedpriority=6]
+colosseum_doom_scorpion	12822	1426	seq	6262	scorpion_update_fight_arena_walk	8	1.33		walk	rig+name	CLOSER added: another scorpion npc walk (fight arena); not bound
+colosseum_doom_scorpion	12822	1426	seq	6263	lobster_update_ready	8	1.47		unknown	rig	CLOSER added: on the rig; name belongs to the lobster
+colosseum_doom_scorpion	12822	1426	seq	6264	lobster_update_walk	8	1.07		unknown	rig	CLOSER added: on the rig; name belongs to the lobster
+colosseum_doom_scorpion	12822	1426	seq	6265	lobster_update_attack	10	1.33		unknown	rig	CLOSER added: on the rig; name belongs to the lobster [forcedpriority=6]
+colosseum_doom_scorpion	12822	1426	seq	6266	lobster_update_defend	9	1.5		unknown	rig	CLOSER added: on the rig; name belongs to the lobster [forcedpriority=6]
+colosseum_doom_scorpion	12822	1426	seq	6267	lobster_update_death	14	4.03		unknown	rig	CLOSER added: on the rig; name belongs to the lobster [forcedpriority=10]
+colosseum_doom_scorpion	12822	1426	seq	12519	npc_nature_spirit_scorpion_spawn	10	2.0		spawn	rig+name	CLOSER added: named for the nature spirit scorpion, another npc; despawn read as removal
+colosseum_doom_scorpion	12822	1426	seq	12520	npc_nature_spirit_scorpion_despawn	10	2.0		death	rig+name	CLOSER added: named for the nature spirit scorpion, another npc; despawn read as removal
+colosseum_doom_scorpion	12822	-	spotanim	2711	vfx_doom_scorpion_01_player_death_01		7.7		other	name	CLOSER added: spotanim anim=vfx_doom_scorpion_01_player_death_01 231 client ticks; name: graphic on the player killed by it
+colosseum_doom_scorpion	12822	-	spotanim	2712	vfx_doom_scorpion_attack_impact_01		0.67		other	name	CLOSER added: spotanim anim=vfx_doom_scorpion_attack_impact_01 20 client ticks; name: attack impact graphic
+colosseum_safespot_dying	12820	none	seq						unknown	none	no readyanim or walkanim, no rig: nothing to join; no candidate
+colosseum_healing_totem	12825	-	spotanim	2687	vfx_colosseum_totem_projectile_01		3.0		other	name	spotanim anim=vfx_colosseum_totem_projectile_01 (90 client ticks); model 51249; name shares monster word
+colosseum_healing_totem	12825	-	spotanim	2688	vfx_colosseum_totem_impact_01		1.0		other	name	spotanim anim=vfx_colosseum_totem_impact_01 (30 client ticks); model 51249; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	2689	vfx_colosseum_crystal_charge_01_beam_01		4.1		other	name	spotanim anim=vfx_colosseum_crystal_charge_01_beam_01 (123 client ticks); model 51245; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	2690	vfx_colosseum_crystal_charge_01_beam_02		4.1		other	name	spotanim anim=vfx_colosseum_crystal_charge_01_beam_02 (123 client ticks); model 51245; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	2691	vfx_colosseum_crystal_charge_01_beam_03		4.1		other	name	spotanim anim=vfx_colosseum_crystal_charge_01_beam_03 (123 client ticks); model 51245; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	2692	vfx_colosseum_crystal_charge_01_beam_04		4.1		other	name	spotanim anim=vfx_colosseum_crystal_charge_01_beam_04 (123 client ticks); model 51245; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	2693	vfx_colosseum_crystal_attack_01_beam_01		4.1		other	name	spotanim anim=vfx_colosseum_crystal_attack_01_beam_01 (123 client ticks); model 51245; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	2694	vfx_colosseum_crystal_attack_01_beam_02		4.1		other	name	spotanim anim=vfx_colosseum_crystal_attack_01_beam_02 (123 client ticks); model 51245; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	2695	vfx_colosseum_crystal_attack_01_beam_03		4.1		other	name	spotanim anim=vfx_colosseum_crystal_attack_01_beam_03 (123 client ticks); model 51245; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	2696	vfx_colosseum_crystal_attack_01_beam_04		4.1		other	name	spotanim anim=vfx_colosseum_crystal_attack_01_beam_04 (123 client ticks); model 51245; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	2697	vfx_colosseum_crystal_attack_01_impact_01		1.0		other	name	spotanim anim=vfx_colosseum_crystal_attack_01_impact_01 (30 client ticks); model 51245; name shares monster word
+colosseum_modifier_bees	12823	-	spotanim	2707	vfx_colosseum_bee_jar_impact_01		0.0		other	name	spotanim anim=vfx_colosseum_bees_jar_impact_01 (0 client ticks); model 52523; name shares monster word
+colosseum_modifier_bees	12823	-	spotanim	2708	vfx_colosseum_bee_jar_travel		0.0		other	name	spotanim anim=projectile_zebak_pitcher01 (0 client ticks); model 46382; name shares monster word; its anim is the bee jar projectile of another monster (projectile_zebak_pitcher01 is Zebak) or empty (0 ticks): thrown-jar graphic of the bee modifier by name only
+colosseum_beam_crystal	12824	-	spotanim	3147	vfx_colosseum_crystal_charge_01_beam_01_echo		4.1		other	name	spotanim anim=vfx_colosseum_crystal_charge_01_beam_01 (123 client ticks); model 55662; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	3148	vfx_colosseum_crystal_charge_01_beam_02_echo		4.1		other	name	spotanim anim=vfx_colosseum_crystal_charge_01_beam_02 (123 client ticks); model 55662; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	3149	vfx_colosseum_crystal_charge_01_beam_03_echo		4.1		other	name	spotanim anim=vfx_colosseum_crystal_charge_01_beam_03 (123 client ticks); model 55662; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	3150	vfx_colosseum_crystal_charge_01_beam_04_echo		4.1		other	name	spotanim anim=vfx_colosseum_crystal_charge_01_beam_04 (123 client ticks); model 55662; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	3151	vfx_colosseum_crystal_attack_01_beam_01_echo		4.1		other	name	spotanim anim=vfx_colosseum_crystal_attack_01_beam_01 (123 client ticks); model 55662; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	3152	vfx_colosseum_crystal_attack_01_beam_02_echo		4.1		other	name	spotanim anim=vfx_colosseum_crystal_attack_01_beam_02 (123 client ticks); model 55662; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	3153	vfx_colosseum_crystal_attack_01_beam_03_echo		4.1		other	name	spotanim anim=vfx_colosseum_crystal_attack_01_beam_03 (123 client ticks); model 55662; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	3154	vfx_colosseum_crystal_attack_01_beam_04_echo		4.1		other	name	spotanim anim=vfx_colosseum_crystal_attack_01_beam_04 (123 client ticks); model 55662; name shares monster word
+colosseum_beam_crystal	12824	-	spotanim	3155	vfx_colosseum_crystal_attack_01_impact_01_echo		1.0		other	name	spotanim anim=vfx_colosseum_crystal_attack_01_impact_01 (30 client ticks); model 55662; name shares monster word

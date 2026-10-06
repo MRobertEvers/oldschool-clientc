@@ -29,6 +29,9 @@ local QD = {
                      -- the client's own logout button and title screen
     prayer = {},    -- prayer.lua (raid seam 1): set/read a prayer by click
     raid = {},      -- raid.lua (raid seam 1): enter a raid room, read the raid
+    wave = {},      -- waves.lua (waves seam pass 2): enter a wave minigame
+                     -- at a wave, read its state (docs/WAVES_ORCHESTRATOR.md
+                     -- section 5)
     ticklog = {},   -- ticklog.lua (raid seam 1): the server's per-tick event log
     party = {},     -- raid.lua (raid seam17): a party run's role, barrier and
                      -- the ToB lobby verbs (form, apply, accept, ready, follow_in)
@@ -675,7 +678,24 @@ end
 -- caller that is going to do the waiting ITSELF says so, and gets the old
 -- fire-and-forget dispatch; everybody else -- every quest test, every setup
 -- list -- gets the wait by default and never thinks about it.
+--
+-- `::bankgive` IS SETUP ONLY (seam bank_withdraw_and_deposit_verbs,
+-- matthew-mbp-m4-b56-seam2).  It stocks the bank the t.bank verbs withdraw
+-- from (general/scripts/misc/cheat_bank.rs2), which is the bank-side twin of
+-- a setup `::give` -- and, after the quest is bound, a mid-run `::give` with a
+-- detour through the bank (trap 16).  Every quest file's run() binds first
+-- (t.quest.bind, or the legs harness's top-level `bind` before leg 1), and
+-- run.py's wrapper runs `setup` before run(), so "the quest is bound" is the
+-- one reading that separates the two without a hand-kept phase flag.  The
+-- refusal is the driver's, made before anything is sent: nothing reaches the
+-- server, and the caller's row says why.
 function QD.cheat(text, wait_for_reply)
+    if type(text) == "string" and string.match(text, "^%s*:*bankgive") ~= nil
+        and QD.quest._bound ~= nil then
+        return "refused", "::bankgive is a SETUP cheat: it stocks the bank before the quest "
+            .. "starts; after t.quest.bind it would be a mid-run ::give (trap 16) -- put it in "
+            .. "`setup` and withdraw with t.bank.withdraw"
+    end
     local result, detail = api_drive.cheat(text)
     if wait_for_reply ~= false then
         QD.msg.await("", 5)

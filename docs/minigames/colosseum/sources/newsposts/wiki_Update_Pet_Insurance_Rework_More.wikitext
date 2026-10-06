@@ -1,0 +1,253 @@
+{{Update|date=10 September 2025|url=https://secure.runescape.com/m=news/pet-insurance-rework--more?oldschool=1|category=game}}
+[[File:Pet Insurance Rework & More newspost.png|right]]
+{{clear}}
+__TOC__
+
+''Free Pet reclaims, rescued sheep and Clan QOL improvements are here!''
+
+==Changelog September 10th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Poll 85 Changes '''
+
+* Pet insurance has been reworked! Pet reclaims are now free. Note that this, as always, does not cover the loss of pet cats. If you have purchased reclaim tokens that you have not used, we will be working to refund you. However, this is a manual process as we will not be refunding the free reclaim tokens obtained by getting a pet drop a second time, and it might be a few days before you can safely visit Probita to reclaim your money.
+* Prodding a stuck sheep in the Sheep Herder quest will now nudge it to a nearby open tile instead of leaving it immobile.
+* Charter Ship destinations are now numbered, letting you quickly select them with keyboard shortcuts.
+* The reward point cap in Tithe Farm has been raised from 1,000 to 16,000, letting you stockpile points from longer farming sessions.
+* Clan Updates:
+** Expanded clan broadcasts. Loot and pet drops will now proudly show which boss handed them over - no more mysterious treasures!
+** When multiple clan members set a new Personal Best in the same ToA or ToB raid, their names will now appear together in a single broadcast instead of separate messages.
+** Clans can now send automatic notifications to members about events starting within the next hour, with messages shown on login or during periodic refreshes.
+** Clan broadcasts now display an icon showing the sender’s game mode (e.g. main game, Deadman Mode, or Leagues). Clans can also choose to only receive broadcasts from main game worlds.
+** Clan owners can now choose how often collection log updates are shared in the clan. For example, you can set it to broadcast every 10, 25, or 50 items. Rare items and pets are always broadcast regardless of threshold.
+
+'''Audio Improvements'''
+
+* All SFX across the game has been upgraded from 8-bit to 16-bit as part of our audio update.
+
+'''Other Changes'''
+
+* Corrected Moon Key drop rates so they better match our original intent (and what we told you in the[https://secure.runescape.com/m=news/summer-sweep-up-slayer--misc?oldschool=1  Summer Sweep-Up: Slayer &amp; Misc blog!]).
+** Frost Crabs now drop Moon Keys at a rate of 1/1,354.
+** The [https://secure.runescape.com/m=news/summer-sweep-up-slayer--misc?oldschool=1 original blog] mistakenly listed Blue Dragons when we meant Brutal Blue Dragons! Apologies for this confusion.
+*** Brutal Blue Dragons now sit at their intended rates of 250. Regular Blue Dragons aren’t nearly as generous, sitting at around 1/636.
+* Clan chat now announces when a player beats their personal best in the Doom of Mokhaiotl at Delve level 20 or higher.
+* Valuable loot from the Colosseum now sends a clan chat broadcast when claimed.
+* Players left behind in any room of a ToA raid are now properly removed from the party, with the message: 'Your party moved on without you'.
+* The Quest Guide journal for King's Ransom has been updated on the Permanent Deadman world to reflect the correct items needed.
+* Fixed a bug where the Crystal Shield and Elysian Spirit Shield would fail the Doom of Mokhaiotl Combat Achievement task 'Mine's better'.
+* Making the weapon for the Devious Minds quest with a bow string on a spool no longer causes the game to consume your whole spool.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Poll 85 Changes==
+This week’s update brings some long-awaited adjustments from Poll 85. Let’s dive into the first batch of changes, with even more coming next week!
+
+
+===Pet Insurance===
+Good news, pet lovers! Pet reclaims are now free, so you can finally stop hoarding your furry friends in the bank like they’re a priceless family heirloom. Take your pets on every adventure without the looming dread of spending 1 million GP to get them back if disaster strikes, and show off your loyal companions wherever your heart desires!
+
+A few caveats: cats are not included as standard. Any reclaim tokens you bought before will be refunded, but this is a manual process, so it may take a few days for us to sort. Any free tokens earned from duplicate pet drops won’t be reimbursed.
+
+[[File:Pet Insurance Rework & More (1).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-10/port.jpg here]!'']]
+
+
+===Sheep Herder Improvements===
+Stuck sheep? Not on our watch!
+
+No more watching your stubborn woolly friend get stuck against a wall, only to despawn in a dramatic puff of frustration. Now, a quick prod will politely shepherd your baa-dest behaved sheep into a nearby open tile.
+
+[[File:Pet Insurance Rework & More (2).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-10/baa.jpg here]!'']]
+
+
+===Charter Ship Numbering===
+No more squinting at the map trying to figure out where to sail. Charter Ship destinations are now numbered so you can pick your port in a flash! 
+
+Each number comes with a keyboard shortcut, so you well-versed keyboard warriors can set sail with speed. Memorise your favourite spots, hit the key, and you’re off!
+
+[[File:Pet Insurance Rework & More (3).png|thumb|300px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-10/chart.jpg here]!'']]
+
+
+===Tithe Farm Point Cap===
+The Tithe Farm point cap has been raised from 1,000 to 16,000. That means you can spend way longer farming without hitting a wall, stack up a ridiculous amount of points, and finally get around to buying all the rewards you’ve been eyeing. Farm until your fingers hurt and your points explode.
+
+[[File:Pet Insurance Rework & More (4).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-10/tithe.jpg here]!'']]
+
+
+===Clan Updates===
+
+* Get the clan on the same page! Automatic notifications will ping members about events starting within the next hour. Log in right before the action begins, or just happen to be around during a refresh - either way, you won’t miss a thing.
+* We've added a load more bosses to the loot broadcast! Now you’ll see exactly which baddie boss was responsible for your clanmates' good fortune.
+* Ever had multiple clanmates crush a new ToA or ToB personal best at the same time? Now their names will pop up together in a single, glorious broadcast. One message to rule them all, and more bragging potential with less spam.
+* Tired of getting a broadcast for every single collection log slot? Clan owners can now set intervals - every 10, 25, or 50 slots so you only see the milestones that matter. Rare items and pets are still always broadcast, regardless of threshold.
+* Want to show off that you’re rocking a Leagues account? Clan broadcasts now display an icon for the sender’s game mode - so now you'll know if something was achieved in the main game, Deadman Mode, or temporary game modes like Leagues. Clans can also choose to only receive broadcasts from main game worlds.
+
+[[File:Pet Insurance Rework & More (5).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-10/clan.jpg here]!'']]
+
+
+==Doom Combat Achievements - Community Feedback==
+The Doom of Mokhaiotl Combat Achievements launched earlier this week, and we’ve seen a huge amount of discussion from players taking their first shots.
+
+[[File:Pet Insurance Rework & More (6).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-10/ca.jpg here]!'']]
+
+First, thank you for being so vocal about your experiences - the highs, the lows, and everything in between. Combat Achievements are meant to inspire mastery, and that only works when the community engages with them as passionately as you have.
+
+We’ve also seen frustration. We want to acknowledge that, explain our thinking, and set expectations: there won’t be changes this week, but we’re monitoring and will keep on reviewing your gameplay and feedback. 
+
+To address a few of the more pressing issues, we'll tackle them one by one:
+
+
+===The Doom Racer (GM - Speed)===
+'''Complete 1-8 in under 7:15'''
+
+We know this task has sparked the most debate. Many players feel the 7:15 time is unrealistically harsh, especially without a ZCB spec or a streak of good RNG. Others have defended it, pointing out that as a Grandmaster speed challenge, it’s intended for the sharpest edge of the PvM community - and should be set with that in mind.
+
+Here's our reasoning for now:
+
+
+* It’s still early days. So far, most of the community focus has been on deep delves rather than speedrunning. As strategies develop and players refine their approaches, we expect more times to come down. We don’t want to adjust too early, only to see the task become outdated as emergent strategies push clear times lower.
+* We only get one shot at the number. If we make the time too lenient now, we can’t make it stricter later without invalidating the efforts of those who already completed it. That’s why we’d rather hold steady, gather more data, and adjust only if it’s truly necessary.
+* The gamers are gaming. By the end of update day, the average top 1% PB had dropped from 8m 21s to 7m 15s - and this number has come down further in time since, as more people start chasing speed. We're also starting to see reports from experienced players that they're able to tick this task off more than half of the time, if they're really pushing for it.
+* It’s Grandmaster by design. These tasks aren’t meant for the casual player - they’re deliberately tuned for the few who want to prove absolute mastery, and we want to maintain that high standard as much as possible.
+
+That said, we’ll be keeping a very close eye on this one. If the data shows the task is locked behind unrealistic RNG rather than skill and execution, we’ll revisit.
+
+
+===The Praying Mantis (GM - Restriction)===
+'''Complete 1-8 without restoring Prayer points.'''
+
+We’ve seen players raise valid concerns about failing this task because of the boss’s Holy Water effect (triggered when killing the boss during a melee punish phase and thereby restoring Prayer).
+
+We understand that this might feel like you're being punished for engaging with a core mechanic, with no counterplay except tanking huge damage. Fortunately, clever players have started punching the boss during this attack - which can cancel the charge, avoid dealing heavy damage, and prevent the restore.
+
+This task was designed with a few core ideas in mind:
+
+
+* Avoiding trivial completions. We didn’t want players waiting around for a Prayer restore at the end of a wave to finish the task easily. If you could simply regain Prayer and coast through, it would undermine the spirit of a Grandmaster restriction.
+* All damage on this boss is avoidable. With 100% Prayer reduction on every attack, in theory, every hit can be flicked away. This is why we wanted to see players lean into Prayer flicking as much as possible.
+** We know not everyone enjoys Prayer flicking, which is why the task is about not restoring Prayer, rather than never losing Prayer.
+
+The intent here was always to test managing without restores, not to demand flawless flicking. That said, we understand this design won’t be everyone’s favourite. Some players love this style of challenge, others don’t - and that’s true of many CAs.
+
+
+===Duel of Mokhaiotl (GM - Restriction)===
+'''Only damage with one-handed melee attacks'''
+
+We’ve seen some confusion about whether this task should fail if the boss takes damage from an exploding grub. To clarify: this is intentional. If grubs are damaging the boss, then the fight isn’t being completed purely with one-handed melee, which is the core requirement of the task.
+
+Just like Praying Mantis, this task was designed with this fail condition in mind. Part of the challenge here comes from weighing up whether you'll be able to catch every grub, or let the Doom absorb some and empower itself.
+
+That said, we’ll continue monitoring feedback. If this consistently proves more frustrating than fun, we’re open to reviewing it in the future. For now, though, we believe preserving this restriction keeps the spirit and difficulty of a Grandmaster task intact.
+
+
+===Perfect Doom (GM - Perfection)===
+'''Completed 1-8 without taking damage from the boss, letting grubs be absorbed, or stepping on acid.'''
+
+We’ve heard the concern that some acid spawns can feel unavoidable, but we wanted to share a technique you can employ to counter this.
+
+By attacking diagonally, you can test where the acid will land with your first ranged hit, then reposition to the opposite side of the boss to avoid it. With careful tracking and movement, these situations can be anticipated and managed.
+
+Perfect tasks are meant to push for absolute precision, awareness, and foresight. We believe this challenge sits squarely within that intent - demanding not just mechanical execution, but planning and control throughout the fight.
+
+
+===Wrapping Up===
+We know some of these responses won’t satisfy everyone. If you’ve felt stonewalled or frustrated by these CAs, please know: we are listening. We aren’t dismissing your concerns - we simply want to give players time to push these challenges before deciding if changes are warranted.
+
+We know that not every Combat Achievement is meant to appeal to every player. Some tasks will naturally divide opinion - where one player finds enjoyment in flick-heavy restrictions or tight speed goals, another may find them frustrating. That’s by design. Combat Achievements are meant to be a broad set of challenges, where different skills and playstyles are tested across the spectrum. Good or bad, we encourage you to share your progress and feedback - we’ll be monitoring closely! 
+
+==Audio Improvements==
+All SFX across the game has been been upgraded from 8-bit to 16-bit as part of our[https://secure.runescape.com/m=news/hd--plugin-api-progress-update?oldschool=1#audio &nbsp;audio update].
+
+==Future Update Idea==
+Training while chatting isn't so easy when you're playing on a mobile device, and if you stopped grinding to chat, well that'd be XP waste. Have you ever just wished other in-game players could see that you're on a mobile device, so they'll understand why you don't want to strike up a conversation over the fishing spots? We've prototyped a discreet little indicator that mobile users could optionally choose to show in their right-click menu, if they want to:
+
+[[File:Pet Insurance Rework & More (7).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-10/mobile_indicator_minimenu.jpg here]!'']]
+
+If this goes ahead, it'd have a toggle in the usual Settings menu:
+
+[[File:Pet Insurance Rework & More (8).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-10/mobile_indicator_settings.jpg here]!'']]
+
+
+==A Discord Community Event==
+[[File:Pet Insurance Rework & More (9).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-10/Olm.jpg here]!'']]
+
+Join us for a Chambers mass community event in the official [http://discord.gg/OSRS OSRS Discord!] 
+
+
+* '''When?''' Friday, 19th September
+* '''Time?''' 16.00 - 17.00 BST (Mass at 15.45)
+* '''Where?''' World 522
+
+===What to expect?===
+Beautiful chaos. Piles of deaths, Olm's head almost certainly deciding to laser the entire raid at once, a few heroic clutches (probably accidental), and a tragically low number of purples.
+
+But you can also expect plenty of laughs, some excellent stories, and that unique brand of mass-event madness that makes it all worth it. We're here for the fun - not the points (definitely not the points). Whether we walk away with loot (remember, scuffed = stuff) or just tales of chaos, we'll have a laugh together.
+
+Not keen to be burned alive by your entire team? No worries! You can still join in by spectating - Mod Rach will be streaming her POV so you can enjoy the carnage from the safety of your bank tab.
+
+Requirements? Nothing but a bit of Chambers knowledge, a pulse, and a willingness to die with grace would be beneficial.
+
+So polish your pickaxes, forget your anti-venom, and let's give Olm a show we won't forget - for better or for much, much worse!
+
+
+==New Cute Critters Plushies==
+The latest plushies from Makeship are available to pre-order now!
+
+[[File:Pet Insurance Rework & More (10).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-10/make.jpg here]!'']]
+
+In this collaboration, we bring you a rag-tag crew of cuteness ready for display!
+
+We've been hard at work making a friendly face from Varlamore come to life, meaning you can now picnic with capybaras IRL, complete with an orange and grapes! Plus why not invite Thurgo to join you? He can sit perfectly content with his favourite food in hand. Following that, an unusual pairing of followers are packed into this collection, including the Varrock Stray Dog and Zanik (and her H.A.M cape disguise too)! Don't shoo away a fluffy friend that has greeted you since your early days roaming Varrock; we promise the pot of bones were ethically sourced from the Chaos altar!
+
+This OSRS Cute Critters collection is only available for a limited time – order one now from [https://www.makeship.com/shop/creator/runescape  makeship.com] before they wander off!
+
+
+
+==Other Changes==
+
+* Corrected Moon Key drop rates so they better match our original intent (and what we told you in the[https://secure.runescape.com/m=news/summer-sweep-up-slayer--misc?oldschool=1 &nbsp;Summer Sweep-Up: Slayer &amp; Misc blog!]).
+** Frost Crabs now drop Moon Keys at a rate of 1/1,354.
+** The [https://secure.runescape.com/m=news/summer-sweep-up-slayer--misc?oldschool=1 original blog] mistakenly listed Blue Dragons when we meant Brutal Blue Dragons! Apologies for this confusion.
+*** Brutal Blue Dragons now sit at their intended rates of 250. Regular Blue Dragons aren’t nearly as generous, sitting at around 1/636.
+* Clan chat now announces when a player beats their personal best in the Doom of Mokhaiotl at Delve level 20 or higher.
+* Valuable loot from the Colosseum now sends a clan chat broadcast when claimed.
+* Players left behind in any room of a ToA raid are now properly removed from the party, with the message: 'Your party moved on without you'.
+* The Quest Guide journal for King's Ransom has been updated on the Permanent Deadman world to reflect the correct items needed.
+* Fixed a bug where the Crystal Shield and Elysian Spirit Shield would fail the Doom of Mokhaiotl Combat Achievement task 'Mine's better'.
+* Making the weapon for the Devious Minds quest with a bow string on a spool no longer causes the game to consume your whole spool.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1nd9ui2/pet_insurance_rework_more/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Curse, Daizong, Donkey, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

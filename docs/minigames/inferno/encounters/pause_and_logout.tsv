@@ -1,0 +1,20 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+pause.logout_press_arms_pause	pause requests armed by one logout-button press inside a live wave	1	count	[wiki][guide]	C	sources/wiki/wiki_Inferno_Strategies.wikitext:856; sources/transcripts/STATED.md:12	-	exact
+pause.takes_effect_at	when an armed pause takes effect (not mid-wave)	end_of_current_wave	text	[wiki][guide]	C	sources/wiki/wiki_Inferno_Strategies.wikitext:856; sources/transcripts/yt_qnw3kGlpiuQ.md:97	-	exact
+pause.second_press_resets_wave	resets of the current wave from a second logout press when not in combat	1	count	[wiki][guide]	C	sources/wiki/wiki_Inferno_Strategies.wikitext:856; sources/transcripts/yt_qnw3kGlpiuQ.md:97	-	exact
+pause.reset_restart_point	where a wave reset restarts the run	beginning_of_same_wave	text	[wiki][guide]	C	sources/wiki/wiki_Inferno_Strategies.wikitext:856; sources/transcripts/yt_qnw3kGlpiuQ.md:97	-	exact
+pause.reset_respawn_tiles_same	1 if monsters respawn on the exact same tiles after a logout and login (spawns are saved per run)	1	count	[jagex][guide]	A	sources/newsposts/wiki_Update_Progress_Report_The_Inferno.wikitext:66-68; sources/transcripts/yt_qnw3kGlpiuQ.md:97	-	exact
+pause.resume_trigger	what continues a paused run	log_back_in	text	[wiki][guide]	C	sources/wiki/wiki_Inferno_Strategies.wikitext:856; sources/transcripts/yt_BbJCzcMcMbE.md:89	-	exact
+pause.resume_wave_offset	wave resumed minus the last wave cleared before the pause	1	count	[wiki][guide]	C	sources/wiki/wiki_Inferno_Strategies.wikitext:856; sources/transcripts/yt_BbJCzcMcMbE.md:89	-	exact
+pause.resume_spawn_ticks	ticks from login to the resumed wave's monsters appearing	15	ticks	[plugin]	D	sources/zukprayer/UPSTREAM_README.md:5; sources/zukprayer/UPSTREAM_README.md:30	-	+-1
+pause.stat_changes_frozen	stat restores or drains that happen while the run is paused	0	count	[wiki]	D	sources/wiki/wiki_Inferno_Strategies.wikitext:856	-	exact
+pause.run_energy_recovery_frozen	run energy regained while the run is paused	0	count	[wiki][guide]	C	sources/wiki/wiki_Inferno_Strategies.wikitext:856; sources/transcripts/yt_qnw3kGlpiuQ.md:97	-	exact
+pause.special_attack_recovers	1 if special attack energy still recovers while paused	1	count	[guide]	D	sources/transcripts/yt_qnw3kGlpiuQ.md:97	-	exact
+pause.floor_items_carried	dropped items that remain after a pause	0	count	[wiki]	D	sources/wiki/wiki_Inferno_Strategies.wikitext:856	-	exact
+pause.logout_blocked_at_wave_start	1 if a logout press at the start of a wave is refused	1	count	[jagex]	A	sources/newsposts/wiki_Update_QoL_Deadman_and_the_Falador_Party_Room.wikitext:58; sources/wiki/wiki_Inferno.wikitext:387	-	exact
+pause.logout_block_window	ticks after a wave starts during which logout is refused	?	ticks	[M4]	E	sources/newsposts/wiki_Update_QoL_Deadman_and_the_Falador_Party_Room.wikitext:58	M4	approx
+pause.glyph_direction_persists_login	1 if Zuk's Ancestral Glyph keeps its direction after logging back in	1	count	[jagex]	A	sources/newsposts/wiki_Update_QoL_Deadman_and_the_Falador_Party_Room.wikitext:57	-	exact
+pause.pillar_hp_kept	1 if a paused run keeps damaged pillar hit points	?	count	[M5]	E	sources/transcripts/yt_qnw3kGlpiuQ.md:97	M5	approx
+pause.request_chat_text	chat line shown when a pause is requested or taken	?	text	[M6]	E	sources/wiki/wiki_Inferno_Strategies.wikitext:856	M6	approx
+logout.combat_delay_ticks	ticks after the last hit received before logout is allowed	16	ticks	[wiki]	D	sources/wiki/wiki_Logout_button.wikitext:9	-	exact
+logout.combat_refusal_text	chat line shown when logout is refused in combat	?	text	[M6]	E	sources/wiki/wiki_Logout_button.wikitext:9	M6	approx

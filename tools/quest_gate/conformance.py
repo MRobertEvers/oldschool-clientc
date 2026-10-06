@@ -71,8 +71,11 @@ USER = "qdconform"
 # with 182 seam rows (raid seam31 added the goblin stop-and-press row, ~50
 # ticks, and three pure rows) a run reached the cap at tick 5325 inside
 # seam.raid_enter_party_branch_solo_unchanged and the last seven rows
-# ERRORed on the frame cap.
-MAX_FRAMES = "200000"
+# ERRORed on the frame cap.  The v3 merge (2026-10-06) carries both
+# branches' rows (218 seam rows and 229 verbs against the raid branch's 182
+# and 202; v3 alone drew ~51,000 for 101 seam rows and set 120000), hence
+# 280000.
+MAX_FRAMES = "280000"
 # Render skip, as run.py: on unless --render-every-frame (run.py's RENDER_SKIP
 # banner). The harness proves the quest runs' own mode, and its render.* rows
 # switch it themselves either way.

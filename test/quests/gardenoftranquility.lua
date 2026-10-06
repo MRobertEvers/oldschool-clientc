@@ -12,23 +12,98 @@ return {
     max_frames = 240000,
     setup = {
         "::clearinv",
+        -- Creature of Fenkenstrain's own prerequisite: Priest in Peril opens
+        -- Morytania (Lyra) through Paterdomus (quest_cheat.rs2:999 sets 60 and
+        -- the golden-key gate bit; Drezel's advice 60 -> 61 opens the holy
+        -- barrier, mausoleum_drezel.rs2 [label,drezel_access_holy_barrier],
+        -- and needs the wolfbane dagger held or worn: obj_gettotal, inv_procs.rs2:222).
+        "::complete quest_priestinperil",
         "::complete quest_creatureoffenkenstrain",
         "::setlevel farming 40", "::setlevel fishing 60",
+        -- Teleports for the long hauls (WALLS in the run header): Lumbridge x2,
+        -- Varrock x2, Falador x3, Camelot x1 -- the exact runes they cost.
+        "::setlevel magic 45",
+        "::give lawrune 8", "::give airrune 26", "::give earthrune 2", "::give firerune 2", "::give waterrune 3",
+        "::give dagger_wolfbane 1",
         "::give ring_of_charos 1",
         "::give rake 1", "::give seed_dibber 1", "::give spade 1", "::give secateurs 1",
         "::give plantpot_compost 1", "::give watering_can_8 1",
-        "::give fishing_rod 1", "::give fishing_bait 50",
+        -- No bait: the well takes the rod alone (garden_althric.rs2:52).
+        "::give fishing_rod 1",
         "::give hammer 1", "::give pestle_and_mortar 1", "::give blankrune 1",
         "::give plant_cure 2",
-        "::give marigold_seed 2", "::give onion_seed 6", "::give cabbage_seed 6",
+        -- Exactly what each patch takes, so the planted stacks leave the pack
+        -- (the roses and the fished ring need the room: 28 slots at the well).
+        "::give marigold_seed 1", "::give onion_seed 3", "::give cabbage_seed 3",
         "::give bucket_compost 2",
     },
     run = function(t)
         t.quest.bind({ varp = "varb961_garden_quest",
             constants = { not_started = 0, told = 10, asked_ring = 20, retry = 30, chapter = 40, roald = 50, complete = 60 },
             row = "quest_gardenoftranquillity", display = "Garden of Tranquillity", points = 2 })
+        -- WALLS (door rule, owner 2026-10-03; re-driven in b62). Every goto
+        -- departs from and lands on open ground; every door, gate, trapdoor
+        -- and barrier between the player and a target is pressed on every
+        -- visit, in and out. Checked with test/quests/orchestrator/
+        -- matthew-mbp-m4/reports/sample_tools/{reach,comp,locs_near}.py
+        -- (doors closed):
+        --   * The Wise Old Man's house (Draynor) x 3087-3094 z 3251-3255
+        --     behind poordoor on the south edge of 3088,3251 (maps/m48_50.jl2).
+        --   * Morytania (Lyra): the Salve is crossed only underground (reach
+        --     3380,3480 -> 3607,3528 UNREACHABLE at margin 120): the Varrock
+        --     members' gate fai_varrock_member_gatel 3319,3468, the Paterdomus
+        --     trapdoor 3405,3507, pip_underground_door1/2, Drezel's advice
+        --     (60 -> 61) and the holy barrier 3440,9886 (p_telejump to
+        --     3423,3485, mausoleum_interactions.rs2:26-30). Left by Camelot
+        --     Teleport.
+        --   * Taverley: the members' gate membergater 2935,3450 is the only way
+        --     on foot from Falador (reach 2936,3450 -> Burthorpe NEEDS-DOOR via
+        --     it); Burthorpe and Alain's patch are both inside it.
+        --   * Bernald's house (Burthorpe): poshdoor on the south edge of
+        --     2907,3544 into the house (53 tiles), poshdoor on the west edge of
+        --     2916,3537 into the vine garden (68 tiles, its only door).
+        --   * King Roald's room x 3219-3225 z 3470-3478: ds2_varrock_door
+        --     3222,3491 into the ante-room (72 tiles) from the garden side, then
+        --     ds2_varrock_door 3222,3479 (both on their tile's south edge).
+        --   * Open ground (reach REACH with every door closed): the palace
+        --     garden, the farming patches (Falador, Port Phasmatys, Ardougne,
+        --     Catherby), Ice Mountain's White Tree, the monastery rose garden,
+        --     the Edgeville well, the two statue sites.
+        --   * Long hauls are real teleports (cast, runes, landing graded).
+        local function lumbridge_teleport(name)
+            t.player.teleport_cast("lumbridge_teleport", { 3221, 3218, 0 }, { name = name,
+                runes = { { "earthrune", 1 }, { "airrune", 3 }, { "lawrune", 1 } }, where = "Lumbridge" })
+        end
+        local function varrock_teleport(name)
+            t.player.teleport_cast("varrock_teleport", { 3213, 3424, 0 }, { name = name,
+                runes = { { "firerune", 1 }, { "airrune", 3 }, { "lawrune", 1 } }, where = "Varrock square" })
+        end
+        local function falador_teleport(name)
+            t.player.teleport_cast("falador_teleport", { 2965, 3378, 0 }, { name = name,
+                runes = { { "waterrune", 1 }, { "airrune", 3 }, { "lawrune", 1 } }, where = "Falador" })
+        end
+        local function camelot_teleport(name)
+            t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = name,
+                runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot" })
+        end
+        -- Bernald's house and vine garden, in and out (WALLS above).
+        local function bernald_in(prefix)
+            t.exec("goto-" .. prefix .. ".houseDoor", t.player.goto_tile, 2907, 3545, 0)
+            t.exec(prefix .. ".houseDoorIn", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+                at = { 2907, 3544, 0 }, near = { 2907, 3545 }, far = { 2907, 3542 } })
+            t.exec(prefix .. ".gardenDoorIn", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+                at = { 2916, 3537, 0 }, near = { 2915, 3537 }, far = { 2917, 3536 } })
+        end
+        local function bernald_out(prefix)
+            t.exec(prefix .. ".gardenDoorOut", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+                at = { 2916, 3537, 0 }, near = { 2916, 3537 }, far = { 2914, 3537 } })
+            t.exec(prefix .. ".houseDoorOut", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+                at = { 2907, 3544, 0 }, near = { 2907, 3543 }, far = { 2907, 3546 } })
+        end
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+        -- Drezel only asks that it is held or worn; worn, it frees a slot.
+        t.exec("wield-wolfbane", t.player.equip, "dagger_wolfbane")
         t.exec("goto-talkToEllamaria", t.player.goto_tile, 3230, 3477, 0)
         t.exec("talkToEllamaria", t.player.talk_to, "queen_ellamaria", 1)
         t.exec("talkToEllamaria-dialog", t.chat.play, {
@@ -44,7 +119,10 @@ return {
         t.expect("quest.stage.told", t.quest.expect_stage("told"))
         t.exec("list", t.inv.await, "garden_list", 1, 10)
         -- Wise Old Man: no test scenario answered wrongly first (retry), then pass
-        t.exec("goto-talkToWom", t.player.goto_tile, 3089, 3254, 0)
+        lumbridge_teleport("talkToWom.lumbridgeTeleport")
+        t.exec("goto-talkToWom", t.player.goto_tile, 3088, 3250, 0)
+        t.exec("talkToWom.doorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 3088, 3251, 0 }, near = { 3088, 3250 }, far = { 3088, 3252 } })
         t.exec("talkToWom", t.player.talk_to, "wise_old_man", 1)
         t.exec("talkToWom-dialog", t.chat.play, {
             "player:Queen Ellamaria has sent me",
@@ -82,6 +160,8 @@ return {
         t.expect("quest.stage.chapter", t.quest.expect_stage("chapter"))
         t.exec("ring", t.inv.await, "ring_of_charos_unlocked", 1, 10)
         t.exec("wear-ring", t.player.equip, "ring_of_charos_unlocked")
+        t.exec("talkToWom.doorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 3088, 3251, 0 }, near = { 3088, 3251 }, far = { 3088, 3249 } })
         t.exec("goto-talkToElstan", t.player.goto_tile, 3056, 3310, 0)
         t.exec("talkToElstan", t.player.talk_to, "elstan", 1)
         t.exec("talkToElstan-dialog", t.chat.play, {
@@ -124,6 +204,52 @@ return {
         })
         t.exec("delphinium", t.inv.await, "garden_delphinium_seed", 4, 10)
         t.expect("elstan.done", t.var.expect("varb967_garden_elstan_varbit", 4))
+        -- Into Morytania (WALLS in the header): the Varrock members' gate,
+        -- the Paterdomus trapdoor, the two mausoleum gates, Drezel's advice
+        -- and the holy barrier (the route test/quests/ghostsahoy.lua walks).
+        varrock_teleport("talkToLyra.varrockTeleport")
+        t.exec("goto-talkToLyra.varrockGate", t.player.goto_tile, 3318, 3468, 0)
+        t.exec("talkToLyra.varrockGate", t.player.pass_door, { closed = "fai_varrock_member_gatel",
+            open = "fai_varrock_member_gatel_open", at = { 3319, 3468, 0 }, near = { 3318, 3468 }, far = { 3321, 3468 } })
+        t.exec("goto-talkToLyra.trapdoor", t.player.goto_tile, 3405, 3506, 0)
+        t.exec("talkToLyra.openTrapdoor", t.player.click_loc, "trapdoor", 1, { at = { 3405, 3507, 0 } })
+        t.await({
+            level = function()
+                return t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } }) == "ok"
+            end,
+            note = "talkToLyra: the trapdoor opens",
+        }, 6)
+        local tdo_r, tdo = t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } })
+        local tdc_r = t.world.loc_near("trapdoor", 3, { at = { 3405, 3507, 0 } })
+        t.check("talkToLyra.trapdoorOpen", tdo_r == "ok" and tdc_r ~= "ok",
+            "trapdoor_open on 3405,3507,0 -> " .. tostring(tdo_r) .. " "
+                .. (tdo_r == "ok" and (tdo.tile_x .. "," .. tdo.tile_z .. "," .. tdo.level) or tostring(tdo))
+                .. "; closed trapdoor there -> " .. tostring(tdc_r) .. " (want the open leaf and no closed one)")
+        t.exec("talkToLyra.descend", t.player.cross_trap, { loc = "trapdoor_open", op = 1, op_name = "Climb-down",
+            at = { 3405, 3507, 0 }, src = { 3405, 3506 }, dest = { 3405, 9906 }, attempts = 2 })
+        t.exec("talkToLyra.gate1", t.player.cross_gate, { loc = "pip_underground_door1", at = { 3405, 9895, 0 },
+            near = { 3405, 9896 }, far_ok = function(tile) return tile.z > 6400 and tile.z <= 9894 end,
+            far_desc = "south of the golden-key gate, z <= 9894", ticks = 30 })
+        t.exec("talkToLyra.gate2", t.player.cross_gate, { loc = "pip_underground_door2", at = { 3431, 9897, 0 },
+            near = { 3430, 9897 }, far_ok = function(tile) return tile.z > 6400 and tile.x >= 3432 end,
+            far_desc = "Drezel's side of the second gate, x >= 3432", ticks = 60 })
+        -- Priest in Peril's farewell advice (mausoleum_drezel.rs2:145-154): 60 -> 61.
+        t.exec("talkToLyra.talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
+        t.exec("talkToLyra.talkToDrezel-dialog", t.chat.play, {
+            "player:So can I pass through that barrier now?",
+            "npc:Ah, ",
+            "npc:Morytania is an evil land",
+            "npc:You should take some basic precautions",
+            "npc:In many ways Werewolves",
+            "npc:and it is a holy relic",
+            "npc:wolf form is incredibly powerful",
+            "player:Okay, I will keep it equipped",
+        })
+        t.exec("talkToLyra.drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
+        t.exec("talkToLyra.holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
+            at = { 3440, 9886, 0 }, near = { 3440, 9887 },
+            far_ok = function(tile) return tile.x == 3423 and tile.z == 3485 end,
+            far_desc = "east of the Salve at 3423,3485 (mausoleum_interactions.rs2 p_telejump(0_53_54_31_29))" })
         t.exec("goto-talkToLyra", t.player.goto_tile, 3607, 3528, 0)
         t.exec("talkToLyra", t.player.talk_to, "lyra", 1)
         t.exec("talkToLyra-dialog", t.chat.play, {
@@ -148,9 +274,9 @@ return {
         t.exec("plantOnions", t.player.use_on, "onion_seed", t.player.by_symbol("loc", "farming_veg_patch_7"))
         t.ticks(8)
         local v0, v1 = t.var.varbit("varb714_varbit_714")
-        t.check("patch7-planted", true, "varbit_714 = " .. tostring(v1))
+        t.check("patch7-planted", v0 == "ok" and v1 == 13, "varbit_714 = " .. tostring(v1) .. " (want 13: onion seed planted)")
         t.expect("patch7.marker", t.var.expect("varb969_garden_patch_7_varbit", 1))
-        t.exec("seeds-consumed", t.inv.await, "onion_seed", 3, 5)
+        t.exec("seeds-consumed", t.inv.await, "onion_seed", 0, 5)
         -- too early: Lyra says still waiting
         t.exec("talkToLyra-early", t.player.talk_to, "lyra", 1)
         t.exec("talkToLyra-early-dialog", t.chat.play, { "npc:Still waiting" })
@@ -163,7 +289,7 @@ return {
             t.ticks(2)
         end
         local vr, vv = t.var.varbit("varb714_varbit_714")
-        t.check("patch7-state", true, "varbit_714 = " .. tostring(vv))
+        t.check("patch7-state", vr == "ok" and vv == 17, "varbit_714 = " .. tostring(vv) .. " (want 17: onions grown, 13 when planted)")
         t.exec("talkToLyraAgain-dialog", t.chat.play, {
             "player:Okay, I've grown those onions",
             "npc:Wonderful",
@@ -172,6 +298,9 @@ return {
         t.exec("orchids-yellow", t.inv.await, "garden_orchid_yellow_seed", 3, 10)
         t.expect("lyra.done", t.var.expect("varb968_garden_lyra_varbit", 3))
         -- Kragen
+        -- Out of Morytania by Camelot Teleport (Kragen is past the Salve and
+        -- the members' gates on foot).
+        camelot_teleport("talkToKragen.camelotTeleport")
         t.exec("goto-talkToKragen", t.player.goto_tile, 2669, 3376, 0)
         t.exec("talkToKragen", t.player.talk_to, "kragen", 1)
         t.exec("talkToKragen-dialog", t.chat.play, {
@@ -220,7 +349,11 @@ return {
         })
         t.ticks(2)
         t.expect("dantaera.talked", t.var.expect("varb976_garden_dantaera_varbit", 1))
-        t.exec("goto-useSecateursOnWhiteTree", t.player.goto_tile, 3008, 3496, 0)
+        -- Ice Mountain from Catherby crosses White Wolf Mountain or the
+        -- Taverley gate on foot: Falador Teleport, then north over open ground
+        -- to the tree (3007,3497 is the tree's own tile; 3006,3497 is beside it).
+        falador_teleport("useSecateursOnWhiteTree.faladorTeleport")
+        t.exec("goto-useSecateursOnWhiteTree", t.player.goto_tile, 3006, 3497, 0)
         t.exec("useSecateursOnWhiteTree", t.player.use_on, "secateurs", t.player.by_symbol("loc", "garden_white_tree_dead"))
         t.exec("shoot", t.inv.await, "garden_white_tree_shoot", 1, 15)
         t.expect("dantaera.cut", t.var.expect("varb976_garden_dantaera_varbit", 2))
@@ -254,13 +387,13 @@ return {
         t.expect("ring.in-well", t.var.expect("varb966_garden_ring_in_well_varbit", 1))
         t.expect("althric.can_pick", t.var.expect("varb977_garden_althric_varbit", 2))
         t.exec("ring-gone", t.inv.await, "ring_of_charos_unlocked", 0, 5)
-        t.exec("goto-pickWhiteRoses", t.player.goto_tile, 3055, 3503, 0)
+        t.exec("goto-pickWhiteRoses", t.player.goto_tile, 3054, 3503, 0)
         t.exec("pickWhiteRoses", t.player.click_loc, "garden_roses_white", 1)
         t.exec("white", t.inv.await, "garden_rosebush_seed_white", 4, 10)
         t.exec("goto-pickPinkRoses", t.player.goto_tile, 3051, 3504, 0)
         t.exec("pickPinkRoses", t.player.click_loc, "garden_roses_pink", 1)
         t.exec("pink", t.inv.await, "garden_rosebush_seed_pink", 4, 10)
-        t.exec("goto-pickRedRoses", t.player.goto_tile, 3048, 3504, 0)
+        -- the red bushes (3048,3503-3506) are beside the pink ones: click_loc walks there
         t.exec("pickRedRoses", t.player.click_loc, "garden_roses_red", 1)
         t.exec("red", t.inv.await, "garden_rosebush_seed_red", 4, 10)
         t.exec("goto-fishForRing", t.player.goto_tile, 3085, 3501, 0)
@@ -274,7 +407,14 @@ return {
         t.expect("ring.out-of-well", t.var.expect("varb966_garden_ring_in_well_varbit", 0))
         t.exec("wear-ring2", t.player.equip, "ring_of_charos_unlocked")
         -- Bernald
-        t.exec("goto-talkToBernald", t.player.goto_tile, 2915, 3533, 0)
+        -- Burthorpe is inside Taverley's members' gate: Falador Teleport, the
+        -- gate on foot, then Bernald's house door and his garden door.
+        falador_teleport("talkToBernald.faladorTeleport")
+        t.exec("goto-talkToBernald.memberGate", t.player.goto_tile, 2937, 3450, 0)
+        t.exec("talkToBernald.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 },
+            near = { 2936, 3450 }, far_ok = function(tile) return tile.x <= 2935 end,
+            far_desc = "inside Taverley, x <= 2935" })
+        bernald_in("talkToBernald")
         t.exec("talkToBernald", t.player.talk_to, "bernald", 1)
         t.exec("talkToBernald-dialog", t.chat.play, {
             "player:Your grapevines",
@@ -289,6 +429,7 @@ return {
         t.ticks(4)
         t.expect("bernald.used_cure", t.var.expect("varb988_garden_bernald_varbit", 2))
         -- Alain, ring unequipped
+        bernald_out("talkToAlain")
         t.exec("unequip-ring2", t.player.unequip, "ring_of_charos_unlocked")
         t.exec("goto-talkToAlain", t.player.goto_tile, 2933, 3440, 0)
         t.exec("talkToAlain", t.player.talk_to, "farming_gardener_tree_1", 1)
@@ -305,7 +446,7 @@ return {
         t.exec("useEssenceOnCure", t.player.use_item_on_item, "rune_dust", "plant_cure")
         t.exec("strong", t.inv.await, "plant_cure_strong", 1, 10)
         t.exec("wear-ring3", t.player.equip, "ring_of_charos_unlocked")
-        t.exec("goto-useMagicalCureOnVine", t.player.goto_tile, 2915, 3533, 0)
+        bernald_in("useMagicalCureOnVine")
         t.exec("useMagicalCureOnVine", t.player.use_on, "plant_cure_strong", t.player.by_symbol("loc", "garden_burthorpe_vines"))
         t.ticks(4)
         t.expect("bernald.cured", t.var.expect("varb988_garden_bernald_varbit", 4))
@@ -313,7 +454,9 @@ return {
         t.exec("talkToBernaldForSeeds-dialog", t.chat.play, { "npc:The vines look wonderful" })
         t.exec("vine-seeds", t.inv.await, "garden_vine_seed", 4, 10)
         t.expect("bernald.done", t.var.expect("varb988_garden_bernald_varbit", 5))
-        t.exec("goto-garden", t.player.goto_tile, 3229, 3479, 0)
+        bernald_out("plantDelphinium")
+        varrock_teleport("plantDelphinium.varrockTeleport")
+        t.exec("goto-garden", t.player.goto_tile, 3230, 3478, 0)
         for _, p in ipairs(patches) do
             t.exec("rake" .. p[1], t.player.click_loc, p[2], 1)
             t.ticks(40)
@@ -374,6 +517,7 @@ return {
         t.expect("grown-orchid", t.var.expect("varb986_garden_orchids_yellow_varbit", 7))
         t.expect("grown-whitetree", t.var.expect("varb985_garden_white_tree_varbit", 8))
         -- Lumbridge
+        lumbridge_teleport("useTrolleyOnLumbridgeStatue.lumbridgeTeleport")
         t.exec("goto-lumbridgeStatue", t.player.goto_tile, 3231, 3219, 0)
         t.exec("useTrolleyOnLumbridgeStatue", t.player.use_on, "garden_trolley_obj", t.player.by_symbol("loc", "garden_lumbridge_statue"))
         t.ticks(4)
@@ -419,13 +563,15 @@ return {
             end
         end
         local lumpr, lumprow = t.npc.nearest("garden_trolley", 80)
-        t.check("pushLumbridgeStatue", lumpr == "ok", "trolley pushed to the plinth, now at " .. tostring(lumprow and lumprow.x) .. "," .. tostring(lumprow and lumprow.z))
+        t.check("pushLumbridgeStatue", lumpr == "ok" and math.abs(lumprow.x - 3233) <= 2 and math.abs(lumprow.z - 3487) <= 2,
+            "want within 2 of the king's plinth 3233,3487 (garden_statues.rs2 [proc,garden_trolley_place]); trolley pushed to the plinth, now at " .. tostring(lumprow and lumprow.x) .. "," .. tostring(lumprow and lumprow.z))
         t.exec("placeLumbridgeStatue", t.player.press, "garden_trolley", 5, 8)
         t.ticks(4)
         t.expect("king.placed", t.var.expect("varb964_garden_king_statue_varbit", 2))
         t.expect("trolley.empty", t.var.expect("varb965_garden_trolley_varbit", 0))
         t.exec("trolley-returned", t.inv.await, "garden_trolley_obj", 1, 10)
         -- Falador
+        falador_teleport("useTrolleyOnFaladorStatue.faladorTeleport")
         t.exec("goto-faladorStatue", t.player.goto_tile, 2965, 3383, 0)
         t.exec("useTrolleyOnFaladorStatue", t.player.use_on, "garden_trolley_obj", t.player.by_symbol("loc", "falador_statue_saradomin"))
         t.ticks(4)
@@ -469,7 +615,8 @@ return {
             end
         end
         local falpr, falprow = t.npc.nearest("garden_trolley", 80)
-        t.check("pushFaladorStatue", falpr == "ok", "trolley pushed to the plinth, now at " .. tostring(falprow and falprow.x) .. "," .. tostring(falprow and falprow.z))
+        t.check("pushFaladorStatue", falpr == "ok" and math.abs(falprow.x - 3230) <= 2 and math.abs(falprow.z - 3479) <= 2,
+            "want within 2 of Saradomin's plinth 3230,3479 (garden_statues.rs2 [proc,garden_trolley_place]); trolley pushed to the plinth, now at " .. tostring(falprow and falprow.x) .. "," .. tostring(falprow and falprow.z))
         t.exec("placeFaladorStatue", t.player.press, "garden_trolley", 5, 8)
         t.ticks(4)
         t.expect("sara.placed", t.var.expect("varb963_garden_saradomin_statue_varbit", 2))
@@ -483,7 +630,12 @@ return {
         t.ticks(2)
         t.expect("quest.stage.roald", t.quest.expect_stage("roald"))
         local snapr, snap = t.skill.snapshot()
-        t.exec("goto-roald", t.player.goto_tile, 3221, 3472, 0)
+        -- King Roald's room: the ante-room door from the garden side, then his.
+        t.exec("goto-roald", t.player.goto_tile, 3222, 3492, 0)
+        t.exec("talkToRoald.anteDoorIn", t.player.pass_door, { closed = "ds2_varrock_door", open = "ds2_varrock_door_open",
+            at = { 3222, 3491, 0 }, near = { 3222, 3492 }, far = { 3222, 3489 } })
+        t.exec("talkToRoald.roomDoorIn", t.player.pass_door, { closed = "ds2_varrock_door", open = "ds2_varrock_door_open",
+            at = { 3222, 3479, 0 }, near = { 3222, 3480 }, far = { 3222, 3477 } })
         t.exec("talkToRoald", t.player.talk_to, "king_roald", 1)
         t.exec("talkToRoald-dialog", t.chat.play, {
             "player:Ask King Roald to follow me",

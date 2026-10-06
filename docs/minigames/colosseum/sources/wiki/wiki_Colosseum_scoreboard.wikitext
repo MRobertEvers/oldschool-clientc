@@ -1,0 +1,26 @@
+{{Infobox Scenery
+|name = Colosseum scoreboard
+|image = [[File:Colosseum scoreboard.png|200px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|location = [[Fortis Colosseum]]
+|options = View, View-stats, View-glory
+|examine = Keeps track of progress in the Colosseum.
+|map = {{Map|name=Colosseum scoreboard|x=1804|y=9513|plane=0|mtype=pin|mapID=-1}}
+|id = 50747
+}}
+The '''colosseum scoreboard''' can be found on the inside of the [[Fortis Colosseum]] entrance. It can be viewed to see personal and global statistics for the Colosseum and the [[Glory]] from fighting within.
+
+As of [[1 October]] [[2026]], the global best glory achieved is '''60,543''', and the best time is '''13:30.60'''. The total waves completed are '''146,722,332''', total [[Sol Heredit]] kills are '''1,956,370''', and the total deaths are '''13,786,647'''.
+
+[[File:Colosseum scoreboard statistics detail.png|thumb|left|The interface of the scoreboard, showing the global Colosseum Statistics.]]
+
+[[File:Colosseum scoreboard glory detail.png|thumb|left|The interface of the scoreboard, showing the player's personal Glory.]]
+
+==Trivia==
+* Deaths that occur while fighting the [[Minotaur (Meat and Greet)|minotaur]] during [[Meat and Greet]] will count towards the scoreboard's death statistics.
+
+{{Fortis Colosseum}}
+{{Global scoreboard}}

@@ -1,0 +1,217 @@
+{{Update|date=05 June 2024|url=https://secure.runescape.com/m=news/pride-2024?oldschool=1|category=game}}
+[[File:Pride 2024 newspost.png|right]]
+{{clear}}
+__TOC__
+''We’re full of Pride this week, with the launch of 2024’s Pride Event!''
+
+==Changelog June 5th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Pride Event'''
+
+* Added the 2024 Pride Event! Speak to Kit north of Falador to get started.
+* Rewards from previous Pride Events can be obtained from Gilbert west of Varrock or Diango in Draynor Marketplace.
+
+'''Project Rebalance'''
+
+* Flames of Zamorak no longer counts as a Fire spell.
+* Reduced the health of Fremennik warbanders in the Fortis Colosseum from 50 to 48.
+* The Elder Maul can now be used to ring the gong outside the Bandosian quarter of the God Wars Dungeon and to build or upgrade the chest in Chambers of Xeric.
+* Salarin the Twisted will now respect the new Elemental Scaling changes. He’s not ''that'' twisted.
+* Removed Water weakness from the revenant pyrefiend, in line with other revenant weaknesses.
+* Added a 100% Fire weakness to Hespori.
+* Added Water weakness to superior wyrms and wyrmlings, to match their regular-sized counterparts.
+* Increased the Fire weakness of spiritual creatures in Nex’s prison from 100% to 200%.
+* HOTFIX: The Tome of Fire now calculates damage correctly during games of Last Man Standing.
+* HOTFIX: The Soulreaper Axe no longer periodically suffers from a lower Max Hit.
+* Magic thralls (or resurrected ghosts) should now function as they did prior to last week's update.
+
+'''Other Changes'''
+
+* The Inventory icon for the Gilded Spear now matches the Worn Items model.
+* The Collection Log entry for Scorpia now lists the Dragon 2-handed Sword, since she's able to drop them.
+* The animation for adding tips to Dragon Bolts no longer stalls your movement.
+* The resting soldier atop the Lizardman Canyon can now tell you your Lizardman killcount without you having to descend into the canyon.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med / Zerker / 1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Pride Event 2024==
+Pride has returned to Old School RuneScape, bringing with it a heartwarming event to enjoy. These events are our way of supporting our LGBTQIA+ players and the wider community – so wear your colours with pride as you dive in to our latest event!
+
+Your journey begins north of '''Falador,''' where you’ll find '''Kit Breaker''' and a frankly unworkable amount of luggage. Kit has big dreams of becoming a white knight, but they need your help to get there. This year, you’ll have '''four whole weeks''' to help him discover their true calling and embrace what makes him special.
+
+[[File:Pride 2024 (1).png|600px|center]]
+
+Along with the fuzzy feelings of having helped someone in need, you’ll also be rewarded with a colourful new Cape and a snazzy Pride Crown Shirt. Like the other Pride rewards, you can customise them with the colours of several different Pride flags – and of course, they match the rewards from previous years!
+
+[[File:Pride 2024 (2).png|600px|center]]
+
+If you missed out on any of the rewards from previous years, don’t panic! As with any Old School RuneScape event, you can claim your rainbow goodies from Diango in Draynor or from Gilbert west of Varrock.
+
+==In-Game March with J-Mods==
+We know that not everyone is able to attend Pride marches in person – but you can still celebrate here in Gielinor, by taking part in our official Old School Pride march!
+
+Here's the deets:
+
+'''Date''': June 6th 2024
+
+'''Time:''' 17:00 BST - 18:00 BST ''(Be sure to check out our event livestream, too! Details below.)''
+
+===Worlds:===
+
+* '''500 - UK - Livestream'''
+* '''571 - AU'''
+* '''476 - USE'''
+* '''435 - USW'''
+
+The march will set off from Gilbert’s flower patch near the bridge west of Varrock. To take part, rock up to the start point in your finest rainbow FashionScape and follow your J-Mod of choice! Make sure you have ‘walk’ enabled to allow everyone to keep pace.
+
+Don’t forget the fancy chat command to turn your overhead speech rainbow colours! Just type ‘rainbow:’ before your message in the Chat Box.
+
+Here’s the route map:
+
+[[File:Pride 2024 (3).png|600px|center]]
+
+Maybe this is the year the J-Mods all remember to follow it!
+
+==Pride Livestream and T-Shirt Giveaway!==
+[[File:Pride 2024 (4).png|600px|center]]
+
+Join us on [https://www.twitch.tv/oldschoolrs Twitch ] for a playthrough of the event on '''June 6th''', followed by an in-game Pride march!
+
+We want everyone to feel safe and included during the event, so please note that our Player Support Teams will be on-hand to remove anyone spoiling the fun. This is an event to celebrate our LGBTQIA+ players, and we will not tolerate intimidation or harassment.
+
+The livestream will begin at approximately '''16:30 BST''', beginning with a playthrough of the event and ending with our in-game Pride march. Throughout the stream, we'll be running giveaways for five of our real life Pride t-shirts! Check out the terms and conditions [https://osrs.game/Pride2024-Giveaway-T&Cs here]!
+
+Whether you’re LGBTQIA+ or an ally looking to show your support – let’s show our Pride!
+
+==Pride T-Shirts!==
+[[File:Pride 2024 (5).jpg|600px|center]]
+
+Beam with PRIDE by wearing the official RuneScape and Old School RuneScape T-shirt, designed in conjunction with both games' Pride Events!
+
+This stylish and comfortable t-shirt not only makes you look good on the outside but will also make you feel good on the inside, as proceeds will go to charity! Donations will be based on all revenue received by the store from sales of the tees, minus shipping and credit card fees, cost of the garment and printing, and 5% to cover admin and fulfilment costs.
+
+[[File:Pride 2024 (6).jpg|600px|center]]
+
+We’re partnering with [https://www.akt.org.uk/ AKT], a national charity that specialises in working with young LGBTQIA+ people who are homeless, at risk of homelessness, or living in hostile environments.
+
+Orders yours now from the [https://runescape.backstreetmerch.com/ merch store]! This is a limited edition item, only available during Pride Month.  Closing date for orders is July 3rd, so get one while you can!
+
+==Project Rebalance Changes and Fixes==
+Last week we made a number of significant changes including the introduction of Elemental Weaknesses, split-up Ranged Defence types and a number of item-specific rebalances. All things considered, we're extremely happy with how the changes landed!
+
+We still plan to pay careful attention to balancing over the coming months so we can see the full picture, rather than making knee-jerk changes while the system is still settling. However, we do have a handful of small fixes for bugs introduced in last week’s update.
+
+We’ll rip the bandage off early – Flames of Zamorak no longer counts as a Fire spell. Unbeknownst to us, this error has been in the game for about seven years, and we simply overlooked it when it came to Project Rebalance. We’re open to readjusting this designation in future, but we’ll be taking a more measured approach.
+
+Over to the Fortis Colosseum now, where the melee Fremennik warbander has been taking ''two ''hits to kill instead of one – a noticeable difficulty increase. To offset this, we’re reduced his HP from 50 to 48 so you can now one-shot him in peace.
+
+The Elder Maul saw quite a resurgence last week, having displaced the Dragon Warhammer as the best-in-slot for Defence reduction. Sadly, this mighty weapon just didn’t stack up against the humble utility of the, er, ''regular Hammer. ''As of this week, you’ll be able to use the Elder Maul to ring the gong outside the Bandosian quarter of the God Wars Dungeon or to build and upgrade the chest in Chambers of Xeric. We’re not sure how you’ll manage that with a hammer whose handle is the size of your entire body, but we expect you’ll do it with extreme caution!
+
+In our last change before the usual bunch of smaller fixes, Salarin the Twisted will now respect players’ Magic level. The inner workings of this NPC are a mystery even to us, but in short, he’ll now treat your Strike spells as Bolt spells, which means Wind Strike should now have the same Max Hit as your highest unlocked Bolt spell against this dastardly druid. Salarin has refused to apologise, which we suppose is our fault for making him so twisted in the first place.
+
+Finally, some hotfixes and smaller changes:
+
+* Removed Water weakness from the revenant pyrefiend, since revenants aren’t supposed to inherit their pre-ghost weaknesses!
+* Added a 100% Fire weakness to Hespori.
+* Added Water weakness to superior wyrms and wyrmlings, to match their regular-sized counterparts.
+* Increased the Fire weakness of spiritual creatures in Nex’s prison from 100% to 200%.
+* HOTFIX: The Tome of Fire now calculates damage correctly during games of Last Man Standing.
+* HOTFIX: The Soulreaper Axe no longer periodically suffers from a lower Max Hit.
+
+==Deadman: All-Stars==
+A couple of weeks ago, we gave all of you a first look at 2024's Deadman: Armageddon. Since then, we've polled a number of main game cosmetic rewards and all of them will be making their way to the game on August 3rd!
+
+Behind the scenes, snakey Solo Mission approached us with a pitch we couldn’t refuse, and it’s guaranteed to put you in the Deadman mood.
+
+Deadman: All-Stars pits 30 of your favourite creators together in a 5v5v5v5v5v5 (that's six teams of five, in case you weren't counting) week-long battle to the death. Team captains Odablock, Solo Mission, Dino, Torvesta, B0aty and Faux will draft four players from a roster of superstars, including A Cold One, Alfie, Coxie, DitterBitter, Donator, Eliop14, Gunschilli, Jcw, Mazhaw, Mika, MMORPG, Mr. Mammal, Muts, Pip, Port Khazard, Purpp, Raikesy, Rhys, Roidie, Sick Nerd, Skiddler, Skill Specs, V the Victim and Westham. From Friday, June 14th to Saturday, June 22nd, they’ll work to build up their gear and give their team the best odds in a first-of-its-kind Finale format.
+
+The Finale will be streamed live on our [https://www.twitch.tv/oldschoolrs Twitch channel] on Saturday, June 22nd. The twist? Teams will choose an order to send their members out in and fight 1 vs. 1, with the previous bout's winner remaining in the ring to take on their next opponent with whatever supplies they have left over.
+
+Deadman: All-stars is a one-of-a-kind event you won’t want to miss, but don’t take our word for it: check out the video below (or click [https://www.youtube.com/watch?v=1dLLidzD2Hs here]) to hear all about it from the Serpent King, Solo Mission himself!
+
+<center>{{Youtube|1dLLidzD2Hs}}</center>
+
+==Other Changes==
+As per usual, it's time to round off this week with some smaller changes!
+
+* The Inventory icon for the Gilded Spear now matches the Worn Items model.
+* The Collection Log entry for Scorpia now lists the Dragon 2-handed Sword, since she's able to drop them.
+* The animation for adding tips to Dragon Bolts no longer stalls your movement.
+* The resting soldier atop the Lizardman Canyon can now tell you your Lizardman killcount without you having to descend into the canyon.
+
+==Merch Updates==
+Last week we had a small section celebrating RuneScape Kingdoms: Shadow of Elvarg being shortlisted for an award at the UK Games Expo. We just wanted to take a moment to thank everyone who voted for us, because Shadow of Elvarg won the People’s Choice award for Best Boardgame (American Style)! We reckon we’ll celebrate with a session or two... but for now, let’s see the rest this week’s Merch Updates!
+
+===RuneScape Kingdoms TTRPG Coming to Free RPG Day!===
+[[File:Pride 2024 (7).png|600px|center]]
+
+If you’re interested in RuneScape Kingdoms: The Roleplaying Game but don’t know where to start, then boy do we have exciting news for you!
+
+Our friends at Steamforged Games have announced that for this year’s Free RPG Day on June 22nd, RuneScape Kingdoms: The Roleplaying Game will be getting a free Quick Start Guide!
+
+Free RPG Day is an annual event that takes place on June 22nd. Local gaming stores in the US and worldwide can sign up to participate, and will receive a box of special RPG content – including the RuneScape Kingdoms Quick Start Guide! Copies are limited, so if you want to get your hands on one you’ll need to enquire at your nearest participating store, which you can find [https://freerpgday.com/gamers here].
+
+There may be RPG sessions for you to join in with, or, if you’re an experienced GM, you can even volunteer to run one yourself!
+
+[[File:Pride 2024 (8).png|600px|center]]
+
+The RuneScape Kingdoms Quick Start Guide includes core rules for running an adventure, a pre-written one-shot campaign with suggested player profiles, and the necessary bestiary! It’s all you need to get started with RuneScape Kingdoms: The Roleplaying Game – and if you like it, you can pick up the full core rule book, too!
+
+RuneScape Kingdoms: The Roleplaying Game is available at your local hobby gaming store, online, or direct from [https://steamforged.com/en-eu/collections/runescape-kingdoms Steamforged Games ] and the[https://runescape.backstreetmerch.com/  Official Merch Store]. We still have copies of both the Standard and Collector’s Editions, so take your pick!
+
+RuneScape Kingdoms: The Roleplaying game is a Tabletop Roleplaying Game. Unlike your standard board game, roleplaying games have infinite possibilities for adventure! All you need to play is the core rule book (or the Quick Start Guide!), a pen, paper, and some dice. Oh, and you’ll need to invite your most adventurous friends to play it with you!
+
+Happy Free RPG Day, everyone – and let us know how your adventure goes!
+
+===RuneScape: Gift of Guthix===
+The first of our three original novels launched on May 14th, and the reviews are in!
+
+[[File:Pride 2024 (9).png|600px|center]]
+
+We’re thrilled to see how much you love The Gift of Guthix. If you read and enjoyed the novel, don’t forget to post your review and let author @erinmevans know how much you liked it!
+
+Erin is already hard at work writing the third novel in the series, due to be published next year.
+
+We’re also delighted to announce that a second novel will be published in early November! ''RuneScape: The Fall of Hallowvale ''is written by Robbie MacNiven, and tells the harrowing tale of the God Wars’ greatest conflict.
+
+If you’re yet to get your hands on a copy of The Gift of Guthix, you can pick one up direct from our friends at[https://titanbooks.com/71617-runescape-the-gift-of-guthix/  Titan Books] , or from a number of online retailers. Find them all on[https://titanbooks.com/71616-runescape-the-fall-of-hallowvale/  this page]!
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>'  loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

@@ -1,0 +1,223 @@
+{{Update|date=12 February 2025|url=https://secure.runescape.com/m=news/royal-titans-feedback--12th-birthday-celebrations?oldschool=1|category=game}}
+[[File:Royal Titans Feedback & 12th Birthday Celebrations newspost.jpg|right]]
+{{clear}}
+__TOC__
+''This week we’re gathering your feedback on the Royal Titans and preparing for an unforgettable Birthday livestream!''
+
+==Changelog February 12th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Royal Titans Changes'''
+
+* Players can now exchange Giantsoul Amulets with the Odd Old Man for 30 Big Bones each.
+* World 567 is now the suggested Royal Titans world.
+* The enrage slam animation is no longer delayed by a tick on certain occasions.
+* Fixed a bug where a Titan’s body disappeared upon death, its base persisted after respawning, and ice remained in the arena for the next fight.
+* The Prayer filter will no longer show older Prayer icons after they are upgraded.
+* Teleporting out of the Royal Titans boss arena will now nullify any incoming damage to prevent death.
+* Tagged minion hitboxes have been scaled down and no longer take up so much space.
+* On sacrifice, if a player doesn't receive the pet, a message will appear in the chatbox to say: "You don't feel lucky during your sacrifice".
+
+'''Client and Mobile Updates'''
+
+* The HiScores panel now remembers the previously searched data set.
+* Failed HiScore searching now displays new UI and text within the search bar.
+* Added a new toggle which allows chat filters to always show, even when chat is collapsed.
+* The HiScores popout panel will now auto-open when the player uses the in-world lookup feature.
+* Mobile users can now hide split private chat when the chatbox is closed.
+* The Barrows Interface no longer gets stuck behind the Minimap interface.
+* Adjusted the deadzones around the chatbox and the left side on the mobile client.
+* Menus now appear in front of Minimap orbs, and important functions like the close button won't be blocked when they overlap.
+* Certain hotkeys with a corresponding checkbox or toggle in the Settings menu now correctly sync to the correct state.
+* The loot tracker no longer shows incorrect truncated numbers on the enhanced client.
+* When using the hotkey side panel, the buff bar now dodges as it would if the player used the right-side stones.
+
+'''Poll 83 Improvements'''
+
+* Players can now "Reset" birdhouses, allowing you to dismantle an existing birdhouse and automatically build and place a new one. The clockwork mechanism from the previous birdhouse is reused.
+* Players can now build and place a birdhouse directly on an empty patch with a single click, provided they have all the necessary tools and materials.
+* Both of the above changes will use pre-made birdhouses you carry with you before attempting to make one out of bits.
+* Net traps used to catch Salamanders can now be reset automatically.
+* Players can now trade in duplicate Hunter Guild uniques with Verity in exchange for a reroll on the Master Sack loot table (excluding uniques and the pet).
+** Eligible items include: Enhanced Quetzal Whistle Blueprint, Perfected Quetzal Whistle Blueprint, Huntsman's Kit, or any of the four Guild Hunter gear pieces.
+* When using the Alchemy spell on the Explorer’s Ring, Runes will now be used from your Inventory before consuming the Ring’s daily charges. If no Runes are available, the Explorer’s Ring will automatically provide the necessary charges to cast the spell.
+* Enchant Jewellery will now convert the first jewellery in the Inventory, rather than the specific jewellery it was cast on.
+
+'''Other Changes'''
+
+* The Pendant of the Ates now includes all minimenu teleport sub-options
+* Camera shake effects for the following events can now be toggled on or off in the settings: Baba Yaga's house, Fishing Trawler, Looted Barrows chests, Lizardman Shaman jumps, Great Olm's falling crystals, Falling rocks in the Monkey Madness tunnels.
+** Note: If you turn the camera shake off in the Monkey Madness tunnels, you will still be warned of impending crushing doom by a shadow briefly appearing under your character before rocks fall, providing a clearer visual cue for incoming damage.
+* Reviewed and corrected recolouring inconsistencies across the game. As a result, some NPCs and locations have received slight visual adjustments. Most notably, the Blessed Sickle is brighter than before, making it easier to distinguish from its non-blessed variant.
+* Fixed a bug that occurred when switching out a Draynor Manor teleport from a teak portal.
+* Fixed a bug where Verac's set effect was ignoring damage immunity checks.
+* You can no longer accidentally get repeat Jad or Zuk tasks by cancelling them through teleport.
+* Rewrote the text that appears in your Bank's potion storage when it's empty, aiming to make it a bit clearer.
+* The Grouping interface now correctly recognizes when a player has joined the Mage Training Arena chat channel.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Royal Titans: A Titanic Success!==
+Well, well, well… looks like you lot can’t get enough of fighting massive, furious, elemental juggernauts. Who would've thought?
+
+It’s been awesome seeing players gather at the entrance, teaming up, and working out strategies before diving into battle. Newer players are getting the hang of gear switching and mechanics, while the PvM veterans are pushing the fight to its limits with optimizations we didn’t even expect. One of our biggest goals with this boss was to ease players into gear switching by making it a core part of the encounter - dodging fire and ice, handling minions, and keeping up with changing threats. From what we’re seeing, mission accomplished!
+
+[[File:Royal Titans Feedback & 12th Birthday Celebrations (1).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-02-12/Cave.jpg here]!'']]
+
+The Royal Titans fill an important PvM space in the mid-game. Players usually start their PvM journey with Scurrius, Barrows, and Fire Cape attempts before moving into more complex content. The Titans sit comfortably in that progression, helping bridge the gap before stepping into fights like Zulrah. Learning gear-switching and movement mechanics here will set you up nicely for tougher encounters like Raids.
+
+A lot of the mechanics were inspired directly by the community, including the addition of Desiccated Pages, which have been a big hit. You've also enjoyed the new Prayer Scrolls, which are particularly popular among Iron players attempting the Corrupted Gauntlet.
+
+===Bug Fixes and Improvements===
+As the dust settles, we’ve taken the time to make some changes based on your feedback:
+
+* Players can now exchange Giantsoul Amulets with the Odd Old Man for 30 Big Bones each.
+* World 567 is now the suggested Royal Titans world.
+* The enrage slam animation is no longer delayed by a tick on certain occasions.
+* Fixed a bug where a Titan’s body disappeared upon death, its base persisted after respawning, and ice remained in the arena for the next fight.
+* The Prayer filter will no longer show older Prayer icons after they are upgraded.
+* Teleporting out of the Royal Titans boss arena will now nullify any incoming damage to prevent death.
+* Tagged minion hitboxes have been scaled down and no longer take up so much space.
+* On sacrifice, if a player doesn't receive the pet, a message will appear in the chatbox to say: "You don't feel lucky during your sacrifice".
+
+There are some other points of feedback we’d like to address today.
+
+''Minion Attack Delay Adjustments''
+
+Right now, when minions are killed, the Titans’ attack delay is reduced - one tick per minion. If all three are taken out at once, the next attack happens three ticks sooner. Some players have suggested removing this delay entirely, but we feel that could be a bit too strong. For now, we’re happy, but we’re keeping an eye on it.
+
+''Looting Mechanics''
+
+Soloing the fight? You’ll still only get one set of loot. If you're taking the titans down as a pair, your regular loot and unique chances will scale depending on your damage contribution. This boss was designed with duo play in mind, and we wanted to take a key learning from Scurrius by calculating pet rolls without taking contribution into account. In short, the more Titans you take down, the better your odds of getting the pet!
+
+''Entry Restrictions''
+
+Once the Titans’ HP drops below 85%, no new players can enter the fight. This prevents issues with reward distribution, protects GIM prestige, and ensures future Combat Achievement balance, but it is something we'll continue to think about.
+
+''Grouping System''
+
+No official grouping system is planned, but we’ve allocated four Royal Titans worlds and updated the grouping Clan Chat world to make finding a partner easier. And if all else fails, there’s always the community Discord!
+
+''Future Use for Giantsoul Amulets?''
+
+Many of you have asked if extra Giantsoul Amulets will have another purpose. Well, we know an NPC who knows a thing or two about bones... and the Odd Old Man is always interested in a good trade!
+
+The Royal Titans have brought a fresh and engaging mid-level PvM experience to Old School RuneScape, and we’ve loved seeing players take on the challenge. We’ll continue monitoring feedback and making adjustments where needed, but for now, keep the discussions going, keep refining your strategies, and most importantly - keep taking on the Titans!
+
+==The Big 1-2! A Livestream Birthday Bash to Behold…==
+Old School RuneScape is turning 12 this month! While the in-game event arrives next week, we’re kicking off the festivities early with some chaotic, nostalgic, and maybe even cake-fueled activities. Join us on '''February 20th from 16:30 to 18:00 GMT''' over on the [https://www.twitch.tv/oldschoolrs OldSchoolRS Twitch channel] for a celebratory livestream!
+
+===J-Mod Castle Wars: Ultimate Escort Edition===
+We’re taking your classic Castle Wars experience and turning it into something truly chaotic. Two J-Mods will battle it out in a special Castle Wars game mode, with Mods Kieren and Rice acting as your team’s not-so-subtle secret weapons. They’re walking, talking, tanky targets!
+
+Here's the breakdown:
+
+* At the start of the game, the enemy J-Mod will yeet themselves (technical term) directly into your base to steal your flag. Rude.
+* But these ain't no ordinary J-Mods... Their HP will be buffed to the nines and they'll be tankier than a full Justiciar enjoyer at the Inferno, so don’t expect them to be an easy takedown.
+* Your mission? Defend your base by preventing the enemy J-Mod from escaping, or race to the rescue and escort your J-Mod home safely!
+
+J-Mod Rules:
+
+* J-Mods must walk only - no running allowed!
+* J-Mods can only start moving at the 18-minute mark, giving you and your team time to build up a strategic defence.
+* J-Mods can attack you back, including Chins and Barrage! So watch your back and be ready with those protection Prayers.
+* J-Mods will pick their gear before the match starts - so no sneaky swaps mid-game.
+* Underground tunnels are off-limits to J-Mods… unless they want to be obliterated by falling rocks.
+
+===Bake Off: Gielinor Edition===
+Got a sweet tooth and a love for all things OSRS? Bake an OSRS-Themed Birthday Cake for our competition and be in with a chance to win some amazing prizes! You’ve got until February 17th to put on your Cooking Gauntlets and whip up a cake worthy of the gods (or at least one that won’t get insta-binned by the Lumbridge Cook).
+
+* When? February 10th (09:00 GMT) to February 17th (21:00 GMT)
+* Submit your culinary creations to the [https://osrs.game/Discord-Birthday-Cakes #birthday-cakes] channel on Discord or post them on [https://www.reddit.com/r/2007scape/comments/1im25ak/competition_bake_an_osrsthemed_birthday_cake/ Reddit].
+
+The top three cakes will be shown on stream, and Twitch chat will pick the ultimate winner!
+
+A grand prize for the Champion Baker includes:
+
+* A RuneScape Kingdoms: Shadow of Elvarg board game
+* A RuneScape Cookbook
+* A whole YEAR of membership
+
+[[File:Royal Titans Feedback & 12th Birthday Celebrations (2).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-02-12/prizes.jpg here]!'']]
+
+===Tattoo Shenanigans===
+Mods Jerv (Concept Artist) and Skylark (Character Artist) have been ink-spired by your [https://discord.com/channels/324132423636090880/1333487319218520127 #tattoo-suggestions] on Discord and have been hard at work sketching up some OSRS-themed masterpieces. What did they come up with? A majestic Saradomin eagle? A full-back tattoo of the Wise Old Man’s luscious beard? Tune in to find out!
+
+And lastly, don’t forget to drop your nostalgic RuneScape memories in the [https://discord.com/channels/324132423636090880/1333485487817756786 #12-yrs-of-memories channel] on Discord! Whether it’s your first 99, that unforgettable PKing moment, or the time you spent three hours lost in the Brimhaven Dungeon (we’ve all been there), we’d love to see them!
+
+It’s time to party like it’s 2013 - see you there!
+
+==Poll 83 Improvements==
+
+* Players can now "Reset" birdhouses, allowing you to dismantle an existing birdhouse and automatically build and place a new one. The clockwork mechanism from the previous birdhouse is reused.
+* Players can now build and place a birdhouse directly on an empty patch with a single click, provided they have all the necessary tools and materials.
+* Both of the above changes will use pre-made birdhouses you carry with you before attempting to make one out of bits.
+* Net traps used to catch Salamanders can now be reset automatically.
+* Players can now trade in duplicate Hunter Guild uniques with Verity in exchange for a reroll on the Master Sack loot table (excluding uniques and the pet).
+** Eligible items include: Enhanced Quetzal Whistle Blueprint, Perfected Quetzal Whistle Blueprint, Huntsman's Kit, or any of the four Guild Hunter gear pieces.
+* When using the Alchemy spell on the Explorer’s Ring, Runes will now be used from your Inventory before consuming the Ring’s daily charges. If no Runes are available, the Explorer’s Ring will automatically provide the necessary charges to cast the spell.
+* Enchant Jewellery will now convert the first jewellery in the Inventory, rather than the specific jewellery it was cast on.
+
+==Client and Mobile Updates==
+
+* The HiScores panel now remembers the previously searched data set.
+* Failed HiScore searching now displays new UI and text within the search bar.
+* Added a new toggle which allows chat filters to always show, even when chat is collapsed.
+* The HiScores popout panel will now auto-open when the player uses the in-world lookup feature.
+* Mobile users can now hide split private chat when the chatbox is closed.
+* The Barrows Interface no longer gets stuck behind the Minimap interface.
+* Adjusted the deadzones around the chatbox and the left side on the mobile client.
+* Menus now appear in front of Minimap orbs, and important functions like the close button won't be blocked when they overlap.
+* Certain hotkeys with a corresponding checkbox or toggle in the Settings menu now correctly sync to the correct state.
+* The loot tracker no longer shows incorrect truncated numbers on the enhanced client.
+* When using the hotkey side panel, the buff bar now dodges as it would if the player used the right-side stones.
+
+==Other Changes==
+
+* The Pendant of the Ates now includes all minimenu teleport sub-options
+* Camera shake effects for the following events can now be toggled on or off in the settings: Baba Yaga's house, Fishing Trawler, Looted Barrows's chests, Lizardman Shaman jumps, Great Olm's falling crystals, Falling rocks in the Monkey Madness tunnels.
+** Note: If you turn the camera shake off in the Monkey Madness tunnels, you will still be warned of impending crushing doom by a shadow briefly appearing under the your character before rocks fall, providing a clearer visual cue for incoming damage.
+* Reviewed and corrected recolouring inconsistencies across the game. As a result, some NPCs and locations have received slight visual adjustments. This includes a variety of items, most notably the blessed sickle which is brighter than before, making it easier to distinguish from its non-blessed variant.
+* Fixed a bug when switching out a Draynor Manor teleport from a teak portal.
+* Fixed a bug where Verac's set effect was ignoring damage immunity checks, such as those belonging to the mages at Nex.
+* You can no longer accidentally get repeat Jad or Zuk tasks by cancelling them through teleport.
+* We've rewritten the text that appears in your bank's potion storage when it's empty, aiming to make it a bit clearer.
+* The Grouping interface now correctly recognizes when a player has joined the Mage Training Arena chat channel.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1ino9pl/game_update_royal_titans_feedback_changes_more/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Rach, Redfield, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

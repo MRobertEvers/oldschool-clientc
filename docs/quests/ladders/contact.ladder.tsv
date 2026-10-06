@@ -1,0 +1,20 @@
+# ladder contact quest_dir=quest_contact guide=src/main/java/com/questhelper/helpers/quests/contact/Contact.java steps=17 legs=1:1-17@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToHighPriest	NpcStep	npc:ics_little_hipriest_vis	3281,2772,0	Talk to the High Priest in Sophanem.			Yes. | Sounds like a quest for me; I can't turn that down! …	quests/quest_icthlarin/scripts/icthlarin_pyramid.rs2:405 opnpc1; +1
+1	2	30	talkToJex	NpcStep	npc:contact_jex	3312,2799,0	Talk to Jex in the building in north east Sophanem.				quests/quest_contact/scripts/contact_jex.rs2:6 opnpc1
+1	3	40	goDownToBank	ObjectStep	loc:contact_temple_trapdoor_open	3315,2797,0	Go down the ladder east of Jex.		A light source		quests/quest_contact/scripts/contact_jex.rs2:27 oploc1
+1	4	40	goDownToDungeon	ObjectStep	loc:contact_ladder_barricaded	2766,5130,0	Go down the trapdoor.		=		quests/quest_contact/scripts/contact_dungeon.rs2:17 oploc1
+1	5	40	goDownToChasm	ObjectStep	loc:contact_ug_boss_ladder	2116,4365,2	Be careful of traps, and follow the path to the south west ladder. Disarm traps where the path breaks, and use protection prayers against the monsters.				quests/quest_contact/scripts/contact_dungeon.rs2:36 oploc1
+1	6	40	searchKaleef	ObjectStep	loc:contact_dead_body_kaleef?	2284,4315,0	Follow the path along, and search Kaleef's corpse there.				
+1	7	40	readParchment	DetailedQuestStep			Read the parchment		Parchment		
+1	8	40	talkToMaisa	NpcStep	npc:contact_maisa	2258,4317,0	Talk to Maisa on the west side of the chasm.			Draynor Village. | Leela.	quests/quest_contact/scripts/contact_maisa.rs2:12 opnpc1; +1
+1	9	60	talkToOsman	NpcStep	npc:contact_osman_multi	3287,3179,0	Talk to Osman in Al Kharid.			I want to talk to you about Sophanem. | It could drive a we…	quests/quest_contact/scripts/contact_osman.rs2:11 opnpc1
+1	10	70	talkToOsmanOutsideSoph	NpcStep	npc:contact_osman_desert_multi	3285,2812,0	Talk to Osman north of Sophanem.			I know of a secret entrance to the north.	quests/quest_contact/scripts/contact_osman.rs2:60 opnpc1
+1	11	80	goDownToBankAgain	ObjectStep	loc:contact_temple_trapdoor_open	3315,2797,0	Prepare to fight a level 191 Giant Scarab. Go down the ladder east of Jex.		A light source; Combat gear, preferably magic/ranged		quests/quest_contact/scripts/contact_jex.rs2:27 oploc1
+1	12	80	goDownToDungeonAgain	ObjectStep	loc:contact_ladder_barricaded	2766,5130,0	Go down the trapdoor.		A light source		quests/quest_contact/scripts/contact_dungeon.rs2:17 oploc1
+1	13	80	goDownToChasmAgain	ObjectStep	loc:contact_ug_boss_ladder	2116,4365,2	Be careful of traps, and follow the path to the south west ladder. Disarm traps where the path breaks, and use protection prayers against the monsters.				quests/quest_contact/scripts/contact_dungeon.rs2:36 oploc1
+1	14	80	killGiantScarab	NpcStep	npc:contact_scarab_boss	2272,4323,0	Kill the Giant Scarab near the chasm. It can extinguish your light source and poison you, so be careful. Pray melee if you are meleeing it, range if you are at…				quests/quest_contact/scripts/contact_scarab.rs2:22 opnpc2; +1
+1	15	110	talkToOsmanChasm	NpcStep	npc:contact_osman_cave_instance	2272,4323,0	Talk to Osman in the chasm.				quests/quest_contact/scripts/contact_osman.rs2:82 opnpc1
+1	16	110	pickUpKeris	ItemStep	obj:contact_keris		Pick up the Keris.		Keris		skill_combat/scripts/weapon_poison.rs2:39 opheldu
+1	17	120	returnToHighPriest	NpcStep	npc:ics_little_hipriest_vis	3281,2772,0	Report back to the High Priest in Sophanem.				quests/quest_icthlarin/scripts/icthlarin_pyramid.rs2:405 opnpc1; +1

@@ -2452,6 +2452,16 @@
           "url": "https://oldschool.runescape.wiki/w/Law_talisman?oldid=15284766",
           "revision": 15284766,
           "retrieved": "2026-08-17"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Twig?oldid=15326896",
+          "revision": 15326896,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Berry?oldid=15326895",
+          "revision": 15326895,
+          "retrieved": "2026-10-06"
         }
       ],
       "npc_gamevals": [
@@ -2461,7 +2471,9 @@
         "troll_prison_guard2/_awake (Berry)",
         "troll_godric/troll_eadgar",
         "death_ig_commander/death_smithy",
-        "troll_spectator1..7"
+        "troll_spectator1..7",
+        "troll_prison_guard1_awake: Twig (npc 4131) version 1 \"Awake\" (id 4131): 90 hitpoints, 40/90/25 attack/strength/defence, magic 0, ranged 0, crushattack 20, strengthbonus 20, crushdefence 10, magicdefence 200, rangedefence 200, crush, attack speed 6, not aggressive, max hit 13 from ~npc_melee_maxhit (configs/all.npc:115295 agrees) (quests/quest_troll/configs/quest_troll.npc)",
+        "troll_prison_guard2_awake: Berry (npc 4132) version 1 \"Awake\" (id 4132): 90 hitpoints, 40/90/25 attack/strength/defence, magic 0, ranged 0, crushattack 20, strengthbonus 20, crushdefence 10, magicdefence 200, rangedefence 200, crush, attack speed 6, aggressive, max hit 13 from ~npc_melee_maxhit (configs/all.npc:115337 agrees) (quests/quest_troll/configs/quest_troll.npc)"
       ],
       "item_gamevals": [
         "death_climbingboots",
@@ -3708,15 +3720,68 @@
       "encounter_summary": "Scorpions (14); Arzinian Being of Bordanzan/Avatar (75–125)",
       "plan_line": 119,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Arzinian_Avatar_of_Strength?oldid=15200005",
+          "revision": 15200005,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Arzinian_Avatar_of_Ranging?oldid=15200004",
+          "revision": 15200004,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Arzinian_Avatar_of_Magic?oldid=15200003",
+          "revision": 15200003,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Arzinian_Being_of_Bordanzan?oldid=15362316",
+          "revision": 15362316,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "dwarf_rock_avatar_warrior_green: Arzinian Avatar of Strength level 125 (npc 1228), 100 hitpoints, 110/100/95 attack/strength/defence, crush, attack speed 4, aggressive, max hit 11 (falls out of 100 strength), defence 20/20/20 stab/slash/crush, 15 magic, 80 ranged (wiki infobox; cache all.npc stat1-6 110/95/100/100/0/0 agrees) (quest_betweenarock/configs/betweenarock.npc)",
+        "dwarf_rock_avatar_warrior_yellow: Arzinian Avatar of Strength level 75 (npc 1229), 70 hitpoints, 70/65/50 attack/strength/defence, crush, speed 4, max hit 7, defence 15/15/15, 10 magic, 40 ranged (wiki; cache 70/50/65/70/0/0 agrees)",
+        "dwarf_rock_avatar_warrior: Invincible version (npc 1227, never spawned), 200 hitpoints, 150/130/120, max hit 14, cache defences 20/20/20/20",
+        "dwarf_rock_avatar_archer_green: Arzinian Avatar of Ranging level 125 (npc 1231), 100 hitpoints, attack 10, strength 100, defence 120, ranged 110, Ranged, speed 4, rangebonus_ammo 10, max hit 14 (~npc_ranged_maxhit), defence 15/15/15, 80 magic, 20 ranged (wiki; cache 10/120/100/100/110/0 agrees); [ai_opplayer2] ~npc_rangeattack",
+        "dwarf_rock_avatar_archer_yellow: Arzinian Avatar of Ranging level 75 (npc 1232), 70 hitpoints, 10/40/75 attack/strength/defence, ranged 75, rangebonus_ammo 5, max hit 9, defence 10/10/10, 40 magic, 15 ranged (wiki; cache 10/75/40/70/75/0 agrees)",
+        "dwarf_rock_avatar_archer: Invincible version (npc 1230, never spawned), 200 hitpoints, ranged 140, rangebonus_ammo 19 (cache), cache defences 20/20/20 and 120 magic",
+        "dwarf_rock_avatar_mage_green: Arzinian Avatar of Magic level 125 (npc 1234), 100 hitpoints, attack 10, strength 90, defence 120, magic 120, Magic, speed 4, magic_maxhit 13, defence 80/80/80, 20 magic, 15 ranged (wiki; cache 10/120/90/100/0/120 agrees); [ai_opplayer2] ~npc_generic_magicattack",
+        "dwarf_rock_avatar_mage_yellow: Arzinian Avatar of Magic level 75 (npc 1235), 70 hitpoints, 10/50/75 attack/strength/defence, magic 75, magic_maxhit 8, defence 40/40/40, 15 magic, 10 ranged (wiki; cache 10/75/50/70/0/75 agrees)",
+        "dwarf_rock_avatar_mage: Invincible version (npc 1233, never spawned), 200 hitpoints, magic 150, magic_maxhit 15, cache defences 120/120/120 and 20 magic",
+        "dwarf_rock_actual_demon: Arzinian Being of Bordanzan (npc 1236), Infobox NPC, Talk-to only, never fought (wiki: inaccessible in the centre of the flames) -- no combat block",
+        "scorpion: the page-1 scorpion (level 14) fights on npc/configs/combat_stats.generated.npc's block (17 hitpoints)"
+      ],
+      "item_gamevals": [
+        "gold_ore: 6-14 held at the central flame spawns the level-125 (_green) Avatar, 15+ the level-75 (_yellow) one (^dwarfrock_gold_ore_needed / ^dwarfrock_gold_ore_reduced)",
+        "dwarf_goldrock_helmet: must be worn to approach the flame and to stay in the realm"
+      ],
+      "loc_gamevals": [
+        "dwarf_firewall_centre_straight / dwarf_firewall_centre_diagonal: the central wall of flame; op1/op2 spawn the Avatar"
+      ],
+      "trigger_handlers": [
+        "label:dwarfrock_face_avatar / proc:dwarfrock_spawn_avatar (style counters the player's highest base stat; tier by gold ore held; betweenarock_realm.rs2)",
+        "opnpc2:dwarf_rock_avatar_* (nine, @dwarfrock_avatar_attack -> @player_combat_start; betweenarock_realm.rs2)",
+        "ai_opplayer2:dwarf_rock_avatar_archer* (~npc_rangeattack) and dwarf_rock_avatar_mage* (~npc_generic_magicattack); the Avatars of Strength use the melee default (betweenarock_realm.rs2)",
+        "ai_queue3:dwarf_rock_avatar_* (~dwarfrock_avatar_death sets ^dwarfrock_avatar_defeated and returns the player, then ~npc_default_death; betweenarock_realm.rs2)",
+        "ai_queue3:scorpion (page-1 drop, coordinate-gated; betweenarock_pages.rs2)"
+      ],
+      "loot_contract": "The Avatar drops nothing (death_drop null; the wiki pages list no drops); its kill advances the quest to ^dwarfrock_avatar_defeated and teleports the player back to Dondakan. The Dwarven Mine scorpion's quest kill drops page 1.",
+      "test_ids": [
+        "quest-combat-contract:between-a-rock",
+        "quest:betweenarock"
+      ],
+      "known_gaps": [
+        "The Invincible versions (5 or fewer gold ore: no combat level, regeneration) are not modelled; the flame refuses under 6 ore, so they never spawn.",
+        "The Invincible Avatar of Ranging computes a max hit of 19 (ranged 140, cache rangebonus_ammo 19) against the page's 17; its page bonuses are blank.",
+        "The gold-ore anti-regeneration is read once at the flame, not continuously; the wiki's 'randomize it just a little bit' style pick is not modelled.",
+        "attackrange 10 for the ranged and magic Avatars is the authored-quest convention (slice.npc), not a sourced number; no projectile or cast spotanim is sourced, so none is drawn.",
+        "The Avatar of Ranging swings rock_avatar_attack (npc_anims.generated.npc) though the cache has a rock_avatar_archer_attack seq."
+      ]
     },
     {
       "id": "quest-the-feud",
@@ -3727,8 +3792,22 @@
       "plan_line": 120,
       "cache_scope": "osrs239",
       "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Tough_Guy?oldid=15292989",
+          "revision": 15292989,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Bandit_champion?oldid=15292988",
+          "revision": 15292988,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "feud_menap_toughguy: Tough Guy (npc 3551): 75 hitpoints, 85/50/50 attack/strength/defence, magic 80, ranged 0, crushattack 9, strengthbonus 9, stabdefence 9, slashdefence 8, crushdefence 10, crush, attack speed 4, aggressive, max hit 7 from ~npc_melee_maxhit (configs/all.npc:92908 agrees) (quests/quest_thefeud/configs/thefeud.npc)",
+        "feud_bandit_toughguy: Bandit champion (npc 738): 50 hitpoints, 59/80/50 attack/strength/defence, magic 0, ranged 0, slashattack 9, strengthbonus 9, stabdefence 9, slashdefence 8, crushdefence 10, slash, attack speed 4, aggressive, max hit 10 from ~npc_melee_maxhit (configs/all.npc:19142 agrees) (quests/quest_thefeud/configs/thefeud.npc)"
+      ],
       "item_gamevals": [],
       "loc_gamevals": [],
       "trigger_handlers": [],
@@ -3781,8 +3860,16 @@
       "plan_line": 123,
       "cache_scope": "osrs239",
       "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Sir_Leye?oldid=15262507",
+          "revision": 15262507,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "rd_combat_npc_room_3: Sir Leye (npc 4682): 20 hitpoints, 18/18/15 attack/strength/defence, magic 1, ranged 1, every bonus 0, crush, attack speed 5, aggressive, max hit 3 from ~npc_melee_maxhit (configs/all.npc:133412 agrees) (quests/quest_recruitmentdrive/configs/recruitmentdrive.npc)"
+      ],
       "item_gamevals": [],
       "loc_gamevals": [],
       "trigger_handlers": [],
@@ -3799,8 +3886,16 @@
       "plan_line": 124,
       "cache_scope": "osrs239",
       "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Mourner?oldid=15242506",
+          "revision": 15242506,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "mourning_overpass_mourner: Mourner (npc 9233) version 1 \"level 11\": 19 hitpoints, 8/8/8 attack/strength/defence, magic 1, ranged 1, crushattack 6, strengthbonus 2, stabdefence 6, slashdefence 6, crushdefence 9, crush, attack speed 4, not aggressive, max hit 2 from ~npc_melee_maxhit (configs/all.npc:259448 agrees) (quests/quest_mourningsendparti/configs/mend1.npc)"
+      ],
       "item_gamevals": [],
       "loc_gamevals": [],
       "trigger_handlers": [],
@@ -3816,15 +3911,50 @@
       "encounter_summary": "Black Knight (32); scripted Solus Dellagar encounter",
       "plan_line": 125,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Solus_Dellagar?oldid=15204754",
+          "revision": 15204754,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Black_Knight_(Wanted!)?oldid=15324646",
+          "revision": 15324646,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Wanted!?oldid=15355767",
+          "revision": 15355767,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "wanted_solus_attackable: Solus Dellagar (npc 4930/4933/4962, no combat level, size 1), 40 hitpoints, 25/25/25 attack/strength/defence, magic 1, ranged 1, strength bonus 16, defence 5/5/5 stab/slash/crush, 72 magic, Melee (crush, gen_npc_stats.py's 'melee' rule), attack speed 3, aggressive, max hit 4 (falls out of 25 strength + 16 bonus), no drops (wiki infobox; cache all.npc stat1-4 25/25/25/40 and its strengthbonus/attackrate/defence params agree) (quest_wanted/configs/wanted.npc)",
+        "wanted_summoned_black_knight: Black Knight (Wanted!) (npc 4934/4959/4960, level 32), 42 hitpoints, 25/25/25, slash, attbns 18, strbns 16, speed 5, max hit 4, defence 73/76/70, -11 magic, 72 ranged, aggressive, no drops (wiki infobox; the cache's stat4 is 40) (quest_wanted/configs/wanted.npc)"
+      ],
+      "item_gamevals": [
+        "wanted_solus_trophy: Solus's hat, handed over by the Commorb Contact after the kill (wanted_commorb.rs2), not dropped",
+        "wanted_crystal_ball: the Commorb; its Scan at the seventh stop summons Solus, at the sixth the Black Knight"
+      ],
       "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "trigger_handlers": [
+        "proc:wanted_scan_commorb seventh stop (npc_add wanted_solus_attackable at ^wanted_essence_mine_coord for 100 ticks; wanted_hunt.rs2)",
+        "opnpc2:wanted_solus_attackable (~npc_retaliate(0) -> @player_combat_start; wanted_hunt.rs2)",
+        "ai_queue3:wanted_solus_attackable (npc_findhero at ^wanted_hunt: mission4 bits, %varb1051_wanted_main = ^wanted_final_battle, then ~npc_default_death; wanted_hunt.rs2)",
+        "proc:wanted_hunt_sixth_black_knight (npc_add wanted_summoned_black_knight for 200 ticks, npc_setmode(opplayer2); wanted_hunt.rs2)",
+        "ai_queue3:wanted_summoned_black_knight (npc_findhero -> queue wanted_black_knight_defeated, then ~npc_default_death; wanted_hunt.rs2)"
+      ],
+      "loot_contract": "Neither Solus nor the summoned Black Knight drops anything (death_drop null; the pages list no drops). Solus's kill writes ^wanted_final_battle; his hat comes from the Commorb Contact. The Black Knight's kill completes the sixth hunt stop and returns the 20 essence as the final clue.",
+      "test_ids": [
+        "quest-combat-contract:wanted",
+        "quest:wanted"
+      ],
+      "known_gaps": [
+        "Savant's 15 Temple Knight archers and Solus's Ice Barrage over them are not staged; the fight starts with Solus alone.",
+        "No source names Solus's swing animation (the cache has only his staff ready and halberd walk), so he swings the attack_anim param default.",
+        "The summoned Black Knight's block follows the page's 42 hitpoints against the cache's stat4 40."
+      ]
     },
     {
       "id": "quest-rum-deal",
@@ -3834,15 +3964,53 @@
       "encounter_summary": "Evil spirit (150); fever spider (49)",
       "plan_line": 126,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Evil_spirit?oldid=15199641",
+          "revision": 15199641,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Fever_spider?oldid=15275482",
+          "revision": 15275482,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Rum_Deal?oldid=15315444",
+          "revision": 15315444,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "deal_evil_spirit: Evil spirit (npc 625, level 150, size 2), 90 hitpoints, 170/146/100 attack/strength/defence, magic 1, ranged 1, every bonus and defence 0, crush, attack speed 4, aggressive, 30% Air weakness, drops Ashes always (wiki infobox; cache all.npc stat1-4 170/100/146/90 agrees) (quest_rumdeal/configs/rumdeal.npc); its swing rolls the page's max hit 28 (^deal_evil_spirit_melee_maxhit, rumdeal.constant) where ~npc_melee_maxhit would give 16; Protect from Melee negates it",
+        "deal_fever_spiders1: Fever spider (level 49), the basement mob, fights on npc/configs/combat_stats.generated.npc's block (40 hitpoints, death_drop null; the quest carcass is deal_combat.rs2's [ai_queue3] drop)"
+      ],
+      "item_gamevals": [
+        "deal_wrench_blessed: Davey's blessing of deal_wrench (47 prayer points, none drained); used on the brewing control it summons the spirit",
+        "ashes: the spirit's death_drop (wiki: always)",
+        "deal_spider_body: the fever spider carcass, dropped only at ^deal_kill_spider"
+      ],
+      "loc_gamevals": [
+        "deal_multicontrol: the brewing control; [oplocu] with deal_wrench_blessed at ^deal_kill_spirit spins it and spawns the spirit at ^deal_multicontrol_coord for 1000 ticks (one at a time within 5 tiles)"
+      ],
+      "trigger_handlers": [
+        "proc:deal_spawn_evilspirit (npc_add at ^deal_multicontrol_coord; deal_combat.rs2)",
+        "opnpc2:deal_evil_spirit (~npc_retaliate(0) -> @player_combat_start; deal_combat.rs2)",
+        "ai_opplayer2:deal_evil_spirit (crush swing: its own ~npc_melee_attack_roll(^crush_style) against ~player_defence_roll, damage randominc(^deal_evil_spirit_melee_maxhit = 28), landed by ~playerhit_n_melee; the Swan Song ssq_queen_melee pattern; deal_combat.rs2)",
+        "ai_queue3:deal_evil_spirit (npc_findhero at ^deal_kill_spirit: %varb1355_deal_multi_hopper = ^deal_control_running, %varp600_deal_quest = ^deal_told_kill_spider, then ~npc_default_death; deal_combat.rs2)",
+        "ai_queue3:deal_fever_spiders1 (deal_spider_body at ^deal_kill_spider, then ~npc_default_death; deal_combat.rs2)"
+      ],
+      "loot_contract": "The spirit drops Ashes (death_drop ashes, the wiki's 100% line); its quest kill moves the quest to ^deal_told_kill_spider and leaves the brewing control running. A fever spider killed at ^deal_kill_spider drops deal_spider_body.",
+      "test_ids": [
+        "quest-combat-contract:rum-deal",
+        "quest:rumdeal"
+      ],
+      "known_gaps": [
+        "The page's 'sucked back into the brewing controls and must be fought again from full hitpoints' is the 1000-tick npc_add duration, not a modelled timer; changing floors to drop its aggression is the engine's ordinary chase.",
+        "The fever spider's 12.5%-of-Hitpoints hit and disease without slayer gloves are not modelled (rumdeal.constant's deferred note).",
+        "The Trivia's 'The power of Guthix compels you!' on attacking it is not said."
+      ]
     },
     {
       "id": "quest-shadow-of-the-storm",
@@ -3852,15 +4020,46 @@
       "encounter_summary": "Agrith-Naar (100)",
       "plan_line": 127,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Agrith_Naar?oldid=15350581",
+          "revision": 15350581,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Shadow_of_the_Storm?oldid=15354765",
+          "revision": 15354765,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "agrith_naar: Agrith-Naar (npc 911, level 100, size 3), 95 hitpoints, 83/90/82/100/100 attack/strength/defence/magic/ranged, every bonus and defence 0, crush, attack speed 4, aggressive, 25% Water weakness, max hit 10 crush (falls out of 90 strength) and 10 Fire Blast (^sots_agrith_fireblast_max) (wiki infobox; cache all.npc stat1-6 83/82/90/95/100/100 agrees) (quest_shadowstorm/configs/shadowstorm.npc)"
+      ],
+      "item_gamevals": [
+        "agrith_silverlight_dyed: the finishing blow must land with it worn (or Darklight), else he heals to 12",
+        "darklight: the Silverlight in the striking hand becomes it on the kill",
+        "vile_ashes: his death_drop (wiki: always)"
+      ],
+      "loc_gamevals": [
+        "golem_demon_portal: the throne-room portal; re-entering during the fight puts him back on the throne"
+      ],
+      "trigger_handlers": [
+        "opnpc2:agrith_naar (@player_combat_start; shadowstorm_ritual.rs2)",
+        "ai_opplayer2:agrith_naar (melee, Fire Blast against Protect from Melee or 1 in 4, Telekinetic Grab 1 in 3; shadowstorm_ritual.rs2)",
+        "ai_queue3:agrith_naar (Silverlight finishing-blow gate, revive to ^sots_agrith_revive_hp, queue sots_agrith_slain; shadowstorm_ritual.rs2)",
+        "proc:sots_throne_cast (re-entry resumes the fight with a fresh Agrith-Naar; shadowstorm_ritual.rs2)"
+      ],
+      "loot_contract": "The quest kill hands the player Darklight in place of the dyed Silverlight and completes the quest from the player's own queue; a kill not landed with Silverlight or Darklight worn heals him to 12 hitpoints instead. Outside the quest stage he dies through ~npc_default_death with his death_drop, vile ashes.",
+      "test_ids": [
+        "quest-combat-contract:shadow-of-the-storm",
+        "quest:shadowstorm"
+      ],
+      "known_gaps": [
+        "His prayer reading is partial: Protect from Melee draws Fire Blast, but the unprompted 1-in-4 Fire Blast does not read Protect from Magic.",
+        "Fire Blast rolls accuracy off his attack level (~npc_melee_attack_roll with magic style), not his 100 Magic.",
+        "The standing-torch flinch and the Nightmare Zone variant are not ported."
+      ]
     },
     {
       "id": "quest-ratcatchers",
@@ -3889,8 +4088,28 @@
       "plan_line": 129,
       "cache_scope": "osrs239",
       "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/White_golem?oldid=15338923",
+          "revision": 15338923,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Grey_golem?oldid=15338925",
+          "revision": 15338925,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Black_golem?oldid=15338922",
+          "revision": 15338922,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "elid_golem_white: White golem (npc 4743): 80 hitpoints, 80/30/80 attack/strength/defence, magic 1, ranged 1, stabdefence 1, slashdefence 300, crushdefence 300, magicdefence 300, rangedefence 300, crush, attack speed 4, aggressive, max hit 4 from ~npc_melee_maxhit (configs/all.npc:134851 agrees) (quests/quest_spiritsoftheelid/configs/spiritsoftheelid.npc)",
+        "elid_golem_grey: Grey golem (npc 4744): 80 hitpoints, 80/30/80 attack/strength/defence, magic 1, ranged 1, stabdefence 300, slashdefence 1, crushdefence 300, magicdefence 300, rangedefence 300, crush, attack speed 4, aggressive, max hit 4 from ~npc_melee_maxhit (configs/all.npc:134886 agrees) (quests/quest_spiritsoftheelid/configs/spiritsoftheelid.npc)",
+        "elid_golem_black: Black golem (npc 4742): 80 hitpoints, 80/30/80 attack/strength/defence, magic 1, ranged 1, stabdefence 300, slashdefence 300, crushdefence 1, magicdefence 300, rangedefence 300, crush, attack speed 4, aggressive, max hit 4 from ~npc_melee_maxhit (configs/all.npc:134816 agrees) (quests/quest_spiritsoftheelid/configs/spiritsoftheelid.npc)"
+      ],
       "item_gamevals": [],
       "loc_gamevals": [],
       "trigger_handlers": [],
@@ -3997,14 +4216,53 @@
       "plan_line": 135,
       "cache_scope": "osrs239",
       "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Angry_unicorn?oldid=15199351",
+          "revision": 15199351,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Fear_reaper?oldid=15199746",
+          "revision": 15199746,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Confusion_beast?oldid=15199269",
+          "revision": 15199269,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Hopeless_creature?oldid=15362688",
+          "revision": 15362688,
+          "retrieved": "2026-10-06"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Tolna?oldid=15199356",
+          "revision": 15199356,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "soulbane_anger_unicorn: Angry unicorn (npc 1061) version 1 \"Level 45\" (id 1061): 200 hitpoints, 37/38/38 attack/strength/defence, magic 1, ranged 1, every bonus 0, stab, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28647 agrees) (quests/quest_soulsbane/configs/soulsbane.npc)",
+        "soulbane_fear_reaper: Fear reaper (npc 1066) version 1 \"Level 42\" (id 1066): 25 hitpoints, 39/41/40 attack/strength/defence, magic 1, ranged 1, every bonus 0, slash, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28819 agrees) (quests/quest_soulsbane/configs/soulsbane.npc)",
+        "soulbane_confu_creeper: Confusion beast (npc 1067) version 2 \"Level 43 (stab)\" (id 1067): 28 hitpoints, 42/41/40 attack/strength/defence, magic 1, ranged 1, every bonus 0, stab, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28837 agrees) (quests/quest_soulsbane/configs/soulsbane.npc)",
+        "soulbane_confu_creeper_fake1: Confusion beast (npc 1068) version 1 \"Level 43 (crush)\" (ids 1068-1071): 28 hitpoints, 42/41/40 attack/strength/defence, magic 1, ranged 1, every bonus 0, crush, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28854 agrees) (quests/quest_soulsbane/configs/soulsbane.npc)",
+        "soulbane_hope_monst3: Hopeless creature (npc 1072) version 1 \"Level 40\" (ids 1072-1074): 25 hitpoints, 38/36/39 attack/strength/defence, magic 1, ranged 1, every bonus 0, stab, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28922 agrees) (quests/quest_soulsbane/configs/soulsbane.npc)",
+        "soulbane_hope_monst2: Hopeless creature (npc 1073) version 1 \"Level 40\" (ids 1072-1074): 25 hitpoints, 38/36/39 attack/strength/defence, magic 1, ranged 1, every bonus 0, stab, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28937 agrees) (quests/quest_soulsbane/configs/soulsbane.npc)",
+        "soulbane_hope_monst1: Hopeless creature (npc 1074) version 1 \"Level 40\" (ids 1072-1074): 25 hitpoints, 38/36/39 attack/strength/defence, magic 1, ranged 1, every bonus 0, stab, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28954 agrees) (quests/quest_soulsbane/configs/soulsbane.npc)",
+        "soulbane_final_tolna1: Tolna (npc 1075): 37 hitpoints, 42/41/40 attack/strength/defence, magic 1, ranged 1, magicdefence 50, rangedefence 50, slash, attack speed 'Varies' (the cache record's attackrate kept), aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28971 agrees) (quests/quest_soulsbane/configs/soulsbane.npc)",
+        "soulbane_final_tolna2: Tolna (npc 1076): 37 hitpoints, 42/41/40 attack/strength/defence, magic 1, ranged 1, magicdefence 50, rangedefence 50, slash, attack speed 'Varies' (the cache record's attackrate kept), aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28988 agrees) (quests/quest_soulsbane/configs/soulsbane.npc)",
+        "soulbane_final_tolna3: Tolna (npc 1077): 37 hitpoints, 42/41/40 attack/strength/defence, magic 1, ranged 1, magicdefence 50, rangedefence 50, slash, attack speed 'Varies' (the cache record's attackrate kept), aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:29005 agrees) (quests/quest_soulsbane/configs/soulsbane.npc)"
+      ],
       "item_gamevals": [],
       "loc_gamevals": [],
       "trigger_handlers": [],
       "loot_contract": "",
       "test_ids": [],
-      "known_gaps": []
+      "known_gaps": [
+        "Tolna and the Hopeless creatures (oldids 15199356, 15362688): the pages list Slash/Stab AND Ranged; only the melee swing is modelled (the Hopeless creature's ranged max hit is '?'), and Tolna's attack speed 'Varies' keeps each form's cache attackrate (6 / 8 / 20)."
+      ]
     },
     {
       "id": "quest-rag-and-bone-man-i",
@@ -4032,15 +4290,56 @@
       "encounter_summary": "Eleven Sea trolls (65/79/87/101); Sea Troll Queen (170)",
       "plan_line": 137,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Sea_Troll_Queen?oldid=15215925",
+          "revision": 15215925,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Sea_troll?oldid=15329222",
+          "revision": 15329222,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Swan_Song?oldid=15359363",
+          "revision": 15359363,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "swan_seatroll_queen: level-170 Sea Troll Queen (id 4315), 200 hitpoints, 100/70/100 attack/strength/defence, 150 magic, crush + Water Wave, max hit 16 melee / 37 magic, holds her spot in the water (wanderrange 0; configs/swansong.npc)",
+        "swan_troll_ambush: level-79 Sea troll (id 4308), 100 hitpoints, 60/60/60, crush, speed 3, max hit 7, Bones; the entrance ambush and the fishing-spot troll (configs/swansong.npc)"
+      ],
+      "item_gamevals": [
+        "bones: each level-79 sea troll drops Bones (wiki Sea_troll: Always)"
+      ],
+      "loc_gamevals": [
+        "swan_hole: the colony entrance; at stage 40 it puts back the ambush trolls still owed",
+        "swan_fish: the fishing spot that spawns one sea troll on the first cast; it stays until killed"
+      ],
+      "trigger_handlers": [
+        "oploc1:swan_hole -> ~ssq_spawn_entrance_ambush (stage 40, trolls owed, none standing; swansong_colony.rs2)",
+        "opnpc2:swan_troll_ambush and swan_seatroll_queen (trap 31 @player_combat_start)",
+        "ai_queue3:swan_troll_ambush counts %varb2107_swansong_trolls, writes stage 50 at 3",
+        "ai_opplayer2:swan_seatroll_queen melee or Water Wave in reach, Water Wave or the prayer drain out of reach (swansong_finale.rs2)",
+        "ai_queue3:swan_seatroll_queen writes stage 190",
+        "opnpc1:swan_herman stage 170 -> ~ssq_queen_ensure puts a missing Queen back"
+      ],
+      "loot_contract": "The Sea Troll Queen drops nothing (her page lists no drops). Each level-79 sea troll drops Bones, which the player keeps toward Malignius's seven.",
+      "test_ids": [
+        "quest-combat-contract:swan-song",
+        "quest:swansong"
+      ],
+      "known_gaps": [
+        "The entrance ambush is three level-79 trolls (^ssq_trolls_needed; varb2107 is 2 bits); the wiki says eight, with the Wise Old Man casting Saradomin Strike beside the player.",
+        "The fishing spot spawns one level-79 troll; the wiki's fishing trolls are the level 65, 87 and 101 versions (ids 4309-4311), one after another.",
+        "In melee distance the Queen swings melee 1 time in 3; the pages say only that magic is 'more often'. The map gives no walking route to a tile next to her, so the fight is at range.",
+        "The prayer drain takes 21 points: the page says 'over 20 Prayer points at once' and gives no exact number, message or graphic.",
+        "The siege cutscene (skeleton army, Sea Troll General, the Wise Old Man knocked out) before the Queen is not ported.",
+        "The page's 15% earth weakness (25 June 2025) is not stated: the revision-239 cache carries no weakness param for either npc."
+      ]
     },
     {
       "id": "quest-royal-trouble",
@@ -4122,15 +4421,47 @@
       "encounter_summary": "Six one-Hitpoint Evil Creatures",
       "plan_line": 142,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Evil_Creature?oldid=15349482",
+          "revision": 15349482,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Eyes_of_Glouphrie?oldid=15292355",
+          "revision": 15292355,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:The_Eyes_of_Glouphrie?oldid=15317126",
+          "revision": 15317126,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "eyeglo_fluffie_1..6 (the multi-npc wrappers the quest spawns) and eyeglo_fluffie_evil_1..6 (their attackable leaves): Evil Creature, 1 hitpoint, 1/1/1/1/1 attack/strength/defence/magic/ranged, every bonus and defence 0, crush, attack speed 4, max hit 1 (strength=1 + strengthbonus 0 -> npc_melee_maxhit 1), not aggressive but fights back when attacked (wiki infobox max hit 1 + attack sound; cache seq eyeglo_fluffie_attack) (configs/eyeglo.npc)"
+      ],
+      "item_gamevals": [
+        "bones: the Evil Creature's only drop, always (npc_default_death's death_drop)"
+      ],
+      "loc_gamevals": [
+        "eyeglo_gnome_machine_02_multiloc: Oaknock's machine (Unlock / Repair / Operate on varb2502_eyeglo_machine_broken) -- the operate window's activation reveals the creatures"
+      ],
+      "trigger_handlers": [
+        "opnpc2:eyeglo_fluffie_1..6 (trap 31 @player_combat_start; ~npc_retaliate(0) engages the creature on the click, and the engine's on-hit latch would anyway -- it fights back, max hit 1)",
+        "ai_queue3:eyeglo_fluffie_1..6 writes eyeglo_killed_eye_N to 2, counts the kills and moves the quest to 45 when the sixth falls (eyeglo_quest.rs2)",
+        "eyeglo_machine_online writes eyeglo_killed_eye_1..6 to 1: the wrapper turns from the Cute Creature into the Evil Creature for that player only"
+      ],
+      "loot_contract": "Each Evil Creature drops Bones always (wiki Evil_Creature drops table). Nothing else.",
+      "test_ids": [
+        "quest-combat-contract:the-eyes-of-glouphrie",
+        "quest:theeyesofglouphrie"
+      ],
+      "known_gaps": [
+        "The wiki's note that the last creature spawns at the Stronghold entrance when Brimstail kills his own or a count is lost is not ported: a creature killed by anyone else is simply gone for that player's varbit.",
+        "The page gives no combat level and no weakness."
+      ]
     },
     {
       "id": "quest-the-slug-menace",
@@ -4352,15 +4683,70 @@
       "encounter_summary": "Giant Scarab (191); summoned Locust Rider (68) and Scarab Mages (66/119)",
       "plan_line": 147,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Giant_Scarab_(Contact!)?oldid=15328051",
+          "revision": 15328051,
+          "retrieved": "2026-10-02"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Contact!?oldid=15327950",
+          "revision": 15327950,
+          "retrieved": "2026-10-02"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Contact!/Quick_guide?oldid=15233716",
+          "revision": 15233716,
+          "retrieved": "2026-10-02"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Locust_rider?oldid=15281959",
+          "revision": 15281959,
+          "retrieved": "2026-10-02"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Scarab_Mage?oldid=15281960",
+          "revision": 15281960,
+          "retrieved": "2026-10-02"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Giant_Scarab_(Nightmare_Zone)?oldid=15200671",
+          "revision": 15200671,
+          "retrieved": "2026-10-02"
+        }
+      ],
+      "npc_gamevals": [
+        "contact_scarab_boss: owner-private level-191 Giant Scarab, 130 hitpoints, 169/190/169 attack/strength/defence, 190 ranged, stab + ranged, max hit 20, poison 9 (configs/contact.npc)",
+        "contact_insectoid_mage_b: level-66 Contact! Scarab Mage summon (wiki id 799)",
+        "contact_locust_bow_b/contact_locust_lance_b: level-68 Contact! Locust rider summons (wiki ids 801/800)",
+        "contact_osman_cave_instance: the post-kill Osman in the same instance"
+      ],
+      "item_gamevals": [
+        "contact_keris: guaranteed on the instance floor at the Scarab's first eligible death"
+      ],
+      "loc_gamevals": [
+        "contact_ug_boss_ladder: dungeon -> owner-private copy of m35_67 from native state 80",
+        "contact_boss_ug_ladder: chasm -> dungeon, releasing the instance"
+      ],
+      "trigger_handlers": [
+        "oploc1:contact_ug_boss_ladder builds the instance and spawns the Scarab and its four summons (contact_dungeon.rs2)",
+        "opnpc2:contact_scarab_boss and the three _b summons (trap 31 @player_combat_start)",
+        "ai_opplayer2:contact_scarab_boss melee in reach, ranged otherwise plus the mystic poison",
+        "ai_opplayer2:contact_locust_bow_b ranged / contact_insectoid_mage_b magic",
+        "ai_queue3:contact_scarab_boss Keris drop, native 110, summon sweep, cave Osman"
+      ],
+      "loot_contract": "The Giant Scarab has no generic table: its first death at native state below 110 puts one Keris on the floor of the killer's own instance (wiki 100% Keris) and removes the remaining summons, which die with it. Each summon keeps the Bones its drop table always gives.",
+      "test_ids": [
+        "quest-combat-contract:contact-giant-scarab",
+        "quest:contact"
+      ],
+      "known_gaps": [
+        "The summons all appear when the instance is built; the wiki says the Scarab summons them one at a time, cycling magic, ranged, melee, but no source gives the rate.",
+        "The Scarab's light-extinguishing attack (Quest Helper Contact.java:261, Quick guide oldid 15233716) is absent: no source gives its rate or message and the chasm has no darkness state.",
+        "The mystic poison fires on a ranged swing at an unpoisoned player; the pinned page gives no rate (rev 15199518 also required Protect from Missiles, which 15328051 dropped).",
+        "The page's 50% fire weakness (20 August 2025) is not stated: the revision-239 cache carries no weakness param for the npc."
+      ]
     },
     {
       "id": "quest-cold-war",
@@ -4443,8 +4829,16 @@
       "plan_line": 152,
       "cache_scope": "osrs239",
       "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Ulfric?oldid=15351186",
+          "revision": 15351186,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "olaf2_ulfric: Ulfric (npc 4500): 60 hitpoints, 100/100/82 attack/strength/defence, magic 1, ranged 1, every bonus 0, slash, attack speed 4, aggressive, max hit 11 from ~npc_melee_maxhit (configs/all.npc:127731 agrees) (quests/quest_olafsquest/configs/olafsquest.npc)"
+      ],
       "item_gamevals": [],
       "loc_gamevals": [],
       "trigger_handlers": [],
@@ -4460,15 +4854,53 @@
       "encounter_summary": "H.A.M. archer (30), H.A.M. mage (30), Sigmund (64)",
       "plan_line": 153,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/H.A.M._Mage?oldid=15199436",
+          "revision": 15199436,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/H.A.M._Archer?oldid=15199383",
+          "revision": 15199383,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Sigmund?oldid=15285834",
+          "revision": 15285834,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "slice_ham_mage: level-30 H.A.M. Mage (id 5158), 35 hitpoints, 0/30/0 attack/defence/strength, 30 magic, Magic, speed 10, max hit 4 (configs/slice.npc)",
+        "slice_ham_archer: level-30 H.A.M. Archer (id 5157), 35 hitpoints, 0/30/0 attack/defence/strength, 30 ranged, Ranged, speed 10, max hit 4 (configs/slice.npc)",
+        "slice_sigmund_showdown/_melee/_ranged/_magic/_noprayer: level-64 Sigmund (ids 5139, 5142-5146), 70 hitpoints, 55/44/55 attack/defence/strength, Crush, speed 4, max hit 6; only _noprayer dies (configs/slice.npc)"
+      ],
+      "item_gamevals": [
+        "ancient_goblin_mace: whose special attack strips Sigmund's protection prayer (pvm_ancient_goblin_mace.rs2)"
+      ],
+      "loc_gamevals": [
+        "slice_goblin_ladder_bottom: the watchtower ladder, climbable only at stage 6",
+        "slice_laddertop: the ladder to Sigmund's chamber, once the sergeants have cleared the last guard"
+      ],
+      "trigger_handlers": [
+        "opnpc2/apnpc2:slice_ham_mage and slice_ham_archer refuse melee (slice_hammage.rs2)",
+        "ai_opplayer2:slice_ham_mage ~npc_generic_magicattack; slice_ham_archer ~npc_rangeattack",
+        "ai_queue3:slice_ham_mage and slice_ham_archer set the dead flags, both dead writes stage 7",
+        "opnpc2/apnpc2:slice_sigmund_showdown/_melee/_ranged/_magic switch the protection prayer to the attacker's style; the ancient mace special drops it to _noprayer",
+        "ai_queue3:slice_sigmund_noprayer writes stage 10 (slice_sigmund.rs2)"
+      ],
+      "loot_contract": "None of the three drops anything: death_drop null. Sigmund flees in the quest text.",
+      "test_ids": [
+        "quest-combat-contract:another-slice-of-ham",
+        "quest:anothersliceofham"
+      ],
+      "known_gaps": [
+        "The H.A.M. Mage's cache record says attack speed 6; the page says 10 and is taken.",
+        "Neither tower enemy's projectile or cast graphic is stated: the page names none, so none is set.",
+        "Sigmund's wiki max hit of 6 is not forced: the generic melee roll from 55 strength is used (it gives 6)."
+      ]
     },
     {
       "id": "quest-dream-mentor",
@@ -4478,15 +4910,77 @@
       "encounter_summary": "The Inadequacy (343), Everlasting (223), Untouchable (274), Illusive (108)",
       "plan_line": 154,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Inadequacy?oldid=15292423",
+          "revision": 15292423,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Everlasting?oldid=15199540",
+          "revision": 15199540,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Untouchable?oldid=15199541",
+          "revision": 15199541,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Illusive?oldid=15199542",
+          "revision": 15199542,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/A_Doubt?oldid=15199544",
+          "revision": 15199544,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Dream_Mentor?oldid=15292367",
+          "revision": 15292367,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Dream_Mentor?oldid=15299716",
+          "revision": 15299716,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "dream_inadequacy: level-343 The Inadequacy, 180 hitpoints, 564/170/240 attack/strength/defence, 170 ranged, crush + ranged, speed 4, aggressive (npc/configs/combat_stats.generated.npc, agrees with the page and cache stat1..5)",
+        "dream_everlasting: level-223 The Everlasting, 230 hitpoints, 187/231/120, crush, speed 6, aggressive, max hit 24 (configs/dreammentor.npc)",
+        "dream_untouchable: level-274 The Untouchable, 90 hitpoints, 187/255/434, crush, speed 6, NOT aggressive, max hit 26 (configs/dreammentor.npc)",
+        "dream_illusive: level-108 The Illusive, 144 hitpoints, 72/71/105, crush, speed 6, aggressive, max hit 8 (configs/dreammentor.npc)",
+        "dream_razorbeast: level-78 A Doubt, 59 hitpoints, 72/58/85, attack bonus 18, strength bonus 16, crush, speed 6, bones (configs/dreammentor.npc)"
+      ],
+      "item_gamevals": [
+        "bones: A Doubt's only drop (wiki 100%); the four bosses drop nothing",
+        "dream_vial_*/dream_astral_shards/dream_groundastral: the potion chain the dream is entered with"
+      ],
+      "loc_gamevals": [
+        "dream_plinth (\"Our lives\"): Read/Leave, the only way out of the dream; leaving frees the instance so the fight restarts from The Inadequacy",
+        "lunar_moonclan_brazier_multi: lit with a tinderbox (oplocu)"
+      ],
+      "trigger_handlers": [
+        "opnpc2:dream_inadequacy/everlasting/untouchable/illusive/razorbeast (trap 31 @player_combat_start)",
+        "ai_queue3:each boss queues dreammentor_boss_down to the player (no mesbox, teleport or delay in the npc script); the queue spawns the next form at the arena's centre in the owner's own instance, the last one ends the dream",
+        "ai_queue1/ai_applayer2/ai_opplayer2:dream_inadequacy flips between its melee swing and its ranged volley and summons up to five Doubts, all removed when it dies",
+        "dreammentor_on_damage (hooked in npc_default_damage beside the Giant Mole's): the Illusive burrows after two hits and is stomped at 22 hp or less; Cyrisus's courage bar fills with damage dealt and he strikes for up to 12 when it is full",
+        "prayer_checks / player_teleport_normal refuse inside the dream"
+      ],
+      "loot_contract": "The four bosses drop nothing; A Doubt drops Bones always (wiki A_Doubt 100% table).",
+      "test_ids": [
+        "quest-combat-contract:dream-mentor",
+        "quest:dreammentor"
+      ],
+      "known_gaps": [
+        "Cyrisus's Vengeance Other, his heal, his teleport and his random overhead lines are not authored; he strikes the boss once when the courage bar is full.",
+        "The Inadequacy's ranged volley is chosen by Elvarg's approach/operate flip, not strictly 'only when the player is outside melee range'.",
+        "The Illusive's burrow animation is the nearest cache sequence (dream_illusive_defend_p2); no sequence in the cache is named for burrowing.",
+        "Emergency teleports are refused only where the shared teleport spell/tab gate (player_teleport_normal) is used; jewellery and other teleports do not consult it."
+      ]
     },
     {
       "id": "quest-grim-tales",
@@ -4515,8 +5009,18 @@
       "plan_line": 156,
       "cache_scope": "osrs239",
       "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Nazastarool?oldid=15199510",
+          "revision": 15199510,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "zq_mainzombie1: Nazastarool (npc 5353) version 1 \"Zombie\" (id 5353): 70 hitpoints, 85/80/80 attack/strength/defence, magic 0, ranged 0, every bonus 0, slash, attack speed 4, aggressive, max hit 9 from ~npc_melee_maxhit (configs/all.npc:150237 agrees) (quests/quest_zombiequeen/configs/zombiequeen.npc)",
+        "zq_mainzombie2: Nazastarool (npc 5354) version 2 \"Skeleton\" (id 5354): 70 hitpoints, 58/54/58 attack/strength/defence, magic 0, ranged 0, slashattack 15, strengthbonus 15, stabdefence 5, slashdefence 5, crushdefence 5, magicdefence 5, rangedefence 5, slash, attack speed 4, aggressive, max hit 8 from ~npc_melee_maxhit (configs/all.npc:150261 agrees) (quests/quest_zombiequeen/configs/zombiequeen.npc)",
+        "zq_mainzombie3: Nazastarool (npc 5355) version 3 \"Ghost\" (id 5355): 80 hitpoints, 85/80/80 attack/strength/defence, magic 0, ranged 0, every bonus 0, slash, attack speed 4, aggressive, max hit 9 from ~npc_melee_maxhit (configs/all.npc:150285 agrees) (quests/quest_zombiequeen/configs/zombiequeen.npc)"
+      ],
       "item_gamevals": [],
       "loc_gamevals": [],
       "trigger_handlers": [],
@@ -4533,8 +5037,16 @@
       "plan_line": 157,
       "cache_scope": "osrs239",
       "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Mourner_(boss)?oldid=15238134",
+          "revision": 15238134,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "mournerstew2: Mourner (boss) (npc 9230): 19 hitpoints, 10/10/10 attack/strength/defence, magic 1, ranged 1, stabdefence 3, slashdefence 2, crushdefence 4, crush, attack speed 4, not aggressive, max hit 2 from ~npc_melee_maxhit (configs/all.npc:259272 agrees) (areas/area_ardougne_west/configs/mourner.npc)"
+      ],
       "item_gamevals": [],
       "loc_gamevals": [],
       "trigger_handlers": [],
@@ -4604,15 +5116,48 @@
       "encounter_summary": "Slash Bash (111); zombie (39)",
       "plan_line": 161,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Zombie_(Zogre_Flesh_Eaters)?oldid=15272404",
+          "revision": 15272404,
+          "retrieved": "2026-10-05"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Slash_Bash?oldid=15355748",
+          "revision": 15355748,
+          "retrieved": "2026-10-05"
+        }
+      ],
+      "npc_gamevals": [
+        "zogre_human_brentle_vahn: the Zombie (npc 880, level 39), 50 hitpoints, 30/30/30/1/1 attack/strength/defence/magic/ranged, every bonus and defence 0, crush, attack speed 6, aggressive, undead, 50% fire weakness (wiki infobox; cache stat1-4 30/30/30/50) (quest_zogreflesheaters/configs/zogreflesheaters.npc)",
+        "zogre_slash_bash: Slash Bash (npc 882, level 111), 100 hitpoints, 100/120/60/1/100 attack/strength/defence/magic/ranged, dstab/dslash/dcrush 30, dmagic/drange 0, attack speed 6, undead (wiki infobox) (quest_zogreflesheaters/configs/zogreflesheaters.npc)"
+      ],
+      "item_gamevals": [
+        "zogre_brentle_vahn_backpack: the ruined backpack the zombie's death hands over",
+        "zogre_artifacts: the ogre artefact Slash Bash's death drops",
+        "zogre_bow, zogre_brutal_iron and the other brutal arrows: full damage against Slash Bash"
+      ],
+      "loc_gamevals": [
+        "zogre_brentle_skeleton: searching it raises the zombie",
+        "zogre_stand: searching it at the grish-key stage raises Slash Bash"
+      ],
+      "trigger_handlers": [
+        "oploc1:zogre_brentle_skeleton (npc_add zogre_human_brentle_vahn, opplayer2; zogreflesheaters.rs2)",
+        "ai_queue3:zogre_human_brentle_vahn (sets zfe_fought_zombie and adds the ruined backpack; zogreflesheaters.rs2)",
+        "oploc1:zogre_stand (npc_add zogre_slash_bash, opplayer2; zogre_finish.rs2)",
+        "ai_queue3:zogre_slash_bash (stage zfe_slash_bash and the ogre artefact; zogre_finish.rs2)",
+        "proc:zfe_slash_bash_prepare_hit (a quarter of ordinary damage, half capped 7 from Crumble Undead, full from brutal arrows off the comp ogre bow; zogre_finish.rs2)"
+      ],
+      "loot_contract": "The zombie drops no bones: its only drop is the ruined backpack, handed over by its ai_queue3 (death_drop null). Slash Bash drops the ogre artefact through his ai_queue3, plus the default death_drop.",
+      "test_ids": [
+        "quest:zogreflesheaters"
+      ],
+      "known_gaps": [
+        "The zombie's Disease (10) from the infobox is not modelled.",
+        "Slash Bash's wiki drops (2 zogre bones and 3 ourg bones, always) are not ported; his death_drop is the default bones.",
+        "Tertiary drops (zombie/zogre bone during Rag and Bone Man II, the zombie champion scroll) are not ported."
+      ]
     },
     {
       "id": "quest-monkey-madness-ii",
@@ -4659,8 +5204,16 @@
       "plan_line": 164,
       "cache_scope": "osrs239",
       "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Sand_Snake?oldid=15364396",
+          "revision": 15364396,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "hosidiusquest_snake: Sand Snake (npc 7903): 60 hitpoints, 30/20/20 attack/strength/defence, magic 1, ranged 1, every bonus 0, crush, attack speed 4, aggressive, max hit 3 from ~npc_melee_maxhit (configs/all.npc:215648 agrees) (quests/quest_depthsofdespair/configs/depthsofdespair.npc)"
+      ],
       "item_gamevals": [],
       "loc_gamevals": [],
       "trigger_handlers": [],
@@ -4802,15 +5355,66 @@
       "encounter_summary": "Corrupt Lizardman (46)",
       "plan_line": 172,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Corrupt_Lizardman?oldid=15200061",
+          "revision": 15200061,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Tale_of_the_Righteous?oldid=15316635",
+          "revision": 15316635,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Tale_of_the_Righteous?oldid=14898483",
+          "revision": 14898483,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Unstable_Altar?oldid=15320666",
+          "revision": 15320666,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Strange_Device_(Tale_of_the_Righteous)?oldid=14770159",
+          "revision": 14770159,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "shayzienquest_lizardman_boss: level-46 Corrupt Lizardman (id 8000), 50 hitpoints, 38/38/38 attack/strength/defence, ranged 38, +22 attack, +20 strength, crush, attack speed 4, aggressive, max hit 6, poisons (configs/taleoftherighteous.npc); called by the magic gate in the player's own copy of m18_155",
+        "shayzienquest_puzzle_piece: the Strange Device, a pushable prop (ops Push and Attack) in the player's own copy of the Tower of Magic prison, m24_159; it has no hitpoints and takes no damage"
+      ],
+      "item_gamevals": [
+        "bones: the lizardman's death_drop (wiki 100%)",
+        "xeric_fabric: 3 Xerician fabric, dropped always by the killer's kill (wiki 100%)"
+      ],
+      "loc_gamevals": [
+        "shayzienquest_cave: the crevice, a multiloc on varb6358 (rope from stage 9); Enter builds the player's copy of m18_155",
+        "shayzienquest_blockage / shayzienquest_boulder: the rockfall (Mine) and the boulder (Push) closing the cave passage until cleared",
+        "shayzienquest_cave_door: the magic gate; Pass at stage 9 calls the lizardman, at stage 10+ lets the player through",
+        "shayzienquest_crystal_*: four prison crystals cleansed by magic, melee and ranged blows on the device"
+      ],
+      "trigger_handlers": [
+        "oploc1:shayzienquest_cave_door adds the lizardman beside the gate (tor_cave.rs2)",
+        "opnpc2:shayzienquest_lizardman_boss (trap 31 @player_combat_start)",
+        "apnpc2:shayzienquest_lizardman_boss (@player_combat_start_ap)",
+        "ai_queue3:shayzienquest_lizardman_boss writes stage 10, drops 3 Xerician fabric and the Bones",
+        "opnpc2:shayzienquest_puzzle_piece melee and ranged blows; ~pvm_default_spell hands it combat spells (tor_archive.rs2)"
+      ],
+      "loot_contract": "The Corrupt Lizardman drops Bones and 3 Xerician fabric always (wiki Corrupt_Lizardman oldid 15200061); the Nightmare Zone variant drops nothing and is not modelled.",
+      "test_ids": [
+        "quest-combat-contract:tale-of-the-righteous",
+        "quest:taleoftherighteous"
+      ],
+      "known_gaps": [
+        "The lizardman swings crush only: the page lists crush and ranged, and no source gives the ratio or the range.",
+        "Poison strength is not stated by the page: severity 16 (4 damage) is this port's reading of 'poisons like other lizardmen'.",
+        "Attacking the Strange Device with an ice spell does not freeze the player (the wiki's note).",
+        "The wiki's grave-outside-the-crevice death rule is the ordinary death respawn here."
+      ]
     },
     {
       "id": "quest-making-friends-with-my-arm",
@@ -4874,15 +5478,56 @@
       "encounter_summary": "Five Tormented Souls (16); Trapped Soul (30)",
       "plan_line": 176,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Tormented_Soul?oldid=15329160",
+          "revision": 15329160,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Trapped_Soul?oldid=15215953",
+          "revision": 15215953,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/The_Ascent_of_Arceuus?oldid=15314575",
+          "revision": 15314575,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:The_Ascent_of_Arceuus?oldid=14761128",
+          "revision": 14761128,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "arcquest_ghost1/arcquest_ghost2: level-16 Tormented Soul (ids 8512/8513), 20 hitpoints, 16/12/10 attack/strength/defence, crush, attack speed 4, aggressive, max hit 2, no drops (configs/ascentofarceuus.npc); five stand in the player's own copy of the tower floor",
+        "arcquest_soul: level-30 Trapped Soul (id 8514), 30 hitpoints, 25/29/20 attack/strength/defence, crush, attack speed 4, aggressive, max hit 4, Bones (configs/ascentofarceuus.npc); raised owner-private by the last trail plant"
+      ],
+      "item_gamevals": [
+        "bones: the Trapped Soul's only drop (wiki 100%)"
+      ],
+      "loc_gamevals": [
+        "arcquest_tower_door_right/left: the Tower Mage dialogue, then the player's own tower copy at stage 3/4",
+        "arcquest_hunting_bush/plant/plant2/tree_stump/end: the footprints trail (varb7859..7864) in order, the last plant raises the Trapped Soul"
+      ],
+      "trigger_handlers": [
+        "oploc1:arcquest_tower_door_* builds the copy (map_instance_from_square m24_59) and spawns the five souls (ascentofarceuus_locs.rs2)",
+        "opnpc2:arcquest_ghost1/arcquest_ghost2/arcquest_soul (trap 31 @player_combat_start)",
+        "ai_queue3:arcquest_ghost1/2 counts the standing souls after the default death, stage 5 at none",
+        "ai_queue3:arcquest_soul writes stage 11 for its killer"
+      ],
+      "loot_contract": "The Tormented Souls drop nothing; the Trapped Soul drops Bones always (wiki Trapped_Soul oldid 15215953 100% table).",
+      "test_ids": [
+        "quest-combat-contract:the-ascent-of-arceuus",
+        "quest:ascentofarceuus"
+      ],
+      "known_gaps": [
+        "The Trapped Soul's 15% weakness to wind spells (wiki, 25 June 2025) is not stated: the revision-239 cache carries no weakness param for the npc.",
+        "The Trapped Soul does not crawl back into the bush when the player is out of its sight (wiki walkthrough); it stays for its 500-tick life and re-raises from the last plant if it timed out.",
+        "The four tower souls do not fight the mages; all five are aggressive to the player."
+      ]
     },
     {
       "id": "quest-the-fremennik-exiles",
@@ -4983,14 +5628,24 @@
       "plan_line": 182,
       "cache_scope": "osrs239",
       "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Sourhog?oldid=15275486",
+          "revision": 15275486,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "porcine_sourhog_second: Sourhog (npc 10436): 40 hitpoints, 35/30/25 attack/strength/defence, magic 25, ranged 35, rangebonus 20, slashdefence 30, crushdefence 10, magicdefence 30, crush, attack speed 5, aggressive, max hit 4 from ~npc_melee_maxhit (configs/all.npc:350159 agrees) (quests/quest_porcineofinterest/configs/porcineofinterest.npc)"
+      ],
       "item_gamevals": [],
       "loc_gamevals": [],
       "trigger_handlers": [],
       "loot_contract": "",
       "test_ids": [],
-      "known_gaps": []
+      "known_gaps": [
+        "Sourhog (oldid 15275486): the page's melee max hit 6 is not what its stats roll -- ~npc_melee_maxhit is (30 + 9) * 64 / 640 = 4 and neither the page nor the cache carries a strength bonus; its [ai_opplayer2] (porcineofinterest_locs.rs2) throws the page's 20-30 spit one swing in four and otherwise swings ~npc_meleeattack."
+      ]
     },
     {
       "id": "quest-getting-ahead",
@@ -5019,14 +5674,24 @@
       "plan_line": 184,
       "cache_scope": "osrs239",
       "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Ancient_Guardian?oldid=15200249",
+          "revision": 15200249,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "bim_golem_boss: Ancient Guardian (npc 10654) version 1 \"Golem\": 40 hitpoints, 25/33/25 attack/strength/defence, magic 1, ranged 1, crushattack 20, strengthbonus 50, stabdefence 40, slashdefence 40, magicdefence 5, rangedefence 30, crush, attack speed 5, aggressive, max hit 7 from ~npc_melee_maxhit (configs/all.npc:355306 agrees) (quests/quest_belowicemountain/configs/belowicemountain.npc)"
+      ],
       "item_gamevals": [],
       "loc_gamevals": [],
       "trigger_handlers": [],
       "loot_contract": "",
       "test_ids": [],
-      "known_gaps": []
+      "known_gaps": [
+        "Ancient Guardian (oldid 15200249): the block follows the page's attack speed 5 against the cache record's attackrate 6."
+      ]
     },
     {
       "id": "quest-a-night-at-the-theatre",
@@ -5145,8 +5810,16 @@
       "plan_line": 191,
       "cache_scope": "osrs239",
       "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Cuthbert?oldid=15207602",
+          "revision": 15207602,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "frog_quest_cuthbert_combat: Cuthbert (npc 12957): 1 hitpoints, 1/1/1 attack/strength/defence, magic 1, ranged 1, every bonus 0, crush, attack speed 4, aggressive, max hit 1 from ~npc_melee_maxhit (configs/all.npc:418800 agrees) (quests/quest_ribbitingtale/configs/ribbitingtale.npc)"
+      ],
       "item_gamevals": [],
       "loc_gamevals": [],
       "trigger_handlers": [],
@@ -5162,15 +5835,63 @@
       "encounter_summary": "Knight of Varlamore (81); eight cultists (34)",
       "plan_line": 192,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Knight_of_Varlamore_(Twilight%27s_Promise)?oldid=15200510",
+          "revision": 15200510,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Cultist?oldid=15326762",
+          "revision": 15326762,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Twilight%27s_Promise?oldid=15356498",
+          "revision": 15356498,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Twilight%27s_Promise?oldid=15319500",
+          "revision": 15319500,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Citizen_(Twilight%27s_Promise)?oldid=15031710",
+          "revision": 15031710,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "vmq2_knight_6_combat: level-81 Knight of Varlamore (Mezan, id 12916), 100 hitpoints, 70/70/40 attack/strength/defence, 20 magic, no bonuses, slash, attack speed 5, aggressive, max hit 8, no drops (configs/twilightspromise.npc); fought in the player's own copy of m28_48",
+        "vmq2_cultist_m_1..3 / vmq2_cultist_f_1..3: level-34 Cultist (ids 12918..12923), 25 hitpoints, 30/35/30 attack/strength/defence, stab, attack speed 4, aggressive, max hit 4, drops nothing (configs/twilightspromise.npc); eight stand in the player's own copy of m22_49, one attacks, the rest retaliate",
+        "vmq2_guard_1..4: the Teomat guards beside the player in the battle (no ops, no fighting)"
+      ],
+      "item_gamevals": [
+        "vmq2_crest / vmq2_amulet / vmq2_incriminating_letter / vmq2_quetzal_feed: the quest's four items (twins, the citizen's pocket, the HQ chest, Regulus)"
+      ],
+      "loc_gamevals": [
+        "vmq2_knight_6_combat_leave: added inside the arena copy at its gate; Exit / Quick-exit walk the player back to the training room",
+        "colosseum_entrance_outside: the lobby arrival for stages 14..22 (quest_twilightspromise/scripts/twilightspromise_colosseum.rs2)"
+      ],
+      "trigger_handlers": [
+        "opnpc2:vmq2_knight_6_combat and vmq2_cultist_m_1..f_3 (trap 31 @player_combat_start)",
+        "player_hit_npc_prepare: vmq2_knight_6_combat runs ~tp_mezan_prepare_hit -- four swings in one style and he prays against it (melee/ranged count hit or miss, a splashed spell does not), a swing in the prayed style does nothing",
+        "ai_queue3:vmq2_knight_6_combat writes varb9832 2 and queues the walk back to the training room (tp_mezan_leave)",
+        "ai_queue3:vmq2_cultist_* counts the felled for the hero; the eighth queues tp_battle_won (leave the copy, stage 46, the aftermath scene)"
+      ],
+      "loot_contract": "Mezan and the cultists drop nothing (death_drop null; the Cultist page lists Nothing, always).",
+      "test_ids": [
+        "quest-combat-contract:twilights-promise",
+        "quest:twilightspromise"
+      ],
+      "known_gaps": [
+        "The wiki lets the guards kill the cultists as well; the port has the player kill all eight (no npc-versus-npc fight exists in the quest toolkit), so the eighth fallen cultist ends the battle.",
+        "Only one cultist hunts the player at the start; the other seven retaliate when hit (the page: the rest only attack after being attacked first).",
+        "The cache has no per-prayer Mezan form, so his protection prayer is the overhead shout plus a server-side rule; no head icon is drawn.",
+        "The poison route the page mentions (reapplied through his prayers) is the ordinary poison timer, not a quest rule."
+      ]
     },
     {
       "id": "quest-the-heart-of-darkness",
@@ -5216,15 +5937,69 @@
       "encounter_summary": "Dire Wolf Alpha (113); Minotaur (193)",
       "plan_line": 195,
       "cache_scope": "osrs239",
-      "implementation_status": "audit-pending",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Dire_Wolf_Alpha?oldid=15208071",
+          "revision": 15208071,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Dire_Wolf?oldid=15208070",
+          "revision": 15208070,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Minotaur_(Meat_and_Greet)?oldid=15200556",
+          "revision": 15200556,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Meat_and_Greet?oldid=15355341",
+          "revision": 15355341,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Meat_and_Greet?oldid=15263407",
+          "revision": 15263407,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "mag_direwolf: level-113 Dire Wolf Alpha (id 13812), 100 hitpoints, 120/110/80 attack/strength/defence, stab, attack speed 4, aggressive, max hit 12, Wolf bones always (configs/meatandgreet.npc); fought in the player's own copy of m23_148 plane 1",
+        "mag_direwolf_minion: level-72 Dire Wolf pup (id 13813), 10 hitpoints, 75/75/70, ranged 20 with a 500 ranged bonus, ranged, speed 4, max hit 3, no drops (configs/meatandgreet.npc); called by the alpha, flees when it dies",
+        "mag_minotaur: level-193 Minotaur (id 13815), 240 hitpoints, 140/110/100 attack/strength/defence, 100 magic, +60 attack, +10 strength, +300 magic attack, crush and magic, speed 5, aggressive, max hit 14 (configs/meatandgreet.npc); fought in the player's own copy of m28_48",
+        "mag_minotaur_cutscene: the intro form (id 13814), size 3, no Attack, deleted when the fight starts"
+      ],
+      "item_gamevals": [
+        "wolf_bones: the alpha's only drop (wiki 100%)",
+        "mag_test_kebab / mag_colosseum_kebab: Emelio's two kebabs (taste test; Lelia's gift and the one eaten in the arena)"
+      ],
+      "loc_gamevals": [
+        "direwolf_cave_entrance: the Wolf Den, builds the player's copy of m23_148 only while Alba's wolf is outstanding (varb11184_mag_meat = 2)",
+        "direwolf_cave_exit_instance: added inside the copy at 1488,9502,1; Exit asks first, Quick-exit does not",
+        "colosseum_entrance_outside: the lobby arrival for stages 14..24 (quest_twilightspromise/scripts/twilightspromise.rs2)"
+      ],
+      "trigger_handlers": [
+        "opnpc2:mag_direwolf, mag_direwolf_minion and mag_minotaur (trap 31 @player_combat_start)",
+        "ai_opplayer2:mag_direwolf stab, and in melee reach one swing in four may call a pup (10-tick floor)",
+        "ai_opplayer2:mag_direwolf_minion ~npc_rangeattack",
+        "ai_queue3:mag_direwolf writes varb11184_mag_meat 3, drops Wolf bones, deletes the pups",
+        "ai_opplayer2:mag_minotaur melee x3 then a Moo! magic swing a tick later (x2 below half health), Moooooo! and one tick faster at 50% and 25%",
+        "ai_queue3:mag_minotaur writes stage 22 and walks the player back to Lelia's room (queue mg_arena_leave)"
+      ],
+      "loot_contract": "The alpha drops Wolf bones always; the pups and the Minotaur drop nothing (the pages list none, and the Dire Wolf page says the quest's pups do not drop bones).",
+      "test_ids": [
+        "quest-combat-contract:meat-and-greet",
+        "quest:meatandgreet"
+      ],
+      "known_gaps": [
+        "The pages give no summon rate for the alpha: one call in four swings in melee reach, at most one every ten ticks, is this port's reading.",
+        "The Minotaur's immunity to binds, poison and cannons and its slash weakness are not stated as params; its single wiki attack bonus (60) is put on crush.",
+        "The Minotaur's magic max hit is the page's overall 14; the page names no separate magic number.",
+        "The arena death respawn in the Colosseum lobby and the minigame gravestone fee (wiki trivia) are not ported: a death uses the ordinary respawn.",
+        "Both fights are in a private copy of the square, entered through the real loc or Lelia; leaving the arena mid-fight is by teleport or death, as the arena copy has no exit loc."
+      ]
     },
     {
       "id": "quest-the-blood-moon-rises",
@@ -5271,8 +6046,16 @@
       "plan_line": 198,
       "cache_scope": "post-revision-239",
       "implementation_status": "blocked-cache-version",
-      "source_audits": [],
-      "npc_gamevals": [],
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Drink_troll?oldid=15200619",
+          "revision": 15200619,
+          "retrieved": "2026-10-06"
+        }
+      ],
+      "npc_gamevals": [
+        "sailing_charting_drink_crate_prying_times_effect_troll: Drink troll (npc 15164): 25 hitpoints, 9/9/9 attack/strength/defence, magic 1, ranged 1, every bonus 0, crush, attack speed 4, aggressive, max hit 2 from ~npc_melee_maxhit (configs/all.npc:479224 agrees) (quests/quest_pryingtimes/configs/pryingtimes.npc)"
+      ],
       "item_gamevals": [],
       "loc_gamevals": [],
       "trigger_handlers": [],
@@ -5288,15 +6071,61 @@
       "encounter_summary": "Gryphon (95), Shellbane gryphon (235)",
       "plan_line": 199,
       "cache_scope": "post-revision-239",
-      "implementation_status": "blocked-cache-version",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Gryphon_(Troubled_Tortugans)?oldid=15200682",
+          "revision": 15200682,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Shellbane_gryphon_(Troubled_Tortugans)?oldid=15267129",
+          "revision": 15267129,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Troubled_Tortugans?oldid=15273864",
+          "revision": 15273864,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Troubled_Tortugans?oldid=15270076",
+          "revision": 15270076,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "tt_conch_gryphon: level-95 Gryphon (id 15009), 110 hitpoints, 65/75/50 attack/strength/defence, 50 magic, crush, speed 5, max hit 8, aggressive, no drops (configs/troubledtortugans.npc)",
+        "tt_pearl_gryphon: level-235 Shellbane gryphon (id 15010), 400 hitpoints, 160/210/120 attack/strength/defence, 150 ranged, 100 magic, +20 ranged attack, melee and ranged, speed 5, max hit 22, aggressive, no drops (configs/troubledtortugans.npc)"
+      ],
+      "item_gamevals": [
+        "tortugan_shield: Blunn's free shield (varb18333_tt_free_shield); worn it keeps protection prayers working against the Shellbane gryphon, unworn its hits ignore them"
+      ],
+      "loc_gamevals": [
+        "tt_lair_entrance: blocked until an axe clears it at stage 26, then Enter puts the player in the cave and adds the Gryphon",
+        "tt_lair_exit: the cave exit back to the entrance"
+      ],
+      "trigger_handlers": [
+        "opnpc2:tt_conch_gryphon and tt_pearl_gryphon (trap 31 @player_combat_start)",
+        "ai_opplayer2:tt_conch_gryphon crush max hit 8, slam when worn weight is under 45 kg (troubledtortugans_fights.rs2)",
+        "ai_queue3:tt_conch_gryphon writes stage 32",
+        "ai_opplayer2:tt_pearl_gryphon melee beside the player, ranged otherwise, prayer ignored without the shield, slam under 40 kg worn weight",
+        "ai_timer:tt_pearl_gryphon the tortugans chip it down to 20 hitpoints",
+        "ai_queue3:tt_pearl_gryphon writes stage 40 and turns the three elders to their combat-done forms"
+      ],
+      "loot_contract": "Neither gryphon drops anything (their pages list no drops).",
+      "test_ids": [
+        "quest-combat-contract:troubled-tortugans",
+        "quest:troubledtortugans"
+      ],
+      "known_gaps": [
+        "The Gryphon's slam is one swing in four for up to double the max hit when worn weight is under 45 kg (Quest Helper's number); the page gives no damage and the knock-back is not ported.",
+        "The Shellbane gryphon's slam is one swing in five for up to double its max hit under 40 kg worn weight; the whirlwinds and corrosive spit are not ported; its ranged reach (7) and the elders' chip rate are this port's readings.",
+        "The fight is in the shared world, not an instance; the gryphon and elders are added when the hull moors at the Little Pearl.",
+        "The arrival cutscene (the red-sailed ship leaving) is not ported: the owner is speccing the cutscenes separately.",
+        "The slam tests the player's whole carried weight, not the worn weight: the server obj table has no weights (oc_weight answers 0), only the run weight.",
+        "The page's 50% air weakness is not stated: the revision-239 cache carries no weakness param for either npc."
+      ]
     },
     {
       "id": "quest-the-red-reef",
@@ -5324,15 +6153,48 @@
       "encounter_summary": "Three Strange Creatures (93)",
       "plan_line": 201,
       "cache_scope": "post-revision-239",
-      "implementation_status": "blocked-cache-version",
-      "source_audits": [],
-      "npc_gamevals": [],
-      "item_gamevals": [],
-      "loc_gamevals": [],
-      "trigger_handlers": [],
-      "loot_contract": "",
-      "test_ids": [],
-      "known_gaps": []
+      "implementation_status": "implementation-in-progress",
+      "source_audits": [
+        {
+          "url": "https://oldschool.runescape.wiki/w/Strange_creature_(Shadows_of_Custodia)?oldid=15340738",
+          "revision": 15340738,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Shadows_of_Custodia?oldid=15319376",
+          "revision": 15319376,
+          "retrieved": "2026-10-03"
+        },
+        {
+          "url": "https://oldschool.runescape.wiki/w/Transcript:Shadows_of_Custodia?oldid=15303787",
+          "revision": 15303787,
+          "retrieved": "2026-10-03"
+        }
+      ],
+      "npc_gamevals": [
+        "soc_quest_juvenile: level-93 Strange creature, 100 hitpoints, 95/55/45 attack/strength/defence, 25 magic, crush, attack speed 4, big bones (configs/shadowsofcustodia.npc); three are spawned owned by the player at Antos",
+        "soc_antos: Antos in the eastern chamber of the Stalker Den (configs/shadowsofcustodia.spawn)"
+      ],
+      "item_gamevals": [
+        "big_bones: the only drop (wiki: Strange creatures drop the juvenile custodian stalker table; quest leg needs none)"
+      ],
+      "loc_gamevals": [
+        "soc_cave_entrance / soc_cave_exit: the Stalker Den door pair"
+      ],
+      "trigger_handlers": [
+        "opnpc1:soc_antos spawns the three creatures (soc_spawn_creatures) and sets %varb16653_soc_stalkers_encountered",
+        "opnpc2:soc_quest_juvenile (trap 31 @player_combat_start)",
+        "ai_queue3:soc_quest_juvenile writes stage 20 when the last owned creature dies"
+      ],
+      "loot_contract": "Strange creatures drop big bones only; the juvenile custodian stalker table is not ported, the quest needs no drop and the wiki quest page lists no special loot.",
+      "test_ids": [
+        "quest:shadowsofcustodia"
+      ],
+      "known_gaps": [
+        "The creatures' bleed is not implemented: the pinned page gives no rate or damage.",
+        "The wiki max hit of 6 is not forced: the generic melee roll from 55 strength is used.",
+        "The Stalker Den is not multi-combat flagged and the full juvenile custodian stalker drop table is not ported."
+      ]
     },
     {
       "id": "quest-scrambled",

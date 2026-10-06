@@ -1,0 +1,33 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+colosseum_warbander_mage_male	12815	0	seq	813	human_staffready	12	8.4		ready	bound	npc record readyanim
+colosseum_warbander_mage_male	12815	0	seq	1205	human_halberdwalk_f	8	1.6		walk	bound	npc record walkanim
+colosseum_warbander_mage_male	12815	0	seq	1206	human_halberdwalk_b	8	1.6		walk	bound	npc record walkanim_b
+colosseum_warbander_mage_male	12815	0	seq	1207	human_halberdwalk_l	4	0.8		walk	bound	npc record walkanim_l
+colosseum_warbander_mage_male	12815	0	seq	1208	human_halberdwalk_r	4	0.8		walk	bound	npc record walkanim_r
+colosseum_warbander_mage_male	12815	0	seq	10853	npc_fremennik_warbander_mage_zaros_vertical_casting_walkmerge	13	2.2	1:varlamore_fremennik_mage_fire_cast_01	attack	name	attack1 candidate; "mage" + "warbander" in Jagex name; walkmerge cast, one fire-cast sound
+colosseum_warbander_mage_male	12815	0	seq	10854	npc_fremennik_warband_mage_human_unarmed_def	8	2.1		defend	name	hit flinch candidate by name
+colosseum_warbander_mage_male	12815	0	seq	10855	npc_fremennik_warband_mage_human_death	10	668.2	1:human_death	death	name	death by name; 20000-tick final hold
+colosseum_warbander_melee_male	12816	0	seq	808	human_ready	12	8.4		ready	bound	npc record readyanim
+colosseum_warbander_melee_male	12816	0	seq	819	human_walk_f	8	1.6		walk	bound	npc record walkanim
+colosseum_warbander_melee_male	12816	0	seq	820	human_walk_b	8	1.6		walk	bound	npc record walkanim_b
+colosseum_warbander_melee_male	12816	0	seq	821	human_walk_l	4	0.8		walk	bound	npc record walkanim_l
+colosseum_warbander_melee_male	12816	0	seq	822	human_walk_r	4	0.8		walk	bound	npc record walkanim_r
+colosseum_warbander_melee_male	12816	0	seq	10856	npc_fremennik_warbander_melee_human_sword_stab	6	1.3	2:stabsword_stab	attack	name	attack1 candidate by name; sword stab, sound stabsword_stab
+colosseum_warbander_melee_male	12816	0	seq	10857	npc_fremennik_warband_melee_human_unarmed_def	8	2.1		defend	name	hit flinch candidate by name
+colosseum_warbander_melee_male	12816	0	seq	10858	npc_fremennik_warband_melee_human_death	10	668.2	1:human_death	death	name	death by name; 20000-tick final hold
+colosseum_warbander_ranged_female	12814	0	seq	808	human_ready	12	8.4		ready	bound	npc record readyanim
+colosseum_warbander_ranged_female	12814	0	seq	819	human_walk_f	8	1.6		walk	bound	npc record walkanim
+colosseum_warbander_ranged_female	12814	0	seq	820	human_walk_b	8	1.6		walk	bound	npc record walkanim_b
+colosseum_warbander_ranged_female	12814	0	seq	821	human_walk_l	4	0.8		walk	bound	npc record walkanim_l
+colosseum_warbander_ranged_female	12814	0	seq	822	human_walk_r	4	0.8		walk	bound	npc record walkanim_r
+colosseum_warbander_ranged_female	12814	0	seq	10850	npc_fremennik_warbander_archer_att_colosseum	10	1.9	6:arrow_launch	attack	name	attack1 candidate by name (archer + colosseum); arrow_launch sound frame 6
+colosseum_warbander_ranged_female	12814	0	seq	10851	npc_fremennik_warband_archer_human_unarmed_def	8	2.1		defend	name	hit flinch candidate by name
+colosseum_warbander_ranged_female	12814	0	seq	10852	npc_fremennik_warband_archer_human_death	10	668.2	1:human_death	death	name	death by name; 20000-tick final hold
+colosseum_human_gib	12828	-	spotanim	2713	vfx_colosseum_human_explosion_01	18	2.0		other	name	explosion graphic by name "human"+"colosseum"; model 46421 anim vfx_scarab_explosion01 (seq 9610, framemap 2081); not tied to the gib npc by the cache
+colosseum_human_gib	12828	-	spotanim	2714	vfx_colosseum_human_explosion_02	18	2.0		other	name	explosion graphic by name "human"+"colosseum"; model 46421 anim vfx_scarab_explosion01 (seq 9610, framemap 2081); not tied to the gib npc by the cache
+colosseum_human_gib	12828	-	spotanim	2715	vfx_colosseum_human_explosion_03	18	2.0		other	name	explosion graphic by name "human"+"colosseum"; model 46421 anim vfx_scarab_explosion01 (seq 9610, framemap 2081); not tied to the gib npc by the cache
+colosseum_human_gib	12828	-	spotanim	2716	vfx_colosseum_human_explosion_04	18	2.0		other	name	explosion graphic by name "human"+"colosseum"; model 46421 anim vfx_scarab_explosion01 (seq 9610, framemap 2081); not tied to the gib npc by the cache
+colosseum_human_gib	12828	-	spotanim	2717	vfx_colosseum_human_explosion_05	18	2.0		other	name	explosion graphic by name "human"+"colosseum"; model 46421 anim vfx_scarab_explosion01 (seq 9610, framemap 2081); not tied to the gib npc by the cache
+colosseum_human_gib	12828	-	spotanim	2718	vfx_colosseum_human_explosion_06	18	2.0		other	name	explosion graphic by name "human"+"colosseum"; model 46421 anim vfx_scarab_explosion01 (seq 9610, framemap 2081); not tied to the gib npc by the cache
+colosseum_human_gib	12828	-	spotanim	2719	vfx_colosseum_human_explosion_07	18	2.0		other	name	explosion graphic by name "human"+"colosseum"; model 46421 anim vfx_scarab_explosion01 (seq 9610, framemap 2081); not tied to the gib npc by the cache
+colosseum_human_gib	12828	-	spotanim	2720	vfx_colosseum_human_explosion_08	18	2.0		other	name	explosion graphic by name "human"+"colosseum"; model 46421 anim vfx_scarab_explosion01 (seq 9610, framemap 2081); not tied to the gib npc by the cache

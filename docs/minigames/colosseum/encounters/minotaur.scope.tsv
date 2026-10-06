@@ -1,0 +1,101 @@
+mechanic_id	scope	note
+minotaur.stats.hp	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.combat_level	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.attack_level	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.defence_level	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.strength_level	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.ranged_level	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.magic_level	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.size	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.attack_rate_param	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.strength_bonus	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.attack_bonus	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.magic_attack_bonus	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.ranged_attack_bonus	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.stab_defence	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.slash_defence	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.crush_defence	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.magic_defence	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.ranged_defence	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.xp_bonus	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.examine	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.aggressive	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.ids	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.param_26	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.stats.not_slayer	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.style.attack_style	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.style.auto_prayer	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.range.tiles	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.range.attack_footprint_gap	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.range.cardinal_adjacent	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.range.attacks_at_gap_over_one	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.range.diagonal_reach	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.maxhit.unprayed	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.maxhit.prayed	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.accuracy.hit_chance	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.hit.offset_from_attack	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.hit.offset_measured	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.hit.off_tick_chance	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.cadence.attack	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.cadence.gap_share_five	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.cadence.gap_minimum	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.cadence.gap_over_five_cause	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.first_attack.earliest	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.first_attack.never_attacked_share	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.first_attack.attack_kind	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.first_attack.min_wave_tick	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.heal.exists	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.heal.observed_count	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.heal.player_condition	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.heal.melee_priority	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.heal.threshold_percent	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.heal.observed_pre_heal_max	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.heal.amount_to_full	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.heal.radius_tiles	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.heal.observed_distance	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.heal.scan_prefilter	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.heal.line_of_sight	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.heal.excludes_minotaurs	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.heal.targets_seen	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.heal.first_after_spawn	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.heal.scan_period	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.heal.hitsplat_delay	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.heal.spawn_stand_beside	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.movement.max_tiles_per_tick	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.movement.routefinds	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.movement.safespot_nw_pillar	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.movement.safespot_tiles	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.red_flag.npc_id	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.red_flag.npc_id_without	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.red_flag.handicap_index	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.red_flag.routefinds	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.red_flag.stats_identical	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.red_flag.same_attack	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.red_flag.param_26_meaning	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.red_flag.others_enter_tiles	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.spawn.waves	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.spawn.one_per_wave	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.spawn.tick	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.spawn.tiles	stat	statistical: settled by the recorder tool over many waves or many hits; one solo test cannot weigh a share
+minotaur.spawn.first_move_after_spawn	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.spawn.paired_shaman_waves	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.model	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.idle.seq	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.walk.seq	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.attack.seq	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.attack.length	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.attack.sound_frames	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.heal.seq	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.heal.length	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.heal.sound_frames	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.heal.graphic	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.heal.unframed_sounds	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.spawn.seq	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.spawn.sound_frames	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.defend.seq	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.death.seq	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.death.despawn_tick	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.explosion.graphic	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.gib.none	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.unused_variants	all	one solo test (wave 7 to 11 with a minotaur)
+minotaur.presentation.projectile.none	all	one solo test (wave 7 to 11 with a minotaur)

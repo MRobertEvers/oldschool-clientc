@@ -70,8 +70,18 @@ Golems"; the three golem pages) work like this:
 - If you open a door again before the golem's death animation ends, another
   golem spawns.
 
-Port: every door `npc_add`s its golem for 50 ticks, and only while its
-`%elid_*golem` bit is 0. Every `[opnpc2]` ends in `@player_combat_start`,
+- No source names a timer. The Walkthrough, the Transcript, the three golem
+  pages and Quest Helper (`SpiritsOfTheElid.java` :245-263) all have the
+  golem stand until it is killed.
+
+Port: every door `npc_add`s its golem for `^elid_golem_duration` (3000
+ticks, `quest_spiritsoftheelid.constant`), and only while its
+`%elid_*golem` bit is 0 and `npc_find` sees none within 10. The 3000 is only
+the clean-up for a player who opens a door and walks away. Swan Song's
+`^ssq_fight_duration` and Contact!'s scarab boss use the same value. Until
+seam pass matthew-mbp-m4-b68-seam2 it was 50 ticks, a port invention: an
+80-hitpoint golem despawned mid-fight and the driver graded it dead by
+absence. Every `[opnpc2]` ends in `@player_combat_start`,
 and every `[ai_queue3]` sets the bit. The style weakness is the cache npc's
 defence table; there is no script gate. PARITY.tsv records that the golems
 were "unchanged, not re-driven this pass". Proofs for the ranging channel

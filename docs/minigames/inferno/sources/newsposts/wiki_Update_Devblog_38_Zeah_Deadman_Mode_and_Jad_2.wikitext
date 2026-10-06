@@ -1,0 +1,111 @@
+{{Update|date=11 January 2016|rev=13 January 2016|link=http://services.runescape.com/m=news/devblog-38---zeah-deadman-mode-and-jad-2?oldschool=1|category=website}}
+[[File:Devblog 38 - Zeah, Deadman Mode and Jad 2 newspost.png|right]]
+{{clear}}
+
+We have a bumper poll for you to kick off 2016. Head over to our '''[http://services.runescape.com/m=forum/forums.ws?380,381,253,65729714 forums]''' for more details.
+
+'''''Mods Alfred, Archie, Ash, Ghost, Ian, Jed, John C, Kieren, Mat K, Maz, Ronan, Weath'''''<br/>''The Old School Team''
+
+
+
+----
+
+
+
+
+
+{{Headline|25|Zeah, DMM & Jad 2}}
+
+
+The first poll of 2016 is a bumper edition for you which includes additions to Zeah, changes to Deadman Mode as well as the addition of a bigger and badder Jad.
+
+'''Change log'''
+*The dragon warhammer's special attack cost has been increased from 35% to 50%.
+*The dragon warhammer's special attack will now reduce your opponents defence by 30% of their current Defence level, rather than 30% of their Defence level.
+{{ToC}}
+
+==Zeah==
+===Necromancy===
+First off, let’s have a look at the Necromancy spell book, we have had a lot of feedback asking for changes and here is what we want to poll.
+
+Teleportation – the inhabitants of Zeah have never had law runes before and so have not been able to investigate the ability of teleportation. Since your arrival on Zeah new teleports have been researched and discovered using the power of the dark altar. 
+* Lumbridge graveyard (level 6)
+* Draynor Manor (level 17)
+* The grave next to the mind altar (level 28)
+* Your respawn point (level 34)
+* The ghouls in Morytania (level 40)
+* Outside Fenkenstrain’s castle (level 48)
+* West Ardougne (level 61)
+* Harmony Island (level 65) 
+* The graveyard in the Wilderness (level 71)
+* Barrows (level 83 magic)
+* Ape Atol caves near the zombie monkeys (level 90 magic)
+
+All teleports that require you to complete a quest prior to visiting the area will not work until that area has been unlocked. We will poll each teleport spell seperately
+
+We would also like to poll a number of other new spells.
+
+Wines to Wine of Zamorak (level 55) – using the power of the dark altar you can corrupt a jug of wine to turn it into Wine of Zamorak. This will need to go through several balancing iterations to make sure the runes used are appropriate and we’ll need your feedback on this.
+
+Ressurrect Crops (level 78) – Each time you cast this spell you will have the chance to resurrect your dead crops. You will only get one chance to cast the spell on each crop and if it fails you will not be able to cast it again on the same crop. If you successfully cast this spell it will revive your crop to the same stage it was when it died.
+
+
+===Other changes to Zeah===
+As a reward from the Hosidius Tithe minigame shop you will be able to buy a farming outfit which gives a 2.5% bonus to the farming XP you gain when wearing it. This is similar to the Lumberjack outfit and the Motherlode Mine outfit.
+
+As another reward from the Tithe minigame shop we would like to offer you a seed box. This box will store up to 6 different seeds and only take up one inventory space.
+
+In the Hosidius area there is a vine house. We would like to open the vine house so you can grow you own grapes in it as a reward for getting 65% favour with the house. You would need 36 farming to grow grapes and the higher your farming level the more grapes you will get.
+
+As a reward for getting 100% favour with the Shayzien house you will be able to fight a new high level lizardman. This lizardman will drop the dragon warhammer. The stats of the dragon warhammer will be:
+
+[[File:Devblog 38 - Zeah, Deadman Mode and Jad 2 (1).png|center|575px]]
+
+Using 50% energy, the Warhammer deals 50% more damage and lowers your opponents defence by 30%. That is a 30% flat reduction on their current Defence level, not the damage you’ve dealt but should only take effect if you deal above zero damage.
+
+This high level lizardman will have an acid attack which will be negated by the Shayzien armour you earn from the Shayzien house.
+
+Finally, we would like to offer the option of recolouring your Graceful outfit if you reach 100% alignment with a house, the colour of your outfit will depend on the house you have 100% favour with.
+[[File:Devblog 38 - Zeah, Deadman Mode and Jad 2 (2).jpg|center|575px]]
+
+
+==Deadman Mode==
+We want to make several changes to Deadman Mode.
+
+Firstly, we want dragons to give the chance of dropping dragon claws on Deadman Mode ONLY. This will have the same rarity as getting a draconic visage. The dragon claws will be balanced the same way they were on release in 2008.
+
+We would also like the Wilderness bosses on Deadman Mode ONLY to drop PvP armours (just the armour, not the weapons). The stats for those would be the same as they were when they were originally released in 2008. To remind you, here they are.
+
+[[File:Devblog 38 - Zeah, Deadman Mode and Jad 2 (3).png|center|575px]]
+
+We would like for all new players in Deadman Mode to be protected from attack in their first 6 hours of gameplay. Players would not be able to attack other players during the protected period. If they wish to remove the protection they can speak to an NPC who will facilitate that.
+
+In addition to the above protection, we want add some more protection so if you kill a player who is more than 40 combat levels less than yourselves, you will not get a key from their kill unless they are skulled.
+
+Finally, for Deadman Mode we would like to add the same PJ timer that you find in PvP worlds.
+
+==Jad 2==
+We all remember when Jad came out… and how often we died when trying to kill it… great times. We want to create the same thing again with an expansion to the Fight Caves. We propose that upon defeating Jad for the first time you can choose to continue your battle through additional waves of the Fight Caves until you encounter Jad 2. 
+
+On the completion of the final wave, the floor will give way and plunge you deeper into the caves where Jad 2 awaits for you. If you manage to defeat him you will be rewarded with one of three capes. These will be best in slot capes for mage, melee and ranged.
+
+[[File:Devblog 38 - Zeah, Deadman Mode and Jad 2 (4).png|center|575px]]
+
+The aim of Jad 2 is to make it very difficult to beat and obtaining these capes should be seen as a big achievement. We know that many of the player base are very resourceful and we will reserve the right to tweak the balancing to ensure this is a big challenge.
+
+
+==Other questions==
+
+Here are a few other questions we would like to poll.
+
+Should we add an additional skeletal wyvern cave which can only be accessed if you have a task to kill the creature from your slayer master?
+
+Should there be a toggle to filter the boss kill count message from your message box?
+
+Should there be a chance of getting a bottle when fishing which contains a clue scroll?
+
+Should we add a permanent ditch contents button to compost bins? This would allow you to ditch the contents of the bin before it's done composting.
+
+Should teleport scrolls be given a new, unique animation? [[:File:Devblog 38 - Zeah, Deadman Mode and Jad 2 (5).gif|[Image]]]
+
+'''''Mods Alfred, Archie, Ash, Ghost, Ian, Jed, John C, Kieren, Mat K, Maz, Ronan, Weath'''''<br/>''The Old School Team''

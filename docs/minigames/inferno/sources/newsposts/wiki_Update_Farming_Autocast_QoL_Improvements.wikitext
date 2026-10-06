@@ -1,0 +1,327 @@
+{{Update|date=09 April 2025|rev=11 April 2025|url=https://secure.runescape.com/m=news/farming--autocast-qol-improvements?oldschool=1|category=game}}
+[[File:Farming & Autocast QoL Improvements newspost.jpg|right]]
+{{clear}}
+__TOC__
+==Blog Update==
+Following your feedback, we’ll be reverting two specific changes made in this update: the new Tool Leprechaun locations and the movement restrictions placed on Gardeners.
+
+Many of you let us know that the new Leprechaun positions weren’t as helpful as intended, others felt the original placements were already well-placed and part of the rhythm of Farming. Similarly, while locking Gardeners to a small area was meant as a convenience, players felt it took away from the world’s liveliness and charm.
+
+These changes came from a backlogged ticket that had been sitting with us for some time. In hindsight, they should’ve been communicated more clearly and likely polled, as we do with other QoL changes. We’re actively reviewing our internal processes to make sure these kinds of updates are surfaced earlier and given the same visibility and scrutiny as other game changes.
+
+We’ve taken your thoughts on board and will revert both changes with the game update on Wednesday, April 16th. Thanks again for all your feedback, and apologies we missed the mark on this one!
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+| My Arm's Leprechaun deckchair is showing a combat level of 1.
+| To be removed.
+|-
+| Unequipping and re-equipping ahrims while on ancients clears your autocast spell.
+| Hotfixed.
+|-
+| Unequipping ahrims/amulet of the damned while autocasting ancients doesn't clear the spell.	
+| Hotfixed.
+|}
+
+----
+
+'''PSA: We're aware of an issue affecting some players on Android devices where the game may take longer to load than normal, and may cause game not responding device notifications. We're investigating the issue as a priority.'''
+
+----
+
+''This week’s update brings some handy quality-of-life improvements to Farming and Autocasts!''
+
+==Changelog - April 9th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Farming Improvements'''
+
+* Gardeners will no longer wander off and will instead remain conveniently stationed at their plots, confined to a 3-tile diameter, ready to assist you.
+* Leprechauns are now stationed closer to herb patches.
+* Using a tree seed on a plant pot will now continue planting similar seeds into more pots until you either run out of pots or seeds. Likewise, watering your potted seeds will continue automatically for as long as you have water and unwatered pots of the same type.
+
+'''Autocast Mishaps'''
+
+* Autocast is no longer cleared when you don't have the level or runes to cast the selected spell; it will instead remain as your selected auto-cast, and once you regain the runes or level, it will begin casting again.
+* You can now select a spell to autocast regardless of its level or whether or not you have the runes available.
+
+'''Poll 83: Castle Wars Tweaks'''
+
+* To reduce AFK viability and better support active Castle Wars gameplay, Plaudit Crates have been updated and are now re-enabled for purchase and opening. Coins and runes have been removed, and untradeable arrows and bolts (exclusively for use in Castle Wars) have been added.
+* The message telling you that you cannot attack a teammate in Castle Wars is now filtered.
+* The Castlewars Rune pouch will now enable free casts of Humidify.
+* Logging out and back in a game of Castle Wars will no longer magic another rune pouch into your inventory.
+* The new barricade cap restricting teams to 7 barricades outside and 10 inside the base now only applies on dedicated Castle Wars Worlds.
+
+'''8 - 16-bit Music Update'''
+
+* Audio improvements: Transitioned music tracks from 8 -16-bit for improved quality.
+
+'''Other Changes'''
+
+* The recently updated rune pouch menu has been tweaked to let you set a custom quantity as the left-click Store/Withdraw option for runes. Use the 'X' quantity button to customise the quantity and set it as the left-click option on your rune stacks.
+* As Ironmen can already transfer tradeable items to other characters, we've removed the restriction that stopped them from gifting bonds. They can now 'use' a bond on the recipient to offer it as a free gift, like other characters can.
+* The collection log is now in the hiscores panel in the sidebar.
+* Added new "Top-floor" and "Bottom-floor" options to the Ladder at the Grand Tree, Lighthouse, and Lumbridge Castle Staircase for faster navigation.
+* Fixed an issue where the Ancient Sceptre's bonus to Blood spell healing was being rounded down to zero, preventing the benefit from being applied. The calculation has been updated to ensure the Sceptre now provides its intended bonus.
+* The inventory icon for the Echo Ahrim's Robe top is no longer clipped, and the icon for the Slayer Ring is more centred in its space.
+* Fixed a bug where 'Withdraw 5' and 'Withdraw 10' bank options behaved incorrectly when the custom quantity for ''x'' was set to 0.
+* The 'Check' option on the Friendly Zombie Pirate now tells you how many times you've opened the locker, once you've gone through his introductory chat.
+* Fixed typos from While Guthix Sleeps and the Construction cape’s right-click teleport menu.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Farming QoL==
+We’ve been busy in the garden, making some fresh changes to improve your farming experience!
+
+Gardeners are finally grounded! No more chasing them down - those days are over. Instead, they've been lovingly trapped within a 3-tile diameter, where they’ll remain forever in their tiny, self-made garden prison, waiting eagerly to assist you with your crops. It's like a VIP service... except the VIP is stuck in a tiny square and can't escape. Enjoy the'' ''freedom of never losing them again!
+
+[[File:Farming & Autocast QoL Improvements (1).jpg|thumb|250px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-09/gulp.jpg here]!'']]
+
+That's not all, because the Leprechauns Have Moved In! Leprechauns are now hanging out closer to herb patches, making it quicker and easier to access that sweet, sweet storage. It's like they knew you were coming...
+
+[[File:Farming & Autocast QoL Improvements (2).jpg|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-09/lep.jpg here]!'']]
+
+Finally, planting and watering just got lazy-proofed! You can now use a tree seed on a plant pot and keep planting more similar seeds until you either run out of pots or seeds. No more intense clicking! Also, watering your potted seeds will automatically continue as long as you've got water and unwatered pots of the same type. Now you can water and plant without even thinking about it. 
+
+==Autocast Mishaps==
+Ever been drained by that pesky bat in Inferno, gone to heal up with Blood Barrage, and landed straight into the loving embrace of a Jal-ImKot meleer, sending you straight back to square one? Or maybe you brewed down in TOB, Kodai raised high, only to majestically bonk the aggro crab at Nylo, instead of landing that crucial freeze? 
+
+Well, suffer no more! because autocast just got smarter!
+
+Your autocast will now'' ''stick around even if you don’t have the level or runes to cast a spell. Once you regain the requirements, it’ll automatically resume casting - because nothing’s worse than panic-switching to your staff, only to find you’re set to whack instead of'' ''zap.
+
+* Select any spell to autocast - even if you lack the level or runes.
+* Autocast won’t be cleared if you temporarily can’t cast the spell.
+* Ran out of runes or got drained? Your selected spell will be grayed out until you meet the requirements again.
+
+However, some things haven’t changed:
+
+* Autocast is still cleared when swapping weapons in the Wilderness.
+* You still can’t cast spells you don’t meet the requirements for - it just won’t wipe your selection anymore.
+
+What’s in it for you?
+
+* Level 3 accounts can now avoid gaining combat XP by keeping autocast set without accidentally smacking something.
+* No more tragic misclicks in high-stakes fights - your spell will be ready when you are.
+
+So go forth, cast with confidence, and never fear the accidental staff bonk again!
+
+==Poll 83: Castle Wars Tweaks==
+===Plaudits Update===
+Last week, we introduced Plaudits to the Castle Wars reward shop as a way to offer meaningful rewards for participation. While the goal was to support players who genuinely enjoy the minigame, we quickly saw the unintended consequence: a spike in AFK behavior, with some players prioritising rewards over real gameplay.
+
+We heard your concerns loud and clear and temporarily disabled the crates to reassess. This week, we’re reintroducing them - but with important changes aimed at preserving the integrity of Castle Wars while still offering fair rewards.
+
+===What’s Changed?===
+The revised crates now include some untradeable items that can only be used within Castle Wars matches. This includes the Castle Wars Arrows and Bolts, which have the strength of Dragon Arrows and Dragon Bolts, making them powerful tools for the minigame - but they can’t be traded or used outside of Castle Wars, meaning they won’t impact the wider game economy.
+
+Meanwhile, the rest of the crate contents (like blighted supplies and food) remain usable and tradeable, but we’ve removed high-concern items like Runes and GP, which were previously enabling the crates to serve as a profitable AFK money-maker. These changes are intended to make the crates a lot less attractive for passive farming, and a lot more relevant for active Castle Wars players.
+
+===Updated Plaudit Loot (3 Rolls per Crate):===
+
+* 4 noted Blighted Super Restore Potions
+* 75-105 Castle Wars Arrows (Dragon Arrow strength, untradeable, Castle Wars-only)
+* 75-105 Castle Wars Bolts (Dragon Bolt strength, untradeable, Castle Wars-only)
+* 2 Castle Wars Tickets
+* 10-15 Blighted Ice Sacks
+* 175-225 Rune Arrows
+* 100-120 Rune Javelins
+* 15-25 Blighted Mantas
+* 25-35 Blighted Anglerfish
+* 35-45 Blighted Karambwans
+* 20-30 Blighted Vengeance sacks
+
+We know players have mixed feelings - some would prefer the crates be scrapped entirely, others want the original rewards restored. We hope this middle ground keeps the spirit of Castle Wars alive, offering relevant, balanced rewards without enabling the wrong kind of gameplay.
+
+We’ll keep monitoring how things go, and we’re always open to feedback as we refine things further. Thanks for sticking with us while we work to make Castle Wars the fun, competitive experience it’s meant to be.
+
+In addition, we've also made the following tweaks:
+
+* The message telling you that you cannot attack a teammate in Castle Wars is now filtered.
+* The Castlewars Rune pouch will now enable free casts of Humidify.
+* Logging out and back in a game of Castle Wars will no longer magic another rune pouch into your inventory.
+* The new barricade cap restricting teams to 7 barricades outside and 10 inside the base now only applies on dedicated Castle Wars Worlds.
+
+Now back to storming castles and setting things on fire as usual!
+
+==8 - 16 Bit Music Update==
+We wanted to give you an update on some audio improvements we're making to Old School RuneScape.
+
+We were thrilled by the positive response and the genuine enthusiasm you showed for the audio team's efforts in our recent 16-bit blog post. If you missed that, you can check it out [https://secure.runescape.com/m=news/behind-the-scenes-16-bit-audio?oldschool=1 here] and get the full lowdown.
+
+However, we also heard your concerns about preserving the authentic Old School feel that you know and love.
+
+We understand completely!
+
+Rest assured, maintaining that classic Old School RuneScape vibe is our absolute priority. We're not looking to reinvent the wheel, but rather to polish it, ensuring your auditory experience keeps pace with the game's evolution. Today, we want to dive a little deeper into the musical side of this upgrade, specifically addressing the transition from 8-bit to 16-bit music.
+
+Recently, we've been working on transitioning our music tracks from 8-bit to a more versatile 16-bit format. You might have also noticed a very subtle layer of white noise in some of the music tracks, which this update will smooth out.
+
+===What to Expect===
+In most cases, the change will be minimal, or not even noticeable.  The Old School feel of the music you love will remain unchanged. We're rolling out this update for music tracks first. We're holding off on sound effects for the time being, as we want to further refine and improve those before any updates are made.
+
+===Why the Change?===
+This is about a gentle refinement, not a dramatic overhaul. The 16-bit format allows for a cleaner, more versatile OSRS sound. This, in turn, will help us maintain audio quality and lay the important groundwork for any future audio improvements. Go ahead, take a listen, and let us know what you think:
+
+===Sea Shanty II===
+[[File:Farming & Autocast QoL Improvements (3).mp4|thumb|600px|center|''If you can’t view the video above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-09/sea.mp4 here]''!'']]
+
+===Harmony===
+[[File:Farming & Autocast QoL Improvements (4).mp4|thumb|600px|center|''If you can’t view the video above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-09/Harmony.mp4 here]''!'']]
+
+===Rose===
+[[File:Farming & Autocast QoL Improvements (5).mp4|thumb|600px|center|''If you can’t view the video above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-09/Rose.mp4 here]!'']]
+
+==Yama: Progress Update==
+Behind the scenes, we've been hard at work on bringing Yama, the Master of Pacts to life, so we thought we'd drop in and let you know where we're at! This section will assume that you're up-to-date with Yama, so if you need a refresher then make sure to check out the dedicated blog by [https://secure.runescape.com/m=news/yama---master-of-pacts?oldschool=1 clicking here].
+
+The core encounter (meaning without any Contracts applied) is more or less finished, so we've invited a handful of players to test what we've got so far. If those playtests go well, we'll be able to lock in a release date and share it with you ASAP so that you can book time off work, stock up on snacks, move to a quiet place in the countryside free from distractions - whatever it is you've got to do to satisfy your PvM itch.
+
+Naturally, we're not going to show off the fight itself here, but we'll give you an ''exclusive ''preview of the demon of the hour and his reasonably-sized throne!
+
+[[File:Farming & Autocast QoL Improvements (6).gif|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-09/Yama.gif here]!'']]
+
+''This is why you should always double-check the dimensions on your flatpack furniture...''
+
+While all of the rewards passed, we know that opinions were divided on the early concepts we showed off for the Oathplate armour, particularly the colour scheme. Below is a first-look at our in-game models for the 'default' Oathplate appearance, and the cosmetic variant unlocked by completing a Contract that makes the Yama fight considerably harder.
+
+[[File:Farming & Autocast QoL Improvements (7).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-09/Oath.jpg here]!'']]
+
+''Here's how the default appearance looks, we took the original proposal for the more prestigious look and ran with it, but made an even '''cooler''' look for the 'flex cosmetic' variant...''
+
+[[File:Farming & Autocast QoL Improvements (8).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-09/Up.jpg here]!'']]
+
+''Here's what you can expect to see the best of the best rocking! It's a pretty unique colour scheme that really makes this Oathplate variant stand out, but still pairs nicely with a lot of other best-in-slot options!''
+
+Eagle-eyed readers will undoubtedly have noticed that we're still calling it Oathplate armour, despite some feedback that 'Oathplate platebody' was a bit of a mouthful and a popular suggestion for the set to be called 'Oathbreaker armour' instead. Narratively, we weren't too keen on 'Oathbreaker' because no oaths have been broken - and we wouldn't recommend looking for any loopholes with Yama either. Some players suggested using words like hauberk or cuisse for the armour pieces, but these don't really match up to the appearance since they're very specific terms. For now, we're sticking with the Oathplate helm, Oathplate chest and Oathplate legs - no 'platebody' needed because the clue's in the name!
+
+Beyond Yama itself, we've made great progress on the Chasm of Fire skilling activities! Take a look...
+
+[[File:Farming & Autocast QoL Improvements (9).webm|thumb|600px|center|''If you can’t view the video above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-09/vod.webm here]!'']]
+
+The video above should give you a look at what you'll find yourself doing if you're looking to earn some GP by skilling or make a piece of Oathplate armour for yourself using armour shards. One player can be seen mining some Infernal shale at a large vein, this is a super laid-back approach that's very low intensity but doesn't yield a high output. Next to them, you can see somebody mining considerably more actively and wiping the sweat from their brow, but there's not a pestle and mortar in sight - we'll leave you to speculate on this one for now, just know that you've got a variety of options for gathering up your Infernal shale.
+
+In the background you can see another player who's all done with mining and starting to smith their Oathplate bars, timing their actions perfectly to smelt and quench at lightning speed. Not shown here is the final step: smithing! While we didn't have enough hands to show it off here, you'll have a neat timing-based Smithing activity to speed up your time on the anvil.
+
+All-in-all, the skilling activities give you a bunch of options for intensity that let you get out what you put in and while they're not exactly 'universal' methods, we think they're a lot of fun and hope you'll enjoy them for yourself on Yama's release, even if you're not looking to take on the formidable demon himself!
+
+That's all we've got to share for now, we're excited to see how our playtesters do this week and to get a release date in front of you as soon as possible, so keep an eye out!
+
+==The Great OSRS Eggstravaganza Competition==
+With Easter just around the corner, we're getting in the mood with a cracking new community competition! Prepare your brushes, markers, and questionable artistic skills - it’s time for the OSRS-themed Egg Decorating Competition!
+
+[[File:Farming & Autocast QoL Improvements (10).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-09/egg.jpg here]!'']]
+
+We want to see your best (or worst) attempts at turning an egg into a masterpiece worthy of the Evil chicken! Whether you're working with chocolate eggs, plastic eggs, or a good ol' fashioned fridge egg that definitely wasn’t meant for this - get creative and bring Gielinor to life, egg style!
+
+===How to Enter===
+
+* Snag an egg-like object
+* Decorate it with an OSRS theme - whether it’s an iconic NPC, a legendary weapon, or just a very cursed attempt at a Potato Cactus.
+* Snap a pic and submit it in either the [https://discord.com/channels/324132423636090880/1356998468564160565 #egg-competition] channel on the official OSRS Discord or in the egg competition post on the [https://www.reddit.com/r/2007scape/new/ r/2007scape subreddit].
+
+===When?===
+
+* Competition Opens: Monday, April 7th 10:00AM BST
+* Competition Closes: Monday, April 14th 10:00 AM BST
+* Winner Selection: Our judge will narrow the competition down to two finalists per category, but the ultimate champions will be decided LIVE by Twitch chat during our Easter Livestream on April 17th, 16:00 - 17:00 BST
+
+===Competition Categories===
+
+* Funniest Egg - The one that cracks us up the most!
+* Most Creative Egg - The most uneggxpected, out-of-the-box/coop design!
+* Most OSRS-Inspired Egg – The one that best embodies the soul of Gielinor!
+
+===The Prizes===
+Winners of each category will score themselves 10 Old School Bonds and 3 months of membership, to help keep that gaming on track.
+
+So, grab your paints, markers, or whatever questionable decoration supplies you may have lying around, and get cracking! We can't wait to see the absolute masterpieces (or eggs-traordinarily disturbed) pieces you hatch up!
+
+===In-game Easter Eggs===
+We're also hosting an [https://discord.com/channels/324132423636090880/1356998537375911976 Easter-trivia] channel in the Discord for you to share and discover hidden Easter eggs across Gielinor! We’re talking about those sneaky little details, quirky mechanics, and fun secrets that only the most dedicated adventurers have uncovered.
+
+Think you know an obscure OSRS Easter egg? Drop it here! 
+
+Need inspiration? Ever tossed a gold ring into the Wilderness Volcano? You might just be in for a surprise… We'll be featuring some of the best trivia during our Easter Livestream on April 17th (16:00), so share your best finds, and you might get a shoutout!
+
+Let the egg-streme creativity begin!
+
+==StarForge Systems==
+Looking for an upgrade?
+
+[[File:Farming & Autocast QoL Improvements (11).jpg|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-07/Hero.jpg here]!'']]
+
+High-end, quality computers and accessories ranging from Cases, Platelights, Mousepads and Wall Art. Available from [https://starforgesystems.com/ StarForge Systems] now!
+
+==Rules of RuneScape Wording Update==
+This one's not strictly related to this week's Game Update, but we wanted to make sure you were in the loop!
+
+We've updated the wording on our [https://legal.jagex.com/docs/rules/rules-of-runescape Rules of RuneScape ]page so that it matches up with our T&Cs, specifically to the wording around Real World Trading. The following paragraph has been updated:
+
+'''"Real World trading (RWT) means buying or selling in the real world, for real money or in exchange for anything of value, things that relate to Jagex accounts."'''
+
+In plain terms, this adjustment is to make clear in the rules (though it was already clear in the T&Cs) that RWT does '''not '''need to involve real money and pertains to 'anything of value'. This should make it clearer that performing out-of-game services like using your Twitch channel or Discord server to advertise other Twitch channels or Discord servers in exchange for GP is categorically RWT, as is paying for these services in this manner.
+
+==Other Changes==
+Before we get into the usual bullet point list, we've got one change this week that we'd like to expand on a little.
+
+While playtesting Yama internally, we noticed some unusually high accuracy rolls with Demonbane spells. Turns out that since release, the Purging Staff + Demonbane spells have been more accurate than intended. With this week's game update, we're fixing a bug where Demonbane spells were multiplying accuracy incorrectly with the bonuses from Purging Staff and Mark of Darkness.
+
+While not many of you are using demonbane spells, there are a handful of places that we suspect people ''might ''feel this bugfix impacts them. To compensate, we're reducing the Magic defence of some NPCs - we suspect that with these changes, you likely won't notice any difference, but we'll be keeping an eye out for feedback! Keep in mind that Tormented Demons aren't really relevant here owing to their shield mechanic and granting 100% accuracy, so if you're wondering why they're not on the list then you've got your answer.
+
+* K'ril Tsutsaroth has had his Magic Defence reduced from 130 to 80.
+* Skotizo has had his Magic Defence reduced from 130 to 80.
+* Demonic Gorillas have had their Magic Defence reduced from 50 to 20.
+* Cerberus has had her Magic Defence reduced from 100 to 65.
+
+Now, bring on the miscellaneous changes!
+
+* The recently updated rune pouch menu has been tweaked to let you set a custom quantity as the left-click Store/Withdraw option for runes. Use the 'X' quantity button to customise the quantity and set it as the left-click option on your rune stacks.
+* As Ironmen can already transfer tradeable items to other characters, we've removed the restriction that stopped them from gifting bonds. They can now 'use' a bond on the recipient to offer it as a free gift, like other characters can.
+* The collection log is now in the hiscores panel in the sidebar.
+* Added new "Top-floor" and "Bottom-floor" options to the Ladder at the Grand Tree, Lighthouse, and Lumbridge Castle Staircase for faster navigation.
+* Fixed an issue where the Ancient Sceptre's bonus to Blood spell healing was being rounded down to zero, preventing the benefit from being applied. The calculation has been updated to ensure the Sceptre now provides its intended bonus.
+* The inventory icon for the Echo Ahrim's Robe top is no longer clipped, and the icon for the Slayer Ring is more centred in its space.
+* Fixed a bug where 'Withdraw 5' and 'Withdraw 10' bank options behaved incorrectly when the custom quantity for ''x'' was set to 0.
+* The 'Check' option on the Friendly Zombie Pirate now tells you how many times you've opened the locker, once you've gone through his introductory chat.
+* Fixed typos from While Guthix Sleeps and the Construction cape’s right-click teleport menu.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Rach, Redfield, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

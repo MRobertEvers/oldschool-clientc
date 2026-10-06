@@ -1,0 +1,1122 @@
+{{External|rs|rsc|dw}}
+{{Redirect|Potion|Potion (disambiguation)}}
+'''Potions''' are consumable items that have a variety of different effects and bonuses. Players are able to make most of them at various levels with the [[Herblore]] skill using [[herb]]s and other ingredients.
+
+Most potions act as a [[temporary skill boost]], but some have other effects, like curing [[poison]] or providing [[dragonfire protection]]. A player must add a [[Herblore secondaries|secondary ingredient]] to the [[Unfinished potion (disambiguation)|unfinished potion]], finishing the potion completely. A newly finished vial of potion contains three (3) doses of the potion. Some higher-level potions require a vial of [[coconut milk]] or [[Vial of blood|blood]] to be used instead of water.
+
+Wearing an [[amulet of chemistry]] gives a 5% chance of creating a four (4) dose potion instead. A charged [[alchemist's amulet]] increases this chance to 15%. [[Prescription goggles]] give players a 10% chance to not consume a secondary ingredients when mixing potions. These items can be useful for conserving resources on [[Ironman Mode|Ironman accounts]] or for potions with rare or expensive ingredients.
+
+Similar to the delay after eating [[food]], drinking a ''non-barbarian'' potion will delay your next potion consumption by 3 [[ticks]] (1.8 seconds). Notably, food and potions '''do not''' share the same timer, meaning it is possible to eat a piece of food then drink a potion in the same tick. Note that drinking barbarian mixes use the same timer that eating food does.
+
+==F2P potions==
+[[Strength potion]]: obtainable by giving the [[Apothecary]] {{NoCoins|5}} coins, one [[limpwurt root]] and [[Red spiders' eggs]].
+
+[[Energy potion]]: obtainable by giving the Apothecary one [[chocolate dust]] and two [[Limpwurt root|limpwurt roots]].
+
+[[Antipoison]]: obtainable by giving the Apothecary {{NoCoins|5}} coins, one [[limpwurt root]] and [[Cadava berries]].
+
+==Regular potions==
+''For information about the cost per experience, see [[Calculator:Herblore/Potions]]''
+{| class="wikitable sortable"
+|-
+!{{SCP|Herblore}} Level
+!colspan=2|Potion
+!Experience
+!colspan=2|Potion Base
+!colspan=2|Primary Ingredient
+!colspan=2|[[Herblore secondaries|Secondary Ingredient]]
+!Notes
+|-
+|3
+|{{plinkt|Imp repellent}}
+|5
+|{{plinkt|Anchovy oil}}
+| data-sort-value="Flower" {{plinkt|Flowers|pic=Marigolds}} (various)
+|{{NA|colspan=2}}
+|Used in [[impling]] hunting and to make [[Impling jar|impling jars]]. Many types of flowers can be used to make it.
+|-
+|3
+|{{plinkt|Attack potion}}
+|25
+|{{plinkt|Vial of water}}
+|{{plinkt|Guam leaf}}
+|{{plinkt|Eye of newt}}
+|Temporarily raises [[Attack]] level by 10% + 3.
+|-
+|5
+|{{plinkt|Antipoison}}
+|37.5
+|{{plinkt|Vial of water}}
+|{{plinkt|Marrentill}}
+|{{plinkt|Unicorn horn dust}}
+|Cures [[poison]] and provides immunity for 90 seconds.
+|-
+|8
+|{{plinkt|Relicym's balm}}
+|40
+|{{plinkt|Vial of water}}
+|{{plinkt|Rogue's purse}}
+|{{plinkt|Snake weed}}
+|Cures [[disease]]. ''Requires partial completion of [[Zogre Flesh Eaters]].''
+|-
+|12
+|{{plinkt|Strength potion}}
+|50
+|{{plinkt|Vial of water}}
+|{{plinkt|Tarromin}}
+|{{plinkt|Limpwurt root}}
+|Temporarily raises [[Strength]] level by 10% + 3.
+|-
+|15
+|{{plinkt|Serum 207}}
+|50
+|{{plinkt|Vial of water}}
+|{{plinkt|Tarromin}}
+|{{plinkt|Ashes}}
+|Temporarily cures [[Afflicted]] NPCs in [[Mort'ton]]<br/>''Learned and required in [[Shades of Mort'ton]].''
+|-
+|18
+|{{plinkt|Guthix rest|txt=Guthix rest tea}}
+|59
+|{{plinkt|Cup of hot water}}
+|{{plinkt|Harralander}}
+|{{plinkp|Guam leaf}}<br/>{{plinkp|Marrentill}}||[[Guam leaf|Guam leaves]] x2<br/>[[Marrentill]]
+|Cures [[poison]], restores some [[Energy|run energy]], and heals 5 [[Hitpoints]] (with the ability to overheal).<br/>The herbs can be mixed in any order.<br/>''Requires partial completion of [[One Small Favour]].''
+|-
+|22
+|{{plinkt|Compost potion}}
+|60
+|{{plinkt|Vial of water}}
+|{{plinkt|Harralander}}
+|{{plinkt|Volcanic ash}}
+|Used to convert [[Compost]] into [[Supercompost]].
+|-
+|22
+|{{plinkt|Restore potion}}
+|62.5
+|{{plinkt|Vial of water}}
+|{{plinkt|Harralander}}
+|{{plinkt|Red spiders' eggs}}
+|Restores combat-related stats back to normal by 30% of level plus 10.<br/>''Does not restore Hitpoints or Prayer points.''
+|-
+|22
+|{{plinkt|Guthix balance}}
+|50<br/>(2 × 25)
+|{{plinkt|Restore potion}}
+|{{plinkt|Garlic}}
+|{{plinkt|Silver dust}}
+|Used against [[Vampyre Juvinate]]s and [[Vampyre Juvenile]]s, particularly in the [[Temple Trekking]] minigame.
+|-
+|25
+|{{plinkt|Blamish oil}}
+|80
+|{{plinkt|Vial of water}}
+|{{plinkt|Harralander}}
+|{{plinkt|Blamish snail slime}}
+|Used to make [[oily fishing rod]]s during the [[Heroes' Quest]].
+|-
+|26
+|{{plinkt|Energy potion}}
+|67.5
+|{{plinkt|Vial of water}}
+|{{plinkt|Harralander}}
+|{{plinkt|Chocolate dust}}
+|Restores 15% run [[energy]].
+|-
+|30
+|{{plinkt|Defence potion}}
+|75
+|{{plinkt|Vial of water}}
+|{{plinkt|Ranarr weed}}
+|{{plinkt|White berries}}
+|Temporarily raises [[Defence]] level by 10% + 3.
+|-
+|34
+|{{plinkt|Agility potion}}
+|80
+|{{plinkt|Vial of water}}
+|{{plinkt|Toadflax}}
+|{{plinkt|Toad's legs}}
+|Temporarily raises [[Agility]] level by 3.
+|-
+|36
+|{{plinkt|Combat potion}}
+|84
+|{{plinkt|Vial of water}}
+|{{plinkt|Harralander}}
+|{{plinkt|Goat horn dust}}
+|Effect of both [[Attack potion]] and [[Strength potion]].
+|-
+|38
+|{{plinkt|Prayer potion}}
+|87.5
+|{{plinkt|Vial of water}}
+|{{plinkt|Ranarr weed}}
+|{{plinkt|Snape grass}}
+|Restores 25% of the player's total [[Prayer]] level plus 7.<br/>Effect increased by [[Holy wrench]].
+|-
+|45
+|{{plinkt|Super attack}}
+|100
+|{{plinkt|Vial of water}}
+|{{plinkt|Irit leaf}}
+|{{plinkt|Eye of newt}}
+|Temporarily increases [[Attack]] level by 15% + 5.
+|-
+|47
+|{{plinkt|Goblin potion}}
+|55
+|{{plinkt|Vial of water}}
+|{{plinkt|Toadflax}}
+|{{plinkt|Pharmakos berries}}
+|Transforms the player into a goblin.<br/>Not tradeable.<br/>''Made during the [[Land of the Goblins]] quest and is usable only within the [[Goblin Cave]] and [[Goblin Temple]].''
+|-
+|48
+|{{plinkt|Superantipoison}}
+|106.3
+|{{plinkt|Vial of water}}
+|{{plinkt|Irit leaf}}
+|{{plinkt|Unicorn horn dust}}
+|Cures [[poison]] and provides immunity for 6 minutes.
+|-
+|49
+|{{plinkt|Anti-odour salt}}
+|11
+|{{plinkt|Elkhorn coral}}
+|{{plinkt|Crab paste}}
+|{{NA|colspan=2}}
+|Automatically [[Hunter#Bait and smoking traps|smokes Hunter traps]] when in the inventory.
+|-
+|50
+|{{plinkt|Fishing potion}}
+|112.5
+|{{plinkt|Vial of water}}
+|{{plinkt|Avantoe}}
+|{{plinkt|Snape grass}}
+|Temporarily raises [[Fishing]] level by 3.
+|-
+|52
+|{{plinkt|Super energy}}
+|117.5
+|{{plinkt|Vial of water}}
+|{{plinkt|Avantoe}}
+|{{plinkt|Mort myre fungus}}
+|Restores 20% [[energy|run energy]].
+|-
+|52
+|{{plinkt|Shrink-me-quick}}
+|6
+|{{plinkt|Vial of water}}
+|{{plinkt|Tarromin}}
+|{{plinkt|Shrunk ogleroot}}
+|Reduces player size during the [[Grim Tales]] quest.
+|-
+|53
+|{{plinkt|Hunter potion}}
+|120
+|{{plinkt|Vial of water}}
+|{{plinkt|Avantoe}}
+|{{plinkt|Kebbit teeth dust}}
+|Temporarily raises [[Hunter]] level by 3.<br/>[[Kebbit teeth]] are obtained by deadfall trapping Sabre-Toothed Kebbits.
+|-
+|54
+|{{plinkt|Goading potion}}
+|132
+|{{plinkt|Vial of water}}
+|{{plinkt|Harralander}}
+|{{plinkt|Aldarium}}
+|Causes aggression of all monsters within a 9x9 area surrounding the player.
+|-
+|55
+|{{plinkt|Super strength}}
+|125
+|{{plinkt|Vial of water}}
+|{{plinkt|Kwuarm}}
+|{{plinkt|Limpwurt root}}
+|Temporarily raises [[Strength]] level by 15% + 5.
+|-
+|56
+|{{plinkt|Haemostatic dressing}}
+|127
+|{{plinkt|Vial of water}}
+|{{plinkt|Elkhorn coral}}
+|{{plinkp|Squid paste}}<br/>{{plinkp|Cotton yarn}}||[[Squid paste]]<br/>[[Cotton yarn]]
+|Cures [[bleed]], also heals 5 Hitpoints if bleed is cured.
+|-
+|57
+|{{plinkt|Magic essence}}
+|130
+|{{plinkt|Vial of water}}
+|{{plinkt|Star flower}}
+|{{plinkt|Gorak claw powder}}
+|Temporarily raises [[Magic]] level by 3.<br/>Not tradeable.<br/>''Made during [[Fairytale II - Cure a Queen]] quest, and components are only available via the [[Fairy rings]].''
+|-
+|58
+|{{plinkt|Prayer regeneration potion}}
+|132
+|{{plinkt|Vial of water}}
+|{{plinkt|Huasca}}
+|{{plinkt|Aldarium}}
+|Restores 1 Prayer point every 12 ticks for 8 minutes, restoring a total of 66 Prayer points per dose.
+|-
+|60
+|{{plinkt|Weapon poison}}
+|137.5
+|{{plinkt|Vial of water}}
+|{{plinkt|Kwuarm}}
+|{{plinkt|Dragon scale dust}}
+|For use on [[arrows]], [[dagger]]s, [[spear]]s, [[hasta|hastae]], [[javelin]]s, [[dart]]s, [[throwing knife|knives]], and [[bolts]].<br/>Poison starts at 4 damage for melee weapons and 2 damage for ranged weapons.
+|-
+|62
+|{{plinkt|Super fishing potion}}
+|140.5
+|{{plinkt|Vial of water}}
+|{{plinkt|Pillar coral}}
+|{{plinkt|Haddock eye}}
+|Temporarily raises [[Fishing]] level by 6.
+|-
+|63
+|{{plinkt|Super restore}}
+|142.5
+|{{plinkt|Vial of water}}
+|{{plinkt|Snapdragon}}
+|{{plinkt|Red spiders' eggs}}
+|Restores all stats (except [[hitpoints]]) by 25% + 8.
+|-
+|65
+|{{plinkt|Sanfew serum}}
+|192<br/>(57 + 63 + 72)
+|{{plinkt|Super restore}}
+|{{plinkt|Unicorn horn dust}}
+|{{plinkp|Snake weed}}<br/>{{plinkp|Nail beast nails}}||[[Snake weed]]<br/>[[Nail beast nails]]
+|Sanfew Serum combines the properties of [[super restore]], [[superantipoison]], and [[relicym's balm]] potions all in one.<br/>Partial experience is given for each addition of one of the secondary ingredients in this potion.
+|-
+|66
+|{{plinkt|Super defence}}
+|150
+|{{plinkt|Vial of water}}
+|{{plinkt|Cadantine}}
+|{{plinkt|White berries}}
+|Temporarily increases [[Defence]] level by 15% + 5.
+|-
+|66
+|{{plinkt|Extreme energy potion}}
+|84<br/>(4 × 21)
+|{{plinkt|Super energy}}
+|{{plinkt|Yellow fin}}
+|{{NA|colspan=2}}
+|Restores 40% run [[energy]].<br/>''One yellow fin is required per dose.''
+|-
+|67
+|{{plinkt|Super hunter potion}}
+|154
+|{{plinkt|Vial of water}}
+|{{plinkt|Pillar coral}}
+|{{plinkt|Crab paste}}
+|Temporarily raises [[Hunter]] level by 6.
+|-
+|68
+|{{plinkt|Antidote+}}
+|155
+|{{plinkt|Coconut milk}}
+|{{plinkt|Toadflax}}
+|{{plinkt|Yew roots}}
+|Cures and gives immunity to [[poison]] for 9 minutes.
+|-
+|69
+|{{plinkt|Antifire potion}}
+|157.5
+|{{plinkt|Vial of water}}
+|{{plinkt|Lantadyme}}
+|{{plinkt|Dragon scale dust}}
+|Provides some resistance to [[dragonfire]].<br/>Can be used with an anti-dragonfire shield to completely prevent dragonfire damage.<br/>Each dose lasts about 6 minutes.
+|-
+|70
+|{{plinkt|Divine super attack potion}}
+|2<br/>(4 × 0.5)
+|{{plinkt|Super attack|pic=Super attack(4)}}
+|{{plinkt|Crystal dust}}
+|{{NA|colspan=2}}
+|Boosts the same as a [[super attack]] whilst lasting for 5 minutes with no state degradation.<br/>''Requires the completion of [[Song of the Elves]] to make.''
+|-
+|70
+|{{plinkt|Divine super defence potion}}
+|2<br/>(4 × 0.5)
+|{{plinkt|Super defence|pic=Super defence(4)}}
+|{{plinkt|Crystal dust}}
+|{{NA|colspan=2}}
+|Boosts the same as a [[super defence]] whilst lasting for 5 minutes with no state degradation.<br/>''Requires the completion of [[Song of the Elves]] to make.''
+|-
+|70
+|{{plinkt|Divine super strength potion}}
+|2<br/>(4 × 0.5)
+|{{plinkt|Super strength|pic=Super strength(4)}}
+|{{plinkt|Crystal dust}}
+|{{NA|colspan=2}}
+|Boosts the same as a [[super strength]] whilst lasting for 5 minutes with no state degradation.<br/>''Requires the completion of [[Song of the Elves]] to make.''
+|-
+|72
+|{{plinkt|Ranging potion}}
+|162.5
+|{{plinkt|Vial of water}}
+|{{plinkt|Dwarf weed}}
+|{{plinkt|Wine of Zamorak}}
+|Temporarily increases [[Ranged]] level by 10% + 4.
+|-
+|73
+|{{plinkt|Weapon poison+}}
+|190
+|{{plinkt|Coconut milk}}
+|{{plinkt|Cactus spine}}
+|{{plinkt|Red spiders' eggs}}
+|For use on [[arrows]], [[dagger]]s, [[spear]]s, [[hasta|hastae]], [[javelin]]s, [[dart]]s, [[throwing knife|knives]], and [[bolts]].<br/>Poison starts at 5 damage for melee weapons and 3 damage for ranged weapons.
+|-
+|74
+|{{plinkt|Divine ranging potion}}
+|2<br/>(4 × 0.5)
+|{{plinkt|Ranging potion|pic=Ranging potion(4)}}
+|{{plinkt|Crystal dust}}
+|{{NA|colspan=2}}
+|Boosts the same as a [[ranging potion]] whilst lasting for 5 minutes with no state degradation.<br/>''Requires the completion of [[Song of the Elves]] to make.''
+|-
+|76
+|{{plinkt|Magic potion}}
+|172.5
+|{{plinkt|Vial of water}}
+|{{plinkt|Lantadyme}}
+|{{plinkt|Potato cactus}}
+|Temporarily raises [[Magic]] level by 4.
+|-
+|77
+|{{plinkt|Stamina potion}}
+|102<br/>(4 × 25.5)
+|{{plinkt|Super energy}}
+|{{plinkt|Amylase crystal}}
+|{{NA|colspan=2}}
+|[[Stamina potion]]s restore 20% [[energy|run energy]] and reduce the rate of energy depletion by 70% for 2 minutes.<br/>''One amylase crystal is required per dose.''
+|-
+|78
+|{{plinkt|Zamorak brew}}
+|175
+|{{plinkt|Vial of water}}
+|{{plinkt|Torstol}}
+|{{plinkt|Jangerberries}}
+|Boosts [[Strength]] by 12% + 2 and [[Attack]] by 20% + 2, but lowers [[Defence]] and remaining [[Hitpoints]] by 10% + 2.
+|-
+|78
+|{{plinkt|Divine magic potion}}
+|2<br/>(4 × 0.5)
+|{{plinkt|Magic potion|pic=Magic potion(4)}}
+|{{plinkt|Crystal dust}}
+|{{NA|colspan=2}}
+|Boosts the same as a [[magic potion]] whilst lasting for 5 minutes with no state degradation.<br/>''Requires the completion of [[Song of the Elves]] to make.''
+|-
+|79
+|{{plinkt|Antidote++}}
+|177.5
+|{{plinkt|Coconut milk}}
+|{{plinkt|Irit leaf}}
+|{{plinkt|Magic roots}}
+|Drinking two doses of antidote++ will cure [[venom]]. The first dose reduces the venom to [[poison]] and the second removes the poison. In addition, it provides up to 36 seconds immunity to venom upon drinking it. 
+If only poisoned, only one dose is required to cure poison.
+|-
+|80
+|{{plinkt|Bastion potion}}
+|155
+|{{plinkt|Vial of blood}}
+|{{plinkt|Cadantine}}
+|{{plinkt|Wine of Zamorak}}
+|Temporarily increases [[Ranged]] by 10% + 4 and [[Defence]] by 15% + 5.
+|-
+|80
+|{{plinkt|Battlemage potion}}
+|155
+|{{plinkt|Vial of blood}}
+|{{plinkt|Cadantine}}
+|{{plinkt|Potato cactus}}
+|Temporarily increases [[Magic]] by 4 and [[Defence]] by 15% + 5.
+|-
+|81
+|{{plinkt|Saradomin brew}}
+|180
+|{{plinkt|Vial of water}}
+|{{plinkt|Toadflax}}
+|{{plinkt|Crushed nest}}
+|Boosts [[Defence]] and [[Hitpoints]] but lowers [[Attack]], [[Strength]], [[Magic]], and [[Ranged]].
+|-
+|81
+|{{plinkt|Surge potion}}
+|185
+|{{plinkt|Vial of water}}
+|{{plinkt|Torstol}}
+|{{plinkt|Demonic tallow}}
+|Restores 25% [[Special attack]] energy, can only be drunk once every five minutes.
+|-
+|82
+|{{plinkt|Weapon poison++}}
+|190
+|{{plinkt|Coconut milk}}
+|{{plinkt|Cave nightshade}}
+|{{plinkt|Poison ivy berries}}
+|For use on [[arrows]], [[dagger]]s, [[spear]]s, [[hasta|hastae]], [[javelin]]s, [[dart]]s, [[throwing knife|knives]], and [[bolts]].<br/>Poison starts at 6 damage for melee weapons and 4 damage for ranged weapons.
+|-
+|84
+|{{plinkt|Extended antifire}}
+|110<br/>(4 × 27.5)
+|{{plinkt|Antifire potion}}
+|{{plinkt|Lava scale shard|pic=Lava scale shard 5}}
+|{{NA|colspan=2}}
+|Provides some resistance to [[dragonfire]].<br/>Each dose lasts about 12 minutes.<br/>''One shard is required per dose.''
+|-
+|85
+|{{plinkt|Ancient brew}}
+|190
+|{{plinkt|Vial of water}}
+|{{plinkt|Dwarf weed}}
+|{{plinkt|Nihil dust}}
+|Boosts [[Magic]] and restores [[prayer points]] but lowers [[Attack]], [[Strength]], and [[Defence]].
+|-
+|85
+|{{plinkt|Extended stamina potion}}
+|110<br/>(4 × 27.5)
+|{{plinkt|Stamina potion}}
+|{{plinkt|Marlin scales}}
+|{{NA|colspan=2}}
+|Restores 40% [[energy|run energy]] and reduce the rate of energy depletion by 70% for 4 minutes.<br/>''One marlin scale is required per dose.''
+|-
+|86
+|{{plinkt|Divine bastion potion}}
+|2<br/>(4 × 0.5)
+|{{plinkt|Bastion potion}}
+|{{plinkt|Crystal dust}}
+|{{NA|colspan=2}}
+|Boosts the same as a [[bastion potion]] whilst lasting for 5 minutes with no state degradation.<br/>''Requires the completion of [[Song of the Elves]] to make.''
+|-
+|86
+|{{plinkt|Divine battlemage potion}}
+|2<br/>(4 × 0.5)
+|{{plinkt|Battlemage potion}}
+|{{plinkt|Crystal dust}}
+|{{NA|colspan=2}}
+|Boosts the same as a [[battlemage potion]] whilst lasting for 5 minutes with no state degradation.<br/>''Requires the completion of [[Song of the Elves]] to make.''
+|-
+|87
+|{{plinkt|Anti-venom}}
+|120<br/>(4 × 30)
+|{{plinkt|Antidote++}}
+|{{plinkt|Zulrah's scales}}
+|{{NA|colspan=2}}
+|Instantly cures [[venom]].<br/>''Five scales are required per dose.''
+|-
+|88
+|{{plinkt|Menaphite remedy}}
+|200
+|{{plinkt|Vial of water}}
+|{{plinkt|Dwarf weed}}
+|{{plinkt|Lily of the Sands}}
+|Restores 6 + 16% of the player's combat stats every 15 seconds, over the course of five minutes.
+|-
+|89
+|{{plinkt|Armadyl brew}}
+|205
+|{{plinkt|Vial of water}}
+|{{plinkt|Umbral coral}}
+|{{plinkt|Rainbow crab paste}}
+|Boosts [[Ranged]] and [[Hitpoints]] but lowers [[Attack]], [[Strength]], [[Defence]], and [[Magic]].
+|-
+|90
+|{{plinkt|Super combat potion}}
+|150
+|{{plinkp|Super attack}}<br/>{{plinkp|Super strength}}<br/>{{plinkp|Super defence}}||[[Super attack]]<br/>[[Super strength]]<br/>[[Super defence]]
+|{{plinkt|Torstol}}
+|{{NA|colspan=2}}
+|Combines the properties of [[super attack]], [[super strength]], and [[super defence]] potions.
+|-
+|91
+|{{plinkt|Forgotten brew}}
+|145
+|{{plinkt|Ancient brew}}
+|{{plinkt|Ancient essence}}
+|{{NA|colspan=2}}
+|Upgraded version of an [[Ancient brew]]. Boosts [[Magic]] by 8% + 3 and restores [[prayer points]] by 10% + 2, but lowers [[Attack]], [[Strength]], and [[Defence]] by 10% + 2.<br/>''20 essence is required per dose.''
+|-
+|92
+|{{plinkt|Super antifire potion}}
+|130
+|{{plinkt|Antifire potion}}
+|{{plinkt|Crushed superior dragon bones|txt=Crushed&nbsp;superior<br/>dragon&nbsp;bones}}
+|{{NA|colspan=2}}
+|Grants complete immunity to [[dragonfire]] for three minutes.
+|-
+|94
+|{{plinkt|Anti-venom+}}
+|125
+|{{plinkt|Anti-venom}}
+|{{plinkt|Torstol}}
+|{{NA|colspan=2}}
+|Instantly cures [[venom]] and provides immunity to it for three minutes.
+|-
+|94
+|{{plinkt|Extended anti-venom+}}
+|80<br/>(4 x 20)
+|{{plinkt|Anti-venom+}}
+|{{plinkt|Araxyte venom sac}}
+|{{NA|colspan=2}}
+|Instantly cures [[venom]] and provides immunity to it for six minutes.
+|-
+|97
+|{{plinkt|Divine super combat potion}}
+|2<br/>(4 × 0.5)
+|{{plinkt|Super combat potion|pic=Super combat potion(4)}}
+|{{plinkt|Crystal dust}}
+|{{NA|colspan=2}}
+|Boosts the same as a [[super combat potion]] whilst lasting for 5 minutes with no state degradation.<br/>''Requires the completion of [[Song of the Elves]] to make.''
+|-
+| rowspan=2 | 98
+| rowspan=2 | {{plinkp|Extended super antifire}}
+| rowspan=2 | [[Extended super antifire]]
+|160<br/>(4 × 40)
+|{{plinkt|Super antifire potion}}
+|{{plinkt|Lava scale shard|pic=Lava scale shard 5}}
+|{{NA|colspan=2}}
+| rowspan=2 | Grants complete immunity to [[dragonfire]] for six minutes.<br/>''One shard is required per dose.''
+|-
+|180
+|{{plinkt|Extended antifire}}
+|{{plinkt|Crushed superior dragon bones|txt=Crushed&nbsp;superior<br/>dragon&nbsp;bones}}
+|{{NA|colspan=2}}
+|}
+
+==Chambers of Xeric potions==
+Within the [[Chambers of Xeric]], players can create special kinds of potions using [[water-filled gourd vial]]s and various potion ingredients found within the raid. The player's [[Herblore]] level determines which tier of potion they can make using the ingredients, with each type of potion having a (-), regular, and (+) variant.
+
+{|class="wikitable"
+!{{SCP|Herblore}} Level
+!colspan=2|Potion
+!Experience
+!Ingredients
+|-
+|47||{{plinkt|Elder (-)}}||6.5||rowspan=3|{{plink|Golpar}}<br>{{plink|Stinkhorn mushroom}}
+|-
+|59||{{plinkt|Elder potion}}||10
+|-
+|70||{{plinkt|Elder (+)}}||13
+|-
+|47||{{plinkt|Twisted (-)}}||6.5||rowspan=3|{{plink|Golpar}}<br>{{plink|Cicely}}
+|-
+|59||{{plinkt|Twisted potion}}||10
+|-
+|70||{{plinkt|Twisted (+)}}||13
+|-
+|47||{{plinkt|Kodai (-)}}||6.5||rowspan=3|{{plink|Golpar}}<br>{{plink|Endarkened juice}}
+|-
+|59||{{plinkt|Kodai potion}}||10
+|-
+|70||{{plinkt|Kodai (+)}}||13
+|-
+|60||{{plinkt|Antipoison (-)}}||13.5||rowspan=3|{{plink|Noxifer}}<br>{{plink|Cicely}}
+|-
+|75||{{plinkt|Antipoison potion}}||20
+|-
+|90||{{plinkt|Antipoison (+)}}||26.5
+|-
+|52||{{plinkt|Revitalisation (-)}}||13.5||rowspan=3|{{plink|Buchu leaf}}<br>{{plink|Stinkhorn mushroom}}
+|-
+|65||{{plinkt|Revitalisation potion}}||20
+|-
+|78||{{plinkt|Revitalisation (+)}}||26.5
+|-
+|52||{{plinkt|Prayer enhance (-)}}||13.5||rowspan=3|{{plink|Buchu leaf}}<br>{{plink|Cicely}}
+|-
+|65||{{plinkt|Prayer enhance}}||20
+|-
+|78||{{plinkt|Prayer enhance (+)}}||26.5
+|-
+|52||{{plinkt|Xeric's aid (-)}}||13.5||rowspan=3|{{plink|Buchu leaf}}<br>{{plink|Endarkened juice}}
+|-
+|65||{{plinkt|Xeric's aid}}||20
+|-
+|78||{{plinkt|Xeric's aid (+)}}||26.5
+|-
+|60||{{plinkt|Overload (-)}}||33.5||{{plink|Noxifer}}<br>{{plink|Elder (-)}} {{plink|Twisted (-)}} {{plink|Kodai (-)}}
+|-
+|75||{{plinkt|Overload (Chambers of Xeric)|txt=Overload}}||50||{{plink|Noxifer}}<br>{{plink|Elder potion}} {{plink|Twisted potion}} {{plink|Kodai potion}}
+|-
+|90||{{plinkt|Overload (+)}}||66.5||{{plink|Noxifer}}<br>{{plink|Elder (+)}} {{plink|Twisted (+)}} {{plink|Kodai (+)}}
+|}
+
+==Barbarian Mixes==
+{{Main|Barbarian Herblore}}
+Barbarian potions can be made by adding [[roe]] or [[caviar]] to two-dose potions. The barbarian potions will hold two doses that give the same effect as their regular counterparts, as well as restore 3 to 6 [[Hitpoints]] per dose.
+
+Note that the default ''left-click'' option for [[roe]] and [[caviar]] is ''"eat"'', not ''"use"'', making it possible to consume the ingredients by accident instead of using them.
+
+{| class="wikitable"
+!{{SCP|Herblore}} Level
+!colspan=2|Potion
+!Experience
+!Eggs needed
+|-
+|4
+|{{plinkt|Attack mix}}
+|8
+|{{plink|Roe}} or {{plink|Caviar}}
+|-
+|6
+|{{plinkt|Antipoison mix}}
+|12
+|{{plink|Roe}} or {{plink|Caviar}}
+|-
+|9
+|{{plinkt|Relicym's mix}}
+|14
+|{{plink|Roe}} or {{plink|Caviar}}
+|-
+|14
+|{{plinkt|Strength mix}}
+|17
+|{{plink|Roe}} or {{plink|Caviar}}
+|-
+|24
+|{{plinkt|Restore mix}}
+|21
+|{{plink|Roe}} or {{plink|Caviar}}
+|-
+|29
+|{{plinkt|Energy mix}}
+|23
+|{{plink|Caviar}}
+|-
+|33
+|{{plinkt|Defence mix}}
+|25
+|{{plink|Caviar}}
+|-
+|37
+|{{plinkt|Agility mix}}
+|27
+|{{plink|Caviar}}
+|-
+|40
+|{{plinkt|Combat mix}}
+|28
+|{{plink|Caviar}}
+|-
+|42
+|{{plinkt|Prayer mix}}
+|29
+|{{plink|Caviar}}
+|-
+|47
+|{{plinkt|Superattack mix}}
+|33
+|{{plink|Caviar}}
+|-
+|51
+|{{plinkt|Anti-poison supermix}}
+|35
+|{{plink|Caviar}}
+|-
+|53
+|{{plinkt|Fishing mix}}
+|38
+|{{plink|Caviar}}
+|-
+|56
+|{{plinkt|Super energy mix}}
+|39
+|{{plink|Caviar}}
+|-
+|58
+|{{plinkt|Hunting mix}}
+|40
+|{{plink|Caviar}}
+|-
+|59
+|{{plinkt|Super str. mix}}
+|42
+|{{plink|Caviar}}
+|-
+|61
+|{{plinkt|Magic essence mix}}
+|43
+|{{plink|Caviar}}
+|-
+|67
+|{{plinkt|Super restore mix}}
+|48
+|{{plink|Caviar}}
+|-
+|71
+|{{plinkt|Super def. mix}}
+|50
+|{{plink|Caviar}}
+|-
+|74||{{plinkt|Antidote+ mix}}
+|52
+|{{plink|Caviar}}
+|-
+|75||{{plinkt|Antifire mix}}
+|53
+|{{plink|Caviar}}
+|-
+|80
+|{{plinkt|Ranging mix}}
+|54
+|{{plink|Caviar}}
+|-
+|83
+|{{plinkt|Magic mix}}
+|57
+|{{plink|Caviar}}
+|-
+|85
+|{{plinkt|Zamorak mix}}
+|58
+|{{plink|Caviar}}
+|-
+|86
+|{{plinkt|Stamina mix}}
+|60
+|{{plink|Caviar}}
+|-
+|91
+|{{plinkt|Extended antifire mix}}
+|61
+|{{plink|Caviar}}
+|-
+|92
+|{{plinkt|Ancient mix}}
+|63
+|{{plink|Caviar}}
+|-
+|98
+|{{plinkt|Super antifire mix}}
+|70
+|{{plink|Caviar}}
+|-
+|99
+|{{plinkt|Extended super antifire mix}}
+|78
+|{{plink|Caviar}}
+|}
+
+==Varlamorian potions==
+Varlamorian potions are not drinkable but are used to fulfil orders in the [[Mastering Mixology]] [[Minigames|minigame]].
+<tabber>
+Ordered=
+{| class="wikitable sortable" style="text-align: center;"
+|-
+! rowspan="2" colspan="2" | Base
+! rowspan="2" | Combination
+! colspan="4" | Points
+! rowspan="2" | {{SCP|Herblore}} Level
+! rowspan="2" | XP
+|-
+! {{plinkp|Mox resin}} Mox
+! {{plinkp|Aga resin}} Aga
+! {{plinkp|Lye resin}} Lye
+! Total
+|-
+| {{plinkp|Alco-augmentator}}
+| [[Alco-augmentator|'''A'''lco-'''A'''ugment'''A'''tor]] (AAA)
+| {{plinkp|Aga paste}}{{plinkp|Aga paste}}{{plinkp|Aga paste}}
+| 0
+| 20
+| 0
+| 20
+| {{SCP|Herblore|60}}
+| {{SCP|Herblore|190}}
+|-
+| {{plinkp|Mammoth-might mix}}
+| [[Mammoth-might mix|'''M'''ammoth-'''M'''ight '''M'''ix]] (MMM)
+| {{plinkp|Mox paste}}{{plinkp|Mox paste}}{{plinkp|Mox paste}}
+| 20
+| 0
+| 0
+| 20
+| {{SCP|Herblore|60}}
+| {{SCP|Herblore|190}}
+|-
+| {{plinkp|Liplack liquor}}
+| [[Liplack liquor|'''L'''ip'''L'''ack '''L'''iquor]] (LLL)
+| {{plinkp|Lye paste}}{{plinkp|Lye paste}}{{plinkp|Lye paste}}
+| 0
+| 0
+| 20
+| 20
+| {{SCP|Herblore|60}}
+| {{SCP|Herblore|190}}
+|-
+| {{plinkp|Mystic mana amalgam}}
+| [[Mystic mana amalgam|'''M'''ystic '''M'''ana '''A'''malgam]] (MMA)
+| {{plinkp|Mox paste}}{{plinkp|Mox paste}}{{plinkp|Aga paste}}
+| 20
+| 10
+| 0
+| 30
+| {{SCP|Herblore|63}}
+| {{SCP|Herblore|215}}
+|-
+| {{plinkp|Marley's moonlight}}
+| [[Marley's moonlight|'''M'''arley's '''M'''oon'''L'''ight]] (MML)
+| {{plinkp|Mox paste}}{{plinkp|Mox paste}}{{plinkp|Lye paste}}
+| 20
+| 0
+| 10
+| 30
+| {{SCP|Herblore|66}}
+| {{SCP|Herblore|240}}
+|-
+| {{plinkp|Azure aura mix}}
+| [[Azure aura mix|'''A'''zure '''A'''ura '''M'''ix]] (AAM)
+| {{plinkp|Aga paste}}{{plinkp|Aga paste}}{{plinkp|Mox paste}}
+| 10
+| 20
+| 0
+| 30
+| {{SCP|Herblore|69}}
+| {{SCP|Herblore|265}}
+|-
+| {{plinkp|Aqualux amalgam}}
+| [[Aqualux amalgam|'''A'''qua'''L'''ux '''A'''malgam]] (ALA)
+| {{plinkp|Aga paste}}{{plinkp|Lye paste}}{{plinkp|Aga paste}}
+| 0
+| 20
+| 10
+| 30
+| {{SCP|Herblore|72}}
+| {{SCP|Herblore|290}}
+|-
+| {{plinkp|Megalite liquid}}
+| [[Megalite liquid|'''M'''ega'''L'''ite '''L'''iquid]] (MLL)
+| {{plinkp|Mox paste}}{{plinkp|Lye paste}}{{plinkp|Lye paste}}
+| 10
+| 0
+| 20
+| 30
+| {{SCP|Herblore|75}}
+| {{SCP|Herblore|315}}
+|-
+| {{plinkp|Anti-leech lotion}}
+| [[Anti-leech lotion|'''A'''nti-'''L'''eech '''L'''otion]] (ALL)
+| {{plinkp|Aga paste}}{{plinkp|Lye paste}}{{plinkp|Lye paste}}
+| 0
+| 10
+| 20
+| 30
+| {{SCP|Herblore|78}}
+| {{SCP|Herblore|340}}
+|-
+| {{plinkp|Mixalot}}
+| [[Mixalot|'''M'''ix'''AL'''ot]] (MAL)
+| {{plinkp|Mox paste}}{{plinkp|Aga paste}}{{plinkp|Lye paste}}
+| 20
+| 20
+| 20
+| 60
+| {{SCP|Herblore|81}}
+| {{SCP|Herblore|365}}
+|}
+|-|
+Not ordered=
+{| class="wikitable lighttable sortable" style="text-align: center;"
+|-
+!colspan="2" | Base
+!Combination
+!Points
+!{{SCP|Herblore}} Level
+!XP
+|-
+| {{plinkp|Alco-augmentator}}
+| [[Alco-augmentator|'''A'''lco-'''A'''ugment'''A'''tor]] (AAA)
+| {{plinkp|Aga paste}}{{plinkp|Aga paste}}{{plinkp|Aga paste}}
+| {{plinkp|Aga resin}} 10 [[Aga resin|Aga]]
+| {{SCP|Herblore|60}}
+| {{SCP|Herblore|63}}
+|-
+| {{plinkp|Mammoth-might mix}}
+| [[Mammoth-might mix|'''M'''ammoth-'''M'''ight '''M'''ix]] (MMM)
+| {{plinkp|Mox paste}}{{plinkp|Mox paste}}{{plinkp|Mox paste}}
+| {{plinkp|Mox resin}} 10 [[Mox resin|Mox]]
+| {{SCP|Herblore|60}}
+| {{SCP|Herblore|63}}
+|-
+| {{plinkp|Liplack liquor}}
+| [[Liplack liquor|'''L'''ip'''L'''ack '''L'''iquor]] (LLL)
+| {{plinkp|Lye paste}}{{plinkp|Lye paste}}{{plinkp|Lye paste}}
+| {{plinkp|Lye resin}} 10 [[Lye resin|Lye]]
+| {{SCP|Herblore|60}}
+| {{SCP|Herblore|63}}
+|-
+| {{plinkp|Mystic mana amalgam}}
+| [[Mystic mana amalgam|'''M'''ystic '''M'''ana '''A'''malgam]] (MMA)
+| {{plinkp|Mox paste}}{{plinkp|Mox paste}}{{plinkp|Aga paste}}
+| {{plinkp|Aga resin}} 10 [[Aga resin|Aga]]
+| {{SCP|Herblore|63}}
+| {{SCP|Herblore|72}}
+|-
+| {{plinkp|Marley's moonlight}}
+| [[Marley's moonlight|'''M'''arley's '''M'''oon'''L'''ight]] (MML)
+| {{plinkp|Mox paste}}{{plinkp|Mox paste}}{{plinkp|Lye paste}}
+| {{plinkp|Lye resin}} 10 [[Lye resin|Lye]]
+| {{SCP|Herblore|66}}
+| {{SCP|Herblore|80}}
+|-
+| {{plinkp|Azure aura mix}}
+| [[Azure aura mix|'''A'''zure '''A'''ura '''M'''ix]] (AAM)
+| {{plinkp|Aga paste}}{{plinkp|Aga paste}}{{plinkp|Mox paste}}
+| {{plinkp|Aga resin}} 10 [[Aga resin|Aga]]
+| {{SCP|Herblore|69}}
+| {{SCP|Herblore|88}}
+|-
+| {{plinkp|Aqualux amalgam}}
+| [[Aqualux amalgam|'''A'''qua'''L'''ux '''A'''malgam]] (ALA)
+| {{plinkp|Aga paste}}{{plinkp|Lye paste}}{{plinkp|Aga paste}}
+| {{plinkp|Lye resin}} 10 [[Lye resin| Lye]]
+| {{SCP|Herblore|72}}
+| {{SCP|Herblore|96}}
+|-
+| {{plinkp|Megalite liquid}}
+| [[Megalite liquid|'''M'''ega'''L'''ite '''L'''iquid]] (MLL)
+| {{plinkp|Mox paste}}{{plinkp|Lye paste}}{{plinkp|Lye paste}}
+| {{plinkp|Lye resin}} 10 [[Lye resin| Lye]]
+| {{SCP|Herblore|75}}
+| {{SCP|Herblore|105}}
+|-
+| {{plinkp|Anti-leech lotion}}
+| [[Anti-leech lotion|'''A'''nti-'''L'''eech '''L'''otion]] (ALL)
+| {{plinkp|Aga paste}}{{plinkp|Lye paste}}{{plinkp|Lye paste}}
+| {{plinkp|Lye resin}} 10 [[Lye resin| Lye]]
+| {{SCP|Herblore|78}}
+| {{SCP|Herblore|113}}
+|-
+| {{plinkp|Mixalot}}
+| [[Mixalot|'''M'''ix'''AL'''ot]] (MAL)
+| {{plinkp|Mox paste}}{{plinkp|Aga paste}}{{plinkp|Lye paste}}
+| {{plinkp|Lye resin}} 10 [[Lye resin| Lye]]
+| {{SCP|Herblore|81}}
+| {{SCP|Herblore|122}}
+|}
+</tabber>
+
+==Quest potions==
+
+{| class="wikitable sortable"
+|-
+!{{SCP|Herblore}} Level
+!colspan=2|Potion
+!Quest
+!colspan=2|Potion Base
+!colspan=2|Primary Ingredient
+!colspan=2|[[Herblore secondaries|Secondary Ingredient]]
+!Notes
+|-
+| {{NA}}
+| {{plinkt|Cadava potion}}
+| [[Romeo & Juliet]]
+| {{NA|colspan=2}}
+| {{plinkt|Cadava berries}}
+| {{NA|colspan=2}}
+| You can get this potion by giving [[Cadava berries]] to the [[Apothecary]] in [[Varrock]]. It cannot be made.
+|-
+| {{NA}}
+| {{plinkt|Potion of Sealegs}}
+| [[Bone Voyage]]
+| {{plinkt|Marrentill potion (unf)}}
+| {{plinkt|Vodka}} x2
+| {{NA|colspan=2}}
+| You can get this potion by giving a [[Marrentill potion (unf)]] and two [[Vodka]] to the [[Apothecary]] in [[Varrock]]. It cannot be made.
+|-
+| {{NA}}
+| {{plinkt|Potion (A Taste of Hope)}}
+| [[A Taste of Hope]]
+| {{plinkt|Vial of water}}
+| {{plinkt|Mysterious herb}}
+| {{plinkt|Mysterious crushed meat}}
+| 
+|-
+| {{NA}}
+| {{plinkt|Sulphur potion}}
+| [[A Kingdom Divided]]
+| style="text-align:center;"| {{plinkp|Defence potion(3)}}<br/>or<br/>{{plinkp|Defence potion(4)}}||[[Defence potion(3)]]<br/>or<br/>[[Defence potion(4)]]
+| {{plinkt|Volcanic sulphur}}
+| {{NA|colspan=2}}
+| This potion is enchanted into a [[shielding potion]] by the [[Tasakaal]].
+|-
+| 1
+| {{plinkt|Bravery potion}}
+| [[Legends' Quest]]
+| {{plinkt|Vial of water}}
+| {{plinkt|Ardrigal}}
+| {{plinkt|Snake weed}}
+| This potion is drunk to gain unlimited access to the dark cave in the [[Kharazi Dungeon]]. You can remake it after the quest.
+|-
+| 14
+| {{plinkt|Potion (Watchtower)}}
+| [[Watchtower]]
+| {{plinkt|Vial of water}}
+| {{plinkt|Guam leaf}}
+| {{plinkp|Jangerberries}}<br/>{{plinkp|Ground bat bones}}||[[Jangerberries]]<br/>[[Ground bat bones]]
+| This potion needs to be enchanted by the [[Watchtower Wizard]] to be turned into a [[Magic ogre potion]]. This potion is used to kill [[ogre shamans]] in the [[Ogre Enclave]] below [[Gu'Tanoth]]. It cannot be made after the quest is complete.
+|-
+| 31
+| {{plinkt|Troll potion}}
+| [[Eadgar's Ruse]]
+| {{plinkt|Vial of water}}
+| {{plinkt|Ranarr weed}}
+| {{plinkt|Ground thistle}}
+| This potion is used to find out about [[goutweed]] from [[Burntmeat]]. You cannot make this after the quest.
+|-
+| 47
+| {{plinkt|Goblin potion}}
+| [[Land of the Goblins]]
+| {{plinkt|Vial of water}}
+| {{plinkt|Toadflax}}
+| {{plinkt|Pharmakos berries}}
+| This potion is only usable in within the [[Goblin Cave]] and [[Goblin Temple]] and will transform the player into a [[goblin]]. You can remake it after the quest.
+|-
+| 52
+| {{plinkt|Shrink-me-quick}}
+| [[Grim Tales]]
+| {{plinkt|Vial of water}}
+| {{plinkt|Tarromin}}
+| {{plinkt|Shrunk ogleroot}}
+| This potion will shrink a player to allow them to go through the mouse hole in the witch's house in [[Taverley]]. This potion can still be made and used after the quest.
+|-
+| 57
+| {{plinkt|Magic essence}}
+| [[Fairytale II - Cure a Queen]]
+| {{plinkt|Vial of water}}
+| {{plinkt|Star flower}}
+| {{plinkt|Gorak claw powder}}
+| This potion can also be used to get a +3 boost to [[Magic]].
+|-
+| 62
+| {{plinkt|Strangler serum}}
+| [[Desert Treasure II - The Fallen Empire]]
+| style="text-align:center;"| {{plinkp|Unfinished serum (step 1)}}{{plinkp|Unfinished serum (step 2)}}
+| [[Unfinished serum]]
+| {{plinkt|Korbal herb}}
+| {{plinkt|Argian berries}}
+| Drinking this potion prevents [[The Strangler]] from infecting the player.
+|-
+| 70
+| {{plinkt|Inversion potion}}
+| [[Song of the Elves]]
+| {{plinkt|Vial of water}}
+| {{plinkt|Elder cadantine}}
+| {{plinkt|Crystal dust (Song of the Elves)}}
+| 
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 October 2004
+|update = Treasure Trails and Changes
+|change = Potions now have a right click "empty" option on them.
+}}
+{{Subject changes footer}}
+
+{{Potions}}

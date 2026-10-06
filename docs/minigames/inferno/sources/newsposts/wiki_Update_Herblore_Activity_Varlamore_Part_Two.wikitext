@@ -1,0 +1,335 @@
+{{Update|date=22 April 2024|rev=25 April 2024|url=https://secure.runescape.com/m=news/herblore-activity---varlamore-part-two?oldschool=1|category=devblog}}
+[[File:Herblore Activity - Varlamore- Part Two newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+==Feedback - April 25th==
+===The Audio Read - Feedback Changes===
+<center>
+[[File:Herblore Activity - Varlamore- Part Two feedback narration.ogg]]
+
+''If you can't see the Audio Read, [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-04-22/HerbloreActivity-VP2-Reading-Feedback.mp3 click here] to listen.''
+</center>
+
+We've taken all of your feedback on board and spoken to the Varlamorian alchemists to refine the experience and incentives for this new Herblore activity. Thanks to the over 13,000 of you that filled in the Survey, your feedback goes a long way!
+
+As a reminder, Mod Mack & Sarnie will be chatting about these changes and the Herblore Activity, today at '''5pm BST''' over on [https://twitch.tv/oldschoolrs Twitch]. Without further ado, let's jump straight into it...
+
+For those that want a quick summary of changes:
+
+* Investigating XP rates during balancing with your feedback in mind.
+* Re-ordering the Herb Component List, to reflect Herblore Level instead of the Grand Exchange Value.
+* Adding Torstol onto the list of usable Herbs
+* Gameplay will not be based on UI and will focus on in-world elements
+* Players will be able to use unfinished Potions to get Paste
+* The Herb Mill is being renamed 'the Refiner'. The Centrifuge is being renamed 'the Agitator'. All names will be reviewed to give them a more 'fantasy' feel.
+* Introducing the Potion of Goading with the update. This potion will set aggro on any non-aggressive enemies within an 9x9 area around the player. Aggro cannot be stolen from other players using this Potion.
+** The secondary for this Potion will only be accessible through the activity, but both the Potion and secondary will be tradeable.
+** You'll be able to make this with the required Herblore level (TBC) and a yet-to-be-determined existing herb.
+* Potion Packs will now scale with your Herblore level. If you can't make Saradomin Brews for example, you'll either not get any Saradomin Brews or have an extremely rare chance to receive one.
+* You can use Secondaries straight from the Reagents Pouch when making Potions.
+* The Reagents Pouch will now function like the Herb Sack and be able to hold up to 30 of each secondary. We will be limiting where you can use this item.
+* When, purchased, the Amulet of Chemistry (i) will come with some charges but can gain more using normal Amulets of Chemistry.
+* The effect of the Skilling Outfit has been moved to just the Goggles. The rest of the outfit will still be offered as FashionScape.
+* The Pre-pot Device will come with some level of presets for easy customisation.
+* The Pre-pot Device will now be Tradeable.
+* Potion Storage will be accessible via the Bank.
+* UIMs will not be able to access Potion Storage.
+* In the near future, we'll release a new blog with more details on balancing, gameplay and reward interaction for your clarity.
+* Poll questions have been added to the newspost.
+
+===Experience & Herb Value===
+We saw a lot of discussions around the activity but it's clear that some of you need XP rates to make an informed decision. While we aren't going to be sharing experience rates in this newspost, we want to make it clear that we've heard you and we are going to be taking that feedback into the balancing stages.
+
+This also goes for the breakdown of component values. While it won't be updated in this newspost, that list will be corrected to reflect Herblore Level unlocks compared to the previous sorting by G.E. value. Finally, for all the Torstol fans out there, we've added this high-tier herb to the roster of components.
+
+Because we don't want to rush those balancing changes, the hope is to come back with another newspost in the near future, to give you some more insight into the activity in terms of gameplay, experience, and interactions with some of the rewards.
+
+===Gameplay & UI===
+A lot of the complaints we saw when trying to visualise this activity is that you don't want it to be like Giant's Foundry, as you spend a fair amount of time focused on the progress bar. For clarity, in the actual game the only visible UI element will be the order list. However, your feedback has prompted us to investigate other methods of communicating this information, such as NPCs shouting out available orders.
+
+We want this activity to be about engaging with the world, not focusing on a UI. The pacing will also be faster than Giant's Foundry.
+
+When it comes to actual gameplay changes, we saw a ton of people wonder if unfinished potions could be used in this activity. While that wasn't the case initially, we don't think it's a bad idea - so the Mill will be renamed to the Refiner and you'll be able to put both herbs and unfinished potions inside to get your paste!
+
+On a similar note, we found out from our conversations that the Centrifuge needs something else to make things Homogenous, so we're renaming that machine to the Agitator. We're also going to review the other terminology to make it less grounded in reality... here comes the Mixomatic 3000!
+
+===A New Challenger Approaches===
+The rest of this update will focus on the rewards from the activity and before we get onto the old, let's start off with something new. We saw a lot of feedback wondering why no new potion comes from this activity - after all, this is Herblore!
+
+So, to keep the Herblore theme going strong we want to offer a new reward: Potion of Goading. This potion will allow you set aggro on any non-aggressive enemies within a 9x9 of the player using it! This means not only could you re-aggro enemies who've wandered off, but lure in enemies that don't normally pay you any attention... like Dust Devils. Note that you can't use this Potion to 'steal' aggro from other players.
+
+Needing a yet-to-be-determined unfinished potion as the base, you'll be able to earn a new secondary from this activity that will act as the reagent to create the Potion of Goading. We hope you like the idea of this new potion and the fact that both the Potion and Secondary will be tradeable.
+
+===Potion Packs===
+The main concern from this reward was receiving potions you wouldn't otherwise be able to get consistently when using different herbs. As we previously stated, using Lye herbs will be the only way to get Lye points, and those points can only be spent on Lye Potion Packs. Inside those packs you'll only find potions made from Lye-based herbs, with the other packs following the same principles.
+
+We're also adding restrictions on what potions can be obtained from packs, dependent on your Herblore level. If you can't make Saradomin Brews for example, you'll either not get any Saradomin Brews or have an extremely rare chance to receive one. Once you've hit that level, the scaling will change and will continue to change until you reach the required level to create all available potions from a pack.
+
+===Reagents Pouch===
+Let's start off with some clarification we left out of the original post and follow that up with some exciting changes!
+
+First, you will be able to use secondaries directly from the Pouch when making potions. We're going to be experimenting with the best user-flow for this system, which we'll touch on in our follow-up newspost for this activity.
+
+The main piece of feedback we saw was that this reward should be more in-line with the Herb Sack, which we agree with. So, you'll now be able to carry up to 30 of each secondary in the Reagents Pouch. We do want to make sure that this is still balanced as there's some sneaky use-cases of the item that could help you out with more potions, especially when it comes to harder content. So, we'll more than likely prevent players from using the Pouch in content like the Inferno.
+
+===Amulet of Chemistry (i)===
+We saw some confusion about how this reward would work and definitely saw a preference for one method over the other. We think we can come to a solid middle ground for this item, as you'll be able to purchase the Amulet of Chemistry (i) as a separate item from the shop. This will come with a decent number of charges but you will have the ability to add regular Amulets of Chemistry to it for more charges.
+
+So, you can either keep purchasing multiple Amulets of Chemistry (i) or bag yourself one and keep it sustained with the standard versions!
+
+===Skilling Outfit===
+The idea of Skilling Outfits has become a hot debate recently and we've seen plenty of players who don't want to have to wear a full outfit to gain the benefits. FashionScape is important, after all!
+
+We're going to move the full effect of the outfit onto just the Goggles, but also give the option to purchase the other pieces of the outfit from the store for the pure drip.
+
+We think this has opened a bigger conversation for Skilling Outfits in general and we would like to think about that space in the future - in a way that respects both the outfits and your elite fashion-sense!
+
+===Pre-pot Device===
+Okay, let's move onto the biggest rewards of the bunch for our last two feedback points!
+
+Like any good concoction, we wanted to make potion chugging feel smooth. To do so, we'll be offering customisable presets for the device.
+
+While you liked that most of the rewards from this activity are untradeable, this was the one exception - so, as a little treat, it will be now tradeable on release.
+
+===Potion Storage===
+Let's finish up with some further information about Potion Storage.
+
+From the survey and conversations online, it was clear that keeping Storage focused on the Bank is the way the majority of the players wish to interact with this storage solution. While we haven't got the specifics of that system, we want to come back soon with some updates on interactions with both this reward and the Pre-pot Device, as well as refined lists and gameplay for the activity itself. Stay tuned! 
+
+Finally, to quash any concerns for players, Ultimate Irons will not be able to access this storage.
+That's it for the feedback. We've updated the newspost below to reflect these changes and added the Poll Questions so you can see exactly what you're going to be voting on in the upcoming Herblore Activity Poll!
+
+Thank you again for all your consistent feedback and interaction. We're super excited to show you more soon!
+
+''After looking over your reward ideas we're back to give you a look at Varlamore’s upcoming Herblore Activity!''
+
+===The Audio Read - Updated: April 25th===
+<center>
+[[File:Herblore Activity - Varlamore- Part Two narration.ogg]]
+
+''If you can't see the Audio Read, [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-04-22/HerbloreActivity-VP2-Reading-V2.mp3 click here] to listen.''
+</center>
+
+On the mainland, Herblore has existed in much the same way since the druids first honed their craft. In Varlamore, however, they brew potions a little differently.
+
+The lush island of Aldarin is the perfect locale for Varlamore’s alchemists to grow and study herbs and other Herblore ingredients. Through intense study, they’ve discovered that all herbs contain a set of basic alchemical elements, which can be mixed differently to produce beneficial effects. In their laboratory, they serve the kingdom by mixing up potions in exchange for the time and resources required to continue their studies.
+
+However, with the influx of new visitors to Varlamore, potion orders have gone through the roof! The alchemists' reputation is at stake, and they need your help to get the orders out on time.
+
+Are you willing to lend a hand? Then keep reading to learn all about Varlamore’s new Herblore activity...
+
+==Gameplay==
+'''Before we begin, please note that we are at an early stage of development, and details are subject to change from now up until release.'''
+
+As we [https://secure.runescape.com/m=news/varlamore-part-two---quests--reward-space?oldschool=1 mentioned previously], this activity is not intended to supplant the classic Herblore experience. As such, we’re not aiming for high XP per hour – instead, we want to focus on the production aspect of Herblore and provide an alternative training method that doesn’t shift the meta.
+
+As such, this activity is targeted at players with 70+ Herblore, although lower-level players can still join in the fun. After a small quest explaining the fundamentals of alchemy, you’ll have free reign to start filling out orders. The activity is free to enter (the alchemists need all the help they can get) and you can leave at any time – although you’ll need to bring your own herbs or associated unfinished potions.
+
+Alchemy doesn’t use secondary ingredients. Instead, you’ll be processing herbs into basic elements and using the results to brew potions. Before we dive into the process, here’s what the laboratory could look like:
+
+[[File:Herblore Activity - Varlamore- Part Two (1).png|450px|center]]
+
+Your orders are listed on an overlay interface, meaning you can easily keep track of the potions on your list, along with the time remaining to fulfil the order. All potions have two components to watch out for: the ''Modifier'' and the '''Base''', i.e. ''Concentrated'' '''Mason's Tonic'''.
+
+Once you’ve picked an order to work on, your first job is to break down your herbs or unfinished potions into a paste using the '''Refiner'''. Then, put the paste into the '''Mixer''', which will convert them into usable base elements: Lye, Aga, and Mox, or LAM for short.
+
+Herbs give different values of each base element. Here's an '''EXAMPLE''' of herbs, their value and component type.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Herb
+! Value
+! Component Type
+|-
+| Cadantine
+| 1
+| Lye
+|-
+| Avantoe
+| 2
+| Lye
+|-
+| Ranarr Weed
+| 3
+| Lye
+|-
+| Snapdragon
+| 3
+| Lye
+|-
+| Torstol
+| 4
+| Lye
+|-
+| Lantadyme
+| 1
+| Aga
+|-
+| Dwarf Weed
+| 2
+| Aga
+|-
+| Toadflax
+| 3
+| Aga
+|-
+| Kwuarm
+| 4
+| Aga
+|-
+| Marrentill
+| 1
+| Mox
+|-
+| Tarromin
+| 1
+| Mox
+|-
+| Guam
+| 2
+| Mox
+|-
+| Harralander
+| 3
+| Mox
+|-
+| Irit
+| 4
+| Mox
+|}
+
+Once you’ve got your LAM, use the three levers next to the Mixer to mix them into one of 10 distinct potion bases. You’ll be able to 1-tick these levers, so there’s no waiting for animations to finish – just pure production!
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Base
+! Combination
+|-
+| Goosebane
+| MMM
+|-
+| Earworm
+| MMA
+|-
+| Relaxative
+| MML
+|-
+| Mason's Tonic
+| AAM
+|-
+| Sunbeam
+| AAA
+|-
+| Mixalot
+| MAL
+|-
+| Wonder Wash
+| AAL
+|-
+| Wizardaway
+| LLM
+|-
+| Faerie's Fire
+| LLA
+|-
+| Shrinker
+| LLL
+|}
+
+Now we have a base, we have to think about the modifier, which we apply using the appropriate processing machine. There are three to choose from: the '''Retort''', the '''Agitator''', and the '''Alembic''', and they apply the Concentrated, Homogenous, and Crystalised modifiers, respectively. They also have different processing times. The '''Retort''' is a passive method with slow progress. The '''Agitator''' needs active interaction, but progresses quickly. Finally, the '''Alembic''' processes instantly.
+
+In our example, the ''Concentrated'' '''Mason’s Tonic''', we’ll need to use the Retort. Since this is a slow process, we have some downtime to focus on mixing up some of the other potions on our order list – although it won’t be too long!
+
+Once processed, pick up your freshly-brewed potions and stick them on the '''Delivery Counter'''. You’ll be rewarded with points, split between L, A and M, for each correct potion you’ve shipped before the order times out.
+
+To recap:
+
+* Check the current orders and select one, paying close attention to both the ''Modifer'' and '''Name''' of the order.
+* Head to the Bank Chest and grab the necessary herbs or associated unfinished potions.
+* Break them down into paste using the Refiner.
+* Add the paste to the Mixer to change them into LAM elements.
+* Choose the correct combination of LAM elements based on the '''Name''', using the levers next to the Mixer.
+* Collect your Potion Base and select the right tool to give it the correct ''Modifer''.
+* Once completed, put your Potion on the Delivery Counter, and enjoy your points!
+
+That’s the core gameplay sorted! Just in case you missed it earlier, we’re not revealing XP rates yet, but you can expect this to be a '''low XP activity'''. Instead, we’re offering a selection of special rewards for you to spend your points on...
+
+==Rewards==
+In our [https://secure.runescape.com/m=news/varlamore-part-two---quests--reward-space?oldschool=1 last blog], we asked you to share your reward ideas for this activity. You clearly enjoyed flexing your creative muscles, because we’ve seen some amazing suggestions, and now we have a really clear idea of what the community wants from this activity.
+
+So, without further ado, let’s take a look!
+
+===Potion Packs===
+''Untradeable''
+
+This first reward is pretty straightforward – three different packs, one for each of the LAM components. Each one is packed with potions made from the herbs you used to gain those points – for example for L Potion Packs they will only feature potions made with those herbs. So if Toadflax's has an L component, you can expect Saradomin Brews as part of the L packs roster. Potions are likely to scale with your Herblore Level, so if you can't make Saradomin Brews for example, you'll either not get any Saradomin Brews or have an extremely rare chance to receive one.
+
+{{News Poll|1|Should we add Potion Packs as an untradeable reward from the Herblore Activity in Varlamore: Part Two, as described in the blog? This packs will give potions based on the type of herbs associated with their packs.}}
+
+===Potion of Goading===
+''Tradeable''
+
+To keep the Herblore thematic going strong we want to add a new potion with this update: the Potion of Goading. This pot will allow you set Aggro on any non-agressive enemies within a 9x9 of the player using it. This means not only could you re-aggro enemies but you'll be able lure enemies that normally don't pay any attention to you like Dust Devils. Any enemy that is already aggro'd against another player will not be effected, as we don't want naughty players to be stealing kills!
+
+Needing a yet-to-be-determined unfinished potion as the base, you'll be able to earn a new secondary from the Herblore activity which will act as the reagent to create the Potion of Goading. Making the potion will only require the necessary Herblore Level.
+
+{{News Poll|1|Should we add the Potion of Goading and a new type of secondary as tradeable rewards from the Herblore Activity in Varlamore: Part Two, as described in the blog? This potion will allow you set Aggro on any enemies within a 9x9 of the player using it. The new secondary will only come from this activity.}}
+
+===Reagents Pouch===
+''Untradeable''
+
+Make space for your secondaries with the latest in item-storing technology! Like the Herb Sack, this handy pouch lets you store up to 30 of all secondary ingredients, from Limpwurt Roots to Unicorn Horns. Secondary ingredients inside the bag will be used in creating potions, so no need to remove them from the pouch!
+
+Just to note, we will likely limit being able to take this into some areas of the game as being able to craft 30 new potions inside the Inferno sounds a bit broken.
+
+{{News Poll|1|Should we add the Reagents Pouch as an untradeable reward from the Herblore Activity in Varlamore: Part Two, as described in the blog? The Pouch can hold up to 30 of each secondary ingredient in potion-making and items from it can be used when brewing potions.}}
+
+===Alchemist's Set===
+''Untradeable''
+
+The prescribed eyewear in this stylish clothing set lets you see beyond the physical realm and into the science zone. Well, not really – but wearing them, will net you a 10% chance to save a secondary ingredient when mixing Potions.
+
+For all you hardcore FashionScapers out there, the full set contains Goggles, Top, Legs and Gloves, but only the Goggles will be needed for the effect, the rest is pure drip.
+
+{{News Poll|1|Should we add the Alchemist's Set as an untradeable reward from the Herblore Activity in Varlamore: Part Two, as described in the blog? The Goggles will give you a 10% chance to save a secondary ingredient when mixing Potions while the Top, Legs and Gloves are purely cosmetic.}}
+
+===Amulet of Chemistry (i)===
+''Untradeable''
+
+Brimming with power, this imbued version of the classic Amulet can be brought with a small amount of charges on first purchase, but additonal charges can be added by using the standard Amulet of Chemistrys on it. The imbued version increases the chance to mix 4-dose Potions to 15%. Powerful stuff!
+
+{{News Poll|1|Should we add Amulet of Chemistry (i) as an untradeable reward from the Herblore Activity in Varlamore: Part Two, as described in the blog? The imbued version increases the chance to mix 4-dose Potions to 15% and can be charged with regular Amulet of Chemistrys.}}
+
+===Pre-pot Device===
+''Tradeable''
+
+Why drink one Potion when you could create a cocktail of flavours and effects for any occasion? This special device lets you insert doses from up to five different Potions and drink them all at once. Sounds a bit like our uni days...
+
+This device will come with some element of presets to make accessing and swapping between your pre-pot needs as easy as pie! We do want to make sure this powerful effect is balanced appropriately, however and players will only be allowed to use this item within a Bank, or next to a Bank Chest. The team is open to using this item in other areas, but we'll explore that once we've locked in this reward.
+
+{{News Poll|1|Should we add the Pre-pot Device as a tradeable reward from the Herblore Activity in Varlamore: Part Two, as described in the blog? This device will let you store up to 5 different potions and allow you to consume them in one go.}}
+
+===Potion Storage===
+''Untradeable''
+
+This final reward is one of the most-requested items in all of Herblore – a storage solution that will ''finally'' free your Bank slots from the tyranny of Potions!
+
+Essentially, after unlocking this item, a new element of the Bank will allow you to place potions into it, without taking up standard Bank Slots. You will still be able to place potions inside the regular area of the Bank, if you want faster access to specific potions and doses.
+
+{{News Poll|1|Should we add Potion Storage as an untradeable reward from the Herblore Activity in Varlamore: Part Two, as described in the blog? You'll be able to store potions in this part of the Bank without taking up Bank Space.}}
+
+==Survey==
+Thank you to everything that took part in the survey! Your feedback has been invaluable.
+
+<center><big><big>[https://forms.office.com/e/0CkPRtkC8P Varlamore Part Two: Herblore Activity]</big></big></center>
+
+And that's a wrap! If you're looking for some more, you can chat to Mod Mack and Mod Sarnie at '''4pm BST''' on '''April 23rd''' over on the official [http://discord.gg/OSRS OSRS Discord] for a special Stages on the activity. Not only that but you can expect this week's livestream to be going over this newest part of the Shining Kingdom on '''Thursday, April 25th''' at '''5pm BST''' on the official [http://twitch.tv/oldschoolrs Twitch] channel!
+
+----
+
+You can also discuss this update on the [https://new.reddit.com/r/2007scape/comments/1ccrcmj/feedback_herblore_activity_varlamore_part_two/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

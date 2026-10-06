@@ -1,0 +1,355 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	leg.1.narnode_to_waydar	PASS	21		tile=3206,3233,0 stage=varp365_mm_main=0 inv=gold_barx1,ball_of_woolx1,mm_normal_monkey_bonesx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,4doseprayerrestorex1,4doseprayerrestorex1,rune_scimitarx1
+2	start.stage	PASS	0		0 -- varp365_mm_main (varp) = 0 (monkeymadness_not_started)
+3	goto-talkToNarnode	PASS	1	001-goto-talkToNarnode	at 2465,3496,0 from 3206,3233,0
+4	talkToNarnode	PASS	1	002-talkToNarnode	map_flag: dialogue npc is up
+5	talkToNarnode-dialog	PASS	4	003-npc-p1,004-player-p2,005-npc-p3,006-player-p4,007-npc-p5,008-player-p6,009-npc-p7,010-player-p8,011-npc-p9,012-player-p10,013-npc-p11,014-player-p12,015-npc-p13,016-player-p14,017-npc-p15,018-npc-p16,019-options-p17,020-player-p18,021-mesbox-p19,022-npc-p20,023-npc-p21,024-talkToNarnode-dialog	21 page(s): npc:Adventurer! It is good to see , player:And you too, King. How fares t, npc:The tree? It is fine, as it ha, player:Good. What ever did happen to , npc:Oh, I forced him to resign. I , player:King, you look worried. Is any, npc:Nothing in particular ... Well, player:What is it?, npc:Well, do you remember Glough's, player:Yes, they were on the eastern , npc:After you defeated Glough's de, player:I see ... Were they successful, npc:I ... I don't know. I have hea, player:It is 
+6	talkToNarnode-chapter1	PASS	0	025-mesbox,026-mesbox,027-talkToNarnode-chapter1	none
+7	quest.stage.monkeymadness_started	PASS	2		1 -- varp365_mm_main (varp) = 1 (monkeymadness_started)
+8	talkToNarnode-seal	PASS	0	028-talkToNarnode-seal	mm_gnome_royal_seal 1 -> 1 (>= 1) after 0 tick(s)
+9	goto-flyGandius	PASS	0	029-goto-flyGandius	at 2464,3501,3 from 2466,3496,0
+10	flyGandius-talk	PASS	14	030-flyGandius-talk	page none->options: dialogue options is up -- walk_near: stepped off the target tile 2464,3501 (2464,3501 -> 2465,3501)
+11	flyGandius	PASS	4	031-options-p1,032-player-p2,033-npc-p3,034-options-p4,035-flyGandius	4 page(s): options:choose:Can you take me on the , player:Can you take me on the glider?, npc:Of course!, options:choose:Karamja
+12	flyGandius-landed	PASS	8	036-flyGandius-landed	landed at 2971,2969
+13	goto-shipyard-gate	PASS	0	037-goto-shipyard-gate	at 2942,3041,0 from 2971,2969,0
+14	shipyard-gate	PASS	2	038-shipyard-gate	page none->npc (text)
+15	shipyard-gate-dialog	PASS	2	039-npc-p1,040-player-p2,041-npc-p3,042-player-p4,043-npc-p5,044-player-p6,045-npc-p7,046-player-p8,047-shipyard-gate-dialog	8 page(s): npc:Hey you! What are you up to?, player:I'm trying to open the gate!, npc:I can see that! Why?, player:I am on a special mission for , npc:Narnode? I don't believe you. , player:Well, he did..., npc:Tough., player:Look, I have the Gnome Royal S
+16	shipyard-gate-seal	PASS	0	048-shipyard-gate-seal	objbox -> objbox
+17	shipyard-gate-after	PASS	0	049-npc,050-player,051-npc,052-npc,053-shipyard-gate-after	none
+18	quest.stage.monkeymadness_shown_seal	PASS	8		2 -- varp365_mm_main (varp) = 2 (monkeymadness_shown_seal)
+19	goto-talkToCaranock	PASS	0	054-goto-talkToCaranock	at 2956,3025,0 from 2945,3041,0
+20	talkToCaranock	PASS	2	055-talkToCaranock	map_flag: dialogue player is up -- walk_near: stepped off the target tile 2956,3025 (2956,3025 -> 2956,3024)
+21	talkToCaranock-dialog	PASS	3	056-player-p1,057-npc-p2,058-player-p3,059-npc-p4,060-player-p5,061-player-p6,062-npc-p7,063-player-p8,064-npc-p9,065-player-p10,066-npc-p11,067-npc-p12,068-talkToCaranock-dialog	12 page(s): player:Hello!, npc:Who are you? Did Glough send y, player:Glough? No. He has been forced, npc:Forced to resign??, player:He was plotting to start a war, player:Anyway, I am here on a separat, npc:Royal Guard? I know nothing ab, player:You have no idea why they myst, npc:None whatsoever. What were the, player:They were to oversee the decom, npc:Decommission the shipyard ... , npc:I shall see personally to the 
+22	goto-talkToNarnodeAfterShipyard	PASS	2	069-goto-talkToNarnodeAfterShipyard	at 2465,3496,0 from 2957,3024,0
+23	talkToNarnodeAfterShipyard	PASS	1	070-talkToNarnodeAfterShipyard	map_flag: dialogue npc is up
+24	talkToNarnodeAfterShipyard-dialog	PASS	3	071-npc-p1,072-player-p2,073-npc-p3,074-player-p4,075-npc-p5,076-player-p6,077-npc-p7,078-player-p8,079-npc-p9,080-player-p10,081-npc-p11,082-talkToNarnodeAfterShipyard-dialog	11 page(s): npc:Welcome back, adventurer., player:Hello. I investigated the ship, npc:Thank you for doing this. What, player:I met a Gnome who goes by the , npc:The name sounds a little famil, player:He calls himself a Gnome Liais, npc:Never mind that - did you find, player:Caranock suggested they were b, npc:Do you believe him?, player:I don't have any other informa, npc:Very well. I will now prepare 
+25	talkToNarnodeAfterShipyard-hand	PASS	7	083-mesbox-p1,084-player-p2,085-npc-p3,086-talkToNarnodeAfterShipyard-hand	3 page(s): mesbox:Narnode hands you some handwri, player:Where will I find Daero?, npc:You will find him attending to
+26	talkToNarnodeAfterShipyard-orders	PASS	0		mm_narnode_orders 1 -> 1 (>= 1) after 0 tick(s) [frame unchanged]
+27	goto-talkToDaero	PASS	0	087-goto-talkToDaero	at 2482,3486,1 from 2466,3496,0
+28	talkToDaero	PASS	1	088-talkToDaero	map_flag: dialogue player is up
+29	talkToDaero-dialog	PASS	3	089-player-p1,090-npc-p2,091-player-p3,092-npc-p4,093-player-p5,094-npc-p6,095-mesbox-p7,096-npc-p8,097-talkToDaero-dialog	8 page(s): player:Are you Daero?, npc:Indeed I am - and you are?, player:I am an adventurer. I am curre, npc:I see. You must be the individ, player:I have been asked to give you , npc:Well hand them over here then., mesbox:You hand King Narnode's orders, npc:It is written in an old milita
+30	talkToDaero-orders	PASS	11	098-npc-p1,099-player-p2,100-npc-p3,101-player-p4,102-npc-p5,103-player-p6,104-npc-p7,105-npc-p8,106-options-p9,107-options-p10,108-player-p11,109-npc-p12,110-player-p13,111-npc-p14,112-options-p15,113-options-p16,114-options-p17,115-player-p18,116-npc-p19,117-npc-p20,118-options-p21,119-options-p22,120-options-p23,121-player-p24,122-npc-p25,123-options-p26,124-options-p27,125-player-p28,126-npc-p29,127-options-p30,128-player-p31,129-npc-p32,130-npc-p33,131-mesbox-p34,132-talkToDaero-orders	34 page(s): npc:I hope you feel like a quest a, player:Why is that?, npc:... because you're going to ge, player:Tell me what the orders say!, npc:Given your recent performance , player:Where to?, npc:You are to be taken far to the, npc:You must really have impressed, options:choose:Talk about the journey., options:choose:What lies to the south , player:What lies to the south of Kara, npc:We do not know. Initial report, player:Monkeys? Like on Karamja?, npc:From what I have heard, not qu,
+31	talkToDaero-blindfold	PASS	0	133-talkToDaero-blindfold	none
+32	talkToDaero-hangar	PASS	6		teleported into the hangar: met after 0 tick(s)
+33	talkToDaeroInHangar	PASS	0	134-talkToDaeroInHangar	map_flag: dialogue npc is up
+34	talkToDaeroInHangar-dialog	PASS	4	135-npc-p1,136-player-p2,137-npc-p3,138-npc-p4,139-npc-p5,140-npc-p6,141-npc-p7,142-npc-p8,143-npc-p9,144-npc-p10,145-npc-p11,146-npc-p12,147-npc-p13,148-npc-p14,149-npc-p15,150-npc-p16,151-npc-p17,152-npc-p18,153-npc-p19,154-npc-p20,155-talkToDaeroInHangar-dialog	20 page(s): npc:Welcome, adventurer, to the Un, player:Wow! Why would Gnomes need suc, npc:We do not, if the truth be tol, npc:It is fortunate indeed that yo, npc:Let me introduce you to Flight, npc:Flight Commander Waydar, I wou, npc:Greetings High Tree Guardian., npc:And greetings to you too, visi, npc:Not just any old visitor Wayda, npc:I see. Well, there are no more, npc:Quite. He is now on a secret m, npc:As you know, the 10th squad we, npc:We still do not know what happ, npc:Their 
+35	goto-clickPuzzle	PASS	2	156-goto-clickPuzzle	at 2394,9886,0 from 2392,9891,0
+36	clickPuzzle	PASS	2	157-clickPuzzle	modal trail_slidepuzzle
+37	clickPuzzle-open	PASS	0		trail_slidepuzzle open (group 306)
+38	clickPuzzle-board_read	PASS	1	158-clickPuzzle-board_read	5 board rows read from ::mmpuzzle
+39	clickPuzzle-plan	PASS	17	159-clickPuzzle-plan	solution is 173 piece clicks
+40	clickPuzzle.cutscene	PASS	194	160-clickPuzzle-before,161-clickPuzzle-half,162-clickPuzzle-solved,163-clickPuzzle-kf2,164-clickPuzzle-kf3,165-clickPuzzle.cutscene	cutscene: 4 keyframes, shake ... reset, reset=yes -- #1 t=304 shake axis=0 amp=0 s=0 | #2 t=313 moveto 2591,4506 h=600 s=100/100 | #3 t=313 lookat 2576,4518 h=350 s=100/100 | #4 t=326 reset ;; from opts.since (serial 0), shots=clickPuzzle-kf2,clickPuzzle-kf3 ;; expect: 2/2 matched in order
+41	clickPuzzle-camera-free	PASS	0		camera back to the player: met after 0 tick(s)
+42	goto-talkToDaeroAfterPuzzle	PASS	1	166-goto-talkToDaeroAfterPuzzle	at 2393,9889,0 from 2649,4507,0
+43	talkToDaeroAfterPuzzle	PASS	1	167-talkToDaeroAfterPuzzle	map_flag: dialogue npc is up
+44	talkToDaeroAfterPuzzle-dialog	PASS	3	168-npc-p1,169-player-p2,170-npc-p3,171-npc-p4,172-npc-p5,173-npc-p6,174-npc-p7,175-npc-p8,176-npc-p9,177-talkToDaeroAfterPuzzle-dialog	9 page(s): npc:Well done, adventurer. You hav, player:I've had some practice in the , npc:You are clearly a man of many , npc:Flight Commander Waydar, now t, npc:Yes sir., npc:You are to safeguard him on th, npc:Understood., npc:mm, speak to Waydar when you a, npc:And ... good luck.
+45	talkToWaydarAfterPuzzle	PASS	4	178-talkToWaydarAfterPuzzle	map_flag: dialogue npc is up
+46	talkToWaydarAfterPuzzle-dialog	PASS	5	179-npc-p1,180-npc-p2,181-npc-p3,182-options-p4,183-player-p5,184-npc-p6,185-talkToWaydarAfterPuzzle-dialog	6 page(s): npc:You should stock up well on fo, npc:I'd be careful of the local fa, npc:Do you wish to fly right now?, options:choose:Yes, player:Yes, let's go., npc:As you wish.
+47	talkToWaydarAfterPuzzle-landed	PASS	8	186-talkToWaydarAfterPuzzle-landed	Crash Island at 2893,2725
+48	goto-waydarCrashLanding	PASS	0	187-goto-waydarCrashLanding	at 2898,2724,0 from 2893,2725,0
+49	waydarCrashLanding	PASS	1	188-waydarCrashLanding	map_flag: dialogue player is up
+50	waydarCrashLanding-dialog	PASS	2	189-player-p1,190-npc-p2,191-player-p3,192-npc-p4,193-waydarCrashLanding-dialog	4 page(s): player:Where are we?, npc:I am not sure. We appear to ha, player:Did our glider survive?, npc:Of course.
+51	goto-talkToLumdo	PASS	2	194-goto-talkToLumdo	at 2891,2724,0 from 2897,2726,0
+52	talkToLumdo	PASS	2	195-talkToLumdo	page none->npc (text): dialogue npc is up -- walk_near: stepped off the target tile 2891,2724 (2891,2724 -> 2891,2723)
+53	talkToLumdo-dialog	PASS	4	196-npc-p1,197-player-p2,198-npc-p3,199-player-p4,200-npc-p5,201-player-p6,202-mesbox-p7,203-npc-p8,204-player-p9,205-npc-p10,206-player-p11,207-npc-p12,208-npc-p13,209-npc-p14,210-player-p15,211-npc-p16,212-player-p17,213-npc-p18,214-npc-p19,215-player-p20,216-npc-p21,217-player-p22,218-npc-p23,219-player-p24,220-npc-p25,221-talkToLumdo-dialog	25 page(s): npc:Who are you two?, player:We are on a mission for King N, npc:What business do you have here, player:We are to investigate the disa, npc:I might be. Do you have any wa, player:I have the Gnome Royal Seal., mesbox:You show Lumdo the Royal Seal., npc:I see. Sorry for my distrust., player:So are you Lumdo of the 10th s, npc:I am indeed -, player:Where are the rest of your squ, npc:Let me begin at the beginning,, npc:We were on our way to decommis, npc:We were one gnome to a g
+54	goto-talkToWaydarOnCrash	PASS	2	222-goto-talkToWaydarOnCrash	at 2898,2726,0 from 2891,2723,0
+55	talkToWaydarOnCrash	PASS	1	223-talkToWaydarOnCrash	map_flag: dialogue options is up
+56	talkToWaydarOnCrash-menu	PASS	1	224-talkToWaydarOnCrash-menu	options
+57	talkToWaydarOnCrash-choose	PASS	0	225-talkToWaydarOnCrash-choose	chat.choose: page changed
+58	talkToWaydarOnCrash-dialog	PASS	3	226-player-p1,227-npc-p2,228-player-p3,229-npc-p4,230-player-p5,231-npc-p6,232-player-p7,233-npc-p8,234-npc-p9,235-npc-p10,236-npc-p11,237-npc-p12,238-npc-p13,239-npc-p14,240-npc-p15,241-player-p16,242-npc-p17,243-player-p18,244-npc-p19,245-talkToWaydarOnCrash-dialog	19 page(s): player:I cannot convince Lumdo to tak, npc:What is the problem?, player:He claims to be under direct o, npc:His zeal in this matter is to , player:Can you do anything?, npc:I would rather not get involve, player:You must do something!, npc:You are becoming tiresome, hum, npc:Foot soldier Lumdo of the 10th, npc:Yes?, npc:I am Flight Commander Waydar. , npc:That is correct, Commander., npc:I need not remind you that I o, npc:Garkor will not be pleased!, npc:Then he can take up 
+59	chapter2-scene	PASS	9	246-mesbox,247-mesbox,248-npc,249-npc,250-npc,251-npc,252-npc,253-npc,254-npc,255-npc,256-npc,257-npc,258-npc,259-npc,260-npc,261-npc,262-chapter2-scene	none
+60	chapter2-cards-up	PASS	7		the Chapter 2 title card: met after 1 tick(s)
+61	chapter2-cards	PASS	1	263-mesbox,264-mesbox,265-chapter2-cards	none
+62	quest.stage.monkeymadness_arrived_atoll	PASS	4		3 -- varp365_mm_main (varp) = 3 (monkeymadness_arrived_atoll)
+63	chapter2-scene.cutscene	PASS	0	266-chapter2-scene.cutscene	cutscene: 3 keyframes, moveto ... reset, reset=yes -- #1 t=370 moveto 2599,4581 h=400 s=100/100 | #2 t=370 lookat 2609,4581 h=160 s=100/100 | #3 t=377 reset ;; from opts.since (serial 4), shots=none (the sequence ran inside the trigger row) ;; expect: 2/2 matched in order
+64	chapter2-camera-free	PASS	0		camera back to the player: met after 0 tick(s)
+65	leg.1.state	PASS	0	267-leg.1.state	tile=2801,2707,0 mm_main=3 royal_seal=1 (Ape Atoll boat landing after the chapter 2 scene; gold_bar, ball_of_wool, monkey bones from setup)
+66	leg.2.atoll_to_warehouse_cavern	PASS	0		tile=2801,2707,0 stage=varp365_mm_main=3 inv=gold_barx1,ball_of_woolx1,mm_normal_monkey_bonesx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,4doseprayerrestorex1,4doseprayerrestorex1,rune_scimitarx1,mm_gnome_royal_sealx1 -- checkpoint 1 written: checkpoint 1 written at 2801,2707,0
+67	talkToLumdoToReturn	PASS	0	268-talkToLumdoToReturn	map_flag: dialogue player is up
+68	talkToLumdoToReturn-dialog	PASS	2	269-player-p1,270-npc-p2,271-talkToLumdoToReturn-dialog	2 page(s): player:Can you take me back to Crash , npc:As you wish.
+69	talkToLumdoToReturn-crash	PASS	8	272-talkToLumdoToReturn-crash	after the ferry the player stands at 2894,2726
+70	talkToLumdoToReturn-back	PASS	0	273-talkToLumdoToReturn-back	map_flag: dialogue player is up
+71	talkToLumdoToReturn-back-dialog	PASS	2	274-player-p1,275-npc-p2,276-talkToLumdoToReturn-back-dialog	2 page(s): player:Can you take me back to Ape At, npc:As you wish.
+72	enterValley-prayer	PASS	8	277-enterValley-prayer	prayer 52 (need >= 20: the ravine walk to the knockout measured 42 ticks on the v3 run of 2026-10-03, about 9 points)
+73	enterValley-prayertab	PASS	0	278-enterValley-prayertab	prayer tab -> ok nil; prayerbook:prayer14 (Protect from Missiles) -> ok
+74	enterValley-protect	PASS	2	279-enterValley-protect	prayer_protectfrommissiles varbit 1 (the guide: protect from ranged on)
+75	goto-enterValley	PASS	0	280-goto-enterValley	at 2721,2750,0 from 2802,2707,0
+76	enterValley	PASS	42	281-enterValley	walking north up the ravine; knocked out by an archer after 1 walks, woke at 2770,2793
+77	enterValley-protectOff	PASS	21	282-enterValley-protectOff	prayer_protectfrommissiles varbit 0, prayer 42 kept for the leg 4 ravine
+78	leavePrison-pickDoor	PASS	14	283-leavePrison-pickDoor	map_flag -- click_minimenu: hunted pose 1 (reach 99) -- hovered -32,+0 off the projected 382,223 (4 pixel(s) tried)
+79	leavePrison	PASS	55	284-leavePrison	left the cell door at 2771,2795 and reached the north side of the prison after 2 attempt(s); standing at 2779,2802
+80	talkToGarkor	PASS	27	285-talkToGarkor	map_flag: dialogue player is up
+81	talkToGarkor-dialog	PASS	5	286-player-p1,287-npc-p2,288-player-p3,289-npc-p4,290-player-p5,291-npc-p6,292-player-p7,293-npc-p8,294-player-p9,295-npc-p10,296-npc-p11,297-player-p12,298-npc-p13,299-npc-p14,300-npc-p15,301-player-p16,302-npc-p17,303-player-p18,304-npc-p19,305-player-p20,306-npc-p21,307-player-p22,308-npc-p23,309-player-p24,310-npc-p25,311-talkToGarkor-dialog	25 page(s): player:Hello?, npc:A fine day you have chosen to , player:Good day to you to Sergeant. I, npc:Investigate the circumstances , player:How did you know that?, npc:The King and I are still in co, player:Why do you need a human?, npc:There is more going on than me, player:Well -, npc:Indeed. But there are more pre, npc:Before we can resume our origi, player:I know about the guards - I ha, npc:Trust me; we too have consider, npc:We have considered many things, npc:I remain here so
+82	enterDentureBuilding	PASS	48	312-enterDentureBuilding	through the secure door (mm_bamboo_doors.rs2:9); standing at 2764,2764 -- hop 2798 ok hp=99; hop 2790 ok hp=99; hop 2782 ok hp=99; hop 2774 ok hp=98; hop 2766 ok hp=98; hop 2765 ok hp=98
+83	searchForDentures	PASS	5	313-searchForDentures	chat_message
+84	searchForDentures-page	PASS	4	314-any-p1,315-searchForDentures-page	1 page(s): any:*=mesbox 'This crate is full of ..'
+85	searchForDentures-dialog	PASS	0	316-searchForDentures-dialog	chat.choose: page changed -- options ok Yes/No title=Do you wish to take one? kind=options
+86	searchForDentures-got	PASS	0	317-searchForDentures-got	mm_monkey_dentures 0 -> 1 (>= 1) after 0 tick(s)
+87	goDownFromDentures	PASS	4	318-goDownFromDentures	map_flag
+88	goDownFromDentures-dialog	PASS	5	319-any-p1,320-options-p2,321-any-p3,322-goDownFromDentures-dialog	3 page(s): any:*=mesbox 'You find a hole in the f', options:choose:Yes, I'm sure., any:*=mesbox 'You begin to lower yours'
+89	goDownFromDentures-landing	PASS	8	323-mesbox,324-goDownFromDentures-landing	none
+90	leg.2.state	PASS	4	325-leg.2.state	tile=2801,9169,0 mm_main=3 mm_monkey_dentures=1 lobster=10 (bottom of the warehouse hole cavern, quiet; royal seal, gold bar, wool, bones from earlier; prayer 52 setup, Protect from Missiles off since the ravine)
+91	leg.3.mould_to_zooknock	PASS	0		tile=2801,9169,0 stage=varp365_mm_main=3 inv=gold_barx1,ball_of_woolx1,mm_normal_monkey_bonesx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,4doseprayerrestorex1,4doseprayerrestorex1,rune_scimitarx1,mm_gnome_royal_sealx1,mm_monkey_denturesx1 -- checkpoint 2 written: checkpoint 2 written at 2801,9169,0
+92	goto-searchForMould	PASS	0	326-goto-searchForMould	at 2783,9170,0 from 2801,9169,0
+93	searchForMould	PASS	4	327-searchForMould	map_flag
+94	searchForMould-page	PASS	5	328-any-p1,329-searchForMould-page	1 page(s): any:*=mesbox 'This crate is full of ..'
+95	searchForMould-dialog	PASS	0	330-searchForMould-dialog	chat.choose: page changed
+96	searchForMould-got	PASS	0		mm_monkey_amulet_mould 0 -> 1 (>= 1) after 0 tick(s) [frame unchanged]
+97	leaveToPrepareForBar	PASS	1	331-leaveToPrepareForBar	at 2483,3487,1 from 2782,9173,0
+98	talkToDaeroForAmuletRun	PASS	1	332-talkToDaeroForAmuletRun	map_flag: dialogue npc is up
+99	talkToDaeroForAmuletRun-dialog	PASS	2	333-npc-p1,334-options-p2,335-player-p3,336-mesbox-p4,337-talkToDaeroForAmuletRun-dialog	4 page(s): npc:Hello again, adventurer. Would, options:choose:Yes, player:Yes please., mesbox:You wear the blindfold Daero h
+100	talkToDaeroForAmuletRun-hangar	PASS	8	338-talkToDaeroForAmuletRun-hangar	after the blindfold the player stands at 2649,4516,0
+101	talkToWaydarForAmuletRun	PASS	0	339-talkToWaydarForAmuletRun	map_flag: dialogue npc is up
+102	talkToWaydarForAmuletRun-dialog	PASS	5	340-npc-p1,341-options-p2,342-player-p3,343-npc-p4,344-talkToWaydarForAmuletRun-dialog	4 page(s): npc:Shall we return to Crash Islan, options:choose:Yes, player:Yes, let's go., npc:As you wish.
+103	talkToWaydarForAmuletRun-crash	PASS	8	345-talkToWaydarForAmuletRun-crash	after the glider the player stands at 2893,2725
+104	talkToLumdoForAmuletRun	PASS	0	346-talkToLumdoForAmuletRun	map_flag: dialogue player is up
+105	talkToLumdoForAmuletRun-dialog	PASS	2	347-player-p1,348-npc-p2,349-talkToLumdoForAmuletRun-dialog	2 page(s): player:Can you take me back to Ape At, npc:As you wish.
+106	goUpToDaeroForAmuletRun	PASS	8	350-goUpToDaeroForAmuletRun	the three ferries done; back on Ape Atoll at 2802,2707
+107	goto-enterDungeonForAmuletRun	PASS	0	351-goto-enterDungeonForAmuletRun	at 2765,2704,0 from 2802,2707,0
+108	enterDungeonForAmuletRun	PASS	2	352-enterDungeonForAmuletRun	map_flag
+109	enterDungeonForAmuletRun-below	PASS	6	353-enterDungeonForAmuletRun-below	down the ladder (mm_bamboo_ladder_dungeon_entrance, monkeymadnessii.rs2:335): 2764,9103
+110	goto-talkToZooknock	PASS	0	354-goto-talkToZooknock	at 2804,9141,0 from 2764,9103,0
+111	talkToZooknock	PASS	2	355-talkToZooknock	map_flag: dialogue player is up
+112	talkToZooknock-dialog	PASS	10	356-player-p1,357-npc-p2,358-player-p3,359-player-p4,360-npc-p5,361-npc-p6,362-player-p7,363-npc-p8,364-player-p9,365-player-p10,366-player-p11,367-npc-p12,368-player-p13,369-npc-p14,370-player-p15,371-npc-p16,372-player-p17,373-npc-p18,374-player-p19,375-npc-p20,376-player-p21,377-npc-p22,378-player-p23,379-npc-p24,380-player-p25,381-npc-p26,382-npc-p27,383-player-p28,384-npc-p29,385-player-p30,386-npc-p31,387-npc-p32,388-player-p33,389-npc-p34,390-player-p35,391-player-p36,392-npc-p37,393-player-p38,394-npc-p39,395-player-p40,396-npc-p41,397-player-p42,398-npc-p43,399-player-p44,400-npc-p45,401-player-p46,402-npc-p47,403-player-p48,404-npc-p49,405-npc-p50,406-npc-p51,407-player-p52,408-npc-p53,409-npc-p54,410-npc-p55,411-options-p56,412-options-p57,413-player-p58,414-any-p59,415-options-p60,416-player-p62,417-talkToZooknock-dialog	62 page(s): player:Hello?, npc:A human ... here? What busines, player:I am on a mission for King Nar, player:I have been sent to investigat, npc:Well you've found us - what's , npc:I am Zooknock, the 10th squad , player:Of course., npc:Your story first, human. What , player:I am currently in the service , player:As far as I understand, the 10, player:Rumour has it you were blown o, npc:You were sent alone?, player:No, I have been accompanied by, npc:The so called Crash Island. We, player [frame unchanged]
+113	useDentures	PASS	4	418-useDentures	page none->mesbox (text) [backpack: lost mm_monkey_dentures 1->0]
+114	useDentures-dialog	PASS	2	419-mesbox-p1,420-any-p2,421-any-p3,422-useDentures-dialog	3 page(s): mesbox:You hand Zooknock the magical , any:*=npc 'Excellent.', any:*=npc 'We still need the gold b'
+115	useDentures-handed	PASS	3	423-useDentures-handed	dentures 0, mould 1, gold bar 1
+116	leg.3.state	PASS	0		at 2804,9144,0, mm_main 3, holds gold_bar, mm_monkey_amulet_mould, lobster, royal seal [frame unchanged]
+117	leg.4.amulet_to_flame	PASS	0		tile=2804,9144,0 stage=varp365_mm_main=3 inv=gold_barx1,ball_of_woolx1,mm_normal_monkey_bonesx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,4doseprayerrestorex1,4doseprayerrestorex1,rune_scimitarx1,mm_gnome_royal_sealx1,mm_monkey_amulet_mouldx1 -- checkpoint 3 written: checkpoint 3 written at 2804,9144,0
+118	useMould	PASS	0	424-useMould	page none->mesbox (text) [backpack: lost mm_monkey_amulet_mould 1->0]
+119	useMould-dialog	PASS	2	425-mesbox-p1,426-any-p2,427-npc-p3,428-useMould-dialog	3 page(s): mesbox:You hand Zooknock the monkey a, any:*=npc 'Well done, human.', npc:We still need the gold bar.
+120	useMould-handed	PASS	3	429-useMould-handed	mm_monkey_amulet_mould left in the backpack: 0
+121	useBar	PASS	0	430-useBar	page none->mesbox (text) [backpack: lost gold_bar 1->0]
+122	useBar-dialog	PASS	2	431-mesbox-p1,432-any-p2,433-npc-p3,434-npc-p4,435-player-p5,436-npc-p6,437-useBar-dialog	6 page(s): mesbox:You hand Zooknock the gold bar, any:*=npc 'Well done, human.', npc:Now listen closely, human. I w, npc:You must then smith the gold u, player:Where do I find a place of rel, npc:Somewhere in the village. It o
+123	useBar-back	PASS	4	438-mesbox,439-useBar-back	none
+124	useBar-enchanted	PASS	3	440-useBar-enchanted	enchanted gold bar 1, mould 1
+125	leaveToPrepareForAmulet	PASS	0	441-leaveToPrepareForAmulet	at 2483,3487,1 from 2804,9144,0
+126	talkToDaeroForAmuletMake	PASS	1	442-talkToDaeroForAmuletMake	map_flag: dialogue npc is up
+127	talkToDaeroForAmuletMake-dialog	PASS	2	443-npc-p1,444-options-p2,445-player-p3,446-mesbox-p4,447-talkToDaeroForAmuletMake-dialog	4 page(s): npc:Hello again, adventurer. Would, options:choose:Yes, player:Yes please., mesbox:You wear the blindfold Daero h
+128	talkToDaeroForAmuletMake-hangar	PASS	8	448-talkToDaeroForAmuletMake-hangar	after the blindfold the player stands at 2649,4516
+129	talkToWaydarForAmuletMake	PASS	0	449-talkToWaydarForAmuletMake	map_flag: dialogue npc is up
+130	talkToWaydarForAmuletMake-dialog	PASS	5	450-npc-p1,451-options-p2,452-player-p3,453-npc-p4,454-talkToWaydarForAmuletMake-dialog	4 page(s): npc:Shall we return to Crash Islan, options:choose:Yes, player:Yes, let's go., npc:As you wish.
+131	talkToWaydarForAmuletMake-crash	PASS	8	455-talkToWaydarForAmuletMake-crash	after the glider the player stands at 2893,2725
+132	talkToLumdoForAmuletMake	PASS	0	456-talkToLumdoForAmuletMake	map_flag: dialogue player is up
+133	talkToLumdoForAmuletMake-dialog	PASS	2	457-player-p1,458-npc-p2,459-talkToLumdoForAmuletMake-dialog	2 page(s): player:Can you take me back to Ape At, npc:As you wish.
+134	goUpToDaeroForAmuletMake	PASS	8	460-goUpToDaeroForAmuletMake	the three ferries done; back on Ape Atoll at 2802,2707
+135	enterValleyForAmuletMake-prayer	PASS	0		prayer 42 (need >= 20: the ravine walk measured 42 ticks to the knockout on the v3 run of 2026-10-03, about 9 points) [frame unchanged]
+136	enterValleyForAmuletMake-protect	PASS	3	461-enterValleyForAmuletMake-protect	prayer_protectfrommissiles varbit 1
+137	goto-enterValleyForAmuletMake	PASS	0	462-goto-enterValleyForAmuletMake	at 2721,2750,0 from 2802,2707,0
+138	enterValleyForAmuletMake	PASS	42	463-enterValleyForAmuletMake	walked north up the ravine in 1 walks; standing at 2770,2794
+139	enterValleyForAmuletMake-protectOff	PASS	21	464-enterValleyForAmuletMake-protectOff	prayer_protectfrommissiles varbit 0, prayer 32
+140	enterValleyForAmuletMake-north	PASS	404	465-enterValleyForAmuletMake-north	north of the prison near the temple trapdoor after 6 attempt(s); standing at 2807,2788 -- click_minimenu: hunted pose 1 (reach 99) -- hovered -32,+0 off the projected 382,243 (1 pixel(s) tried); click_minimenu: hunted pose 1 (reach 99) -- hovered -32,+0 off the projected 382,253 (1 pixel(s) tried); click_minimenu: hunted pose 1 (reach 99) -- hovered -32,+0 off the projected 382,253 (1 pixel(s) tried); click_minimenu: hunted pose 1 (reach 99) -- hovered -32,+0 off the projected 382,253 (1 pixel(s) tried); click_minimenu: hunted pose 1 (reach 99) -- hovered -32,+0 off the projected 382,253 (1 pixel(s) tried); click_minimenu: hunted pose 1 (reach 99) -- hovered -32,+0 off the projected 382,253 (1 pixel(s) tried)
+141	enterTemple-drink	PASS	14	466-enterTemple-drink	prayer 32 -> 52 after 1 dose(s) (want >= 45; the temple trip and the walk to the child measured about 65 ticks, 13 points)
+142	enterTemple-protect	PASS	6	467-enterTemple-protect	widget ok; melee 1, missiles 0, magic 0, prayer points 51
+143	enterTemple-open	PASS	2	468-enterTemple-open	map_flag
+144	enterTemple	PASS	2	469-enterTemple	chat_message
+145	enterTemple-below	PASS	6	470-enterTemple-below	hp 96, lobsters 8, down the trapdoor (mm_temple.rs2:17): 2807,9201,0
+146	useBarOnFlame	PASS	5	471-useBarOnFlame	map_flag [backpack: lost mm_enchanted_gold_bar 1->0]
+147	useBarOnFlame-smithed	PASS	6	472-useBarOnFlame-smithed	mm_amulet_of_monkey_speak_without_string in the backpack: 1
+148	leg.4.end	PASS	0	473-leg.4.end	at 2810,9208,0, mm_main 3, holds the unstrung monkey amulet, ball_of_wool, lobster, royal seal
+149	leg.5.child_to_zombie	PASS	10		tile=2810,9208,0 stage=varp365_mm_main=3 inv=mm_amulet_of_monkey_speak_without_stringx1,ball_of_woolx1,mm_normal_monkey_bonesx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,3doseprayerrestorex1,4doseprayerrestorex1,rune_scimitarx1,mm_gnome_royal_sealx1,mm_monkey_amulet_mouldx1 -- checkpoint 4 NOT written: checkpoint 4 refused: the player is in combat (attacking Monkey Zombie, slot 1750) (after 10 quiet-wait tick(s))
+150	leg.5.bananas	PASS	3	474-leg.5.bananas	banana count 5
+151	leaveTempleDungeon	PASS	10	475-leaveTempleDungeon	up the rope (mm_temple.rs2:28): 2807,2785,0
+152	string-amulet	PASS	0	476-string-amulet	mm_amulet_of_monkey_speak_without_string (slot 0) on ball_of_wool (slot 1): chat_message 'You put some string on your amulet. It makes a slight 'Ook' sound.' -- gained mm_amulet_of_monkey_speak 0->1; lost mm_amulet_of_monkey_speak_without_string 1->0, ball_of_wool 1->0
+153	string-amulet-done	PASS	4	477-string-amulet-done	mm_amulet_of_monkey_speak in the backpack: 1
+154	wear-amulet	PASS	0	478-wear-amulet	equip mm_amulet_of_monkey_speak: worn 0 -> more
+155	wield-scimitar	PASS	2	479-wield-scimitar	equip rune_scimitar: worn 0 -> more
+156	goto-talkToMonkeyChild	PASS	2	480-goto-talkToMonkeyChild	at 2744,2794,0 from 2807,2785,0
+157	talkToMonkeyChild-protectOff	PASS	6	481-talkToMonkeyChild-protectOff	varb4118_prayer_protectfrommelee 0, prayer 42
+158	talkToMonkeyChild	PASS	0	482-talkToMonkeyChild	map_flag: dialogue player is up
+159	talkToMonkeyChild-dialog	PASS	2	483-player-p1,484-npc-p2,485-player-p3,486-npc-p4,487-talkToMonkeyChild-dialog	4 page(s): player:Hello there little monkey., npc:Hello big-big. Aunty told me n, player:Oh I'm not a stranger..., npc:You look strange to me!
+160	talkToMonkeyChild-stage	PASS	2		varb119_varbit_119 = 1 (varbit, server content copy; base varp 373 is never transmitted) after 0 tick(s)
+161	talkToMonkeyChild2	PASS	0	488-talkToMonkeyChild2	page none->player (text): dialogue player is up
+162	talkToMonkeyChild2-dialog	PASS	2	489-player-p1,490-npc-p2,491-player-p3,492-npc-p4,493-options-p5,494-player-p6,495-npc-p7,496-talkToMonkeyChild2-dialog	7 page(s): player:Hello again little monkey., npc:You're strange! Go away!, player:I'm not a stranger...!, npc:Then what are you?, options:choose:Well I'll be a monkey's, player:Well I'll be a monkey's uncle!, npc:Uh ah! You do look like my unc
+163	talkToMonkeyChild2-stage	PASS	2		varb119_varbit_119 = 3 (varbit, server content copy; base varp 373 is never transmitted) after 0 tick(s)
+164	talkToMonkeyChild3	PASS	0	497-talkToMonkeyChild3	page none->npc (text): dialogue npc is up
+165	talkToMonkeyChild3-dialog	PASS	2	498-npc-p1,499-player-p2,500-npc-p3,501-player-p4,502-npc-p5,503-options-p6,504-player-p7,505-npc-p8,506-player-p9,507-npc-p10,508-player-p11,509-npc-p12,510-talkToMonkeyChild3-dialog	12 page(s): npc:You look a lot bigger than las, player:I've been ... eating more bana, npc:I'm bored., player:Why are you bored?, npc:Aunty told me to pick loads of, options:choose:How many bananas did Au, player:How many bananas did Aunty wan, npc:Twenty! But I can't count! It', player:Yes, very mean ... do you want, npc:Ok! Ook Ook!, player:But only if you promise to let, npc:Ok Uncle!
+166	talkToMonkeyChild3-stage	PASS	2		varb119_varbit_119 = 5 (varbit, server content copy; base varp 373 is never transmitted) after 0 tick(s)
+167	giveChildBananas	PASS	0	511-giveChildBananas	page none->npc (text): dialogue npc is up
+168	giveChildBananas-dialog	PASS	2	512-player-p2,513-npc-p3,514-player-p4,515-mesbox-p5,516-npc-p6,517-giveChildBananas-dialog	6 page(s): npc:Did you get any bananas, Uncle, player:Yes, I have some here., npc:Wow that's a lot of bananas! A, player:Yes, of course there are., mesbox:You give the monkey child your, npc:Aunty will be so happy! [frame unchanged]
+169	giveChildBananas-stage	PASS	2		varb119_varbit_119 = 6 (varbit, server content copy; base varp 373 is never transmitted) after 0 tick(s)
+170	talkToChildForTalisman	PASS	110	518-talkToChildForTalisman	page none->player (text): dialogue player is up
+171	talkToChildForTalisman-dialog	PASS	2	519-player-p1,520-npc-p2,521-player-p3,522-npc-p4,523-player-p5,524-npc-p6,525-mesbox-p7,526-talkToChildForTalisman-dialog	7 page(s): player:Has Aunty given you the toy ye, npc:Yeah - it's really neat!, player:Can I borrow it now then?, npc:But I only just got it!, player:Please?, npc:Ok then..., mesbox:The monkey child gives you som
+172	talkToChildForTalisman-stage	PASS	2		varb119_varbit_119 = 7 (varbit, server content copy; base varp 373 is never transmitted) after 0 tick(s)
+173	talkToChildForTalisman-item	PASS	0	527-talkToChildForTalisman-item	mm_monkey_talisman in the backpack: 1
+174	talkToChildFor4Talismans-lost	PASS	0	528-talkToChildFor4Talismans-lost	page none->options: dialogue options is up
+175	talkToChildFor4Talismans-lost-dialog	PASS	1	529-options-p1,530-player-p2,531-npc-p3,532-talkToChildFor4Talismans-lost-dialog	3 page(s): options:choose:I've lost that toy you , player:I've lost that toy you gave me, npc:You lost it!? What am I going 
+176	talkToChildFor4Talismans-lost-stage	PASS	2		varb119_varbit_119 = 8 (varbit, server content copy; base varp 373 is never transmitted) after 0 tick(s)
+177	talkToChildFor4Talismans	PASS	110	533-talkToChildFor4Talismans	page none->npc (text): dialogue npc is up
+178	talkToChildFor4Talismans-dialog	PASS	2	534-player-p2,535-npc-p3,536-options-p4,537-player-p5,538-npc-p6,539-options-p7,540-player-p8,541-mesbox-p9,542-talkToChildFor4Talismans-dialog	9 page(s): npc:I'm feeling a bit better now.., player:It's good to see you've cheere, npc:Yes - Aunty gave me a new toy!, options:choose:Wow - can I borrow it?, player:Wow - can I borrow it?, npc:Only if you promise to give it, options:choose:Ok, I promise!, player:Ok, I promise!, mesbox:The monkey child gives you som [frame unchanged]
+179	talkToChildFor4Talismans-stage	PASS	2		varb119_varbit_119 = 7 (varbit, server content copy; base varp 373 is never transmitted) after 0 tick(s)
+180	killNinja-restore	PASS	6	543-killNinja-restore	prayer 42 -> 52 after 1 dose(s) (want >= 45; the archer and the walk to the gorilla measured about 65 ticks, 13 points)
+181	killNinja-protect	PASS	6	544-killNinja-protect	protect from missiles varbit 1, prayer points 52
+182	killNinja-prayer	PASS	0	545-killNinja-prayer	prayer 52 (need >= 15: the archer fight measured 45 ticks on the v3 run of 2026-10-03, 9 points)
+183	goto-killNinja	PASS	0	546-goto-killNinja	at 2757,2789,0 from 2745,2794,0
+184	killNinja	PASS	4	547-killNinja	attack mm_posted_archer op2 [Attack @yel@Monkey Archer@gre@ (level-86)] in 1 press(es), pressed slot 948 (element 1073757142) at 2760,2784, watching slot 948: hp no bar -> 30/30, hitsplat 0 -- click_minimenu: facing the named copy (element 1073757142) made it the projected one
+185	killNinja.dead	PASS	40	548-killNinja.dead	await_dead_engaged: slot 948 dead after 40 tick(s), 0 re-engagement(s), last hp 0/30; held Monkey Archer (npc 5274) -- corroborated by the ZERO BAR: slot 948 read 0/30 at tick 1620 and then left the npc pool (the corpse was released); eat lobster below 50: never needed to eat, lowest hp 71/99; progress t+10 hp 18/30, t+20 hp 13/30, t+30 hp 5/30, t+40 hp 0/30
+186	killNinja-margin	PASS	0	549-killNinja-margin	lowest hp 71/99, lobsters 8 -> 8, prayer after 43 (margin: lowest hp >= 25 AND lobsters left >= 1)
+187	killGorilla-drink	PASS	10	550-killGorilla-drink	prayer 42 -> 51 after 1 dose(s) (want >= 50; the gorilla fight measured 187 ticks on the v3 run of 2026-10-03, 38 points)
+188	goto-killGorilla	PASS	10	551-goto-killGorilla	at 2800,2785,0 from 2764,2781,0 on attempt 2 of 3 via ::goto -- attempt 1: never arrived, still at 2782,2786,0 after 10 tick(s) -- server said 'Teleported to 2800,2785,0.'
+189	killGorilla-protect	PASS	6	552-killGorilla-protect	protect from melee varbit 1, prayer points 48
+190	killGorilla-prayer	PASS	0	553-killGorilla-prayer	prayer 48 (need >= 40: 187 ticks at one point per 5)
+191	killGorilla	PASS	1	554-killGorilla	attack mm_religious_guard op2 [Attack @yel@Monkey Guard@red@ (level-167)] in 1 press(es), pressed slot 40 (element 1073761285) at 2800,2783, watching slot 40: hp 30/30 -> 28/30, hitsplat 5
+192	killGorilla.dead	PASS	176	555-killGorilla.dead	await_dead_engaged: slot 40 dead after 176 tick(s), 0 re-engagement(s), last hp 0/30; held Monkey Guard (npc 5275) -- corroborated by the ZERO BAR: slot 40 read 0/30 at tick 1823 and then left the npc pool (the corpse was released); eat lobster below 55: never needed to eat, lowest hp 77/99; progress (5 earlier dropped) t+60 hp 24/30, t+70 hp 22/30, t+80 hp 22/30, t+90 hp 21/30, t+100 hp 18/30, t+110 hp 17/30, t+120 hp 17/30, t+130 hp 16/30, t+140 hp 14/30, t+150 hp 8/30, t+160 hp 6/30, t+170 hp 2/30
+193	killGorilla-margin	PASS	0	556-killGorilla-margin	lowest hp 77/99, lobsters 7 -> 7, prayer after 12 (margin: lowest hp >= 25 AND lobsters left >= 1)
+194	goDownToZombie-open	PASS	13	557-goDownToZombie-open	map_flag
+195	goDownToZombie	PASS	2	558-goDownToZombie	chat_message
+196	goDownToZombie-below	PASS	6	559-goDownToZombie-below	down the trapdoor: 2807,9201,0
+197	leg.5.end	PASS	0	560-leg.5.end	at 2807,9201,0, mm_main 3, hp 91, holds the strung monkey amulet (worn), rune scimitar (wielded), monkey talisman, lobster, royal seal
+198	leg.6.zombie_to_zooknock	PASS	10		tile=2807,9201,0 stage=varp365_mm_main=3 inv=mm_monkey_talismanx1,mm_monkey_talismanx1,mm_normal_monkey_bonesx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,1doseprayerrestorex1,4doseprayerrestorex1,mm_gnome_royal_sealx1,mm_monkey_amulet_mouldx1 -- checkpoint 5 NOT written: checkpoint 5 refused: the player is in combat (attacking Monkey Zombie, slot 1738) (after 10 quiet-wait tick(s))
+199	killZombie-drink	PASS	13	561-killZombie-drink	prayer 7 -> 45 after 2 dose(s) (want >= 30)
+200	killZombie-protect	PASS	0	562-killZombie-protect	protect from melee varbit 1 (was 1), prayer points 45
+201	killZombie-prayer	PASS	0	563-killZombie-prayer	prayer 45 (need >= 15: the zombie fight measured 60 ticks on the v3 run of 2026-10-03, 12 points)
+202	killZombie	PASS	0	564-killZombie	attack mm_zombie_monkey_small op2 [Attack @yel@Monkey Zombie@gre@ (level-82)] in 1 press(es), pressed slot 147 (element 1073753825) at 2806,9201, watching slot 147: hp 25/30 -> 25/30, hitsplat 0 -- click_minimenu: facing the named copy (element 1073753825) made it the projected one
+203	killZombie.dead	PASS	60	565-killZombie.dead	await_dead_engaged: slot 147 dead after 60 tick(s), 0 re-engagement(s), last hp 0/30; held Monkey Zombie (npc 5283) -- corroborated by the ZERO BAR: slot 147 read 0/30 at tick 1927 and then left the npc pool (the corpse was released); eat lobster below 55: never needed to eat, lowest hp 91/99; progress t+10 hp 21/30, t+20 hp 17/30, t+30 hp 11/30, t+40 hp 5/30, t+50 hp 5/30, t+60 hp 0/30
+204	killZombie-margin	PASS	0	566-killZombie-margin	lowest hp 91/99, lobsters 14 -> 14, prayer after 33 (margin: lowest hp >= 25 AND lobsters left >= 1)
+205	killZombie-take	PASS	2	567-killZombie-take	click_obj: met after 1 tick(s)
+206	killZombie-bones	PASS	1	568-killZombie-bones	mm_small_zombie_monkey_bones 1 -> 1 (>= 1) after 0 tick(s)
+207	killZombie-protectOff	PASS	6	569-killZombie-protectOff	prayer_protectfrommelee varbit 0, prayer 32
+208	leaveToPrepareForTalismanRun	PASS	0	570-leaveToPrepareForTalismanRun	at 2483,3487,1 from 2806,9201,0
+209	talkToDaeroForTalismanRun	PASS	1	571-talkToDaeroForTalismanRun	map_flag: dialogue npc is up
+210	talkToDaeroForTalismanRun-dialog	PASS	2	572-npc-p1,573-options-p2,574-player-p3,575-mesbox-p4,576-talkToDaeroForTalismanRun-dialog	4 page(s): npc:Hello again, adventurer. Would, options:choose:Yes, player:Yes please., mesbox:You wear the blindfold Daero h
+211	talkToDaeroForTalismanRun-hangar	PASS	8	577-talkToDaeroForTalismanRun-hangar	after the blindfold the player stands at 2649,4516,0
+212	talkToWaydarForTalismanRun	PASS	0	578-talkToWaydarForTalismanRun	map_flag: dialogue npc is up
+213	talkToWaydarForTalismanRun-dialog	PASS	5	579-npc-p1,580-options-p2,581-player-p3,582-npc-p4,583-talkToWaydarForTalismanRun-dialog	4 page(s): npc:Shall we return to Crash Islan, options:choose:Yes, player:Yes, let's go., npc:As you wish.
+214	talkToWaydarForTalismanRun-crash	PASS	8	584-talkToWaydarForTalismanRun-crash	after the glider the player stands at 2893,2725
+215	talkToLumdoForTalismanRun	PASS	0	585-talkToLumdoForTalismanRun	map_flag: dialogue player is up
+216	talkToLumdoForTalismanRun-dialog	PASS	2	586-player-p1,587-npc-p2,588-talkToLumdoForTalismanRun-dialog	2 page(s): player:Can you take me back to Ape At, npc:As you wish.
+217	goUpToDaeroForTalismanRun	PASS	8	589-goUpToDaeroForTalismanRun	the three ferries done; back on Ape Atoll at 2802,2707
+218	goto-enterDungeonForTalismanRun	PASS	0	590-goto-enterDungeonForTalismanRun	at 2765,2704,0 from 2802,2707,0
+219	enterDungeonForTalismanRun	PASS	2	591-enterDungeonForTalismanRun	map_flag
+220	enterDungeonForTalismanRun-below	PASS	6	592-enterDungeonForTalismanRun-below	down the ladder: 2764,9103
+221	goto-useTalisman	PASS	0	593-goto-useTalisman	at 2804,9141,0 from 2764,9103,0
+222	useTalisman	PASS	3	594-useTalisman	map_flag [backpack: lost mm_monkey_talisman 2->1]
+223	useTalisman-dialog	PASS	2	595-mesbox-p1,596-any-p2,597-any-p3,598-useTalisman-dialog	3 page(s): mesbox:You hand Zooknock the monkey t, any:*=npc 'Well done, human.', any:*=npc 'We still need some kind '
+224	talkToZooknockForTalisman	PASS	3	599-talkToZooknockForTalisman	page none->options: dialogue options is up
+225	talkToZooknockForTalisman-menu	PASS	0		options [frame unchanged]
+226	talkToZooknockForTalisman-choose	PASS	0	600-talkToZooknockForTalisman-choose	chat.choose: page changed
+227	talkToZooknockForTalisman-dialog	PASS	1	601-player-p1,602-any-p2,603-talkToZooknockForTalisman-dialog	2 page(s): player:What do we need for the monkey, any:*=npc 'We still need some kind '
+228	talkToZooknockForTalisman-leave	PASS	0		options [frame unchanged]
+229	talkToZooknockForTalisman-back	PASS	0	604-talkToZooknockForTalisman-back	chat.choose: page changed
+230	talkToZooknockForTalisman-end	PASS	0	605-talkToZooknockForTalisman-end	none [frame unchanged]
+231	useBones	PASS	2	606-useBones	page none->mesbox (text) [backpack: lost mm_small_zombie_monkey_bones 1->0]
+232	useBones-dialog	PASS	2	607-mesbox-p1,608-any-p2,609-npc-p3,610-useBones-dialog	3 page(s): mesbox:You hand Zooknock the monkey r, any:*=npc 'Nicely done.', npc:Bear with me human: I must now
+233	useBones-talisman-dialog	PASS	9	611-mesbox-p1,612-npc-p2,613-npc-p3,614-npc-p4,615-useBones-talisman-dialog	4 page(s): mesbox:Zooknock hands you back the ta, npc:I am afraid I have not been ab, npc:The range at which I will be a, npc:Furthermore, you will not be a
+234	useBones-after	PASS	16	616-mesbox,617-mesbox,618-npc,619-npc,620-npc,621-npc,622-npc,623-npc,624-npc,625-npc,626-npc,627-npc,628-npc,629-npc,630-npc,631-npc,632-npc,633-npc,634-npc,635-npc,636-npc,637-useBones-after	none
+235	useBones-after2	PASS	10	638-mesbox,639-mesbox,640-useBones-after2	none
+236	useBones.cutscene	PASS	0	641-useBones.cutscene	cutscene: 3 keyframes, moveto ... reset, reset=yes -- #1 t=2013 moveto 2671,4568 h=600 s=100/100 | #2 t=2013 lookat 2671,4559 h=160 s=100/100 | #3 t=2021 reset ;; from opts.since (serial 7), shots=none (the sequence ran inside the trigger row) ;; expect: 2/2 matched in order
+237	leg.6.state	PASS	0	642-leg.6.state	at 2804,9144,0, mm_main 4, talismans 1
+238	leg.7.greegree_to_zoo	PASS	0		tile=2804,9144,0 stage=varp365_mm_main=4 inv=mm_monkey_greegree_for_small_zombie_monkeyx1,mm_monkey_talismanx1,mm_normal_monkey_bonesx1,3doseprayerrestorex1,4doseprayerrestorex1,4doseprayerrestorex1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,vial_emptyx1,4doseprayerrestorex1,lobsterx1,mm_gnome_royal_sealx1,mm_monkey_amulet_mouldx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1 -- checkpoint 6 written: checkpoint 6 written at 2804,9144,0
+239	goto-leaveDungeonWithGreeGree	PASS	2	643-goto-leaveDungeonWithGreeGree	at 2804,9141,0 from 2804,9144,0
+240	leaveDungeonWithGreeGree-talk	PASS	7	644-leaveDungeonWithGreeGree-talk	map_flag: dialogue options is up
+241	leaveDungeonWithGreeGree-menu	PASS	1	645-leaveDungeonWithGreeGree-menu	options
+242	leaveDungeonWithGreeGree-choose	PASS	0	646-leaveDungeonWithGreeGree-choose	chat.choose: page changed
+243	leaveDungeonWithGreeGree-dialog	PASS	1	647-player-p1,648-npc-p2,649-options-p3,650-player-p4,651-npc-p5,652-leaveDungeonWithGreeGree-dialog	5 page(s): player:Can you make another monkey ta, npc:Are you sure?, options:choose:Yes, player:Yes., npc:Very well. Bring me the requir
+244	leaveDungeonWithGreeGree-talisman	PASS	2	653-leaveDungeonWithGreeGree-talisman	page none->mesbox (text) [backpack: lost mm_monkey_talisman 1->0]
+245	leaveDungeonWithGreeGree-talisman-dialog	PASS	2	654-any-p2,655-any-p3,656-leaveDungeonWithGreeGree-talisman-dialog	3 page(s): mesbox:You hand Zooknock the monkey t, any:*=npc 'Good work.', any:*=npc 'We still need some kind ' [frame unchanged]
+246	leaveDungeonWithGreeGree-bones	PASS	3	657-leaveDungeonWithGreeGree-bones	page none->mesbox (text) [backpack: lost mm_normal_monkey_bones 1->0]
+247	leaveDungeonWithGreeGree-bones-dialog	PASS	2	658-mesbox-p1,659-any-p2,660-npc-p3,661-leaveDungeonWithGreeGree-bones-dialog	3 page(s): mesbox:You hand Zooknock the monkey r, any:*=npc 'Nicely done.', npc:Bear with me human: I must now
+248	leaveDungeonWithGreeGree-greegree-dialog	PASS	9	662-mesbox-p1,663-npc-p2,664-npc-p3,665-npc-p4,666-leaveDungeonWithGreeGree-greegree-dialog	4 page(s): mesbox:Zooknock hands you back the ta, npc:I am afraid I have not been ab, npc:The range at which I will be a, npc:Furthermore, you will not be a
+249	leaveDungeonWithGreeGree-end	PASS	4	667-leaveDungeonWithGreeGree-end	none
+250	leaveDungeonWithGreeGree-have	PASS	0		Karamjan monkey greegree in the pack: 1 [frame unchanged]
+251	leaveDungeonWithGreeGree	PASS	0	668-leaveDungeonWithGreeGree	at 2609,3280,0 from 2805,9146,0
+252	talkToMinder-held	PASS	8	669-talkToMinder-held	held the greegree: ok mm_monkey_greegree_for_normal_monkey slot 1 op 2 (tab ok nil) -> 0 left [WORN mm_monkey_greegree_for_normal_monkey: worn 0 -> 1, wear slot 3] at 2609,3280,0
+253	talkToMinder	PASS	0	670-talkToMinder	page none->player (text): dialogue player is up
+254	talkToMinder-dialog	PASS	2	671-player-p1,672-npc-p2,673-player-p3,674-npc-p4,675-player-p5,676-npc-p6,677-player-p7,678-npc-p8,679-talkToMinder-dialog	8 page(s): player:Ook Ook!, npc:Why do you monkeys keep trying, player:Ook!, npc:Let's put you back in your cag, player:Ok!, npc:What??, player:Err ... Ook?, npc:I must be imagining things ...
+255	talkToMinder-caged	PASS	6	680-talkToMinder-caged	the minder put the monkey in the pen: 2604,3281,0
+256	talkToMonkeyAtZoo	PASS	0	681-talkToMonkeyAtZoo	map_flag: dialogue player is up
+257	talkToMonkeyAtZoo-dialog	PASS	3	682-player,683-npc,684-player,685-npc,686-player,687-npc,688-player,689-npc,690-player,691-npc,692-player,693-npc,694-player,695-npc,696-player,697-npc,698-player,699-npc,700-talkToMonkeyAtZoo-dialog	none
+258	talkToMonkeyAtZoo-monkey	PASS	3	701-talkToMonkeyAtZoo-monkey	monkey in the backpack: 1
+259	talkToMinderAgain-unequip	PASS	0	702-talkToMinderAgain-unequip	unequip mm_monkey_greegree_for_normal_monkey wornitems:slot3 (wear slot 3) op 1 (tab ok nil): worn 1->0, backpack 0->1
+260	talkToMinderAgain	PASS	3	703-talkToMinderAgain	page none->npc (text): dialogue npc is up
+261	talkToMinderAgain-dialog	PASS	1	704-npc-p1,705-player-p2,706-npc-p3,707-talkToMinderAgain-dialog	3 page(s): npc:My word - what are you doing i, player:I ... er ... I don't know! One, npc:Well, don't worry. We'll have 
+262	talkToMinderAgain-thanks	PASS	7	708-player-p1,709-npc-p2,710-talkToMinderAgain-thanks	2 page(s): player:Thank you., npc:No problem.
+263	talkToMinderAgain-out	PASS	4	711-talkToMinderAgain-out	out of the pen: 2608,3275,0
+264	goto-talkToDaeroForTalkingToAwow	PASS	0	712-goto-talkToDaeroForTalkingToAwow	at 2483,3487,1 from 2608,3275,0
+265	talkToDaeroForTalkingToAwow	PASS	1	713-talkToDaeroForTalkingToAwow	map_flag: dialogue npc is up
+266	talkToDaeroForTalkingToAwow-dialog	PASS	2	714-npc-p1,715-options-p2,716-player-p3,717-mesbox-p4,718-talkToDaeroForTalkingToAwow-dialog	4 page(s): npc:Hello again, adventurer. Would, options:choose:Yes, player:Yes please., mesbox:You wear the blindfold Daero h
+267	talkToDaeroForTalkingToAwow-hangar	PASS	8	719-talkToDaeroForTalkingToAwow-hangar	after the blindfold the player stands at 2649,4516,0
+268	talkToWaydarForTalkingToAwow	PASS	0	720-talkToWaydarForTalkingToAwow	map_flag: dialogue npc is up
+269	talkToWaydarForTalkingToAwow-dialog	PASS	5	721-npc-p1,722-options-p2,723-player-p3,724-npc-p4,725-talkToWaydarForTalkingToAwow-dialog	4 page(s): npc:Shall we return to Crash Islan, options:choose:Yes, player:Yes, let's go., npc:As you wish.
+270	talkToWaydarForTalkingToAwow-crash	PASS	8	726-talkToWaydarForTalkingToAwow-crash	after the glider the player stands at 2893,2725,0
+271	talkToLumdoForTalkingToAwow	PASS	0	727-talkToLumdoForTalkingToAwow	map_flag: dialogue player is up
+272	talkToLumdoForTalkingToAwow-dialog	PASS	2	728-player-p1,729-npc-p2,730-talkToLumdoForTalkingToAwow-dialog	2 page(s): player:Can you take me back to Ape At, npc:As you wish.
+273	goUpToDaeroForTalkingToAwow	PASS	8	731-goUpToDaeroForTalkingToAwow	the three ferries done; back on Ape Atoll at 2802,2707,0
+274	leg.7.settle	PASS	0	732-leg.7.settle	none
+275	leg.7.end	PASS	0	733-leg.7.end	at 2802,2707,0, mm_main 4, monkey in backpack 1, Karamjan greegree and M'speak amulet carried, lobster and restores for leg 8
+276	leg.8.garkor_to_narnode	PASS	0		tile=2802,2707,0 stage=varp365_mm_main=4 inv=mm_monkey_greegree_for_small_zombie_monkeyx1,rune_scimitarx1,mm_monkey_in_backpackx1,3doseprayerrestorex1,4doseprayerrestorex1,4doseprayerrestorex1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,vial_emptyx1,4doseprayerrestorex1,lobsterx1,mm_gnome_royal_sealx1,mm_monkey_amulet_mouldx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,mm_monkey_greegree_for_normal_monkeyx1 -- checkpoint 7 written: checkpoint 7 written at 2802,2707,0
+277	talkToGarkorWithMonkey-hold	PASS	6	734-talkToGarkorWithMonkey-hold	mm_monkey_greegree_for_normal_monkey slot 24 op 2 (tab ok nil) [pressed on attempt 2; the first answered 'no DISPLAYED node carries that component id'] -> 0 left [WORN mm_monkey_greegree_for_normal_monkey: worn 0 -> 1, wear slot 3]
+278	walk-enterGate	PASS	317	735-walk-enterGate	ravine walk to the gate: ok nil at 2721,2760,0 -- gate hop 2790,2712 ok nil at 2790,2712,0; gate hop 2775,2718 timeout walk_to 2775,2718 from 2790,2712 stalled at 2775,2716 at 2775,2716,0; gate hop 2775,2718 timeout walk_to 2775,2718 from 2775,2716 stalled at 2775,2716 at 2775,2716,0; gate hop 2775,2718 timeout walk_to 2775,2718 from 2775,2716 stalled at 2775,2716 at 2775,2716,0; gate hop 2760,2725 timeout walk_to 2760,2725 from 2775,2716 stalled at 2760,2719 -- locs with an op beside the stop: mm_bush_kharazi_jungle_tree2 at 2760,2720 op1, mm_bush_kharazi_jungle_tree2 at 2758,2719 op1 (a bridge, log or stone among them is crossed with click_loc, then walk on) at 2760,2719,0; gate hop 2760,2725 timeout walk_to 2760,2725 from 2760,2719 stalled at 2760,2719 -- locs with an op beside the stop: mm_bush_kharazi_jungle_tree2 at 2760,2720 op1, mm_bush_kharazi_jungle_tree2 at 2758,2719 op1 (a bridge, log or stone among them is crossed with click_loc, then walk on) at 2760,2719,0; gate hop 2760,2725 timeout walk_to 2760,2725 from 2760,2719 stalled at 2760,2719 -- locs with an op beside the stop: mm_bush_kharazi_jungle_tree2 at 2760,2720 op1, mm_bush_kharazi_jungle_tree2 at 2758,2719 op1 (a bridge, log or stone among them is crossed with click_loc, then walk on) at 2760,2719,0; gate hop 2745,2735 timeout walk_to 2745,2735 from 2760,2719 stalled at 2738,2729 -- locs with an op beside the stop: mm_bush_kharazi_jungle_tree2 at 2739,2727 op1 (a bridge, log or stone among them is crossed with click_loc, then walk on) at 2738,2729,0; gate hop 2745,2735 timeout walk_to 2745,2735 from 2738,2729 stalled at 2738,2729 -- locs with an op beside the stop: mm_bush_kharazi_jungle_tree2 at 2739,2727 op1 (a bridge, log or stone among them is crossed with click_loc, then walk on) at 2738,2729,0; gate hop 2745,2735 timeout walk_to 2745,2735 from 2738,2729 stalled at 2738,2729 -- locs with an op beside the stop: mm_bush_kharazi_jungle_tree2 at 2739,2727 op1 (a bridge, log or stone among them is crossed with click_loc, then walk on) at 2738,2729,0; gate hop 2730,2745 timeout walk_to 2730,2745 from 2738,2729 stalled at 2726,2744 at 2726,2744,0; gate hop 2730,2745 timeout walk_to 2730,2745 from 2726,2744 stalled at 2726,2744 at 2726,2744,0; gate hop 2730,2745 timeout walk_to 2730,2745 from 2726,2744 stalled at 2726,2744 at 2726,2744,0; gate hop 2721,2752 ok nil at 2721,2752,0; gate hop 2721,2760 ok nil at 2721,2760,0
+279	enterGate	PASS	15	736-enterGate	page none->npc (text)
+280	enterGate-clear	PASS	0	737-npc,738-enterGate-clear	none
+281	enterGate-inside	PASS	8	739-enterGate-inside	through the Bamboo Gate: 2721,2768,0
+282	walk-talkToGarkorWithMonkey	PASS	133	740-walk-talkToGarkorWithMonkey	walked into Marim beside Garkor: ok at 2807,2760,0 -- garkor hop 2735,2770 ok at 2735,2770,0; garkor hop 2750,2772 timeout at 2750,2773,0; garkor hop 2750,2772 timeout at 2750,2773,0; garkor hop 2750,2772 timeout at 2750,2773,0; garkor hop 2765,2772 ok at 2765,2772,0; garkor hop 2780,2768 ok at 2780,2768,0; garkor hop 2795,2764 ok at 2795,2764,0; garkor hop 2807,2760 ok at 2807,2760,0
+283	talkToGarkorWithMonkey	PASS	1	741-talkToGarkorWithMonkey	page none->npc (text): dialogue npc is up
+284	talkToGarkorWithMonkey-dialog	PASS	1	742-npc-p1,743-player-p2,744-npc-p3,745-npc-p4,746-npc-p5,747-talkToGarkorWithMonkey-dialog	5 page(s): npc:My my, Zooknock has outdone hi, player:I know., npc:And by happy coincidence you a, npc:I need you now to seek audienc, npc:You must win his trust if we a
+285	talkToGarkorWithMonkey-stage	PASS	2		varb126_mm_garkor = 4 (varbit, server content copy; base varp 372 is never transmitted) after 0 tick(s)
+286	goto-talkToGuard	PASS	0	748-goto-talkToGuard	at 2802,2756,0 from 2807,2760,0
+287	talkToGuard	PASS	1	749-talkToGuard	page none->npc (text): dialogue npc is up
+288	talkToGuard-dialog	PASS	1	750-npc-p1,751-player-p2,752-npc-p3,753-player-p4,754-npc-p5,755-talkToGuard-dialog	5 page(s): npc:Grrr ... What do you want?, player:I'd like to speak with Awowoge, npc:Only the Captain of the Monkey, player:Who is the Captain of the Monk, npc:He goes by the name of Kruk.
+289	talkToGuard-stage	PASS	2		varb120_varbit_120 = 1 (varbit, server content copy; base varp 373 is never transmitted) after 0 tick(s)
+290	goto-goUpToBridge	PASS	0	756-goto-goUpToBridge	at 2713,2764,0 from 2802,2756,0
+291	goUpToBridge-clear	PASS	1	757-goUpToBridge-clear	none
+292	goUpToBridge	PASS	30	758-goUpToBridge	map_flag -- click_minimenu: hunted pose 3 (reach 99) -- hovered +16,-192 off the projected 382,420 (39 pixel(s) tried)
+293	goUpToBridge-up	PASS	4	759-goUpToBridge-up	up the west watchtower ladder: 2712,2766,2
+294	walk-bridge	PASS	8	760-walk-bridge	across the bridge: ok nil at 2728,2766,2
+295	goDownFromBridge	PASS	3	761-goDownFromBridge	map_flag
+296	goDownFromBridge-down	PASS	4	762-goDownFromBridge-down	down the east watchtower ladder: 2730,2766,0
+297	talkToKruk	PASS	2	763-talkToKruk	map_flag: dialogue player is up
+298	talkToKruk-dialog	PASS	2	764-player-p1,765-npc-p2,766-player-p3,767-npc-p4,768-player-p5,769-npc-p6,770-talkToKruk-dialog	6 page(s): player:Hello?, npc:What brings you up here, monke, player:I have come to seek audience w, npc:That's right - you do. What bu, player:I am envoy from the monkeys of, npc:I see. Very well, you look gen
+299	talkToKruk-escort	PASS	8	771-talkToKruk-escort	none
+300	talkToKruk-stage	PASS	0		varb117_varbit_117 = 1 (varbit, server content copy; base varp 373 is never transmitted) after 0 tick(s)
+301	talkToKruk-tile	PASS	0		Kruk escorted the player to 2802,2762,0 [frame unchanged]
+302	talkToAwow	PASS	1	772-talkToAwow	page none->player (text)
+303	talkToAwow-dialog	PASS	2	773-player-p1,774-npc-p2,775-player-p3,776-npc-p4,777-player-p5,778-player-p6,779-npc-p7,780-npc-p8,781-npc-p9,782-npc-p10,783-talkToAwow-dialog	10 page(s): player:Greetings, Awowogei., npc:Greetings, visitor. What bring, player:I am an envoy from the monkeys, npc:I see. Ours is a strong and mi, player:Awowogei, please consider my o, player:We offer strength in numbers a, npc:I don't believe him, Awowogei., npc:What is your opinion, Murowoi?, npc:I think he seems trustworthy, , npc:I must admit, I have always re
+304	talkToAwow-dialog-tail	PASS	1	784-npc,785-npc,786-npc,787-npc,788-npc,789-npc,790-npc,791-player,792-npc,793-player,794-talkToAwow-dialog-tail	none
+305	talkToAwow-mission	PASS	2		varb118_varbit_118 = 1 (varbit, server content copy; base varp 373 is never transmitted) after 0 tick(s)
+306	talkToAwow-again	PASS	0	795-talkToAwow-again	page none->npc (text)
+307	talkToAwow-again-dialog	PASS	2	796-npc-p1,797-player-p2,798-npc-p3,799-npc-p4,800-player-p5,801-npc-p6,802-npc-p7,803-player-p8,804-npc-p9,805-talkToAwow-again-dialog	9 page(s): npc:Have you brought with you a ca, player:Yes, I have., npc:Well done!, npc:You have shown yourself to be , player:Thank you., npc:You are clearly well acquainte, npc:In the meantime, feel free to , player:What about the proposed allian, npc:I must think upon it some more
+308	talkToAwow-complete	PASS	4		varb118_varbit_118 = 2 (varbit, server content copy; base varp 373 is never transmitted) after 0 tick(s)
+309	talkToAwow-tile	PASS	0	806-talkToAwow-tile	after the hand-in the player stands at 2802,2764,0
+310	goto-talkToGarkorForSigil	PASS	0	807-goto-talkToGarkorForSigil	at 2807,2760,0 from 2802,2764,0
+311	talkToGarkorForSigil	PASS	1	808-talkToGarkorForSigil	page none->npc (text): dialogue npc is up
+312	talkToGarkorForSigil-dialog	PASS	2	809-npc-p2,810-player-p3,811-npc-p4,812-player-p5,813-npc-p6,814-talkToGarkorForSigil-dialog	6 page(s): npc:Well done on winning Awowogei', npc:However, your efforts may be i, player:What do you mean?, npc:Progress in the caves has been, player:Who was speaking? What was sai, npc:Listen closely whilst I narrat [frame unchanged]
+313	talkToGarkorForSigil-chapter4	PASS	50	815-mesbox,816-mesbox,817-npc,818-npc,819-npc,820-npc,821-npc,822-npc,823-npc,824-npc,825-npc,826-npc,827-npc,828-npc,829-npc,830-npc,831-npc,832-npc,833-npc,834-npc,835-npc,836-npc,837-npc,838-npc,839-npc,840-npc,841-npc,842-mesbox,843-mesbox,844-talkToGarkorForSigil-chapter4	none
+314	talkToGarkorForSigil.cutscene	PASS	0	845-talkToGarkorForSigil.cutscene	cutscene: 3 keyframes, moveto ... reset, reset=yes -- #1 t=2711 moveto 2671,4579 h=740 s=100/100 | #2 t=2711 lookat 2677,4579 h=240 s=100/100 | #3 t=2730 reset ;; from opts.since (serial 10), shots=none (the sequence ran inside the trigger row) ;; expect: 2/2 matched in order
+315	quest.stage.monkeymadness_completed_ch3	PASS	0		5 -- varp365_mm_main (varp) = 5 (monkeymadness_completed_ch3)
+316	talkToGarkorForSigil-again	PASS	0	846-talkToGarkorForSigil-again	map_flag: dialogue player is up
+317	talkToGarkorForSigil-again-dialog	PASS	4	847-player-p1,848-npc-p2,849-player-p3,850-npc-p4,851-npc-p5,852-player-p6,853-npc-p7,854-npc-p8,855-player-p9,856-npc-p10,857-player-p11,858-npc-p12,859-npc-p13,860-mesbox-p14,861-npc-p15,862-player-p16,863-npc-p17,864-npc-p18,865-player-p19,866-npc-p20,867-talkToGarkorForSigil-again-dialog	20 page(s): player:What shall we do?, npc:Zooknock and I have come up wi, player:What kind of a plan?, npc:I hope you were listening clos, npc:In effect, the spell will brea, player:But you will be teleported str, npc:Indeed. This is where you come, npc:With your assistance, we shoul, player:But how will I join you?, npc:Simple. We fool the teleportat, player:What?, npc:Zooknock knows Glough's grasp , npc:It is these sigils that identi, mesbox:Garkor hands you some kind of , npc:Welcome 
+318	talkToGarkorForSigil-sigil	PASS	2	868-talkToGarkorForSigil-sigil	10th squad sigil in the backpack: 1 at 2805,2761,0
+319	prepareForBattle-unhold	PASS	0	869-prepareForBattle-unhold	unequip mm_monkey_greegree_for_normal_monkey wornitems:slot3 (wear slot 3) op 1 (tab ok nil): worn 1->0, backpack 0->1
+320	prepareForBattle-wield	PASS	3	870-prepareForBattle-wield	equip rune_scimitar: worn 0 -> more
+321	prepareForBattle-drink	PASS	10	871-prepareForBattle-drink	prayer 32 -> 52 after 1 dose(s) (want >= 50)
+322	prepareForBattle	PASS	6	872-prepareForBattle	protect from magic varbit 1, prayer points 51, lobster 18
+323	killDemon-prayer	PASS	0	873-killDemon-prayer	prayer 51 (need >= 50: the demon fight measured 248 ticks on the v3 run of 2026-10-03, about 50 points)
+324	killDemon-sigil	PASS	3	874-killDemon-sigil	mm_sigil slot 2 op 2 (tab ok nil) [pressed on attempt 2; the first answered 'no DISPLAYED node carries that component id'] -> 1 left
+325	killDemon-sigil-choose	PASS	1	875-killDemon-sigil-choose	chat.choose: page changed
+326	killDemon-arrival	PASS	40	876-killDemon-arrival	none
+327	killDemon-arrival.cutscene	PASS	0	877-killDemon-arrival.cutscene	cutscene: 7 keyframes, shake ... reset, reset=yes -- #1 t=2776 shake axis=0 amp=0 s=0 | #2 t=2790 shake axis=0 amp=0 s=0 | #3 t=2790 moveto 2715,9183 h=300 s=232/232 | #4 t=2790 lookat 2715,9186 h=150 s=232/232 | #5 t=2790 lookat 2715,9186 h=150 s=10/10 | #6 t=2790 moveto 2715,9177 h=1000 s=2/0 | #7 t=2809 reset ;; from opts.since (serial 13), shots=none (the sequence ran inside the trigger row) ;; expect: 3/3 matched in order
+328	killDemon-arena	PASS	0	878-killDemon-arena	the sigil carried the player into the demon arena at 2708,9175,1
+329	killDemon-press	PASS	0	879-killDemon-press	ok attack mm_demon op2 [Attack @yel@Jungle Demon@red@ (level-195)] in 1 press(es), pressed slot 907 (element 1073768394) at 2710,9176, watching slot 907: hp no bar -> 28/30, hitsplat 6
+330	killDemon.dead	PASS	204	880-killDemon.dead	await_dead_engaged: slot 907 dead after 204 tick(s), 2 re-engagement(s), last hp 0/30; held Jungle Demon (npc 1443) -- corroborated by the ZERO BAR: slot 907 read 0/30 at tick 3017 and then left the npc pool (the corpse was released); eat lobster below 60: ate lobster 5 time(s) (hp 52->64, 51->63, 33->45, 45->57, 57->69), lowest hp 33/99; progress (8 earlier dropped) t+90 hp 1/30, t+100 hp 1/30, t+110 hp 1/30, t+120 hp 1/30 ate 1, t+130 hp 5/30 re-engaged 1 ate 1, t+140 hp 3/30 re-engaged 1 ate 2, t+150 hp 1/30 re-engaged 1 ate 4, t+160 hp 1/30 re-engaged 2 ate 5, t+170 hp 1/30 re-engaged 2 ate 5, t+180 hp 1/30 re-engaged 2 ate 5, t+190 hp 5/30 re-engaged 2 ate 5, t+200 hp 1/30 re-engaged 2 ate 5 -- await_dead_engaged re-engage 1 on Jungle Demon (npc 1443): ok Attack @yel@Jungle Demon@red@ (level-195); await_dead_engaged re-engage 2 on Jungle Demon (npc 1443): ok Attack @yel@Jungle Demon@red@ (level-195)
+331	killDemon-margin	PASS	0	881-killDemon-margin	lowest hp 33/99, lobsters 18 -> 13, prayer after 9 (margin: lowest hp >= 25 AND lobsters left >= 1)
+332	killDemon-end	PASS	4	882-killDemon-end	none
+333	quest.stage.monkeymadness_defeated_demon	PASS	0		6 -- varp365_mm_main (varp) = 6 (monkeymadness_defeated_demon)
+334	killDemon-garkor	PASS	3	883-killDemon-garkor	map_flag: dialogue npc is up
+335	killDemon-garkor-dialog	PASS	2	884-npc-p1,885-player-p2,886-npc-p3,887-player-p4,888-player-p5,889-npc-p6,890-killDemon-garkor-dialog	6 page(s): npc:Well done, human! That was a m, player:Thank you., npc:You should report to King Narn, player:Rest assured, I will do so., player:How do I leave this place?, npc:Speak to Zooknock. He will arr
+336	killDemon-zooknock	PASS	8	891-killDemon-zooknock	map_flag: dialogue npc is up
+337	killDemon-zooknock-dialog	PASS	2	892-npc-p1,893-killDemon-zooknock-dialog	1 page(s): npc:Well done, human. Bear with me
+338	killDemon-out	PASS	6	894-killDemon-out	Zooknock teleported the player out of the arena to 2712,2784,0
+339	reward.snapshot	PASS	0	895-reward.snapshot	skills read before the hand-in; coins 0, diamonds 0
+340	goto-talkToNarnodeToFinish	PASS	0	896-goto-talkToNarnodeToFinish	at 2465,3494,0 from 2712,2784,0
+341	talkToNarnodeToFinish	PASS	2	897-talkToNarnodeToFinish	map_flag: dialogue player is up
+342	talkToNarnodeToFinish-dialog	PASS	3	898-player-p1,899-npc-p2,900-player-p3,901-npc-p4,902-player-p5,903-npc-p6,904-player-p7,905-npc-p8,906-player-p9,907-npc-p10,908-player-p11,909-mesbox-p12,910-npc-p13,911-talkToNarnodeToFinish-dialog	13 page(s): player:King Narnode!, npc:Yes? How is the mission going , player:It's over - it's finally over., npc:What do you mean 'over'?, player:I mean 'finished.', npc:Yes, alright. Report on what h, player:With all due respect sir, if I, npc:And what of my 10th squad?, player:They all live - we suffered no, npc:'We', mm?, player:I, uh, I'm part of the 10th sq, mesbox:You show King Narnode your sig, npc:Well, now. It appears I cannot
+343	talkToNarnodeToFinish-reward	PASS	4	912-npc-p1,913-mesbox-p2,914-talkToNarnodeToFinish-reward	2 page(s): npc:No service such as what you ha, mesbox:King Narnode hands you a huge 
+344	talkToNarnodeToFinish-after	PASS	4	915-talkToNarnodeToFinish-after	none
+345	reward.coins	PASS	2	916-reward.coins	coins 0 -> 10000 (Quest Helper: 10000 coins)
+346	reward.diamonds	PASS	0	917-reward.diamonds	diamonds 0 -> 3 (Quest Helper: 3 diamonds)
+347	quest.stage.monkeymadness_complete	PASS	0		9 -- varp365_mm_main (varp) = 9 (monkeymadness_complete)
+348	quest.varp_complete	PASS	0		varp365_mm_main (varp): client=9 server=9 complete=9 [client+server]
+349	quest.scroll_title	PASS	0	918-quest.scroll	expected a title containing Monkey Madness I got=You have completed Monkey Madness I! (ok) {name=You have completed Monkey Madness I! points=Total Quest Points: 8}
+350	quest.points	PASS	0		qp (varp) 5 -> 8 delta=3 expected=3
+351	quest.journal	PASS	4		title=Monkey Madness (expected any non-empty title) complete=true lines=33 scroll.close=ok journal.close=ok questjournal closed
+352	leg.8.end	PASS	0		tile=2466,3496,0 stage=varp365_mm_main=9 inv=mm_monkey_greegree_for_small_zombie_monkeyx1,coinsx10000,mm_sigilx1,2doseprayerrestorex1,4doseprayerrestorex1,4doseprayerrestorex1,diamondx1,diamondx1,diamondx1,lobsterx1,lobsterx1,lobsterx1,vial_emptyx1,4doseprayerrestorex1,lobsterx1,mm_gnome_royal_sealx1,mm_monkey_amulet_mouldx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,lobsterx1,mm_monkey_greegree_for_normal_monkeyx1,lobsterx1,lobsterx1,lobsterx1 -- checkpoint 8 NOT written: checkpoint 8 refused: a dialogue is open (chat modal interface 231)
+SUMMARY	352	PASS	3064	exit=0	pass=352 fail=0

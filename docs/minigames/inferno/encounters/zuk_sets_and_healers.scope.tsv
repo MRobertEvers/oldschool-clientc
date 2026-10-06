@@ -1,0 +1,87 @@
+mechanic_id	scope	note
+zuk_sets_and_healers.xil_npc_id	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.zek_npc_id	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.xil_hitpoints	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.zek_hitpoints	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.xil_levels	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.zek_levels	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.xil_combat_level	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.zek_combat_level	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.xil_size	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.zek_size	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.xil_ranged_attack_bonus	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.zek_magic_attack_bonus	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.xil_attack_style	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.zek_attack_style	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.set_melee_when_adjacent	all	solo test: stand against a set in a ::god run and read the swing; not isolated by a fight
+zuk_sets_and_healers.xil_max_hit_ranged	stat	seam pass 7 (TEST-4): the top of the roll; the spec pass saw 16-44 in 21 hits; the recorder tool settles it
+zuk_sets_and_healers.zek_max_hit_magic	stat	seam pass 7 (TEST-4): the top of the roll; the spec pass saw 12 unprayed hits in 5 runs; the recorder tool settles it
+zuk_sets_and_healers.xil_hit_chance_unprayed	stat	seam pass 7 (TEST-4): a share over many unprayed hits (as melee.hit_chance_unprayed); was all with the note 'unmeasurable solo'
+zuk_sets_and_healers.zek_hit_chance_unprayed	stat	seam pass 7 (TEST-4): a share over many unprayed hits (as melee.hit_chance_unprayed); was all with the note 'unmeasurable solo'
+zuk_sets_and_healers.set_protection_prayer	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.set_attack_gap	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.xil_first_attack	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.zek_first_attack	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.set_first_target	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.set_retarget_on_tag	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.set_never_walks	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.xil_lifetime	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.zek_lifetime	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.zek_no_resurrection_in_zuk_wave	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.set_first_tick	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.set_composition	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.set_ranger_tile	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.set_mager_tile	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.set_interval	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.set_clock_pause	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.set_clock_jad_extra	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.set_attack_range	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.xil_hit_delay	all	unmeasurable solo: needs a recorded landing or a counted video (open row)
+zuk_sets_and_healers.hurkot_npc_id	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.hurkot_hitpoints	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.hurkot_levels	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.hurkot_count	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.hurkot_spawn_threshold	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.hurkot_spawn_tiles	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.hurkot_attack_style	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.hurkot_max_hit	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.hurkot_heal_amount	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.hurkot_heal_gap	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.hurkot_heal_not_seen_in_recording	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.hurkot_provoked_attack_gap	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.hurkot_provoked_first_attack	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.hurkot_walks_when_provoked	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.hurkot_die_with_jad	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.mejjak_npc_id	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.mejjak_hitpoints	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.mejjak_record	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.mejjak_count	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.mejjak_tiles	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.mejjak_not_aggressive	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.mejjak_heal_amount	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.mejjak_heal_gap	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.mejjak_first_heal	all	state-set: reached by ::zukhp or ::god in a solo run (a scratch player cannot survive to the threshold); distributions come from the Blert recorder tool (statistical)
+zuk_sets_and_healers.mejjak_tagged_every_run	stat	statistical: settled by the recorder tool over the Blert wave-69 runs; one solo fought run (zs_gen / zf_gen) reads our side
+zuk_sets_and_healers.mejjak_angry_stops_healing	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.mejjak_lava_damage	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.mejjak_angry_gap	all	one solo test: ::inferno 69 fought with the glyph followed, a bow, sharks, prayer (zs_gen, zs_gen2, zf_gen); cache and wiki rows are read, not played
+zuk_sets_and_healers.mejjak_lava_volley	all	unmeasurable solo: needs a recorded landing or a counted video (open row)
+zuk_sets_and_healers.xil_seq_ranged	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.xil_seq_melee	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.zek_seq_magic	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.zek_seq_melee	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.xil_seq_ready_walk	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.zek_seq_ready_walk	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.xil_zek_defend_death_seq	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.xil_projectile_graphic	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.zek_projectile_graphic	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.set_sounds	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.hurkot_seq_attack	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.hurkot_seq_heal_and_graphic	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.hurkot_sounds	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.mejjak_seq_ready	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.mejjak_seq_attack	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.mejjak_seq_spawn	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.mejjak_heal_projectile	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.mejjak_lava_impact	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement
+zuk_sets_and_healers.mejjak_sounds	all	presentation: read from the cache and the plugin tables; the played run confirms what ours plays (npc_anim and projectile rows of the tick log), no separate measurement

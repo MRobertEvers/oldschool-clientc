@@ -28,9 +28,26 @@
 -- amulet(e) "turn the compass clockwise or anti-clockwise by clicking on the
 -- whiskers until the eyes are lit and the cat's mouth starts moving"; Bob
 -- (cat) "When the eyes light up ... Bob can be found in the direction that
--- the dial is pointing"), INLINED as repeated code at each of the three call
--- sites -- this file may not declare a local function, per section 1's own
--- shape rule and the header note the rejected file already carried.
+-- the dial is pointing"), now ONE local function `locate_bob` used at all
+-- three sites.
+--
+-- RE-DRIVEN b58 (door rule, docs/QUEST_ORCHESTRATOR.md 2026-10-03): every
+-- goto now leaves from and lands on an open, unroofed street tile, and every
+-- door between is opened on foot in and out (`pass_door`); the search's moves
+-- are walks while Bob is on screen and waypoint-to-waypoint travel otherwise;
+-- the death runes are a setup bring-along. The goto audit is in
+-- build/orchestrator/fix_b58/atailoftwocats.progress.md.
+--
+-- RE-DRIVEN b64 (gate_crossings, matthew-mbp-m4-b63-seam1's grader): Burthorpe
+-- and Taverley sit behind the members' wall, whose east gate (membergater
+-- 2935,3450) is the only way on foot to Lumbridge, Varrock and the Sphinx
+-- (reach.py 2938,3450 -> 2932,3450 NEEDS-DOOR via membergater; a flood from
+-- either side never meets the other). Every crossing -- the first trip from
+-- Lumbridge, out to Gertrude, the second search's way back in, out to the
+-- Sphinx, out to the Apothecary, back in for the cure -- presses the gate
+-- (`taverley_gate`, t.player.cross_gate). The Sphinx trip also crosses the
+-- Shantay Pass doorway with a pass bought from Shantay. Audit:
+-- build/orchestrator/fix_b64/atailoftwocats.progress.md.
 --
 -- The locator itself (twocats.rs2:248-458, cache IF1 group 48
 -- bob_locator_amulet): `[opheld3,twocats_amuletofcatspeak]` fires the Open op
@@ -49,10 +66,9 @@
 -- `^twocats_bob_roll_max` (1-15) ticks, home to his spawn after 500 stuck
 -- ticks -- so a scripted run turns the whiskers until `%twocats_locator_found`
 -- reads 1 (READ BEFORE any extra turn -- the rejected file's bug), reads
--- `%twocats_locator_direction`, travels that bearing (a plain `goto_tile`/
--- `walk_to`, section 2's travel rule -- never a click on anything the guide
--- gates), and repeats until Bob is actually on screen, then talks to him for
--- real. `talkToBob`/`talkToBobAgain`/`talkToBobToFinish` retry the click a
+-- `%twocats_locator_direction`, moves that bearing (a walk while he is on
+-- screen, else a goto between checked street waypoints), and repeats until
+-- Bob is beside the player, then talks to him for real. `talkToBob`/`talkToBobAgain`/`talkToBobToFinish` retry the click a
 -- few times and re-approach when he has stepped away meanwhile, because he
 -- keeps wandering while the dialogue opens.
 --
@@ -72,16 +88,13 @@
 --     `~p_choice2_header("Yes.",1,"No.",2,...)` (trap: chat.play's
 --     "choose:Yes." entry).
 --
---   * Hild (twocats.rs2:178-246): first visit (stage 0/5) always ends
---     "I don't have the death runes... Come back to me when you have them."
---     and writes stage 10 UNCONDITIONALLY -- the runes gate only the SECOND
---     visit's atomic exchange (worn-or-carried amulet + 5 death runes + a
---     free slot -> the enchanted `twocats_amuletofcatspeak`, unworn, in the
---     backpack), which writes stage 15. Runes are staged mid-run, after the
---     first visit has already run the runes-not-held branch for real (a
---     brought-along Quest Helper item given before that first visit would
---     desync `chat.play`'s script: twocats.rs2:207-212 checks the same
---     `inv_total(inv,deathrune)<5` unconditionally on THIS visit too).
+--   * Hild (twocats.rs2:178-246): the first visit (stage 5) writes stage 10
+--     and then checks `inv_total(inv,deathrune) < 5` (twocats.rs2:198-202);
+--     the five death runes are a Quest Helper bring-along for talkToHild
+--     ("items: Death runes"), staged in SETUP, so the same visit runs on into
+--     the atomic exchange (worn-or-carried amulet + 5 death runes + a free
+--     slot -> the enchanted `twocats_amuletofcatspeak`, unworn, in the
+--     backpack), which writes stage 15.
 --
 --   * Gertrude (twocats.rs2:678-717ish): reached through the BASE symbol
 --     "gertrude" (areas/varrock/scripts/gertrude.rs2's own [opnpc1,gertrude],
@@ -155,6 +168,7 @@
 return {
     id = "atailoftwocats",
     fixture = "fresh_lumbridge.ini",
+    max_frames = 300000, -- three locator searches, every door on foot, six gate crossings
     setup = {
         "::clearinv", -- fourteen tutorial slots would otherwise sit in the way
         "::give ics_little_amulet_of_catspeak 1", -- Icthlarin's Little
@@ -163,15 +177,9 @@ return {
         "::give growncatobject 1", -- Quest Helper's `cat` FollowerItemRequirement:
         -- "You must have a cat or kitten with you" (~twocats_has_cat reads
         -- ~ratcatch_has_cat, which accepts any grown-cat colour carried).
-        -- Death runes are NOT staged here (run 1's bug): twocats.rs2:198-202
-        -- checks `inv_total(inv,deathrune) < 5` unconditionally on the FIRST
-        -- Hild visit too, before it sets stage 10 -- runes already in the
-        -- backpack skip straight into the same-page enchant branch, which
-        -- desyncs chat.play's first-visit script entirely (measured run 1:
-        -- talkToHild-dialog mismatched at "I don't have the death runes.").
-        -- Given via t.cheat AFTER the first Hild visit instead, matching
-        -- twocats.rs2's own two-visit shape (a brought-along item, staged
-        -- late on purpose).
+        "::give deathrune 5", -- Quest Helper's deathRune5 for talkToHild:
+        -- carried on the first visit, so Hild enchants the amulet in that
+        -- same conversation (twocats.rs2:198-202 -> @twocats_hild_enchant).
         "::complete quest_icthlarinslittlehelper", -- Quest Helper's real
         -- prerequisite (getGeneralRequirements). The cheat only sets
         -- %ics_little_var -- it grants no item -- so the amulet above is
@@ -201,6 +209,10 @@ return {
         -- (twocats.rs2:1503) refuses the cure, before it is taken back off
         -- and the real disguise is worn.
         "::give bronze_sword 1",
+        -- Five coins for the Shantay pass bought from Shantay on the way to
+        -- the Sphinx (shantay.rs2: 5 gp): the doorway is the desert's only
+        -- way in on foot, and it takes a pass (shantay_pass.rs2 oploc1).
+        "::give coins 5",
     },
 
     run = function(t)
@@ -238,11 +250,382 @@ return {
         -- quest.points row at completion -- section 8's recipe.
         local qp_before_result, qp_before = t.var.varp("varp101_qp")
 
+        -- ---------------------------------------------------------------
+        -- Travel (docs/QUEST_ORCHESTRATOR.md standing rules, 2026-10-03):
+        -- a goto_tile departs only from an open, unroofed street tile and
+        -- lands only on one; every door between the player and a target is
+        -- clicked on foot, going in AND coming out. Rooms on this route, all
+        -- from the map squares (m45_55.jl2, m49_53.jl2, m50_54.jl2,
+        -- m51_43.jl2):
+        --   Unferth's room x2917-2922 z3557-3561, poshdoor 2922,3558 (east
+        --     edge) to the street, poordoor 2920,3561 (north edge) to his
+        --     patch garden x2917-2922 z3562-3565, which death_fencing walls in
+        --     on every other side: the patch is reached only from the house.
+        --   Hild's house x2929-2934 z3565-3570, poordoor 2932,3564 (north edge
+        --     of 3564).
+        --   Gertrude's house x3148-3153 z3404-3411, fai_varrock_door 3151,3412.
+        --   Varrock Castle: open arch 3212-3213,3471, then
+        --     fai_varrock_castle_door 3215,3477 (south edge), 3214,3486 (north
+        --     edge) and 3210,3490 (south edge) into the library.
+        --   The Apothecary's shop x3192-3198 z3402-3406: doorway on the west
+        --     edge of 3192,3403, its leaf placed OPEN (fai_varrock_door_open).
+        --   Sophanem's walls: north gate sophanem_gate_left/right 3283/3284,2809
+        --     (north edge; doors_selfstage.loc).
+        -- ---------------------------------------------------------------
+        local function tile_text(r, tt)
+            if r == "ok" and type(tt) == "table" then
+                return tt.x .. "," .. tt.z .. "," .. tt.level
+            end
+            return tostring(r)
+        end
+
+        local function at_tile(r, tt, x, z)
+            return r == "ok" and type(tt) == "table" and tt.level == 0 and tt.x == x and tt.z == z
+        end
+
+        -- Walk to x,z and check the exact tile.
+        local function walk_check(name, x, z, why)
+            local wr = t.player.walk_to(x, z, 40)
+            local tr, tt = t.world.tile()
+            t.check(name, at_tile(tr, tt, x, z),
+                "walk_to " .. x .. "," .. z .. " (" .. why .. ") -> " .. tostring(wr) .. "; at " .. tile_text(tr, tt))
+        end
+
+        -- Cross one door on foot (sampler-findings b56/b57 pass_door). Walk
+        -- to the near tile and check it; if the CLOSED leaf stands on the door
+        -- tile on this level, click that copy (op 1 Open); otherwise an
+        -- earlier press left it open (a door swings back after 500 ticks), so
+        -- assert the OPEN leaf on this level within 1 of the door tile -- a
+        -- row that fails when neither leaf is there -- and never press it
+        -- again. Then walk to the far tile and check it exactly. A selfstage
+        -- door (Sophanem's gate) passes the same symbol twice.
+        local function pass_door(prefix, closed_sym, open_sym, door_x, door_z, near_x, near_z, far_x, far_z, far_desc)
+            t.player.walk_to(near_x, near_z, 30)
+            local nr, nt = t.world.tile()
+            local level = (nr == "ok" and type(nt) == "table") and nt.level or 0
+            t.check(prefix .. ".atDoor", at_tile(nr, nt, near_x, near_z),
+                "walked to " .. near_x .. "," .. near_z .. ",0 beside " .. closed_sym .. " at " .. door_x .. "," .. door_z
+                    .. " -> " .. tile_text(nr, nt))
+            local cr, cd = t.world.loc_near(closed_sym, 1)
+            if cr == "ok" and cd.tile_x == door_x and cd.tile_z == door_z and cd.level == level then
+                t.exec(prefix .. ".openDoor", t.player.click_loc, closed_sym, 1, { at = { door_x, door_z } })
+                t.ticks(1)
+            else
+                local orr, od = t.world.loc_near(open_sym, 2)
+                t.check(prefix .. ".doorStandsOpen", orr == "ok" and od.level == level
+                        and math.abs(od.tile_x - door_x) <= 1 and math.abs(od.tile_z - door_z) <= 1,
+                    closed_sym .. " at " .. door_x .. "," .. door_z .. ": "
+                        .. (cr == "ok" and ("nearest closed copy at " .. cd.tile_x .. "," .. cd.tile_z .. "," .. cd.level) or tostring(cr))
+                        .. "; " .. open_sym .. ": "
+                        .. (orr == "ok" and ("open leaf at " .. od.tile_x .. "," .. od.tile_z .. "," .. od.level) or tostring(orr))
+                        .. " (want the open leaf on level " .. level .. " within 1 of the door tile: standing open, walked through, not pressed again)")
+            end
+            local wr = t.player.walk_to(far_x, far_z, 20)
+            local fr, ft = t.world.tile()
+            t.check(prefix .. ".throughDoor", at_tile(fr, ft, far_x, far_z),
+                "walked through " .. closed_sym .. " to " .. far_x .. "," .. far_z .. " (" .. far_desc .. ") -> "
+                    .. tile_text(fr, ft) .. " (walk " .. tostring(wr) .. ")")
+        end
+
+        -- The street tiles a travel goto may leave from or land on. Every one
+        -- is a level-0 tile that a flood from Bob's home 2924,3565 or Varrock
+        -- square 3212,3428 reaches with EVERY closed door shut, all eight
+        -- neighbours too, none under a roof (jm2 f4 clear): a 16-tile lattice
+        -- over x2840-3240 z3380-3640, the Wilderness (x >= 2945, z >= 3520)
+        -- cut out, plus the door-exit tiles below. Generated by
+        -- build/orchestrator/fix_b58/atailoftwocats_tools/flood.py (GRID=16
+        -- SNAP=6) over reach.py's static collision.
+        local WAYPOINTS = {}
+        for _, line in ipairs({
+            "2851:3427 2848:3440 2848:3456 2848:3472 2848:3488 2849:3504 2853:3557 2852:3572 2846:3582 ",
+            "2867:3421 2865:3439 2864:3456 2862:3474 2863:3485 2866:3505 2862:3524 2869:3535 2859:3557 ",
+            "2862:3566 2880:3394 2880:3408 2877:3421 2879:3442 2882:3458 2880:3472 2879:3488 2878:3505 ",
+            "2877:3517 2878:3534 2880:3552 2880:3568 2886:3578 2895:3381 2895:3391 2895:3407 2896:3421 ",
+            "2896:3440 2896:3456 2895:3471 2895:3487 2894:3502 2898:3517 2896:3536 2896:3552 2897:3571 ",
+            "2895:3579 2907:3381 2908:3388 2907:3409 2910:3425 2908:3436 2912:3456 2915:3476 2910:3486 ",
+            "2912:3504 2912:3520 2910:3534 2908:3556 2912:3568 2923:3381 2928:3408 2927:3424 2927:3439 ",
+            "2928:3456 2928:3472 2927:3487 2926:3502 2925:3523 2928:3536 2926:3554 2927:3567 2939:3381 ",
+            "2944:3390 2947:3410 2942:3422 2942:3438 2944:3456 2944:3472 2944:3488 2949:3504 2939:3514 ",
+            "2955:3381 2960:3392 2960:3408 2959:3423 2957:3437 2961:3459 2960:3472 2963:3487 2957:3501 ",
+            "2976:3392 2976:3408 2976:3424 2976:3440 2978:3454 2974:3470 2974:3487 2976:3504 2977:3519 ",
+            "2995:3381 2990:3394 2992:3408 2992:3422 2988:3441 2996:3456 2989:3474 2994:3491 2992:3504 ",
+            "2996:3518 3008:3381 3007:3391 3008:3408 3008:3423 3005:3442 3007:3456 3008:3472 3007:3490 ",
+            "3009:3502 3023:3382 3024:3392 3024:3407 3024:3424 3024:3439 3025:3454 3026:3473 3024:3485 ",
+            "3025:3503 3042:3390 3037:3409 3040:3424 3040:3440 3040:3456 3042:3471 3040:3488 3040:3503 ",
+            "3038:3518 3056:3392 3055:3409 3056:3424 3058:3437 3057:3455 3055:3473 3054:3489 3057:3503 ",
+            "3055:3519 3067:3381 3072:3392 3072:3408 3070:3422 3072:3440 3072:3456 3071:3470 3072:3486 ",
+            "3072:3504 3073:3519 3088:3392 3089:3408 3086:3422 3087:3439 3087:3457 3089:3471 3088:3488 ",
+            "3088:3504 3087:3519 3104:3393 3104:3406 3101:3426 3100:3439 3106:3459 3107:3469 3104:3488 ",
+            "3104:3504 3103:3519 3123:3395 3120:3408 3122:3424 3119:3439 3121:3457 3118:3474 3117:3491 ",
+            "3118:3503 3119:3519 3133:3381 3135:3393 3135:3407 3136:3424 3135:3439 3136:3456 3136:3472 ",
+            "3135:3487 3136:3504 3136:3519 3152:3381 3152:3392 3148:3413 3152:3424 3149:3443 3151:3455 ",
+            "3153:3474 3152:3488 3152:3504 3152:3519 3174:3381 3168:3392 3169:3407 3169:3424 3168:3440 ",
+            "3168:3456 3168:3472 3168:3504 3167:3519 3179:3381 3180:3388 3183:3407 3183:3423 3178:3434 ",
+            "3183:3455 3184:3472 3184:3488 3182:3506 3184:3519 3197:3381 3201:3391 3199:3408 3199:3423 ",
+            "3199:3439 3200:3456 3198:3470 3199:3487 3200:3503 3199:3519 3211:3381 3215:3391 3219:3406 ",
+            "3216:3424 3218:3442 3214:3454 3212:3466 3218:3502 3214:3519 3231:3391 3231:3409 3228:3420 ",
+            "3234:3438 3231:3455 3236:3471 3231:3488 3233:3506 3231:3519 2925:3558 2923:3558 2932:3563 ",
+            "2924:3565 3151:3414 3151:3413 3190:3403 ",
+        }) do
+            for wx, wz in line:gmatch("(%d+):(%d+)") do
+                WAYPOINTS[#WAYPOINTS + 1] = { x = tonumber(wx), z = tonumber(wz) }
+            end
+        end
+        local function dist(ax, az, bx, bz)
+            return math.sqrt((ax - bx) * (ax - bx) + (az - bz) * (az - bz))
+        end
+
+        -- The Taverley members' wall splits the waypoints in two (owner ruling,
+        -- sampler-findings "Sample matthew-mbp-m4-b59" (a): a gate that is the
+        -- only way on foot between two regions is pressed on every crossing).
+        -- A flood over reach.py's static collision with every door closed
+        -- (x2780-3280 z3340-3680) from Bob's street 2925,3558 (16,152 tiles)
+        -- and from Varrock square 3212,3428 (41,321 tiles) never meets; these
+        -- 77 waypoints are on the Taverley/Burthorpe side, the other 179 on
+        -- the Varrock side. Every walk between the two goes through
+        -- membergater/membergatel 2935,3450-3451 (reach.py 2938,3450 ->
+        -- 2932,3450: NEEDS-DOOR via membergater).
+        local INSIDE = {}
+        for wx, wz in ([[2851:3427 2848:3440 2848:3456 2848:3472 2848:3488 2849:3504 2853:3557 2852:3572
+            2846:3582 2867:3421 2865:3439 2864:3456 2862:3474 2863:3485 2866:3505 2862:3524 2869:3535
+            2859:3557 2862:3566 2880:3394 2880:3408 2877:3421 2879:3442 2882:3458 2880:3472 2879:3488
+            2878:3505 2877:3517 2878:3534 2880:3552 2880:3568 2886:3578 2895:3381 2895:3391 2895:3407
+            2896:3421 2896:3440 2896:3456 2895:3471 2895:3487 2894:3502 2898:3517 2896:3536 2896:3552
+            2897:3571 2895:3579 2907:3381 2908:3388 2907:3409 2910:3425 2908:3436 2912:3456 2915:3476
+            2910:3486 2912:3504 2912:3520 2910:3534 2908:3556 2912:3568 2923:3381 2928:3408 2927:3424
+            2927:3439 2928:3456 2928:3472 2927:3487 2926:3502 2925:3523 2928:3536 2926:3554 2927:3567
+            2942:3422 2942:3438 2925:3558 2923:3558 2932:3563 2924:3565]]):gmatch("(%d+):(%d+)") do
+            INSIDE[wx .. ":" .. wz] = true
+        end
+        -- The side of the wall a tile is on: the side of its nearest waypoint
+        -- (every departure and landing below IS a waypoint or a door tile
+        -- beside one).
+        local function inside_taverley(x, z)
+            local best, best_d = nil, nil
+            for _, w in ipairs(WAYPOINTS) do
+                local d = dist(x, z, w.x, w.z)
+                if best_d == nil or d < best_d then
+                    best, best_d = w, d
+                end
+            end
+            return best ~= nil and INSIDE[best.x .. ":" .. best.z] == true
+        end
+
+        -- Cross the Taverley members' wall by its east gate, pressed on every
+        -- crossing (t.player.cross_gate; gates.rs2 [label,member_fencegate_try]
+        -- walk-through: nothing stays open, so each crossing is a press graded
+        -- on the tiles before and after). Travel to the open tile two short of
+        -- it on this side (2938,3450 outside / 2932,3450 inside, both in their
+        -- side's flood), press membergater 2935,3450 from the tile beside it,
+        -- walk on to the open tile beyond.
+        local TAVERLEY_GATE = {
+            ["in"] = { stage = { 2938, 3450 }, near = { 2936, 3450 }, far = { 2933, 3450 },
+                far_ok = function(tile) return tile.x <= 2935 end,
+                far_desc = "inside Taverley's east wall, x <= 2935" },
+            out = { stage = { 2932, 3450 }, near = { 2934, 3450 }, far = { 2938, 3450 },
+                far_ok = function(tile) return tile.x >= 2936 end,
+                far_desc = "outside Taverley's east wall, x >= 2936" },
+        }
+        local function taverley_gate(prefix, way)
+            local g = TAVERLEY_GATE[way]
+            t.exec("goto-" .. prefix .. ".memberGate", t.player.goto_tile, g.stage[1], g.stage[2], 0)
+            t.exec(prefix .. ".memberGate", t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 },
+                near = g.near, far = g.far, far_ok = g.far_ok, far_desc = g.far_desc })
+        end
+
+        -- Before a goto from wherever the last walk left the player (beside
+        -- Bob, say): walk to the nearest waypoint (trying the three nearest)
+        -- and check the tile exactly. A walk crosses no closed door, so a
+        -- player who somehow stood indoors either walks out through an open
+        -- doorway or fails this row.
+        local function depart_open(name)
+            local r, here = t.world.tile()
+            local cands = {}
+            if r == "ok" and type(here) == "table" then
+                for _, w in ipairs(WAYPOINTS) do
+                    cands[#cands + 1] = { w = w, d = dist(here.x, here.z, w.x, w.z) }
+                end
+                table.sort(cands, function(a, b) return a.d < b.d end)
+            end
+            local tr, tt = r, here
+            local used = nil
+            local walked = false
+            for i = 1, math.min(3, #cands) do
+                used = cands[i].w
+                if not at_tile(tr, tt, used.x, used.z) then
+                    t.player.walk_to(used.x, used.z, 30)
+                    walked = true
+                    tr, tt = t.world.tile()
+                end
+                if at_tile(tr, tt, used.x, used.z) then
+                    break
+                end
+            end
+            local ok = used ~= nil and at_tile(tr, tt, used.x, used.z)
+            local detail = "departure on an open, unroofed street waypoint: from " .. tile_text(r, here) .. " to waypoint "
+                .. (used and (used.x .. "," .. used.z) or "none") .. " -> " .. tile_text(tr, tt)
+            if walked then
+                t.check(name, ok, detail) -- the walk changed the screen: photograph it
+            else
+                t.step(name, ok and "PASS" or "FAIL", detail .. " (already standing on it)")
+            end
+        end
+
+        -- The catspeak amulet (e)'s locator (twocats.rs2:248-458, IF1 group 48
+        -- bob_locator_amulet), used for real: open it (Open, unworn
+        -- [opheld3]; Locate, worn [inv_button2,wornitems:slot2]), press the
+        -- right whisker until %twocats_locator_found reads 1 -- read BEFORE
+        -- any extra turn -- read %twocats_locator_direction (1 = north,
+        -- clockwise to 8 = north-west), one more turn tells "near" (lit in
+        -- every direction), close it, and move that way. Bob wanders
+        -- ([ai_timer,death_growncat_black]), so it repeats until he is
+        -- beside the player. While he is on screen (the npc list, 15 tiles)
+        -- the move is a WALK 8 tiles along the dial -- a walk crosses no
+        -- closed door; off screen it is travel: a goto from a checked
+        -- waypoint to the waypoint nearest a point 30 tiles along the dial.
+        local DIRS = { { 0, 1 }, { 1, 1 }, { 1, 0 }, { 1, -1 }, { 0, -1 }, { -1, -1 }, { -1, 0 }, { -1, 1 } }
+        local function locate_bob(step, worn)
+            local in_view = false
+            for hop = 1, 40 do
+                if worn then
+                    t.ui.tab("equipment")
+                    t.ticks(2)
+                    local _, slot = t.ui.widget("wornitems:slot2")
+                    if slot then
+                        t.ui.invoke(slot, 2)
+                    end
+                else
+                    t.exec(step .. ".open." .. hop, t.player.inv_op, "twocats_amuletofcatspeak", 3)
+                end
+                local mounted = t.ui.await_open("bob_locator_amulet", 10)
+                t.check(step .. ".mounted." .. hop, mounted == "ok",
+                    (worn and "worn Locate (wornitems:slot2 op 2)" or "Open (opheld3)")
+                        .. " -> await_open(bob_locator_amulet) " .. tostring(mounted))
+                local _, r_whisker = t.ui.widget("bob_locator_amulet:bob_locator_r_whisker")
+                local found, turns = 0, 0
+                for i = 1, 17 do
+                    t.ticks(2)
+                    local fr, fv = t.var.server("varp7166_twocats_locator_found")
+                    if fr == "ok" and fv == 1 then
+                        found = 1
+                        break
+                    end
+                    if r_whisker then
+                        t.ui.invoke(r_whisker, 1)
+                    end
+                    turns = turns + 1
+                end
+                local _, dir = t.var.server("varb1034_twocats_locator_direction")
+                local hr, here = t.world.tile()
+                t.check(step .. ".dial_lit." .. hop, found == 1 and hr == "ok",
+                    "turned the right whisker " .. turns .. " time(s); found=" .. found
+                        .. " direction=" .. tostring(dir) .. " from " .. tile_text(hr, here))
+                local near = false
+                if found == 1 and r_whisker then
+                    t.ui.invoke(r_whisker, 1)
+                    t.ticks(2)
+                    local nr, nv = t.var.server("varp7166_twocats_locator_found")
+                    near = (nr == "ok" and nv == 1)
+                end
+                t.key("escape")
+                local closed = t.ui.await_close("bob_locator_amulet", 10)
+                t.check(step .. ".closed." .. hop, closed == "ok",
+                    "await_close(bob_locator_amulet) -> " .. tostring(closed))
+                if found ~= 1 or hr ~= "ok" or type(dir) ~= "number" or dir < 1 or dir > 8 then
+                    break
+                end
+                if near then
+                    t.note(step .. ": lit in every direction (near) after " .. (hop - 1) .. " move(s), at " .. tile_text(hr, here))
+                    in_view = true
+                    break
+                end
+                local vr, vrow = t.npc.nearest("death_growncat_black", 3)
+                if vr == "ok" then
+                    t.note(step .. ": Bob beside the player after " .. (hop - 1) .. " move(s), at "
+                        .. tostring(vrow.x) .. "," .. tostring(vrow.z) .. ", dial " .. dir)
+                    in_view = true
+                    break
+                end
+                local dx, dz = DIRS[dir][1], DIRS[dir][2]
+                local sr, srow = t.npc.nearest("death_growncat_black", 15)
+                if sr == "ok" then
+                    t.player.walk_to(here.x + dx * 8, here.z + dz * 8, 12)
+                    local ar, at = t.world.tile()
+                    local moved = (ar == "ok") and (math.abs(at.x - here.x) + math.abs(at.z - here.z)) or 0
+                    if moved < 2 then
+                        -- a wall that way: let the route find its own way
+                        -- round to where he stands
+                        t.player.walk_to(srow.x, srow.z, 12)
+                        ar, at = t.world.tile()
+                    end
+                    t.note(step .. " move " .. hop .. ": walked along dial " .. dir .. " from " .. tile_text(hr, here)
+                        .. " to " .. tile_text(ar, at) .. " (Bob on screen at " .. tostring(srow.x) .. "," .. tostring(srow.z) .. ")")
+                else
+                    depart_open(step .. ".depart." .. hop)
+                    local fr, from = t.world.tile()
+                    local fx = (fr == "ok") and from.x or here.x
+                    local fz = (fr == "ok") and from.z or here.z
+                    local px, pz = fx + dx * 30, fz + dz * 30
+                    local best, best_d = nil, nil
+                    for _, w in ipairs(WAYPOINTS) do
+                        if dist(fx, fz, w.x, w.z) >= 12 then
+                            local d = dist(px, pz, w.x, w.z)
+                            if best_d == nil or d < best_d then
+                                best, best_d = w, d
+                            end
+                        end
+                    end
+                    -- A hop to the other side of the Taverley wall goes
+                    -- through its gate, pressed (Bob lives on the Taverley
+                    -- side; a search begun in Varrock crosses it once).
+                    local from_in = inside_taverley(fx, fz)
+                    local to_in = INSIDE[best.x .. ":" .. best.z] == true
+                    if from_in ~= to_in then
+                        taverley_gate(step .. ".wall." .. hop, to_in and "in" or "out")
+                    end
+                    t.exec(step .. ".goto." .. hop, t.player.goto_tile, best.x, best.z, 0)
+                end
+            end
+            t.check(step, in_view, "Bob beside the player: " .. tostring(in_view))
+        end
+
+        -- Reach Bob: talk_to routes to wherever he stands now; a press that
+        -- lands where he has just left ("no dialogue") or a route a wall
+        -- stops ("I can't reach that!") is retried after a WALK to his
+        -- current tile (he wanders on every 1-15 ticks). Never a goto.
+        local function talk_to_bob(step)
+            local r, d
+            local tries = 0
+            for attempt = 1, 12 do
+                tries = attempt
+                r, d = t.player.talk_to("death_growncat_black", 1)
+                if r == "ok" and not tostring(d):find("no dialogue") then
+                    break
+                end
+                local vr, vrow = t.npc.nearest("death_growncat_black", 15)
+                if vr == "ok" then
+                    t.player.walk_to(vrow.x, vrow.z, 8)
+                else
+                    t.ticks(3)
+                end
+            end
+            t.check(step, r == "ok" and not tostring(d):find("no dialogue"),
+                "attempt " .. tries .. ": " .. tostring(r) .. " " .. tostring(d))
+        end
+
         t.exec("amulet.equip", t.player.equip, "ics_little_amulet_of_catspeak")
 
-        -- talkToUnferth: NE Burthorpe (2918,3558). Verbatim accept scene,
-        -- ending in the real Yes/No confirm.
-        t.exec("goto-unferth", t.player.goto_tile, 2918, 3558, 0)
+        -- talkToUnferth: NE Burthorpe, Unferth in his room (2919,3559). The first
+        -- goto of the run leaves the fixture's open field north of Lumbridge
+        -- castle (3206,3233; comp.py: a 2,325-tile open component) for the
+        -- open ground east of Taverley's members' gate (reach.py 3206,3233 ->
+        -- 2936,3450 REACH closed-doors len=517); the gate is pressed, then
+        -- travel inside the wall to the street east of his house (reach.py
+        -- 2933,3450 -> 2925,3558 REACH len=136); poshdoor is opened on foot.
+        -- Verbatim accept scene, ending in the real Yes/No confirm.
+        taverley_gate("unferth", "in")
+        t.exec("goto-unferth", t.player.goto_tile, 2925, 3558, 0)
+        pass_door("unferthIn", "poshdoor", "poshdooropen", 2922, 3558, 2923, 3558, 2921, 3558, "inside Unferth's room")
         t.exec("talkToUnferth", t.player.talk_to, "twocats_unferth", 1)
         t.exec("talkToUnferth-dialog", t.chat.play, {
             "npc:Hello, I see you have a cat.",
@@ -286,10 +669,12 @@ return {
         })
         t.expect("quest.stage.accepted", t.quest.expect_stage("accepted"))
 
-        -- talkToHild (first visit, 5->10): death_woman_indoors1, 2930,3566.
-        -- Always ends "I don't have the death runes" and writes 10, whether
-        -- or not the runes are already carried (twocats.rs2:198-202).
-        t.exec("goto-hild", t.player.goto_tile, 2930, 3566, 0)
+        -- talkToHild: out of Unferth's by poshdoor, up the street to Hild's
+        -- door (poordoor 2932,3564) and in. The five death runes are carried
+        -- (setup), so stage 5 -> 10 -> 15 in one conversation: twocats.rs2:198
+        -- writes 10, :199 finds the runes, @twocats_hild_enchant writes 15.
+        pass_door("unferthOut", "poshdoor", "poshdooropen", 2922, 3558, 2921, 3558, 2923, 3558, "the street east of Unferth's")
+        pass_door("hildIn", "poordoor", "poordooropen", 2932, 3564, 2932, 3564, 2932, 3566, "inside Hild's house")
         t.exec("talkToHild", t.player.talk_to, "death_woman_indoors1", 1)
         t.exec("talkToHild-dialog", t.chat.play, {
             "npc:Greetings Adventurer, why have you come to me in",
@@ -308,25 +693,6 @@ return {
             "player:Ah... good! He could be anywhere though!",
             "npc:I see you have an Amulet of Catspeak. If you ope",
             "npc:then I will be able to perform the enchantment f",
-            "player:I don't have the death runes.",
-            "npc:Come back to me when you have them.",
-        })
-        t.expect("quest.stage.hild_asked", t.quest.expect_stage("hild_asked"))
-
-        -- The death runes -- a brought-along Quest Helper item (deathRune5)
-        -- -- staged NOW, after the first visit has already run the
-        -- runes-not-held branch for real (see the setup-list note above).
-        local deathrune_result = t.cheat("::give deathrune 5")
-        t.check("deathrune.given", deathrune_result == "ok", "::give deathrune 5 -> " .. tostring(deathrune_result))
-        t.ticks(3)
-
-        -- talkToHild (second visit, 10->15): the atomic exchange. This is
-        -- the SAME guide step (steps.put(5,talkToHild); steps.put(10,
-        -- talkToHild)), driven a second time to reach the real enchant
-        -- branch.
-        t.exec("talkToHild-enchant", t.player.talk_to, "death_woman_indoors1", 1)
-        t.exec("talkToHild-enchant-dialog", t.chat.play, {
-            "npc:Greetings Adventurer, do you have the death rune",
             "player:I have the death runes with me now.",
             "npc:Good. Give me the amulet so that I may perform t",
             "*",
@@ -340,141 +706,19 @@ return {
         t.expect("hild.amulet_e", t.inv.expect_has("twocats_amuletofcatspeak", 1))
         t.expect("hild.runes_taken", t.inv.expect_absent("deathrune"))
 
-        -- findBob: the catspeak amulet (e)'s Open op (unworn -- still in the
-        -- backpack, [opheld3,twocats_amuletofcatspeak]) turned FOR REAL: press
-        -- the right whisker until %twocats_locator_found reads 1 -- checked
-        -- BEFORE any extra turn (the rejected file's bug) -- read
-        -- %twocats_locator_direction, close the panel, and travel that
-        -- bearing (Bob wanders the whole world now,
-        -- [ai_timer,death_growncat_black]) until he is actually on screen.
-        -- Method proved end to end by
-        -- build/parity_state/parity1p/scripts/twocats_locate.lua (157/157) --
-        -- never ::twocats_gotobob, which the b25 sampler rejected as handing
-        -- the guide's locate leg to a debugproc.
-        local findBob_in_view = false
-        for hop = 1, 40 do
-            t.exec("findBob.open." .. hop, t.player.inv_op, "twocats_amuletofcatspeak", 3)
-            local findBob_mounted = t.ui.await_open("bob_locator_amulet", 10)
-            t.check("findBob.mounted." .. hop, findBob_mounted == "ok",
-                "await_open(bob_locator_amulet) -> " .. tostring(findBob_mounted))
-            local _, findBob_r_widget = t.ui.widget("bob_locator_amulet:bob_locator_r_whisker")
-            local findBob_found, findBob_turns = 0, 0
-            for i = 1, 17 do
-                t.ticks(2)
-                local fr, fv = t.var.server("varp7166_twocats_locator_found")
-                if fr == "ok" and fv == 1 then
-                    findBob_found = 1
-                    break
-                end
-                if findBob_r_widget then
-                    t.ui.invoke(findBob_r_widget, 1)
-                end
-                findBob_turns = findBob_turns + 1
-            end
-            local _, findBob_dir = t.var.server("varb1034_twocats_locator_direction")
-            local _, findBob_here = t.world.tile()
-            t.check("findBob.dial_lit." .. hop, findBob_found == 1,
-                "turned the right whisker " .. findBob_turns .. " time(s); found="
-                    .. findBob_found .. " direction=" .. tostring(findBob_dir) .. " from "
-                    .. tostring(findBob_here and findBob_here.x) .. ","
-                    .. tostring(findBob_here and findBob_here.z))
-            local findBob_near = false
-            if findBob_found == 1 and findBob_r_widget then
-                t.ui.invoke(findBob_r_widget, 1)
-                t.ticks(2)
-                local nr, nv = t.var.server("varp7166_twocats_locator_found")
-                findBob_near = (nr == "ok" and nv == 1)
-            end
-            t.key("escape")
-            local findBob_closed = t.ui.await_close("bob_locator_amulet", 10)
-            t.check("findBob.closed." .. hop, findBob_closed == "ok",
-                "await_close(bob_locator_amulet) -> " .. tostring(findBob_closed))
-            if findBob_found ~= 1 or findBob_dir == nil or findBob_dir < 1 or findBob_dir > 8 then
-                break
-            end
-            -- Stop the search only once he is genuinely adjacent (radius 3,
-            -- not 8) -- talk_to's own click has to route there and land
-            -- inside a handful of ticks, and Bob keeps moving the whole
-            -- time; the content's own all-direction "near" reading is the
-            -- same close-range signal, so either one ends the search.
-            if findBob_near then
-                t.note("findBob: Bob in view after " .. (hop - 1) .. " hop(s), all-direction near from "
-                    .. tostring(findBob_here.x) .. "," .. tostring(findBob_here.z))
-                findBob_in_view = true
-                break
-            end
-            local findBob_vr, findBob_vrow = t.npc.nearest("death_growncat_black", 3)
-            if findBob_vr == "ok" then
-                t.note("findBob: Bob in view after " .. (hop - 1) .. " hop(s) at "
-                    .. tostring(findBob_vrow.x) .. "," .. tostring(findBob_vrow.z)
-                    .. ", dial direction " .. tostring(findBob_dir))
-                findBob_in_view = true
-                break
-            end
-            local findBob_dx, findBob_dz = 0, 1
-            if findBob_dir == 2 then findBob_dx, findBob_dz = 1, 1
-            elseif findBob_dir == 3 then findBob_dx, findBob_dz = 1, 0
-            elseif findBob_dir == 4 then findBob_dx, findBob_dz = 1, -1
-            elseif findBob_dir == 5 then findBob_dx, findBob_dz = 0, -1
-            elseif findBob_dir == 6 then findBob_dx, findBob_dz = -1, -1
-            elseif findBob_dir == 7 then findBob_dx, findBob_dz = -1, 0
-            elseif findBob_dir == 8 then findBob_dx, findBob_dz = -1, 1
-            end
-            local findBob_sr = t.npc.nearest("death_growncat_black", 40)
-            if findBob_sr == "ok" then
-                local findBob_wr = t.player.walk_to(findBob_here.x + findBob_dx * 6, findBob_here.z + findBob_dz * 6)
-                t.check("findBob.walk." .. hop, findBob_wr == "ok" or findBob_wr == "timeout",
-                    "walk_to -> " .. tostring(findBob_wr))
-                if findBob_wr ~= "ok" then
-                    t.exec("findBob.hop." .. hop, t.player.goto_tile,
-                        findBob_here.x + findBob_dx * 5, findBob_here.z + findBob_dz * 5, 0)
-                end
-            else
-                t.exec("findBob.travel." .. hop, t.player.goto_tile,
-                    findBob_here.x + findBob_dx * 40, findBob_here.z + findBob_dz * 40, 0)
-            end
-        end
-        t.check("findBob", findBob_in_view, "Bob in view: " .. tostring(findBob_in_view))
+        -- Out of Hild's house on foot before the search begins.
+        pass_door("hildOut", "poordoor", "poordooropen", 2932, 3564, 2932, 3565, 2932, 3563, "the street south of Hild's")
+
+        -- findBob: the amulet (e) is still unworn in the backpack -> Open.
+        locate_bob("findBob", false)
 
         -- Wear the enchanted amulet: every talk from here needs it WORN
         -- (~twocats_catspeak), and worn also switches the locator's own verb
         -- from inv_op (Open) to the worn-tab "Locate" used by the later legs.
         t.exec("amulet_e.equip", t.player.equip, "twocats_amuletofcatspeak")
 
-        -- talkToBob: talk_to's own click already routes to wherever Bob
-        -- currently is, so try it directly first -- a large pre-walk to a
-        -- coordinate read a moment earlier just gives him longer to wander
-        -- off it before the click lands (measured: worse, not better). Bob
-        -- wanders, so a press landing on a tile he has just left
-        -- ("map_flag: no dialogue") is retried after a SMALL step toward
-        -- wherever the pool now says he is, a fresh read every attempt; a
-        -- miss on any one read never aborts the retry (he is still nearby,
-        -- just momentarily outside this call's own radius).
-        local talkToBob_result, talkToBob_detail
-        for attempt = 1, 12 do
-            talkToBob_result, talkToBob_detail = t.player.talk_to("death_growncat_black", 1)
-            if talkToBob_result == "ok" and not tostring(talkToBob_detail):find("no dialogue") then
-                break
-            end
-            local tb_vr, tb_vrow = t.npc.nearest("death_growncat_black", 40)
-            if tb_vr == "ok" then
-                local tb_wr = t.player.walk_to(tb_vrow.x + 1, tb_vrow.z, 6)
-                -- Bob can be "in view" through a wall -- the search stops
-                -- at radius 3, which reaches through the side of Hild's
-                -- house -- and then no walk routes to him ("I can't reach
-                -- that!"). Travel beside him the way the search's own hops
-                -- do: plain travel, no gate the guide names in between.
-                -- (seam28: Bob's walk is his own stream now, and on it he
-                -- stands outside that wall.)
-                if tb_wr ~= "ok" and tostring(talkToBob_detail):find("reach") then
-                    t.exec("talkToBob.hop." .. attempt, t.player.goto_tile,
-                        tb_vrow.x + 1, tb_vrow.z, tb_vrow.level or 0)
-                end
-            end
-        end
-        t.check("talkToBob", talkToBob_result == "ok"
-            and not tostring(talkToBob_detail):find("no dialogue"),
-            tostring(talkToBob_result) .. " " .. tostring(talkToBob_detail))
+        -- talkToBob
+        talk_to_bob("talkToBob")
         t.exec("talkToBob-dialog", t.chat.play, {
             "player:Bob! I've found you at last!",
             "npc:Hi Bob!",
@@ -504,8 +748,19 @@ return {
         })
         t.expect("quest.stage.bob_found", t.quest.expect_stage("bob_found"))
 
-        -- talkToGertrude: west of Varrock, BASE symbol "gertrude" (trap 19).
-        t.exec("goto-gertrude", t.player.goto_tile, 3151, 3410, 0)
+        -- talkToGertrude: west of Varrock, BASE symbol "gertrude" (trap 19), in
+        -- her house behind fai_varrock_door 3151,3412. The goto leaves from a
+        -- checked street waypoint beside wherever Bob was talked to (the
+        -- Taverley side: Bob is a Burthorpe cat and an npc cannot work the
+        -- members' gate), out through the gate, then travel to her doorstep
+        -- (reach.py 2936,3450 -> 3151,3414 REACH len=267).
+        depart_open("depart.gertrude")
+        local _, gertrude_from = t.world.tile()
+        if type(gertrude_from) ~= "table" or inside_taverley(gertrude_from.x, gertrude_from.z) then
+            taverley_gate("gertrude", "out")
+        end
+        t.exec("goto-gertrude", t.player.goto_tile, 3151, 3414, 0)
+        pass_door("gertrudeIn", "fai_varrock_door", "fai_varrock_door_open", 3151, 3412, 3151, 3413, 3151, 3411, "inside Gertrude's house")
         t.exec("talkToGertrude", t.player.talk_to, "gertrude", 1)
         t.exec("talkToGertrude-dialog", t.chat.play, {
             "choose:Ask about Bob's parents.",
@@ -537,12 +792,18 @@ return {
             "npc:I'll explain later!",
         })
         t.expect("quest.stage.gertrude_done", t.quest.expect_stage("gertrude_done"))
+        pass_door("gertrudeOut", "fai_varrock_door", "fai_varrock_door_open", 3151, 3412, 3151, 3411, 3151, 3413, "the street south of Gertrude's")
 
         -- talkToReldo: Varrock Castle library (3209,3495). A deliberate
         -- negative check first -- unworn amulet -- content's own "meow"
         -- refusal and the stage staying 25 (twocats.rs2:775-778) -- then
         -- re-equip and drive the real exchange (writes 30).
-        t.exec("goto-reldo", t.player.goto_tile, 3209, 3495, 0)
+        -- From Gertrude's doorstep (checked above) to the street south of the
+        -- castle's open arch, then the three castle doors on foot.
+        t.exec("goto-reldo", t.player.goto_tile, 3212, 3466, 0)
+        pass_door("castleIn1", "fai_varrock_castle_door", "fai_varrock_castle_door_open", 3215, 3477, 3215, 3476, 3215, 3478, "the castle's east hall")
+        pass_door("castleIn2", "fai_varrock_castle_door", "fai_varrock_castle_door_open", 3214, 3486, 3214, 3486, 3214, 3487, "the corridor south of the library")
+        pass_door("castleIn3", "fai_varrock_castle_door", "fai_varrock_castle_door_open", 3210, 3490, 3210, 3489, 3210, 3491, "inside the library")
         t.exec("amulet_e.unequip", t.player.unequip, "twocats_amuletofcatspeak")
         t.exec("reldo.unworn", t.player.talk_to, "reldo", 1)
         t.exec("reldo.unworn-dialog", t.chat.play, {
@@ -594,131 +855,19 @@ return {
         t.expect("quest.stage.reldo_done", t.quest.expect_stage("reldo_done"))
         t.expect("reldo.withbook", t.var.await_server("varb1036_twocats_reldo", 1, 3))
 
-        -- findBobAgain: the WORN "Locate" verb (equipment tab -> wornitems
-        -- slot2 op 2, [inv_button2,wornitems:slot2]), the amulet already worn
-        -- from the Reldo re-equip above. Same real turn-and-travel loop as
-        -- findBob, worn this time.
-        t.exec("goto-findBobAgain", t.player.goto_tile, 3209, 3495, 0)
-        local findBobAgain_in_view = false
-        for hop = 1, 40 do
-            local findBobAgain_tab_result = t.ui.tab("equipment")
-            t.check("findBobAgain.tab." .. hop, findBobAgain_tab_result == "ok",
-                "ui.tab(equipment) -> " .. tostring(findBobAgain_tab_result))
-            t.ticks(2)
-            local _, findBobAgain_worn_slot = t.ui.widget("wornitems:slot2")
-            t.check("findBobAgain.worn_slot." .. hop, findBobAgain_worn_slot ~= nil,
-                "wornitems:slot2 component=" .. tostring(findBobAgain_worn_slot))
-            if findBobAgain_worn_slot then
-                t.ui.invoke(findBobAgain_worn_slot, 2)
-            end
-            local findBobAgain_mounted = t.ui.await_open("bob_locator_amulet", 10)
-            t.check("findBobAgain.mounted." .. hop, findBobAgain_mounted == "ok",
-                "await_open(bob_locator_amulet) -> " .. tostring(findBobAgain_mounted))
-            local _, findBobAgain_r_widget = t.ui.widget("bob_locator_amulet:bob_locator_r_whisker")
-            local findBobAgain_found, findBobAgain_turns = 0, 0
-            for i = 1, 17 do
-                t.ticks(2)
-                local fr, fv = t.var.server("varp7166_twocats_locator_found")
-                if fr == "ok" and fv == 1 then
-                    findBobAgain_found = 1
-                    break
-                end
-                if findBobAgain_r_widget then
-                    t.ui.invoke(findBobAgain_r_widget, 1)
-                end
-                findBobAgain_turns = findBobAgain_turns + 1
-            end
-            local _, findBobAgain_dir = t.var.server("varb1034_twocats_locator_direction")
-            local _, findBobAgain_here = t.world.tile()
-            t.check("findBobAgain.dial_lit." .. hop, findBobAgain_found == 1,
-                "turned the right whisker " .. findBobAgain_turns .. " time(s); found="
-                    .. findBobAgain_found .. " direction=" .. tostring(findBobAgain_dir) .. " from "
-                    .. tostring(findBobAgain_here and findBobAgain_here.x) .. ","
-                    .. tostring(findBobAgain_here and findBobAgain_here.z))
-            local findBobAgain_near = false
-            if findBobAgain_found == 1 and findBobAgain_r_widget then
-                t.ui.invoke(findBobAgain_r_widget, 1)
-                t.ticks(2)
-                local nr, nv = t.var.server("varp7166_twocats_locator_found")
-                findBobAgain_near = (nr == "ok" and nv == 1)
-            end
-            t.key("escape")
-            local findBobAgain_closed = t.ui.await_close("bob_locator_amulet", 10)
-            t.check("findBobAgain.closed." .. hop, findBobAgain_closed == "ok",
-                "await_close(bob_locator_amulet) -> " .. tostring(findBobAgain_closed))
-            if findBobAgain_found ~= 1 or findBobAgain_dir == nil or findBobAgain_dir < 1 or findBobAgain_dir > 8 then
-                break
-            end
-            -- Stop only once genuinely adjacent (radius 3, not 8) or the
-            -- content's own all-direction "near" reading fires -- see
-            -- findBob's note above.
-            if findBobAgain_near then
-                t.note("findBobAgain: Bob in view after " .. (hop - 1) .. " hop(s), all-direction near from "
-                    .. tostring(findBobAgain_here.x) .. "," .. tostring(findBobAgain_here.z))
-                findBobAgain_in_view = true
-                break
-            end
-            local findBobAgain_vr, findBobAgain_vrow = t.npc.nearest("death_growncat_black", 3)
-            if findBobAgain_vr == "ok" then
-                t.note("findBobAgain: Bob in view after " .. (hop - 1) .. " hop(s) at "
-                    .. tostring(findBobAgain_vrow.x) .. "," .. tostring(findBobAgain_vrow.z)
-                    .. ", dial direction " .. tostring(findBobAgain_dir))
-                findBobAgain_in_view = true
-                break
-            end
-            local findBobAgain_dx, findBobAgain_dz = 0, 1
-            if findBobAgain_dir == 2 then findBobAgain_dx, findBobAgain_dz = 1, 1
-            elseif findBobAgain_dir == 3 then findBobAgain_dx, findBobAgain_dz = 1, 0
-            elseif findBobAgain_dir == 4 then findBobAgain_dx, findBobAgain_dz = 1, -1
-            elseif findBobAgain_dir == 5 then findBobAgain_dx, findBobAgain_dz = 0, -1
-            elseif findBobAgain_dir == 6 then findBobAgain_dx, findBobAgain_dz = -1, -1
-            elseif findBobAgain_dir == 7 then findBobAgain_dx, findBobAgain_dz = -1, 0
-            elseif findBobAgain_dir == 8 then findBobAgain_dx, findBobAgain_dz = -1, 1
-            end
-            local findBobAgain_sr = t.npc.nearest("death_growncat_black", 40)
-            if findBobAgain_sr == "ok" then
-                local findBobAgain_wr = t.player.walk_to(findBobAgain_here.x + findBobAgain_dx * 6, findBobAgain_here.z + findBobAgain_dz * 6)
-                t.check("findBobAgain.walk." .. hop, findBobAgain_wr == "ok" or findBobAgain_wr == "timeout",
-                    "walk_to -> " .. tostring(findBobAgain_wr))
-                if findBobAgain_wr ~= "ok" then
-                    t.exec("findBobAgain.hop." .. hop, t.player.goto_tile,
-                        findBobAgain_here.x + findBobAgain_dx * 5, findBobAgain_here.z + findBobAgain_dz * 5, 0)
-                end
-            else
-                t.exec("findBobAgain.travel." .. hop, t.player.goto_tile,
-                    findBobAgain_here.x + findBobAgain_dx * 40, findBobAgain_here.z + findBobAgain_dz * 40, 0)
-            end
-        end
-        t.check("findBobAgain", findBobAgain_in_view, "Bob in view: " .. tostring(findBobAgain_in_view))
+        -- Out of the castle the way in, door by door, to the street.
+        pass_door("castleOut3", "fai_varrock_castle_door", "fai_varrock_castle_door_open", 3210, 3490, 3210, 3491, 3210, 3489, "the corridor south of the library")
+        pass_door("castleOut2", "fai_varrock_castle_door", "fai_varrock_castle_door_open", 3214, 3486, 3214, 3487, 3214, 3486, "the castle's east hall")
+        pass_door("castleOut1", "fai_varrock_castle_door", "fai_varrock_castle_door_open", 3215, 3477, 3215, 3478, 3215, 3476, "the entrance hall")
+        walk_check("castleOut.street", 3212, 3466, "the street south of the castle arch")
 
-        -- talkToBobAgain: same shape as talkToBob -- talk_to directly first
-        -- (its own click routes to his current tile), a SMALL corrective
-        -- step on a miss, re-reading his position every attempt.
-        local talkToBobAgain_result, talkToBobAgain_detail
-        for attempt = 1, 12 do
-            talkToBobAgain_result, talkToBobAgain_detail = t.player.talk_to("death_growncat_black", 1)
-            if talkToBobAgain_result == "ok" and not tostring(talkToBobAgain_detail):find("no dialogue") then
-                break
-            end
-            local tba_vr, tba_vrow = t.npc.nearest("death_growncat_black", 40)
-            if tba_vr == "ok" then
-                local tba_wr = t.player.walk_to(tba_vrow.x + 1, tba_vrow.z, 6)
-                -- Bob can be "in view" through a wall -- the search stops
-                -- at radius 3, which reaches through the side of Hild's
-                -- house -- and then no walk routes to him ("I can't reach
-                -- that!"). Travel beside him the way the search's own hops
-                -- do: plain travel, no gate the guide names in between.
-                -- (seam28: Bob's walk is his own stream now, and on it he
-                -- stands outside that wall.)
-                if tba_wr ~= "ok" and tostring(talkToBobAgain_detail):find("reach") then
-                    t.exec("talkToBobAgain.hop." .. attempt, t.player.goto_tile,
-                        tba_vrow.x + 1, tba_vrow.z, tba_vrow.level or 0)
-                end
-            end
-        end
-        t.check("talkToBobAgain", talkToBobAgain_result == "ok"
-            and not tostring(talkToBobAgain_detail):find("no dialogue"),
-            tostring(talkToBobAgain_result) .. " " .. tostring(talkToBobAgain_detail))
+        -- findBobAgain: the WORN "Locate" verb (equipment tab -> wornitems
+        -- slot2 op 2, [inv_button2,wornitems:slot2]), the amulet worn since
+        -- the Reldo re-equip above.
+        locate_bob("findBobAgain", true)
+
+        -- talkToBobAgain
+        talk_to_bob("talkToBobAgain")
         t.exec("talkToBobAgain-dialog", t.chat.play, {
             "player:Hi Bob!",
             "npc:Did you find out who my parents are?",
@@ -747,7 +896,60 @@ return {
         -- talkToSphinx: Sophanem (3300,2784). The verbatim hypnosis-and-
         -- reveal cutscene, ending in the Burthorpe teleport offer and the
         -- chores objbox.
-        t.exec("goto-sphinx", t.player.goto_tile, 3300, 2784, 0)
+        -- The trip: out of Taverley by its members' gate (Bob was found on its
+        -- side), travel to the Shantay Pass (reach.py 2936,3450 -> 3304,3123
+        -- REACH len=717), a pass bought from Shantay, the pass's doorway --
+        -- the desert's only way in on foot (comp.py from 3304,3123 at margin
+        -- 80: the Al Kharid side, 5,113 tiles, never reaches the desert; from
+        -- 3304,3110 the desert joins 3284,2812) -- then travel south (reach.py
+        -- 3304,3115 -> 3284,2812 REACH len=443). Desert heat: the doorway
+        -- starts a 150-tick timer (desert_heat.rs2) that only bites inside
+        -- desert_zones (mapsquares z 46-48); Sophanem (z 43-44) is outside
+        -- them, so the timer clears itself on its first fire.
+        -- Sophanem is walled: the goto lands on the desert outside its north
+        -- gate and the gate is opened on foot.
+        depart_open("depart.sphinx")
+        local _, sphinx_from = t.world.tile()
+        if type(sphinx_from) ~= "table" or inside_taverley(sphinx_from.x, sphinx_from.z) then
+            taverley_gate("sphinx", "out")
+        end
+        t.exec("goto-shantay", t.player.goto_tile, 3304, 3123, 0)
+        local _, coins_before_pass = t.inv.count("coins")
+        t.exec("buyShantayPass", t.player.talk_to, "shantay", 1)
+        t.exec("buyShantayPass-dialog", t.chat.play, {
+            "npc:Hello effendi, I am Shantay.",
+            "npc:I see you're new.",
+            "choose:I want to buy a shantay pass for 5 gold coins.",
+            "player:I want to buy a shantay pass for",
+            "mesbox:You purchase a Shantay Pass.",
+        })
+        local pass_await_r, pass_await_d = t.inv.await("shantay_pass", 1, 5)
+        local _, coins_after_pass = t.inv.count("coins")
+        t.check("buyShantayPass.paid", pass_await_r == "ok" and type(coins_before_pass) == "number"
+                and type(coins_after_pass) == "number" and coins_before_pass - coins_after_pass == 5,
+            "shantay_pass " .. tostring(pass_await_r) .. " " .. tostring(pass_await_d) .. "; coins "
+                .. tostring(coins_before_pass) .. " -> " .. tostring(coins_after_pass) .. " (want -5, shantay.rs2)")
+        -- shantay_pass.rs2 [oploc1,shantay_pass_henge_doorway] from the north:
+        -- the poster pages (no disclaimer carried yet), the pass handed over,
+        -- the disclaimer, then [queue,shantay_pass_enter] p_teleport to
+        -- 3304,3118 and p_telejump 3 south.
+        t.exec("shantayDoorway", t.player.cross_gate, { loc = "shantay_pass_henge_doorway", at = { 3302, 3116, 0 },
+            near = { 3304, 3118 }, far_ok = function(tile) return tile.z <= 3115 end,
+            far_desc = "south of the Shantay Pass doorway, z <= 3115",
+            chat = {
+                "mesbox:There is a large poster on the wall",
+                "mesbox:The Desert is a VERY Dangerous place",
+                "mesbox:That seems pretty scary!",
+                "choose:Yeah, that poster doesn't scare me!",
+                "npc:Can I see your Shantay Desert Pass",
+                "mesbox:You hand over a Shantay Pass.",
+                "player:Sure, here you go!",
+                "npc:Here, have a disclaimer",
+            } })
+        t.expect("shantayDoorway.passHandedOver", t.inv.expect_absent("shantay_pass"))
+        t.exec("goto-sphinx", t.player.goto_tile, 3284, 2812, 0)
+        pass_door("sophanemGate", "sophanem_gate_right", "sophanem_gate_right", 3284, 2809, 3284, 2810, 3284, 2808, "inside Sophanem's north gate")
+        walk_check("sphinx.approach", 3299, 2786, "the square before the Sphinx")
         t.exec("talkToSphinx", t.player.talk_to, "ics_little_sphinx", 1)
         t.exec("talkToSphinx-dialog", t.chat.play, {
             "choose:Ask the Sphinx for help for Bob.",
@@ -836,6 +1038,18 @@ return {
         })
         t.expect("quest.stage.chores_ready", t.quest.expect_stage("chores_ready"))
         t.expect("chores.list_given", t.inv.expect_has("twocats_chores", 1))
+        -- "Yes, teleport me to Unferth's house." is the content's own
+        -- p_telejump(0_45_55_38_38) (twocats.rs2:974): 2918,3558, inside his room.
+        t.await({
+            level = function()
+                local r, tt = t.world.tile()
+                return at_tile(r, tt, 2918, 3558)
+            end,
+            note = "Sphinx teleport landing",
+        }, 10)
+        local sphinx_tr, sphinx_tt = t.world.tile()
+        t.check("talkToSphinx.teleported", at_tile(sphinx_tr, sphinx_tt, 2918, 3558),
+            "Sphinx's Burthorpe teleport (twocats.rs2:974 p_telejump 0_45_55_38_38) -> " .. tile_text(sphinx_tr, sphinx_tt))
 
         -- The findBobAgain leg left the sidebar on the equipment tab (trap
         -- 294: a use_on issued from another tab refuses on the ARM, printing
@@ -847,24 +1061,24 @@ return {
             "ui.tab(inventory) -> " .. tostring(chores_tab_result))
         t.ticks(2)
 
-        -- useRake / plantSeeds: Unferth's patch, north of the house through
-        -- its own north door (poordoor).
-        t.exec("goto-door", t.player.goto_tile, 2920, 3560, 0)
-        t.exec("door.open", t.player.click_loc, "poordoor", 1)
+        -- useRake / plantSeeds: Unferth's patch, in the garden north of his
+        -- room, which the fence closes off from the street: out through the
+        -- room's own north door (poordoor 2920,3561) and back in after.
+        pass_door("patchOut", "poordoor", "poordooropen", 2920, 3561, 2920, 3561, 2920, 3562, "the patch garden")
         local patch = t.player.by_symbol("loc", "twocats_patch")
-        t.check("patch.found", patch ~= nil, "twocats_patch resolved: " .. tostring(patch and patch.id))
         local useRake_result, useRake_detail = t.player.use_on("rake", patch)
-        t.expect("useRake", t.var.await_server("varb1033_twocats_chores_tidygarden", 3, 120))
-        t.check("useRake.press", useRake_result ~= nil,
-            "use_on -> " .. tostring(useRake_result) .. " " .. tostring(useRake_detail)
-                .. "; tidygarden read back above")
+        local rake_r, rake_d = t.var.await_server("varb1033_twocats_chores_tidygarden", 3, 120)
+        t.check("useRake", rake_r == "ok",
+            "use_on(rake, twocats_patch) -> " .. tostring(useRake_result) .. " " .. tostring(useRake_detail)
+                .. "; tidygarden -> 3: " .. tostring(rake_r) .. " " .. tostring(rake_d))
         t.expect("chore.weeds_collected", t.inv.await("weeds", 3, 10))
+        t.expect("chore.rake_kept", t.inv.expect_has("rake", 1))
         t.exec("plantSeeds", t.player.use_on, "potato_seed", patch)
         t.expect("quest.stage.tidygarden_planted", t.var.await_server("varb1033_twocats_chores_tidygarden", 4, 10))
         t.expect("chore.seeds_used", t.inv.expect_absent("potato_seed"))
+        pass_door("patchIn", "poordoor", "poordooropen", 2920, 3561, 2920, 3562, 2920, 3561, "inside Unferth's room")
 
         -- makeBed
-        t.exec("goto-house", t.player.goto_tile, 2918, 3558, 0)
         t.exec("makeBed", t.player.click_loc, "twocats_bed", 1)
         t.expect("quest.stage.bed_made", t.var.await_server("varb1029_twocats_chores_tidyhouse", 1, 10))
 
@@ -872,39 +1086,41 @@ return {
         -- anim + p_delay, no chat line -- use_on's own settle times out on
         -- success, so it is graded on the varbit read back, not the click).
         local fireplace = t.player.by_symbol("loc", "twocats_fireplace")
-        t.check("fireplace.found", fireplace ~= nil, "twocats_fireplace resolved: " .. tostring(fireplace and fireplace.id))
         t.exec("useLogsOnFireplace", t.player.use_on, "logs", fireplace)
         t.expect("quest.stage.logs_placed", t.var.await_server("varb1030_twocats_chores_warmhuman", 1, 10))
+        t.expect("chore.logs_used", t.inv.expect_absent("logs"))
         local lightLogs_result, lightLogs_detail = t.player.use_on("tinderbox", fireplace)
-        t.expect("lightLogs", t.var.await_server("varb1030_twocats_chores_warmhuman", 2, 10))
-        t.check("lightLogs.press", lightLogs_result ~= nil,
-            "use_on -> " .. tostring(lightLogs_result) .. " " .. tostring(lightLogs_detail)
-                .. "; warmhuman read back above (silent trigger, twocats.rs2:1161-1174)")
+        local light_r, light_d = t.var.await_server("varb1030_twocats_chores_warmhuman", 2, 10)
+        t.check("lightLogs", light_r == "ok",
+            "use_on(tinderbox, twocats_fireplace) -> " .. tostring(lightLogs_result) .. " " .. tostring(lightLogs_detail)
+                .. "; warmhuman -> 2: " .. tostring(light_r) .. " " .. tostring(light_d)
+                .. " (silent trigger, twocats.rs2:1161-1174)")
 
         -- useChocolateCakeOnTable / useMilkOnTable
         local table_loc = t.player.by_symbol("loc", "twocats_table")
-        t.check("table.found", table_loc ~= nil, "twocats_table resolved: " .. tostring(table_loc and table_loc.id))
         t.exec("useChocolateCakeOnTable", t.player.use_on, "chocolate_cake", table_loc)
         t.expect("quest.stage.cake_placed", t.var.await_server("varb1031_twocats_chores_feedhuman", 3, 10))
+        t.expect("chore.cake_used", t.inv.expect_absent("chocolate_cake"))
         t.exec("useMilkOnTable", t.player.use_on, "bucket_milk", table_loc)
         t.expect("quest.stage.milk_placed", t.var.await_server("varb1031_twocats_chores_feedhuman", 4, 10))
+        t.expect("chore.milk_used", t.inv.expect_absent("bucket_milk"))
         t.expect("chore.bucket_returned_empty", t.inv.expect_has("bucket_empty", 1))
 
         -- useShearsOnUnferth (same silent-trigger shape as lightLogs)
         local unferth = t.player.by_symbol("npc", "twocats_unferth")
-        t.check("unferth.found", unferth ~= nil, "twocats_unferth resolved: " .. tostring(unferth and unferth.id))
         local useShears_result, useShears_detail = t.player.use_on("shears", unferth)
-        t.expect("useShearsOnUnferth", t.var.await_server("varb1032_twocats_chores_tidyhuman", 8, 250))
-        t.check("useShearsOnUnferth.press", useShears_result ~= nil,
-            "use_on -> " .. tostring(useShears_result) .. " " .. tostring(useShears_detail)
-                .. "; tidyhuman read back above")
+        local shears_r, shears_d = t.var.await_server("varb1032_twocats_chores_tidyhuman", 8, 250)
+        t.check("useShearsOnUnferth", shears_r == "ok",
+            "use_on(shears, twocats_unferth) -> " .. tostring(useShears_result) .. " " .. tostring(useShears_detail)
+                .. "; tidyhuman -> 8: " .. tostring(shears_r) .. " " .. tostring(shears_d))
 
         -- The potatoes grow: sanctioned GRIND fast-forward
-        -- (docs/QUEST_SERVER_CHEATS.md:120), read back below by the varbit
-        -- reaching 8 and then by the cat's own 40->45 announcement.
+        -- (docs/QUEST_SERVER_CHEATS.md:120), graded on the varbit reaching 8
+        -- and then on the cat's own 40->45 announcement.
         local grow_result = t.cheat("::twocats_growpotatoes")
-        t.check("garden.grow_cheat", grow_result == "ok", "::twocats_growpotatoes -> " .. tostring(grow_result))
-        t.expect("garden.grown", t.var.await_server("varb1033_twocats_chores_tidygarden", 8, 10))
+        local grown_r, grown_d = t.var.await_server("varb1033_twocats_chores_tidygarden", 8, 10)
+        t.check("garden.grown", grown_r == "ok",
+            "::twocats_growpotatoes -> " .. tostring(grow_result) .. "; tidygarden -> 8: " .. tostring(grown_r) .. " " .. tostring(grown_d))
         t.exec("chores.finished-dialog", t.chat.play, {
             "npc:Well done, that's all the chores finished!",
             "npc:Let's talk to Unferth to see if there's anything",
@@ -912,7 +1128,7 @@ return {
         t.expect("quest.stage.chores_done", t.quest.expect_stage("chores_done"))
 
         -- reportToUnferth
-        t.exec("goto-unferth-report", t.player.goto_tile, 2918, 3558, 0)
+        -- (still in his room since the chores)
         t.exec("reportToUnferth", t.player.talk_to, "twocats_unferth", 1)
         t.exec("reportToUnferth-dialog", t.chat.play, {
             "player:Hi Unferth, is there anything I can do for you?",
@@ -932,9 +1148,16 @@ return {
         })
         t.expect("quest.stage.apothecary_needed", t.quest.expect_stage("apothecary_needed"))
 
-        -- talkToApoth: SW Varrock (3195,3405). A real three-way menu, then
-        -- the Doctor's/Nurse hat choice -- "Nurse hat." here.
-        t.exec("goto-apothecary", t.player.goto_tile, 3195, 3405, 0)
+        -- talkToApoth: SW Varrock, the Apothecary (3195,3404) in his shop. Out
+        -- of Unferth's by poshdoor; the goto lands on the street west of the
+        -- shop and the player walks in through its doorway (the leaf is placed
+        -- open in m49_53.jl2: asserted, not pressed). A real three-way menu,
+        -- then the Doctor's/Nurse hat choice -- "Nurse hat." here.
+        pass_door("unferthOut2", "poshdoor", "poshdooropen", 2922, 3558, 2921, 3558, 2923, 3558, "the street east of Unferth's")
+        taverley_gate("apothecary", "out")
+        local _, hat_before = t.inv.count("twocats_nurses_hat")
+        t.exec("goto-apothecary", t.player.goto_tile, 3190, 3403, 0)
+        pass_door("apothecaryIn", "fai_varrock_door", "fai_varrock_door_open", 3192, 3403, 3191, 3403, 3193, 3403, "inside the Apothecary's shop")
         t.exec("talkToApoth", t.player.talk_to, "apothecary", 1)
         t.exec("talkToApoth-dialog", t.chat.play, {
             "npc:I am the Apothecary. I brew potions. Do you need",
@@ -955,7 +1178,12 @@ return {
             "player:I always wanted to be a Doctor!",
         })
         t.expect("quest.stage.hat_given", t.quest.expect_stage("hat_given"))
-        t.expect("reward.nurses_hat_granted", t.inv.expect_has("twocats_nurses_hat", 1))
+        local hat_r, hat_d = t.inv.await("twocats_nurses_hat", 1, 5)
+        local _, hat_after = t.inv.count("twocats_nurses_hat")
+        t.check("reward.nurses_hat_granted", hat_r == "ok" and hat_before == 0 and hat_after == 1,
+            "twocats_nurses_hat " .. tostring(hat_before) .. " -> " .. tostring(hat_after)
+                .. " (want exactly 0 -> 1, the picked hat; await " .. tostring(hat_r) .. " " .. tostring(hat_d) .. ")")
+        pass_door("apothecaryOut", "fai_varrock_door", "fai_varrock_door_open", 3192, 3403, 3193, 3403, 3190, 3403, "the street west of the shop")
 
         -- talkToUnferthAsDoctor: first, deliberately refused holding a
         -- weapon (~twocats_disguised's own "no weapon/shield" clause), then
@@ -964,7 +1192,9 @@ return {
         t.exec("cure.equip_shirt", t.player.equip, "desert_shirt")
         t.exec("cure.equip_robe", t.player.equip, "desert_robe")
         t.exec("cure.equip_sword", t.player.equip, "bronze_sword")
-        t.exec("goto-unferth-cure", t.player.goto_tile, 2918, 3558, 0)
+        taverley_gate("cure", "in")
+        t.exec("goto-unferth-cure", t.player.goto_tile, 2925, 3558, 0)
+        pass_door("unferthIn2", "poshdoor", "poshdooropen", 2922, 3558, 2923, 3558, 2921, 3558, "inside Unferth's room")
         t.exec("cure.refused", t.player.talk_to, "twocats_unferth", 1)
         t.exec("cure.refused-dialog", t.chat.play, {
             "player:Good day Unferth, I am Doctor ",
@@ -1004,128 +1234,14 @@ return {
         t.expect("quest.stage.cured", t.quest.expect_stage("cured"))
         t.expect("cure.vial_given", t.inv.expect_absent("vial_water"))
 
-        -- findBobToFinish: worn Locate, one final time -- the same real
-        -- turn-and-travel loop.
-        local findBobToFinish_in_view = false
-        for hop = 1, 40 do
-            local findBobToFinish_tab_result = t.ui.tab("equipment")
-            t.check("findBobToFinish.tab." .. hop, findBobToFinish_tab_result == "ok",
-                "ui.tab(equipment) -> " .. tostring(findBobToFinish_tab_result))
-            t.ticks(2)
-            local _, findBobToFinish_worn_slot = t.ui.widget("wornitems:slot2")
-            t.check("findBobToFinish.worn_slot." .. hop, findBobToFinish_worn_slot ~= nil,
-                "wornitems:slot2 component=" .. tostring(findBobToFinish_worn_slot))
-            if findBobToFinish_worn_slot then
-                t.ui.invoke(findBobToFinish_worn_slot, 2)
-            end
-            local findBobToFinish_mounted = t.ui.await_open("bob_locator_amulet", 10)
-            t.check("findBobToFinish.mounted." .. hop, findBobToFinish_mounted == "ok",
-                "await_open(bob_locator_amulet) -> " .. tostring(findBobToFinish_mounted))
-            local _, findBobToFinish_r_widget = t.ui.widget("bob_locator_amulet:bob_locator_r_whisker")
-            local findBobToFinish_found, findBobToFinish_turns = 0, 0
-            for i = 1, 17 do
-                t.ticks(2)
-                local fr, fv = t.var.server("varp7166_twocats_locator_found")
-                if fr == "ok" and fv == 1 then
-                    findBobToFinish_found = 1
-                    break
-                end
-                if findBobToFinish_r_widget then
-                    t.ui.invoke(findBobToFinish_r_widget, 1)
-                end
-                findBobToFinish_turns = findBobToFinish_turns + 1
-            end
-            local _, findBobToFinish_dir = t.var.server("varb1034_twocats_locator_direction")
-            local _, findBobToFinish_here = t.world.tile()
-            t.check("findBobToFinish.dial_lit." .. hop, findBobToFinish_found == 1,
-                "turned the right whisker " .. findBobToFinish_turns .. " time(s); found="
-                    .. findBobToFinish_found .. " direction=" .. tostring(findBobToFinish_dir) .. " from "
-                    .. tostring(findBobToFinish_here and findBobToFinish_here.x) .. ","
-                    .. tostring(findBobToFinish_here and findBobToFinish_here.z))
-            local findBobToFinish_near = false
-            if findBobToFinish_found == 1 and findBobToFinish_r_widget then
-                t.ui.invoke(findBobToFinish_r_widget, 1)
-                t.ticks(2)
-                local nr, nv = t.var.server("varp7166_twocats_locator_found")
-                findBobToFinish_near = (nr == "ok" and nv == 1)
-            end
-            t.key("escape")
-            local findBobToFinish_closed = t.ui.await_close("bob_locator_amulet", 10)
-            t.check("findBobToFinish.closed." .. hop, findBobToFinish_closed == "ok",
-                "await_close(bob_locator_amulet) -> " .. tostring(findBobToFinish_closed))
-            if findBobToFinish_found ~= 1 or findBobToFinish_dir == nil or findBobToFinish_dir < 1 or findBobToFinish_dir > 8 then
-                break
-            end
-            -- Stop only once genuinely adjacent (radius 3, not 8) or the
-            -- content's own all-direction "near" reading fires -- see
-            -- findBob's note above.
-            if findBobToFinish_near then
-                t.note("findBobToFinish: Bob in view after " .. (hop - 1) .. " hop(s), all-direction near from "
-                    .. tostring(findBobToFinish_here.x) .. "," .. tostring(findBobToFinish_here.z))
-                findBobToFinish_in_view = true
-                break
-            end
-            local findBobToFinish_vr, findBobToFinish_vrow = t.npc.nearest("death_growncat_black", 3)
-            if findBobToFinish_vr == "ok" then
-                t.note("findBobToFinish: Bob in view after " .. (hop - 1) .. " hop(s) at "
-                    .. tostring(findBobToFinish_vrow.x) .. "," .. tostring(findBobToFinish_vrow.z)
-                    .. ", dial direction " .. tostring(findBobToFinish_dir))
-                findBobToFinish_in_view = true
-                break
-            end
-            local findBobToFinish_dx, findBobToFinish_dz = 0, 1
-            if findBobToFinish_dir == 2 then findBobToFinish_dx, findBobToFinish_dz = 1, 1
-            elseif findBobToFinish_dir == 3 then findBobToFinish_dx, findBobToFinish_dz = 1, 0
-            elseif findBobToFinish_dir == 4 then findBobToFinish_dx, findBobToFinish_dz = 1, -1
-            elseif findBobToFinish_dir == 5 then findBobToFinish_dx, findBobToFinish_dz = 0, -1
-            elseif findBobToFinish_dir == 6 then findBobToFinish_dx, findBobToFinish_dz = -1, -1
-            elseif findBobToFinish_dir == 7 then findBobToFinish_dx, findBobToFinish_dz = -1, 0
-            elseif findBobToFinish_dir == 8 then findBobToFinish_dx, findBobToFinish_dz = -1, 1
-            end
-            local findBobToFinish_sr = t.npc.nearest("death_growncat_black", 40)
-            if findBobToFinish_sr == "ok" then
-                local findBobToFinish_wr = t.player.walk_to(findBobToFinish_here.x + findBobToFinish_dx * 6, findBobToFinish_here.z + findBobToFinish_dz * 6)
-                t.check("findBobToFinish.walk." .. hop, findBobToFinish_wr == "ok" or findBobToFinish_wr == "timeout",
-                    "walk_to -> " .. tostring(findBobToFinish_wr))
-                if findBobToFinish_wr ~= "ok" then
-                    t.exec("findBobToFinish.hop." .. hop, t.player.goto_tile,
-                        findBobToFinish_here.x + findBobToFinish_dx * 5, findBobToFinish_here.z + findBobToFinish_dz * 5, 0)
-                end
-            else
-                t.exec("findBobToFinish.travel." .. hop, t.player.goto_tile,
-                    findBobToFinish_here.x + findBobToFinish_dx * 40, findBobToFinish_here.z + findBobToFinish_dz * 40, 0)
-            end
-        end
-        t.check("findBobToFinish", findBobToFinish_in_view, "Bob in view: " .. tostring(findBobToFinish_in_view))
+        -- Out of Unferth's room before the last search.
+        pass_door("unferthOut3", "poshdoor", "poshdooropen", 2922, 3558, 2921, 3558, 2923, 3558, "the street east of Unferth's")
 
-        -- talkToBobToFinish: same shape as talkToBob/talkToBobAgain -- talk
-        -- directly first, a small corrective step on a miss. Ends in a
-        -- p_telejump back to Bob's own home tile.
-        local talkToBobToFinish_result, talkToBobToFinish_detail
-        for attempt = 1, 12 do
-            talkToBobToFinish_result, talkToBobToFinish_detail = t.player.talk_to("death_growncat_black", 1)
-            if talkToBobToFinish_result == "ok" and not tostring(talkToBobToFinish_detail):find("no dialogue") then
-                break
-            end
-            local tbf_vr, tbf_vrow = t.npc.nearest("death_growncat_black", 40)
-            if tbf_vr == "ok" then
-                local tbf_wr = t.player.walk_to(tbf_vrow.x + 1, tbf_vrow.z, 6)
-                -- Bob can be "in view" through a wall -- the search stops
-                -- at radius 3, which reaches through the side of Hild's
-                -- house -- and then no walk routes to him ("I can't reach
-                -- that!"). Travel beside him the way the search's own hops
-                -- do: plain travel, no gate the guide names in between.
-                -- (seam28: Bob's walk is his own stream now, and on it he
-                -- stands outside that wall.)
-                if tbf_wr ~= "ok" and tostring(talkToBobToFinish_detail):find("reach") then
-                    t.exec("talkToBobToFinish.hop." .. attempt, t.player.goto_tile,
-                        tbf_vrow.x + 1, tbf_vrow.z, tbf_vrow.level or 0)
-                end
-            end
-        end
-        t.check("talkToBobToFinish", talkToBobToFinish_result == "ok"
-            and not tostring(talkToBobToFinish_detail):find("no dialogue"),
-            tostring(talkToBobToFinish_result) .. " " .. tostring(talkToBobToFinish_detail))
+        -- findBobToFinish: worn Locate, one final time.
+        locate_bob("findBobToFinish", true)
+
+        -- talkToBobToFinish: ends in a p_telejump to Bob's own home tile.
+        talk_to_bob("talkToBobToFinish")
         t.exec("talkToBobToFinish-dialog", t.chat.play, {
             "player:Hi Bob! How's it hang... going?",
             "npc:Wonderful! Neite and I have been all over Gielin",
@@ -1166,7 +1282,8 @@ return {
             "landed " .. tostring(bob3_tile and (bob3_tile.x .. "," .. bob3_tile.z) or bob3_tile_result))
 
         -- talkToUnferthToFinish: 65->70, the present.
-        t.exec("goto-unferth-finish", t.player.goto_tile, 2918, 3558, 0)
+        -- From Bob's home (2924,3565, the street) to poshdoor on foot.
+        pass_door("unferthIn3", "poshdoor", "poshdooropen", 2922, 3558, 2923, 3558, 2921, 3558, "inside Unferth's room")
         t.exec("talkToUnferthToFinish", t.player.talk_to, "twocats_unferth", 1)
         t.exec("talkToUnferthToFinish-dialog", t.chat.play, {
             "player:Hi Unferth!",
@@ -1221,10 +1338,23 @@ return {
         -- hat is NOT granted again here (parity1o dropped the second,
         -- unsourced hat) -- it was already asserted at reward.nurses_hat_granted.
         t.expect("present.have", t.inv.await("twocats_present", 1, 10))
+        local _, lamps_before = t.inv.count("twocats_rewardlamp")
+        local _, toy_before = t.inv.count("twocats_mouse_toy")
         t.exec("present.open", t.player.inv_op, "twocats_present", 1)
         t.exec("present.open-dialog", t.chat.play, { "mesbox:You open the package" })
-        t.expect("reward.lamps", t.inv.expect_has("twocats_rewardlamp", 2))
-        t.expect("reward.mousetoy", t.inv.expect_has("twocats_mouse_toy", 1))
+        -- Literal rewards (wiki / Quest Helper: 2 antique lamps and a mouse
+        -- toy in the present), exact before-to-after deltas.
+        local lamps_r, lamps_d = t.inv.await("twocats_rewardlamp", 2, 5)
+        local _, lamps_after = t.inv.count("twocats_rewardlamp")
+        t.check("reward.lamps", lamps_r == "ok" and type(lamps_before) == "number" and type(lamps_after) == "number"
+                and lamps_after - lamps_before == 2,
+            "twocats_rewardlamp " .. tostring(lamps_before) .. " -> " .. tostring(lamps_after)
+                .. " (want +2; await " .. tostring(lamps_r) .. " " .. tostring(lamps_d) .. ")")
+        local _, toy_after = t.inv.count("twocats_mouse_toy")
+        t.check("reward.mousetoy", type(toy_before) == "number" and type(toy_after) == "number"
+                and toy_after - toy_before == 1,
+            "twocats_mouse_toy " .. tostring(toy_before) .. " -> " .. tostring(toy_after) .. " (want +1)")
+        t.expect("present.consumed", t.inv.expect_absent("twocats_present"))
 
         t.finish(0)
         return

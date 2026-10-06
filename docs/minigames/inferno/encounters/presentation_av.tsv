@@ -1,0 +1,123 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+presentation_av.nibbler_attack_seq	sequence a Jal-Nib plays for its attack	7574	count	[plugin][cache]	D	sources/CODE_CONSTANTS.md:53; sources/cache_seq.txt	-	exact
+presentation_av.nibbler_death_seq	sequence a Jal-Nib plays on death	7576	count	[plugin][cache]	D	sources/CODE_CONSTANTS.md:53; sources/cache_seq.txt	-	exact
+presentation_av.nibbler_ready_walk_seq	readyanim and walkanim of the Jal-Nib record (7573 ready, 7572 walk) (closer: value reordered ready,walk to match the quantity and cache_npc.txt:52-53)	7573,7572	count	[cache]	A	sources/cache_npc.txt:52-53	-	exact
+presentation_av.nibbler_defend_seq	sequence a Jal-Nib plays when hit (7575 chosen by cache name)	?	count	[M20]	E	RIG_ANIMATIONS.md:18	M20	approx
+presentation_av.nibbler_sounds	nibbler attack, hurt and death sounds	?	count	[M19]	E	../../INFERNO_SOUNDS.md:245	M19	approx
+presentation_av.nibbler_seq_lengths	lengths in game ticks of the Jal-Nib attack 7574, defend 7575, death 7576, walk 7572, ready 7573 (cache cycles 60, 25, 60, 27, 48 at 30 per tick, rounded to two decimals)	2,0.83,2,0.9,1.6	ticks	[cache]	A	sources/cache_seq.txt:300; sources/cache_seq.txt:306; sources/cache_seq.txt:314; sources/cache_seq.txt:286; sources/cache_seq.txt:293	-	exact
+presentation_av.pillar_state_locs	rocky support loc by damage state: 100 percent 30284, 75 percent 30285, 50 percent 30286, 25 percent 30287; the three pillars carry multivarbits 5655-5657 (value 0-63, 64-127, 128-191, 192-255)	30284,30285,30286,30287	count	[cache]	A	sources/cache_locs.txt:507; sources/cache_locs.txt:534; sources/cache_vars.txt:61	-	exact
+presentation_av.pillar_visible_collapse_seq	sequence of the rocky support falling (7561 safe_spot_distructible_pillar_collapse, 22 frames); no source says it plays or when	7561	count	[cache]	D	sources/cache_seq.txt:206	-	exact
+presentation_av.pillar_fall_presentation	the visual and sound of a pillar falling	?	count	[M21]	E	AV_INVENTORY.tsv:33	M21	approx
+presentation_av.bat_attack_seq	sequence a Jal-MejRah plays for its attack	7578	count	[blert][cache]	B	sources/blert_api/BAT_ANALYSIS.txt:2; sources/cache_seq.txt:329-333	-	exact
+presentation_av.bat_ready_seq	readyanim of the Jal-MejRah record	7577	count	[cache]	A	sources/cache_npc.txt:74-75; sources/cache_seq.txt:322-327	-	exact
+presentation_av.bat_defend_seq	bat defend sequence (7579 by cache name)	7579	count	[M25]	E	RIG_ANIMATIONS.md:22	M25	approx
+presentation_av.bat_death_seq	bat death sequence (7580 by cache name)	7580	count	[M25]	E	RIG_ANIMATIONS.md:22	M25	approx
+presentation_av.bat_projectile_graphic	projectile graphic of the bat attack	1382	count	[cache]	D	sources/cache_spotanim.txt:125-129; AV_INVENTORY.tsv:116	-	exact
+presentation_av.bat_projectile_shape	bat projectile launch height and flight	?	count	[M27]	E	sources/cache_spotanim.txt:125-129	M27	approx
+presentation_av.bat_sounds	bat attack, hurt, death sounds	?	count	[M26]	E	../../INFERNO_SOUNDS.md:244	M26	approx
+presentation_av.blob_attack_seq_melee	blob crush sequence	7582	count	[blert][cache][plugin]	B	sources/blert_api/BLOB_ANALYSIS.txt:28; sources/blert/plugin/src/main/java/io/blert/challenges/inferno/InfernoNpc.java:39; sources/kotori_inferno/inferno/src/main/java/com/theplug/kotori/inferno/InfernoPlugin.java:177	-	exact
+presentation_av.blob_attack_seq_magic	blob magic sequence (7581 against kotori 7583)	7581	count	[M28]	E	sources/blert/plugin/src/main/java/io/blert/challenges/inferno/InfernoNpc.java:38; sources/kotori_inferno/inferno/src/main/java/com/theplug/kotori/inferno/InfernoPlugin.java:178; sources/cache_seq.txt:349	M28	approx
+presentation_av.blob_attack_seq_ranged	blob ranged sequence	7583	count	[M28]	E	sources/blert/plugin/src/main/java/io/blert/challenges/inferno/InfernoNpc.java:40; sources/kotori_inferno/inferno/src/main/java/com/theplug/kotori/inferno/InfernoPlugin.java:176; sources/cache_seq.txt:363	M28	approx
+presentation_av.blob_death_seq	blob and bloblet death sequence	7584	count	[plugin][cache]	C	sources/CODE_CONSTANTS.md:53; sources/kotori_inferno/inferno/src/main/java/com/theplug/kotori/inferno/InfernoBlobDeathSpot.java:12	-	exact
+presentation_av.blob_ready_walk_seq	blob ready and walk sequences	7586,7587	count	[cache]	A	sources/cache_npc.txt:108-109,141-142,160-161,178-179	-	exact
+presentation_av.blob_defend_seq	blob defend sequence	7585	count	[M31]	E	sources/cache_seq.txt:379	M31	approx
+presentation_av.blob_projectile_graphics	blob and bloblet projectile graphics	1378,1380,1379,1381	count	[M29]	E	sources/cache_spotanim.txt:101-123; AV_INVENTORY.tsv:1	M29	approx
+presentation_av.blob_magic_attack_sound	blob magic attack sound 3528	3528	count	[wiki]	D	INFERNO_SOUNDS.md:252	-	exact
+presentation_av.blob_other_sounds	blob melee swing, hurt and death sounds, bloblets	?	count	[M30]	E	INFERNO_SOUNDS.md:241	M30	approx
+presentation_av.melee_attack_seq	Jal-ImKot attack sequence	7597	count	[blert][cache][plugin]	B	sources/blert_api/MELEE_ANALYSIS.txt:2; sources/blert/plugin/src/main/java/io/blert/challenges/inferno/InfernoNpc.java:44; sources/cache_seq.txt:477	-	exact
+presentation_av.melee_ready_seq	Jal-ImKot readyanim	7595	count	[cache]	A	sources/cache_npc.txt:203; sources/cache_seq.txt:461	-	exact
+presentation_av.melee_walk_seq	Jal-ImKot walkanim	7596	count	[cache]	A	sources/cache_npc.txt:204; sources/cache_seq.txt:469	-	exact
+presentation_av.melee_dig_down_seq	Jal-ImKot dig-down sequence	7600	count	[blert][cache][plugin]	B	sources/blert_api/MELEE_ANALYSIS.txt:2; sources/blert/plugin/src/main/java/io/blert/challenges/inferno/InfernoNpc.java:44; sources/cache_seq.txt:502	-	exact
+presentation_av.melee_dig_up_seq	Jal-ImKot dig-up sequence	7601	count	[M34]	E	sources/cache_seq.txt:510	M34	approx
+presentation_av.melee_defend_seq	Jal-ImKot defend sequence	7598	count	[M34]	E	sources/cache_seq.txt:485	M34	approx
+presentation_av.melee_death_seq	Jal-ImKot death sequence	7599	count	[M34]	E	sources/cache_seq.txt:493	M34	approx
+presentation_av.melee_no_projectile	melee attack spawns no projectile or graphic (0)	0	count	[cache]	D	sources/rig/melee.md:37	-	exact
+presentation_av.melee_sounds	Jal-ImKot attack, hurt, death sounds	?	count	[M35]	E	../../INFERNO_SOUNDS.md:240	M35	approx
+presentation_av.ranger_attack_ranged_seq	Jal-Xil ranged sequence	7605	count	[blert][cache]	B	sources/blert_api/RANGER_ANALYSIS.txt:2; sources/cache_seq.txt:541	-	exact
+presentation_av.ranger_attack_melee_seq	Jal-Xil melee sequence	7604	count	[blert][cache]	B	sources/blert_api/RANGER_ANALYSIS.txt:2; sources/cache_seq.txt:533	-	exact
+presentation_av.ranger_ready_walk_seq	Jal-Xil ready and walk	7602,7603	count	[cache]	A	sources/cache_npc.txt:237-238	-	exact
+presentation_av.ranger_defend_seq	Jal-Xil defend sequence	7607	count	[M39]	E	sources/cache_seq.txt:558-561	M39	approx
+presentation_av.ranger_death_seq	Jal-Xil death sequence	7606	count	[M39]	E	sources/cache_seq.txt:549-552	M39	approx
+presentation_av.ranger_projectile_graphic	Jal-Xil projectile graphic	1377	count	[cache]	D	sources/cache_spotanim.txt:94-98	-	exact
+presentation_av.ranger_projectiles_per_attack	Jal-Xil projectiles per ranged attack	2	count	[plugin]	D	sources/infernotrainer/src/content/inferno/js/mobs/JalXil.ts:51	-	exact
+presentation_av.ranger_projectile_shape	Jal-Xil projectile launch and flight	?	cycles	[M40]	E	sources/CODE_CONSTANTS.md:92	M40	approx
+presentation_av.ranger_sounds	Jal-Xil attack, hurt, death sounds	?	count	[M38]	E	../../INFERNO_SOUNDS.md:238-239	M38	approx
+presentation_av.mager_attack_magic_seq	Jal-Zek magic sequence	7610	count	[blert][cache]	B	sources/blert_api/MAGER_ANALYSIS.txt:2; sources/cache_seq.txt:581	-	exact
+presentation_av.mager_attack_melee_seq	Jal-Zek melee sequence	7612	count	[blert][cache]	B	sources/blert_api/MAGER_ANALYSIS.txt:2; sources/cache_seq.txt:597	-	exact
+presentation_av.mager_ready_walk_seq	Jal-Zek ready and walk	7609,7608	count	[cache]	A	sources/cache_npc.txt:271-272	-	exact
+presentation_av.mager_revive_seq	Jal-Zek resurrect sequence	7611	count	[blert][cache]	B	sources/blert_api/MAGER_ANALYSIS.txt:2; sources/cache_seq.txt:589	-	exact
+presentation_av.mager_defend_seq	Jal-Zek hit reaction (-1: none bound)	-1	count	[cache][plugin]	D	sources/rig/mager.md:19-30; sources/rig/mager.tsv:2-7	-	exact
+presentation_av.mager_death_seq	Jal-Zek death sequence	7613	count	[M44]	E	sources/cache_seq.txt:605-612	M44	approx
+presentation_av.mager_projectile_graphic	Jal-Zek projectile graphic	1376	count	[cache]	D	sources/cache_spotanim.txt:86-92	-	exact
+presentation_av.mager_projectile_shape	Jal-Zek projectile launch and flight	?	cycles	[M42]	E	sources/CODE_CONSTANTS.md:92	M42	approx
+presentation_av.mager_sounds	Jal-Zek attack, hurt, death sounds	?	count	[M43]	E	../../INFERNO_SOUNDS.md:238	M43	approx
+presentation_av.mager_resurrect_appearance	what changes in the Jal-Zek while it resurrects	?	text	[M45]	E	sources/wiki/wiki_Jal_Zek.wikitext:47	M45	approx
+presentation_av.jad_attack_melee_seq	JalTok-Jad melee sequence	7590	count	[blert][cache]	B	sources/blert_api/JAD_ANALYSIS.txt:7; sources/blert/plugin/src/main/java/io/blert/challenges/inferno/InfernoNpc.java:55; sources/cache_seq.txt:416	-	exact
+presentation_av.jad_attack_magic_seq	JalTok-Jad magic sequence	7592	count	[blert][cache]	B	sources/blert_api/JAD_ANALYSIS.txt:7; sources/blert/plugin/src/main/java/io/blert/challenges/inferno/InfernoNpc.java:56; sources/cache_seq.txt:432	-	exact
+presentation_av.jad_attack_ranged_seq	JalTok-Jad ranged sequence	7593	count	[blert][cache]	B	sources/blert_api/JAD_ANALYSIS.txt:7; sources/blert/plugin/src/main/java/io/blert/challenges/inferno/InfernoNpc.java:57; sources/cache_seq.txt:442	-	exact
+presentation_av.jad_ready_walk_seq	JalTok-Jad ready and walk	7589,7588	count	[cache]	A	sources/cache_npc.txt:306-307	-	exact
+presentation_av.jad_defend_seq	JalTok-Jad defend sequence (7591 by cache name)	7591	count	[M46]	E	sources/cache_seq.txt:424-431	M46	approx
+presentation_av.jad_death_seq	JalTok-Jad death sequence (7594 by cache name)	7594	count	[M46]	E	sources/cache_seq.txt:452-456	M46	approx
+presentation_av.jad_magic_graphics	Jad magic launch 447 and travel 448,449,450	447,448,449,450	count	[cache][wiki]	C	sources/cache_spotanim.txt:28-54; sources/wiki/wiki_Inferno_Strategies.wikitext:674	-	exact
+presentation_av.jad_magic_projectile_count	projectiles per Jad magic cast	3	count	[plugin]	D	sources/infernotrainer/src/content/inferno/js/mobs/JalTokJad.ts:18-20	-	exact
+presentation_av.jad_magic_projectile_geometry	Jad fan launch height, curve and flight	?	text	[M47]	E	sources/cache_spotanim.txt:35-54	M47	approx
+presentation_av.jad_impact_graphic	Jad impact graphic 157	157	count	[M47]	E	sources/cache_spotanim.txt:12-15	M47	approx
+presentation_av.jad_ranged_ground_graphic	Jad ranged ground splash 451	451	count	[cache][wiki]	C	sources/cache_spotanim.txt:56-60; sources/wiki/wiki_Inferno_Strategies.wikitext:674	-	exact
+presentation_av.healer_attack_seq	Yt-HurKot attack sequence	2637	count	[blert][cache]	B	sources/blert_api/JAD_ANALYSIS.txt:21; sources/blert/plugin/src/main/java/io/blert/challenges/inferno/InfernoNpc.java:58; sources/cache_seq.txt:75	-	exact
+presentation_av.healer_heal_visual	healer heal sequence 2639 and graphic 444	2639,444	count	[M49]	E	sources/cache_seq.txt:90; sources/cache_spotanim.txt:19-23	M49	approx
+presentation_av.jad_sound_defend	Jad and Zuk hit sound 410	410	count	[wiki]	D	../../INFERNO_SOUNDS.md:61	-	exact
+presentation_av.jad_sound_attack_death	Jad attack 408 and death 409	408,409	count	[M48]	E	../../INFERNO_SOUNDS.md:235	M48	approx
+presentation_av.jad_sound_impact_heal	Jad impact 163 and heal 166	163,166	count	[M48]	E	../../INFERNO_SOUNDS.md:253,258	M48	approx
+presentation_av.jad_sound_tell	sound tell of the Jad attack style	magic sounds at the swing, ranged at the hit	text	[wiki]	D	sources/wiki/wiki_Inferno_Strategies.wikitext:676	-	exact
+presentation_av.healer_ready_walk_defend_death_seq	Yt-HurKot ready 2636, walk 2634, defend 2635, death 2638 (cache family lizard_cleric; ready and walk are npc-record bindings)	2636,2634,2635,2638	count	[cache]	A	sources/cache_npc.txt:337; sources/cache_seq.txt:62; sources/cache_seq.txt:83	-	exact
+presentation_av.healer_heal_length	length of the healer heal sequence 2639 (38 cycles) and of the tzhaar_heal graphic sequence 2640 (147 cycles)	1.27,4.9	ticks	[cache]	A	sources/cache_seq.txt:90; sources/cache_seq.txt:98	-	exact
+presentation_av.healer_sounds	Yt-HurKot attack 608, hurt 610, death 609 (cache asset-family join) (closer 2026-10-04: C->E; layer c and f only: M66)	608,610,609	count	[M66]	E	../../INFERNO_SOUNDS.md:236,171	-	approx
+presentation_av.mejjak_ready_seq	Jal-MejJak readyanim (2867)	2867	count	[cache]	A	sources/cache_npc.txt:556-570; sources/cache_seq.txt:154-159	-	exact
+presentation_av.mejjak_attack_seq	Jal-MejJak attack sequence (2868)	2868	count	[cache][plugin]	D	sources/cache_seq.txt:160-165; AV_INVENTORY.tsv:26; docs/BOSS_ASSETS.md:231	-	exact
+presentation_av.mejjak_spawn_seq	Jal-MejJak spring-up sequence (2864)	2864	count	[cache][plugin]	D	sources/cache_seq.txt:135-140; AV_INVENTORY.tsv:22; docs/BOSS_ASSETS.md:230	-	exact
+presentation_av.mejjak_heal_projectile	Jal-MejJak heal beam projectile graphic	660	count	[plugin]	D	AV_INVENTORY.tsv:98,108; docs/BOSS_ASSETS.md:250	-	exact
+presentation_av.mejjak_lava_impact	lava ball impact graphic 659	659	count	[plugin]	D	AV_INVENTORY.tsv:107; docs/BOSS_ASSETS.md:251	-	exact
+presentation_av.mejjak_sounds	Jal-MejJak attack 1615, hurt 1622, death 1621, lava impact 156 (closer 2026-10-04: C->E; only 156 is wiki-stated: M66)	1615,1622,1621,156	count	[wiki][M66]	E	../../INFERNO_SOUNDS.md:60,237	-	approx
+presentation_av.mejjak_defend_death_seq	Jal-MejJak defend: cache binds walkanim 2863 and the rig carries a defend 2869; death: 2865 go_down by the content, rig has a named death 2866 (RIG-9). No source says which OSRS plays.	2863,2865	count	[cache][M64]	E	sources/cache_seq.txt:129; sources/cache_seq.txt:141	M64	approx
+presentation_av.zuk_spawn_seq	TzKal-Zuk spawn sequence	7563	count	[cache][plugin]	C	sources/cache_seq.txt:221-226; AV_INVENTORY.tsv:35	-	exact
+presentation_av.zuk_idle_seq	TzKal-Zuk idle sequence	7564	count	[cache]	A	sources/cache_seq.txt:228-233; sources/cache_npc.txt:510-535	-	exact
+presentation_av.zuk_attack_seq	TzKal-Zuk attack sequence	7566	count	[cache][blert]	A	sources/cache_seq.txt:241-247; sources/blert/plugin/src/main/java/io/blert/challenges/inferno/InfernoNpc.java:73	-	exact
+presentation_av.zuk_defend_seq	TzKal-Zuk defend sequence	7565	count	[cache][plugin]	C	sources/cache_seq.txt:234-239; AV_INVENTORY.tsv:37	-	exact
+presentation_av.zuk_death_seq	TzKal-Zuk death sequence	7562	count	[cache][plugin]	C	sources/cache_seq.txt:213-219; AV_INVENTORY.tsv:34	-	exact
+presentation_av.zuk_projectile_graphic	Zuk shot graphic 1375 (anim 7571 zuk_proj, 2.0 ticks)	1375	count	[cache][plugin]	C	AV_INVENTORY.tsv:109; sources/cache_spotanim.txt:80-81	-	exact
+presentation_av.zuk_projectile_flight	Zuk shot flight time	?	ticks	[plugin][M61]	E	sources/CODE_CONSTANTS.md:117	M61	approx
+presentation_av.zuk_sound_cast	Zuk attack sound 155	155	count	[wiki]	D	docs/INFERNO_SOUNDS.md:234	-	exact
+presentation_av.zuk_sound_hit	Zuk shot landing sound 156 (closer 2026-10-04: D->E; layer t, not wiki: M66)	156	count	[M66]	E	docs/INFERNO_SOUNDS.md:255	-	approx
+presentation_av.zuk_seq_lengths	lengths in game ticks of Zuk spawn 7563, idle 7564, defend 7565, attack 7566, death 7562 and the shot 7571 (cache 210, 90, 90, 90, 150, 60 cycles)	7,3,3,3,5,2	ticks	[cache]	A	sources/cache_seq.txt:221; sources/cache_seq.txt:241; sources/cache_seq.txt:213; sources/cache_seq.txt:279	-	exact
+presentation_av.zuk_death_sound	Zuk death sound 409 dragon_death (a member of the dragon triple whose hit 410 the wiki states)	409	count	[M65]	E	INFERNO_SOUNDS.md:234	M65	approx
+presentation_av.glyph_ready_seq	Ancestral Glyph ready sequence 7567	7567	count	[cache]	A	sources/cache_npc.txt:536-556; sources/cache_seq.txt:248; AV_INVENTORY.tsv:39	-	exact
+presentation_av.glyph_hit_seq	Ancestral Glyph hit sequence 7568 (purpose unsourced)	?	count	[cache][M54]	E	sources/rig/glyph_and_pillars.md:18,26; AV_INVENTORY.tsv:40	M54	approx
+presentation_av.glyph_death_seq	Ancestral Glyph death sequence 7569	7569	count	[cache]	D	sources/cache_seq.txt:264; sources/rig/glyph_and_pillars.md:17; AV_INVENTORY.tsv:41	-	exact
+presentation_av.glyph_death_graphic_sound	glyph death graphic and sound	?	count	[M55]	E	docs/INFERNO_SOUNDS.md:378; sources/rig/glyph_and_pillars.md:22-23	M55	approx
+presentation_av.glyph_block_impact	what a Zuk shot absorbed by the glyph looks and sounds like	?	count	[M57]	E	docs/INFERNO_SOUNDS.md:256,262-266; AV_INVENTORY.tsv:124	M57	approx
+presentation_av.glyph_model	glyph model 33037	33037	count	[cache]	A	sources/cache_locs.txt:1413	-	exact
+presentation_av.final_wave_variant_npcs	Zuk-wave variants of the ranger 7702, mager 7703, Jad 7704 and healer 7705 use the same sequences as the ordinary records (cache npc records 7702-7705 carry the same ready and walk anims)	7702,7703,7704,7705	count	[cache]	A	sources/cache_npc.txt:374; sources/cache_npc.txt:406; sources/cache_npc.txt:441; sources/cache_npc.txt:475	-	exact
+presentation_av.seal_wall_collapse_length	length of the side-wall collapse sequences 7559 and 7560 (180 cycles; the content waits 6 ticks)	6	ticks	[cache]	A	sources/cache_seq.txt:192; sources/cache_seq.txt:199	-	exact
+presentation_av.seal_loc_states	the Zuk seal loc chain: state1 30332-30337 and glyph 30338 at the start, state2 30339-30344, state3 30345-30346; the name states the order, the Kronos object list (BOSS_ASSETS) the pairing	30339,30340,30341,30342,30343,30344,30345,30346	count	[cache]	D	sources/cache_locs.txt:1423; sources/cache_locs.txt:1491; BOSS_ASSETS.md:264	-	exact
+presentation_av.prison_roof_loc	the prison roof loc 30356 inferno_collapsing_prison_roof hides through varb5652 (the roof disappears when the seal falls)	30356	count	[cache]	A	sources/cache_locs.txt:2410; sources/cache_vars.txt:43	-	exact
+presentation_av.cutscene_sounds	sounds of the Zuk cutscene and seal collapse: 2045 rumble when the camera locks, 2039 collapse when the flanks let go, 2294 cavein when the seal crumbles (cave ambience family 2039-2046)	2045,2039,2294	count	[M63]	E	INFERNO_SOUNDS.md:214; INFERNO_SOUNDS.md:215; INFERNO_SOUNDS.md:216	M63	approx
+presentation_av.cutscene_fade_overlay	the screen fade on the Zuk spawn: interface 174 fade_overlay driven by clientscripts 948 and 951	174	count	[M63]	E	sources/cache_interfaces.txt:27	M63	approx
+presentation_av.zuk_hud_interface	Zuk health bar: interface 596 inferno_hud_init with clientscripts 735-739, reads varb5653 (hp) and varb5654 (base hp); the cache clientscripts read these vars	596	count	[cache]	A	sources/cache_interfaces.txt:88	-	exact
+presentation_av.inferno_music_track	the track played in the Inferno: Inferno (js5 archive 500), unlock hint "in the Inferno", region 9043 (the arena square 35,83)	500	count	[cache][wiki]	C	sources/cache_music.txt:4; sources/wiki/wiki_Inferno.wikitext:16	-	exact
+presentation_av.entrance_music_track	the track of the entrance city square (38,79): Mor Ul Rek (archive 502)	502	count	[cache]	D	sources/cache_music.txt:10	-	exact
+presentation_av.ketkeh_ready_seq	TzHaar-Ket-Keh readyanim	2604	count	[cache]	A	sources/cache_npc.txt:40; sources/cache_seq.txt:30	-	exact
+presentation_av.ketkeh_walk_seq	TzHaar-Ket-Keh walkanim	2602	count	[cache]	A	sources/cache_npc.txt:41; sources/cache_seq.txt:24	-	exact
+presentation_av.vent_gas_seq	sulphur vent gas loc animation	523	count	[cache]	A	sources/cache_locs.txt:168; sources/cache_seq.txt:5	-	exact
+presentation_av.vent_sound	sulphur vent soundid	2066	count	[cache]	A	sources/cache_locs.txt:158	-	exact
+presentation_av.entrance_loc_name	entrance loc name (multiloc 30281/30282, op only at varb5646 = 2)	The Inferno	text	[cache]	A	sources/cache_locs.txt:476; sources/cache_locs.txt:486	-	exact
+presentation_av.exit_loc_name	exit loc 30283 name	Cave exit	text	[cache]	A	sources/cache_locs.txt:497	-	exact
+presentation_av.exit_loc_op1	exit loc op1	Exit	text	[cache]	A	sources/cache_locs.txt:503	-	exact
+presentation_av.exit_loc_op2	exit loc op2	Quick-exit	text	[cache]	A	sources/cache_locs.txt:504	-	exact
+presentation_av.pet_ready_seq	Jal-Nib-Rek follower readyanim	7573	count	[cache]	A	sources/cache_npc.txt:25; AV_INVENTORY.tsv:45	-	exact
+presentation_av.pet_walk_seq	Jal-Nib-Rek follower walkanim	7572	count	[cache]	A	sources/cache_npc.txt:26; AV_INVENTORY.tsv:44	-	exact
+presentation_av.pet_zuk_ready_seq	Tzrek-Zuk follower readyanim	7975	count	[cache]	A	sources/cache_npc.txt:613; AV_INVENTORY.tsv:89	-	exact
+presentation_av.pet_zuk_walk_seq	Tzrek-Zuk follower walkanim	7977	count	[cache]	A	sources/cache_npc.txt:614; AV_INVENTORY.tsv:91	-	exact
+presentation_av.unknown_purpose_seqs	sequences with no sourced purpose, left alone: 2606,2608,2612 (Ket-Keh staff parry, death, attack), 2875 (Jal-MejJak spine), 7976,7978,7979,8858 (pet and chathead), 13717 zuk_spawn_no_rock	2606,2608,2612,2875,7976,7978,7979,8858,13717	count	[cache][M64]	E	AV_INVENTORY.tsv:1	M64	approx
+presentation_av.unknown_purpose_graphics	graphics with no sourced purpose, left alone: 453 tzhaar_inferno, 1609, 1610 (bigger bloblet mage shots), 2261, 2381, 2382, 3294 (Zuk shot variants)	453,1609,1610,2261,2381,2382,3294	count	[cache][M64]	E	AV_INVENTORY.tsv:1	M64	approx
+presentation_av.unknown_purpose_sounds	sounds with no sourced purpose, left alone: 601 magmaquiris_spines, 2040-2044 and 2046 (cave ambience), 4502, 4524 (lore_inferno)	601,2040,2041,2042,2043,2044,2046,4502,4524	count	[cache][M64]	E	AV_INVENTORY.tsv:1	M64	approx
+presentation_av.unknown_purpose_vars	vars with no sourced purpose, left alone: varbit 11878 player_in_inferno, varbit 16561 shown_gm_helm	11878,16561	count	[cache][M64]	E	AV_INVENTORY.tsv:1	M64	approx

@@ -82,6 +82,88 @@ message survives only as `target shares the player's tile and the step off it di
 means every one of the eight neighbours refused the walk (a walled-in loc), not that the camera is
 pointed elsewhere.
 
+### An npc behind a counter or wall: goto an ORTHOGONAL tile, not a diagonal one (matthew-mbp-m4-b54)
+
+An npc that stands behind a counter, a bar or a wall corner is reached only from a tile that
+shares its row or column across the gap. A goto to a tile diagonal to it lands, and then
+`talk_to` walks around or answers "I can't reach that!", because the diagonal crosses a wall
+corner. Put the goto on the open side, straight across from the npc. Tiles that work: Bone
+Voyage's Varrock sawmill operator from 3303,3493, the Woodcutting Guild operator from
+1623,3501, and Shadows of Custodia's bartender from 1391,3353. A press that moves a walled npc
+is a different case (verbs-pointer: Four outcomes, "WALLED DIRECTION").
+
+### An npc TWO tiles behind a counter: the talk needs an `[apnpcN]` twin (At First Light's Verity, FIXED matthew-mbp-m4-b56-seam2)
+
+The rule above needs the npc straight across a ONE-tile gap. An op talk (`[opnpc1,...]`) reaches
+only from an adjacent tile (LostCity's reachedEntity), so an npc standing two tiles back behind a
+counter row answers "I can't reach that!" from every tile in front. The real game binds such an npc
+with an approach trigger at range 2: `[apnpc1,_bank_teller] if (npc_range(coord) > 2) {
+p_aprange(2); return; }` (LostCity interface_bank/scripts/banker.rs2:4-9; `death_barman.rs2:1-5`
+uses 3). Verity (1559,9464) stands behind the Hunter Guild bar, whose counter row z 9463 is
+`hg_table_tavern02_*` locs (blockrange=0, `maps/m24_147.jl2`). `atfirstlight.rs2` now has
+`[apnpc1,hg_verity]`, and `talk_to("hg_verity")` from 1559,9462 opens her page (run
+`s2_afl_verity_after`, stage 1 -> 2). If such an npc has only `[opnpcN]`, the row is a content seam
+asking for the ap twin. It is never a goto behind the counter: that is a sealed pocket. Still
+without a twin: `hg_gilman` (1556,9464), and Verity's rumour ops `[opnpc3]`/`[opnpcu]`
+(`hunter_rumours.rs2`); this pack's bankers are `[opnpc1,banker1]` only (`bank.rs2:37`), so a
+banker two tiles back may refuse too; a booth op is not affected.
+
+### A loc inside a walled building, and the guide names no door: find the door in the map square (matthew-mbp-m4-b54)
+
+A `walk_to` or `click_loc` from outside stops at the wall, and the easy fix is a `goto_tile`
+inside. Find the building's door first and use it; a goto inside is the last resort. The
+map square file lists every placed loc: `OSRS-Content/osrs239-content/maps/m<X>_<Z>.jl2`,
+where X = x / 64 and Z = z / 64. Each line reads `level lx lz: id shape [rot]`, with
+lx = x - 64*X and lz = z - 64*Z. Shape 0 is a straight wall, shape 3 a wall corner. Rot is
+the tile edge the wall sits on: 0 west, 1 north, 2 east, 3 south. The id is named in
+`configs/all.loc.compack` (`id=name`). A door is an id whose `configs/all.loc` record has
+`op1=Open`, with a row in `server/scripts/doors/configs/doors.loc`. Stand on the tile outside
+it and `click_loc` it with op 1, then walk in.
+
+Example: Swan Song's stove (2316,3668) is in a building whose walls in `m36_57.jl2` are
+`deal_wall`/`deal_wall_window` (ids 10109/10108), inside x 2316-2321, z 3666-3672. The
+round-1 test did `goto_tile 2317,3668` because it had not found the door. The door is
+`swan_building_door` (id 12657, `0 18 19: 12657 0`), on the west edge of 2322,3667 in
+the east wall. Walk to 2322,3667, then `click_loc("swan_building_door", 1)`.
+
+**The grader now catches the goto inside (matthew-mbp-m4-b56-seam1, `enclosure_entries`).** A
+`goto_tile` that lands in a room the map walls in, with a closed door in its perimeter, from a tile
+outside that room, is CHEAT whether or not the guide names the door. A PASS row that pressed that
+door in the 500 ticks before (an opened door re-closes after 500) makes it a walk. The detail
+names the door and the map square: `lands at 1542,3570,0 in a room the map walls in (11 tiles ...
+door wallkit_shayzien_door01_l_reverse at 1540,3570,0: maps/m24_55.jl2) from ... it went past the
+closed door (enclosure_entries)`. Fix it with the route above: goto to the street,
+`t.player.click_loc(<door>, 1)`, then `walk_to` the tile inside. The run's first goto and any setup
+placement are judged from the fixture's tile like any other goto (owner ruling 2026-10-05,
+matthew-mbp-m4-b64-seam1): a first goto with no `from` stamp leaves from the fixture's `x`/`z`/`level`
+(`fresh_lumbridge.ini`: 3206,3233,0), and a setup cheat that moves the player (`::goto`, or a
+debugproc whose label or proc calls `p_teleport`) is a CHEAT step of its own, `(setup placement)
+<cheat> lands at x,z,l past <loc>`, when it lands in a walled room (`::taleoftherighteous` into
+Phileas's house) or past an only-way gate or crossing (`::entertheabyss` over the Wilderness Ditch,
+`::currentaffairs` past the Taverley gate). Place the player on open ground on the fixture's side
+and cross on foot. The proved form for Enter the Abyss (run b64s1_eta_remedy, 74/74, helper_coverage
+FULL): after `::entertheabyss`, a setup `"::goto 3106 3520 0"` (open ground just south of the ditch;
+`3106 3510` also grades clean, but the walk north crosses the on-foot warning strip,
+`wilderness_warning.rs2:38`), then `t.player.click_loc("ditch_wilderness_cover", 1, {at={3106,3521}})`,
+`t.chat.play` the north-jump warning pages (`mesbox:WARNING! Proceed with caution` ...;
+`wilderness_ditch.rs2:68-72`), await 3106,3523,0, then goto the mage. `cross_trap` does not play
+pages, so a crossing that warns is a `click_loc` + `chat.play`. Not judged: a building with a climb
+down from level 0, a room over 400 tiles, a loc content adds at run time, a sealed room with no door,
+a start whose landing is unknown (a setup `::tele <name>`, a debugproc whose teleport target is
+computed). Bone Voyage's sawmill tile 3303,3493 in the section above is inside such a room: open the
+sawmill door first.
+
+### No charter verb: reach a charter port with `goto_tile` when the guide allows any route (matthew-mbp-m4-b54)
+
+No driver verb works Trader Stan's charter map (`transport_charter/scripts/charter_npc.rs2`
+`[label,charter_op]` opens `~charter_map_open`). Ethically Acquired Antiquities' guide step
+`talkToTraderStan` says "Charter at a cost of 3000 coins", but the wiki says the 3,000 coins are
+only one recommended way to get there and the player may reach Port Sarim by any route
+(`docs/quests/ethically_acquired_antiquities.md:50-52`). So `goto-stan` from the Fortis Cothon to
+3039,3193 is plain travel, and the coins are not a bring-along to `::give`. If the voyage itself
+is the guide's step (the quest's state changes on arrival), a goto is not enough: report the
+missing verb as a gap.
+
 ### `walk_near` takes the `{kind=, id=}` table
 
 `walk_near(target, ticks, minimum)` takes the `{kind=, id=}` table `player.by_symbol` returns:
@@ -177,6 +259,11 @@ maplink row and falls through to `[proc,climb]`'s +/-1-plane default. `goto_tile
 `click_loc` on the ladder -- delete any scaffold-emitted `click_loc` row for a ladder or gate; the
 same tile trick reaches an instanced area behind a trapdoor too (`z+6400`: `3120,9567,0` for the
 Wizards' Tower basement), with no `click_loc` on the trapdoor at all.
+
+A cellar ladder (`ladder_cellar`, 17384) is the exception since b54-seam2 (OSRS-Content
+662de599a5): its name binding climbs from wherever you stand to `z+6400`, as LostCity does, so
+`click_loc` on it works from any side (seam-facts: Seam pass matthew-mbp-m4-b54-seam2 (a)). After
+it, `t.npc.await_present` the npc you want before the `talk_to` (same entry, (b)).
 
 #### An agility crossing answers "Nothing interesting happens." off its source tile (sonnet-b44)
 

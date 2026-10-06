@@ -132,3 +132,53 @@ level is `.level`.
 
 `t.skill.expect_gain(name, xp, snapshot)` -> `ok` `refused` `no_row`. Accepts `xp` or `xp*10`, names
 the unit matched.
+
+### lint: "a read's status is "ok" whatever it read, so this row cannot fail" (matthew-mbp-m4-b55)
+
+`t.check(name, condition, detail)` passes when the condition is `true` or `"ok"`. A verb that only
+READS (`t.world.tile`, `t.world.level`, `t.inv.count`, `t.inv.has`, `t.inv.slot`, `t.skill.read`,
+`t.skill.snapshot`, `t.var.varp`, `t.var.varbit`, `t.var.server`) returns `"ok"` for anything it read,
+so used whole as the condition it makes a row that can never fail:
+`t.check("keris.in_inv", t.inv.count("contact_keris"))` passed with no keris in the pack, and
+`t.check("enterCave.below", t.world.tile)` (no call) printed `table: 0x...`. `lint_quest.py` now
+refuses both shapes. Write instead:
+
+- an item: `t.check(name, t.inv.expect_has("contact_keris", 1))` or `t.inv.expect_absent(...)`;
+- a tile: `local r, h = t.world.tile()` then
+  `t.check(name, r == "ok" and h.x == X and h.z == Z and h.level == L, h.x .. "," .. h.z .. "," .. h.level)`;
+- a stat: `local r, s = t.skill.read("hitpoints")` then compare `s.level` (the current, boosted or
+  drained level) or `s.base_level` (the max); the reading has no `current` field
+  (torirs_plugin_drive_state.c, b66-seam1);
+- a var: `t.check(name, t.var.expect("varb...", value))`.
+
+A status from a verb that can refuse (`t.var.await`, `t.inv.expect_has`, `t.msg.expect`, ...) is the
+designed use and is not flagged. `t.check(name, true, detail)` is still accepted as a note row; a row
+that claims to assert something must not use it (reviewers and samplers send it back).
+
+### lint: "quest_cheat.rs2 has no arm for <row>" on a setup `::complete` (matthew-mbp-m4-b56)
+
+`::complete <row>` only works for a row `quest_cheat.rs2` has an arm for. Any other name is answered
+"::complete has no arm for that quest." and setup carries on with the prerequisite unset, so the run
+proves less than its setup says. Four committed greens had one: Forgettable Tale staged
+`quest_fishingcompo` (the arm is `quest_fishingcontest`) and was green only because an engine bug wrote
+that varp by accident (the region-music unlock wrote the music VARIABLE index as a raw varp id;
+FIXED in b61-seam1, seam-facts: Seam pass matthew-mbp-m4-b61-seam1 (d)); Ghosts Ahoy and Shades of
+Mort'ton staged `quest_priestperil` (`quest_priestinperil`); Mourning's End Part II staged
+`quest_mourningsendparti` (`quest_mourningsendpart1`). `lint_quest.py` now reads the arms from
+`quest_cheat.rs2` and refuses a setup row that names none, suggesting the near names. The arm's name
+is the dbrow's, which is not always the quest directory's or the varp's: grep `quest_cheat.rs2` for
+`$row = ` before staging a prerequisite.
+
+### lint: "outside setup: a mid-run ::give" / "::bankgive is a SETUP cheat" (matthew-mbp-m4-b56)
+
+Item cheats belong in `setup = {...}` (the owner's rule: no `::give` after setup). `lint_quest.py`
+refuses a `"::bankgive ..."` literal anywhere outside the setup table, marked or not: the driver
+refuses it only after `t.quest.bind`, so one in run() before the bind would reach the server. It
+refuses a `"::give ..."` outside setup (run(), a leg, a local helper, `"::give " .. item`) unless the
+line carries, or the comment line directly above it is, `-- lint: kit-give <reason>` -- an exception
+the orchestrator accepted -- or it is one of the 113 gives in 23 files committed before the rule
+(`tools/quest_gate/mid_run_gives_baseline.tsv`, printed as BASELINED, each the orchestrator's to
+decide; the list only shrinks and a stale row is a finding). A marker with no reason or covering no
+give is refused. `lint_quest.py --mid-run-gives <files>` lists every one with its state.
+`helper_coverage.py` grades a `::bankgive` exactly like a `::give` of the same item: a setup
+`::bankgive` of an item the guide has you obtain is CHEAT (`GIVE_CHEATS`).

@@ -157,6 +157,12 @@ A hunted press that WORKS says so in the next row
 means you are standing in a scene that has not rebuilt (section 2's teleport bullet), not that
 something is in the way.
 
+`covered ... none of N pixels hittested` on an npc that the shot shows NOBODY at can mean the npc's
+model is all hidden faces (alpha 255; cache model 25362 on Biohazard's `gambler2`/`artist2`). That
+was a client pick gap, not a camera or stand problem. FIXED in seam pass matthew-mbp-m4-b58-seam1:
+an entity with no visible face picks by its box, as the reference does. If it comes back, report it
+as a seam and never fall back to `t.drive.op`.
+
 ### `ui.tab` answering `ok` does not mean the tab is painted
 
 Same shape one layer down: `t.ui.tab("inventory")` is a BUTTON PRESS that returns as soon as the
@@ -221,6 +227,11 @@ A `t.blocked` for a pick must follow a LIVE failed press in the same run, never 
 shape: no pose projects the target on screen at all. A camouflaged loc (a rock-face secret door)
 does this even from the right approach tile -- check its model/size in `all.loc` before blaming the
 tile.
+
+After a long fight the exit loc can simply be out of view: Contact!'s `leaveChasm` failed `yaw 1093
+framed nothing in 5 poses` on the boss ladder after the Giant Scarab fight ended far from it. Walk
+back toward it first (`t.player.walk_to(6442, 70, 60)` there), then `click_loc` (seam pass
+matthew-mbp-m4-b53-seam4).
 
 ## Trap 22. A `~mesbox`/`~chatnpc_specific`-style page SUSPENDS the calling script, not decorates it.
 
