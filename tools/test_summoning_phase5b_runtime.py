@@ -24,6 +24,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import config_text
 from summoning_script_sources import read_all, script_dir
 
 
@@ -346,7 +347,7 @@ def static_contract(expect: object) -> None:
         ("varp6257_summoning_familiar_type", VARP_TYPE),
     ):
         check(alloc.get(name) == value, f"varp allocation {name}={alloc.get(name)!r}, expected {value}")
-    varp_cfg = read(varp_cfg_path)
+    varp_cfg = config_text.filter_text(read(varp_cfg_path))
     for name in (
         "varp6226_summoning_familiar_active",
         "varp6227_summoning_familiar_point_accumulator",
@@ -663,7 +664,8 @@ def set_ini_values(path: Path, section: str, values: dict[int, int]) -> None:
 def config_props(path: Path, record: str) -> dict[str, str]:
     current: str | None = None
     props: dict[str, str] = {}
-    for raw in read(path).splitlines():
+    # `name=default` states an absent key; read it as the missing line it means.
+    for raw in config_text.filter_text(read(path)).splitlines():
         line = raw.strip()
         if not line or line.startswith("//"):
             continue

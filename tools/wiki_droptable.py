@@ -24,6 +24,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import config_text  # noqa: E402
 import wiki_infobox as wi  # noqa: E402
 
 NPC_STATS_DIR = os.path.join(CONTENT, "npc_stats")
@@ -69,6 +70,15 @@ def death_drop_index() -> dict[str, str]:
                 m = block_re.match(line)
                 if m:
                     cur = m.group(1)
+                    continue
+                # Full-key text: `param=default` (absent) or `param=empty`
+                # (no entries) states the record's whole param list, so a
+                # rank-1 overlay saying either CLEARS the death_drop it would
+                # otherwise inherit from rank 0.
+                kv = config_text.split_line(line)
+                if (cur and kv and kv[0] == "param"
+                        and config_text.marker(kv[1]) is not None):
+                    index.pop(cur, None)
                     continue
                 m = dd_re.match(line)
                 if m and cur:
@@ -413,7 +423,7 @@ def obj_name_index() -> dict[str, list[str]]:
     block_re = re.compile(r"^\[([A-Za-z0-9_]+)\]$")
     name_re = re.compile(r"^name=(.+)$")
     with open(ALL_OBJ, encoding="utf-8", errors="replace") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.rstrip("\n")
             m = block_re.match(line)
             if m:
@@ -442,7 +452,7 @@ def obj_cert_index() -> dict[str, str]:
     block_re = re.compile(r"^\[([A-Za-z0-9_]+)\]$")
     cert_re = re.compile(r"^certlink=([A-Za-z0-9_]+)$")
     with open(ALL_OBJ, encoding="utf-8", errors="replace") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.rstrip("\n")
             m = block_re.match(line)
             if m:

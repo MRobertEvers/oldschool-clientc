@@ -7,6 +7,7 @@ import re
 import sys
 from pathlib import Path
 
+import config_text
 from summoning_script_sources import definition, read_all, script_dir
 
 
@@ -52,7 +53,7 @@ def main() -> int:
         interface = INTERFACE.read_text(encoding="utf-8")
         orbs_interface = ORBS_INTERFACE.read_text(encoding="utf-8")
         special_manifest = SPECIAL_MANIFEST.read_text(encoding="utf-8")
-        combat_profiles = COMBAT_PROFILES.read_text(encoding="utf-8")
+        combat_profiles = config_text.read_text(COMBAT_PROFILES, encoding="utf-8")
         execute_dispatch = definition(scripts, "proc,summoning_familiar_special_execute")
         target_execute_dispatch = definition(scripts, "proc,summoning_familiar_special_target_execute")
         # Familiar effects now live in one module per familiar. Keep the broad

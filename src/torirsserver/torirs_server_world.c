@@ -12789,8 +12789,8 @@ ToriRSServer_WorldHandle(
  * that read `ToriRSServerNpcDef.death_drop` and called `ToriRSServer_WorldObjAdd`
  * whenever nothing was bound. The row is deleted and the fallback count is 6.
  * The field stays — `record_authored_param` files the same value under param id
- * 2634 for `npc_param` to read, and `torirs_server_servercodec.c` carries it on the
- * wire as npc field 151 — but no engine logic reads it any more.
+ * 2634 for `npc_param` to read, and the server band carries it on the wire
+ * (`fields/npc.ini`, opcode 151) — but no engine logic reads it any more.
  *
  * Everything else about a death is still engine and stays here: hitpoints, the
  * death animation, the delay and the despawn (PORTING_GUIDE §2.3). That is why

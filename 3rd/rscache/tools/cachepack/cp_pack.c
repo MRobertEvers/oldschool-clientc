@@ -12,6 +12,7 @@
 #include "cache_write.h"
 #include "dat2disk.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,6 +52,86 @@
  * first, because a `.loc` naming a sequence needs that sequence's pack line loaded.
  * Pack lines all load up front, so the order only matters for reporting.
  */
+
+void
+cp_walk_content(struct CP_Ctx* ctx)
+{
+    const char* roots[2 + CP_MAX_LANES];
+    int ranks[2 + CP_MAX_LANES];
+    char lane_roots[CP_MAX_LANES][1100];
+    int count = 0;
+
+    assert(ctx);
+    roots[count] = "configs";
+    ranks[count++] = 0;
+    /* An included lane's configs define its records; they sit between the
+     * machine export and the authored overlays (cp_merge_rank_for). */
+    for( int l = 0; l < ctx->lane_count; l++ )
+    {
+        snprintf(lane_roots[l], sizeof(lane_roots[l]), "ported/%s/configs", ctx->lanes[l]);
+        roots[count] = lane_roots[l];
+        ranks[count++] = 1;
+    }
+    roots[count] = "server/scripts";
+    ranks[count++] = 1;
+    cp_walk_tree(&ctx->walk, ctx->srcdir, roots, ranks, count);
+}
+
+int
+cp_server_stamp_write(
+    struct CP_Ctx* ctx,
+    const char* server_dir)
+{
+    struct RSCache_ServerPackStamp stamp;
+
+    assert(ctx);
+    assert(server_dir);
+    memset(&stamp, 0, sizeof(stamp));
+    stamp.fingerprint = RSCache_ServerPackFingerprint(ctx->srcdir, ctx->lanes, ctx->lane_count);
+    stamp.writer = ctx->writer;
+    for( int l = 0; l < ctx->lane_count && l < RSCACHE_SERVERPACK_STAMP_LANES; l++ )
+        snprintf(stamp.lanes[l], sizeof(stamp.lanes[l]), "%s", ctx->lanes[l]);
+    stamp.lane_count = ctx->lane_count;
+    if( RSCache_ServerPackStampWrite(server_dir, &stamp) )
+        return 1;
+    fprintf(stderr, "cachepack: cannot write %s/stamp.txt\n", server_dir);
+    return 0;
+}
+
+/** Is the pack at `server_dir` already what this run would write? */
+static int
+server_pack_fresh(
+    struct CP_Ctx* ctx,
+    const char* server_dir)
+{
+    struct RSCache_ServerPackStamp stamp;
+
+    if( ctx->force_server || !RSCache_ServerPackStampRead(server_dir, &stamp) )
+        return 0;
+    if( stamp.writer != ctx->writer || stamp.lane_count != ctx->lane_count )
+        return 0;
+    for( int l = 0; l < ctx->lane_count; l++ )
+    {
+        if( strcmp(stamp.lanes[l], ctx->lanes[l]) != 0 )
+            return 0;
+    }
+    return stamp.fingerprint ==
+           RSCache_ServerPackFingerprint(ctx->srcdir, ctx->lanes, ctx->lane_count);
+}
+
+void
+cp_server_dir(
+    const struct CP_Ctx* ctx,
+    char* out,
+    size_t out_size)
+{
+    assert(ctx);
+    assert(out);
+    if( ctx->server_out[0] )
+        snprintf(out, out_size, "%s", ctx->server_out);
+    else
+        snprintf(out, out_size, "%s/server/pack", ctx->srcdir);
+}
 
 /** Names are the id authority: a `[name]` with no pack line has no id to write to. */
 static int
@@ -94,6 +175,9 @@ struct CP_PackStats
      * that only printed would be the silence this whole change removes.
      */
     int membership_errors;
+    /** Client encodings written into the server pack (`pack_server_records`). */
+    int server_client_records;
+    int server_client_bytes;
 };
 
 /* ---- the server pack ----------------------------------------------------- */
@@ -193,13 +277,27 @@ server_pack_clear(const char* dir)
      * "append to yesterday's" — silently, because remove() just fails. */
     RSCache_Dat2DiskWriteFlush();
 
+    /* The stamp first: an interrupted rebuild must leave a pack the server
+     * refuses, never yesterday's stamp over half of today's archives. */
+    snprintf(path, sizeof(path), "%s/stamp.txt", dir);
+    remove(path);
     snprintf(path, sizeof(path), "%s/main_file_cache.dat2", dir);
     remove(path);
     for( int i = 0; i < CP_TYPE_COUNT; i++ )
     {
         snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", dir, cp_type(i)->config_kind);
         remove(path);
+        /* Its client-record group too, or a stale idx is left indexing into the
+         * dat2 just removed. */
+        snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", dir,
+                 RSCache_ServerPackRecordsGroup(cp_type(i)->config_kind));
+        remove(path);
     }
+    snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", dir, RSCACHE_SERVERPACK_DEFAULTS_GROUP);
+    remove(path);
+    snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", dir,
+             RSCACHE_SERVERPACK_CLIENT_IDS_GROUP);
+    remove(path);
     for( int i = 0; i < group_count; i++ )
     {
         snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", dir, groups[i].group);
@@ -227,62 +325,179 @@ struct CP_FieldTally
     char no_ref_sample[64];
 };
 
-/**
- * The text stating `name` on `rec`, or NULL.
- *
- * Two spellings, because the two layers state the same field differently. Rank 0
- * is the machine export and writes `param=<name>,<kind>,<value>`; rank 1 is
- * LostCity's grammar and writes `param=<name>,<value>`. A first-class
- * `<name>=<value>` line wins over either, since that is how the authored layer
- * spells the fields the cache has no param for at all (`hitpoints`, `respawnrate`).
- */
+/** The `param=<name>,<value>` line for `name` on `rec`, as its value, or NULL. */
 static const char*
-merged_value(
+param_line_value(
     const struct CP_MergedRecord* rec,
     const char* name,
     char* scratch,
     size_t scratch_size)
+{
+    size_t n = strlen(name);
+
+    for( int i = 0; i < rec->count; i++ )
+    {
+        const char* value = rec->lines[i].value;
+
+        if( strcmp(rec->lines[i].key, "param") != 0 )
+            continue;
+        if( strncmp(value, name, n) != 0 || value[n] != ',' )
+            continue;
+        snprintf(scratch, scratch_size, "%s", value + n + 1);
+        return scratch;
+    }
+    return NULL;
+}
+
+/** The `<name>=<value>` line for `name` on `rec`, or NULL. */
+static const char*
+key_line_value(
+    const struct CP_MergedRecord* rec,
+    const char* name)
 {
     for( int i = 0; i < rec->count; i++ )
     {
         if( strcmp(rec->lines[i].key, name) == 0 )
             return rec->lines[i].value;
     }
-    for( int i = 0; i < rec->count; i++ )
-    {
-        const char* value;
-        const char* comma;
-        const char* second;
-
-        if( strcmp(rec->lines[i].key, "param") != 0 )
-            continue;
-        value = rec->lines[i].value;
-        comma = strchr(value, ',');
-        if( !comma || (size_t)(comma - value) != strlen(name) ||
-            strncmp(value, name, strlen(name)) != 0 )
-            continue;
-
-        /* `,int,` / `,str,` / `,long,` is the machine export's type column. Only
-         * those three, so an authored two-field row whose *value* happens to start
-         * with a comma-free word is not mistaken for one. */
-        second = strchr(comma + 1, ',');
-        if( second )
-        {
-            size_t kind = (size_t)(second - comma - 1);
-
-            if( (kind == 3 && strncmp(comma + 1, "int", 3) == 0) ||
-                (kind == 3 && strncmp(comma + 1, "str", 3) == 0) ||
-                (kind == 4 && strncmp(comma + 1, "long", 4) == 0) )
-            {
-                snprintf(scratch, scratch_size, "%s", second + 1);
-                return scratch;
-            }
-        }
-        snprintf(scratch, scratch_size, "%s", comma + 1);
-        return scratch;
-    }
     return NULL;
 }
+
+/**
+ * The text stating `field` on `rec`, or NULL when the record does not state it.
+ *
+ * One spelling per field, the one `fields/<type>.ini` declares (`text = key` or
+ * `text = param`), exactly as a client key has one spelling. `hitpoints=default`
+ * is the record saying it does not state the field, the same marker a client key
+ * uses (cp_text.h). The other spelling is not a second way to say the same thing:
+ * fields_spelling_check refuses it before anything is packed.
+ */
+static const char*
+merged_value(
+    const struct CP_MergedRecord* rec,
+    const struct RSCache_RegisterField* field,
+    char* scratch,
+    size_t scratch_size)
+{
+    const char* value;
+
+    if( field->text == RSCACHE_REGISTER_TEXT_PARAM )
+        value = param_line_value(rec, field->name, scratch, scratch_size);
+    else
+    {
+        value = key_line_value(rec, field->name);
+        if( value )
+        {
+            snprintf(scratch, scratch_size, "%s", value);
+            value = scratch;
+        }
+    }
+    if( !value )
+        return NULL;
+    /* As the server reads a line: `hitpoints=350   // [wiki]` states 350. */
+    cp_value_clean(scratch);
+    if( cp_value_is_default(value) )
+        return NULL;
+    return value;
+}
+
+/**
+ * Refuse a field stated in the spelling its register does not declare. Returns
+ * the number of such lines on `rec` (each reported).
+ */
+static int
+fields_spelling_check(
+    struct CP_Ctx* ctx,
+    const struct RSCache_Register* fields,
+    const struct CP_MergedRecord* rec)
+{
+    int wrong = 0;
+
+    for( int f = 0; f < fields->count; f++ )
+    {
+        const struct RSCache_RegisterField* field = &fields->entries[f];
+        char scratch[512];
+        const char* other = field->text == RSCACHE_REGISTER_TEXT_PARAM
+                                ? key_line_value(rec, field->name)
+                                : param_line_value(rec, field->name, scratch, sizeof(scratch));
+
+        if( !other || field->client == RSCACHE_REGISTER_CLIENT_NATIVE )
+            continue;
+        /* A `param=<name>,...` line where a real param is called `<name>` is that
+         * param (obj's cache param 436 is `levelrequire`; the server's own
+         * requirement list is the key `levelrequire<N>=`), not this field
+         * misspelled. */
+        if( field->text != RSCACHE_REGISTER_TEXT_PARAM &&
+            cp_name_find(ctx, CP_TYPE_PARAM, field->name) >= 0 )
+            continue;
+        fprintf(stderr,
+                "cachepack: %s [%s]: `%s` is spelled as a %s here, and fields/%s.ini declares "
+                "`text = %s` — one spelling per field\n",
+                fields->type, rec->debugname, field->name,
+                field->text == RSCACHE_REGISTER_TEXT_PARAM ? "key" : "param", fields->type,
+                field->text == RSCACHE_REGISTER_TEXT_PARAM ? "param" : "key");
+        wrong++;
+    }
+    return wrong;
+}
+
+static int record_is_defaults_block(const struct CP_MergedRecord* rec);
+
+/**
+ * The whole-record key check over every merged record, client and server keys,
+ * plus the one-spelling rule. Reports every failure; returns 0 if there was one.
+ */
+static int
+merged_records_check(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId type_id,
+    const struct CP_MergeSet* merged)
+{
+    const struct CP_Type* type = cp_type(type_id);
+    const struct RSCache_Register* fields = cp_ctx_fields(ctx, type_id);
+    struct CP_ConfigLine* lines = NULL;
+    int capacity = 0;
+    int failed = 0;
+
+    for( int r = 0; r < merged->count; r++ )
+    {
+        const struct CP_MergedRecord* rec = &merged->records[r];
+        struct CP_Config view;
+
+        if( rec->count > capacity )
+        {
+            capacity = rec->count * 2;
+            lines = realloc(lines, (size_t)capacity * sizeof(*lines));
+            assert(lines);
+        }
+        for( int i = 0; i < rec->count; i++ )
+        {
+            lines[i].key = rec->lines[i].key;
+            lines[i].value = rec->lines[i].value;
+            lines[i].line_no = 0;
+        }
+        memset(&view, 0, sizeof(view));
+        view.debugname = rec->debugname;
+        view.lines = lines;
+        view.count = rec->count;
+        /* A block for a record an imported lane defines is an overlay of that
+         * record, partial like any overlay; every other record states every key
+         * (rank 0 already did, so this is what catches a new record). */
+        /* `[default]` is not a record: it states what a record is before any
+         * block describes it, so only the keys it sets mean anything. */
+        if( !(rec->origin_rank > 0 && cp_name_is_lane(ctx, type_id, rec->debugname)) &&
+            !record_is_defaults_block(rec) &&
+            !cp_keys_check_config_full(ctx, type, fields, &view, rec->debugname) )
+            failed++;
+        if( fields_spelling_check(ctx, fields, rec) )
+            failed++;
+    }
+    free(lines);
+    if( failed )
+        fprintf(stderr, "cachepack: %s: %d record(s) refused — see above\n", type->name, failed);
+    return failed == 0;
+}
+
 
 /**
  * A decimal literal, or a name in the namespace the register declares.
@@ -303,7 +518,7 @@ merged_value(
 static int
 resolve_field_value(
     struct CP_Ctx* ctx,
-    const struct CP_Field* field,
+    const struct RSCache_RegisterField* field,
     const char* text,
     int* out)
 {
@@ -364,9 +579,285 @@ record_is_defaults_block(const struct CP_MergedRecord* rec)
     return strcmp(rec->debugname, "default") == 0;
 }
 
+/** Note one value of `field` that could not go, keeping the first as a sample. */
+static void
+tally_refuse(
+    struct CP_FieldTally* tally,
+    int no_ref,
+    const char* text)
+{
+    if( no_ref )
+    {
+        if( !tally->no_ref )
+            snprintf(tally->no_ref_sample, sizeof(tally->no_ref_sample), "%s", text);
+        tally->no_ref++;
+        return;
+    }
+    if( !tally->unresolved )
+        snprintf(tally->sample, sizeof(tally->sample), "%s", text);
+    tally->unresolved++;
+}
+
 /**
- * Fill `band` with the fields `rec` states, tallying every value that could not
- * go. Returns `band->stated` — how many fields landed.
+ * One scalar int field's text to its number. 1 and `*out` set; 0 when the text
+ * is not a value of the field; -1 when the register gives no way to read a
+ * non-number (no `values`, `type` or `ref`).
+ *
+ * In order: a word the field's `values = ...` row declares (`huntmode=aggressive`),
+ * then its single `type` as a db column reads it (`boolean`, `coord`, `obj`), then
+ * a number or a `ref` name.
+ */
+static int
+band_scalar_value(
+    struct CP_Ctx* ctx,
+    const struct RSCache_RegisterField* field,
+    const char* text,
+    int* out)
+{
+    if( RSCache_RegisterWordValue(field, text, out) )
+        return 1;
+    /* `^dks_attackrate`: a constant, read as the field's type reads its text. */
+    if( text[0] == '^' )
+    {
+        const struct CP_ValueType* type =
+            field->type_count == 1 ? cp_value_type_named(field->types[0]) : NULL;
+
+        if( type && type->spell == CP_VALUE_STRING )
+            type = NULL;
+        return cp_value_int_read(ctx, type, text, out);
+    }
+    if( field->type_count == 1 )
+    {
+        const struct CP_ValueType* type = cp_value_type_named(field->types[0]);
+
+        if( !type || type->spell == CP_VALUE_STRING )
+            return -1;
+        return cp_value_int_read(ctx, type, text, out);
+    }
+    if( !field->ref[0] && field->word_count == 0 && !cp_parse_int(text, out) )
+        return -1;
+    return resolve_field_value(ctx, field, text, out);
+}
+
+/** The number after `field`'s stem in `key` (`stock12` -> 12), or -1 when `key`
+ *  is not one of the field's numbered lines. */
+static int
+band_indexed_number(
+    const struct RSCache_RegisterField* field,
+    const char* key)
+{
+    size_t stem = strlen(field->name);
+    long number;
+    char* end;
+
+    if( strncmp(field->name, key, stem) != 0 || key[stem] < '0' || key[stem] > '9' )
+        return -1;
+    number = strtol(key + stem, &end, 10);
+    if( *end || number < 0 || number > 65535 )
+        return -1;
+    return (int)number;
+}
+
+/**
+ * Read one tuple's text into `tuple`, `field->type_count` elements by the field's
+ * `type`s. Returns 1, or 0 with the failing text in `tally`.
+ */
+static int
+band_tuple(
+    struct CP_Ctx* ctx,
+    const struct RSCache_RegisterField* field,
+    const char* text,
+    struct RSCache_BandValue* tuple,
+    struct CP_FieldTally* tally)
+{
+    char buffer[2048];
+    char* parts[RSCACHE_REGISTER_TYPES_MAX];
+    int found;
+
+    if( strlen(text) >= sizeof(buffer) )
+    {
+        tally_refuse(tally, 0, text);
+        return 0;
+    }
+    snprintf(buffer, sizeof(buffer), "%s", text);
+    found = cp_value_split(buffer, field->type_count, parts);
+    if( found != field->type_count )
+    {
+        tally_refuse(tally, 0, text);
+        return 0;
+    }
+    for( int e = 0; e < field->type_count; e++ )
+    {
+        const struct CP_ValueType* type = cp_value_type_named(field->types[e]);
+
+        tuple[e].i = 0;
+        tuple[e].s = NULL;
+        if( !type )
+        {
+            tally_refuse(tally, 1, field->types[e]);
+            return 0;
+        }
+        if( type->spell == CP_VALUE_STRING )
+            tuple[e].s = parts[e];
+        else if( !cp_value_int_read(ctx, type, parts[e], &tuple[e].i) )
+        {
+            tally_refuse(tally, 0, parts[e]);
+            return 0;
+        }
+    }
+    /* AppendTuple copies the strings, so pointers into `buffer` are enough. */
+    return 1;
+}
+
+/** One line of a list field, and where it sorts. */
+struct BandListLine
+{
+    int number;
+    const char* key;
+    const char* value;
+};
+
+static int
+band_list_line_order(
+    const void* a,
+    const void* b)
+{
+    const struct BandListLine* x = a;
+    const struct BandListLine* y = b;
+
+    return x->number < y->number ? -1 : x->number > y->number;
+}
+
+/**
+ * State list field `f` from `rec`'s lines. Returns 1 when the record states the
+ * list (even with no tuples: `stock=empty`), 0 when it does not, and -1 when a
+ * tuple was refused — a list with a hole is not written short, and the record's
+ * band goes unwritten rather than wrong.
+ *
+ * `text = indexed`: `stock1=...`, `stock2=...` in the order of their numbers,
+ * which must not repeat; markers on the bare stem. `text = list`: every
+ * `<name>=...` line in file order, markers on the same key.
+ */
+static int
+band_list(
+    struct CP_Ctx* ctx,
+    const struct RSCache_RegisterField* field,
+    int f,
+    const struct CP_MergedRecord* rec,
+    struct CP_FieldTally* tally,
+    struct RSCache_BandRecord* record)
+{
+    struct BandListLine* lines;
+    int count = 0;
+    int markers = 0;
+    int empty = 0;
+    int result = 1;
+
+    lines = malloc((size_t)(rec->count + 1) * sizeof(*lines));
+    assert(lines);
+    for( int i = 0; i < rec->count; i++ )
+    {
+        const char* key = rec->lines[i].key;
+        const char* value = rec->lines[i].value;
+        int number = -1;
+
+        if( strcmp(key, field->name) == 0 &&
+            (cp_value_is_default(value) || cp_value_is_empty(value)) )
+        {
+            markers++;
+            empty += cp_value_is_empty(value);
+            continue;
+        }
+        if( field->text == RSCACHE_REGISTER_TEXT_PARAM )
+        {
+            /* `param=levelrequire,attack,60`: the tuple is what follows the name. */
+            size_t n = strlen(field->name);
+
+            if( strcmp(key, "param") != 0 || strncmp(value, field->name, n) != 0 ||
+                value[n] != ',' )
+                continue;
+            value += n + 1;
+            if( cp_value_is_default(value) || cp_value_is_empty(value) )
+            {
+                markers++;
+                empty += cp_value_is_empty(value);
+                continue;
+            }
+            number = count;
+        }
+        else if( field->text == RSCACHE_REGISTER_TEXT_LIST )
+        {
+            if( strcmp(key, field->name) != 0 )
+                continue;
+            number = count;
+        }
+        else
+        {
+            number = band_indexed_number(field, key);
+            if( number < 0 )
+                continue;
+        }
+        lines[count].number = number;
+        lines[count].key = key;
+        lines[count].value = value;
+        count++;
+    }
+
+    if( markers && count )
+    {
+        /* The merge drops a lower layer's marker when a higher one lists, so a
+         * marker beside entries is one layer saying both. */
+        tally_refuse(tally, 0, "a marker beside entries");
+        result = -1;
+    }
+    else if( !count )
+    {
+        result = empty ? 1 : 0;
+        if( empty )
+            RSCache_BandRecordAppendTuple(record, f, NULL, 0);
+    }
+    else
+    {
+        qsort(lines, (size_t)count, sizeof(*lines), band_list_line_order);
+        for( int i = 0; i < count && result > 0; i++ )
+        {
+            struct RSCache_BandValue tuple[RSCACHE_REGISTER_TYPES_MAX];
+
+            /* `stock3` twice in one layer: which one is meant? */
+            if( i > 0 && lines[i].number == lines[i - 1].number )
+            {
+                tally_refuse(tally, 0, lines[i].key);
+                result = -1;
+            }
+            else if( !band_tuple(ctx, field, lines[i].value, tuple, tally) )
+                result = -1;
+            else
+                RSCache_BandRecordAppendTuple(record, f, tuple, field->type_count);
+        }
+    }
+    free(lines);
+    return result;
+}
+
+/** How many of `record`'s stated band fields are the server's alone -- not a
+ *  mirror of a native client field. What membership's "server half" counts. */
+static int
+band_server_only_fields(
+    const struct RSCache_Register* fields,
+    const struct RSCache_BandRecord* record)
+{
+    int count = 0;
+
+    for( int f = 0; f < fields->band_count; f++ )
+        count += RSCache_PresenceHas(&record->present, f) &&
+                 fields->entries[f].client != RSCACHE_REGISTER_CLIENT_NATIVE;
+    return count;
+}
+
+/**
+ * Fill `record` with the band fields `rec` states, tallying every value that
+ * could not go. Returns how many fields landed — the record's presence count —
+ * or -1 when a list field was refused part-way (the record is then unusable).
  *
  * Lifted out of `pack_server_type` so the membership seeder can ask the same
  * question the writer asks (`cp_membership_emit`). "Does this record have a
@@ -378,18 +869,39 @@ record_is_defaults_block(const struct CP_MergedRecord* rec)
 static int
 server_band_build(
     struct CP_Ctx* ctx,
-    const struct CP_Fields* fields,
+    const struct RSCache_Register* fields,
     const struct CP_MergedRecord* rec,
     struct CP_FieldTally* tally,
-    struct CP_ServerBand* band)
+    struct RSCache_BandRecord* record)
 {
-    cp_server_band_init(band);
+    int stated = 0;
+
+    RSCache_BandRecordReset(record);
+    /* `entries[0, band_count)` are the band fields, so `f` is also the field's
+     * index in the band record (RSCache_BandIndex). */
     for( int f = 0; f < fields->band_count; f++ )
     {
-        const struct CP_Field* field = &fields->entries[f];
+        const struct RSCache_RegisterField* field = &fields->entries[f];
         char scratch[512];
-        const char* text = merged_value(rec, field->name, scratch, sizeof(scratch));
+        const char* text;
         int value = 0;
+
+        if( field->wire == RSCACHE_REGISTER_WIRE_LIST )
+        {
+            int listed = band_list(ctx, field, f, rec, &tally[f], record);
+
+            if( listed < 0 )
+            {
+                RSCache_BandRecordFree(record);
+                return -1;
+            }
+            if( listed )
+            {
+                stated++;
+                tally[f].written++;
+            }
+            continue;
+        }
 
         /*
          * Presence is the criterion — never a comparison against a default,
@@ -399,36 +911,50 @@ server_band_build(
          * job is to preserve that distinction, and it has no defaults record to
          * derive it from anyway.
          */
+        text = merged_value(rec, field, scratch, sizeof(scratch));
         if( !text )
             continue;
+        if( field->wire == RSCACHE_REGISTER_WIRE_STRING )
         {
-            int resolved = resolve_field_value(ctx, field, text, &value);
+            RSCache_BandRecordSetString(record, f, cp_value_is_empty(text) ? "" : text);
+            stated++;
+            tally[f].written++;
+            continue;
+        }
+        /* `hitpoints=empty` is a list's marker on a key that holds one value. */
+        if( cp_value_is_empty(text) )
+        {
+            tally_refuse(&tally[f], 0, text);
+            continue;
+        }
+        {
+            int resolved = band_scalar_value(ctx, field, text, &value);
 
-            if( resolved < 0 )
+            if( resolved <= 0 )
             {
-                if( !tally[f].no_ref )
-                    snprintf(tally[f].no_ref_sample, sizeof(tally[f].no_ref_sample), "%s", text);
-                tally[f].no_ref++;
-                continue;
-            }
-            if( !resolved )
-            {
-                if( !tally[f].unresolved )
-                    snprintf(tally[f].sample, sizeof(tally[f].sample), "%s", text);
-                tally[f].unresolved++;
+                tally_refuse(&tally[f], resolved < 0, text);
                 continue;
             }
         }
-        if( !cp_server_band_put(band, field, value) )
+        /*
+         * Range-checked before it is stated, and refused rather than masked: a
+         * truncated id is a valid id for some other record. `u1`/`u2` read back
+         * zero-extended, so only `u4` carries a negative — which is exactly what
+         * `death_drop`'s -1 needs. The encoder asserts on a value that does not
+         * fit, so this is the only place a bad value is a diagnostic.
+         */
+        if( !RSCache_BandFits(fields, f, value) )
         {
             if( !tally[f].out_of_range )
                 snprintf(tally[f].sample, sizeof(tally[f].sample), "%d", value);
             tally[f].out_of_range++;
             continue;
         }
+        RSCache_BandRecordSet(record, f, value);
+        stated++;
         tally[f].written++;
     }
-    return band->stated;
+    return stated;
 }
 
 /* ---- the entity gate ------------------------------------------------------ */
@@ -523,7 +1049,7 @@ server_band_build(
 static int
 record_is_client(
     const struct CP_MergedRecord* rec,
-    const struct CP_Fields* fields)
+    const struct RSCache_Register* fields)
 {
     return !(rec->origin_rank > 0 && !fields->records_client);
 }
@@ -642,12 +1168,12 @@ record_in_base_cache(
  */
 static int
 record_states_client_field(
-    const struct CP_Fields* fields,
+    const struct RSCache_Register* fields,
     const struct CP_MergedRecord* rec)
 {
     for( int i = 0; i < rec->count; i++ )
     {
-        const struct CP_Field* field = cp_fields_find(fields, rec->lines[i].key);
+        const struct RSCache_RegisterField* field = RSCache_RegisterFind(fields, rec->lines[i].key);
 
         if( !field && strcmp(rec->lines[i].key, "param") == 0 )
         {
@@ -660,12 +1186,13 @@ record_states_client_field(
             {
                 memcpy(name, value, n);
                 name[n] = 0;
-                field = cp_fields_find(fields, name);
+                field = RSCache_RegisterFind(fields, name);
             }
         }
         if( !field )
             return 1; /* unknown to the register, so the encoder sees it */
-        if( field->client == CP_FIELD_CLIENT_NATIVE || field->client == CP_FIELD_CLIENT_PARAM )
+        if( field->client == RSCACHE_REGISTER_CLIENT_NATIVE ||
+            field->client == RSCACHE_REGISTER_CLIENT_PARAM )
             return 1;
     }
     return 0;
@@ -683,7 +1210,7 @@ static int
 routing_client_member(
     struct CP_Ctx* ctx,
     enum CP_TypeId type_id,
-    const struct CP_Fields* fields,
+    const struct RSCache_Register* fields,
     struct CP_Routing* routing,
     const struct CP_MergedRecord* rec,
     int* errors)
@@ -882,7 +1409,7 @@ routing_report_server(
 static void
 routing_report(
     const struct CP_Type* type,
-    const struct CP_Fields* fields,
+    const struct RSCache_Register* fields,
     const struct CP_Routing* routing)
 {
     if( routing->client_by_name || routing->client_by_substrate || routing->client_by_rank0 )
@@ -923,6 +1450,38 @@ routing_report(
                type->name, routing->rank1_in_cache);
 }
 
+/** Write a type's `[default]` band at (RSCACHE_SERVERPACK_DEFAULTS_GROUP, kind). */
+static int
+server_defaults_write(
+    const struct CP_Type* type,
+    const char* server_dir,
+    const uint8_t* band,
+    uint32_t band_size)
+{
+    uint32_t archive_capacity = band_size + CP_SERVER_PACK_HEADER;
+    uint32_t container_capacity =
+        RSCache_ArchiveEncodeBound(archive_capacity, RSCACHE_ARCHIVE_COMPRESSION_NONE);
+    uint8_t* archive = malloc(archive_capacity);
+    uint8_t* container = malloc(container_capacity);
+    uint32_t payload;
+    uint32_t framed;
+    int ok;
+
+    assert(archive);
+    assert(container);
+    payload = cp_server_archive_build(band, band_size, archive, archive_capacity);
+    framed = RSCache_ArchiveEncode(container, container_capacity, archive, payload,
+                                   RSCACHE_ARCHIVE_COMPRESSION_NONE, NULL);
+    ok = payload && framed &&
+         RSCache_Dat2DiskWriteArchive(server_dir, RSCACHE_SERVERPACK_DEFAULTS_GROUP,
+                                      type->config_kind, container, (int)framed) == 0;
+    if( !ok )
+        fprintf(stderr, "cachepack: %s [default] failed to write its band\n", type->name);
+    free(archive);
+    free(container);
+    return ok;
+}
+
 /**
  * Write one type's server bands.
  *
@@ -939,14 +1498,15 @@ pack_server_type(
     struct CP_PackStats* stats)
 {
     const struct CP_Type* type = cp_type(type_id);
-    struct CP_Fields fields;
-    struct CP_FieldTally tally[CP_FIELDS_MAX];
+    struct RSCache_Register fields;
+    struct CP_FieldTally tally[RSCACHE_REGISTER_MAX];
     int unnamed = 0;
     int bad_ref = 0;
 
-    if( cp_fields_load(&fields, ctx->srcdir, type->name) <= 0 )
+    RSCache_RegisterLoad(&fields, ctx->srcdir, type->name);
+    if( fields.band_count <= 0 )
         return 1; /* nothing declared: nothing to write, and that is a valid tree */
-    if( cp_fields_check(&fields) != 0 )
+    if( RSCache_RegisterCheck(&fields) != 0 )
     {
         fprintf(stderr, "cachepack: fields/%s.ini is not a register the server codec can read\n",
                 type->name);
@@ -954,7 +1514,7 @@ pack_server_type(
     }
 
     /* `ref` names a cachepack config type, and that is checked here rather than in
-     * cp_fields.c so that file stays free of the type register. A misspelling is
+     * rscache_register.c, which knows no config type. A misspelling is
      * fatal: every symbolic value for that field would silently fall through to
      * "unresolved" and the pack would look merely incomplete. */
     for( int i = 0; i < fields.count; i++ )
@@ -976,24 +1536,58 @@ pack_server_type(
         return 0;
     }
 
+    /* One record and one set of buffers for the whole type: a string or list
+     * field has no fixed width, so the buffers grow to each record's bound, and
+     * the record's strings and lists are released before the next is built. */
+    struct RSCache_BandRecord record;
+    uint8_t* band = NULL;
+    uint8_t* archive = NULL;
+    uint8_t* container = NULL;
+    uint32_t band_capacity = 0;
+
+    int defaults_written = 0;
+
+    RSCache_BandRecordReset(&record);
     for( int r = 0; r < merged->count; r++ )
     {
         const struct CP_MergedRecord* rec = &merged->records[r];
-        struct CP_ServerBand band;
-        uint8_t archive[CP_SERVER_BAND_MAX + CP_SERVER_PACK_HEADER];
-        uint8_t container[CP_SERVER_BAND_MAX + CP_SERVER_PACK_HEADER + 16];
+        uint32_t band_size;
+        uint32_t bound;
         uint32_t payload;
         uint32_t framed;
+        int stated;
         int id = 0;
 
-        if( server_band_build(ctx, &fields, rec, tally, &band) == 0 )
-            continue; /* the record states nothing this register knows */
+        RSCache_BandRecordFree(&record);
+        stated = server_band_build(ctx, &fields, rec, tally, &record);
+        if( stated <= 0 )
+            continue; /* states nothing this register knows, or a list was refused */
 
-        if( !cp_server_band_finish(&band) )
-            continue;
+        bound = RSCache_BandEncodeBound(&fields, &record);
+        if( bound > band_capacity )
+        {
+            band_capacity = bound;
+            band = realloc(band, band_capacity);
+            archive = realloc(archive, band_capacity + CP_SERVER_PACK_HEADER);
+            container = realloc(container, band_capacity + CP_SERVER_PACK_HEADER + 16);
+            assert(band);
+            assert(archive);
+            assert(container);
+        }
+
+        /* The library's codec, the one the server decodes with: the stated
+         * fields ascending by opcode, then the terminator. */
+        band_size = RSCache_BandEncode(&fields, &record, band, band_capacity);
 
         if( record_is_defaults_block(rec) )
+        {
+            /* `[default]` is not an entity, but the server needs it: it is what
+             * every record of the type is before its own band applies. */
+            if( !server_defaults_write(type, server_dir, band, band_size) )
+                stats->failed++;
+            defaults_written = 1;
             continue;
+        }
 
         /*
          * The entity gate, after the band and before the id: whether the record
@@ -1003,9 +1597,17 @@ pack_server_type(
          * unresolved-value diagnostics that reach the exit status — still see
          * every record, exactly as they did when provenance decided this.
          */
-        if( !routing_server_member(ctx, type_id, routing, rec, band.stated,
-                                   &stats->membership_errors) )
-            continue;
+        /* A band field that mirrors a native client field (a dbtable's column
+         * names) is the client side's own data; only the server-only fields
+         * make a record a server entity in membership's sense. */
+        {
+            int server_stated = band_server_only_fields(&fields, &record);
+
+            if( server_stated > 0 &&
+                !routing_server_member(ctx, type_id, routing, rec, server_stated,
+                                       &stats->membership_errors) )
+                continue;
+        }
 
         id = cp_name_find(ctx, type_id, rec->debugname);
         if( id < 0 )
@@ -1018,7 +1620,8 @@ pack_server_type(
             continue;
         }
 
-        payload = cp_server_archive_build(&band, archive, sizeof(archive));
+        payload = cp_server_archive_build(band, band_size, archive,
+                                          band_capacity + CP_SERVER_PACK_HEADER);
         if( !payload )
             continue;
         /*
@@ -1026,7 +1629,8 @@ pack_server_type(
          * larger than most of them, and the container's own length fields already
          * bound the read.
          */
-        framed = RSCache_ArchiveEncode(container, sizeof(container), archive, payload,
+        framed = RSCache_ArchiveEncode(container, band_capacity + CP_SERVER_PACK_HEADER + 16,
+                                       archive, payload,
                                        RSCACHE_ARCHIVE_COMPRESSION_NONE, NULL);
         if( !framed )
             continue;
@@ -1040,8 +1644,21 @@ pack_server_type(
         }
         stats->server_records++;
         stats->server_bytes += (int)framed;
-        stats->server_fields += band.stated;
+        stats->server_fields += stated;
     }
+    /* No `[default]` block is still written, as an empty band, so the server
+     * can tell "the tree states no defaults" from "this pack has none". */
+    if( !defaults_written )
+    {
+        static const uint8_t empty_band[1] = { 0 };
+
+        if( !server_defaults_write(type, server_dir, empty_band, 1) )
+            stats->failed++;
+    }
+    RSCache_BandRecordFree(&record);
+    free(band);
+    free(archive);
+    free(container);
 
     if( stats->server_records )
         printf("  %-11s server pack: %d record(s), %d field(s), %d bytes in idx%d\n", type->name,
@@ -1049,26 +1666,29 @@ pack_server_type(
                type->config_kind);
     for( int f = 0; f < fields.count; f++ )
     {
-        const struct CP_Field* field = &fields.entries[f];
+        const struct RSCache_RegisterField* field = &fields.entries[f];
 
+        /* Both are errors that reach the exit status: the server reads only this
+         * pack, so a value not written is a field the game reads back absent and
+         * answers with its default — indistinguishable from a record that meant
+         * the default. */
         if( tally[f].no_ref )
-            printf("  %-11s   %s: %d value(s) not written — `%s` is a name and the register "
-                   "declares no `ref` namespace for it\n",
-                   type->name, field->name, tally[f].no_ref, tally[f].no_ref_sample);
-        if( tally[f].unresolved )
-        {
-            /* An error, and it reaches the exit status through
-             * `warn_unresolved_name`: the field is declared to resolve through a
-             * namespace and the author named something that is not in it. Silence
-             * here is a field that reads back absent and is answered by its
-             * default — indistinguishable from a record that meant the default. */
             cp_warn(ctx, &ctx->warn_unresolved_name,
-                    "%s.%s: %d value(s) name nothing in %s — `%s` is the first",
-                    type->name, field->name, tally[f].unresolved, field->ref, tally[f].sample);
-        }
+                    "%s.%s: %d value(s) not written — `%s` is not a number, and fields/%s.ini "
+                    "gives the field no `values`, `type` or `ref` to read it by",
+                    type->name, field->name, tally[f].no_ref, tally[f].no_ref_sample, type->name);
+        if( tally[f].unresolved )
+            cp_warn(ctx, &ctx->warn_unresolved_name,
+                    "%s.%s: %d value(s) not written — `%s` is the first that is not a %s",
+                    type->name, field->name, tally[f].unresolved, tally[f].sample,
+                    field->word_count ? "declared word"
+                    : field->type_count ? field->types[0]
+                    : field->ref[0]     ? field->ref
+                                        : "number");
         if( tally[f].out_of_range )
             printf("  %-11s   %s: %d value(s) not written — %s does not fit u%d\n", type->name,
-                   field->name, tally[f].out_of_range, tally[f].sample, (int)field->wire);
+                   field->name, tally[f].out_of_range, tally[f].sample,
+                   cp_register_wire_bytes(field->wire));
     }
     if( unnamed )
         printf("  %-11s   %d record(s) with server fields have no id\n", type->name, unnamed);
@@ -1194,7 +1814,7 @@ states_param(
 static int
 client_view_build(
     struct CP_Ctx* ctx,
-    const struct CP_Fields* fields,
+    const struct RSCache_Register* fields,
     const struct CP_MergedRecord* rec,
     struct CP_ClientView* view,
     int* out_projected,
@@ -1205,7 +1825,9 @@ client_view_build(
 
     for( int i = 0; i < rec->count; i++ )
     {
-        const struct CP_Field* field = cp_fields_find(fields, rec->lines[i].key);
+        /* `patrol3=...` is a line of the indexed field `patrol`. */
+        const struct RSCache_RegisterField* field =
+            RSCache_RegisterFindLine(fields, rec->lines[i].key);
 
         /*
          * A `param=<name>,...` line is looked up by the *param name*, not by the
@@ -1222,16 +1844,22 @@ client_view_build(
             char subkey[128];
 
             map_subkey(rec->lines[i].value, subkey, sizeof(subkey));
-            field = cp_fields_find(fields, subkey);
+            field = RSCache_RegisterFind(fields, subkey);
+            /* Only a field SPELLED as a param owns `param=<name>,...` lines; one
+             * spelled as a key that happens to share a real param's name (obj's
+             * `levelrequire<N>=` and the cache's param 436 `levelrequire`) does
+             * not, and stripping the param's line would drop it from the record. */
+            if( field && field->text != RSCACHE_REGISTER_TEXT_PARAM )
+                field = NULL;
             /* A projected field states the param *is* how it reaches the client, so
              * the line stays. Only `drop` and `error` strip it. */
-            if( field && field->client == CP_FIELD_CLIENT_PARAM )
+            if( field && field->client == RSCACHE_REGISTER_CLIENT_PARAM )
                 field = NULL;
         }
 
         if( field )
         {
-            if( field->client == CP_FIELD_CLIENT_ERROR )
+            if( field->client == RSCACHE_REGISTER_CLIENT_ERROR )
             {
                 fprintf(stderr,
                         "cachepack: %s [%s]: `%s` is declared `client = error` and the record "
@@ -1240,7 +1868,7 @@ client_view_build(
                 (*out_errors)++;
                 continue;
             }
-            if( field->client != CP_FIELD_CLIENT_NATIVE )
+            if( field->client != RSCACHE_REGISTER_CLIENT_NATIVE )
                 continue; /* param:N is injected below; drop never reaches the encoder */
         }
         if( !view_push(view, rec->lines[i].key, rec->lines[i].value, 0) )
@@ -1258,17 +1886,16 @@ client_view_build(
      */
     for( int f = 0; f < fields->count; f++ )
     {
-        const struct CP_Field* field = &fields->entries[f];
+        const struct RSCache_RegisterField* field = &fields->entries[f];
         char scratch[512];
         const char* text;
         char* line;
         int value = 0;
         int param_id;
-        char kind;
 
-        if( field->client != CP_FIELD_CLIENT_PARAM || !field->param_name[0] )
+        if( field->client != RSCACHE_REGISTER_CLIENT_PARAM || !field->param_name[0] )
             continue;
-        text = merged_value(rec, field->name, scratch, sizeof(scratch));
+        text = merged_value(rec, field, scratch, sizeof(scratch));
         if( !text || states_param(rec, field->param_name) )
             continue;
         if( !resolve_field_value(ctx, field, text, &value) )
@@ -1282,21 +1909,50 @@ client_view_build(
                     fields->type, rec->debugname, field->param_name);
             continue;
         }
-        kind = cp_param_type_of(ctx, param_id);
-
         line = (char*)malloc(600);
-        if( !line )
-            return 0;
-        /* The machine spelling, three fields. `cp_parse_param` accepts the
-         * two-field authored one too, but writing the kind here keeps the
-         * projection independent of whether the param's own record loaded. */
-        snprintf(line, 600, "%s,%s,%d", field->param_name, kind == 's' ? "str" : "int", value);
+        assert(line);
+        /* The one param spelling, `param=<name>,<value>`; the kind is the
+         * param's declared type, as for every other param line. */
+        snprintf(line, 600, "%s,%d", field->param_name, value);
         if( !view_push(view, (char*)"param", line, 1) )
         {
             free(line);
             return 0;
         }
         (*out_projected)++;
+    }
+
+    /*
+     * A client key whose every line was routed away still has to be stated.
+     *
+     * `doors.loc` overlays a loc's `param=default` with `param=next_loc_stage,...`
+     * lines that all go to the server band, which leaves the client record with no
+     * `param` line at all -- and a client record states every key of its type
+     * (cp_keys.c). Once nothing of the key reaches the client, the client record
+     * does not state the field: `param=default`. Only the type's own keys are
+     * restored; a stripped server field (`hitpoints`) is not a client key.
+     */
+    {
+        int type_id = cp_type_by_name(fields->type);
+        const struct CP_Type* type;
+
+        assert(type_id >= 0);
+        type = cp_type((enum CP_TypeId)type_id);
+        for( int i = 0; i < rec->count; i++ )
+        {
+            const char* key = rec->lines[i].key;
+            const struct CP_KeySpec* spec = cp_key_spec(ctx, type, key);
+            int stated = 0;
+
+            if( !spec )
+                continue;
+            for( int v = 0; v < view->config.count && !stated; v++ )
+                stated = cp_key_spec(ctx, type, view->config.lines[v].key) == spec;
+            if( stated )
+                continue;
+            if( !view_push(view, (char*)spec->key, (char*)CP_VALUE_DEFAULT, 0) )
+                return 0;
+        }
     }
     return 1;
 }
@@ -1443,6 +2099,306 @@ pack_server_names(
     return 1;
 }
 
+/** One record's client encoding, held until its archive is full. */
+struct ServerRecordBody
+{
+    int id;
+    uint8_t* bytes;
+    uint32_t size;
+};
+
+static int
+server_record_body_order(
+    const void* a,
+    const void* b)
+{
+    const struct ServerRecordBody* x = a;
+    const struct ServerRecordBody* y = b;
+
+    return x->id < y->id ? -1 : x->id > y->id;
+}
+
+/** Write `bodies[0, count)` — one archive's worth, ids ascending — to the pack. */
+static int
+server_records_archive_write(
+    const struct CP_Type* type,
+    const char* server_dir,
+    const struct ServerRecordBody* bodies,
+    int count,
+    struct CP_PackStats* stats)
+{
+    int ids[1 << RSCACHE_SERVERPACK_RECORDS_SHIFT];
+    const uint8_t* datas[1 << RSCACHE_SERVERPACK_RECORDS_SHIFT];
+    uint32_t sizes[1 << RSCACHE_SERVERPACK_RECORDS_SHIFT];
+    uint32_t body_bytes = 0;
+    uint32_t payload_capacity;
+    uint32_t payload_size;
+    uint32_t framed_size;
+    uint32_t container_capacity;
+    uint32_t container_size;
+    uint8_t* payload;
+    uint8_t* container;
+    int ok;
+
+    assert(count > 0);
+    assert(count <= (1 << RSCACHE_SERVERPACK_RECORDS_SHIFT));
+    /* The band writer makes the directory only for a type with register
+     * fields; a tree whose types have none (a test fixture, a fresh unpack)
+     * reaches here first, and the archive write cannot create it. */
+    if( ensure_dir_p(server_dir) != 0 )
+    {
+        fprintf(stderr, "cachepack: cannot create %s\n", server_dir);
+        return 0;
+    }
+    for( int i = 0; i < count; i++ )
+    {
+        ids[i] = bodies[i].id;
+        datas[i] = bodies[i].bytes;
+        sizes[i] = bodies[i].size;
+        body_bytes += bodies[i].size;
+    }
+    payload_capacity = RSCache_ServerPackRecordsBound(count, body_bytes) + RSCACHE_SERVERPACK_HEADER;
+    payload = malloc(payload_capacity);
+    assert(payload);
+    /* Encoded past the header's room, then framed in place. */
+    payload_size = RSCache_ServerPackRecordsEncode(ids, datas, sizes, count,
+                                                   payload + RSCACHE_SERVERPACK_HEADER,
+                                                   payload_capacity - RSCACHE_SERVERPACK_HEADER);
+    framed_size = RSCache_ServerPackFrame(RSCACHE_SERVERPACK_KIND_RECORDS,
+                                          payload + RSCACHE_SERVERPACK_HEADER, payload_size,
+                                          payload, payload_capacity);
+    container_capacity = RSCache_ArchiveEncodeBound(framed_size, RSCACHE_ARCHIVE_COMPRESSION_GZIP);
+    container = malloc(container_capacity);
+    assert(container);
+    container_size = RSCache_ArchiveEncode(container, container_capacity, payload, framed_size,
+                                           RSCACHE_ARCHIVE_COMPRESSION_GZIP, NULL);
+    ok = container_size > 0 &&
+         RSCache_Dat2DiskWriteArchive(server_dir, RSCache_ServerPackRecordsGroup(type->config_kind),
+                                      RSCache_ServerPackRecordsArchive(bodies[0].id), container,
+                                      (int)container_size) == 0;
+    if( !ok )
+        fprintf(stderr, "cachepack: %s: failed to write client records %d..%d to the server pack\n",
+                type->name, bodies[0].id, bodies[count - 1].id);
+    else
+    {
+        stats->server_client_records += count;
+        stats->server_client_bytes += (int)container_size;
+    }
+    free(payload);
+    free(container);
+    return ok;
+}
+
+/**
+ * The client half of every record, into the server pack.
+ *
+ * The server reads its records from here, not from a client cache: a server-only
+ * enum or dbrow has a client-format body and no client cache to live in, and a
+ * client cache baked from an older tree would hand the server an older record.
+ * These bytes are what the client codec of the type encodes from the same merged
+ * view `pack_type` encodes for the client — every record that has an id, whichever
+ * side membership routes it to, because the server needs a server-only record's
+ * body as much as a shared one's.
+ *
+ * Not here: `[default]` (not a record), and a block that overlays a record an
+ * imported lane defines whole (its body is the lane's, and this view of it is
+ * partial — counted and reported, never encoded as if it were complete).
+ */
+static int
+compare_int(
+    const void* a,
+    const void* b)
+{
+    int x = *(const int*)a;
+    int y = *(const int*)b;
+
+    return x < y ? -1 : x > y;
+}
+
+/** Write a type's client-routed ids at (RSCACHE_SERVERPACK_CLIENT_IDS_GROUP, kind). */
+static int
+server_client_ids_write(
+    const struct CP_Type* type,
+    const char* server_dir,
+    int* ids,
+    int count)
+{
+    uint32_t payload_capacity = 4 + 4 * (uint32_t)count + RSCACHE_SERVERPACK_HEADER;
+    uint8_t* payload = malloc(payload_capacity);
+    uint32_t payload_size;
+    uint32_t framed;
+    uint32_t container_capacity;
+    uint8_t* container;
+    uint32_t container_size;
+    int ok;
+
+    assert(payload);
+    qsort(ids, (size_t)count, sizeof(*ids), compare_int);
+    payload_size = RSCache_ServerPackIdsEncode(ids, count, payload + RSCACHE_SERVERPACK_HEADER,
+                                               payload_capacity - RSCACHE_SERVERPACK_HEADER);
+    framed = RSCache_ServerPackFrame(RSCACHE_SERVERPACK_KIND_IDS, payload + RSCACHE_SERVERPACK_HEADER,
+                                     payload_size, payload, payload_capacity);
+    container_capacity = RSCache_ArchiveEncodeBound(framed, RSCACHE_ARCHIVE_COMPRESSION_GZIP);
+    container = malloc(container_capacity);
+    assert(container);
+    container_size = RSCache_ArchiveEncode(container, container_capacity, payload, framed,
+                                           RSCACHE_ARCHIVE_COMPRESSION_GZIP, NULL);
+    ok = container_size > 0 &&
+         RSCache_Dat2DiskWriteArchive(server_dir, RSCACHE_SERVERPACK_CLIENT_IDS_GROUP,
+                                      type->config_kind, container, (int)container_size) == 0;
+    if( !ok )
+        fprintf(stderr, "cachepack: %s: failed to write its client ids\n", type->name);
+    free(payload);
+    free(container);
+    return ok;
+}
+
+/*
+ * `client_ids`: the ids the full pack just wrote into the client cache, or NULL in
+ * `--server-only` mode, where the routing gate is asked here instead (on a copy
+ * of `routing`, so its counters are not counted twice).
+ */
+static int
+pack_server_records(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId type_id,
+    const struct CP_MergeSet* merged,
+    const char* server_dir,
+    struct CP_PackStats* stats,
+    struct CP_Routing* routing,
+    const int* client_ids,
+    int client_id_count)
+{
+    const struct CP_Type* type = cp_type(type_id);
+    const struct RSCache_Register* fields = cp_ctx_fields(ctx, type_id);
+    struct ServerRecordBody* bodies;
+    uint8_t* buffer;
+    int count = 0;
+    int lane_overlays = 0;
+    int projected = 0;
+    int view_errors = 0;
+    int ok = 1;
+
+    assert(type->pack);
+    bodies = malloc((size_t)(merged->count + 1) * sizeof(*bodies));
+    assert(bodies);
+    buffer = malloc(64 * 1024);
+    assert(buffer);
+    for( int r = 0; r < merged->count; r++ )
+    {
+        const struct CP_MergedRecord* rec = &merged->records[r];
+        struct CP_ClientView view;
+        int id = 0;
+        uint32_t size;
+
+        if( record_is_defaults_block(rec) )
+            continue;
+        if( rec->origin_rank > 0 && cp_name_is_lane(ctx, type_id, rec->debugname) )
+        {
+            lane_overlays++;
+            continue;
+        }
+        if( !resolve_id(ctx, type_id, rec->debugname, &id) )
+        {
+            stats->failed++;
+            continue;
+        }
+        if( !client_view_build(ctx, fields, rec, &view, &projected, &view_errors) )
+        {
+            client_view_free(&view);
+            stats->failed++;
+            continue;
+        }
+        size = type->pack(ctx, id, &view.config, buffer, 64 * 1024);
+        client_view_free(&view);
+        if( size == 0 )
+        {
+            fprintf(stderr, "cachepack: %s [%s] failed to encode for the server pack\n",
+                    type->name, rec->debugname);
+            stats->failed++;
+            continue;
+        }
+        bodies[count].id = id;
+        bodies[count].bytes = malloc(size);
+        assert(bodies[count].bytes);
+        memcpy(bodies[count].bytes, buffer, size);
+        bodies[count].size = size;
+        count++;
+    }
+    free(buffer);
+
+    qsort(bodies, (size_t)count, sizeof(*bodies), server_record_body_order);
+    for( int i = 1; i < count; i++ )
+    {
+        if( bodies[i].id == bodies[i - 1].id )
+        {
+            fprintf(stderr, "cachepack: %s: two records share id %d\n", type->name, bodies[i].id);
+            ok = 0;
+        }
+    }
+    for( int first = 0; ok && first < count; )
+    {
+        int archive = RSCache_ServerPackRecordsArchive(bodies[first].id);
+        int end = first;
+
+        while( end < count && RSCache_ServerPackRecordsArchive(bodies[end].id) == archive )
+            end++;
+        ok = server_records_archive_write(type, server_dir, bodies + first, end - first, stats);
+        first = end;
+    }
+    for( int i = 0; i < count; i++ )
+        free(bodies[i].bytes);
+    free(bodies);
+
+    /* Which of these records the client cache holds too: its array bounds. */
+    {
+        int* ids = malloc(((size_t)merged->count + (size_t)client_id_count + 1) * sizeof(int));
+        int count = 0;
+
+        assert(ids);
+        if( client_ids )
+        {
+            memcpy(ids, client_ids, (size_t)client_id_count * sizeof(int));
+            count = client_id_count;
+        }
+        else
+        {
+            const struct RSCache_Register* fields_view = cp_ctx_fields(ctx, type_id);
+            struct CP_Routing scratch = *routing;
+            int scratch_errors = 0;
+
+            for( int r = 0; r < merged->count; r++ )
+            {
+                const struct CP_MergedRecord* rec = &merged->records[r];
+                int id = cp_name_find(ctx, type_id, rec->debugname);
+
+                if( record_is_defaults_block(rec) || id < 0 )
+                    continue;
+                if( routing_client_member(ctx, type_id, fields_view, &scratch, rec,
+                                          &scratch_errors) )
+                    ids[count++] = id;
+            }
+        }
+        if( ok && !server_client_ids_write(type, server_dir, ids, count) )
+            ok = 0;
+        free(ids);
+    }
+
+    printf("  %-11s server pack: %d client record(s), %d bytes in idx%d", type->name,
+           stats->server_client_records, stats->server_client_bytes,
+           RSCache_ServerPackRecordsGroup(type->config_kind));
+    if( lane_overlays )
+        printf(" (%d lane overlay(s) left to their lane)", lane_overlays);
+    printf("\n");
+    if( view_errors )
+    {
+        fprintf(stderr, "cachepack: %s: %d field(s) declared `client = error` were stated\n",
+                type->name, view_errors);
+        ok = 0;
+    }
+    return ok && stats->failed == 0;
+}
+
 static int
 pack_type(
     struct CP_Ctx* ctx,
@@ -1477,7 +2433,7 @@ pack_type(
     const char* found[CP_PACK_MAX_SOURCES];
     int found_count = cp_walk_find(&ctx->walk, type->name, found, CP_PACK_MAX_SOURCES);
     struct CP_MergeSet merged;
-    struct CP_Fields fields;
+    struct RSCache_Register fields;
     struct CP_Routing routing;
     int projected = 0;
     int view_errors = 0;
@@ -1508,13 +2464,27 @@ pack_type(
      * measured now rather than remembered.
      */
     memset(&merged, 0, sizeof(merged));
+    merged.keys = type->keys;
+    merged.fields = cp_ctx_fields(ctx, type_id);
     for( int i = 0; i < found_count && ok; i++ )
     {
         struct CP_ConfigFile layer;
 
         if( !cp_config_file_load(&layer, found[i]) )
             continue;
-        ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(i, found[i]), found[i]);
+        /* Rank 0 is the cache's own record, written whole: every block states
+         * every key, so an overlay can never be what hides a dropped field. */
+        if( cp_merge_rank_for(i, found[i]) == 0 )
+        {
+            for( int b = 0; b < layer.count; b++ )
+            {
+                if( !cp_keys_check_config_full(ctx, type, cp_ctx_fields(ctx, type_id),
+                                               &layer.configs[b], layer.configs[b].debugname) )
+                    ok = 0;
+            }
+        }
+        if( ok )
+            ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(i, found[i]), found[i]);
         cp_config_file_free(&layer);
     }
     if( !ok )
@@ -1525,6 +2495,15 @@ pack_type(
     if( found_count > 1 )
         printf("  %-11s %d record(s), %d overlaid by %d file(s)\n", type->name, merged.count,
                merged.overlaid_count, found_count - 1);
+
+    /* Every record, client keys and server keys alike, before either band is
+     * written: a new record (rank 1 only) has no rank 0 to inherit a key from,
+     * and a field stated in the other spelling is refused, not guessed at. */
+    if( !merged_records_check(ctx, type_id, &merged) )
+    {
+        cp_merge_free(&merged);
+        return 0;
+    }
 
     /* Both halves route on the same two files and the same cache id set, so it is
      * read once and handed to both. */
@@ -1537,18 +2516,16 @@ pack_type(
         return 0;
     }
 
-    cp_fields_load(&fields, ctx->srcdir, type->name);
+    RSCache_RegisterLoad(&fields, ctx->srcdir, type->name);
 
     /* One buffer for every record. 64 KB is comfortably past the largest config
      * record in any cache measured (the widest loc is under 2 KB); an encoder that
      * needs more returns 0 rather than overrunning, and that is reported. */
     uint8_t* buffer = malloc(64 * 1024);
-    if( !buffer )
-    {
-        routing_free(&routing);
-        cp_merge_free(&merged);
-        return 0;
-    }
+    int* client_ids = NULL;
+    int client_id_count = 0;
+
+    assert(buffer);
 
     for( int i = 0; i < merged.count; i++ )
     {
@@ -1571,6 +2548,15 @@ pack_type(
             stats->failed++;
             continue;
         }
+        /* Every key the client record has is stated, from whichever layer. A new
+         * record (rank 1 only) has no rank 0 to inherit from, so this is where
+         * one that left a key out is refused. */
+        if( !cp_keys_check_config(ctx, type, &view.config, rec->debugname) )
+        {
+            client_view_free(&view);
+            stats->failed++;
+            continue;
+        }
         size = type->pack(ctx, id, &view.config, buffer, 64 * 1024);
         client_view_free(&view);
         if( size == 0 )
@@ -1587,9 +2573,22 @@ pack_type(
         }
         stats->records++;
         stats->bytes += (int)size;
+        client_ids = realloc(client_ids, (size_t)(client_id_count + 1) * sizeof(int));
+        assert(client_ids);
+        client_ids[client_id_count++] = id;
     }
 
     free(buffer);
+    /* The server half of every record, now that the client set is known. */
+    if( server_dir && !pack_server_records(ctx, type_id, &merged, server_dir, stats, &routing,
+                                           client_ids, client_id_count) )
+    {
+        free(client_ids);
+        routing_free(&routing);
+        cp_merge_free(&merged);
+        return 0;
+    }
+    free(client_ids);
     cp_merge_free(&merged);
 
     printf("  %-11s %6d records, %d bytes%s\n", type->name, stats->records, stats->bytes,
@@ -1672,10 +2671,7 @@ cp_pack_run(
      * routed through the field register into the server pack.
      */
     {
-        static const char* const ROOTS[] = { "configs", "server/scripts" };
-        static const int RANKS[] = { 0, 1 };
-
-        cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
+        cp_walk_content(ctx);
         cp_constants_load(ctx);
     }
 
@@ -1685,7 +2681,7 @@ cp_pack_run(
      * their server fields must end up with no archives, not with yesterday's.
      */
     char server_dir[1200];
-    snprintf(server_dir, sizeof(server_dir), "%s/server/pack", ctx->srcdir);
+    cp_server_dir(ctx, server_dir, sizeof(server_dir));
     server_pack_clear(server_dir);
     if( !sel->all )
         printf("Note: --types restricts the server pack too; %s will hold only the "
@@ -1764,6 +2760,9 @@ cp_pack_run(
      * a corrupt one — but the caller should know the pack was partial. A membership
      * error is not a partial write at all: the bytes are what the tree asked for
      * and the tree is what is wrong, which is still not a success. */
+    if( failed == 0 && membership_errors == 0 && ctx->warn_unresolved_name == 0 && sel->all &&
+        !cp_server_stamp_write(ctx, server_dir) )
+        return 0;
     return failed == 0 && membership_errors == 0;
 }
 
@@ -1782,6 +2781,94 @@ cp_pack_run(
  * the same merge and the same `pack_server_type` — this function is the merge
  * loop of `pack_type` minus the client encoder.
  */
+struct MissingReport
+{
+    const char* type;
+    const char* record;
+    const char* file;
+};
+
+static void
+missing_print(
+    void* user,
+    const char* key,
+    const char* marker)
+{
+    const struct MissingReport* report = user;
+
+    printf("%s\t%s\t%s\t%s\t%s\n", report->type, report->record, report->file, key, marker);
+}
+
+int
+cp_missing_run(
+    struct CP_Ctx* ctx,
+    const struct CP_Selection* sel)
+{
+    struct CP_ConfigLine* lines = NULL;
+    int capacity = 0;
+    int total = 0;
+    int ok = 1;
+
+    assert(ctx);
+    assert(sel);
+    cp_walk_content(ctx);
+    for( int t = 0; t < CP_TYPE_COUNT && ok; t++ )
+    {
+        const struct CP_Type* type = cp_type((enum CP_TypeId)t);
+        const char* found[CP_PACK_MAX_SOURCES];
+        struct CP_MergeSet merged;
+        int found_count;
+
+        if( !sel->all && !(sel->mask & (1u << t)) )
+            continue;
+        found_count = cp_walk_find(&ctx->walk, type->name, found, CP_PACK_MAX_SOURCES);
+        memset(&merged, 0, sizeof(merged));
+        merged.keys = type->keys;
+        merged.fields = cp_ctx_fields(ctx, (enum CP_TypeId)t);
+        for( int f = 0; f < found_count && ok; f++ )
+        {
+            struct CP_ConfigFile layer;
+
+            if( !cp_config_file_load(&layer, found[f]) )
+                continue;
+            ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(f, found[f]), found[f]);
+            cp_config_file_free(&layer);
+        }
+        for( int r = 0; r < merged.count && ok; r++ )
+        {
+            const struct CP_MergedRecord* rec = &merged.records[r];
+            struct MissingReport report = { type->name, rec->debugname,
+                                            rec->count ? rec->lines[0].origin : "-" };
+            struct CP_Config view;
+
+            if( rec->origin_rank > 0 && cp_name_is_lane(ctx, (enum CP_TypeId)t, rec->debugname) )
+                continue;
+            if( rec->count > capacity )
+            {
+                capacity = rec->count * 2;
+                lines = realloc(lines, (size_t)capacity * sizeof(*lines));
+                assert(lines);
+            }
+            for( int i = 0; i < rec->count; i++ )
+            {
+                lines[i].key = rec->lines[i].key;
+                lines[i].value = rec->lines[i].value;
+                lines[i].line_no = 0;
+            }
+            memset(&view, 0, sizeof(view));
+            view.debugname = rec->debugname;
+            view.lines = lines;
+            view.count = rec->count;
+            total += cp_keys_missing(ctx, type, cp_ctx_fields(ctx, (enum CP_TypeId)t), &view,
+                                     missing_print, &report);
+        }
+        cp_merge_free(&merged);
+    }
+    free(lines);
+    fprintf(stderr, "cachepack: %d missing key(s)\n", total);
+    return ok;
+}
+
 int
 cp_pack_server_run(
     struct CP_Ctx* ctx,
@@ -1791,14 +2878,23 @@ cp_pack_server_run(
     int server_total = 0;
 
     {
-        static const char* const ROOTS[] = { "configs", "server/scripts" };
-        static const int RANKS[] = { 0, 1 };
-
-        cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
+        cp_walk_content(ctx);
         cp_constants_load(ctx);
     }
 
-    snprintf(server_dir, sizeof(server_dir), "%s/server/pack", ctx->srcdir);
+    /* As `cp_pack_run`: a `param=` value is read through its param's declared
+     * type (`param=param_2509,yes` is a boolean only because param_2509 says
+     * so), and without the table every typed value read as a bare int -- so
+     * this mode did not write the bands a full pack writes. */
+    printf("Typed %d param(s) from the tree\n", cp_param_types_load(ctx));
+
+    cp_server_dir(ctx, server_dir, sizeof(server_dir));
+    if( sel->all && server_pack_fresh(ctx, server_dir) )
+    {
+        printf("Server pack at %s is up to date with its tree (--force rewrites it)\n",
+               server_dir);
+        return 1;
+    }
     server_pack_clear(server_dir);
     if( !sel->all )
         printf("Note: --types restricts the server pack too; %s will hold only the "
@@ -1813,7 +2909,7 @@ cp_pack_server_run(
         const char* found[CP_PACK_MAX_SOURCES];
         int found_count;
         struct CP_MergeSet merged;
-        struct CP_Fields fields;
+        struct RSCache_Register fields;
         struct CP_Routing routing;
         struct CP_PackStats stats;
         int ok = 1;
@@ -1821,22 +2917,22 @@ cp_pack_server_run(
         if( !sel->all && !(sel->mask & (1u << i)) )
             continue;
         /*
-         * Before the merge, not after: a type whose register declares no
-         * `server = opcode:` row contributes nothing to the server pack, so
-         * this mode has no reason to load — or police — its records at all.
-         * That is not only speed. The authored-layer rules the merge enforces
-         * are the *full* pack's contract, and at least one type (`dbrow`, whose
-         * list keys exist only at rank 1) currently cannot pass them — the
-         * full-pack blocker docs/DBTABLES.md records. A server-only refresh
-         * must not be hostage to it.
+         * Every type the client codec can encode, band or not: the server reads
+         * each record's client body from this pack too (`pack_server_records`),
+         * so a type with no `server = opcode:` row still has a half here. The
+         * merge's record checks are therefore this mode's contract as much as
+         * the full pack's.
          */
-        if( cp_fields_load(&fields, ctx->srcdir, type->name) <= 0 || fields.band_count <= 0 )
+        RSCache_RegisterLoad(&fields, ctx->srcdir, type->name);
+        if( !type->pack && fields.band_count <= 0 )
             continue;
         found_count = cp_walk_find(&ctx->walk, type->name, found, CP_PACK_MAX_SOURCES);
         if( found_count <= 0 )
             continue;
 
         memset(&merged, 0, sizeof(merged));
+        merged.keys = type->keys;
+        merged.fields = cp_ctx_fields(ctx, (enum CP_TypeId)i);
         memset(&stats, 0, sizeof(stats));
         for( int f = 0; f < found_count && ok; f++ )
         {
@@ -1854,8 +2950,16 @@ cp_pack_server_run(
          * them is the *client* question. That is what keeps the two modes writing
          * the same bands.
          */
+        /* The same record checks the full pack runs: a server band is written
+         * from records that state every key, client and server, in one
+         * spelling, or not at all. */
+        ok = ok && merged_records_check(ctx, (enum CP_TypeId)i, &merged);
         routing_load(ctx, i, &routing);
-        if( !ok || !pack_server_type(ctx, i, &merged, &routing, server_dir, &stats) )
+        if( !ok ||
+            (fields.band_count > 0 &&
+             !pack_server_type(ctx, i, &merged, &routing, server_dir, &stats)) ||
+            (type->pack &&
+             !pack_server_records(ctx, i, &merged, server_dir, &stats, &routing, NULL, 0)) )
         {
             routing_free(&routing);
             cp_merge_free(&merged);
@@ -1891,7 +2995,11 @@ cp_pack_server_run(
         printf("Membership: %d record(s) state a server field pack/<ns>.server does not "
                "claim (docs/PACK_ENTITY_SPLIT_PLAN.md §2 cell (a))\n",
                membership_errors);
-    return ctx->warn_unresolved_name == 0 && membership_errors == 0;
+    /* Stamped only when the pack is whole and clean: a partial (--types) or
+     * failed pack is never one the server may boot. */
+    if( ctx->warn_unresolved_name != 0 || membership_errors != 0 || !sel->all )
+        return ctx->warn_unresolved_name == 0 && membership_errors == 0;
+    return cp_server_stamp_write(ctx, server_dir);
 }
 
 /* ---- the membership seed -------------------------------------------------- */
@@ -1919,7 +3027,7 @@ cp_pack_server_run(
  * The packer decides each side separately and the decisions are not complements:
  *
  *   client   `record_is_client` — provenance plus one boolean per type.
- *   server   `band.stated != 0` — *field presence*, which is why npc writes 2,199
+ *   server   `server_band_build` != 0 — *field presence*, which is why npc writes 2,199
  *            bands off 42 authored blocks: 2,158 cache npcs carry
  *            `param=attackrate` and `fields/npc.ini` declares that a server field.
  *
@@ -1966,20 +3074,18 @@ static int
 membership_seed_type(
     struct CP_Ctx* ctx,
     const struct CP_MergeSet* merged,
-    const struct CP_Fields* fields,
+    const struct RSCache_Register* fields,
     struct CP_Membership* client,
     struct CP_Membership* server,
     struct CP_MembershipTally* tally)
 {
-    struct CP_FieldTally* discard = calloc(CP_FIELDS_MAX, sizeof(*discard));
+    struct CP_FieldTally* discard = calloc(RSCACHE_REGISTER_MAX, sizeof(*discard));
 
-    if( !discard )
-        return 0;
-
+    assert(discard);
     for( int r = 0; r < merged->count; r++ )
     {
         const struct CP_MergedRecord* rec = &merged->records[r];
-        struct CP_ServerBand band;
+        struct RSCache_BandRecord record;
 
         /* Not an entity, so not a membership candidate on either side — see
          * `record_is_defaults_block`. Both gates would otherwise name it, and
@@ -2020,7 +3126,8 @@ membership_seed_type(
          * is thrown away: an unresolved value is reported by the writer, and
          * reporting it twice would suggest two failures.
          */
-        if( fields->band_count > 0 && server_band_build(ctx, fields, rec, discard, &band) != 0 )
+        if( fields->band_count > 0 && server_band_build(ctx, fields, rec, discard, &record) > 0 &&
+            band_server_only_fields(fields, &record) > 0 )
         {
             int added = cp_membership_add(server, rec->debugname);
 
@@ -2172,10 +3279,7 @@ cp_membership_emit(
     int unmergeable = 0;
 
     {
-        static const char* const ROOTS[] = { "configs", "server/scripts" };
-        static const int RANKS[] = { 0, 1 };
-
-        cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
+        cp_walk_content(ctx);
         cp_constants_load(ctx);
     }
 
@@ -2191,7 +3295,7 @@ cp_membership_emit(
         const char* found[CP_PACK_MAX_SOURCES];
         int found_count;
         struct CP_MergeSet merged;
-        struct CP_Fields fields;
+        struct RSCache_Register fields;
         struct CP_Membership client;
         struct CP_Membership server;
         struct CP_MembershipTally tally;
@@ -2204,6 +3308,8 @@ cp_membership_emit(
             continue;
 
         memset(&merged, 0, sizeof(merged));
+        merged.keys = type->keys;
+        merged.fields = cp_ctx_fields(ctx, (enum CP_TypeId)i);
         memset(&tally, 0, sizeof(tally));
         for( int f = 0; f < found_count && ok; f++ )
         {
@@ -2233,7 +3339,7 @@ cp_membership_emit(
             continue;
         }
 
-        cp_fields_load(&fields, ctx->srcdir, type->name);
+        RSCache_RegisterLoad(&fields, ctx->srcdir, type->name);
         cp_membership_init(&client, type->name, CP_MEMBERSHIP_CLIENT);
         cp_membership_init(&server, type->name, CP_MEMBERSHIP_SERVER);
         ok = membership_seed_type(ctx, &merged, &fields, &client, &server, &tally);
@@ -2385,17 +3491,17 @@ struct CP_MembershipVerdict
  */
 static int
 overlay_states_unrouted_field(
-    const struct CP_Fields* fields,
+    const struct RSCache_Register* fields,
     const struct CP_MergedRecord* rec,
     const char** out_key)
 {
     for( int i = 0; i < rec->count; i++ )
     {
-        const struct CP_Field* field;
+        const struct RSCache_RegisterField* field;
 
         if( rec->lines[i].rank == 0 )
             continue;
-        field = cp_fields_find(fields, rec->lines[i].key);
+        field = RSCache_RegisterFind(fields, rec->lines[i].key);
         if( !field && strcmp(rec->lines[i].key, "param") == 0 )
         {
             const char* value = rec->lines[i].value;
@@ -2407,9 +3513,9 @@ overlay_states_unrouted_field(
                 continue;
             memcpy(name, value, n);
             name[n] = 0;
-            field = cp_fields_find(fields, name);
+            field = RSCache_RegisterFind(fields, name);
         }
-        if( !field || field->client != CP_FIELD_CLIENT_DROP || field->opcode != 0 )
+        if( !field || field->client != RSCACHE_REGISTER_CLIENT_DROP || field->opcode != 0 )
             continue;
         if( out_key )
             *out_key = field->name;
@@ -2429,7 +3535,7 @@ overlay_states_unrouted_field(
  */
 static void
 band_fields_stated(
-    const struct CP_Fields* fields,
+    const struct RSCache_Register* fields,
     const struct CP_MergedRecord* rec,
     int* counts)
 {
@@ -2437,7 +3543,7 @@ band_fields_stated(
     {
         char scratch[512];
 
-        if( merged_value(rec, fields->entries[f].name, scratch, sizeof(scratch)) )
+        if( merged_value(rec, &fields->entries[f], scratch, sizeof(scratch)) )
             counts[f]++;
     }
 }
@@ -2447,18 +3553,16 @@ membership_check_type(
     struct CP_Ctx* ctx,
     const struct CP_Type* type,
     const struct CP_MergeSet* merged,
-    const struct CP_Fields* fields,
+    const struct RSCache_Register* fields,
     const struct CP_Membership* client,
     const struct CP_Membership* server,
     struct CP_MembershipVerdict* v,
     int* band_field_counts,
     int* errors)
 {
-    struct CP_FieldTally* discard = calloc(CP_FIELDS_MAX, sizeof(*discard));
+    struct CP_FieldTally* discard = calloc(RSCACHE_REGISTER_MAX, sizeof(*discard));
 
-    if( !discard )
-        return 0;
-
+    assert(discard);
     v->server_listed = server->count;
     v->client_listed = client->count;
 
@@ -2466,7 +3570,7 @@ membership_check_type(
     {
         const char* name = server->names[i];
         const struct CP_MergedRecord* rec = cp_merge_find(merged, name);
-        struct CP_ServerBand band;
+        struct RSCache_BandRecord record;
         int has_band;
 
         if( !rec )
@@ -2484,7 +3588,8 @@ membership_check_type(
             continue;
         }
         has_band =
-            fields->band_count > 0 && server_band_build(ctx, fields, rec, discard, &band) != 0;
+            fields->band_count > 0 && server_band_build(ctx, fields, rec, discard, &record) > 0 &&
+            band_server_only_fields(fields, &record) > 0;
         if( has_band )
         {
             v->server_band_only++;
@@ -2608,10 +3713,7 @@ cp_membership_check(
     int total_unrouted = 0;
 
     {
-        static const char* const ROOTS[] = { "configs", "server/scripts" };
-        static const int RANKS[] = { 0, 1 };
-
-        cp_walk_tree(&ctx->walk, ctx->srcdir, ROOTS, RANKS, 2);
+        cp_walk_content(ctx);
         cp_constants_load(ctx);
     }
 
@@ -2624,11 +3726,11 @@ cp_membership_check(
         const char* found[CP_PACK_MAX_SOURCES];
         int found_count;
         struct CP_MergeSet merged;
-        struct CP_Fields fields;
+        struct RSCache_Register fields;
         struct CP_Membership client;
         struct CP_Membership server;
         struct CP_MembershipVerdict v;
-        int band_field_counts[CP_FIELDS_MAX];
+        int band_field_counts[RSCACHE_REGISTER_MAX];
         char path[1200];
         int ok = 1;
 
@@ -2684,6 +3786,8 @@ cp_membership_check(
         }
 
         memset(&merged, 0, sizeof(merged));
+        merged.keys = type->keys;
+        merged.fields = cp_ctx_fields(ctx, (enum CP_TypeId)i);
         for( int f = 0; f < found_count && ok; f++ )
         {
             struct CP_ConfigFile layer;
@@ -2708,7 +3812,7 @@ cp_membership_check(
             continue;
         }
 
-        cp_fields_load(&fields, ctx->srcdir, type->name);
+        RSCache_RegisterLoad(&fields, ctx->srcdir, type->name);
 
         if( client.count == 0 && server.count == 0 )
         {

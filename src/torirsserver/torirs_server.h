@@ -1,6 +1,8 @@
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_H
 #define SRC_TORIRSSERVER_TORIRS_SERVER_H
 
+struct RSCache_ServerPack;
+
 /*
  * OSRS rev-230 game server: shared state, and the seam between its files.
  *
@@ -1192,7 +1194,7 @@ struct ToriRSServerObjInfo
 /** Decode the whole obj config table once. Returns 0 when the cache is absent,
  *  in which case every lookup reports "not wearable" and the mock still runs. */
 int
-ToriRSServer_ObjInfoLoad(const char* cache_dir);
+ToriRSServer_ObjInfoLoad(struct RSCache_ServerPack* pack);
 
 void
 ToriRSServer_ObjInfoFree(void);
@@ -1489,10 +1491,12 @@ struct ToriRSServerNpcParam
 const struct ToriRSServerNpcParam*
 ToriRSServer_NpcParam(int npc_id, int param_id);
 
-/** Decode the npc config table once. Returns 0 when the cache is absent, in
- *  which case every lookup reports a placeholder name and the mock still runs. */
+
+/** Decode every npc record in the server pack's client-record archives once.
+ *  Returns 1, or 0 after a report when the pack holds none or an archive does
+ *  not validate — a boot failure (`torirs_server_boot.c`), never a fallback. */
 int
-ToriRSServer_NpcInfoLoad(const char* cache_dir);
+ToriRSServer_NpcInfoLoad(struct RSCache_ServerPack* pack);
 
 void
 ToriRSServer_NpcInfoFree(void);
@@ -1557,13 +1561,13 @@ const struct ToriRSServerParamRow*
 ToriRSServer_LocParam(int loc_id, int param_id);
 
 /**
- * Give a loc a param from the *content overlay*, and re-sort.
+ * Give a loc a param from its server band, and re-sort.
  *
- * `torirs_server_content.c` calls this for every `param=` line in a `.loc` overlay
- * block under `server/scripts/`, once, after the whole tree is read. The cache's own
- * params are already in the table by then (`ToriRSServer_LocInfoLoad` runs first in
- * `torirs_server_boot.c`), so an overlay row overwrites a cache row for the same key,
- * which is the direction an overlay is defined to win in.
+ * `torirs_server_content.c` calls this for every loc band field the register binds
+ * to a param (`param = <name>` in `fields/loc.ini`), once, after the pack is read.
+ * The record's own params are already in the table by then (`ToriRSServer_LocInfoLoad`
+ * runs first in `torirs_server_boot.c`), so a band row overwrites a record row for
+ * the same key, which is the direction the server half is defined to win in.
  *
  * The re-sort is here rather than at the call site because the table refuses a
  * lookup while unsorted, and "the overlay left it unsorted" is a failure that
@@ -1648,17 +1652,32 @@ ToriRSServer_StructParam(int struct_id, int param_id);
 const struct ToriRSServerParamRow*
 ToriRSServer_ContentStructParam(int struct_id, int param_id);
 
-/** Decode the loc / struct config groups once. Returns 0 when the cache is
- *  absent, in which case every lookup reports "not carried" and the server
- *  still runs — content then reads the param's declared default. */
+/** Decode every loc record in the server pack's client-record archives once.
+ *  Returns 1, or 0 after a report when the pack holds none or an archive does
+ *  not validate — a boot failure, never a fallback. */
 int
-ToriRSServer_LocInfoLoad(const char* cache_dir);
+ToriRSServer_LocInfoLoad(struct RSCache_ServerPack* pack);
+
+/** Loc `loc_id`'s op `op_num` (1-based) as its pack record states it, a "hidden"
+ *  op in its own spelling, or NULL. */
+const char*
+ToriRSServer_LocInfoOp(
+    int loc_id,
+    int op_num);
+
+/** How many loc records state at least one op, and the id of the `index`th of
+ *  them (ascending) — for the loader that lays them over the scene. */
+int
+ToriRSServer_LocInfoOpCount(void);
+
+int
+ToriRSServer_LocInfoOpLocAt(int index);
 
 void
 ToriRSServer_LocInfoFree(void);
 
 int
-ToriRSServer_StructInfoLoad(const char* cache_dir);
+ToriRSServer_StructInfoLoad(struct RSCache_ServerPack* pack);
 
 void
 ToriRSServer_StructInfoFree(void);
@@ -1668,12 +1687,23 @@ int
 ToriRSServer_LocInfoCount(void);
 int
 ToriRSServer_LocInfoParamCount(void);
+/** How many of those rows the band's server-only params added. */
+int
+ToriRSServer_LocInfoParamOverlaidCount(void);
 int
 ToriRSServer_LocInfoNameCount(void);
 int
 ToriRSServer_LocInfoSizeCount(void);
 int
 ToriRSServer_LocInfoCategoryCount(void);
+
+/** The `index`th (loc id, category) row of the record categories, ascending by
+ *  loc id; `index` below `ToriRSServer_LocInfoCategoryCount()`. */
+void
+ToriRSServer_LocInfoCategoryAt(
+    int index,
+    int* out_loc_id,
+    int* out_category);
 int
 ToriRSServer_StructInfoCount(void);
 int
@@ -4762,7 +4792,7 @@ ToriRSServer_WorldCacheDir(void);
  * client reads them from.
  */
 int
-ToriRSServer_VarbitLoad(const char* cache_dir);
+ToriRSServer_VarbitLoad(struct RSCache_ServerPack* pack);
 void
 ToriRSServer_VarbitFree(void);
 
@@ -5577,7 +5607,7 @@ ToriRSServer_StepDelta(
  * fraction of. Returns the table size, 0 when the cache has no such group.
  */
 int
-ToriRSServer_HealthbarInfoLoad(const char* cache_dir);
+ToriRSServer_HealthbarInfoLoad(struct RSCache_ServerPack* pack);
 
 void
 ToriRSServer_HealthbarInfoFree(void);
@@ -5595,7 +5625,7 @@ ToriRSServer_HealthbarWidth(int id);
 
 /** Index every sequence's debug name. Returns the count, 0 when absent. */
 int
-ToriRSServer_SeqInfoLoad(const char* cache_dir);
+ToriRSServer_SeqInfoLoad(struct RSCache_ServerPack* pack);
 
 void
 ToriRSServer_SeqInfoFree(void);

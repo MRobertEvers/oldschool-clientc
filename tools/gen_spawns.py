@@ -51,6 +51,8 @@ import os
 import re
 import sys
 
+import config_text
+
 
 # ---------------------------------------------------------------- cache side
 
@@ -77,7 +79,7 @@ def load_blocks(path):
     out = {}
     current = None
     with open(path, encoding="utf-8", errors="replace") as handle:
-        for line in handle:
+        for line in config_text.filter_lines(handle):
             line = line.rstrip("\n")
             if line.startswith("[") and line.endswith("]"):
                 current = line[1:-1]

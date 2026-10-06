@@ -54,6 +54,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse, parse_qs
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))  # tools/, for config_text
+
+import config_text  # noqa: E402
 
 RUNS = {}  # name -> absolute run dir
 
@@ -88,7 +91,7 @@ def seq_frames(seqcfg_path, name):
     current = None
     frames = []
     with open(seqcfg_path, "r", encoding="utf-8", errors="replace") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.strip()
             if line.startswith("[") and line.endswith("]"):
                 current = line[1:-1]

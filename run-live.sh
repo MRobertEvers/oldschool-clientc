@@ -720,6 +720,38 @@ build_cache_overlay() {
     esac
 }
 
+# The server pack: every config record the world server boots from (it reads no
+# config text). The lanes are the cache composition's -- the same ported/ lanes
+# the overlay bakes above layer in -- and a composition with lanes gets its own
+# pack directory beside its cache, so two compositions never share one. cachepack
+# stamps the pack with its tree's fingerprint and skips the rebuild when it
+# matches; the server refuses a pack whose stamp does not.
+servpack_lanes() {
+    case "$CACHE_DIR" in
+        *cache.osrs239.rs2012-summoning-curses) echo "rs2012_qbd_td scape2009_summoning rs558_ancient_curses" ;;
+        *cache.osrs239.rs2012-summoning) echo "rs2012_qbd_td scape2009_summoning" ;;
+        *cache.osrs239.rs2012) echo "rs2012_qbd_td" ;;
+        *cache.osrs239.summoning) echo "scape2009_summoning" ;;
+        *cache.osrs239.curses) echo "rs558_ancient_curses" ;;
+        *) echo "" ;;
+    esac
+}
+
+build_server_pack() {
+    _lanes=$(servpack_lanes)
+    if [ -n "$_lanes" ]; then
+        TORIRSSERVER_PACK_DIR="${CACHE_DIR%/}.serverpack"
+        export TORIRSSERVER_PACK_DIR
+    else
+        unset TORIRSSERVER_PACK_DIR
+    fi
+    echo "run-live.sh: server pack${_lanes:+ (lanes: $_lanes)}..." >&2
+    make -C src torirsserver-servpack \
+        ${TORIRSSERVER_CONTENT_DIR:+TORIRSSERVER_CONTENT_DIR="$TORIRSSERVER_CONTENT_DIR"} \
+        SERVPACK_LANES="$_lanes" \
+        SERVPACK_OUT="${TORIRSSERVER_PACK_DIR:-}" || exit 1
+}
+
 # Cache and scripts are one consistency boundary: skipping only one leaves a
 # run that looks prepared while its two server-side inputs describe different
 # content revisions. Keep the fast path explicit and centralized at every
@@ -734,10 +766,19 @@ prepare_live_content() {
         # letting the flag hit a wall it was designed to walk through.
         TORIRSSERVER_ALLOW_STALE_SCRIPTS=1
         export TORIRSSERVER_ALLOW_STALE_SCRIPTS
+        # The server pack's opt-out, for the same reason. The lane composition's
+        # pack directory is still chosen, so a skip boots the right pack.
+        TORIRSSERVER_ALLOW_STALE_PACK=1
+        export TORIRSSERVER_ALLOW_STALE_PACK
+        if [ -n "$(servpack_lanes)" ]; then
+            TORIRSSERVER_PACK_DIR="${CACHE_DIR%/}.serverpack"
+            export TORIRSSERVER_PACK_DIR
+        fi
         return 0
     fi
     build_cache_overlay
     build_scripts
+    build_server_pack
 }
 
 # TORIRS_PREPARE_ONLY=1 runs the manifest-driven preparation above -- the lane

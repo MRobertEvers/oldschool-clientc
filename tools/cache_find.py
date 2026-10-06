@@ -26,9 +26,10 @@ you search by.
     tools/cache_find.py obj "Chompy bird hat"
     tools/cache_find.py loc Sarcophagus
 """
-import io
 import os
 import sys
+
+import config_text
 
 CONTENT = "OSRS-Content/osrs239-content/configs"
 KINDS = ("npc", "obj", "loc", "seq", "spotanim", "inv", "enum", "struct",
@@ -39,7 +40,7 @@ def search(kind, needle, exact=False):
     path = os.path.join(CONTENT, "all.%s" % kind)
     if not os.path.exists(path):
         return None
-    text = io.open(path, encoding="utf-8", errors="replace").read()
+    text = config_text.read_text(path, encoding="utf-8", errors="replace")
     hits = []
     for block in text.split("\n\n"):
         lines = block.split("\n")

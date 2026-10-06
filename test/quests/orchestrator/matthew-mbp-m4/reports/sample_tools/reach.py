@@ -64,13 +64,17 @@ def set_root(root):
 
 
 set_root(repo_of(HERE))
+sys.path.insert(0, os.path.join(repo_of(HERE), "tools"))
+import config_text  # noqa: E402  (tools/config_text.py: `key=default` is an absent key)
 FIELDS = ("name", "op1", "op2", "op3", "op4", "op5", "blockwalk", "width", "length", "active")
 DX = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)}   # side: 0=W 1=N 2=E 3=S
 
 
 def load_locs():
     srcs = [BASE + "/configs/all.loc", BASE + "/configs/all.loc.compack"]
-    stamp = tuple((os.path.getmtime(p), os.path.getsize(p)) for p in srcs)
+    # The leading tag is the reader's version: a table built before all.loc said `key=default` for an
+    # absent key kept "default" as the value, and the file stamps alone would not retire it.
+    stamp = ("markers-absent",) + tuple((os.path.getmtime(p), os.path.getsize(p)) for p in srcs)
     if os.path.exists(CACHE):
         with open(CACHE, "rb") as fh:
             got = pickle.load(fh)
@@ -82,8 +86,9 @@ def load_locs():
         if a.isdigit() and b:
             ids[int(a)] = b
     info, cur = {}, None
-    for line in open(srcs[0], errors="replace"):
-        line = line.rstrip("\n")
+    # Every block states every key: `key=default` / `key=empty` lines drop out here (the key is
+    # absent, as the field-less text had it) and `key=\default` reads as the string "default".
+    for line in config_text.read_lines(srcs[0], errors="replace"):
         m = re.match(r"^\[(.+)\]$", line)
         if m:
             cur = m.group(1)

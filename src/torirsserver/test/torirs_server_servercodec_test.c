@@ -1,40 +1,39 @@
 /*
- * The server-band codec, and its agreement with the field register.
+ * The server band: the server's bindings, the shared codec, and the register.
  *
- * Two different things are checked here, and the second is the one that would
- * otherwise fail silently.
+ * The bytes are the rscache library's (`rscache_band.h`, tested in
+ * `3rd/rscache/test/test_band.c`); what is the server's is the binding of field
+ * names to struct members, and the register it reads them under. Three things are
+ * checked here.
  *
- * **The round trip** is ordinary: encode a record, decode it back, compare every
- * field. It catches a mis-shifted width or a transposed opcode.
+ * **Presence.** A field the band states lands, whatever its value; a field it does
+ * not state keeps the seed. A stated 0 and a stated -1 both survive, and a stated
+ * value equal to the seed's is still written and still read — there is no "equal
+ * to the default, so omitted" path anywhere any more. The old encoder had one, and
+ * it is how `attackrate=4` stated on purpose over a cache seed of 6 vanished.
  *
- * **The register cross-check** is not. `fields/<type>.ini` declares each server
- * field's opcode and wire width, and `torirs_server_servercodec.c` holds a C table
- * saying the same thing. If those two disagree, the packer writes a field under
- * one opcode and the server reads it under another — and *nothing errors*,
- * because both streams are well-formed. The value simply lands in the wrong
- * field, or nowhere. So the test parses the ini and holds the C table to it,
- * name by name.
+ * **Every binding round-trips.** Each bound field of each type is stated with a
+ * distinct value and read back into a zeroed record, so a binding pointing at the
+ * wrong member (or a member too narrow for its field) shows up as a wrong value.
  *
- * That is the same reasoning `cp_register.h` records for `content.ini`: a second
- * table transcribing a first is a table that drifts, and the only defence is a
- * check that reads both.
+ * **The real register agrees with the bindings.** `ToriRSServer_ServerCheck`, the
+ * same check the boot runs, over every registered type and the tree's own
+ * `fields/<type>.ini` — loaded the way the server loads it (content_fields.c:
+ * defaults, file over them). Iterating `ToriRSServer_ServerTypes()` rather than
+ * naming `npc` is what makes "every registered type has a register that agrees
+ * with it" the actual assertion.
  *
- * ## Why it iterates the registry
- *
- * The cross-check loops over `ToriRSServer_ServerTypes()` rather than naming `npc`.
- * A check that hardcodes its types is a check a new type joins without: someone
- * adds a `ServerType` row, forgets `fields/<name>.ini`, and the packer writes
- * nothing for it while the server happily decodes an empty stream. Iterating
- * makes "every registered type has a register that agrees with it" the actual
- * assertion.
- *
- * The register directory is argv[1], defaulting to the tree's; each type resolves
- * its own `<dir>/<name>.ini`.
+ * argv[1] is the content tree (the directory holding `fields/`).
  */
 
 #include "../torirs_server_servercodec.h"
 
+#include "content/content_fields.h"
+#include "rscache_band.h"
+#include "rscache_register.h"
+
 #include <stdio.h>
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -49,13 +48,34 @@ check(
     g_checks++;
     if( !ok )
         g_failures++;
-    printf("servercodec: %-58s %s\n", what, ok ? "ok" : "FAILED");
+    printf("servercodec: %-66s %s\n", what, ok ? "ok" : "FAILED");
 }
 
-/** The engine defaults this codec encodes against, kept minimal on purpose: the
- *  test cares that "equal to default" is omitted, not what the defaults are. */
+/* A synthetic register for the presence checks, so they do not depend on which
+ * opcodes a tree happens to choose. */
+static const char k_npc_register[] = "[npc.hitpoints]\n"
+                                     "server = opcode:77:u2\n"
+                                     "[npc.attackrate]\n"
+                                     "server = opcode:150:u1\n"
+                                     "[npc.death_drop]\n"
+                                     "server = opcode:151:u4\n"
+                                     "[npc.respawnrate]\n"
+                                     "server = opcode:204:u2\n";
+
+static const struct RSCache_BandBinding k_presence_bindings[] = {
+    { "hitpoints", offsetof(struct ToriRSServerNpcDef, hitpoints), sizeof(int) },
+    { "attackrate", offsetof(struct ToriRSServerNpcDef, attackrate), sizeof(int) },
+    { "death_drop", offsetof(struct ToriRSServerNpcDef, death_drop), sizeof(int) },
+    { "respawnrate", offsetof(struct ToriRSServerNpcDef, respawnrate), sizeof(int) },
+};
+
+static const struct ToriRSServerBandType k_presence_type = {
+    "npc", k_presence_bindings, 4, sizeof(struct ToriRSServerNpcDef)
+};
+
+/** A seeded record: what a cache record plus engine defaults hands the band. */
 static struct ToriRSServerNpcDef
-defaults_record(void)
+seeded_npc(void)
 {
     struct ToriRSServerNpcDef def;
 
@@ -63,357 +83,292 @@ defaults_record(void)
     def.hitpoints = 10;
     def.attackrate = 4;
     def.respawnrate = 25;
-    def.blockwalk = 1; /* LostCity BlockWalk.NPC default */
-    /* -1, not 0: "drops nothing" and "drops obj 0" are different records, and a
-     * zero-compare would confuse them — see the note in the encoder. */
-    def.death_drop = -1;
+    def.death_drop = 526;
     return def;
 }
 
-static void
-check_round_trip(void)
-{
-    const struct ServerType* npc = ToriRSServer_ServerTypeFor("npc");
-    struct ToriRSServerNpcDef defaults = defaults_record();
-    struct ToriRSServerNpcDef src = defaults;
-    struct ToriRSServerNpcDef dst = defaults;
-    uint8_t buf[512];
-    uint32_t written;
-    int consumed;
-
-    check(npc != NULL, "the registry answers for `npc`");
-    if( !npc )
-        return;
-
-    src.hitpoints = 4000;
-    src.attack = 1;
-    src.strength = 250;
-    src.defence = 300;
-    src.ranged = 7;
-    src.magic = 9;
-    src.respawnrate = 100;
-    src.wanderrange = 5;
-    src.huntrange = 12;
-    src.huntmode = 3;
-    src.nomove = 1;
-    src.blockwalk = 2; /* all */
-    src.blocksight = 1;
-    src.moverestrict = 5; /* nomove */
-    src.attackrate = 6;
-    src.death_drop = 526;
-    src.attack_anim = 4652;
-    src.defend_anim = 4653;
-    src.death_anim = 4654;
-
-    written = ToriRSServer_ServerEncode(npc, &src, &defaults, buf, sizeof(buf));
-    check(written > 0, "a fully-stated record encodes");
-    check(
-        written <= ToriRSServer_ServerEncodeBound(npc),
-        "the encode stays inside its own bound");
-
-    consumed = ToriRSServer_ServerDecode(npc, &dst, buf, (int)written);
-    check(consumed == (int)written, "the stream is consumed to its last byte");
-
-    check(dst.hitpoints == 4000, "hitpoints survives the round trip");
-    check(dst.attack == 1 && dst.strength == 250 && dst.defence == 300,
-          "the melee stats survive");
-    check(dst.ranged == 7 && dst.magic == 9, "ranged and magic survive");
-    check(dst.respawnrate == 100 && dst.wanderrange == 5, "respawn and wander survive");
-    check(dst.huntrange == 12 && dst.huntmode == 3, "hunt range and mode survive");
-    check(dst.nomove == 1 && dst.attackrate == 6, "nomove and attackrate survive");
-    check(dst.blockwalk == 2 && dst.blocksight == 1 && dst.moverestrict == 5,
-          "blockwalk, blocksight and moverestrict survive");
-    check(dst.death_drop == 526, "death_drop survives");
-    check(
-        dst.attack_anim == 4652 && dst.defend_anim == 4653 && dst.death_anim == 4654,
-        "the three animations survive");
-}
-
-/**
- * The same trip over `loc`, which is the check that the codec is really generic.
- *
- * One field and a different record struct: if anything in the encoder still knew
- * an npc's layout, this is where it would show.
- */
-static void
-check_round_trip_loc(void)
-{
-    const struct ServerType* loc = ToriRSServer_ServerTypeFor("loc");
-    struct ToriRSServerLocDef defaults;
-    struct ToriRSServerLocDef src;
-    struct ToriRSServerLocDef dst;
-    uint8_t buf[64];
-    uint32_t written;
-
-    check(loc != NULL, "the registry answers for `loc`");
-    if( !loc )
-        return;
-
-    memset(&defaults, 0, sizeof(defaults));
-    defaults.next_loc_stage = -1;
-    src = defaults;
-    dst = defaults;
-    src.next_loc_stage = 62000; /* past u2, which is why the register says u4 */
-
-    written = ToriRSServer_ServerEncode(loc, &src, &defaults, buf, sizeof(buf));
-    check(written == 6, "a loc band is one u4 field plus the terminator");
-    check(ToriRSServer_ServerDecode(loc, &dst, buf, (int)written) == (int)written,
-          "the loc stream is consumed to its last byte");
-    check(dst.next_loc_stage == 62000, "a loc id past 65535 survives");
-}
-
-static void
-check_sparse(void)
-{
-    const struct ServerType* npc = ToriRSServer_ServerTypeFor("npc");
-    struct ToriRSServerNpcDef defaults = defaults_record();
-    struct ToriRSServerNpcDef same = defaults;
-    uint8_t buf[512];
-    uint32_t written;
-
-    if( !npc )
-        return;
-    written = ToriRSServer_ServerEncode(npc, &same, &defaults, buf, sizeof(buf));
-
-    /* The whole reason the pack is small: 38 authored npcs, not 16,292 records. */
-    check(written == 1 && buf[0] == 0,
-          "a record equal to the defaults encodes to a bare terminator");
-
-    /* And "absent" must not read as "zero": decoding an empty stream over a
-     * seeded record leaves the seed alone. */
-    {
-        struct ToriRSServerNpcDef seeded = defaults;
-        uint8_t empty[1] = { 0 };
-
-        seeded.hitpoints = 77;
-        ToriRSServer_ServerDecode(npc, &seeded, empty, 1);
-        check(seeded.hitpoints == 77, "an absent opcode leaves the seeded value alone");
-    }
-
-    /*
-     * A field whose value is 0 while its default is not must still be written.
-     * This is the other half of the same rule and the easier one to break: 0 is a
-     * real value far more often than it looks, so "omit when zero" would silently
-     * drop `attackrate = 0` and leave the seed's 4 in place.
-     */
-    {
-        struct ToriRSServerNpcDef zeroed = defaults;
-        struct ToriRSServerNpcDef seeded = defaults;
-
-        zeroed.attackrate = 0;
-        written = ToriRSServer_ServerEncode(npc, &zeroed, &defaults, buf, sizeof(buf));
-        ToriRSServer_ServerDecode(npc, &seeded, buf, (int)written);
-        check(seeded.attackrate == 0, "a stated zero overrides a non-zero default");
-    }
-}
-
-/* ---- the register cross-check ------------------------------------------- */
-
-struct IniField
-{
-    char name[64];
-    int opcode;
-    int wire;
-};
-
-/** Parse `[<type>.<name>]` blocks carrying `server = opcode:<n>:<wire>`. */
 static int
-load_ini(
-    const char* path,
-    const char* type,
-    struct IniField* out,
-    int max)
+stream_has_opcode(
+    const uint8_t* stream,
+    uint32_t size,
+    int opcode)
 {
-    FILE* file = fopen(path, "r");
-    char line[512];
-    char current[64];
-    char prefix[64];
-    int count = 0;
+    /* Every field in the synthetic register is at a known width, so walk it. */
+    uint32_t at = 0;
 
-    if( !file )
-        return -1;
-    snprintf(prefix, sizeof(prefix), "%s.", type);
-    current[0] = '\0';
-    while( fgets(line, sizeof(line), file) )
+    while( at < size && stream[at] != 0 )
     {
-        char* cursor = line;
+        int op = stream[at++];
 
-        while( *cursor == ' ' || *cursor == '\t' )
-            cursor++;
-        if( *cursor == '[' )
-        {
-            char* end = strchr(cursor, ']');
-
-            if( end )
-            {
-                size_t len = (size_t)(end - cursor - 1);
-
-                if( len >= sizeof(current) )
-                    len = sizeof(current) - 1;
-                memcpy(current, cursor + 1, len);
-                current[len] = '\0';
-            }
-            continue;
-        }
-        /* Only real declarations; the file documents the syntax in a comment
-         * whose text would otherwise be parsed as a row. */
-        if( *cursor == ';' || *cursor == '#' )
-            continue;
-        if( strncmp(cursor, "server", 6) == 0 )
-        {
-            char* spec = strstr(cursor, "opcode:");
-
-            if( spec && count < max )
-            {
-                int opcode = 0;
-                char wire[8] = { 0 };
-
-                if( sscanf(spec, "opcode:%d:%7[^ \t\r\n]", &opcode, wire) == 2 &&
-                    strncmp(current, prefix, strlen(prefix)) == 0 )
-                {
-                    snprintf(out[count].name, sizeof(out[count].name), "%s",
-                             current + strlen(prefix));
-                    out[count].opcode = opcode;
-                    out[count].wire = wire[1] ? atoi(wire + 1) : 0;
-                    count++;
-                }
-            }
-        }
+        if( op == opcode )
+            return 1;
+        at += op == 150 ? 1u : op == 151 ? 4u : 2u;
     }
-    fclose(file);
-    return count;
+    return 0;
 }
 
 static void
-check_type_against_register(
-    const struct ServerType* type,
-    const char* dir)
+check_presence(void)
 {
-    char path[1024];
-    char what[160];
-    struct IniField ini[64];
-    int ini_count;
-    int matched = 0;
-    int mismatched = 0;
+    struct RSCache_Register reg;
+    struct RSCache_BandRecord stated;
+    struct RSCache_BandRecord back;
+    struct ToriRSServerNpcDef npc;
+    uint8_t out[64];
+    uint32_t written;
+    int hp, rate, drop, respawn;
 
-    snprintf(path, sizeof(path), "%s/%s.ini", dir, type->name);
-    ini_count = load_ini(path, type->name, ini, 64);
-    if( ini_count < 0 )
+    RSCache_RegisterParse(&reg, "npc", k_npc_register, sizeof(k_npc_register) - 1);
+    check(ToriRSServer_ServerCheck(&k_presence_type, &reg) == 0,
+          "the synthetic register and its bindings agree");
+    hp = RSCache_BandIndex(&reg, "hitpoints");
+    rate = RSCache_BandIndex(&reg, "attackrate");
+    drop = RSCache_BandIndex(&reg, "death_drop");
+    respawn = RSCache_BandIndex(&reg, "respawnrate");
+
+    /* A stated 0 and a stated -1 survive, over a seed that holds neither. */
+    RSCache_BandRecordReset(&stated);
+    RSCache_BandRecordSet(&stated, rate, 0);
+    RSCache_BandRecordSet(&stated, drop, -1);
+    written = RSCache_BandEncode(&reg, &stated, out, sizeof(out));
+    npc = seeded_npc();
+    check(ToriRSServer_ServerDecode(&k_presence_type, &reg, &back, &npc, out, (int)written) ==
+              (int)written,
+          "the stream is consumed to its last byte");
+    check(npc.attackrate == 0, "a stated 0 overrides a non-zero seed");
+    check(npc.death_drop == -1, "a stated -1 survives a u4 field");
+    check(npc.hitpoints == 10, "an unstated field keeps the seeded value");
+    check(npc.respawnrate == 25, "a second unstated field keeps the seeded value");
+    check(RSCache_PresenceHas(&back.present, rate) && RSCache_PresenceHas(&back.present, drop) &&
+              !RSCache_PresenceHas(&back.present, hp) &&
+              !RSCache_PresenceHas(&back.present, respawn),
+          "the decoded record says exactly which fields were stated");
+
+    /* A stated value equal to the seed is written, and read. */
+    RSCache_BandRecordReset(&stated);
+    RSCache_BandRecordSet(&stated, hp, 10);
+    written = RSCache_BandEncode(&reg, &stated, out, sizeof(out));
+    check(stream_has_opcode(out, written, 77),
+          "a stated value equal to the seed is still written");
+    npc = seeded_npc();
+    npc.hitpoints = 99;
+    ToriRSServer_ServerDecode(&k_presence_type, &reg, &back, &npc, out, (int)written);
+    check(npc.hitpoints == 10 && RSCache_PresenceHas(&back.present, hp),
+          "and still read: the stated 10 replaces a seed of 99");
+
+    /* Nothing stated: a bare terminator, and the seed untouched. */
+    RSCache_BandRecordReset(&stated);
+    written = RSCache_BandEncode(&reg, &stated, out, sizeof(out));
+    check(written == 1 && out[0] == 0, "a record stating nothing is a bare terminator");
+    npc = seeded_npc();
+    ToriRSServer_ServerDecode(&k_presence_type, &reg, &back, &npc, out, (int)written);
+    check(npc.hitpoints == 10 &&
+              npc.attackrate == 4 && npc.death_drop == 526 && npc.respawnrate == 25,
+          "an empty stream leaves every seeded value alone");
+
+    /* An opcode the register does not declare: refused, and nothing applied. */
     {
-        /*
-         * A registered type with no register file is a failure, not a skip. That
-         * is the whole reason this loops: the type would encode under opcodes
-         * nothing agreed to, and the packer — which reads only the register —
-         * would write nothing at all for it.
-         */
-        printf("servercodec:   %s — registered in C, no %s\n", type->name, path);
-        snprintf(what, sizeof(what), "%s: the register file exists", type->name);
+        static const uint8_t foreign[] = { 77, 0, 5, 199, 1, 0 };
+
+        npc = seeded_npc();
+        check(ToriRSServer_ServerDecode(&k_presence_type, &reg, &back, &npc, foreign,
+                                        (int)sizeof(foreign)) == -1,
+              "an undeclared opcode refuses the stream");
+        check(npc.hitpoints == 10, "and nothing before it is half-applied");
+    }
+}
+
+/** The load check, both directions, on synthetic registers. */
+static void
+check_check(void)
+{
+    struct RSCache_Register reg;
+    static const char missing_field[] = "[npc.hitpoints]\nserver = opcode:77:u2\n"
+                                        "[npc.attackrate]\nserver = opcode:150:u1\n"
+                                        "[npc.death_drop]\nserver = opcode:151:u4\n";
+    static const char extra_field[] = "[npc.hitpoints]\nserver = opcode:77:u2\n"
+                                      "[npc.attackrate]\nserver = opcode:150:u1\n"
+                                      "[npc.death_drop]\nserver = opcode:151:u4\n"
+                                      "[npc.respawnrate]\nserver = opcode:204:u2\n"
+                                      "[npc.magic_missile]\nserver = opcode:220:u1\n";
+    static const struct RSCache_BandBinding narrow[] = {
+        { "hitpoints", offsetof(struct ToriRSServerNpcDef, hitpoints), 1 },
+    };
+    static const struct ToriRSServerBandType narrow_type = { "npc", narrow, 1,
+                                                             sizeof(struct ToriRSServerNpcDef) };
+
+    RSCache_RegisterParse(&reg, "npc", missing_field, sizeof(missing_field) - 1);
+    check(ToriRSServer_ServerCheck(&k_presence_type, &reg) == 1,
+          "a binding the register gives no band home is one problem");
+    RSCache_RegisterParse(&reg, "npc", extra_field, sizeof(extra_field) - 1);
+    check(ToriRSServer_ServerCheck(&k_presence_type, &reg) == 1,
+          "a band field no binding receives is one problem");
+    RSCache_RegisterParse(&reg, "npc", k_npc_register, sizeof(k_npc_register) - 1);
+    check(ToriRSServer_ServerCheck(&narrow_type, &reg) == 4,
+          "a member narrower than its wire, plus three unbound fields");
+}
+
+/** Every bound field of every type, stated with a distinct value and read back. */
+static void
+check_type_round_trip(
+    const struct ToriRSServerBandType* type,
+    const struct RSCache_Register* reg)
+{
+    struct RSCache_BandRecord stated;
+    struct RSCache_BandRecord back;
+    unsigned char* object = calloc(1, type->record_size + sizeof(int));
+    uint8_t out[1024];
+    uint32_t written;
+    int wrong = 0;
+    char what[160];
+
+    assert(object);
+    RSCache_BandRecordReset(&stated);
+    /* Plain member bindings only: an `apply` binding (a list, or a statement
+     * that implies more than its value) writes through engine tables this
+     * round trip does not set up; the boot test covers those on real content. */
+    for( int b = 0; b < type->binding_count; b++ )
+    {
+        int index = RSCache_BandIndex(reg, type->bindings[b].name);
+        /* Distinct, and inside u1, so it fits every width. */
+        int32_t value = 3 * (b + 1);
+
+        if( index >= 0 && !type->bindings[b].apply && type->bindings[b].size == sizeof(int) &&
+            reg->entries[index].wire != RSCACHE_REGISTER_WIRE_LIST &&
+            reg->entries[index].wire != RSCACHE_REGISTER_WIRE_STRING )
+            RSCache_BandRecordSet(&stated, index, value);
+    }
+    if( RSCache_BandEncodeBound(reg, &stated) > sizeof(out) )
+    {
+        snprintf(what, sizeof(what), "%s: the test's buffers hold a record", type->name);
         check(0, what);
+        free(object);
         return;
     }
-    printf("servercodec: %s — register declares %d server field(s), C table holds %d\n",
-           type->name, ini_count, type->count);
-
-    for( int i = 0; i < ini_count; i++ )
+    written = RSCache_BandEncode(reg, &stated, out, sizeof(out));
+    memset(object, 0, type->record_size);
+    snprintf(what, sizeof(what), "%s: a fully-stated record is consumed whole", type->name);
+    check(ToriRSServer_ServerDecode(type, reg, &back, object, out, (int)written) == (int)written,
+          what);
+    for( int b = 0; b < type->binding_count; b++ )
     {
-        int found = 0;
+        int value;
+        int index = RSCache_BandIndex(reg, type->bindings[b].name);
 
-        for( int j = 0; j < type->count; j++ )
+        if( index < 0 || !RSCache_PresenceHas(&stated.present, index) )
+            continue;
+        memcpy(&value, object + type->bindings[b].offset, sizeof(value));
+        if( value != 3 * (b + 1) )
         {
-            if( strcmp(type->fields[j].name, ini[i].name) != 0 )
-                continue;
-            found = 1;
-            if( type->fields[j].opcode != ini[i].opcode ||
-                (int)type->fields[j].wire != ini[i].wire )
-            {
-                printf("servercodec:   %s.%s — register says opcode %d:u%d, C says %d:u%d\n",
-                       type->name, ini[i].name, ini[i].opcode, ini[i].wire,
-                       type->fields[j].opcode, (int)type->fields[j].wire);
-                mismatched++;
-            }
-            else
-            {
-                matched++;
-            }
-            break;
-        }
-        if( !found )
-        {
-            printf("servercodec:   %s.%s — declared in the register, absent from C\n", type->name,
-                   ini[i].name);
-            mismatched++;
+            printf("servercodec:   %s.%s read back %d, stated %d\n", type->name,
+                   type->bindings[b].name, value, 3 * (b + 1));
+            wrong++;
         }
     }
-
-    snprintf(what, sizeof(what), "%s: the register declares server opcodes", type->name);
-    check(ini_count > 0, what);
-    snprintf(what, sizeof(what), "%s: every declared field matches the C table exactly",
-             type->name);
-    check(matched == ini_count, what);
-    snprintf(what, sizeof(what), "%s: no field disagrees between the register and C", type->name);
-    check(mismatched == 0, what);
-    snprintf(what, sizeof(what), "%s: the C table states no field the register does not",
-             type->name);
-    check(type->count == ini_count, what);
+    snprintf(what, sizeof(what), "%s: every bound field lands in its own member", type->name);
+    check(wrong == 0, what);
+    free(object);
 }
 
 static void
 check_against_register(const char* dir)
 {
     int count = 0;
-    const struct ServerType* types = ToriRSServer_ServerTypes(&count);
+    const struct ToriRSServerBandType* types = ToriRSServer_ServerTypes(&count);
 
     check(count > 0, "at least one type has a server band");
     for( int i = 0; i < count; i++ )
-        check_type_against_register(&types[i], dir);
+    {
+        struct RSCache_Register reg;
+        char what[160];
+
+        ContentFields_Load(&reg, dir, types[i].name);
+        printf("servercodec: %s — register declares %d band field(s), the server binds %d\n",
+               types[i].name, reg.band_count, types[i].binding_count);
+        snprintf(what, sizeof(what), "%s: fields/%s.ini was read", types[i].name, types[i].name);
+        check(reg.from_file, what);
+        snprintf(what, sizeof(what), "%s: the register agrees with the bindings, both ways",
+                 types[i].name);
+        check(ToriRSServer_ServerCheck(&types[i], &reg) == 0, what);
+        check_type_round_trip(&types[i], &reg);
+    }
+
+    /* The overlay: the tree's file is laid over the defaults, not instead of
+     * them. `name` is declared by the defaults for both types and by neither of
+     * the tree's files; it must still be there, or an overlay's `name=` stops
+     * being a client key and becomes an unknown one. */
+    {
+        struct RSCache_Register reg;
+        const struct RSCache_RegisterField* name;
+
+        ContentFields_Load(&reg, dir, "npc");
+        name = RSCache_RegisterFind(&reg, "name");
+        check(name && name->scope == RSCACHE_REGISTER_SCOPE_CLIENT,
+              "npc: a default-only field (`name`) survives the tree's file");
+        check(reg.rejected == 0, "npc: the defaults plus the tree's file parse with no rejected row");
+        ContentFields_Load(&reg, dir, "loc");
+        name = RSCache_RegisterFind(&reg, "name");
+        check(name && name->scope == RSCACHE_REGISTER_SCOPE_CLIENT,
+              "loc: a default-only field (`name`) survives the tree's file");
+        check(reg.rejected == 0, "loc: the defaults plus the tree's file parse with no rejected row");
+    }
+
+    /* A u4 loc id past u2 survives: why the register says u4 for next_loc_stage. */
+    {
+        const struct ToriRSServerBandType* loc = ToriRSServer_ServerTypeFor("loc");
+        struct RSCache_Register reg;
+        struct RSCache_BandRecord stated;
+        struct RSCache_BandRecord back;
+        struct ToriRSServerLocDef def;
+        uint8_t out[64];
+        uint32_t written;
+
+        check(loc != NULL, "the registry answers for `loc`");
+        if( !loc )
+            return;
+        ContentFields_Load(&reg, dir, "loc");
+        RSCache_BandRecordReset(&stated);
+        RSCache_BandRecordSet(&stated, RSCache_BandIndex(&reg, "next_loc_stage"), 62000);
+        written = RSCache_BandEncode(&reg, &stated, out, sizeof(out));
+        memset(&def, 0, sizeof(def));
+        def.next_loc_stage = -1;
+        check(written == 6, "a loc band is one u4 field plus the terminator");
+        ToriRSServer_ServerDecode(loc, &reg, &back, &def, out, (int)written);
+        check(def.next_loc_stage == 62000, "a loc id past 65535 survives");
+    }
 }
 
+/** The defaults alone (a tree with no fields/) declare no band: the band is the
+ *  tree's to declare, so cachepack and the server read the same one. */
 static void
-check_band(void)
+check_defaults(void)
 {
-    int count = 0;
-    const struct ServerType* types = ToriRSServer_ServerTypes(&count);
-    int out_of_band = 0;
-    int duplicated = 0;
+    struct RSCache_Register reg;
 
-    for( int t = 0; t < count; t++ )
-    {
-        const struct ServerType* type = &types[t];
-
-        for( int i = 0; i < type->count; i++ )
-        {
-            if( type->fields[i].opcode < 64 || type->fields[i].opcode > 255 )
-                out_of_band++;
-            for( int j = i + 1; j < type->count; j++ )
-            {
-                if( type->fields[i].opcode == type->fields[j].opcode )
-                    duplicated++;
-            }
-        }
-    }
-    /*
-     * Client npc opcodes run 1..147, so staying at or above 64 is what keeps a
-     * server record from being mistaken for a client one — and what lets a client
-     * decoder fed this stream stop cleanly instead of misreading it.
-     *
-     * Per type, not across types: `npc` and `loc` both use 150 and that is fine,
-     * because a band is only ever decoded against the type it was written for.
-     */
-    check(out_of_band == 0, "every server opcode is inside the reserved 64..255 band");
-    check(duplicated == 0, "no two fields of one type claim the same opcode");
+    check(ContentFields_Defaults(&reg, "npc") > 0 && reg.band_count == 0 && reg.rejected == 0,
+          "the npc defaults parse cleanly and carry no server opcode");
+    check(RSCache_RegisterFind(&reg, "name") &&
+              RSCache_RegisterFind(&reg, "name")->scope == RSCACHE_REGISTER_SCOPE_CLIENT,
+          "npc `name` is a client-scoped default");
+    check(ContentFields_Defaults(&reg, "loc") > 0 && reg.band_count == 0 && reg.rejected == 0,
+          "the loc defaults parse cleanly and carry no server opcode");
+    check(RSCache_RegisterFind(&reg, "next_loc_stage") &&
+              strcmp(RSCache_RegisterFind(&reg, "next_loc_stage")->param_name,
+                     "next_loc_stage") == 0 &&
+              strcmp(RSCache_RegisterFind(&reg, "next_loc_stage")->ref, "loc") == 0,
+          "loc `next_loc_stage` binds its param and resolves through loc");
 }
 
 int
-main(int argc, char** argv)
+main(
+    int argc,
+    char** argv)
 {
-    /* A directory, not a file: the check resolves one register per registered
-     * type, so it cannot be handed a single `npc.ini`. */
-    const char* dir = argc > 1 ? argv[1] : "OSRS-Content/osrs239-content/fields";
+    const char* dir = argc > 1 ? argv[1] : "OSRS-Content/osrs239-content";
 
-    check_round_trip();
-    check_round_trip_loc();
-    check_sparse();
-    check_band();
+    check_presence();
+    check_check();
+    check_defaults();
     check_against_register(dir);
 
     if( g_failures )

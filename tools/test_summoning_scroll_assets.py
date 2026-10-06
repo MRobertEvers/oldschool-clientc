@@ -9,6 +9,7 @@ import re
 import sys
 from pathlib import Path
 
+import config_text
 from summoning_script_sources import definition, read_module
 
 
@@ -62,7 +63,7 @@ def source_scrolls(path: Path) -> list[tuple[str, int, float, int]]:
 def named_records(path: Path) -> dict[str, dict[str, str]]:
     records: dict[str, dict[str, str]] = {}
     current: dict[str, str] | None = None
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in config_text.read_lines(path, encoding="utf-8"):
         line = raw.strip()
         if line.startswith("[") and line.endswith("]"):
             name = line[1:-1]
@@ -129,7 +130,7 @@ def main() -> int:
         expect(set(records) == packed_names,
                "ported scroll configs differ from the familiar and guide-only manifests")
 
-        guide_text = (lane / "configs/summoning_guide.dbrow").read_text(encoding="utf-8")
+        guide_text = config_text.read_text(lane / "configs/summoning_guide.dbrow", encoding="utf-8")
         guide = {
             match.group(1): match.group(2)
             for match in re.finditer(r"^\[([^]]+)\]\n(.*?)(?=^\[|\Z)", guide_text,
@@ -144,12 +145,12 @@ def main() -> int:
             stem = obj_name.removesuffix("_scroll")
             row_name = "summoning_skill_guide_feature_scroll_" + guide_exceptions.get(stem, stem)
             row = guide.get(row_name, "")
-            expect("columndef=0:icon,obj\n" in row,
-                   f"skill-guide row {row_name} does not declare its object icon")
-            expect(f"values=0:0:{PREFIX}{obj_name}\n" in row,
+            # The authored grammar: the row names its column, and the table's
+            # schema (not the row) says `icon` is an obj.
+            expect(f"data=icon,{PREFIX}{obj_name}\n" in row,
                    f"skill-guide row {row_name} is not bound to {PREFIX}{obj_name}")
         fetch_row = guide.get("summoning_skill_guide_feature_scroll_fetch_casket", "")
-        expect(f"values=0:0:{guide_only_name}\n" in fetch_row,
+        expect(f"data=icon,{guide_only_name}\n" in fetch_row,
                "Fetch Casket's rev-727 guide row is not bound to its packed object")
 
         obj_alloc = key_value_lines(lane / "pack/obj.alloc")

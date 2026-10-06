@@ -2,11 +2,105 @@
 #define RSCACHE_DATATYPES_DAT2_CONFIG_OBJ_H
 
 #include "../rsbuffer.h"
+#include "../rscache_presence.h"
 #include "../rscache_profile.h"
 #include "dat2_configs.h"
 #include "dat2_entity_ops.h"
 
 #include <stdbool.h>
+
+/**
+ * The fields an obj stream can state, for `RSCache_Dat2ConfigObj.present`.
+ *
+ * Keyed by meaning, not opcode: a worn model is opcode 23 or, from rev 237, the
+ * int-id 45, and both set MANWEAR; the RS2 codecs number several of these
+ * differently again. Families of separate opcodes (ops 30-34, interface ops
+ * 35-39, the stack variants 100-109) are one field per opcode, and opcode 43
+ * (a sub-op list) is one field per ground op it names, because each is stated
+ * independently. Opcodes a decoder consumes without storing (9, the RS2 extras)
+ * have no field: the type stays lossy for them.
+ */
+enum RSCache_Dat2ConfigObjField
+{
+    RSCACHE_OBJ_FIELD_MODEL = 0,          /* 1, 44 */
+    RSCACHE_OBJ_FIELD_NAME,               /* 2 */
+    RSCACHE_OBJ_FIELD_DESC,               /* 3 */
+    RSCACHE_OBJ_FIELD_ZOOM2D,             /* 4 */
+    RSCACHE_OBJ_FIELD_XAN2D,              /* 5 */
+    RSCACHE_OBJ_FIELD_YAN2D,              /* 6 */
+    RSCACHE_OBJ_FIELD_XOF2D,              /* 7 */
+    RSCACHE_OBJ_FIELD_YOF2D,              /* 8 */
+    RSCACHE_OBJ_FIELD_STACKABLE,          /* 11 (=1), 160 (=2); RS2 0xA5 (=0) */
+    RSCACHE_OBJ_FIELD_COST,               /* 12 */
+    RSCACHE_OBJ_FIELD_WEARPOS,            /* 13 */
+    RSCACHE_OBJ_FIELD_WEARPOS2,           /* 14 */
+    RSCACHE_OBJ_FIELD_UNTRADEABLE,        /* 15, rev 238+ */
+    RSCACHE_OBJ_FIELD_MEMBERS,            /* 16 */
+    RSCACHE_OBJ_FIELD_MANWEAR,            /* 23, 45: model + offset */
+    RSCACHE_OBJ_FIELD_MANWEAR2,           /* 24, 46 */
+    RSCACHE_OBJ_FIELD_WOMANWEAR,          /* 25, 48: model + offset */
+    RSCACHE_OBJ_FIELD_WOMANWEAR2,         /* 26, 49 */
+    RSCACHE_OBJ_FIELD_WEARPOS3,           /* 27 */
+    RSCACHE_OBJ_FIELD_OP1,                /* 30 .. OP5 = 34, consecutive */
+    RSCACHE_OBJ_FIELD_OP2,
+    RSCACHE_OBJ_FIELD_OP3,
+    RSCACHE_OBJ_FIELD_OP4,
+    RSCACHE_OBJ_FIELD_OP5,
+    RSCACHE_OBJ_FIELD_IOP1,               /* 35 .. IOP5 = 39, consecutive */
+    RSCACHE_OBJ_FIELD_IOP2,
+    RSCACHE_OBJ_FIELD_IOP3,
+    RSCACHE_OBJ_FIELD_IOP4,
+    RSCACHE_OBJ_FIELD_IOP5,
+    RSCACHE_OBJ_FIELD_RECOL,              /* 40 */
+    RSCACHE_OBJ_FIELD_RETEX,              /* 41 */
+    RSCACHE_OBJ_FIELD_SHIFT_CLICK_DROP,   /* 42 (RS2: 134 / 0x86) */
+    RSCACHE_OBJ_FIELD_SUBOP1,             /* 43 naming ground op 1 .. SUBOP5, consecutive */
+    RSCACHE_OBJ_FIELD_SUBOP2,
+    RSCACHE_OBJ_FIELD_SUBOP3,
+    RSCACHE_OBJ_FIELD_SUBOP4,
+    RSCACHE_OBJ_FIELD_SUBOP5,
+    RSCACHE_OBJ_FIELD_MANWEAR3,           /* 78, 47 */
+    RSCACHE_OBJ_FIELD_WOMANWEAR3,         /* 79, 50 */
+    RSCACHE_OBJ_FIELD_MANHEAD,            /* 90, 51 */
+    RSCACHE_OBJ_FIELD_WOMANHEAD,          /* 91, 53 */
+    RSCACHE_OBJ_FIELD_MANHEAD2,           /* 92, 52 */
+    RSCACHE_OBJ_FIELD_WOMANHEAD2,         /* 93, 54 */
+    RSCACHE_OBJ_FIELD_GE_TRADEABLE,       /* 65 */
+    RSCACHE_OBJ_FIELD_WEIGHT,             /* 75 */
+    RSCACHE_OBJ_FIELD_CATEGORY,           /* 94 */
+    RSCACHE_OBJ_FIELD_ZAN2D,              /* 95 */
+    RSCACHE_OBJ_FIELD_CERTLINK,           /* 97 */
+    RSCACHE_OBJ_FIELD_CERTTEMPLATE,       /* 98 */
+    RSCACHE_OBJ_FIELD_COUNTOBJ1,          /* 100 .. COUNTOBJ10 = 109, consecutive */
+    RSCACHE_OBJ_FIELD_COUNTOBJ2,
+    RSCACHE_OBJ_FIELD_COUNTOBJ3,
+    RSCACHE_OBJ_FIELD_COUNTOBJ4,
+    RSCACHE_OBJ_FIELD_COUNTOBJ5,
+    RSCACHE_OBJ_FIELD_COUNTOBJ6,
+    RSCACHE_OBJ_FIELD_COUNTOBJ7,
+    RSCACHE_OBJ_FIELD_COUNTOBJ8,
+    RSCACHE_OBJ_FIELD_COUNTOBJ9,
+    RSCACHE_OBJ_FIELD_COUNTOBJ10,
+    RSCACHE_OBJ_FIELD_RESIZEX,            /* 110 */
+    RSCACHE_OBJ_FIELD_RESIZEY,            /* 111 */
+    RSCACHE_OBJ_FIELD_RESIZEZ,            /* 112 */
+    RSCACHE_OBJ_FIELD_AMBIENT,            /* 113 */
+    RSCACHE_OBJ_FIELD_CONTRAST,           /* 114 */
+    RSCACHE_OBJ_FIELD_TEAM,               /* 115 */
+    RSCACHE_OBJ_FIELD_BOUGHTLINK,         /* 139 */
+    RSCACHE_OBJ_FIELD_BOUGHTTEMPLATE,     /* 140 */
+    RSCACHE_OBJ_FIELD_PLACEHOLDERLINK,    /* 148 */
+    RSCACHE_OBJ_FIELD_PLACEHOLDERTEMPLATE,/* 149 */
+    RSCACHE_OBJ_FIELD_ENTITY_SUB_OPS,     /* 200, rev 237+ */
+    RSCACHE_OBJ_FIELD_ENTITY_COND_OPS,    /* 201, rev 237+ */
+    RSCACHE_OBJ_FIELD_ENTITY_COND_SUB_OPS,/* 202, rev 237+ */
+    RSCACHE_OBJ_FIELD_PARAMS,             /* 249 */
+    /* RS2 only: decoded and stored, but the OldSchool stream cannot carry them. */
+    RSCACHE_OBJ_FIELD_RS2_ITEM_TYPE,      /* 96 */
+    RSCACHE_OBJ_FIELD_RS2_LEND,           /* 121 */
+    RSCACHE_OBJ_FIELD_RS2_LEND_TEMPLATE,  /* 122 */
+    RSCACHE_OBJ_FIELD_COUNT
+};
 
 struct RSCache_Dat2ConfigObj
 {
@@ -64,8 +158,12 @@ struct RSCache_Dat2ConfigObj
     int count_co[10];
     int count_obj[10];
 
-    /** Ground menu ops (opcodes 30-34). */
+    /** Ground menu ops (opcodes 30-34). An op the stream spells "hidden" (any
+     *  case) reads NULL here, as the client treats it; its spelling is kept in
+     *  `hidden_actions` so the record can be written back as it was. */
     char* actions[5];
+    /** The literal of a hidden ground op, NULL unless `actions[i]` was hidden. */
+    char* hidden_actions[5];
     char** sub_actions[5];
     char* if_actions[5];
 
@@ -104,6 +202,10 @@ struct RSCache_Dat2ConfigObj
     int placeholder_template_id;
 
     struct RSCache_Params params;
+
+    /** Which fields the stream stated (RSCACHE_OBJ_FIELD_*). Values above still
+     *  carry the client defaults for the rest. */
+    struct RSCache_Presence present;
 };
 
 /** Rev 237+: opcodes 200/201/202 EntityOps on groundOps. */
@@ -165,15 +267,14 @@ RSCache_Dat2ConfigObjFlags(const struct RSCache* cache);
 /**
  * Encode an obj (item) record.
  *
- * Omits fields still at their decode default and writes opcodes in ascending
- * order, which matches how the packer emits them.
+ * Writes exactly the fields set in `present`, whatever their values, in a fixed
+ * opcode order. A caller that builds a record by hand states its fields with
+ * RSCache_PresenceSet. Model ids use the int forms (44-54) whenever the codec
+ * has them (rev 237+), which is how every rev-237+ record is packed.
  *
- * Three fields cannot be reproduced, so records using them round-trip
- * semantically but not byte-exactly:
- *   - opcode 9, a string the decoder discards;
- *   - an action of the literal "Hidden", which the decoder normalises to NULL and
- *     is therefore indistinguishable from an absent action;
- *   - a name of the literal "null", indistinguishable from an absent opcode 2.
+ * Not reproduced byte-exactly: opcode 9 (a string the decoder discards), an
+ * opcode stated twice (only the last value is kept), and the stream's own
+ * opcode order.
  */
 uint32_t
 RSCache_Dat2ConfigObjEncode(

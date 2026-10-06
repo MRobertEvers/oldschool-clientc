@@ -24,6 +24,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import config_text
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
@@ -475,6 +477,42 @@ def split_config_records(path: Path) -> dict[str, list[str]]:
     return records
 
 
+def append_fragment(body: list[str], extra_lines: list[str]) -> list[str]:
+    """A base record's lines with a fragment's lines appended, honouring markers.
+
+    The composed record is staged verbatim -- cachepack reads the full-key
+    markers itself -- so a line is dropped only where a marker and a real line
+    for the same key would otherwise meet (a marker is the only line for its
+    key; an indexed family by its stem, config_text.key_matches):
+
+      * a base `key=default` / `key=empty` yields to any fragment line of that
+        key, so an appended `val=` turns a `val=empty` enum into one with rows;
+      * a fragment `key=default` / `key=empty` clears every base line of that
+        key, leaving it absent or present-and-empty as the marker says.
+    """
+    extra_keys: list[str] = []
+    extra_marker_stems: list[str] = []
+    for line in extra_lines:
+        split = config_text.split_line(line)
+        if split is None:
+            continue
+        extra_keys.append(split[0])
+        if config_text.marker(split[1]) is not None:
+            extra_marker_stems.append(split[0])
+
+    def superseded(line: str) -> bool:
+        split = config_text.split_line(line)
+        if split is None:
+            return False
+        key, raw = split
+        if config_text.marker(raw) is not None and any(
+                config_text.key_matches(key, extra_key) for extra_key in extra_keys):
+            return True
+        return any(config_text.key_matches(stem, key) for stem in extra_marker_stems)
+
+    return [line for line in body if not superseded(line)] + list(extra_lines)
+
+
 def apply_config_overlays(tree: Path, lane: Path, out: Path) -> int:
     """Expand append-only record fragments against the pristine config tree."""
     overlay_root = lane / CONFIG_OVERLAYS
@@ -497,8 +535,7 @@ def apply_config_overlays(tree: Path, lane: Path, out: Path) -> int:
             body = list(base_records[header])
             while body and body[-1] == "":
                 body.pop()
-            body.extend(extra_lines[1:])
-            composed.extend(body)
+            composed.extend(append_fragment(body, extra_lines[1:]))
             composed.append("")
         destination = out / "configs" / LANE / fragment.name
         destination.parent.mkdir(parents=True, exist_ok=True)

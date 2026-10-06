@@ -45,7 +45,9 @@ import os
 import re
 import sys
 
-REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import config_text
+
+REPO =os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 
 # The trigger families whose subject is an npc type (or an npc category).
@@ -97,7 +99,7 @@ def load_npc_categories(path):
     """{npc name: category id} out of configs/all.npc."""
     out, cur = {}, None
     with open(path, encoding="utf-8", errors="replace") as fh:
-        for line in fh:
+        for line in config_text.filter_lines(fh):
             line = line.rstrip()
             if line.startswith("[") and line.endswith("]"):
                 cur = line[1:-1]

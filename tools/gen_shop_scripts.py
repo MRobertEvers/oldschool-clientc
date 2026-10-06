@@ -60,6 +60,8 @@ import os
 import re
 import sys
 
+import config_text
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 WIKI = os.path.join(CONTENT, "wiki")
@@ -132,7 +134,7 @@ def load_inv_sizes() -> dict[str, int]:
     sizes: dict[str, int] = {}
     name = None
     with open(ALL_INV, encoding="utf-8") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.strip()
             if line.startswith("[") and line.endswith("]"):
                 name = line[1:-1]
@@ -488,9 +490,7 @@ def run(write: bool) -> None:
         open(rs2_path, "w", encoding="utf-8").write(
             render_rs2(shop_key, shop, live_owners, fresh, cache_inv)
         )
-        open(inv_path, "w", encoding="utf-8").write(
-            render_inv(shop_key, shop, rows, cache_inv)
-        )
+        config_text.write_config(inv_path, render_inv(shop_key, shop, rows, cache_inv))
         for path, start, end, inline in patches:
             ok = patch_stub(path, start, end, inline, call_for_stub(shop_key))
             if not ok:

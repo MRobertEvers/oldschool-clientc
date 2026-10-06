@@ -97,7 +97,15 @@ ToriRSServer_EmbedStart(char const* rev_name)
     assert(embed);
 
     ToriRSServer_BootDefaults(&embed->config);
-    ToriRSServer_BootLoad(&embed->config);
+    /* No server pack, or a stale one: no world. The message has already named
+     * the command that builds it; starting on half a content load is the
+     * failure the refusal exists to prevent. */
+    if( ToriRSServer_BootLoad(&embed->config) == TORIRSSERVER_BOOT_NO_PACK )
+    {
+        ToriRSServer_BootFree();
+        free(embed);
+        return NULL;
+    }
     /* Shop definitions are global (ToriRSServer_ContentLoad populated them);
      * seeding a container is per-server-instance, so it happens once `srv`
      * itself exists. Calloc above already zeroed world_containers. */

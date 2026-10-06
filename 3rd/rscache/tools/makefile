@@ -102,12 +102,14 @@ PACKFILE_SRCS := \
 CACHEPACK_SRCS := \
 	$(TOOLS)/cachepack/main.c \
 	$(TOOLS)/cachepack/cp_text.c \
+	$(TOOLS)/cachepack/cp_keys.c \
 	$(TOOLS)/cachepack/cp_types.c \
 	$(TOOLS)/cachepack/cp_names.c \
 	$(TOOLS)/cachepack/cp_register.c \
 	$(TOOLS)/cachepack/cp_fields.c \
 	$(TOOLS)/cachepack/cp_membership.c \
 	$(TOOLS)/cachepack/cp_common.c \
+	$(TOOLS)/cachepack/cp_value.c \
 	$(TOOLS)/cachepack/cp_import.c \
 	$(TOOLS)/cachepack/cp_unpack.c \
 	$(TOOLS)/cachepack/cp_pack.c \

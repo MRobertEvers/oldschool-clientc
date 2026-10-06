@@ -158,6 +158,25 @@ main(void)
         RSCACHE_CHECK(written == sizeof(record) && memcmp(out, record, sizeof(record)) == 0); /* byte-exact */
     }
 
+    RSCACHE_TEST_GROUP("inv — a field stated at its default value is still stated");
+    {
+        /* size 0 and an empty param map, both written out explicitly. Inferring
+         * presence from the value re-encoded this as the bare terminator. */
+        const uint8_t record[] = { 0x02, 0x00, 0x00, 0xF9, 0x00, 0x00 };
+        struct RSCache_Dat2ConfigInv inv;
+        memset(&inv, 0, sizeof(inv));
+        RSCache_Dat2ConfigInvDecodeInplace(&inv, record, (int)sizeof(record));
+
+        RSCACHE_CHECK(RSCache_PresenceHas(&inv.present, RSCACHE_INV_FIELD_SIZE)); /* size stated */
+        RSCACHE_CHECK(RSCache_PresenceHas(&inv.present, RSCACHE_INV_FIELD_PARAMS)); /* map stated */
+        RSCACHE_CHECK(inv.size == 0 && inv.params.count == 0); /* both at their defaults */
+
+        uint8_t out[16];
+        uint32_t written = RSCache_Dat2ConfigInvEncode(&inv, out, sizeof(out));
+        RSCACHE_CHECK(written == sizeof(record) && memcmp(out, record, sizeof(record)) == 0); /* byte-exact */
+        RSCache_Dat2ConfigInvFreeInplace(&inv);
+    }
+
     RSCACHE_TEST_GROUP("varplayer — opcode 5 clientcode");
     {
         const uint8_t record[] = { 0x05, 0x00, 0x11, 0x00 };
@@ -179,6 +198,15 @@ main(void)
         RSCACHE_CHECK(vp.clientcode == 0 && vp._consumed == 1); /* empty record */
         written = RSCache_Dat2ConfigVarplayerEncode(&vp, out, sizeof(out));
         RSCACHE_CHECK(written == 1 && out[0] == 0); /* empty re-encodes to a terminator */
+
+        /* An explicit clientcode 0 is stated, and stays stated: the encoder used
+         * to drop any 0 as "absent". */
+        const uint8_t zero[] = { 0x05, 0x00, 0x00, 0x00 };
+        memset(&vp, 0, sizeof(vp));
+        RSCache_Dat2ConfigVarplayerDecodeInplace(&vp, zero, (int)sizeof(zero));
+        RSCACHE_CHECK(RSCache_PresenceHas(&vp.present, RSCACHE_VARP_FIELD_CLIENTCODE)); /* explicit 0 is present */
+        written = RSCache_Dat2ConfigVarplayerEncode(&vp, out, sizeof(out));
+        RSCACHE_CHECK(written == sizeof(zero) && memcmp(out, zero, sizeof(zero)) == 0); /* explicit 0 survives */
     }
 
     RSCACHE_TEST_GROUP("varclient — presence of opcode 3 is distinct from its value");
@@ -186,7 +214,7 @@ main(void)
         /*
          * 40 records in the corpus carry opcode 3 with an explicit zero. Keying the
          * encoder on the value rather than on presence would drop the opcode and
-         * shorten the record, so `has_opcode_3` has to be tracked separately.
+         * shorten the record, so opcode 3's presence is tracked, not inferred.
          */
         const uint8_t with_zero[] = { 0x02, 0x03, 0x00, 0x00, 0x00 };
         struct RSCache_Dat2ConfigVarclient vc;
@@ -194,7 +222,7 @@ main(void)
         RSCache_Dat2ConfigVarclientDecodeInplace(&vc, with_zero, (int)sizeof(with_zero));
 
         RSCACHE_CHECK(vc.persist == 1); /* opcode 2 sets persist */
-        RSCACHE_CHECK(vc.has_opcode_3); /* opcode 3 recorded as present */
+        RSCACHE_CHECK(RSCache_PresenceHas(&vc.present, RSCACHE_VARC_FIELD_OPCODE_3)); /* opcode 3 recorded as present */
         RSCACHE_CHECK(vc.opcode_3 == 0); /* its value is zero */
         RSCACHE_CHECK(vc._consumed == (int)sizeof(with_zero)); /* consumed exactly */
 
@@ -206,7 +234,8 @@ main(void)
         const uint8_t persist_only[] = { 0x02, 0x00 };
         memset(&vc, 0, sizeof(vc));
         RSCache_Dat2ConfigVarclientDecodeInplace(&vc, persist_only, 2);
-        RSCACHE_CHECK(vc.persist == 1 && !vc.has_opcode_3); /* persist without opcode 3 */
+        RSCACHE_CHECK(vc.persist == 1); /* persist set */
+        RSCACHE_CHECK(!RSCache_PresenceHas(&vc.present, RSCACHE_VARC_FIELD_OPCODE_3)); /* without opcode 3 */
         written = RSCache_Dat2ConfigVarclientEncode(&vc, out, sizeof(out));
         RSCACHE_CHECK(written == 2 && memcmp(out, persist_only, 2) == 0); /* persist-only byte-exact */
     }

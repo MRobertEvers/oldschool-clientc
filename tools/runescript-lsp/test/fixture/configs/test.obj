@@ -6,3 +6,13 @@ members=no
 [bow_string]
 name=Bow string
 cost=12
+
+[blank_name]
+// Every block states every key: an absent name is `name=default`.
+name=default
+cost=default
+
+[called_default]
+// A name that really is the word: escaped, and a trailing comment.
+name=\default   // not the marker
+cost=1

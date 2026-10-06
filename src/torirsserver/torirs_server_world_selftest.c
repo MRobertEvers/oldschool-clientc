@@ -3478,22 +3478,8 @@ ToriRSServer_WorldSelftest(void)
      * payload and still reaches the capture hook, then writes nothing — which
      * is what makes every encoder assertable without a socket. */
     player = ToriRSServer_WorldAddPlayer(srv, NULL);
-    /*
-     * The cache the run was pointed at, not the default one.
-     *
-     * Boot loads this table from `config->cache_dir`, which honours
-     * `TORIRSSERVER_CACHE`; hardcoding the default here meant a selftest run against
-     * a lane cache reloaded the table from the pristine one and threw the lane's
-     * sequence records away. Nothing said so — ids outside the pristine
-     * archive's range simply answer with the default priority — so every lane
-     * animation silently flattened to 5 and no assertion about one could fail
-     * for the right reason.
-     */
-    {
-        const char* cache_env = getenv("TORIRSSERVER_CACHE");
-        ToriRSServer_SeqInfoLoad(cache_env && cache_env[0] ? cache_env
-                                                       : TORIRSSERVER_CACHE_DIR_DEFAULT);
-    }
+    /* The sequence table is boot's (ToriRSServer_BootLoad), from the server pack
+     * of the composition the run was pointed at -- a lane's records included. */
     ToriRSServer_WorldInit(srv, 426, 408);
     ToriRSServer_WorldPlayerInit(player);
 
@@ -16950,9 +16936,9 @@ ToriRSServer_WorldSelftest(void)
              * server-side parses an `.if`. Cache enums are loaded now
              * (`configs/all.enum` rank-0), but this selftest still leaves the
              * index↔name check to the real client (docs/skill_guide.md §4).
-             * The exported `configs/all.dbtable` uses a `columndef=`/`values=`
-             * grammar this server's `column=`/`data=` parser skips — so its copy
-             * of skill_guide_subsections is an empty shell.
+             * The cache's skill_guide_subsections rows reach this server from
+             * the binary records (torirs_server_dbinfo.c); `configs/all.dbtable`
+             * only names their columns.
              */
             static const char* const k_cells[] = {
                 "stats:attack",      "stats:strength",     "stats:defence",
@@ -35428,7 +35414,7 @@ ToriRSServer_WorldSelftest(void)
          *
          * WHAT THIS FOUND, and it is the finding of the stage: the requirement
          * is a MERGE of two sources and every prose account of it names one.
-         * The `.obj` overlay (`param=levelrequire`) is 857 objs and 1,254
+         * The `.obj` overlay (`levelrequire<N>=`) is 857 objs and 1,254
          * pairs; the cache's own `skillrequire`/`levelrequire` params are 639
          * FURTHER objs that no `.obj` file mentions — a rune scimitar's Attack
          * 40 among them. `~levelrequire_check` reads both, and this leg is what

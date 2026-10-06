@@ -1072,20 +1072,33 @@ pg_cache_pack_animation(
         uint32_t written;
         uint32_t capacity = (uint32_t)(64 + sequence->frame_count * 8);
 
+        /* The encoder writes the fields `present` names and nothing else, so
+         * this states what the authored sequence carries: its frames, and the
+         * loop count and held items only where the author set one (-1 is the
+         * poser's "unset"). It used to rely on value tests instead, which wrote
+         * opcode 11 as 255 and a maya id of -1 into every packed sequence. */
         memset(&seq, 0, sizeof(seq));
+        RSCache_Dat2ConfigSequenceSetDefaults(&seq);
         seq.id = sequence->id;
         seq.frame_count = sequence->frame_count;
         seq.frame_ids = sequence->frame_ids;
         seq.frame_lengths = sequence->frame_lengths;
-        seq.max_loops = sequence->loop_offset;
-        seq.left_hand_item = sequence->left_hand_item;
-        seq.right_hand_item = sequence->right_hand_item;
-        seq.forced_priority = 5;
-        seq.priority = -1;
-        seq.reply_mode = -1;
-        seq.precedence_animating = -1;
-        seq.anim_maya_id = -1;
-        seq.frame_step = -1;
+        RSCache_PresenceSet(&seq.present, RSCACHE_SEQ_FIELD_FRAMES);
+        if( sequence->loop_offset >= 0 )
+        {
+            seq.max_loops = sequence->loop_offset;
+            RSCache_PresenceSet(&seq.present, RSCACHE_SEQ_FIELD_MAX_LOOPS);
+        }
+        if( sequence->left_hand_item >= 0 )
+        {
+            seq.left_hand_item = sequence->left_hand_item;
+            RSCache_PresenceSet(&seq.present, RSCACHE_SEQ_FIELD_LEFT_HAND);
+        }
+        if( sequence->right_hand_item >= 0 )
+        {
+            seq.right_hand_item = sequence->right_hand_item;
+            RSCache_PresenceSet(&seq.present, RSCACHE_SEQ_FIELD_RIGHT_HAND);
+        }
 
         buffer = malloc(capacity);
         written = buffer ? RSCache_Dat2ConfigSequenceEncode(&c->profile, &seq, buffer, capacity)

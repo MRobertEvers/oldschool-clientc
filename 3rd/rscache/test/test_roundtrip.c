@@ -1065,7 +1065,8 @@ visit_idk(
     tally->records++;
 
     uint8_t encoded[8192];
-    uint32_t written = RSCache_Dat2ConfigIdkEncode(&first, encoded, sizeof(encoded));
+    uint32_t written =
+        RSCache_Dat2ConfigIdkEncodeProfile(profile, &first, encoded, sizeof(encoded));
     if( written == 0 )
     {
         tally->encode_failed++;
@@ -1075,7 +1076,8 @@ visit_idk(
     note_bytes(tally, encoded, written, data, size);
 
     RSCache_Dat2ConfigIdkDecodeInplace(&second, (char*)encoded, (int)written);
-    if( idk_equal(&first, &second) )
+    if( idk_equal(&first, &second) &&
+        memcmp(&first.present, &second.present, sizeof(first.present)) == 0 )
         tally->semantic_ok++;
 
     /* The decoder allocates into the struct but there is no in-place free, so
@@ -1090,7 +1092,6 @@ visit_idk(
     free(second.recolors_to);
     free(second.retextures_from);
     free(second.retextures_to);
-    (void)profile;
 }
 
 /* ----------------------------------------------------------------- enum --- */
@@ -1102,6 +1103,8 @@ enum_equal(
 {
     /* Promoted 2026-07-30 out of the lossy list; the semantic bar has to see them
      * or a decoder that stopped keeping either would still measure 100%. */
+    if( memcmp(&lhs->present, &rhs->present, sizeof(lhs->present)) != 0 )
+        return false;
     if( lhs->input_type != rhs->input_type )
         return false;
     if( lhs->output_type != rhs->output_type )
@@ -1222,7 +1225,9 @@ visit_param(
 
     RSCache_Dat2ConfigParamDecodeInplace(&second, encoded, (int)written);
 
-    bool equal = first.type == second.type && first.default_int == second.default_int &&
+    bool equal = memcmp(&first.present, &second.present, sizeof(first.present)) == 0 &&
+                 first.type == second.type && first.type_key == second.type_key &&
+                 first.type_id == second.type_id && first.default_int == second.default_int &&
                  first.default_long == second.default_long &&
                  first.auto_disable == second.auto_disable &&
                  !!first.default_string == !!second.default_string &&
@@ -1280,7 +1285,8 @@ visit_varbit(
     bool equal = first.basevar == second.basevar && first.startbit == second.startbit &&
                  first.endbit == second.endbit &&
                  !!first.debugname == !!second.debugname &&
-                 (!first.debugname || strcmp(first.debugname, second.debugname) == 0);
+                 (!first.debugname || strcmp(first.debugname, second.debugname) == 0) &&
+                 memcmp(&first.present, &second.present, sizeof(first.present)) == 0;
     if( equal )
         tally->semantic_ok++;
 
@@ -1317,7 +1323,8 @@ visit_varplayer(
     note_bytes(tally, encoded, written, data, size);
 
     RSCache_Dat2ConfigVarplayerDecodeInplace(&second, encoded, (int)written);
-    if( first.clientcode == second.clientcode )
+    if( first.clientcode == second.clientcode &&
+        memcmp(&first.present, &second.present, sizeof(first.present)) == 0 )
         tally->semantic_ok++;
     (void)profile;
 }
@@ -1350,7 +1357,8 @@ visit_varclient(
     note_bytes(tally, encoded, written, data, size);
 
     RSCache_Dat2ConfigVarclientDecodeInplace(&second, encoded, (int)written);
-    if( first.persist == second.persist && first.has_opcode_3 == second.has_opcode_3 &&
+    if( first.persist == second.persist &&
+        memcmp(&first.present, &second.present, sizeof(first.present)) == 0 &&
         first.opcode_3 == second.opcode_3 )
         tally->semantic_ok++;
     (void)profile;
@@ -1384,7 +1392,8 @@ visit_inv(
     note_bytes(tally, encoded, written, data, size);
 
     RSCache_Dat2ConfigInvDecodeInplace(&second, encoded, (int)written);
-    if( first.size == second.size )
+    if( memcmp(&first.present, &second.present, sizeof(first.present)) == 0 &&
+        first.size == second.size && first.params.count == second.params.count )
         tally->semantic_ok++;
     RSCache_Dat2ConfigInvFreeInplace(&first);
     RSCache_Dat2ConfigInvFreeInplace(&second);
@@ -1419,7 +1428,8 @@ visit_healthbar(
     note_bytes(tally, encoded, written, data, size);
 
     RSCache_Dat2ConfigHealthbarDecodeInplace(&second, encoded, (int)written);
-    if( first.front_sprite_id == second.front_sprite_id &&
+    if( memcmp(&first.present, &second.present, sizeof(first.present)) == 0 &&
+        first.front_sprite_id == second.front_sprite_id &&
         first.back_sprite_id == second.back_sprite_id &&
         first.has_draw_order == second.has_draw_order &&
         first.draw_order == second.draw_order &&
@@ -1463,18 +1473,12 @@ visit_hitsplat(
     note_bytes(tally, encoded, written, data, size);
 
     RSCache_Dat2ConfigHitsplatDecodeInplace(&second, encoded, (int)written, hs_flags);
-    if( first.sprite_id == second.sprite_id && first.has_text == second.has_text &&
-        strcmp(first.text, second.text) == 0 && first.text_marker == second.text_marker &&
-        first.has_duration == second.has_duration && first.duration == second.duration &&
-        first.has_slot_policy == second.has_slot_policy &&
-        first.slot_policy == second.slot_policy &&
-        first.has_fade_flag == second.has_fade_flag &&
-        first.has_fade_after == second.has_fade_after && first.fade_after == second.fade_after &&
-        first.has_text_offset_y == second.has_text_offset_y &&
-        first.text_offset_y == second.text_offset_y &&
-        first.has_text_colour == second.has_text_colour &&
-        first.text_colour == second.text_colour &&
-        first.variant_opcode == second.variant_opcode &&
+    /* Every stated field states again, 17 vs 18 included (VARIANT_FALLBACK). */
+    if( memcmp(&first.present, &second.present, sizeof(first.present)) == 0 &&
+        first.sprite_id == second.sprite_id && strcmp(first.text, second.text) == 0 &&
+        first.text_marker == second.text_marker && first.duration == second.duration &&
+        first.slot_policy == second.slot_policy && first.fade_after == second.fade_after &&
+        first.text_offset_y == second.text_offset_y && first.text_colour == second.text_colour &&
         first.variant_varbit == second.variant_varbit && first.variant_varp == second.variant_varp &&
         first.variant_fallback == second.variant_fallback &&
         first.variant_count == second.variant_count &&
@@ -1521,7 +1525,8 @@ visit_struct(
 
     RSCache_Dat2ConfigStructDecodeInplace(&second, encoded, (int)written);
 
-    bool equal = first.params.count == second.params.count;
+    bool equal = memcmp(&first.present, &second.present, sizeof(first.present)) == 0 &&
+                 first.params.count == second.params.count;
     for( int i = 0; equal && i < first.params.count; i++ )
     {
         if( first.params.keys[i] != second.params.keys[i] ||
@@ -1571,7 +1576,9 @@ visit_underlay(
     note_bytes(tally, encoded, written, data, size);
 
     RSCache_Dat2ConfigUnderlayDecodeInplace(&second, (char*)encoded, (int)written);
-    if( first.rgb_color == second.rgb_color )
+    if( first.rgb_color == second.rgb_color &&
+        RSCache_PresenceHas(&first.present, RSCACHE_UNDERLAY_FIELD_COLOUR) ==
+            RSCache_PresenceHas(&second.present, RSCACHE_UNDERLAY_FIELD_COLOUR) )
         tally->semantic_ok++;
     (void)profile;
 }
@@ -1605,7 +1612,8 @@ visit_overlay(
                  first.hide_underlay == second.hide_underlay &&
                  first.flotype_overlay == second.flotype_overlay &&
                  !!first.flotype_name == !!second.flotype_name &&
-                 (!first.flotype_name || strcmp(first.flotype_name, second.flotype_name) == 0);
+                 (!first.flotype_name || strcmp(first.flotype_name, second.flotype_name) == 0) &&
+                 memcmp(&first.present, &second.present, sizeof(first.present)) == 0;
     if( equal )
         tally->semantic_ok++;
 
@@ -1630,6 +1638,9 @@ visit_mapelement(
 
     RSCache_MapElementDecodeInplace(&first, data, size);
     tally->records++;
+    tally->tracks_consumed = true;
+    if( first._consumed == size )
+        tally->consumed_exact++;
 
     uint32_t capacity = (uint32_t)size * 2u + 1024u;
     uint8_t* encoded = malloc(capacity);
@@ -1648,9 +1659,16 @@ visit_mapelement(
 
     RSCache_MapElementDecodeInplace(&second, encoded, (int)written);
 
-    /* Only the four retained fields can be compared — this encoder is documented
-     * as lossy for everything else. */
-    bool equal = first.sprite_id == second.sprite_id && first.text_size == second.text_size &&
+    /* Every opcode is stored now, so every stated field must state again. */
+    bool equal = memcmp(&first.present, &second.present, sizeof(first.present)) == 0 &&
+                 first.flags == second.flags &&
+                 first.randomize_position == second.randomize_position &&
+                 first.text_colour == second.text_colour &&
+                 !!first.ops[0] == !!second.ops[0] &&
+                 (!first.ops[0] || strcmp(first.ops[0], second.ops[0]) == 0) &&
+                 !!first.target_name == !!second.target_name &&
+                 (!first.target_name || strcmp(first.target_name, second.target_name) == 0) &&
+                 first.sprite_id == second.sprite_id && first.text_size == second.text_size &&
                  first.category == second.category && !!first.name == !!second.name &&
                  (!first.name || strcmp(first.name, second.name) == 0);
     if( equal )
@@ -1714,6 +1732,8 @@ obj_equal(
     for( int i = 0; i < 5; i++ )
     {
         if( !str_equal(lhs->actions[i], rhs->actions[i]) )
+            return false;
+        if( !str_equal(lhs->hidden_actions[i], rhs->hidden_actions[i]) )
             return false;
         if( !str_equal(lhs->if_actions[i], rhs->if_actions[i]) )
             return false;
@@ -1813,7 +1833,8 @@ visit_obj(
         RSCache_Dat2ConfigObjNewDecodeProfile(profile, (char*)encoded, (int)written);
     if( second )
     {
-        if( obj_equal(first, second) )
+        if( obj_equal(first, second) &&
+            memcmp(&first->present, &second->present, sizeof(first->present)) == 0 )
             tally->semantic_ok++;
         RSCache_Dat2ConfigObjFree(second);
     }
@@ -1829,7 +1850,19 @@ npc_equal(
     const struct RSCache_Dat2ConfigNpc* lhs,
     const struct RSCache_Dat2ConfigNpc* rhs)
 {
-    if( !str_equal(lhs->name, rhs->name) )
+    /* The encoder writes exactly the stated fields, so the re-decode states the
+     * same ones: a field written at its default value is still written. */
+    if( memcmp(&lhs->present, &rhs->present, sizeof(lhs->present)) != 0 )
+        return false;
+    if( !str_equal(lhs->name, rhs->name) || !str_equal(lhs->desc, rhs->desc) )
+        return false;
+    if( lhs->bas_type_id != rhs->bas_type_id || lhs->sound_idle != rhs->sound_idle ||
+        lhs->sound_crawl != rhs->sound_crawl || lhs->sound_walk != rhs->sound_walk ||
+        lhs->sound_run != rhs->sound_run || lhs->sound_radius != rhs->sound_radius ||
+        lhs->ambient_sound_volume != rhs->ambient_sound_volume ||
+        lhs->entity_ops.sub_ops_count != rhs->entity_ops.sub_ops_count ||
+        lhs->entity_ops.cond_ops_count != rhs->entity_ops.cond_ops_count ||
+        lhs->entity_ops.cond_sub_ops_count != rhs->entity_ops.cond_sub_ops_count )
         return false;
     if( lhs->size != rhs->size || lhs->standing_animation != rhs->standing_animation ||
         lhs->walking_animation != rhs->walking_animation ||

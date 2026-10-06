@@ -41,6 +41,8 @@ import os
 import re
 import sys
 
+import config_text
+
 
 def load_blocks(path):
     """`configs/all.npc` -- `[name]` blocks of `key=value`.
@@ -51,7 +53,7 @@ def load_blocks(path):
     out = {}
     current = None
     with open(path, encoding="utf-8", errors="replace") as handle:
-        for line in handle:
+        for line in config_text.filter_lines(handle):
             line = line.rstrip("\n")
             if line.startswith("[") and line.endswith("]"):
                 current = line[1:-1]
@@ -63,6 +65,11 @@ def load_blocks(path):
 
 
 MULTINPC_KEY = re.compile(r"^multinpc(\d+)$")
+
+
+def is_no_ref(value):
+    """A reference field that names nothing: absent, `null`, or `-1`."""
+    return value is None or value in ("null", "-1")
 
 
 def collect_shells(blocks):
@@ -78,17 +85,21 @@ def collect_shells(blocks):
             continue
         idx_keys.sort()
 
+        # One opcode carries both switches: the one it does not use is
+        # `multivarp=default` (dropped by the filter, so absent here) or an
+        # authored `null` / `-1` -- no switch either way, never a varp named
+        # "null".
         switch_type = None
         switch_name = None
-        if "multivarp" in block:
+        if not is_no_ref(block.get("multivarp")):
             switch_type, switch_name = "varp", block["multivarp"]
-        elif "multivarbit" in block:
+        elif not is_no_ref(block.get("multivarbit")):
             switch_type, switch_name = "varbit", block["multivarbit"]
 
         variants = []
         for idx, key in idx_keys:
             target = block[key]
-            if target == "-1":
+            if is_no_ref(target):
                 variants.append((idx, None, None))
                 continue
             tblock = blocks.get(target, {})

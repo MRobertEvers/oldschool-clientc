@@ -47,6 +47,8 @@ import os
 import re
 import sys
 
+import config_text
+
 # `plane x z: loc shape [angle]` -- the angle is OMITTED when it is 0, which is
 # a third of this tree's placements. Same regex as tools/door_audit.py, and for
 # the same reason: requiring the third field silently drops them.
@@ -76,6 +78,10 @@ LOC_CHANGE_RE = re.compile(r"loc_change\s*\(\s*([A-Za-z0-9_:]+)")
 LOC_ADD_RE = re.compile(r"loc_add\s*\([^,]*,\s*([A-Za-z0-9_:]+)")
 
 
+# A reference field's spellings of "names nothing".
+NO_REF = ("-1", "null")
+
+
 def parse_compack(path):
     """`id=name` lines -> {id: name}. Trailing `// cache: x` notes are dropped."""
     out = {}
@@ -98,7 +104,7 @@ def parse_blocks(path):
     """
     blocks, cur = [], None
     with open(path, encoding="utf8", errors="replace") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             s = line.split("//")[0].strip()
             if not s:
                 continue
@@ -151,7 +157,7 @@ def load_varp_decls(tree):
                        recursive=True):
         rel = os.path.relpath(p, tree).replace("\\", "/")
         with open(p, encoding="utf8", errors="replace") as f:
-            for line in f:
+            for line in config_text.filter_lines(f):
                 s = line.split("//")[0].strip()
                 if not s:
                     continue
@@ -217,8 +223,11 @@ def build_rows(tree):
 
     refs = collections.defaultdict(list)
     for lname, fields in parse_blocks(os.path.join(cfg, "all.loc")):
-        vb = fields.get("multivarbit")
-        vp = fields.get("multivarp")
+        # One opcode carries both switches; the full-key text states the one
+        # a loc does not use as `-1` (or `null`, or `=default`, which the
+        # filter already dropped). Neither is a variable.
+        vb = [v for v in fields.get("multivarbit", []) if v not in NO_REF]
+        vp = [v for v in fields.get("multivarp", []) if v not in NO_REF]
         if not vb and not vp:
             continue
         variants, i = [], 1
@@ -234,7 +243,7 @@ def build_rows(tree):
             squares=sorted(squares.get(lid, ())),
             # value 0 draws nothing: this base is absent from the world until
             # something sets the variable.
-            hidden_at_zero=bool(variants) and variants[0] == "-1",
+            hidden_at_zero=bool(variants) and variants[0] in NO_REF,
             bindings=sorted(bound.get(lname, ())),
             variant_bindings=sorted({f for v in variants for f in bound.get(v, ())}),
             swapped_by=sorted({f for v in [lname] + variants for f in swapped.get(v, ())}),

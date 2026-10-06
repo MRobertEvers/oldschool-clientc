@@ -127,7 +127,10 @@ RSCache_Dat2ConfigLocFreeInplace(struct RSCache_Dat2ConfigLoc* loc)
         return;
 
     for( int i = 0; i < 10; i++ )
+    {
         free(loc->actions[i]);
+        free(loc->hidden_actions[i]);
+    }
     free(loc->name);
     free(loc->desc);
 
@@ -178,7 +181,10 @@ RSCache_Dat2ConfigLocDecodeInplace(
 void
 RSCache_Dat2ConfigLocInit(struct RSCache_Dat2ConfigLoc* loc)
 {
+    assert(loc);
     memset(loc, 0, sizeof(struct RSCache_Dat2ConfigLoc));
+    /* Client defaults below; nothing stated until an opcode says so. */
+    RSCache_PresenceReset(&loc->present);
 
     loc->name = NULL;
     loc->size_x = 1;
@@ -239,6 +245,7 @@ RSCache_Dat2ConfigLocInit(struct RSCache_Dat2ConfigLoc* loc)
     loc->sound_fade_out_curve = 0;
     loc->sound_fade_out_duration = 300;
     loc->unknown1 = false;
+    loc->defer_anim_change = false;
     loc->sound_visibility = 2;
     loc->raise = 0;
     RSCache_EntityOpsInit(&loc->entity_ops);
@@ -287,29 +294,42 @@ RSCache_Dat2ConfigLocEncodeFlags(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !loc || !out )
-        return 0;
+    assert(loc);
+    assert(out);
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
 
-    struct RSCache_Dat2ConfigLoc defaults;
-    RSCache_Dat2ConfigLocInit(&defaults);
+#define LOC_HAS(field) RSCache_PresenceHas(&loc->present, RSCACHE_LOC_FIELD_##field)
 
-    /* Opcode 1 carries one model per shape; opcode 5 carries several models under a
-     * single group and no shapes. The decoder distinguishes them by whether it
-     * allocated `shapes`, so that is what selects the form here. Rev 237+ uses
-     * opcodes 6/7 with g4 when any model id exceeds u16. */
-    if( loc->shapes_and_model_count > 0 && loc->models )
+    /*
+     * Opcode 1 carries one model per shape; opcode 5 carries several models under a
+     * single group and no shapes. Which one the record states is its presence; rev
+     * 237+ spells both with int ids (6 / 7), which is the only form that era's
+     * cache writes. A short-form id that does not fit a u16 also takes the int
+     * form, as it always has, since the short form cannot hold it at all.
+     */
+    bool int_form = (flags & RSCACHE_CONFIG_LOC_DECODE_REV237_INT_MODEL_IDS) != 0;
+    bool models_shaped = LOC_HAS(MODELS);
+    bool models_flat = LOC_HAS(MODELS_FLAT);
+    if( (models_shaped || models_flat) && (loc->shapes_and_model_count == 0 || !loc->models) )
     {
-        bool use_int_ids = false;
+        /* Stated with no entries. */
+        p1(&buffer, models_shaped ? (int_form ? 6 : 1) : (int_form ? 7 : 5));
+        p1(&buffer, 0);
+    }
+    else if( models_shaped || models_flat )
+    {
+        /* A big-smart era (rev 727) holds any id in the short form. */
+        bool wide_short = (flags & RSCACHE_CONFIG_LOC_DECODE_LARGE_MODEL_IDS) != 0;
+        bool use_int_ids = int_form;
         int total_models = 0;
         for( int i = 0; i < loc->shapes_and_model_count; i++ )
         {
             int group = loc->lengths ? loc->lengths[i] : 1;
             total_models += group;
             for( int j = 0; j < group; j++ )
-                if( loc->models[i][j] < 0 || loc->models[i][j] > 0xFFFF )
+                if( !wide_short && (loc->models[i][j] < 0 || loc->models[i][j] > 0xFFFF) )
                     use_int_ids = true;
         }
 
@@ -327,7 +347,11 @@ RSCache_Dat2ConfigLocEncodeFlags(
          * opcode 1 — the form is not interchangeable there, since 5 answers
          * every shape the map asks for and 1 answers only its own.
          */
-        bool flat = !loc->shapes;
+        bool flat = models_flat;
+        if( flat )
+            assert(!loc->shapes);
+        else
+            assert(loc->shapes);
         if( !flat && total_models > loc->shapes_and_model_count &&
             loc->shapes_and_model_count == 1 && loc->shapes[0] == 10 )
             flat = true;
@@ -369,127 +393,93 @@ RSCache_Dat2ConfigLocEncodeFlags(
         }
     }
 
-    if( loc->name )
+    if( LOC_HAS(NAME) )
     {
+        assert(loc->name);
         p1(&buffer, 2);
         loc_pstringfl(&buffer, loc->name, flags);
     }
-    if( loc->desc )
+    if( LOC_HAS(DESC) )
     {
+        assert(loc->desc);
         p1(&buffer, 3);
         loc_pstringfl(&buffer, loc->desc, flags);
     }
 
-    if( loc->size_x != defaults.size_x )
+    if( LOC_HAS(SIZE_X) )
     {
         p1(&buffer, 14);
         p1(&buffer, loc->size_x);
     }
-    if( loc->size_z != defaults.size_z )
+    if( LOC_HAS(SIZE_Z) )
     {
         p1(&buffer, 15);
         p1(&buffer, loc->size_z);
     }
 
-    /* blocks_walk / blocks_projectiles are driven by three opcodes rather than
-     * carrying values: 17 zeroes both, 27 sets walk to 1, 18 clears projectiles.
-     * Defaults are walk 2, projectiles 1. */
-    if( loc->blocks_walk == 0 && loc->blocks_projectiles == 0 )
-    {
+    /* The walk/projectile flags are three payload-free opcodes, not values: 17
+     * clears both, 18 clears projectiles, 27 sets walk to 1. */
+    if( LOC_HAS(UNSOLID) )
         p1(&buffer, 17);
-    }
-    else
-    {
-        if( loc->blocks_walk == 1 )
-            p1(&buffer, 27);
-        if( loc->blocks_projectiles == 0 )
-            p1(&buffer, 18);
-    }
+    if( LOC_HAS(PROJECTILES_PASS) )
+        p1(&buffer, 18);
 
-    if( loc->is_interactive != defaults.is_interactive )
+    if( LOC_HAS(INTERACTIVE) )
     {
         p1(&buffer, 19);
         p1(&buffer, loc->is_interactive);
     }
 
-    /* contour_ground_type is a small enum the decoder derives from five different
-     * opcodes. Map it back, but note 93 and 95 mean something else entirely once the
-     * >= 220 payloads apply, so those two are only reachable pre-220. */
-    switch( loc->contour_ground_type )
-    {
-    case 1:
+    if( LOC_HAS(CONTOUR_GROUND) )
         p1(&buffer, 21);
-        break;
-    case 2:
-        p1(&buffer, 81);
-        p1(&buffer, loc->contoured_ground / 256);
-        break;
-    case 3:
-        if( !(flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) )
-        {
-            p1(&buffer, 93);
-            p2b(&buffer, loc->contour_ground_param);
-        }
-        break;
-    case 4:
-        /* RS2: contour type. OSRS: opcode 94 is unknown1 (emitted below). */
-        if( flags & RSCACHE_CONFIG_LOC_DECODE_RS2 )
-            p1(&buffer, 94);
-        break;
-    case 5:
-        if( !(flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) )
-        {
-            p1(&buffer, 95);
-            /* The decoder discards this value, so it cannot be reproduced. */
-            p2(&buffer, 0);
-        }
-        break;
-    default:
-        break;
-    }
-
-    if( loc->sharelight )
+    if( LOC_HAS(SHARELIGHT) )
         p1(&buffer, 22);
-    if( loc->occlude )
+    if( LOC_HAS(OCCLUDE) )
         p1(&buffer, 23);
 
-    if( loc->seq_id != defaults.seq_id )
+    if( LOC_HAS(ANIM) )
     {
         p1(&buffer, 24);
         LOC_WRITE_MODEL_ID(&buffer, flags, loc->seq_id == -1 ? 65535 : loc->seq_id);
     }
 
-    if( loc->wall_width != defaults.wall_width )
+    if( LOC_HAS(INTERACT_TYPE_1) )
+        p1(&buffer, 27);
+
+    if( LOC_HAS(WALL_WIDTH) )
     {
         p1(&buffer, 28);
         p1(&buffer, loc->wall_width);
     }
-    if( loc->ambient != defaults.ambient )
+    if( LOC_HAS(AMBIENT) )
     {
         p1(&buffer, 29);
         p1b(&buffer, loc->ambient);
     }
 
-    /* Actions 0..4 are writable through either opcode 30+i or 150+i, and the
-     * decoder stores both in the same slots. Emit the 30-range; a record that used
-     * the 150-range round-trips semantically but not byte-exactly. */
+    /* Actions 0..4 are writable through either opcode 30+i or 150+i (RS2), and the
+     * decoder stores both in the same slots. Emit the 30-range. A stated slot
+     * holding NULL was "hidden", written in the spelling the stream used. */
     for( int i = 0; i < 9; i++ )
     {
-        if( loc->actions[i] )
+        if( RSCache_PresenceHas(&loc->present, RSCACHE_LOC_FIELD_OP1 + i) )
         {
+            const char* text = loc->actions[i];
+            if( !text )
+                text = loc->hidden_actions[i] ? loc->hidden_actions[i] : "Hidden";
             p1(&buffer, 30 + i);
-            loc_pstringfl(&buffer, loc->actions[i], flags);
+            loc_pstringfl(&buffer, text, flags);
         }
     }
 
-    if( loc->contrast != defaults.contrast )
+    if( LOC_HAS(CONTRAST) )
     {
         p1(&buffer, 39);
         /* Undo the decoder's era-dependent pre-scale (opcode 39). */
         p1b(&buffer, loc->contrast / ((flags & RSCACHE_CONFIG_LOC_DECODE_DAT) ? 5 : 25));
     }
 
-    if( loc->recolor_count > 0 )
+    if( LOC_HAS(RECOLOURS) )
     {
         p1(&buffer, 40);
         p1(&buffer, loc->recolor_count);
@@ -499,7 +489,7 @@ RSCache_Dat2ConfigLocEncodeFlags(
             p2(&buffer, loc->recolors_to[i]);
         }
     }
-    if( loc->retexture_count > 0 )
+    if( LOC_HAS(RETEXTURES) )
     {
         p1(&buffer, 41);
         p1(&buffer, loc->retexture_count);
@@ -510,89 +500,91 @@ RSCache_Dat2ConfigLocEncodeFlags(
         }
     }
 
-    /* map_function_id is settable by 60, 82 and 107; map_scene_id by 68
-     * (and historically 102 before rev237 EntityOps reclaimed that opcode).
-     * Emit the lowest opcode of each group. */
-    if( loc->map_function_id != defaults.map_function_id )
+    /* The map function's opcode is the era's: 60 in dat1, 107 in RS2 (where 82
+     * is a bare flag), 82 in OldSchool. */
+    bool rs2 = (flags & RSCACHE_CONFIG_LOC_DECODE_RS2) != 0;
+    bool dat1 = (flags & RSCACHE_CONFIG_LOC_DECODE_DAT) != 0;
+    if( LOC_HAS(MAP_FUNCTION) && dat1 )
     {
         p1(&buffer, 60);
         p2(&buffer, loc->map_function_id);
     }
-    /* Opcode 61 sits between 60 and 62 on the wire and is written here so a
-     * record that states one round-trips byte-exactly. `defaults.category` is 0
-     * — the same "unstated" the npc and obj encoders test against. */
-    if( loc->category != defaults.category )
+    if( LOC_HAS(CATEGORY) )
     {
         p1(&buffer, 61);
         p2(&buffer, loc->category);
     }
-    if( loc->mirrored )
+    if( LOC_HAS(MIRROR) )
         p1(&buffer, 62);
-    if( !loc->shadowed )
+    if( LOC_HAS(NO_SHADOW) )
         p1(&buffer, 64);
-    if( loc->resize_x != defaults.resize_x )
+    if( LOC_HAS(RESIZE_X) )
     {
         p1(&buffer, 65);
         p2(&buffer, loc->resize_x);
     }
-    if( loc->resize_height != defaults.resize_height )
+    if( LOC_HAS(RESIZE_HEIGHT) )
     {
         p1(&buffer, 66);
         p2(&buffer, loc->resize_height);
     }
-    if( loc->resize_z != defaults.resize_z )
+    if( LOC_HAS(RESIZE_Z) )
     {
         p1(&buffer, 67);
         p2(&buffer, loc->resize_z);
     }
-    if( loc->map_scene_id != defaults.map_scene_id )
+    /* RS2 states the map scene at 102 (written below); everything else at 68. */
+    if( LOC_HAS(MAP_SCENE) && !rs2 )
     {
         p1(&buffer, 68);
         p2(&buffer, loc->map_scene_id);
     }
-    if( loc->force_approach != defaults.force_approach )
+    if( LOC_HAS(FORCE_APPROACH) )
     {
         p1(&buffer, 69);
         p1(&buffer, loc->force_approach);
     }
-    if( loc->offset_x != defaults.offset_x )
+    if( LOC_HAS(OFFSET_X) )
     {
         p1(&buffer, 70);
         p2b(&buffer, loc->offset_x);
     }
-    if( loc->offset_y != defaults.offset_y )
+    if( LOC_HAS(OFFSET_Y) )
     {
         p1(&buffer, 71);
         p2b(&buffer, loc->offset_y);
     }
-    if( loc->offset_z != defaults.offset_z )
+    if( LOC_HAS(OFFSET_Z) )
     {
         p1(&buffer, 72);
         p2b(&buffer, loc->offset_z);
     }
-    if( loc->obstructs_ground )
+    if( LOC_HAS(FORCE_DECOR) )
         p1(&buffer, 73);
-    if( loc->break_routefinding )
+    if( LOC_HAS(BREAK_ROUTEFINDING) )
         p1(&buffer, 74);
-    if( loc->support_items != defaults.support_items )
+    if( LOC_HAS(RAISE_OBJECT) )
     {
         p1(&buffer, 75);
         p1(&buffer, loc->support_items);
     }
 
     /* Opcodes 77 and 92 both carry the transform varbit/varp and the transform
-     * list; 92 adds a value the decoder parks in the last slot, where 77 leaves
-     * -1. Same shape as npc's 106/118 pair. */
-    if( loc->transform_count >= 2 )
+     * list; 92 adds a default loc the decoder parks in the last slot, where 77
+     * leaves -1. Same shape as npc's 106/118 pair. */
+    bool multi_default = LOC_HAS(MULTI_DEFAULT);
+    if( LOC_HAS(MULTI) || multi_default )
     {
+        assert(loc->transforms);
+        assert(loc->transform_count >= 2);
         int trailing = loc->transforms[loc->transform_count - 1];
         int listed = loc->transform_count - 1;
 
-        p1(&buffer, trailing == -1 ? 77 : 92);
+        p1(&buffer, multi_default ? 92 : 77);
         p2(&buffer, loc->transform_varbit == -1 ? 65535 : loc->transform_varbit);
         p2(&buffer, loc->transform_varp == -1 ? 65535 : loc->transform_varp);
-        if( trailing != -1 )
-            LOC_WRITE_MODEL_ID(&buffer, flags, trailing);
+        if( multi_default )
+            LOC_WRITE_MODEL_ID(&buffer, flags, trailing == -1 ? 65535 : trailing);
         p1(&buffer, listed - 1);
         for( int i = 0; i < listed; i++ )
             LOC_WRITE_MODEL_ID(&buffer, flags, loc->transforms[i] == -1 ? 65535
@@ -602,54 +594,67 @@ RSCache_Dat2ConfigLocEncodeFlags(
     /*
      * Ambient sound. Opcodes 78 and 79 are **not** mutually exclusive: 78 carries a
      * single sound id, 79 carries the retrigger interval plus a list of ids, and
-     * real records carry both (loc 16433 in cache.osrs230 does, with 79 first). They
-     * write to different fields, so emitting only one loses the other.
+     * real records carry both (loc 16433 in cache.osrs230 does). They write to
+     * different fields, so emitting only one loses the other.
      *
      * Both also write distance and retain; the later opcode wins on decode, and
      * since both are written from the same struct values that is consistent either
-     * way. 79 goes first to match the observed packing order.
+     * way.
      *
      * The retain byte is absent on Kronos builds — the one place the quirk flag
      * changes the *encode* as well as the decode.
      */
-    bool kronos = (flags & RSCACHE_CONFIG_LOC_DECODE_KRONOS) != 0;
-    if( loc->ambient_sound_id_count > 0 || loc->ambient_sound_ticks_min != 0 ||
-        loc->ambient_sound_ticks_max != 0 )
+    bool no_retain =
+        (flags & (RSCACHE_CONFIG_LOC_DECODE_KRONOS | RSCACHE_CONFIG_LOC_DECODE_RS2)) != 0;
+    if( LOC_HAS(SOUND) )
+    {
+        p1(&buffer, 78);
+        p2(&buffer, loc->ambient_sound_id);
+        p1(&buffer, loc->ambient_sound_distance);
+        if( !no_retain )
+            p1(&buffer, loc->ambient_sound_retain);
+    }
+    if( LOC_HAS(SOUND_RANDOM) )
     {
         p1(&buffer, 79);
         p2(&buffer, loc->ambient_sound_ticks_min);
         p2(&buffer, loc->ambient_sound_ticks_max);
         p1(&buffer, loc->ambient_sound_distance);
-        if( !kronos )
+        if( !no_retain )
             p1(&buffer, loc->ambient_sound_retain);
         p1(&buffer, loc->ambient_sound_id_count);
         for( int i = 0; i < loc->ambient_sound_id_count; i++ )
             p2(&buffer, loc->ambient_sound_ids[i]);
     }
-    if( loc->ambient_sound_id != defaults.ambient_sound_id )
+
+    if( LOC_HAS(CONTOUR_GROUND_HEIGHT) )
     {
-        p1(&buffer, 78);
-        p2(&buffer, loc->ambient_sound_id);
-        p1(&buffer, loc->ambient_sound_distance);
-        if( !kronos )
-            p1(&buffer, loc->ambient_sound_retain);
+        p1(&buffer, 81);
+        p1(&buffer, loc->contour_ground_param / 256);
     }
 
-    if( !loc->seq_random_start )
-        p1(&buffer, 89);
+    if( LOC_HAS(MAP_FUNCTION) && !dat1 && !rs2 )
+    {
+        p1(&buffer, 82);
+        p2(&buffer, loc->map_function_id);
+    }
 
-    if( (flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) &&
-        loc->sound_distance_fade_curve != defaults.sound_distance_fade_curve )
+    if( LOC_HAS(NO_RANDOM_ANIM_START) )
+        p1(&buffer, 89);
+    if( LOC_HAS(DEFER_ANIM_CHANGE) && !rs2 )
+        p1(&buffer, 90);
+
+    bool osrs_220 = (flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) != 0;
+    if( LOC_HAS(SOUND_DISTANCE_FADE) && osrs_220 && !rs2 )
     {
         p1(&buffer, 91);
         p1(&buffer, loc->sound_distance_fade_curve);
     }
 
-    if( (flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) &&
-        (loc->sound_fade_in_curve != defaults.sound_fade_in_curve ||
-         loc->sound_fade_in_duration != defaults.sound_fade_in_duration ||
-         loc->sound_fade_out_curve != defaults.sound_fade_out_curve ||
-         loc->sound_fade_out_duration != defaults.sound_fade_out_duration) )
+    /* 93 and 95 mean sound fades / visibility once the >= 220 payloads apply,
+     * and contour modes 3 / 5 before; 94 is a contour mode in RS2 and a flag in
+     * OldSchool. Each era writes only its own meaning. */
+    if( LOC_HAS(SOUND_FADE) && osrs_220 )
     {
         p1(&buffer, 93);
         p1(&buffer, loc->sound_fade_in_curve);
@@ -657,31 +662,48 @@ RSCache_Dat2ConfigLocEncodeFlags(
         p1(&buffer, loc->sound_fade_out_curve);
         p2(&buffer, loc->sound_fade_out_duration);
     }
-
-    if( loc->unknown1 && !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2) )
+    if( LOC_HAS(CONTOUR_TYPE_3) && !osrs_220 )
+    {
+        p1(&buffer, 93);
+        p2b(&buffer, loc->contour_ground_param);
+    }
+    if( LOC_HAS(UNKNOWN1) && !rs2 )
         p1(&buffer, 94);
-
-    if( (flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) &&
-        loc->sound_visibility != defaults.sound_visibility )
+    if( LOC_HAS(CONTOUR_TYPE_4) && rs2 )
+        p1(&buffer, 94);
+    if( LOC_HAS(SOUND_VISIBILITY) && osrs_220 )
     {
         p1(&buffer, 95);
         p1(&buffer, loc->sound_visibility);
     }
-
-    if( (flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220) && loc->raise != defaults.raise )
+    if( LOC_HAS(CONTOUR_TYPE_5) && !osrs_220 )
+    {
+        p1(&buffer, 95);
+        if( !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2_530) )
+            p2b(&buffer, loc->contour_ground_param);
+    }
+    if( LOC_HAS(RAISE) && osrs_220 )
     {
         p1(&buffer, 96);
         p1(&buffer, loc->raise);
     }
 
-    if( (flags & RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS) &&
-        (loc->entity_ops.sub_ops_count > 0 || loc->entity_ops.cond_ops_count > 0 ||
-         loc->entity_ops.cond_sub_ops_count > 0) )
+    if( flags & RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS )
     {
+        /* Each list is one opcode per entry: a list is stated exactly when it
+         * has entries, so writing the lists is writing their presence. */
+        assert(LOC_HAS(SUB_OPS) == (loc->entity_ops.sub_ops_count > 0));
+        assert(LOC_HAS(COND_OPS) == (loc->entity_ops.cond_ops_count > 0));
+        assert(LOC_HAS(COND_SUB_OPS) == (loc->entity_ops.cond_sub_ops_count > 0));
         RSCache_EntityOpsEncode(&loc->entity_ops, &buffer, 30, 100, 101, 102);
     }
+    else if( LOC_HAS(MAP_SCENE) && rs2 )
+    {
+        p1(&buffer, 102);
+        p2(&buffer, loc->map_scene_id);
+    }
 
-    if( loc->random_seq_id_count > 0 )
+    if( LOC_HAS(RANDOM_ANIMS) )
     {
         p1(&buffer, 106);
         p1(&buffer, loc->random_seq_id_count);
@@ -692,7 +714,13 @@ RSCache_Dat2ConfigLocEncodeFlags(
         }
     }
 
-    if( loc->campaign_id_count > 0 )
+    if( LOC_HAS(MAP_FUNCTION) && rs2 )
+    {
+        p1(&buffer, 107);
+        p2(&buffer, loc->map_function_id);
+    }
+
+    if( LOC_HAS(CAMPAIGNS) )
     {
         p1(&buffer, 160);
         p1(&buffer, loc->campaign_id_count);
@@ -700,15 +728,16 @@ RSCache_Dat2ConfigLocEncodeFlags(
             p2(&buffer, loc->campaign_ids[i]);
     }
 
-    if( loc->params.count > 0 )
+    if( LOC_HAS(PARAMS) )
     {
         p1(&buffer, 249);
         pparams(&buffer, &loc->params);
     }
 
+#undef LOC_HAS
+
     p1(&buffer, 0);
 
-    RSCache_Dat2ConfigLocFreeInplace(&defaults);
     return buffer.position;
 }
 
@@ -764,8 +793,10 @@ static bool
 loc_read_models_rs2(
     struct RSCache_Dat2ConfigLoc* loc,
     struct RSCache_Buffer* buffer,
-    unsigned flags)
+    unsigned flags,
+    bool* out_installed)
 {
+    *out_installed = false;
     if( buffer->position >= buffer->size )
         return false;
 
@@ -774,12 +805,14 @@ loc_read_models_rs2(
         return true;
 
     loc_release_model_table(loc);
+    *out_installed = true;
     loc->shapes_and_model_count = count;
     loc->shapes = (int*)malloc((size_t)count * sizeof(int));
     loc->models = (int**)malloc((size_t)count * sizeof(int*));
     loc->lengths = (int*)malloc((size_t)count * sizeof(int));
-    if( !loc->shapes || !loc->models || !loc->lengths )
-        return false;
+    assert(loc->shapes);
+    assert(loc->models);
+    assert(loc->lengths);
     memset(loc->models, 0, (size_t)count * sizeof(int*));
 
     for( int i = 0; i < count; i++ )
@@ -791,8 +824,8 @@ loc_read_models_rs2(
         int model_count = g1(buffer);
         loc->lengths[i] = model_count;
         loc->models[i] = model_count > 0 ? (int*)malloc((size_t)model_count * sizeof(int)) : NULL;
-        if( model_count > 0 && !loc->models[i] )
-            return false;
+        if( model_count > 0 )
+            assert(loc->models[i]);
 
         for( int j = 0; j < model_count; j++ )
         {
@@ -845,12 +878,94 @@ loc_skip_models_rs2(
 }
 
 /*
+ * A model-list opcode (1, 5, 6, 7, or RS2's nested 1 / 5) was read.
+ *
+ * `installed` is whether it replaced the table. The record's table belongs to
+ * whichever form installed it last, so that form's field is the one stated and
+ * the other is cleared: the struct cannot hold both, and writing the surviving
+ * table back under both opcodes would invent one. A zero-count list states an
+ * empty table only when there is none to keep; a zero-count list AFTER a real
+ * one leaves that one standing in the client too, and is the decoder's loss.
+ */
+static void
+loc_models_stated(
+    struct RSCache_Dat2ConfigLoc* loc,
+    int field,
+    bool installed)
+{
+    int other = field == RSCACHE_LOC_FIELD_MODELS ? RSCACHE_LOC_FIELD_MODELS_FLAT
+                                                  : RSCACHE_LOC_FIELD_MODELS;
+
+    if( !installed && loc->shapes_and_model_count > 0 )
+        return;
+    RSCache_PresenceSet(&loc->present, field);
+    RSCache_PresenceClear(&loc->present, other);
+}
+
+/*
+ * A contour opcode (21, 81, 93, 94, 95) was read. Each one selects the contour
+ * mode, so the last one stated is the mode the record has, and it is the only
+ * one stated: the text holds one mode (`contourgroundtype`), and writing an
+ * earlier one back after it would change the mode. What an earlier one left in
+ * the other contour fields (21's height after a later 93, say) is not kept; no
+ * cache mixes contour modes in one record.
+ */
+static void
+loc_contour_stated(
+    struct RSCache_Dat2ConfigLoc* loc,
+    int field)
+{
+    RSCache_PresenceClear(&loc->present, RSCACHE_LOC_FIELD_CONTOUR_GROUND);
+    RSCache_PresenceClear(&loc->present, RSCACHE_LOC_FIELD_CONTOUR_GROUND_HEIGHT);
+    RSCache_PresenceClear(&loc->present, RSCACHE_LOC_FIELD_CONTOUR_TYPE_3);
+    RSCache_PresenceClear(&loc->present, RSCACHE_LOC_FIELD_CONTOUR_TYPE_4);
+    RSCache_PresenceClear(&loc->present, RSCACHE_LOC_FIELD_CONTOUR_TYPE_5);
+    RSCache_PresenceSet(&loc->present, field);
+}
+
+/* Read an action string into its slot; "hidden" (any case) is stored as NULL,
+ * the slot is still stated, and the spelling is kept for the encoder. */
+static void
+loc_read_action(
+    struct RSCache_Dat2ConfigLoc* loc,
+    int action_index,
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
+{
+    char* action = gstringfl(buffer, flags);
+
+    free(loc->actions[action_index]);
+    free(loc->hidden_actions[action_index]);
+    loc->hidden_actions[action_index] = NULL;
+    if( action && strcasecmp(action, "hidden") == 0 )
+    {
+        loc->actions[action_index] = NULL;
+        loc->hidden_actions[action_index] = action;
+    }
+    else
+    {
+        loc->actions[action_index] = action;
+    }
+    RSCache_PresenceSet(&loc->present, RSCACHE_LOC_FIELD_OP1 + action_index);
+}
+
+/*
  * One opcode of a loc record.
  *
  * Lifted verbatim out of `decode_loc`'s loop: every case body is unchanged except
  * that `goto decode_done` — the bail-out for an opcode whose payload width is
  * unknown — became `return false`, which stops the stream the same way. Falling
  * out of the switch means the opcode was handled.
+ *
+ * Every case that stores a field also states it in `loc->present`; the encoder
+ * writes exactly the stated fields, in its own (ascending) order. Where two
+ * opcodes write the same value and the later one wholly overrides the earlier
+ * (17 after 27; a contour mode that sets every field an earlier one set), the
+ * earlier one is no longer stated: the client never sees it, and writing it back
+ * after the later one would undo the later one. The walk flags are the case that
+ * occurs (8 records in cache.osrs239 state 27 then 17). The contour modes are
+ * one value, so the last contour opcode is the only one stated (see
+ * loc_contour_stated).
  *
  * `flags` is not optional: opcode 1 takes a different shape under RS2, and
  * `gstringfl` reads strings differently per era.
@@ -862,6 +977,8 @@ RSCache_Dat2ConfigLocDecodeOp(
     struct RSCache_Buffer* buffer,
     unsigned flags)
 {
+#define LOC_STATE(field) RSCache_PresenceSet(&loc->present, RSCACHE_LOC_FIELD_##field)
+#define LOC_UNSTATE(field) RSCache_PresenceClear(&loc->present, RSCACHE_LOC_FIELD_##field)
 
         switch( opcode )
         {
@@ -869,8 +986,10 @@ RSCache_Dat2ConfigLocDecodeOp(
         {
             if( flags & RSCACHE_CONFIG_LOC_DECODE_RS2_NESTED_MODELS )
             {
-                if( !loc_read_models_rs2(loc, buffer, flags) )
+                bool installed = false;
+                if( !loc_read_models_rs2(loc, buffer, flags, &installed) )
                     return false;
+                loc_models_stated(loc, RSCACHE_LOC_FIELD_MODELS, installed);
                 break;
             }
             /**
@@ -880,28 +999,40 @@ RSCache_Dat2ConfigLocDecodeOp(
              */
             int count = g1(buffer);
             if( count == 0 )
+            {
+                loc_models_stated(loc, RSCACHE_LOC_FIELD_MODELS, false);
                 break;
+            }
 
             loc_release_model_table(loc);
             loc->shapes = (int*)malloc(count * sizeof(int));
             loc->models = (int**)malloc(count * sizeof(int*));
             loc->lengths = (int*)malloc(count * sizeof(int));
+            assert(loc->shapes);
+            assert(loc->models);
+            assert(loc->lengths);
             memset(loc->lengths, 0, count * sizeof(int));
             loc->shapes_and_model_count = count;
             for( int i = 0; i < count; i++ )
             {
                 loc->models[i] = (int*)malloc(1 * sizeof(int));
+                assert(loc->models[i]);
                 loc->models[i][0] = LOC_READ_MODEL_ID(buffer, flags);
                 loc->shapes[i] = g1(buffer);
                 loc->lengths[i] = 1;
             }
+            loc_models_stated(loc, RSCACHE_LOC_FIELD_MODELS, true);
             break;
         }
         case 2:
+            free(loc->name);
             loc->name = gstringfl(buffer, flags);
+            LOC_STATE(NAME);
             break;
         case 3:
+            free(loc->desc);
             loc->desc = gstringfl(buffer, flags);
+            LOC_STATE(DESC);
             break;
         case 5:
         {
@@ -910,9 +1041,12 @@ RSCache_Dat2ConfigLocDecodeOp(
                 /* Two nested blocks. The first is kept; the second is consumed and
                  * dropped, which is what the reference does with both — it only needs the
                  * stream to stay aligned. Storing the first keeps the models a world
-                 * render actually draws. */
-                if( !loc_read_models_rs2(loc, buffer, flags) )
+                 * render actually draws. The kept block is a shaped table, so it
+                 * states the shaped field. */
+                bool installed = false;
+                if( !loc_read_models_rs2(loc, buffer, flags, &installed) )
                     return false;
+                loc_models_stated(loc, RSCACHE_LOC_FIELD_MODELS, installed);
                 if( !loc_skip_models_rs2(buffer, flags) )
                     return false;
                 break;
@@ -924,21 +1058,28 @@ RSCache_Dat2ConfigLocDecodeOp(
              */
             int count = g1(buffer);
             if( count == 0 )
+            {
+                loc_models_stated(loc, RSCACHE_LOC_FIELD_MODELS_FLAT, false);
                 break;
+            }
 
             loc_release_model_table(loc);
             loc->shapes_and_model_count = 1;
 
             loc->shapes = NULL;
             loc->models = (int**)malloc(1 * sizeof(int*));
+            assert(loc->models);
             loc->models[0] = (int*)malloc(count * sizeof(int));
+            assert(loc->models[0]);
             loc->lengths = (int*)malloc(1 * sizeof(int));
+            assert(loc->lengths);
             loc->lengths[0] = count;
             for( int i = 0; i < count; i++ )
             {
                 int model_id = LOC_READ_MODEL_ID(buffer, flags);
                 loc->models[0][i] = model_id;
             }
+            loc_models_stated(loc, RSCACHE_LOC_FIELD_MODELS_FLAT, true);
             break;
         }
         case 6:
@@ -948,21 +1089,29 @@ RSCache_Dat2ConfigLocDecodeOp(
             /* Like opcode 1, but model ids are g4. */
             int count = g1(buffer);
             if( count == 0 )
+            {
+                loc_models_stated(loc, RSCACHE_LOC_FIELD_MODELS, false);
                 break;
+            }
 
             loc_release_model_table(loc);
             loc->shapes = (int*)malloc(count * sizeof(int));
             loc->models = (int**)malloc(count * sizeof(int*));
             loc->lengths = (int*)malloc(count * sizeof(int));
+            assert(loc->shapes);
+            assert(loc->models);
+            assert(loc->lengths);
             memset(loc->lengths, 0, count * sizeof(int));
             loc->shapes_and_model_count = count;
             for( int i = 0; i < count; i++ )
             {
                 loc->models[i] = (int*)malloc(1 * sizeof(int));
+                assert(loc->models[i]);
                 loc->models[i][0] = g4(buffer);
                 loc->shapes[i] = g1(buffer);
                 loc->lengths[i] = 1;
             }
+            loc_models_stated(loc, RSCACHE_LOC_FIELD_MODELS, true);
             break;
         }
         case 7:
@@ -972,44 +1121,62 @@ RSCache_Dat2ConfigLocDecodeOp(
             /* Like opcode 5, but model ids are g4. */
             int count = g1(buffer);
             if( count == 0 )
+            {
+                loc_models_stated(loc, RSCACHE_LOC_FIELD_MODELS_FLAT, false);
                 break;
+            }
 
             loc_release_model_table(loc);
             loc->shapes_and_model_count = 1;
             loc->shapes = NULL;
             loc->models = (int**)malloc(1 * sizeof(int*));
+            assert(loc->models);
             loc->models[0] = (int*)malloc(count * sizeof(int));
+            assert(loc->models[0]);
             loc->lengths = (int*)malloc(1 * sizeof(int));
+            assert(loc->lengths);
             loc->lengths[0] = count;
             for( int i = 0; i < count; i++ )
                 loc->models[0][i] = g4(buffer);
+            loc_models_stated(loc, RSCACHE_LOC_FIELD_MODELS_FLAT, true);
             break;
         }
         case 14:
             loc->size_x = g1(buffer);
+            LOC_STATE(SIZE_X);
             break;
         case 15:
             loc->size_z = g1(buffer);
+            LOC_STATE(SIZE_Z);
             break;
         case 17:
             loc->blocks_walk = 0;
             loc->blocks_projectiles = 0;
+            LOC_STATE(UNSOLID);
+            /* An earlier 27 is wholly overridden, and writing it back after this
+             * one (the encoder's order) would undo this. */
+            LOC_UNSTATE(INTERACT_TYPE_1);
             break;
         case 18:
             loc->blocks_projectiles = 0;
+            LOC_STATE(PROJECTILES_PASS);
             break;
         case 19:
             loc->is_interactive = g1(buffer);
+            LOC_STATE(INTERACTIVE);
             break;
         case 21:
             loc->contoured_ground = 0;
             loc->contour_ground_type = 1;
+            loc_contour_stated(loc, RSCACHE_LOC_FIELD_CONTOUR_GROUND);
             break;
         case 22:
             loc->sharelight = 1;
+            LOC_STATE(SHARELIGHT);
             break;
         case 23:
             loc->occlude = 1;
+            LOC_STATE(OCCLUDE);
             break;
         case 24:
         {
@@ -1019,6 +1186,7 @@ RSCache_Dat2ConfigLocDecodeOp(
                 seq_id = -1;
             }
             loc->seq_id = seq_id;
+            LOC_STATE(ANIM);
             break;
         }
         case 25:
@@ -1026,12 +1194,15 @@ RSCache_Dat2ConfigLocDecodeOp(
             break;
         case 27:
             loc->blocks_walk = 1;
+            LOC_STATE(INTERACT_TYPE_1);
             break;
         case 28:
             loc->wall_width = g1(buffer);
+            LOC_STATE(WALL_WIDTH);
             break;
         case 29:
             loc->ambient = g1b(buffer);
+            LOC_STATE(AMBIENT);
             break;
         case 30:
         case 31:
@@ -1042,22 +1213,9 @@ RSCache_Dat2ConfigLocDecodeOp(
         case 36:
         case 37:
         case 38:
-        {
-            int action_index = opcode - 30;
-            char* action = gstringfl(buffer, flags);
             loc->_actions_seen++;
-            // Check if action is "hidden" (case insensitive)
-            if( action && strcasecmp(action, "hidden") == 0 )
-            {
-                free(action);
-                loc->actions[action_index] = NULL;
-            }
-            else
-            {
-                loc->actions[action_index] = action;
-            }
+            loc_read_action(loc, opcode - 30, buffer, flags);
             break;
-        }
         case 39:
             /* Stored pre-scaled, the way both references store it, so no
              * consumer has to know which era a record came from: dat1 uses
@@ -1066,37 +1224,52 @@ RSCache_Dat2ConfigLocDecodeOp(
              * loc five times as attenuated as the reference. */
             loc->contrast =
                 g1b(buffer) * ((flags & RSCACHE_CONFIG_LOC_DECODE_DAT) ? 5 : 25);
+            LOC_STATE(CONTRAST);
             break;
         case 40:
         {
             int count = g1(buffer);
+            free(loc->recolors_from);
+            free(loc->recolors_to);
+            loc->recolors_from = NULL;
+            loc->recolors_to = NULL;
             loc->recolor_count = count;
             if( count > 0 )
             {
                 loc->recolors_from = malloc(count * sizeof(int));
                 loc->recolors_to = malloc(count * sizeof(int));
+                assert(loc->recolors_from);
+                assert(loc->recolors_to);
                 for( int i = 0; i < count; i++ )
                 {
                     loc->recolors_from[i] = g2(buffer);
                     loc->recolors_to[i] = g2(buffer);
                 }
             }
+            LOC_STATE(RECOLOURS);
             break;
         }
         case 41:
         {
             int count = g1(buffer);
+            free(loc->retextures_from);
+            free(loc->retextures_to);
+            loc->retextures_from = NULL;
+            loc->retextures_to = NULL;
             loc->retexture_count = count;
             if( count > 0 )
             {
                 loc->retextures_from = malloc(count * sizeof(int));
                 loc->retextures_to = malloc(count * sizeof(int));
+                assert(loc->retextures_from);
+                assert(loc->retextures_to);
                 for( int i = 0; i < count; i++ )
                 {
                     loc->retextures_from[i] = g2(buffer);
                     loc->retextures_to[i] = g2(buffer);
                 }
             }
+            LOC_STATE(RETEXTURES);
             break;
         }
         case 42:
@@ -1117,49 +1290,64 @@ RSCache_Dat2ConfigLocDecodeOp(
             break;
         case 60:
             loc->map_function_id = g2(buffer);
+            LOC_STATE(MAP_FUNCTION);
             break;
         case 61:
             loc->category = g2(buffer);
+            LOC_STATE(CATEGORY);
             break;
         case 62:
             loc->mirrored = 1;
+            LOC_STATE(MIRROR);
             break;
         case 64:
             loc->shadowed = 0;
+            LOC_STATE(NO_SHADOW);
             break;
         case 65:
             loc->resize_x = g2(buffer);
+            LOC_STATE(RESIZE_X);
             break;
         case 66:
             loc->resize_height = g2(buffer);
+            LOC_STATE(RESIZE_HEIGHT);
             break;
         case 67:
             loc->resize_z = g2(buffer);
+            LOC_STATE(RESIZE_Z);
             break;
         case 68:
             // Client-TS from LostCity call this mapScene
             loc->map_scene_id = g2(buffer);
+            LOC_STATE(MAP_SCENE);
             break;
         case 69:
             loc->force_approach = g1(buffer);
+            LOC_STATE(FORCE_APPROACH);
             break;
         case 70:
             loc->offset_x = g2b(buffer);
+            LOC_STATE(OFFSET_X);
             break;
         case 71:
             loc->offset_y = g2b(buffer);
+            LOC_STATE(OFFSET_Y);
             break;
         case 72:
             loc->offset_z = g2b(buffer);
+            LOC_STATE(OFFSET_Z);
             break;
         case 73:
             loc->obstructs_ground = 1;
+            LOC_STATE(FORCE_DECOR);
             break;
         case 74:
             loc->break_routefinding = 1;
+            LOC_STATE(BREAK_ROUTEFINDING);
             break;
         case 75:
             loc->support_items = g1(buffer);
+            LOC_STATE(RAISE_OBJECT);
             break;
         case 77:
         case 92:
@@ -1187,8 +1375,10 @@ RSCache_Dat2ConfigLocDecodeOp(
             }
 
             int count = g1(buffer);
+            free(loc->transforms);
             loc->transform_count = count + 2;
             loc->transforms = malloc((count + 2) * sizeof(int));
+            assert(loc->transforms);
 
             for( int i = 0; i <= count; i++ )
             {
@@ -1201,6 +1391,17 @@ RSCache_Dat2ConfigLocDecodeOp(
             }
 
             loc->transforms[count + 1] = var3;
+            /* One table, so one of the two opcodes: the later one's. */
+            if( opcode == 92 )
+            {
+                LOC_STATE(MULTI_DEFAULT);
+                RSCache_PresenceClear(&loc->present, RSCACHE_LOC_FIELD_MULTI);
+            }
+            else
+            {
+                LOC_STATE(MULTI);
+                RSCache_PresenceClear(&loc->present, RSCACHE_LOC_FIELD_MULTI_DEFAULT);
+            }
             break;
         }
         /*
@@ -1216,6 +1417,7 @@ RSCache_Dat2ConfigLocDecodeOp(
             if( !(flags &
                   (RSCACHE_CONFIG_LOC_DECODE_KRONOS | RSCACHE_CONFIG_LOC_DECODE_RS2)) )
                 loc->ambient_sound_retain = g1(buffer);
+            LOC_STATE(SOUND);
             break;
         }
         case 79:
@@ -1227,15 +1429,19 @@ RSCache_Dat2ConfigLocDecodeOp(
                   (RSCACHE_CONFIG_LOC_DECODE_KRONOS | RSCACHE_CONFIG_LOC_DECODE_RS2)) )
                 loc->ambient_sound_retain = g1(buffer);
             int count = g1(buffer);
+            free(loc->ambient_sound_ids);
+            loc->ambient_sound_ids = NULL;
             loc->ambient_sound_id_count = count;
             if( count > 0 )
             {
                 loc->ambient_sound_ids = malloc(count * sizeof(int));
+                assert(loc->ambient_sound_ids);
                 for( int i = 0; i < count; i++ )
                 {
                     loc->ambient_sound_ids[i] = g2(buffer);
                 }
             }
+            LOC_STATE(SOUND_RANDOM);
             break;
         }
         case 81:
@@ -1243,6 +1449,7 @@ RSCache_Dat2ConfigLocDecodeOp(
             loc->contoured_ground = g1(buffer) * 256;
             loc->contour_ground_type = 2;
             loc->contour_ground_param = loc->contoured_ground;
+            loc_contour_stated(loc, RSCACHE_LOC_FIELD_CONTOUR_GROUND_HEIGHT);
             break;
         }
         case 82:
@@ -1250,10 +1457,21 @@ RSCache_Dat2ConfigLocDecodeOp(
              * flag with no payload (LocType.decodeOpcode branches on `game === "oldschool"`
              * and reads nothing otherwise). Its map function is opcode 60 or 107. */
             if( !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2) )
+            {
                 loc->map_function_id = g2(buffer);
+                LOC_STATE(MAP_FUNCTION);
+            }
+            break;
+        case 90:
+            /* OldSchool: defer the animation change (RuneLite deferAnimChange).
+             * RS2 reads a different payload-free flag here and keeps nothing. */
+            if( !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2) )
+            {
+                loc->defer_anim_change = true;
+                LOC_STATE(DEFER_ANIM_CHANGE);
+            }
             break;
         case 88:
-        case 90:
         case 97:
         case 98:
         case 103:
@@ -1267,6 +1485,7 @@ RSCache_Dat2ConfigLocDecodeOp(
             break;
         case 89:
             loc->seq_random_start = false;
+            LOC_STATE(NO_RANDOM_ANIM_START);
             break;
         case 91:
             /* A payload-free members flag in the RS2-era LocType; the byte read here is an
@@ -1275,7 +1494,10 @@ RSCache_Dat2ConfigLocDecodeOp(
             if( !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2) )
             {
                 if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
+                {
                     loc->sound_distance_fade_curve = g1(buffer);
+                    LOC_STATE(SOUND_DISTANCE_FADE);
+                }
                 else
                     g1(buffer);
             }
@@ -1288,37 +1510,50 @@ RSCache_Dat2ConfigLocDecodeOp(
                 loc->sound_fade_in_duration = g2(buffer);
                 loc->sound_fade_out_curve = g1(buffer);
                 loc->sound_fade_out_duration = g2(buffer);
+                LOC_STATE(SOUND_FADE);
             }
             else
             {
                 loc->contour_ground_type = 3;
                 loc->contour_ground_param = g2b(buffer);
+                loc_contour_stated(loc, RSCACHE_LOC_FIELD_CONTOUR_TYPE_3);
             }
             break;
         }
         case 94:
             if( flags & RSCACHE_CONFIG_LOC_DECODE_RS2 )
+            {
                 loc->contour_ground_type = 4;
+                loc_contour_stated(loc, RSCACHE_LOC_FIELD_CONTOUR_TYPE_4);
+            }
             else
+            {
                 loc->unknown1 = true;
+                LOC_STATE(UNKNOWN1);
+            }
             break;
         case 95:
         {
             if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
             {
                 loc->sound_visibility = g1(buffer);
+                LOC_STATE(SOUND_VISIBILITY);
             }
             else
             {
                 loc->contour_ground_type = 5;
                 if( !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2_530) )
                     loc->contour_ground_param = g2b(buffer);
+                loc_contour_stated(loc, RSCACHE_LOC_FIELD_CONTOUR_TYPE_5);
             }
             break;
         }
         case 96:
             if( flags & RSCACHE_CONFIG_LOC_DECODE_OSRS_220 )
+            {
                 loc->raise = g1(buffer);
+                LOC_STATE(RAISE);
+            }
             break;
         case 99:
         case 104:
@@ -1372,6 +1607,7 @@ RSCache_Dat2ConfigLocDecodeOp(
             if( flags & RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS )
             {
                 RSCache_EntityOpsDecodeSubOp(&loc->entity_ops, buffer);
+                LOC_STATE(SUB_OPS);
             }
             else
             {
@@ -1384,6 +1620,7 @@ RSCache_Dat2ConfigLocDecodeOp(
             if( flags & RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS )
             {
                 RSCache_EntityOpsDecodeCondOp(&loc->entity_ops, buffer);
+                LOC_STATE(COND_OPS);
             }
             else
             {
@@ -1394,67 +1631,69 @@ RSCache_Dat2ConfigLocDecodeOp(
             if( flags & RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS )
             {
                 RSCache_EntityOpsDecodeCondSubOp(&loc->entity_ops, buffer);
+                LOC_STATE(COND_SUB_OPS);
             }
             else
             {
                 loc->map_scene_id = g2(buffer);
+                LOC_STATE(MAP_SCENE);
             }
             break;
         case 106:
         {
             int count = g1(buffer);
+            free(loc->random_seq_ids);
+            free(loc->random_seq_delays);
+            loc->random_seq_ids = NULL;
+            loc->random_seq_delays = NULL;
             loc->random_seq_id_count = count;
             if( count > 0 )
             {
                 loc->random_seq_ids = malloc(count * sizeof(int));
                 loc->random_seq_delays = malloc(count * sizeof(int));
+                assert(loc->random_seq_ids);
+                assert(loc->random_seq_delays);
                 for( int i = 0; i < count; i++ )
                 {
                     loc->random_seq_ids[i] = LOC_READ_MODEL_ID(buffer, flags);
                     loc->random_seq_delays[i] = g1(buffer);
                 }
             }
+            LOC_STATE(RANDOM_ANIMS);
             break;
         }
         case 107:
             loc->map_function_id = g2(buffer);
+            LOC_STATE(MAP_FUNCTION);
             break;
         case 150:
         case 151:
         case 152:
         case 153:
         case 154:
-        {
-            int action_index = opcode - 150;
-            char* action = gstringfl(buffer, flags);
-            // Check if action is "hidden" (case insensitive)
-            if( action && strcasecmp(action, "hidden") == 0 )
-            {
-                free(action);
-                loc->actions[action_index] = NULL;
-            }
-            else
-            {
-                loc->actions[action_index] = action;
-            }
+            loc_read_action(loc, opcode - 150, buffer, flags);
             break;
-        }
         case 160:
         {
             int count = g1(buffer);
+            free(loc->campaign_ids);
+            loc->campaign_ids = NULL;
             loc->campaign_id_count = count;
             if( count > 0 )
             {
                 loc->campaign_ids = malloc(count * sizeof(int));
+                assert(loc->campaign_ids);
                 for( int i = 0; i < count; i++ )
                 {
                     loc->campaign_ids[i] = g2(buffer);
                 }
             }
+            LOC_STATE(CAMPAIGNS);
             break;
         }
         case 249:
             RSCache_BufferReadParams(buffer, &loc->params);
+            LOC_STATE(PARAMS);
             break;
         default:
             fprintf(
@@ -1467,6 +1706,9 @@ RSCache_Dat2ConfigLocDecodeOp(
             return false;
         }
 
+#undef LOC_STATE
+#undef LOC_UNSTATE
+
     /* Fell out of the switch: a case handled this opcode. */
     return true;
 }
@@ -1475,8 +1717,7 @@ void
 RSCache_Dat2ConfigLocFinish(struct RSCache_Dat2ConfigLoc* loc, unsigned flags)
 {
     (void)flags;
-    if( !loc )
-        return;
+    assert(loc);
 
     if( loc->break_routefinding )
     {
@@ -1549,8 +1790,7 @@ RSCache_Dat2ConfigLocEncodeBound(const struct RSCache_Dat2ConfigLoc* loc)
     uint32_t need = 2048u;
     int i;
 
-    if( !loc )
-        return need;
+    assert(loc);
 
     /* Opcode 1/5/6/7 carry one model list per shape; worst case g4 per id, plus a
      * shape byte and per-list count. */
@@ -1575,6 +1815,10 @@ RSCache_Dat2ConfigLocEncodeBound(const struct RSCache_Dat2ConfigLoc* loc)
     {
         if( loc->actions[i] )
             need += (uint32_t)strlen(loc->actions[i]) + 2u;
+        if( loc->hidden_actions[i] )
+            need += (uint32_t)strlen(loc->hidden_actions[i]) + 2u;
+        else
+            need += 8u; /* "Hidden" */
     }
 
     need += RSCache_EntityOpsBound(&loc->entity_ops);

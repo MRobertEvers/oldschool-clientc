@@ -32,13 +32,20 @@ def main() -> int:
         content = Path(raw_tmp) / "content"
         configs = content / "configs"
         configs.mkdir(parents=True)
-        for name in (
-            "all.dbrow",
-            "all.dbrow.compack",
-            "all.dbtable",
-            "all.dbtable.compack",
-        ):
+        for name in ("all.dbrow", "all.dbtable"):
             shutil.copy2(SOURCE / "configs" / name, configs / name)
+        # A row names what it references (`data=icon,invis_rod`), so the
+        # generator reads every name source cachepack spells values from:
+        # each config type's member index, the stat and category packs, and
+        # the interface names a component value is spelled with.
+        for compack in (SOURCE / "configs").glob("*.compack"):
+            shutil.copy2(compack, configs / compack.name)
+        (content / "pack").mkdir()
+        for name in ("stat.pack", "category.pack", "3_interfaces.pack"):
+            shutil.copy2(SOURCE / "pack" / name, content / "pack" / name)
+        (content / "interfaces").mkdir()
+        for compack in (SOURCE / "interfaces").glob("*.compack"):
+            shutil.copy2(compack, content / "interfaces" / compack.name)
         shutil.copytree(SOURCE / "dbindex", content / "dbindex")
 
         clean = run(content, "--check")
@@ -89,24 +96,27 @@ def main() -> int:
         # Authored client rows live outside configs/all.dbrow, receive stable
         # ids from the allocation ledger, and must become visible to DB_FIND.
         pack = content / "pack"
-        pack.mkdir()
         (pack / "dbrow.alloc").write_text(
-            "70000=summoning_test_subsection\n", encoding="utf-8"
+            "70000=summoning_test_subsection\n"
+            "70001=summoning_test_empty\n", encoding="utf-8"
         )
         authored = configs / "ported/test.dbrow"
         authored.parent.mkdir(parents=True)
         authored.write_text(
             "[summoning_test_subsection]\n"
-            "columns=4\n"
             "table=skill_guide_subsections\n"
-            "columndef=0:skill,int\n"
-            "values=0:0:25\n"
-            "columndef=1:id,int\n"
-            "values=1:0:1\n"
-            "columndef=2:header,string\n"
-            "values=2:0:Familiars\n"
-            "columndef=3:membersonly,boolean\n"
-            "values=3:0:1\n",
+            "data=skill,25\n"
+            "data=id,1\n"
+            "data=header,Familiars\n"
+            "data=membersonly,true\n"
+            # A row with no column data in the full-key config format: every
+            # key is stated, `data=default` (the column block absent). It is a
+            # member of its table and has no indexed value -- a marker must
+            # never parse as a column value.
+            "\n"
+            "[summoning_test_empty]\n"
+            "table=skill_guide_subsections\n"
+            "data=default\n",
             encoding="utf-8",
         )
         overlay_stale = run(content, "--check")
@@ -128,6 +138,17 @@ def main() -> int:
             return 1
         if "index=0:25:70000" not in guide_index:
             print("test_gen_dbindex: authored skill key missing from column index", file=sys.stderr)
+            return 1
+        # Anchored on whole lines: the file's header comment names `[master]`.
+        master_block = guide_index.split("\n[master]\n", 1)[1].split("\n[", 1)[0]
+        column_0_block = guide_index.split("\n[column_0]\n", 1)[1].split("\n[", 1)[0]
+        checks += 2
+        if "70001" not in master_block:
+            print("test_gen_dbindex: full-key empty row missing from master index", file=sys.stderr)
+            return 1
+        if "70001" in column_0_block:
+            print("test_gen_dbindex: full-key empty row's markers indexed as a value",
+                  file=sys.stderr)
             return 1
 
     if checks == 0:

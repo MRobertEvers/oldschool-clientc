@@ -2,6 +2,7 @@
 #define RSCACHE_DATATYPES_DAT2_CONFIG_HITSPLAT_H
 
 #include "../rsbuffer.h"
+#include "../rscache_presence.h"
 
 struct RSCache;
 
@@ -142,7 +143,7 @@ struct RSCache;
  *   until `fade_after` cycles have elapsed and then ramps to 0 at expiry. Opcode
  *   14 states the cycle count; **opcode 11 is the same field set to 0** with no
  *   operand, i.e. fade across the whole lifetime, and the two are kept apart
- *   (`has_fade_flag` vs `has_fade_after`) only so the encoder can reproduce the
+ *   (FADE_FLAG vs FADE_AFTER in `present`) only so the encoder can reproduce the
  *   byte the record carried.
  * - `text_colour` (opcode 2, `field5313`, **default 0xFFFFFF**) and `font_id`
  *   (opcode 1, `field5312`) — the colour the number is drawn in and the font it
@@ -165,8 +166,42 @@ struct RSCache;
  * every opcode comes back unclaimed and `_consumed` stays short, which is the
  * loud failure every caller already checks for.
  */
+/**
+ * The fields a hitsplat stream can state, for `RSCache_Dat2ConfigHitsplat.present`.
+ *
+ * Keyed by meaning. Two pairs need a note: opcodes 11 and 14 set the same value
+ * (`fade_after`) but are separate statements, so they are separate fields; and
+ * opcodes 17 and 18 are one selector, 18 being 17 plus a fallback id, so the
+ * selector is one field and the fallback a second that only opcode 18 states.
+ */
+enum RSCache_Dat2ConfigHitsplatField
+{
+    RSCACHE_HITSPLAT_FIELD_FONT = 0,         /* 1 */
+    RSCACHE_HITSPLAT_FIELD_TEXT_COLOUR,      /* 2 */
+    RSCACHE_HITSPLAT_FIELD_ICON_SPRITE,      /* 3 */
+    RSCACHE_HITSPLAT_FIELD_LEFT_SPRITE,      /* 4 */
+    RSCACHE_HITSPLAT_FIELD_SPRITE,           /* 5 */
+    RSCACHE_HITSPLAT_FIELD_RIGHT_SPRITE,     /* 6 */
+    RSCACHE_HITSPLAT_FIELD_DRIFT_X,          /* 7 */
+    RSCACHE_HITSPLAT_FIELD_TEXT,             /* 8: marker byte + string */
+    RSCACHE_HITSPLAT_FIELD_DURATION,         /* 9 */
+    RSCACHE_HITSPLAT_FIELD_DRIFT_UP,         /* 10 */
+    RSCACHE_HITSPLAT_FIELD_FADE_FLAG,        /* 11: fade_after = 0, no operand */
+    RSCACHE_HITSPLAT_FIELD_SLOT_POLICY,      /* 12 */
+    RSCACHE_HITSPLAT_FIELD_TEXT_OFFSET_Y,    /* 13 */
+    RSCACHE_HITSPLAT_FIELD_FADE_AFTER,       /* 14 */
+    RSCACHE_HITSPLAT_FIELD_VARIANTS,         /* 17 or 18: varbit, varp, ids */
+    RSCACHE_HITSPLAT_FIELD_VARIANT_FALLBACK, /* 18 only: the fallback id */
+    RSCACHE_HITSPLAT_FIELD_COUNT
+};
+
 struct RSCache_Dat2ConfigHitsplat
 {
+    /** Which `RSCache_Dat2ConfigHitsplatField`s the stream stated. The encoder
+     *  writes exactly these; the values below hold the reference's defaults for
+     *  the rest. Replaces the per-field `has_*` flags and `variant_opcode` (17 vs
+     *  18 is now whether VARIANT_FALLBACK is stated). */
+    struct RSCache_Presence present;
     int id;
 
     /** Opcode 5 (`field5316`). The sprite the bar is tiled from — the body of the
@@ -219,12 +254,9 @@ struct RSCache_Dat2ConfigHitsplat
     char text[RSCACHE_HITSPLAT_MAX_TEXT];
     /** The version-marker byte that precedes the string; re-emitted verbatim. */
     uint8_t text_marker;
-    bool has_text;
 
     /* --- opcode 17 / 18 (`field5325`), the multi-variant selector ----------- */
 
-    /** 17 or 18, or 0 when neither was present. */
-    int variant_opcode;
     /** The varbit whose value indexes `variants`. -1 when absent (65535 on the
      *  wire), in which case `variant_varp` is consulted instead. */
     int variant_varbit;
@@ -240,26 +272,11 @@ struct RSCache_Dat2ConfigHitsplat
     int variants[RSCACHE_HITSPLAT_MAX_VARIANTS];
     int variant_count;
 
-    bool has_font;
-    bool has_text_colour;
-    bool has_icon_sprite;
-    bool has_left_sprite;
-    bool has_right_sprite;
-    bool has_drift_x;
-    bool has_drift_up;
-    bool has_text_offset_y;
-    bool has_duration;
-    bool has_slot_policy;
-    /** True for opcode 11 specifically (the bare flag, `fade_after` = 0), so the
-     *  encoder can tell it from opcode 14, which sets the same field with an
-     *  operand. */
-    bool has_fade_flag;
-    bool has_fade_after;
-
     /**
      * The opcodes in the order the record carried them, which differs per record
      * (`5,8,9` / `5,8,11,9` / `8,5,9` / `8,5,9,13` / `9,18` are all real).
-     * Replayed by the encoder to reproduce the bytes.
+     * Replayed by the encoder to reproduce the bytes; a stated field the list
+     * does not name is written after it, in ascending opcode order.
      */
     uint8_t opcodes[RSCACHE_HITSPLAT_MAX_OPCODES];
     int opcode_count;
@@ -325,7 +342,9 @@ RSCache_Dat2ConfigHitsplatDecodeInplace(
     int data_size,
     unsigned flags);
 
-/** Byte-exact when `opcodes` holds the source order. Returns bytes written, or 0. */
+/** Writes exactly the fields `present` names. Byte-exact when `opcodes` holds the
+ *  source order. Returns bytes written, or 0 when `out_capacity` is below the
+ *  bound. */
 uint32_t
 RSCache_Dat2ConfigHitsplatEncode(
     const struct RSCache_Dat2ConfigHitsplat* entry,

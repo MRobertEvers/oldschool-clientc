@@ -58,6 +58,8 @@ import re
 import sys
 from fractions import Fraction
 
+import config_text
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
 SOURCES = os.path.join(ROOT, "docs", "treasure_trails", "sources")
@@ -160,9 +162,9 @@ def load_objs():
             if "=" in line and line.split("=", 1)[0].isdigit():
                 num, name = line.split("=", 1)
                 ids[name] = int(num)
-    text = open(
+    text = config_text.read_text(
         os.path.join(CONTENT, "configs", "all.obj"), encoding="utf-8", errors="replace"
-    ).read()
+    )
     by_name = collections.defaultdict(list)
     for block in re.split(r"\n(?=\[)", text):
         head = re.match(r"\[([^\]]+)\]", block)
@@ -320,6 +322,7 @@ def main():
 
     tables, report, unresolved = build()
     rendered = render(tables, report)
+    rendered = config_text.completed(OUT, rendered)
 
     if args.check:
         try:

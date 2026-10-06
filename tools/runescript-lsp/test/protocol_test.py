@@ -342,6 +342,37 @@ def main():
     check("dbcolumn" in text, "and hovers as a dbcolumn", text[:200])
     check("namedobj" in text, "carrying the column's declared types", text[:300])
 
+    print("\nconfig markers")
+    # Every block states every key: `name=default` is a record with NO name,
+    # `name=\default` one called "default"; `column=empty` declares no column
+    # and `column=version,ABSENT` is a hole in the numbering.
+    hover = server.request("textDocument/hover", {
+        "textDocument": {"uri": main_uri},
+        "position": position_of("blank_name"),
+    })
+    text = json.dumps(hover)
+    check("blank_name" in text and "default" not in text,
+          "name=default gives the record no name", text[:300])
+    hover = server.request("textDocument/hover", {
+        "textDocument": {"uri": main_uri},
+        "position": position_of("called_default"),
+    })
+    text = json.dumps(hover)
+    check("default" in text.replace("called_default", "")
+          and "\\\\default" not in text and "//" not in text,
+          "name=\\default is the name \"default\", comment cut", text[:300])
+
+    def workspace_names(query):
+        found = server.request("workspace/symbol", {"query": query}) or []
+        return [entry["name"] for entry in found]
+
+    check("fletching_table:level" in workspace_names("fletching_table:"),
+          "a declared column is a workspace symbol", str(workspace_names("fletching_table:")))
+    check("fletching_table:version" not in workspace_names("fletching_table:"),
+          "an ABSENT hole declares no column", str(workspace_names("fletching_table:")))
+    check(workspace_names("empty_table:") == [],
+          "column=empty declares no column", str(workspace_names("empty_table:")))
+
     print("\nthe clientscript dialect")
     # A decompiled `.cs2` addresses locals, variables and scripts by id, and
     # its constants come from the decompiler's vocabulary rather than this

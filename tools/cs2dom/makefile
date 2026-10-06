@@ -94,6 +94,7 @@ test-aot: generated
 	$(NODE) test/round_trip_test.js
 	$(NODE) test/export_test.js
 	$(NODE) test/tsx_import_test.js
+	$(NODE) test/config_text_test.js
 
 # The standing corpus gate: every script the decompiler can describe must lower
 # to JavaScript the engine accepts, with no undeclared local. Needs a cache.

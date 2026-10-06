@@ -29,6 +29,8 @@ import os
 import re
 import sys
 
+import config_text
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
 OUT = os.path.join(
@@ -59,7 +61,7 @@ def read_kits(names):
     """part -> [idk id], in id order, selectable only."""
     path = os.path.join(CONTENT, "configs", "all.idk")
     with open(path, encoding="cp1252", errors="replace") as f:
-        text = f.read()
+        text = config_text.filter_text(f.read())
     parts = {}
     for m in re.finditer(r"^\[([^\]]+)\]\n(.*?)(?=^\[|\Z)", text, re.S | re.M):
         name, body = m.group(1), m.group(2)

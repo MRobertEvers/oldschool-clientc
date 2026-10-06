@@ -97,15 +97,13 @@ $(BUILD)/test_pack_ident: test/test_pack_ident.c $(BUILD)/lc_pack.o $(BUILD)/cp_
 # and `src/torirsserver/torirs_server_servercodec.c` that reads it, and the two disagreeing
 # is a failure with no error attached. A contract wants a test that runs on every
 # `make test`, not one that runs when someone remembers to build the tools.
-$(BUILD)/ini.o: $(THIRD)/ini/ini.c | $(BUILD)
-	$(CC) $(DEP_CFLAGS) -c $< -o $@
-
+# The register and the band codec are the library's (rscache_register.c,
+# rscache_band.c, in LIB_OBJS); cp_fields.o is cachepack's archive framing.
 $(BUILD)/cp_fields.o: tools/cachepack/cp_fields.c | $(BUILD)
 	$(CC) $(CFLAGS) -Itools/cachepack -c $< -o $@
 
-$(BUILD)/test_fields: test/test_fields.c $(BUILD)/cp_fields.o $(BUILD)/ini.o $(LIB_OBJS) | $(BUILD)
-	$(CC) $(CFLAGS) -Itest -Itools/cachepack -o $@ $< $(BUILD)/cp_fields.o $(BUILD)/ini.o \
-		$(LIB_OBJS) $(LDLIBS)
+$(BUILD)/test_fields: test/test_fields.c $(BUILD)/cp_fields.o $(LIB_OBJS) | $(BUILD)
+	$(CC) $(CFLAGS) -Itest -Itools/cachepack -o $@ $< $(BUILD)/cp_fields.o $(LIB_OBJS) $(LDLIBS)
 
 # The membership suite, here for the third instance of the same reason:
 # `pack/<ns>.client` and `pack/<ns>.server` are the on-disk statement of which
@@ -143,6 +141,8 @@ test: $(TEST_BINS) $(BUILD)/bzip_interop_helper
 	sh test/test_bzip_interop.sh $(BUILD)/bzip_interop_helper || status=1; \
 	echo "==> cachepack fidelity"; \
 	sh test/test_cachepack_fidelity.sh $(CACHE_ROOT) || status=1; \
+	echo "==> cachepack typed values"; \
+	sh test/test_cachepack_value_text.sh $(CACHE_ROOT) || status=1; \
 	exit $$status
 
 clean:

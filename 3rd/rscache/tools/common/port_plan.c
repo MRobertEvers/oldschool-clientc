@@ -382,13 +382,82 @@ tool_neutral_npc_to_dat2(
     for( int i = 0; i < 5; i++ )
         npc->actions[i] = tool_strdup(n->actions[i]);
 
+    /*
+     * State the fields this record means; the encoder writes nothing else.
+     *
+     * The neutral form carries values, not presence (except the anim slots,
+     * below), so a value field is stated where it differs from the client
+     * default -- the test the encoder used to make itself. Lists and strings
+     * are stated when the source had them.
+     */
+    {
+        struct RSCache_Presence* p = &npc->present;
+        if( npc->name )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_NAME);
+        if( npc->models_count > 0 )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_MODELS);
+        if( npc->chathead_models_count > 0 )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_CHATHEADS);
+        if( npc->recolor_count > 0 )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_RECOLOR);
+        if( npc->retexture_count > 0 )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_RETEXTURE);
+        for( int i = 0; i < 5; i++ )
+        {
+            if( npc->actions[i] )
+                RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_OP1 + i);
+        }
+        if( npc->size != 1 )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_SIZE);
+        if( npc->combat_level != -1 )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_COMBAT_LEVEL);
+        if( npc->width_scale != 128 )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_WIDTH_SCALE);
+        if( npc->height_scale != 128 )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_HEIGHT_SCALE);
+        if( npc->ambient != 0 )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_AMBIENT);
+        if( npc->contrast != 0 )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_CONTRAST);
+        if( !npc->is_minimap_visible )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_MINIMAP_HIDDEN);
+        if( !npc->is_interactable )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_NOT_INTERACTABLE);
+        if( !npc->rotation_flag )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_NO_ROTATION_FLAG);
+        if( npc->rotation_speed != 32 )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_ROTATION_SPEED);
+        if( npc->category != 0 )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_CATEGORY);
+        if( npc->height != -1 )
+            RSCache_PresenceSet(p, RSCACHE_NPC_FIELD_HEIGHT);
+    }
+
     if( emit_bas && RSCache_IsRs2Dat2(dest_profile) )
     {
         npc->bas_type_id = bas_dest_id;
+        RSCache_PresenceSet(&npc->present, RSCACHE_NPC_FIELD_BAS_TYPE);
         /* Standing/walking stay 0; BasType carries them. */
     }
     else
     {
+        /* The anim slots carry their own presence, so they state exactly what
+         * the source stated: 17 (115, 117) when a turn is present, 14 (114,
+         * 116) when only the animation is. */
+        bool walk_turns = n->anim_present[TOOL_ANIM_WALK_BACK] ||
+                          n->anim_present[TOOL_ANIM_WALK_LEFT] ||
+                          n->anim_present[TOOL_ANIM_WALK_RIGHT];
+        if( n->anim_present[TOOL_ANIM_IDLE] )
+            RSCache_PresenceSet(&npc->present, RSCACHE_NPC_FIELD_READY_ANIM);
+        if( walk_turns )
+            RSCache_PresenceSet(&npc->present, RSCACHE_NPC_FIELD_WALK_TURN_ANIMS);
+        if( walk_turns || n->anim_present[TOOL_ANIM_WALK] )
+            RSCache_PresenceSet(&npc->present, RSCACHE_NPC_FIELD_WALK_ANIM);
+        if( n->anim_present[TOOL_ANIM_IDLE_ROTATE_LEFT] )
+            RSCache_PresenceSet(&npc->present, RSCACHE_NPC_FIELD_IDLE_LEFT_ANIM);
+        if( n->anim_present[TOOL_ANIM_IDLE_ROTATE_RIGHT] )
+            RSCache_PresenceSet(&npc->present, RSCACHE_NPC_FIELD_IDLE_RIGHT_ANIM);
+
         if( n->anim_present[TOOL_ANIM_IDLE] )
             npc->standing_animation = n->anim[TOOL_ANIM_IDLE];
         if( n->anim_present[TOOL_ANIM_WALK] )
@@ -408,6 +477,21 @@ tool_neutral_npc_to_dat2(
         {
             if( RSCache_IsOsrs(dest_profile) || RSCache_IsRs2Dat2(dest_profile) )
             {
+                bool run_turns = n->anim_present[TOOL_ANIM_RUN_ROTATE180] ||
+                                 n->anim_present[TOOL_ANIM_RUN_ROTATE_LEFT] ||
+                                 n->anim_present[TOOL_ANIM_RUN_ROTATE_RIGHT];
+                bool crawl_turns = n->anim_present[TOOL_ANIM_CRAWL_ROTATE180] ||
+                                   n->anim_present[TOOL_ANIM_CRAWL_ROTATE_LEFT] ||
+                                   n->anim_present[TOOL_ANIM_CRAWL_ROTATE_RIGHT];
+                if( run_turns )
+                    RSCache_PresenceSet(&npc->present, RSCACHE_NPC_FIELD_RUN_TURN_ANIMS);
+                if( run_turns || n->anim_present[TOOL_ANIM_RUN] )
+                    RSCache_PresenceSet(&npc->present, RSCACHE_NPC_FIELD_RUN_ANIM);
+                if( crawl_turns )
+                    RSCache_PresenceSet(&npc->present, RSCACHE_NPC_FIELD_CRAWL_TURN_ANIMS);
+                if( crawl_turns || n->anim_present[TOOL_ANIM_CRAWL] )
+                    RSCache_PresenceSet(&npc->present, RSCACHE_NPC_FIELD_CRAWL_ANIM);
+
                 if( n->anim_present[TOOL_ANIM_RUN] )
                     npc->run_animation = n->anim[TOOL_ANIM_RUN];
                 if( n->anim_present[TOOL_ANIM_RUN_ROTATE180] )

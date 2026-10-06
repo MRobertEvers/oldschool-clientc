@@ -97,6 +97,8 @@ import re
 import sys
 from collections import defaultdict, Counter
 
+import config_text
+
 # ---------------------------------------------------------------------------
 # Constants that encode a measurement rather than a preference
 # ---------------------------------------------------------------------------
@@ -256,7 +258,7 @@ def parse_config(path):
     out = {}
     current = None
     with open(path, encoding="latin-1") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.strip()
             if line.startswith("[") and line.endswith("]"):
                 current = {}
@@ -476,7 +478,7 @@ def load_default_anims(content_dir):
     out = {}
     in_default = False
     with open(path, encoding="latin-1") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.strip()
             if line.startswith("[") and line.endswith("]"):
                 in_default = line == "[default]"
@@ -521,7 +523,7 @@ def load_default_attackrate(content_dir):
                         "npc_default.npc")
     in_default = False
     with open(path, encoding="latin-1") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.strip()
             if line.startswith("[") and line.endswith("]"):
                 in_default = line == "[default]"
@@ -1099,9 +1101,17 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
                 stated = {}
                 stated_sounds = set()
                 last_param = head
+                param_marker = None
+                block_edits = len(edits)
                 for i in range(head + 1, end):
                     s = lines[i].strip()
                     if not s.startswith("param="):
+                        continue
+                    if config_text.marker(lines[i].split("=", 1)[1]) is not None:
+                        # `param=default` / `param=empty`: the block states no
+                        # params. A marker must stay the only `param` line, so
+                        # a row added below replaces it (see the delete below).
+                        param_marker = i
                         continue
                     last_param = i
                     key, _, value = s[6:].partition(",")
@@ -1211,10 +1221,20 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
                     filled_sounds.append((gameval, key, name, ident, fn))
                     states_server_field.add(gameval)
 
+                # A row was added to a block holding `param=default` /
+                # `param=empty`: drop the marker line (text None). Edits apply
+                # back to front, so the delete and the inserts never shift
+                # each other.
+                if param_marker is not None and any(
+                        isinstance(pos, float) for pos, _ in edits[block_edits:]):
+                    edits.append((param_marker, None))
+
             if edits and write:
                 for pos, text in sorted(edits, key=lambda e: -e[0]):
                     if isinstance(pos, float):
                         lines.insert(int(pos) + 1, text)
+                    elif text is None:
+                        del lines[pos]
                     else:
                         lines[pos] = text
                 with open(full, "w", encoding="latin-1") as f:

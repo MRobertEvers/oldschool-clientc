@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import config_text
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "OSRS-Content" / "osrs239-content"
@@ -51,7 +52,7 @@ def main() -> None:
     if missing:
         raise SystemExit(f"missing Menagerie contracts: {missing}")
 
-    varbits = VARBIT.read_text()
+    varbits = config_text.read_text(VARBIT)
     compack = COMPACK.read_text()
     aliases = (
         "varb20411_poh_menagerie_wardens_stored",

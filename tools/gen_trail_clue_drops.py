@@ -48,6 +48,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import config_text  # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
 MONSTERS = os.path.join(CONTENT, "wiki", "monsters")
@@ -184,6 +187,7 @@ def main():
 
     rows, unjoined, odd_rates = collect()
     rendered = render(rows, unjoined, odd_rates)
+    rendered = config_text.completed(OUT, rendered)
 
     if args.check:
         try:

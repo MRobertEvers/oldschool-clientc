@@ -21,6 +21,7 @@
  *   walks through the long side of a table.
  */
 
+#include "torirs_server_servpack.h"
 #include "torirs_server_scene.h"
 
 #include "torirs_server.h"
@@ -581,6 +582,24 @@ ToriRSServer_SceneLocOpOverlay(
 }
 
 void
+ToriRSServer_SceneLocOpOverlayClear(
+    int loc_id,
+    int op_num)
+{
+    struct LocOpOverlay* entry;
+
+    assert(loc_id >= 0);
+    assert(op_num >= 1);
+    assert(op_num <= 5);
+
+    entry = loc_op_overlay(loc_id);
+    if( !entry )
+        return;
+    free(entry->ops[op_num - 1]);
+    entry->ops[op_num - 1] = NULL;
+}
+
+void
 ToriRSServer_SceneLocOpOverlayReset(void)
 {
     for( int i = 0; i < g_loc_op_overlay_count; i++ )
@@ -624,39 +643,28 @@ free_loc_configs(void)
     g_loc_clock_cursor = 0;
 }
 
-static int
-load_loc_configs(
-    struct RSCache_Dat2Disk* disk,
-    struct RSCache* profile)
+/*
+ * Every loc config the scene decodes, from the server pack's client records (the
+ * merged tree). Once per process: loc configs are not window state. The scene's
+ * map squares still come from the cache directory -- they are world data, not
+ * config records.
+ */
+int
+ToriRSServer_SceneLocConfigsLoad(struct RSCache_ServerPack* pack)
 {
-    int table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    struct RSCache_Dat2DiskArchive* archive =
-        RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_LOCS);
-    struct RSCache_FileList* files;
-    int highest = -1;
+    struct ToriRSServerKindRecords records;
+    struct RSCache profile = RSCache_ProfileZero();
 
-    if( !archive || !RSCache_Dat2DiskArchiveInitMetadata(disk, archive) )
-    {
-        if( archive )
-            RSCache_Dat2DiskArchiveFree(archive);
-        return 0;
-    }
-    RSCache_ProfileSetGroupRevision(profile, RSCACHE_TYPE_LOC, archive->revision);
+    assert(pack);
+    if( g_loc_configs )
+        return g_loc_config_count;
+    profile.game = RSCACHE_GAME_OLDSCHOOL;
+    profile.epoch = RSCACHE_EPOCH_DAT2;
+    profile.revision = TORIRSSERVER_CACHE_REVISION;
+    if( !ToriRSServer_ServPackKindLoad(pack, RSCACHE_DAT2_CONFIG_KIND_LOCS, &records) )
+        return -1;
 
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size,
-                                          archive->file_count);
-    if( !files )
-    {
-        RSCache_Dat2DiskArchiveFree(archive);
-        return 0;
-    }
-
-    for( int i = 0; i < archive->file_count; i++ )
-    {
-        if( archive->file_ids[i] > highest )
-            highest = archive->file_ids[i];
-    }
-    g_loc_config_count = highest + 1;
+    g_loc_config_count = ToriRSServer_ServPackKindIdBound(&records);
     g_loc_configs = calloc((size_t)(g_loc_config_count > 0 ? g_loc_config_count : 1),
                            sizeof(*g_loc_configs));
     assert(g_loc_configs);
@@ -668,44 +676,36 @@ load_loc_configs(
         size_t total = 0;
         size_t cursor = 0;
 
-        for( int i = 0; i < archive->file_count; i++ )
-        {
-            int id = archive->file_ids[i];
-
-            if( id < 0 || id >= g_loc_config_count || files->file_sizes[i] <= 0 )
-                continue;
-            total += (size_t)files->file_sizes[i];
-        }
+        for( int i = 0; i < records.count; i++ )
+            total += (size_t)records.sizes[i];
         g_loc_raw = malloc(total > 0 ? total : 1);
         assert(g_loc_raw);
-        g_loc_raw_offset =
-            calloc((size_t)g_loc_config_count, sizeof(*g_loc_raw_offset));
+        g_loc_raw_offset = calloc((size_t)g_loc_config_count + 1, sizeof(*g_loc_raw_offset));
         assert(g_loc_raw_offset);
-        g_loc_raw_size = calloc((size_t)g_loc_config_count, sizeof(*g_loc_raw_size));
+        g_loc_raw_size = calloc((size_t)g_loc_config_count + 1, sizeof(*g_loc_raw_size));
         assert(g_loc_raw_size);
-        g_loc_ref = calloc((size_t)g_loc_config_count, sizeof(*g_loc_ref));
+        g_loc_ref = calloc((size_t)g_loc_config_count + 1, sizeof(*g_loc_ref));
         assert(g_loc_ref);
 
-        for( int i = 0; i < archive->file_count; i++ )
+        for( int i = 0; i < records.count; i++ )
         {
-            int id = archive->file_ids[i];
+            int id = records.ids[i];
 
-            if( id < 0 || id >= g_loc_config_count || files->file_sizes[i] <= 0 )
+            if( records.sizes[i] == 0 )
                 continue;
-            memcpy(g_loc_raw + cursor, files->files[i], (size_t)files->file_sizes[i]);
+            memcpy(g_loc_raw + cursor, records.files[i], (size_t)records.sizes[i]);
             g_loc_raw_offset[id] = (uint32_t)cursor;
-            g_loc_raw_size[id] = files->file_sizes[i];
-            cursor += (size_t)files->file_sizes[i];
+            g_loc_raw_size[id] = (int)records.sizes[i];
+            cursor += (size_t)records.sizes[i];
         }
     }
 
-    g_loc_profile = *profile;
+    g_loc_profile = profile;
     for( int i = 0; i < LOC_CONFIG_CACHE_CAP; i++ )
         g_loc_clock_slots[i] = -1;
     g_loc_clock_cursor = 0;
 
-    RSCache_FileListFree(files);
-    RSCache_Dat2DiskArchiveFree(archive);
+    ToriRSServer_ServPackKindFree(&records);
     return g_loc_config_count;
 }
 
@@ -1366,11 +1366,9 @@ scene_build_begin(
     memset(g_deck_padding, 0, sizeof(g_deck_padding));
     memset(g_ocean, 0, sizeof(g_ocean));
 
-    /* Loc configs are cache state, not window state: decoded once and shared
-     * by every window. Rebuilding a window keeps them; only SceneFree — the
-     * whole-module teardown — drops them. */
-    if( !g_loc_configs )
-        load_loc_configs(disk, profile);
+    /* Loc configs are loaded once at boot from the server pack
+     * (ToriRSServer_SceneLocConfigsLoad) and shared by every window. */
+    assert(g_loc_configs);
     return disk;
 }
 

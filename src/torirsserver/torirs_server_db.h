@@ -1,6 +1,8 @@
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_DB_H
 #define SRC_TORIRSSERVER_TORIRS_SERVER_DB_H
 
+struct RSCache_ServerPack;
+
 /*
  * The server's client-database tables — LostCity's `.dbtable` and `.dbrow`.
  *
@@ -38,7 +40,7 @@
 
 enum
 {
-    /** Cache tables are sparse by column id — `quest` declares columndef 48.
+    /** Cache tables are sparse by column id — `quest` declares column 48.
      *  Authored LostCity tables top out around 25; 64 covers both. */
     TORIRSSERVER_DB_COLUMN_MAX = 64,
     /** Measured: the widest tuple in the reference is 8. */
@@ -46,6 +48,17 @@ enum
 };
 
 struct ToriRSServerDbValue;
+
+/** How a literal tuple position (kind == TORIRSSERVER_PACK_COUNT, not a string)
+ *  reads its text. LostCity's spellings, and cachepack's: `null` is -1 for all
+ *  three; a boolean is `true`/`false` (or a number); a coord is
+ *  `level_mx_mz_lx_lz` (or a number); an int is a decimal and nothing else. */
+enum ToriRSServerDbLiteral
+{
+    TORIRSSERVER_DB_LITERAL_INT = 0,
+    TORIRSSERVER_DB_LITERAL_BOOLEAN,
+    TORIRSSERVER_DB_LITERAL_COORD,
+};
 
 struct ToriRSServerDbColumn
 {
@@ -58,6 +71,10 @@ struct ToriRSServerDbColumn
     /** The pack a tuple position resolves against, or TORIRSSERVER_PACK_COUNT for a
      *  literal (`int`, `coord`, `string`). */
     enum ToriRSServerPackKind kind[TORIRSSERVER_DB_TUPLE_MAX];
+    /** For a literal position, which literal (enum ToriRSServerDbLiteral).
+     *  Without it `int`, `boolean` and `coord` were one bucket read by `atoi`,
+     *  so `members,true` was 0 and `null` was 0. */
+    unsigned char literal[TORIRSSERVER_DB_TUPLE_MAX];
     /** DBTABLE's optional value block. A DBROW which omits this column inherits
      *  these tuples; DB_FIND and DB_GETFIELD both observe that inheritance. */
     struct ToriRSServerDbValue* defaults;
@@ -126,13 +143,6 @@ struct ToriRSServerDbRow
     int cell_capacity;
 };
 
-/** Read every `*.dbtable` then every `*.dbrow` under `dir`, recursively.
- *
- *  Order matters and is enforced by doing both passes here rather than leaving it
- *  to a directory walk: a row names its table, and a `data=` line cannot be
- *  parsed at all until the table has told us the column's tuple types. */
-void
-ToriRSServer_DbLoad(const char* dir);
 
 void
 ToriRSServer_DbFree(void);
@@ -154,6 +164,27 @@ ToriRSServer_DbRowColumn(
     int col_id);
 
 /** Column index within its table, or -1. */
+/** Set tuple position `position` of `column` from a ScriptVarType id (a client
+ *  dbtable record's type code). */
+void
+ToriRSServer_DbColumnTypeCode(
+    struct ToriRSServerDbColumn* column,
+    int position,
+    int type_code);
+
+/** Name column `index` of `table` (a no-op for a column the table does not
+ *  define: an ABSENT hole). */
+void
+ToriRSServer_DbColumnNameSet(
+    struct ToriRSServerDbTable* table,
+    int index,
+    const char* name);
+
+/** Every db table and row from the server pack's client records. Returns 0, or
+ *  -1 after a report when an archive does not validate. */
+int
+ToriRSServer_DbLoadPack(struct RSCache_ServerPack* pack);
+
 int
 ToriRSServer_DbColumnIndex(
     const struct ToriRSServerDbTable* table,
@@ -182,8 +213,9 @@ ToriRSServer_DbRowInTableOrdered(
 /*
  * Cache import (torirs_server_dbinfo.c). Authored tables keep priority: a table that
  * already has columns is not overwritten. Rows for cache table ids are always
- * filled from the binary records — the machine-exported `configs/all.dbrow`
- * uses `values=` which the text reader does not parse.
+ * filled from the binary records; `configs/all.dbrow` is the same records as
+ * text and is not walked. `configs/all.dbtable` is read for one thing the
+ * binary lacks, the column names (and type words), positionally.
  */
 
 /** Ensure a table slot for `table_id`. Creates one when absent. When
@@ -230,18 +262,7 @@ ToriRSServer_DbRowColumnSet(
     const struct ToriRSServerDbValue* values,
     int count);
 
-/** Install every DBTABLE schema the dat2 cache ships. Call this BEFORE
- *  `ToriRSServer_DbLoad`: an authored `.dbrow` may name a cache table by symbol,
- *  and a table it cannot resolve costs one error per `data=` line after it.
- *  Returns 1 on success (including "cache missing" with a diagnostic), 0
- *  never — boot continues either way, matching objinfo. */
-int
-ToriRSServer_DbLoadCacheTables(const char* cache_dir);
 
-/** Fill in the cache's own DBROW values, AFTER `ToriRSServer_DbLoad`, so a row the
- *  tree states wins over the cache's copy of the same id. */
-int
-ToriRSServer_DbLoadCacheRows(const char* cache_dir);
 
 int
 ToriRSServer_DbTableCount(void);

@@ -174,6 +174,16 @@ ToriRSServer_SceneLocOpOverlay(
     int op_num,
     const char* text);
 
+/**
+ * Withdraw an authored op: `opN=default` on a `.loc` block, which says the
+ * merged record does not state op N, so the cache record's op (or none) answers
+ * again. A no-op when nothing authored one. `op_num` is 1-based.
+ */
+void
+ToriRSServer_SceneLocOpOverlayClear(
+    int loc_id,
+    int op_num);
+
 /** Drop every authored op. Paired with the content tree's own reload. */
 void
 ToriRSServer_SceneLocOpOverlayReset(void);
@@ -374,6 +384,12 @@ ToriRSServer_SceneWindowRelease(struct ToriRSServerSceneWindow* window);
  * before collision existed. That fallback is deliberate: a missing key file
  * should cost accuracy, not the ability to run.
  */
+struct RSCache_ServerPack;
+/** Load every loc config from the server pack (once). Returns the id bound, or
+ *  -1 after a report when an archive does not validate. */
+int
+ToriRSServer_SceneLocConfigsLoad(struct RSCache_ServerPack* pack);
+
 int
 ToriRSServer_SceneBuild(
     const char* cache_dir,

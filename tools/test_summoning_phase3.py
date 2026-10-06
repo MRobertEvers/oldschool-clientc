@@ -9,6 +9,7 @@ import re
 import sys
 from pathlib import Path
 
+import config_text
 from summoning_script_sources import (
     EXPECTED_MODULES,
     declaration_owners,
@@ -173,7 +174,7 @@ def main() -> int:
     summon_pouches = [
         header
         for path in pouch_configs
-        for header in re.findall(r"^\[([^]]+)\](?:(?!^\[).)*^ifop4=Summon$", path.read_text(encoding="utf-8"), re.MULTILINE | re.DOTALL)
+        for header in re.findall(r"^\[([^]]+)\](?:(?!^\[).)*^ifop4=Summon$", config_text.read_text(path, encoding="utf-8"), re.MULTILINE | re.DOTALL)
     ]
     unbound = [pouch for pouch in summon_pouches if f"[opheld4,{pouch}]" not in source]
     expect(not unbound, f"Summon has no opheld4 handler for: {', '.join(unbound)}")
@@ -185,7 +186,7 @@ def main() -> int:
     ):
         expect(token in (args.tree / rel).read_text(encoding="utf-8"), f"missing lifecycle hook {token}")
 
-    varps = (lane / "configs/summoning.varp").read_text(encoding="utf-8")
+    varps = config_text.read_text(lane / "configs/summoning.varp", encoding="utf-8")
     persisted = set(
         re.findall(
             r"^\[(varp\d+_summoning_familiar_[^\]]+)\]\n(?:[^\n]*\n)*?scope=perm$",
@@ -227,7 +228,8 @@ def main() -> int:
         "persisted familiar state leaks server-only varps",
     )
 
-    client_obj = (args.tree / "ported/scape2009_summoning/configs/summoning_cohort_spirit_wolf.obj").read_text(
+    client_obj = config_text.read_text(
+        args.tree / "ported/scape2009_summoning/configs/summoning_cohort_spirit_wolf.obj",
         encoding="utf-8"
     )
     wolf_ledger = (args.tree / "port/summoning_wolf_whistle_530.map").read_text(
@@ -236,15 +238,16 @@ def main() -> int:
     wolf_obj_alloc = (args.tree / "ported/scape2009_summoning/pack/obj.alloc").read_text(
         encoding="utf-8"
     )
-    client_npc = (args.tree / "ported/scape2009_summoning/configs/summoning_cohort_spirit_wolf.npc").read_text(
+    client_npc = config_text.read_text(
+        args.tree / "ported/scape2009_summoning/configs/summoning_cohort_spirit_wolf.npc",
         encoding="utf-8"
     )
-    dread_obj = (
-        args.tree / "ported/scape2009_summoning/configs/summoning_cohort_dreadfowl.obj"
-    ).read_text(encoding="utf-8")
-    dread_npc = (
-        args.tree / "ported/scape2009_summoning/configs/summoning_cohort_dreadfowl.npc"
-    ).read_text(encoding="utf-8")
+    dread_obj = config_text.read_text(
+        args.tree / "ported/scape2009_summoning/configs/summoning_cohort_dreadfowl.obj",
+        encoding="utf-8")
+    dread_npc = config_text.read_text(
+        args.tree / "ported/scape2009_summoning/configs/summoning_cohort_dreadfowl.npc",
+        encoding="utf-8")
     familiar_cs2 = (
         args.tree / "ported/scape2009_summoning/scripts/summoning_familiar_init.cs2"
     ).read_text(encoding="utf-8")
@@ -263,7 +266,8 @@ def main() -> int:
     ).read_text(encoding="utf-8")
     constants = (lane / "configs/summoning.constant").read_text(encoding="utf-8")
     expect("ifop4=Summon" in client_obj, "Spirit wolf pouch does not expose its bound operation")
-    obelisk = (args.tree / "ported/scape2009_summoning/configs/summoning_cohort_spirit_wolf.loc").read_text(
+    obelisk = config_text.read_text(
+        args.tree / "ported/scape2009_summoning/configs/summoning_cohort_spirit_wolf.loc",
         encoding="utf-8"
     )
     expect(

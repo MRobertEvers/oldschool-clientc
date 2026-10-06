@@ -36,8 +36,9 @@ cp_lines_free(struct CP_Lines* lines);
 void
 cp_lines_clear(struct CP_Lines* lines);
 
-/** Append a formatted line. Silently drops the line on allocation failure, which
- *  the caller notices as a missing property rather than a crash mid-record. */
+/** Append a formatted line. An allocation failure asserts: a dropped line is a
+ *  missing property, which is exactly the silent loss this format exists to
+ *  rule out. */
 void
 cp_lines_addf(
     struct CP_Lines* lines,
@@ -56,13 +57,51 @@ cp_lines_addf(
  * structurally. Newlines and carriage returns are escaped as `\n` / `\r`, and a
  * leading `[` is escaped, so a name can never be mistaken for a block header on
  * the way back in. Everything else, including `=`, passes through: only the
- * *first* `=` separates, so a value may hold as many as it likes.
+ * *first* `=` separates, so a value may hold as many as it likes. A value that
+ * reads exactly `default` or `empty` is escaped (`\default`), so it is never
+ * mistaken for a marker below.
  */
 void
 cp_lines_add_str(
     struct CP_Lines* lines,
     const char* key,
     const char* value);
+
+/*
+ * Every key of a record is stated, present or not.
+ *
+ * A field the record's opcode stream did not state is written `key=default`,
+ * and the client applies its own default. A list field the stream stated with
+ * no entries is written `key=empty`. A value is never omitted to mean either:
+ * that is what lost 1,705 sequences' "hide the weapon" in July 2026, when the
+ * unpacker and the packer silently disagreed about what an omitted line meant.
+ *
+ * The markers are matched on the RAW text, before unescaping, so a string that
+ * genuinely reads "default" is written escaped (`name=\default`) and cannot be
+ * mistaken for one.
+ */
+#define CP_VALUE_DEFAULT "default"
+#define CP_VALUE_EMPTY "empty"
+
+/** True if the raw (still escaped) value is the `default` marker. */
+int
+cp_value_is_default(const char* raw);
+
+/** True if the raw (still escaped) value is the `empty` marker. */
+int
+cp_value_is_empty(const char* raw);
+
+/** Append `key=default`: the record does not state this field. */
+void
+cp_lines_add_default(
+    struct CP_Lines* lines,
+    const char* key);
+
+/** Append `key=empty`: the record states this list field with no entries. */
+void
+cp_lines_add_empty(
+    struct CP_Lines* lines,
+    const char* key);
 
 /** Write the block header and every line to `out`, then a blank separator. */
 void
@@ -109,6 +148,14 @@ int
 cp_config_file_load(
     struct CP_ConfigFile* file,
     const char* path);
+
+/** Write one `key=value` line: a value holding `//` is written `/\/` and a
+ *  trailing blank `\ `, so the reader's comment cut and trim give it back. Every
+ *  writer of config text goes through this (or cp_lines_write). */
+void
+cp_line_write(
+    FILE* out,
+    const char* line);
 
 /** Serialise one record's block into a heap buffer. Caller frees. */
 char*

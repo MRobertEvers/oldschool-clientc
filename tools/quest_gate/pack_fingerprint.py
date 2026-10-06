@@ -94,8 +94,6 @@ INPUT_FILES = [
     ALLOCATE,
     os.path.join(REPO_ROOT, "src", "content", "content_register.c"),
     os.path.join(REPO_ROOT, "src", "content", "content_register.h"),
-    os.path.join(REPO_ROOT, "src", "content", "content_fields.c"),
-    os.path.join(REPO_ROOT, "src", "content", "content_fields.h"),
     os.path.join(REPO_ROOT, "3rd", "ini", "ini.c"),
     os.path.join(REPO_ROOT, "3rd", "ini", "ini.h"),
     os.path.join(REPO_ROOT, "3rd", "rsareabuf", "rsareabuf.c"),

@@ -39,6 +39,8 @@ import time
 import urllib.error
 import urllib.request
 
+import config_text
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONSTANTS = os.path.join(REPO, "OSRS-Content", "osrs239-content", "server", "scripts",
                          "minigames", "minigame_tob", "configs", "tob.constant")
@@ -155,7 +157,7 @@ def wave_table() -> dict[int, int]:
                         "minigames", "minigame_tob", "configs", "tob_nylo.dbrow")
     out, wave = {}, None
     with open(path, encoding="utf-8") as fh:
-        for line in fh:
+        for line in config_text.filter_lines(fh):
             line = line.strip()
             if line.startswith("data=wave,"):
                 wave = int(line.split(",")[1])

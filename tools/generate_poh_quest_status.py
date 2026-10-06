@@ -14,6 +14,8 @@ import argparse
 import re
 from pathlib import Path
 
+import config_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "OSRS-Content" / "osrs239-content"
@@ -26,29 +28,14 @@ OUTPUT = (
 
 
 def quest_unstarted_states() -> dict[str, int]:
+    """quest row -> its `unstartedstate` (column 18), 0 where the row states none."""
+    _, rows = config_text.read_db(DBROWS.parent, encoding="latin1")
     result: dict[str, int] = {}
-    row_name: str | None = None
-    table: str | None = None
-    column: int | None = None
-    unstarted = 0
-
-    def finish() -> None:
-        if row_name is not None and table == "quest":
-            result[row_name] = unstarted
-
-    for line in DBROWS.read_text(encoding="latin1").splitlines() + ["[EOF]"]:
-        if line.startswith("["):
-            finish()
-            row_name = line[1:-1]
-            table = None
-            column = None
-            unstarted = 0
-        elif line.startswith("table="):
-            table = line.removeprefix("table=")
-        elif line.startswith("columndef="):
-            column = int(line.removeprefix("columndef=").split(":", 1)[0])
-        elif table == "quest" and column == 18 and line.startswith("values=18:0:"):
-            unstarted = int(line.rsplit(":", 1)[1])
+    for row in rows.values():
+        if row.table != "quest":
+            continue
+        unstarted = row.fields("unstartedstate")
+        result[row.name] = int(unstarted[0]) if unstarted else 0
     return result
 
 

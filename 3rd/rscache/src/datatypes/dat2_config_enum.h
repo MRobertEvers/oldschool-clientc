@@ -1,7 +1,28 @@
 #ifndef RSCACHE_DATATYPES_DAT2_CONFIG_ENUM_H
 #define RSCACHE_DATATYPES_DAT2_CONFIG_ENUM_H
 
+#include "../rscache_presence.h"
+
 #include <stdint.h>
+
+/**
+ * The fields an enum stream can state, for `RSCache_Dat2ConfigEnum.present`.
+ *
+ * The value map is one opcode with a count, and which opcode (5 string, 6 int,
+ * 7 long) is part of what the record says -- "1" is a valid string value -- so
+ * each is its own field. A record states at most one of the three.
+ */
+enum RSCache_Dat2ConfigEnumField
+{
+    RSCACHE_ENUM_FIELD_INPUT_TYPE = 0, /* 1 */
+    RSCACHE_ENUM_FIELD_OUTPUT_TYPE,    /* 2 */
+    RSCACHE_ENUM_FIELD_DEFAULT_STRING, /* 3 */
+    RSCACHE_ENUM_FIELD_DEFAULT_INT,    /* 4 */
+    RSCACHE_ENUM_FIELD_STRING_VALUES,  /* 5 */
+    RSCACHE_ENUM_FIELD_INT_VALUES,     /* 6 */
+    RSCACHE_ENUM_FIELD_LONG_VALUES,    /* 7 */
+    RSCACHE_ENUM_FIELD_DEFAULT_LONG,   /* 8 */
+};
 
 struct RSCache_Dat2ConfigEnum
 {
@@ -16,10 +37,9 @@ struct RSCache_Dat2ConfigEnum
      * what says whether the key is an obj id or a component id, and nothing else
      * in the record carries that.
      *
-     * `output_is_string` stays because it is the *encoder's* switch: which of the
-     * three value arrays is populated decides whether opcode 5, 6 or 7 is
-     * written, and that has to keep working for a record whose `output_type` is 0
-     * because the source never had opcode 2.
+     * `output_is_string` is `output_type == 's'`, kept for readers. It used to be
+     * the encoder's switch between opcodes 5, 6 and 7; `present` is now, since a
+     * record with no opcode 2 can still carry a string map.
      */
     char input_type;
     char output_type;
@@ -32,6 +52,9 @@ struct RSCache_Dat2ConfigEnum
     int64_t* long_values;
     char** string_values;
     int count;
+    /** Which fields the stream stated (RSCACHE_ENUM_FIELD_*). The encoder writes
+     *  exactly these; a caller building a record states the fields it means. */
+    struct RSCache_Presence present;
     /** Bytes consumed. Equal to the record size for a fully understood record.
      *
      *  Added with the stop-on-unknown fix: this decoder skipped opcodes it did
@@ -46,11 +69,9 @@ RSCache_Dat2ConfigEnumDecodeInplace(
     int data_size);
 
 /**
- * Encode an enum record.
- *
- * Not byte-exact for records carrying opcode 1 — the decoder consumes it without
- * keeping the key type, so that information is already gone. Semantically exact
- * otherwise (including long maps via opcodes 7/8).
+ * Encode an enum record: exactly the fields `present` states, in the cache's order
+ * (1, 2, the value map, 3, 4, 8). A stated map with no entries is written with
+ * count 0. Asserts that at most one value map is stated.
  */
 uint32_t
 RSCache_Dat2ConfigEnumEncode(

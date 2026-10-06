@@ -1247,7 +1247,7 @@ $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
 .PHONY: test-toridraw-mini test-toridraw-mini-16bpp test-toridraw-rscache test-toridraw-small toridraw-tables-gen test-toridraw-tables-precomputed toridraw-model-to-ppm
-.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-quest-contract-sweeps check-npc-script-player-suspend check-chatnpc-without-npc check-quest-journal-banner check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-drive-event-ring test-walkmerge test-entity-decode check-no-drain check-pt-switch check-revconfig-roles test-quests test-quest-conformance check-quest-verbs test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-design-panel test-mouseover-entry test-logout-wait test-native-layout test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
+.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-quest-contract-sweeps check-npc-script-player-suspend check-chatnpc-without-npc check-quest-journal-banner check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-drive-event-ring test-walkmerge test-entity-decode check-no-drain check-pt-switch check-rscache-isolation check-revconfig-roles test-quests test-quest-conformance check-quest-verbs test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-design-panel test-mouseover-entry test-logout-wait test-native-layout test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
@@ -3242,7 +3242,7 @@ test-game-events: $(OBJ_DIR) game/rs_game_events.c game/test/rs_game_events_test
 # The compiler is a superset: it links the VM sources so a test can compile a
 # script and immediately run it.
 SSC_SRCS = $(SS_SRCS) serverscript/ssc_lex.c serverscript/ssc_symbols.c \
-	content/content_register.c content/content_fields.c $(INI_SRC) \
+	content/content_register.c $(INI_SRC) \
 	serverscript/ssc_compile.c serverscript/ssc_lane.c
 
 # Generated opcode/trigger tables: arities, pointer masks, ap->op trigger
@@ -4005,6 +4005,12 @@ check-no-drain:
 # No switch inside a protothread body: PT_BEGIN is a switch on the resume
 # point and every await is a case label, so a nested switch captures the label
 # and the task resumes into a dead end (the placeholder task, 2026-09-18).
+# rscache and its tools (cachepack) include nothing from src/: the dependency
+# runs one way, and what crosses is data (fields/<type>.ini) and an injected
+# binding (rscache_band.h), never a header.
+check-rscache-isolation:
+	@python3 $(REPO_ROOT)/tools/check_rscache_isolation.py
+
 check-pt-switch:
 	@python3 $(REPO_ROOT)/tools/pt_switch_audit.py . | tail -1 | grep -q "^total 0$$" \
 		&& echo "check-pt-switch: PASS (no switch inside a protothread)" \
@@ -5235,10 +5241,25 @@ test-rs2012-server-overlay:
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_server_overlay.py \
 		--cachepack $(CACHEPACK_BIN)
 
-torirsserver-servpack: test-rs2012-server-overlay
+# The server pack: every config record the server boots from (it reads no config
+# text). Run before every boot -- it is stamped with its tree's fingerprint, so an
+# unchanged tree costs a directory walk, and the server refuses a pack whose stamp
+# does not match. A lane composition has its own pack:
+#   make torirsserver-servpack SERVPACK_LANES="rs2012_qbd_td" SERVPACK_OUT=<dir>
+# and the server reads it through TORIRSSERVER_PACK_DIR=<dir>.
+SERVPACK_LANES ?=
+SERVPACK_OUT ?=
+.PHONY: torirsserver-servpack-summoning
+# The Summoning composition's pack, beside its cache (the server finds it there).
+torirsserver-servpack-summoning:
+	@$(MAKE) --no-print-directory torirsserver-servpack SERVPACK_LANES=scape2009_summoning \
+		SERVPACK_OUT=$(SUMMONING_CACHE_DIR).serverpack
+torirsserver-servpack:
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
-		--src $(TORIRSSERVER_CONTENT_DIR) --server-only
+		--src $(TORIRSSERVER_CONTENT_DIR) --server-only \
+		$(foreach lane,$(SERVPACK_LANES),--lane $(lane)) \
+		$(if $(SERVPACK_OUT),--server-out $(SERVPACK_OUT),)
 
 # The client half of the same bake: the tree written back into a cache the
 # client can boot (PORTING_GUIDE Â§1, `cachepack pack âââº client cache (--out)`).
@@ -5444,7 +5465,7 @@ test-summoning-source-provenance:
 # Runtime proof is intentionally separate from the cache and port gates. It
 # retains the Phase-5b structural/staging fingerprint as a prerequisite, builds
 # a normal non-ASAN embedded client, and drives a fresh real pouch UI.
-test-summoning-phase5b-runtime: test-summoning-phase5b torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
+test-summoning-phase5b-runtime: test-summoning-phase5b torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack-summoning
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 ENABLE_ASAN=0 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase5b_runtime.py \
@@ -5661,7 +5682,7 @@ torirsserver-cache-rs2012-summoning:
 		SUMMONING_CACHE_DIR=$(RS2012_SUMMONING_CACHE_DIR)
 	@echo "torirsserver-cache-rs2012-summoning: use ./run-live.sh manifests/manifest_osrs239_rs2012_summoning.ini"
 
-test-summoning-phase1: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
+test-summoning-phase1: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack-summoning
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase1.py \
@@ -5669,7 +5690,7 @@ test-summoning-phase1: torirsserver-cache-summoning torirsserver-scripts-summoni
 		--flag-off $(REPO_ROOT)/cache.osrs239 --scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
-test-summoning-phase4: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
+test-summoning-phase4: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack-summoning
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4.py \
@@ -5677,7 +5698,7 @@ test-summoning-phase4: torirsserver-cache-summoning torirsserver-scripts-summoni
 		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
-test-summoning-phase4c: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
+test-summoning-phase4c: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack-summoning
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4c.py \
@@ -5685,7 +5706,7 @@ test-summoning-phase4c: torirsserver-cache-summoning torirsserver-scripts-summon
 		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
-test-summoning-phase4d: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
+test-summoning-phase4d: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack-summoning
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4d.py \
@@ -5696,7 +5717,7 @@ test-summoning-phase4d: torirsserver-cache-summoning torirsserver-scripts-summon
 # Ordinary world replies must not be mistaken for unfinished CS2/UI ticks, and
 # a real settlement pause must not discard its pending mouse-up. This burst used
 # to inject ten releases but reach the world-click path only six or seven times.
-test-cs2-world-click-responsiveness: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
+test-cs2-world-click-responsiveness: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack-summoning
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_cs2_world_click_responsiveness.py \
@@ -5704,7 +5725,7 @@ test-cs2-world-click-responsiveness: torirsserver-cache-summoning torirsserver-s
 		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
-test-summoning-phase4e: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
+test-summoning-phase4e: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack-summoning
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4e.py \
@@ -5712,7 +5733,7 @@ test-summoning-phase4e: torirsserver-cache-summoning torirsserver-scripts-summon
 		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
-test-summoning-phase4f: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
+test-summoning-phase4f: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack-summoning
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4f.py \
@@ -5923,6 +5944,25 @@ test-torirsserver-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)
 # heap-allocated) `struct ToriRSServer`, because `npc_hunt` and `npc_huntall`
 # walk the npc roster and write the shared iterator. Still no world, no socket
 # and no pack â the npcs go straight into the pool.
+# The server's config readers against the full-key markers: a synthetic content
+# tree (no cache, no real content) with `key=default`, `key=empty`, `\default`
+# and an overlay `key=default` clearing an earlier block, loaded through the real
+# ToriRSServer_ContentLoad / ToriRSServer_DbLoad. Same link line as the three above.
+.PHONY: test-torirsserver-servpack-boot
+# The server boots from the pack alone: a real tree's pack loads with every
+# table populated, and a missing pack or a damaged archive is a refusal, never a
+# fallback to config text. Skips (exit 0, says so) when the tree has no pack.
+test-torirsserver-servpack-boot: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/servpack_boot_test \
+		torirsserver/test/servpack_boot_test.c $(PARAM_TEST_SRCS) \
+		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o -lm
+	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/servpack_boot_test $(TORIRSSERVER_CONTENT_DIR) \
+		$(OBJ_DIR)/servpack_boot_scratch
+
 .PHONY: test-torirsserver-npc
 test-torirsserver-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
@@ -6126,17 +6166,23 @@ test-ss-symbols: $(OBJ_DIR)
 
 # The npc server-band codec, and its agreement with `fields/npc.ini`.
 #
-# The round trip is the easy half. The half that matters is the cross-check: the
-# register declares each field's opcode and width, and the codec holds a C table
-# saying the same. If they drift, the packer writes a field under one opcode and
-# the server reads it under another â and nothing errors, because both streams
-# are well-formed. The value just lands somewhere else.
-test-servercodec: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/servercodec_test \
-		torirsserver/test/torirs_server_servercodec_test.c torirsserver/torirs_server_servercodec.c \
-		$(RSCACHE_DIR)/src/rsbuffer.c
-	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/servercodec_test \
-		OSRS-Content/osrs239-content/fields
+# The opcodes and widths live in the register alone and the codec is rscache's;
+# the server holds only a binding of field name to struct member. The test holds
+# those bindings to the tree's register both ways (the same ToriRSServer_ServerCheck
+# the boot runs), round-trips every bound field, and pins presence: a stated 0 and
+# a stated -1 survive, an unstated field keeps its seed, and nothing is omitted
+# for being equal to a default.
+# The binding tables' apply functions write into the engine's tables (shops,
+# the db, obj requirements), so the codec test links the server core.
+test-servercodec: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/servercodec_test \
+		torirsserver/test/torirs_server_servercodec_test.c $(PARAM_TEST_SRCS) \
+		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o -lm
+	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/servercodec_test $(TORIRSSERVER_CONTENT_DIR)
 
 # LOC_ADD_CHANGE_V2's per-placement right-click menu, server writer against
 # client reader.
@@ -6165,6 +6211,14 @@ test-content-register: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/content_register_test \
 		content/test/content_register_test.c content/content_register.c $(INI_SRC)
 	./$(OBJ_DIR)/content_register_test
+
+# The full-key config text's two markers (`key=default` absent, `key=empty`
+# present-empty, `\default` the escaped word), as content/content_value.h
+# classifies them for every C reader. Header-only, so no link line to speak of.
+.PHONY: test-content-value
+test-content-value: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/content_value_test content/test/content_value_test.c
+	./$(OBJ_DIR)/content_value_test
 
 # The server hosted in-process: a real client subsystem and a real server joined
 # by two byte buffers, no socket and no thread. Links the server core (no

@@ -29,6 +29,8 @@ import re
 import sys
 import collections
 
+import config_text
+
 ROWS = ("OSRS-Content/osrs239-content/server/scripts/skill_smithing/configs/"
         "smithing.dbrow")
 
@@ -37,7 +39,7 @@ EXCEPTIONS = ("cannonball",)
 
 
 def rows(path):
-    text = io.open(path, encoding="utf-8", errors="replace").read()
+    text = config_text.read_text(path, encoding="utf-8", errors="replace")
     out, block = [], None
     cur = {}
     for line in text.split("\n"):

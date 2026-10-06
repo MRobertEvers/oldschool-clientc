@@ -38,7 +38,8 @@ tool_copy_cache_dir(
     const char* src_dir,
     const char* out_dir)
 {
-    assert(src_dir && out_dir);
+    assert(src_dir);
+    assert(out_dir);
     if( ensure_dir(out_dir) != 0 )
     {
         fprintf(stderr, "Failed to create %s: %s\n", out_dir, strerror(errno));
@@ -340,7 +341,8 @@ dat1_archive_present(
 int
 tool_dat1_npc_count(struct Tool_Dat1Cache* c)
 {
-    assert(c && c->configs);
+    assert(c);
+    assert(c->configs);
     int data_idx = RSCache_FileListDatFindFileByName(c->configs, "npc.dat");
     int index_idx = RSCache_FileListDatFindFileByName(c->configs, "npc.idx");
     if( data_idx < 0 || index_idx < 0 )
@@ -466,11 +468,14 @@ tool_port_commit_dat2(
     struct Tool_PortPlan* plan,
     int emit_bas)
 {
-    assert(src && dst && dst_directory && plan);
+    assert(src);
+    assert(dst);
+    assert(dst_directory);
+    assert(plan);
 
+    /* EditNew fails only when its calloc does. */
     struct RSCache_Dat2Edit* edit = RSCache_Dat2EditNew(dst->disk);
-    if( !edit )
-        return 1;
+    assert(edit);
 
     int models_table = RSCache_Dat2DiskTableId(dst->disk, RSCACHE_DAT2_TABLE_MODELS);
     int skel_table = RSCache_Dat2DiskTableId(dst->disk, RSCACHE_DAT2_TABLE_SKELETONS);
@@ -503,13 +508,13 @@ tool_port_commit_dat2(
             {
                 uint32_t bound = RSCache_ModelEncodeBound(model, prov);
                 uint8_t* enc = malloc(bound);
-                if( enc )
-                {
-                    uint32_t n = RSCache_ModelEncode(&dst->profile, model, prov, enc, bound);
-                    if( n )
-                        RSCache_Dat2EditPutArchive(edit, models_table, dst_id, enc, n);
-                    free(enc);
-                }
+                assert(enc);
+                uint32_t n = RSCache_ModelEncode(&dst->profile, model, prov, enc, bound);
+                if( n )
+                    RSCache_Dat2EditPutArchive(edit, models_table, dst_id, enc, n);
+                else
+                    tool_port_plan_add_warning(plan, "model %d encode failed", src_id);
+                free(enc);
                 RSCache_ModelFree(model);
             }
             RSCache_ModelProvenanceFree(prov);
@@ -568,14 +573,13 @@ tool_port_commit_dat2(
                 int dst_codec = RSCache_Dat2FramemapCodecVersion(&dst->profile);
                 uint32_t bound = RSCache_Dat2FramemapEncodeBoundCodec(fm, dst_codec);
                 uint8_t* enc = malloc(bound);
-                if( enc )
-                {
-                    uint32_t n =
-                        RSCache_Dat2FramemapEncodeCodec(fm, dst_codec, enc, bound);
-                    if( n )
-                        RSCache_Dat2EditPutArchive(edit, skel_table, dst_id, enc, n);
-                    free(enc);
-                }
+                assert(enc);
+                uint32_t n = RSCache_Dat2FramemapEncodeCodec(fm, dst_codec, enc, bound);
+                if( n )
+                    RSCache_Dat2EditPutArchive(edit, skel_table, dst_id, enc, n);
+                else
+                    tool_port_plan_add_warning(plan, "framemap %d encode failed", src_id);
+                free(enc);
                 RSCache_Dat2FramemapFree(fm);
             }
         }
@@ -634,8 +638,7 @@ tool_port_commit_dat2(
             {
                 /* Patch framemap id in-place in a copy. */
                 uint8_t* copy = malloc((size_t)files->file_sizes[f]);
-                if( !copy )
-                    continue;
+                assert(copy);
                 memcpy(copy, files->files[f], (size_t)files->file_sizes[f]);
                 int off = (RSCache_Dat2FrameCodecVersion(&src->profile) == RSCACHE_CODEC_FRAME_V2)
                               ? 1
@@ -663,18 +666,19 @@ tool_port_commit_dat2(
                     uint32_t bound = RSCache_Dat2FrameEncodeBoundCodec(
                         frame, RSCache_Dat2FrameCodecVersion(&dst->profile));
                     uint8_t* enc = malloc(bound);
-                    if( enc )
-                    {
-                        uint32_t n = RSCache_Dat2FrameEncodeCodec(
-                            frame,
-                            RSCache_Dat2FrameCodecVersion(&dst->profile),
-                            fm,
-                            enc,
-                            bound);
-                        if( n )
-                            RSCache_Dat2EditPutFile(edit, anim_table, dst_arch, file_id, enc, n);
-                        free(enc);
-                    }
+                    assert(enc);
+                    uint32_t n = RSCache_Dat2FrameEncodeCodec(
+                        frame,
+                        RSCache_Dat2FrameCodecVersion(&dst->profile),
+                        fm,
+                        enc,
+                        bound);
+                    if( n )
+                        RSCache_Dat2EditPutFile(edit, anim_table, dst_arch, file_id, enc, n);
+                    else
+                        tool_port_plan_add_warning(
+                            plan, "frame %d in archive %d encode failed", file_id, src_arch);
+                    free(enc);
                     RSCache_Dat2FrameFree(frame);
                 }
                 RSCache_Dat2FramemapFree(fm);
@@ -703,22 +707,23 @@ tool_port_commit_dat2(
         }
         uint32_t bound = 65536;
         uint8_t* enc = malloc(bound);
-        if( enc )
+        assert(enc);
+        uint32_t n = RSCache_Dat2ConfigSequenceEncode(&dst->profile, seq, enc, bound);
+        if( n == 0 )
         {
-            uint32_t n = RSCache_Dat2ConfigSequenceEncode(&dst->profile, seq, enc, bound);
-            if( n == 0 )
-            {
-                free(enc);
-                bound = 256 * 1024;
-                enc = malloc(bound);
-                if( enc )
-                    n = RSCache_Dat2ConfigSequenceEncode(&dst->profile, seq, enc, bound);
-            }
-            if( enc && n )
-                put_config_record(
-                    edit, dst, RSCACHE_TYPE_SEQUENCE, RSCACHE_DAT2_CONFIG_KIND_SEQUENCE, dst_id, enc, n);
+            /* Too big for the first buffer: one larger try. */
             free(enc);
+            bound = 256 * 1024;
+            enc = malloc(bound);
+            assert(enc);
+            n = RSCache_Dat2ConfigSequenceEncode(&dst->profile, seq, enc, bound);
         }
+        if( n )
+            put_config_record(
+                edit, dst, RSCACHE_TYPE_SEQUENCE, RSCACHE_DAT2_CONFIG_KIND_SEQUENCE, dst_id, enc, n);
+        else
+            tool_port_plan_add_warning(plan, "seq %d encode failed", src_id);
+        free(enc);
         RSCache_Dat2ConfigSequenceFree(seq);
     }
 
@@ -767,17 +772,17 @@ tool_port_commit_dat2(
             }
             uint32_t bound = RSCache_Dat2ConfigBasEncodeBound(&bas);
             uint8_t* enc = malloc(bound ? bound : 64);
-            if( enc )
+            assert(enc);
+            uint32_t n = RSCache_Dat2ConfigBasEncode(&bas, enc, bound ? bound : 64);
+            if( n )
             {
-                uint32_t n = RSCache_Dat2ConfigBasEncode(&bas, enc, bound ? bound : 64);
-                if( n )
-                {
-                    int table = RSCache_Dat2DiskTableId(dst->disk, RSCACHE_DAT2_TABLE_CONFIGS);
-                    RSCache_Dat2EditPutFile(
-                        edit, table, RSCACHE_DAT2_CONFIG_KIND_BAS, dst_bas, enc, n);
-                }
-                free(enc);
+                int table = RSCache_Dat2DiskTableId(dst->disk, RSCACHE_DAT2_TABLE_CONFIGS);
+                RSCache_Dat2EditPutFile(
+                    edit, table, RSCACHE_DAT2_CONFIG_KIND_BAS, dst_bas, enc, n);
             }
+            else
+                tool_port_plan_add_warning(plan, "bas %d encode failed", dst_bas);
+            free(enc);
             (void)dst_bas;
         }
     }
@@ -795,6 +800,7 @@ tool_port_commit_dat2(
         if( remapped.models_count > 0 )
         {
             models = malloc((size_t)remapped.models_count * sizeof(int));
+            assert(models);
             for( int i = 0; i < remapped.models_count; i++ )
             {
                 int d = remapped.models[i];
@@ -806,6 +812,7 @@ tool_port_commit_dat2(
         if( remapped.chathead_models_count > 0 )
         {
             heads = malloc((size_t)remapped.chathead_models_count * sizeof(int));
+            assert(heads);
             for( int i = 0; i < remapped.chathead_models_count; i++ )
             {
                 int d = remapped.chathead_models[i];
@@ -860,6 +867,10 @@ tool_port_commit_dat2(
                     remapped.source_id,
                     enc,
                     n);
+            else
+                tool_port_plan_add_warning(
+                    plan, "npc %d encode failed (over %d bytes?)", remapped.source_id,
+                    (int)sizeof(enc));
             RSCache_Dat2ConfigNpcFree(npc);
         }
         free(models);
@@ -879,12 +890,14 @@ tool_port_commit_dat1(
     const char* dst_directory,
     struct Tool_PortPlan* plan)
 {
-    assert(dst && dst_directory && plan);
+    assert(dst);
+    assert(dst_directory);
+    assert(plan);
     (void)src_dat1;
 
+    /* EditNew fails only when its calloc does. */
     struct RSCache_Dat1Edit* edit = RSCache_Dat1EditNew(dst->disk);
-    if( !edit )
-        return 1;
+    assert(edit);
 
     if( src_dat2 )
     {
@@ -989,13 +1002,9 @@ tool_port_commit_dat1(
                     {
                         int nc = ncap == 0 ? 64 : ncap * 2;
                         int* ns = realloc(src_composites, (size_t)nc * sizeof(int));
+                        assert(ns);
                         int* nd = realloc(dst_frame_ids, (size_t)nc * sizeof(int));
-                        if( !ns || !nd )
-                        {
-                            free(ns);
-                            free(nd);
-                            break;
-                        }
+                        assert(nd);
                         src_composites = ns;
                         dst_frame_ids = nd;
                         ncap = nc;
@@ -1008,31 +1017,12 @@ tool_port_commit_dat1(
             }
 
             struct RSCache_Dat1AnimBaseFrames* abf = calloc(1, sizeof(*abf));
-            if( !abf )
-            {
-                for( int bi = 0; bi < base->length; bi++ )
-                    free(base->labels[bi]);
-                free(base->types);
-                free(base->labels);
-                free(base->label_counts);
-                free(base);
-                free(src_composites);
-                free(dst_frame_ids);
-                RSCache_Dat2FramemapFree(fm);
-                continue;
-            }
+            assert(abf);
             abf->base = base;
             if( nframes > 0 )
             {
                 abf->frames = calloc((size_t)nframes, sizeof(*abf->frames));
-                if( !abf->frames )
-                {
-                    RSCache_Dat1AnimBaseFramesFree(abf);
-                    free(src_composites);
-                    free(dst_frame_ids);
-                    RSCache_Dat2FramemapFree(fm);
-                    continue;
-                }
+                assert(abf->frames);
             }
 
             for( int f = 0; f < nframes; f++ )
@@ -1105,21 +1095,19 @@ tool_port_commit_dat1(
             if( bound == 0 )
                 bound = 64;
             uint8_t* enc = malloc(bound);
-            if( enc )
-            {
-                uint32_t n = RSCache_Dat1AnimBaseFramesEncode(abf, enc, bound);
-                if( n )
-                    RSCache_Dat1EditPutAnimArchive(edit, dst_arch, enc, n, false);
-                else
-                    tool_port_plan_add_warning(
-                        plan,
-                        "dat1 anim archive encode failed for framemap %d (%d frames); "
-                        "section lengths must fit in u16 — drop --include-related-anims "
-                        "or split across archives",
-                        src_fm,
-                        abf->frame_count);
-                free(enc);
-            }
+            assert(enc);
+            uint32_t n = RSCache_Dat1AnimBaseFramesEncode(abf, enc, bound);
+            if( n )
+                RSCache_Dat1EditPutAnimArchive(edit, dst_arch, enc, n, false);
+            else
+                tool_port_plan_add_warning(
+                    plan,
+                    "dat1 anim archive encode failed for framemap %d (%d frames); "
+                    "section lengths must fit in u16 — drop --include-related-anims "
+                    "or split across archives",
+                    src_fm,
+                    abf->frame_count);
+            free(enc);
             RSCache_Dat1AnimBaseFramesFree(abf);
             RSCache_Dat2FramemapFree(fm);
         }
@@ -1159,16 +1147,11 @@ tool_port_commit_dat1(
             {
                 seq.frame_count = src_seq->frame_count;
                 seq.frames = calloc((size_t)seq.frame_count, sizeof(int));
+                assert(seq.frames);
                 seq.iframes = calloc((size_t)seq.frame_count, sizeof(int));
+                assert(seq.iframes);
                 seq.delay = calloc((size_t)seq.frame_count, sizeof(int));
-                if( !seq.frames || !seq.iframes || !seq.delay )
-                {
-                    free(seq.frames);
-                    free(seq.iframes);
-                    free(seq.delay);
-                    RSCache_Dat2ConfigSequenceFree(src_seq);
-                    continue;
-                }
+                assert(seq.delay);
                 for( int f = 0; f < seq.frame_count; f++ )
                 {
                     int dst_fid = 0;
@@ -1191,16 +1174,14 @@ tool_port_commit_dat1(
 
             uint32_t bound = RSCache_Dat1ConfigSeqEncodeBound(&seq);
             uint8_t* enc = malloc(bound ? bound : 16);
-            if( enc )
-            {
-                uint32_t n = RSCache_Dat1ConfigSeqEncode(&seq, enc, bound ? bound : 16);
-                if( n )
-                    RSCache_Dat1EditPutSeq(edit, dst_id, enc, n);
-                else
-                    tool_port_plan_add_warning(
-                        plan, "dat1 seq encode failed for src %d", src_id);
-                free(enc);
-            }
+            assert(enc);
+            uint32_t n = RSCache_Dat1ConfigSeqEncode(&seq, enc, bound ? bound : 16);
+            if( n )
+                RSCache_Dat1EditPutSeq(edit, dst_id, enc, n);
+            else
+                tool_port_plan_add_warning(
+                    plan, "dat1 seq encode failed for src %d", src_id);
+            free(enc);
             free(seq.frames);
             free(seq.iframes);
             free(seq.delay);
@@ -1217,6 +1198,7 @@ tool_port_commit_dat1(
         if( remapped.models_count > 0 )
         {
             models = malloc((size_t)remapped.models_count * sizeof(int));
+            assert(models);
             for( int i = 0; i < remapped.models_count; i++ )
             {
                 int d = remapped.models[i];
@@ -1228,6 +1210,7 @@ tool_port_commit_dat1(
         if( remapped.chathead_models_count > 0 )
         {
             heads = malloc((size_t)remapped.chathead_models_count * sizeof(int));
+            assert(heads);
             for( int i = 0; i < remapped.chathead_models_count; i++ )
             {
                 int d = remapped.chathead_models[i];
@@ -1252,13 +1235,14 @@ tool_port_commit_dat1(
         {
             uint32_t bound = RSCache_Dat1ConfigNpcEncodeBound(npc);
             uint8_t* enc = malloc(bound ? bound : 256);
-            if( enc )
-            {
-                uint32_t n = RSCache_Dat1ConfigNpcEncode(npc, enc, bound ? bound : 256);
-                if( n )
-                    RSCache_Dat1EditPutNpc(edit, remapped.source_id, enc, n);
-                free(enc);
-            }
+            assert(enc);
+            uint32_t n = RSCache_Dat1ConfigNpcEncode(npc, enc, bound ? bound : 256);
+            if( n )
+                RSCache_Dat1EditPutNpc(edit, remapped.source_id, enc, n);
+            else
+                tool_port_plan_add_warning(
+                    plan, "dat1 npc %d encode failed", remapped.source_id);
+            free(enc);
             RSCache_Dat1ConfigNpcFree(npc);
         }
         free(models);
