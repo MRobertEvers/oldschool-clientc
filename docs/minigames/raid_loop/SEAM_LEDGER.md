@@ -1426,3 +1426,34 @@ all clean. No C and no content changed.
 ## matthew-mbp-m4-raid-b1-seam35e (2026-10-06; the commit that carries this heading, OSRS-Content 1c612cdfe3 unchanged): the whole Theatre, Entry solo
 
 - play_tob_entry_relay; LANDED. `test/raids/_play_entry.lua` enters by the notice board and the door's ready check (no `t.raid.enter`, no `::tob*` room cheat), plays the six rooms through their library plans, walks every passage, takes both supply chests and the Dawnbringer, goes down Verzik's trapdoor and opens the reward chest. Proved: `seed_survey.py _play_entry --names 3` 3 of 3 (closer re-run on OSRS-Content 1c612cdfe3: verzik.complete_line "completion time" 20:02 / 19:26 / 19:55, raid.reward_chest "modal tob_chests", raid.complete "6 of 6 rooms cleared and left"); the fixer's `--names 5` 5 of 5. Seven relay-only faults were fixed where they live: the Maiden solo plan's absolute tiles, bandages missing from `QD.RAID_PLAY_FOOD`, the Xarpus P2 eat gate that was true on every tick, a nil Xarpus P3 edge that stalled for 700 ticks, the first `_play_see` counting earlier rooms' swings, Verzik P1 bolts counted at landing instead of launch, and Verzik P3 bow presses stepping off the yellow pool. Rows: seam.raid_play_supplies_bandages, seam.raid_play_swings_start_at_play (SEAM_COUNT 189; conformance 384 of 384). Closer finding: the worktree's OSRS-Content was checked out at fb292a9996 (seam22) while the parent recorded 1c612cdfe3 (seam33: powered staff damage type, Dawnbringer, chinchompas), so every fixer run used the older content. The closer fast-forwarded the submodule branch and re-proved the relay on 1c612cdfe3. Open: the supply margin is thin (own name ends with 0 brew and 2 restore doses) because content bandages restore no prayer (CONTENT_BUGS "From seam13"); the Bloat chest gives 6 of its 10 bandages (only 6 free slots); spent switches are dropped on the floor (a player's choice, not sourced); the raid's 2253-2304 ticks are reported, not graded (the Entry page gives no typical time); visual verification is pending (owner: afterwards); the bandage conformance row ate a shark in the conformance pack (it grades "the first of anglerfish, shark, tob_bandages held"), so only the scratch run (no fish) showed the bandage pick live.
+## matthew-mbp-m4-camera-b1-seam35m (2026-10-06; the commit that carries this heading, OSRS-Content 1c612cdfe3 unchanged): Normal trio Maiden's rows and Normal trio Nylocas' supports
+
+- play_tob_maiden_normal_rows; NOT KEPT, the plan landed as an improvement. Closer re-run of
+  `seed_survey.py _play_maiden --party 3`: 0 of 5 green, but `room.cleared` PASS on all
+  five names (seam33: she died on 4 of 5); Matomenos that reached her 6/7/3/7/7. Red:
+  `tech.freeze` on all five (one freezer on a 5-tick cast plans at best 3-5 of 6 a wave for
+  most spawn sets; the row was not loosened, the owner rules), `tech.crabs_killed` on four
+  (left crabs reach her 6-9 ticks after spawning, before two pipes kill a 75 hp crab),
+  `tech.tank` on svb, sva's p3 dies. The harness's reach test is now the content's arrival
+  rectangle (tob.constant:480-494). Open: Normal trio Matomenos hitpoints 75 in our
+  content against W:593's 150 (content pass); the repeat name m35rep's leader dies t306 to
+  a 60 blackstorm through a lit Protect from Magic (unread); the Ice Barrage resolve delay
+  (0 or 1 tick by wave) is measured, its cause unread.
+- play_tob_nylocas_normal_supports; NOT KEPT, the bar is now sourced. `tech.pillars_at_boss`
+  asks four supports standing with the weakest at or above 0.10, from 34 recorded Regular
+  trio rooms on blert (all four standing in 34 of 34, weakest 0.10..0.54, median 0.31;
+  seam33's "each above 0.50" had no source and 3 of 34 real trios meet it). Closer re-run
+  of `seed_survey.py _play_nylocas --party 3`: 0 of 5, standing 1/2/1/2/1 of 4 at her
+  landing, every other row PASS (tech.prayer red on `_play_nylocas` only). First cause:
+  our trio kills about 0.42 copies a tick against a real trio's 0.70; the late surge drops
+  the west supports. `P.keep_all` (defend the low support) measured no gain, left OFF.
+  Open: chins on doubles (needs its own weapon key), the scythe on grey doubles (content:
+  scythe_of_vitur.rs2:38 arcs only for 2x2 targets), our support bite mean 1.03 against
+  0.83-0.93 recorded (grade D), tech.prayer's party form (owner).
+- Closer: both Entry solo surveys 5 of 5; cooks_assistant ledger byte-identical to
+  build/merge17_check/cooks_before.tsv; conformance 382/382 rows PASS; check-quest-verbs,
+  check-drive-abi, check-pt-switch, test-quest-cheats, test-plugin-lua PASS; no verb, C or
+  content change. OSRS-Content carries a stray publish of quest_cook/play from a worker's
+  run without --no-publish (46 deleted pngs, 46 untracked, ledger.tsv modified); the
+  restore was refused by the permission classifier and is left for the owner; it is not
+  committed.

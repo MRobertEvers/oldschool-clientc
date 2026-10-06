@@ -12,7 +12,8 @@
 -- unchanged.  raid seam33 play_tob_nylocas_normal_green: every seat carries a
 -- powered staff charged in run() (setup.ayak, setup.sang), each seat starts on
 -- its own colour's weapon, and tech.pillars_at_boss asks every support
--- standing above half its bar when she lands (the KEPT bar).
+-- standing when she lands (the KEPT bar).  raid seam35m: the weakest at or
+-- above 0.10, what 34 recorded Regular trios show (seam33's 0.50 was not).
 local role = (QD_PARTY and QD_PARTY.role) or 1
 local size = (QD_PARTY and QD_PARTY.size) or 1
 local kit = {
@@ -446,11 +447,23 @@ return {
                 .. " ticks into the play; taken by raider: " .. table.concat(taken_list, ", "))
             -- the pillars on the tick she landed (the plan's read of their bars)
             -- raid seam33 play_tob_nylocas_normal_green: KEPT asks every
-            -- support standing and above half its bar when she lands (seam32
-            -- kept one standing at 0.01-0.11: one collapse from a wipe)
-            t.check("tech.pillars_at_boss", (ny.supports_alive_at_landing or 0) == 4 and (ny.supports_min_at_landing or 0) > 0.5,
+            -- support standing when she lands (seam32 kept one standing at
+            -- 0.01-0.11: one collapse from a wipe).
+            -- raid seam35m play_tob_nylocas_normal_supports: THE BAR IS WHAT
+            -- REAL TRIOS SHOW.  Seam33's "each above 0.50" was not sourced.
+            -- Read from 34 completed Regular trio rooms on blert (30 harvested
+            -- by tools/measure_tob_pillar_damage.py harvest 3, mode 11, plus
+            -- the 4 trio streams of the spec pass), with that tool's own bite
+            -- model up to her first event, 0.90 a bite (ENCOUNTER_TIMING 4.5,
+            -- the ceiling) over 230 hitpoints (380 - 50 x 3, Jagex 21 June 2018):
+            -- all four standing in 34 of 34; the weakest at her landing is a
+            -- median 0.31, range 0.10..0.54; only 3 of 34 have all four above
+            -- 0.50 (0 of 34 at 1.0 a bite).  So: four standing, the weakest
+            -- at or above the weakest real trio's 0.10.
+            t.check("tech.pillars_at_boss", (ny.supports_alive_at_landing or 0) == 4 and (ny.supports_min_at_landing or 0) >= 0.10,
                 "supports standing when Vasilias landed: " .. tostring(ny.supports_alive_at_landing)
-                .. " of 4 (need 4, each above 0.50), bars (local x,z:fraction) " .. tostring(ny.supports_at_landing) .. "; the leader's role " .. tostring(ny.role))
+                .. " of 4 (need 4, the weakest at or above 0.10: real trios 34 of 34 four standing, weakest 0.10..0.54, median 0.31), bars (local x,z:fraction) "
+                .. tostring(ny.supports_at_landing) .. "; the leader's role " .. tostring(ny.role))
             -- the member's own-swing read (XP paid) against the log's
             -- player_anim swings, on the leader where both exist
             local probe, logged = {}, {}

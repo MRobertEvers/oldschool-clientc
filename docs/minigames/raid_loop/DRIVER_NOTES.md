@@ -6415,3 +6415,59 @@ still holds fish eats the fish first. Content bandages restore no prayer (CONTEN
 The backpack symbols are `bloodrune`, `chaosrune`, `waterrune` and `deathrune`.
 `::give water_rune` is accepted, but `t.player.drop` and `t.inv.count` need the backpack
 symbol.
+## Maiden's Matomenos reach rule is a rectangle, not a 1x1 gap (seam35m)
+
+A crab is absorbed when its south-west anchor ended a tick inside dx in [-2, 6],
+dz in [-2, 6] of her south-west tile: a size-2 crab's footprint within 1 of her 6x6
+(tob.constant:480-494). The content tests it at the start of the next tick, before the
+crab walks, so a crab frozen inside that rectangle is absorbed all the same. Use
+`QD.raid._play_maiden_crab_in(boss_row, x, z)`, never a 1x1 `gap <= 1`: that counted
+every south absorb at gap 2 as a kill.
+
+## Maiden's Matomenos walk (seam35m)
+
+One tile a tick toward the crab's own tile clamped into her 6x6 (tob_maiden.rs2
+`[proc,tob_maiden_crab_goal]`): diagonal until level with her top (north) or bottom
+(south) row, then straight along it. The client's first view of a new crab already
+shows its first step; after that the client draws the previous tick, so "still" needs
+two consecutive views.
+
+## Ice Barrage in this server (seam35m)
+
+The cast freezes the target and its 3x3 on the tick it resolves (npc_spotanim 369 on
+that tick, damage the next). A re-cast on a frozen npc does NOT extend the freeze; a
+freeze holds 32 ticks. A cast sent at client `v.tick` T resolves on server tick T or
+T + 1, constant within a Maiden wave: measure it from the target's first still view
+(`v.tick - 2 - cast tick`). The cause of the varying delay is unread.
+
+## The freezer's plan: `QD.raid._play_maiden_ice_plan` (seam35m)
+
+`QD.raid._play_maiden_ice_plan(st, v, crabs, d0, me, delay)` searches every order of the
+next `P.ice_depth` (4) barrages over the content's crab walk and returns
+`{target, frozen, total, left, first, left_arrive}`: the most frozen before they arrive,
+then the left crabs that walk longest (W:637, W:643). The rangers call it too, with the
+freezer's home as `me` and its cadence from the last freeze they saw, to shoot only the
+crabs it leaves. With one freezer on a 5-tick cast its exhaustive best is 3 to 5 of 6
+per wave for most spawn sets, so `tech.freeze` as written is out of its reach.
+
+## A Nylocas support's bar at Vasilias' landing in real rooms (seam35m)
+
+Blert's ordinary event stream gives it, through `tools/measure_tob_pillar_damage.py`'s
+bite model (cardinal adjacency to the 2x2 support, parked, first bite on the third tick,
+every 3) counted up to her first event, times 0.90 over 380 - 50n hitpoints. Import the
+tool as a module, point its `CACHE` at a scratch dir and call `harvest(scale, n)` (one
+request every 3 s; 30 trio rooms take about 2 minutes). In 34 Regular trio rooms the
+weakest support lands at 0.10 to 0.54 (median 0.31), with all four standing in every
+room: `tech.pillars_at_boss` asks four standing, the weakest at or above 0.10.
+
+## Blert's nylocas update events carry no `nylo` field (seam35m)
+
+Only npc type 7 (spawn) carries it; type 8 (update) does not. Track a copy's life by
+`roomId` over every npc event whose id is a wave id (8342-8353), or every copy reads as
+living 2-3 ticks.
+
+## `P.trace_seat` lives in the plan file (seam35m)
+
+A party plan's trace (`P.trace_seat = N`) prints one `nyplay` line a tick into that
+seat's own client.log (`build/quest_gate/<run>/pN/client.log`). It is in the plan file,
+not the harness: set it back to nil before any survey or repeat.

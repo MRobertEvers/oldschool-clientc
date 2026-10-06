@@ -200,7 +200,7 @@ hp 27, so the raw hit may have been higher). W:590's halving gives 14 at c=6. It
 with leaks the plan now prevents; the 2026-10-05 survey's spec.maiden.auto_prayed_entry failure
 on svb (19 of 28 off the formula) is the same row, read by the re-author.
 
-## Maiden, Normal trio (`tob_maiden`, mode `normal`), NOT green: she dies on 4 of 5 names (raid seam32, seam33 play_tob_maiden_normal_green)
+## Maiden, Normal trio (`tob_maiden`, mode `normal`), NOT green: she dies on 5 of 5 names, rows red (raid seam32, seam33 play_tob_maiden_normal_green, seam35m play_tob_maiden_normal_rows)
 
 `seed_survey.py _play_maiden --party 3` (seam33 final plan, QUEST_BINARY with `::blowpipe`):
 **0 of 5 green, and she DIES on 4 of 5**. On `_play_maiden`, `sva`, `svb` and `svd` the room is
@@ -256,6 +256,49 @@ Open (the first cause of each red leader, from its log):
 - Library (raid_play.lua, not this seam's file): the pid base (seam32 note) stands, and the
   supplies horizon between swings is two ticks, too short for a hit settled at the launch. The
   Maiden plan widens its own threat function (`reach_h`).
+
+### seam35m (camera lane): the freezer's plan, the arrival rectangle, NOT green
+
+`seed_survey.py _play_maiden --party 3` (final code): **0 of 5 green, she DIES on 5 of 5**
+(`room.cleared` PASS on `_play_maiden`, `sva`, `svb`, `svc`, `svd`, rooms 320-427 ticks; seam33: 4 of 5).
+Red rows: `tech.freeze` on all five, `tech.crabs_killed` on four (green on `svb`: 3 reached, 1/0/2),
+`tech.tank` on `svb` (the freezer took one storm), and `sva`'s north ranger (p3) dies. Entry solo
+`seed_survey.py _play_maiden` stays 5 of 5. `party_repeat.py --script <harness + party = 3,> --name m35rep
+--runs 3`: AGREE (sha ae77e7d8ff8d, 307 boundaries, lockstep PASS) -- but on that name the leader dies
+at t306 to a 60 blackstorm (the unprotected size at c = 7, through a lit Protect from Magic: not read
+further).
+
+| Mechanic | What the plan does now | Source |
+|---|---|---|
+| Reached her | A crab is absorbed when its SW anchor stood, at the end of a tick, in the content's rectangle: two tiles out on her west and south faces, one on her north and east (a size-2 crab's footprint within 1 of hers), frozen or not. The plan (`_play_maiden_crab_in`) and the harness (`arrived_at`) both use it; seam33's 1x1 `gap <= 1` counted every south absorb at gap 2 as a kill. | tob.constant:480-494; tob_maiden.rs2 `[proc,tob_maiden_crab_tick]` |
+| The walk | One tile a tick toward her footprint clamped to the crab's own tile: diagonal until level with her top or bottom row, then straight along it. Every unfrozen crab of the surveys matched it (N3 19,12 to 6,5 in 13 ticks; S3 19,-8 to 6,0 in 13). | tob_maiden.rs2 `[proc,tob_maiden_crab_goal]`; ET 2.3 |
+| Ice Barrage | Freezes the target and every crab in its 3x3 on the tick it resolves; the crab does not step again. A re-cast on a frozen crab does NOT extend the freeze (S4 frozen t127, re-iced t132/t137, walked at t159). Held 32 ticks. | m35a/m35c tick logs |
+| THE FREEZER'S PLAN | `_play_maiden_ice_plan`: every order of the next four barrages (each on any crab in its ten tiles, a frozen anchor included), simulated on the walk above; keeps the order that freezes the most before they reach her, then the one whose LEFT crabs walk longest (the DPS's time). A crab counts only if it is in the target's 3x3 on the tick the cast resolves -- measured per wave from the target's first still view (casts resolved one tick late through all of svc's wave 1, on time in waves 2-3) -- or, unmeasured, on both candidate ticks. | W:637 "the other spawns can all be frozen on top of each other in front of Maiden"; W:643 "Clumping 3s and 4s should be prioritised over freezing a single S2 or N2 spawn; if it is necessary to leave a single nylocas, the DPS roles should attack it" |
+| Cadence over a dodge | The freezer casts on its 5-tick cadence even mid-dodge while a crab still walks (svb w2: a dodge slipped a cast from t211 to t212 and lost a pair). | (the log) |
+| Refresh / clump | With nothing walking: a crab frozen 24+ ticks first, then the biggest clump, longest frozen among equals. | W:639 "barrage the clump until it is dead" |
+| Rangers | Run the same plan on what they see (the freezer's tile, its cadence from the last freeze they saw) and shoot only what it LEAVES, nearest her first; never a walker it is about to freeze (unless at gap 2), then the frozen ones. | W:643; 10Boot 0:08:14 |
+| Still | A crab is "frozen" after two views of consecutive ticks on one tile, never counting the view after its first (that first view already shows its first step). | (the log: svc w2's plan saw six spawns "frozen") |
+| Pool threat | A party raider's eat threat counts the pool as 10 + 2c from its own leak count (sva's tank, c = 11, ate nothing at 41 and took 32 + 32). | W:597 |
+
+Measured, the plan's own best at each wave's first cast (`p2:play.ice_plan`): 3, 4 or 5 of 6, and
+6 of 6 only once. **`tech.freeze` (all but one frozen every threshold) is not reachable with one
+freezer on a 5-tick cast for most spawn sets**: e.g. N1, N2, N4, S1, S2, S4 -- N1 arrives 6 ticks after
+the spawn, S1 7, N2/S2 9, and N1/N2/S1 cannot be clumped (W:637), so at most two of those four are
+frozen by the casts at +1 and +6, and the plan's best is 4. Changing the row is the orchestrator's
+call (the source's own words are "if it is necessary to leave a single nylocas"); this seam did not
+loosen it.
+
+Open (first cause of each red name, from its log):
+- **Leftovers cannot be killed in time.** A left crab reaches her 6-9 ticks after it spawns. The
+  rangers' darts land 0-15 a hit on a Matomenos (`_play_maiden` w2: N1 8 and 0 then absorbed at 67;
+  N2 four darts and no hitsplat), so two pipes take 8+ ticks for 75 hitpoints. Rangers keeping the bow
+  (seam35m sv6) was no better (reached 5/9/6/6/7 against 6/7/3/7/7).
+- **Content row (for the content pass, not this seam):** a Normal trio Matomenos has 75 hitpoints
+  here (a fresh crab's absorb heals 150 = 2 x 75); W:593 says "200 Hitpoints (175 in 4-man and 150
+  in trios and below)".
+- `sva`: the north ranger (p3) died; `svb`: the freezer took one storm (tech.tank). Not read further.
+- Preferring to leave NORTH crabs (10Boot 0:08:48, the rangers camp north) was tried (sv5) and was
+  worse; reverted.
 
 ## The other four rooms: mechanics and sourced answers (for the authors)
 
@@ -323,7 +366,7 @@ about 85% from SMALL chewers (greys 10774 most, about 600 bite animations a run;
 200); freezing clumps on any support (not only under 70%) was measured (c1: support deaths
 1,2,3,3,2 against 3,2,3,3,2) and not kept (taken 1116 against 961 on the same names).
 
-## Nylocas, Normal trio (`tob_nylocas`, mode `normal`), NOT KEPT under seam33's bar: she dies, nobody dies, the supports do not hold (raid seam32 play_tob_nylocas_normal, seam33 play_tob_nylocas_normal_green)
+## Nylocas, Normal trio (`tob_nylocas`, mode `normal`), NOT KEPT under the sourced bar (seam35m): she dies, nobody dies, the supports do not hold (raid seam32 play_tob_nylocas_normal, seam33 play_tob_nylocas_normal_green, seam35m play_tob_nylocas_normal_supports)
 
 The harness is `test/raids/_play_nylocas.lua` run with `--party 3` (no `party` field, so the
 same id stays the Entry solo harness: `seed_survey.py _play_nylocas` solo, `--party 3` trio;
@@ -444,6 +487,55 @@ The trio guide's own levers are the next rows:
 (11-18 blocks against 1-12 that landed on svb/svd/sve, in the survey of the plan before the
 helper staves), so it reads red on a plan that prays
 right. It needs a party form (blocks against landed) from the owner, not a lower number.
+
+**Seam35m (play_tob_nylocas_normal_supports): the bar from the sources, then the plan measured
+against it.** Seam33's "each above 0.50" was never sourced. Real trios were read for it:
+34 completed Regular trio Nylocas rooms on blert (30 harvested with
+`tools/measure_tob_pillar_damage.py harvest 3` -- mode 11, scale 3 -- and the four trio
+streams of the spec pass; uuids in build/seam_state/matthew-mbp-m4-camera-b1-seam35m/nylo/
+trio_blert_uuids.txt), that tool's own bite model (a copy cardinally adjacent to a 2x2
+support and not moving, first bite on its third parked tick, then every 3) counted up to
+Vasilias' first event, 0.90 a bite (ENCOUNTER_TIMING 4.5, the ceiling the collapses give)
+over 230 hitpoints (380 - 50 x 3, the 21 June 2018 newspost):
+
+| measure, 34 real trio rooms | value |
+|---|---|
+| all four standing at her landing | 34 of 34 |
+| the weakest support at her landing | median 0.31, range 0.10..0.54 |
+| rooms with every support above 0.50 | 3 of 34 at 0.90 a bite, 0 of 34 at 1.0 |
+| one support, all 136 | median 0.44, tenth percentile 0.23 |
+| the combined bar | median 0.43, range 0.22..0.63 |
+| her landing, ticks from the room start | median 304, range 294..353 |
+| wave 31 out | median 257.5, range 245..286 (spec 236: stall 9..50) |
+| copies that live 50 ticks (auto-pop) | median 23.5 a room, range 11..30, of 206 |
+
+So `tech.pillars_at_boss` now asks **four standing, the weakest at or above 0.10** (the
+weakest real trio), citing the table. Under it the plan is still red: the final survey
+(seed_survey --party 3, the seam33 plan unchanged) stood 1, 2, 1, 2, 1 of 4 at her landing,
+stalls 99/83/91/103/95 and landings 396-424 ticks from the mark, nobody died, she died on
+all five (byte-for-byte seam33's table). party_repeat on the trio copy (s35nyrep): 3 runs
+AGREE, sha 255d93f3f4c8, 839 boundaries.
+
+**Where ours and real trios part** (s35ny0, the leader's tick log): 920 support bites in the
+room against a real median of about 580; her landing about 110 ticks later than a real
+trio; the late surge (25-28 live copies at t375-425, 385 support damage in those 100 ticks).
+The meleer is the narrowest seat: 66 swings in about 400 wave ticks on a 4-tick whip, 123
+ticks lost to gaps over 4 while it runs between greys at all four supports (the trace:
+picks at d3-d8). Real trios clear the same 206 copies at about 0.70 kills a tick against our
+0.42, with tools this plan does not have: chinchompas on doubles (trio guide :211-226,
+:300-307, :352-359), the scythe on doubles and bigs (:415, :460-476), a 3-tick Swift blade
+(:386, :420), claws (:393).
+
+Tried and NOT kept: `keep_all` (a trio never lets the low support go: the Entry guide's
+"let one that's low die", E :171, is a solo's rule): survey1 stood 3, 2, 1, 2, 2 against
+2, 2, 2, 2, 2 on the same names -- the supports fall for the copies not killed, not for
+being let go. Left OFF in the plan behind the flag.
+
+Next levers, in order: the ranger's chins on pure-green doubles (the chin is multi-target
+since seam33; the plan's loadout is one weapon a style, so a chin needs its own weapon key
+beside the blowpipe), the meleer's scythe on grey doubles (CONTENT: scythe_of_vitur.rs2:38
+implements the arc only on 2x2 targets), a 3-tick melee weapon (Swift blade: no bonus params
+in all.obj).
 
 ## Sotetseg, Entry solo (`tob_sotetseg`, mode `entry`), proved
 
