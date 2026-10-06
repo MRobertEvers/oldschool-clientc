@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 124
+-- @seam-count 125
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 186
-local SEAM_COUNT = 124
+local SEAM_COUNT = 125
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -11057,6 +11057,101 @@ return {
                 or string.find(tostring(never_detail), "but no opencastledoor stood within 1", 1, true) == nil
                 or string.find(tostring(never_detail), "tick(s) of waiting", 1, true) == nil then
                 return leave("hollow", text .. " -- an open leaf that never arrives must be refused after the wait, naming it")
+            end
+            return leave("ok", text)
+        end)
+
+        -- SEAM uzer_stairs_press_aims_where_the_renderer_draws_the_model_not_at_
+        -- the_stairwell_pit (matthew-mbp-m4-b66-seam1): A LOC WHOSE FOOTPRINT
+        -- CENTROID IS A HOLE IS PRESSED WHERE ITS FACES ARE DRAWN.  The Uzer
+        -- ruin stairs golem_insidestairs_top (model 6071, 3492,3090,0) are a
+        -- rim round an open stairwell: the loc projection lands in the pit,
+        -- where nothing is drawn, and every pose and the 99-pixel hunt
+        -- answered `covered` (seam-facts b65 (c); HEAD binary,
+        -- build/quest_gate/us_rows_base row 2).  The press must be made from
+        -- the arch tile 3491,3090 (maplink_0_54_48_35_18_down is keyed on the
+        -- player's tile).  Graded: Climb-down lands 2721,4886,0 and the detail
+        -- names the model aim that found the pixel (QD.drive._model_aim, which
+        -- runs only after the whole hunt said covered); then the CONTROL, a
+        -- plain centrepiece stair (Lumbridge's spiralstairsbottom_3, shape 10,
+        -- 3204,3229,0) pressed from the side tile 3205,3228, must land on
+        -- press 1 with NO model aim -- an aim the renderer already held is
+        -- never moved (the b65 attempt moved one and broke vampire).
+        seam("seam.stairwell_pressed_on_its_model_from_the_arch", function()
+            local goto_tile = verb("player", "goto_tile")
+            local climb = verb("player", "climb")
+            local pool_read = verb("drive", "_pool_read")
+            local by_symbol = verb("player", "by_symbol")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not climb then return missing("player", "climb") end
+            if not pool_read then return missing("drive", "_pool_read") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            local function leave(result, text)
+                setup_cheat("::tele lumbridge")
+                settle(2)
+                return result, text
+            end
+            -- The shape the client placed `symbol`'s copy at (x, z) with, read
+            -- off the loc pool.
+            local function shape_at(symbol, x, z)
+                local target, target_result = by_symbol("loc", symbol)
+                if target_result ~= "ok" or not is_table(target) then
+                    return nil
+                end
+                local rows_result, rows = pool_read("locs", 6, 18)
+                if rows_result ~= "ok" or not is_table(rows) then
+                    return nil
+                end
+                for index = 1, #rows do
+                    local row = rows[index]
+                    if row.x == x and row.z == z and row.level == 0
+                        and (row.loc_id == target.id or row.resolved_loc_id == target.id) then
+                        return row.shape
+                    end
+                end
+                return nil
+            end
+            -- Two tiles west of the arch, so the climb's own walk to src is
+            -- what arrives there (the b65 fixer's shape, which every pose
+            -- answered covered on the HEAD binary).
+            local goto_result, goto_detail = goto_tile(3489, 3090, 0)
+            if goto_result ~= "ok" then
+                return leave("no_subject", "goto west of the Uzer arch 3489,3090,0 -> " .. describe(goto_result) .. " "
+                    .. describe(goto_detail))
+            end
+            -- QD.drive._model_aim records the aim it found: the note it writes
+            -- folds into the NEXT row, which this row cannot read.
+            t.drive._model_aim_last = nil
+            local uzer_result, uzer_detail = climb({ loc = "golem_insidestairs_top", op = 1, op_name = "Climb-down",
+                at = { 3492, 3090, 0 }, src = { 3491, 3090 }, dest = { 2721, 4886, 0 }, slack = 2,
+                same_level = "maplink_0_54_48_35_18_down" })
+            local uzer_aim = t.drive._model_aim_last
+            local text = "Uzer stairs from the arch -> " .. describe(uzer_result) .. " " .. tostring(uzer_detail)
+                .. " | " .. (is_table(uzer_aim) and tostring(uzer_aim.detail) or "no model aim")
+            if uzer_result ~= "ok" then
+                return leave(uzer_result, text)
+            end
+            if not is_table(uzer_aim)
+                or string.find(tostring(uzer_detail), "landed 2721,4886,0", 1, true) == nil then
+                return leave("hollow", text .. " -- ok, but no model aim found the pixel or no landing on 2721,4886,0")
+            end
+            t.drive._model_aim_last = nil
+            setup_cheat("::goto 3205 3228 0")
+            settle(3)
+            local control_shape = shape_at("spiralstairsbottom_3", 3204, 3229)
+            local control_result, control_detail = climb({ loc = "spiralstairsbottom_3", op = 1,
+                op_name = "Climb-up", at = { 3204, 3229, 0 }, src = { 3205, 3228 }, dest = { 3205, 3228, 1 } })
+            text = text .. " | control, Lumbridge spiral stair (shape " .. tostring(control_shape)
+                .. ") from the side tile 3205,3228 -> " .. describe(control_result) .. " " .. tostring(control_detail)
+            if control_shape ~= 10 then
+                return leave("no_subject", text .. " -- the control is not a shape-10 stair at 3204,3229,0")
+            end
+            if control_result ~= "ok" then
+                return leave(control_result, text)
+            end
+            if string.find(tostring(control_detail), "on press 1", 1, true) == nil
+                or t.drive._model_aim_last ~= nil then
+                return leave("hollow", text .. " -- the plain stair must land on press 1 at its own projection, no model aim")
             end
             return leave("ok", text)
         end)

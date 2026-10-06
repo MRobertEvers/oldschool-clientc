@@ -1213,7 +1213,7 @@ READ_FIX = {
     "inv.has": "t.inv.expect_has(name) / t.inv.expect_absent(name)",
     "world.tile": "local r, h = t.world.tile(), then compare h.x, h.z and h.level",
     "world.level": "local r, level = t.world.level(), then compare the level",
-    "skill.read": "local r, s = t.skill.read(name), then compare s.current / s.level",
+    "skill.read": "local r, s = t.skill.read(name), then compare s.level (current) / s.base_level (max)",
     "var.varp": "t.var.expect(name, value)", "var.varbit": "t.var.expect(name, value)",
     "var.server": "t.var.await_server(name, value, ticks)",
 }
