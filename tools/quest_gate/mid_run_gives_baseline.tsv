@@ -48,9 +48,6 @@ thefremennikisles	1	::give needle 1	611
 thefremennikisles	1	::give thread 3	612
 theslugmenace	1	::give rune_scimitar 1	358
 theslugmenace	1	::give shark 10	359
-troll_love	1	::give iron_bar 1	144
-troll_love	1	::give maple_logs 1	145
-troll_love	1	::give rope 1	146
 upass	1	::give adamant_scimitar 1	814
 upass	1	::give bucket_empty 1	1077
 upass	1	::give lobster	1298
@@ -58,8 +55,6 @@ upass	3	::give lobster 10	137,547,815
 upass	1	::give lobster 14	378
 upass	1	::give shark	1189
 upass	1	::give spade 1	546
-upass	1	::give woodplank	393
-viking	1	::give lobster 27	590
 waterfall	1	::give airrune 6	162
 waterfall	1	::give earthrune 6	163
 waterfall	1	::give waterrune 6	164
