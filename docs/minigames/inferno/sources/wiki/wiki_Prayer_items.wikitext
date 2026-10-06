@@ -1,0 +1,388 @@
+'''Prayer items''' are equipment which give [[Prayer]] bonuses when worn.
+
+==How Prayer items work==
+Each Prayer bonus point increases the time it takes for prayer points to deplete by 3.33% additively.
+
+For example, having +30 Prayer bonus would make Prayers last 100% longer (twice as long). [[Protect from Melee]] would then drain 1 Prayer point every 6 seconds, instead of every 3 seconds. 
+
+With at least +42 Prayer bonus, [[protection prayer]]s will drain slowly enough that the [[prayer regeneration potion]] effect will upkeep the player's prayer without the need for additional [[prayer potion]]s.
+
+The highest Prayer bonus possible is 73.
+
+==Headgear==
+{| class="wikitable align-center-1"
+! Bonus
+! Items
+|-
+| +1
+| {{plink|Armadyl helmet}}, {{plink|Inquisitor's great helm}}, {{plink|Masori mask (f)}}, {{plink|Torva full helm}}, {{plink|Virtus mask}}, {{plink|White full helm}}, {{plink|White med helm}}, {{plink|Zealot's helm}}
+
+[[Blessed coif]]s ({{plink|Guthix coif|txt=Guthix}}, {{plink|Saradomin coif|txt=Saradomin}}, {{plink|Zamorak coif|txt=Zamorak}}, {{plink|Armadyl coif|txt=Armadyl}}, {{plink|Bandos coif|txt=Bandos}}, {{plink|Ancient coif|txt=Ancient}})
+
+[[Rune god armour|God full helms]] ({{plink|Guthix full helm|txt=Guthix}}, {{plink|Saradomin full helm|txt=Saradomin}}, {{plink|Zamorak full helm|txt=Zamorak}}, {{plink|Armadyl full helm|txt=Armadyl}}, {{plink|Bandos full helm|txt=Bandos}}, {{plink|Ancient full helm|txt=Ancient}})
+|-
+| +2
+| {{plink|Justiciar faceguard}}, {{plink|Dagon'hai hat}}, {{plink|Crystal helm}}, {{plink|Ancient ceremonial mask}}, {{plink|Hueycoatl hide coif}}
+|-
+| +3
+| {{plink|Helm of Neitiznot}}, {{plink|Initiate sallet}}, {{plink|Verac's helm}}, {{plink|Neitiznot faceguard}}, {{plink|Helmet of the moon}}
+
+[[Halo]]s ({{plink|Guthix halo|txt=Guthix}}, {{plink|Saradomin halo|txt=Saradomin}}, {{plink|Zamorak halo|txt=Zamorak}}, {{plink|Armadyl halo|txt=Armadyl}}, {{plink|Bandos halo|txt=Bandos}}, {{plink|Ancient halo|txt=Ancient}}, {{plink|Seren halo|txt=Seren}},{{plink|Brassica halo|txt=Brassica Prime}})
+|-
+| +4
+|{{plink|Proselyte sallet}}, {{plink|Elite black full helm}}
+|-
+| +5
+| [[Mitre|God vestment mitres]] ({{plink|Guthix mitre|txt=Guthix}}, {{plink|Saradomin mitre|txt=Saradomin}}, {{plink|Zamorak mitre|txt=Zamorak}}, {{plink|Armadyl mitre|txt=Armadyl}}, {{plink|Bandos mitre|txt=Bandos}}, {{plink|Ancient mitre|txt=Ancient}})
+|-
+| +6
+|{{Plink|Sunfire fanatic helm}}
+|}
+
+==Robes/Armour==
+
+===Body===
+{| class="wikitable align-center-1"
+! Bonus
+! Items
+|-
+| +1
+| {{plink|Armadyl chestplate}}, {{plink|Bandos chestplate}}, {{plink|Masori body (f)}}, {{plink|Torva platebody}}, {{plink|White platebody}}, {{plink|White chainbody}}
+
+[[Blessed body]] ({{plink|Guthix d'hide body|txt=Guthix}}, {{plink|Saradomin d'hide body|txt=Saradomin}}, {{plink|Zamorak d'hide body|txt=Zamorak}}, {{plink|Armadyl d'hide body|txt=Armadyl}}, {{plink|Bandos d'hide body|txt=Bandos}}, {{plink|Ancient d'hide body|txt=Ancient}})
+
+[[Rune god armour|God platebodies]] ({{plink|Guthix platebody|txt=Guthix}}, {{plink|Saradomin platebody|txt=Saradomin}}, {{plink|Zamorak platebody|txt=Zamorak}}, {{plink|Armadyl platebody|txt=Armadyl}}, {{plink|Bandos platebody|txt=Bandos}}, {{plink|Ancient platebody|txt=Ancient}})
+|-
+| +2
+| {{plink|Inquisitor's hauberk}}, {{plink|Dagon'hai robe top}}, {{plink|Virtus robe top}}
+|-
+| +3
+| {{plink|Crystal body}}, {{plink|Elite void top}}, {{plink|Hueycoatl hide body}}, {{plink|Priest gown (top)}}, {{plink|Zamorak monk top}}
+|-
+| +4
+| {{plink|Druid's robe top}}, {{plink|Justiciar chestguard}}
+|-
+| +5
+| {{plink|Shade robe top}}, {{plink|Verac's brassard}}
+|-
+| +6
+| {{plink|Ancient ceremonial top}}, {{plink|Initiate hauberk}}, {{plink|Monk's robe top}}<sup>[[Monk's robe top (t)|(t)]] [[Monk's robe top (g)|(g)]]</sup>
+
+[[Vestment robes#Vestment robe tops|God vestment robe tops]]({{plink|Guthix robe top|txt=Guthix}}, {{plink|Saradomin robe top|txt=Saradomin}}, {{plink|Zamorak robe top|txt=Zamorak}}, {{plink|Armadyl robe top|txt=Armadyl}}, {{plink|Bandos robe top|txt=Bandos}}, {{plink|Ancient robe top|txt=Ancient}})
+|-
+| +7
+| {{plink|Zealot's robe top}}
+|-
+| +8
+| {{plink|3rd Age druidic robe top}}, {{plink|Elite black platebody}}, {{plink|Proselyte hauberk}}
+|-
+| +10
+| {{plink|Sunfire fanatic cuirass}}
+|}
+
+===Legs===
+{| class="wikitable align-center-1"
+! Bonus
+! Items
+|-
+| +1
+| {{plink|Armadyl chainskirt}}, {{plink|Bandos tassets}}, {{plink|Masori chaps (f)}}, {{plink|Torva platelegs}}, {{plink|Virtus robe bottom}}, {{plink|White platelegs}}, {{plink|White plateskirt}}
+
+[[Blessed chaps]] ({{plink|Guthix chaps|txt=Guthix}}, {{plink|Saradomin chaps|txt=Saradomin}}, {{plink|Zamorak chaps|txt=Zamorak}}, {{plink|Armadyl chaps|txt=Armadyl}}, {{plink|Bandos chaps|txt=Bandos}}, {{plink|Ancient chaps|txt=Ancient}})
+
+[[Rune god armour|God platelegs]] ({{plink|Guthix platelegs|txt=Guthix}}, {{plink|Saradomin platelegs|txt=Saradomin}}, {{plink|Zamorak platelegs|txt=Zamorak}}, {{plink|Armadyl platelegs|txt=Armadyl}}, {{plink|Bandos platelegs|txt=Bandos}}, {{plink|Ancient platelegs|txt=Ancient}})
+
+[[Rune god armour|God plateskirts]] ({{plink|Guthix plateskirt|txt=Guthix}}, {{plink|Saradomin plateskirt|txt=Saradomin}}, {{plink|Zamorak plateskirt|txt=Zamorak}}, {{plink|Armadyl plateskirt|txt=Armadyl}}, {{plink|Bandos plateskirt|txt=Bandos}}, {{plink|Ancient plateskirt|txt=Ancient}})
+|-
+| +2
+| {{plink|Crystal legs}}, {{plink|Dagon'hai robe bottom}}, {{plink|Hueycoatl hide chaps}}, {{plink|Inquisitor's plateskirt}}
+|-
+| +3
+| {{plink|Elite void robe}}, {{plink|Priest gown (bottom)}}, {{plink|Zamorak monk bottom}}
+|-
+| +4
+| {{plink|Druid's robe}}, {{plink|Justiciar legguards}}, {{plink|Shade robe}}, {{plink|Verac's plateskirt}}
+|-
+| +5
+| {{plink|Ancient ceremonial legs}}, {{plink|Initiate cuisse}}, {{plink|Monk's robe}}<sup>[[Monk's robe (t)|(t)]] [[Monk's robe (g)|(g)]]</sup>
+
+[[Vestment robes#Vestment robe legs|God vestment robe legs]] ({{plink|Guthix robe legs|txt=Guthix}}, {{plink|Saradomin robe legs|txt=Saradomin}}, {{plink|Zamorak robe legs|txt=Zamorak}}, {{plink|Armadyl robe legs|txt=Armadyl}}, {{plink|Bandos robe legs|txt=Bandos}}, {{plink|Ancient robe legs|txt=Ancient}})
+|-
+| +6
+| {{plink|3rd Age druidic robe bottoms}}, {{plink|Elite black platelegs}}, {{plink|Proselyte cuisse}}, {{plink|Proselyte tasset}}, {{plink|Zealot's robe bottom}}
+|-
+| +8
+| {{plink|Sunfire fanatic chausses}}
+|}
+
+==Boots==
+{| class="wikitable align-center-1"
+! Bonus
+! Items
+|-
+| +1
+| {{plink|Ancient ceremonial boots}}, {{plink|Aranea boots}}, {{plink|Bandos boots}}, {{plink|White boots}}, {{plink|Zealot's boots}}
+
+[[Blessed boots]] ({{plink|Guthix d'hide boots|txt=Guthix}}, {{plink|Saradomin d'hide boots|txt=Saradomin}}, {{plink|Zamorak d'hide boots|txt=Zamorak}}, {{plink|Armadyl d'hide boots|txt=Armadyl}}, {{plink|Bandos d'hide boots|txt=Bandos}}, {{plink|Ancient d'hide boots|txt=Ancient}})
+|-
+| +2
+| {{plink|Guardian boots}}
+|-
+| +3
+| {{plink|Holy sandals}}, {{plink|Holy moleys}}
+|-
+| +4
+| {{plink|Echo boots}}
+|-
+| +5
+| {{plink|Devout boots}}
+|}
+
+==Gloves==
+{| class="wikitable align-center-1"
+! Bonus
+! Items
+|-
+| +1
+| {{plink|Ancient ceremonial gloves}}, {{plink|Hueycoatl hide vambraces}}, {{plink|White gloves}}, {{plink|Zaryte vambraces}}
+
+[[Blessed bracers]] ({{plink|Guthix bracers|txt=Guthix}}, {{plink|Saradomin bracers|txt=Saradomin}}, {{plink|Zamorak bracers|txt=Zamorak}}, {{plink|Armadyl bracers|txt=Armadyl}}, {{plink|Bandos bracers|txt=Bandos}}, {{plink|Ancient bracers|txt=Ancient}})
+|-
+| +2
+| {{plink|Tormented bracelet}}, {{plink|Confliction gauntlets}}
+|-
+| +3
+| {{plink|Holy wraps}}
+|}
+
+==Capes==
+{| class="wikitable align-center-1"
+! Bonus
+! Items
+|-
+| +1
+| {{plink|Mythical cape}}
+|-
+| +2
+| {{plink|Ardougne cloak 1}}, {{plink|Fire cape}}, {{plink|Infernal cape}}
+|-
+| +3
+| {{plink|3rd Age druidic cloak}}
+
+[[Vestment cloak|God vestment cloaks]] ({{plink|Guthix cloak|txt=Guthix}}, {{plink|Saradomin cloak|txt=Saradomin}}, {{plink|Zamorak cloak|txt=Zamorak}}, {{plink|Armadyl cloak|txt=Armadyl}}, {{plink|Bandos cloak|txt=Bandos}}, {{plink|Ancient cloak|txt=Ancient}})
+|-
+| +4
+| {{plink|Achievement diary cape}}, {{plink|Ardougne cloak 2}}, {{plink|Max cape}}, {{plink|Cape of Accomplishment|txt=Skillcape (trimmed)|pic=Prayer cape(t)}}
+|-
+| +5
+| {{plink|3rd Age cloak}}, {{plink|Ardougne cloak 3}}
+|-
+| +6
+| {{plink|Ardougne cloak 4}}
+|-
+| +8
+| {{plink|Soul cape|pic=Soul cape (red)}}
+|}
+
+==Weapons==
+{| class="wikitable align-center-1"
+! Bonus
+! Items
+|-
+| -1
+|{{plink|Ancient sceptre}}, {{plink|Ancient staff}}, [[Ancient sceptre|Quartz sceptres]] ({{plink|Blood ancient sceptre|txt=Blood}}, {{plink|Shadow ancient sceptre|txt=Shadow}}, {{plink|Ice ancient sceptre|txt=Ice}}, {{plink|Smoke ancient sceptre|txt=Smoke}})
+|-
+| +1
+| {{plinkp|Arkan blade}} [[Arkan blade]], {{plink|Armadyl crossbow}}, {{plink|Bronze mace}}, {{plink|Hunter's spear}}, {{plink|Iron mace}}, {{plink|Tumeken's shadow}}, {{plink|Zaryte crossbow}}
+
+[[White equipment|White weapons]] ({{plink|White dagger}}, {{plink|White scimitar}}, {{plink|White claws}}, {{plink|White sword}}, {{plink|White longsword}}, {{plink|White battleaxe}}, {{plink|White warhammer}}, {{plink|White 2h sword}}, {{plink|White halberd}}, {{plink|White magic staff}})
+|-
+| +2
+| {{plink|Barronite mace}}, {{plink|Black cane}}, {{plink|Black mace}}, {{plink|Blessed axe}}, {{plink|Glacial temotli}}, {{plink|Inquisitor's mace}}, {{plink|Keris}}, {{plink|Saradomin sword}}, {{plink|Saradomin's blessed sword}}, {{plink|Steel mace}}, {{plink|Tonalztics of Ralos}}, {{plink|Ursine chainmace}}, {{plink|Viggora's chainmace}}, {{plink|Zamorakian hasta}}, {{plink|Zamorakian spear}}
+|-
+| +3
+| {{plink|Adamant cane}}, {{plink|Adamant mace}}, {{plink|Ancient mace}}, {{plink|Keris partisan}}, {{plink|Lunar staff}}, {{plink|Mithril mace}}, {{plink|White mace}}
+|-
+| +4
+| {{plink|Hallowfell}}, {{plink|Rolling pin}}, {{plink|Rune cane}}, {{plink|Rune mace}}
+|-
+| +5
+| {{plink|Blisterwood flail}}, {{plink|Blisterwood sickle}}, {{plink|Dragon cane}}, {{plink|Dragon mace}}, {{plink|Emerald sickle (b)}}, {{plink|Enchanted emerald sickle (b)}}, {{plink|Enchanted ruby sickle (b)}}, {{plink|Ivandis flail}}, {{plink|Ruby sickle (b)}}, {{plink|Silver sickle (b)}}, {{plink|Toktz-mej-tal}}, {{plink|Wolfbane}}
+|-
+| +6
+| {{plink|3rd Age druidic staff}}, {{plink|Hallowed flail}}, {{plink|Verac's flail}}, {{plink|Void knight mace}}
+
+[[Crozier|Vestment croziers]]({{plink|Guthix crozier|txt=Guthix}}, {{plink|Saradomin crozier|txt=Saradomin}}, {{plink|Zamorak crozier|txt=Zamorak}}, {{plink|Armadyl crozier|txt=Armadyl}}, {{plink|Bandos crozier|txt=Bandos}}, {{plink|Ancient crozier|txt=Ancient}})
+|-
+| +7
+| {{plink|Sunspear}}
+|-
+| +8
+| {{plink|Ancient godsword}}, {{plink|Armadyl godsword}}<sup>[[Armadyl godsword (or)|(or)]]</sup>, {{plink|Bandos godsword}}<sup>[[Bandos godsword (or)|(or)]]</sup>, {{plink|Saradomin godsword}}<sup>[[Saradomin godsword (or)|(or)]]</sup>, {{plink|Zamorak godsword}}<sup>[[Zamorak godsword (or)|(or)]]</sup>
+|}
+
+==Shields==
+{| class="wikitable align-center-1"
+! Bonus
+! Items
+|-
+| +1
+|
+{{plink|Elidinis' ward}}, {{plink|Falador shield 1}}, {{plink|Kharedst's memoirs}}, {{plink|Spirit shield}}, {{plink|White kiteshield}}, {{plink|White sq shield}}
+
+[[Rune god armour|God kiteshields]] ({{plink|Guthix kiteshield|txt=Guthix}}, {{plink|Saradomin kiteshield|txt=Saradomin}}, {{plink|Zamorak kiteshield|txt=Zamorak}}, {{plink|Armadyl kiteshield|txt=Armadyl}}, {{plink|Bandos kiteshield|txt=Bandos}}, {{plink|Ancient kiteshield|txt=Ancient}})
+
+[[Blessed shield|Blessed d'hide shields]]({{plink|Guthix d'hide shield|txt=Guthix}}, {{plink|Saradomin d'hide shield|txt=Saradomin}}, {{plink|Zamorak d'hide shield|txt=Zamorak}}, {{plink|Armadyl d'hide shield|txt=Armadyl}}, {{plink|Bandos d'hide shield|txt=Bandos}}, {{plink|Ancient d'hide shield|txt=Ancient}})
+|-
+| +3
+| {{plink|Arcane spirit shield}}, {{plink|Book of the Dead}}, {{plink|Blessed spirit shield}}, {{plink|Elysian spirit shield}}, {{plink|Falador shield 2}}, {{plink|Spectral spirit shield}}
+|-
+| +4
+| {{plink|Elidinis' ward (f)}}, {{plink|Falador shield 3}}
+|-
+| +5
+| {{plink|Falador shield 4}}, {{plink|Antler guard}}
+
+[[Broodoo shield]]s ({{plink|Broodoo shield (combat)|txt=Combat}}, {{plink|Broodoo shield (poison)|txt=Poison}}, {{plink|Broodoo shield (disease)|txt=Disease}})
+
+[[God book]]s ({{plink|Book of Balance|txt=Guthix}}, {{plink|Holy book|txt=Saradomin}}, {{plink|Unholy book|txt=Zamorak}}, {{plink|Book of Law|txt=Armadyl}}, {{plink|Book of War|txt=Bandos}}, {{plink|Book of Darkness|txt=Ancient}})
+|}
+
+==Jewellery==
+===Neck===
+{| class="wikitable align-center-1"
+! Bonus
+! Items
+|-
+| +1
+| {{plink|Amulet of power}}, {{plink|Beads of the Dead}}, {{plink|Witchwood icon}}
+|-
+| +2
+|{{plink|Amulet of rancour}}, {{plink|Amulet of torture}}, {{plink|Necklace of anguish}}, {{plink|Occult necklace}}, {{plink|Pendant of Ates}}
+|-
+| +3
+|{{plink|Amulet of avarice}}, {{plink|Amulet of eternal glory}}, {{plink|Amulet of glory}}, {{plink|Amulet of the Damned}}, {{plink|Berserker necklace}}, {{plink|Necklace of rupture}}, {{plink|Salve amulet}}, {{plink|Salve amulet (e)}}, {{plink|Salve amulet(i)}}, {{plink|Salve amulet(ei)}}
+|-
+| +5
+| {{plink|Amulet of fury}}
+|-
+| +8
+| {{plink|Holy symbol}}, {{plink|Unholy symbol}}
+|-
+| +10
+| [[Stole|God stoles]] ({{plink|Guthix stole|txt=Guthix}}, {{plink|Saradomin stole|txt=Saradomin}}, {{plink|Zamorak stole|txt=Zamorak}}, {{plink|Armadyl stole|txt=Armadyl}}, {{plink|Bandos stole|txt=Bandos}}, {{plink|Ancient stole|txt=Ancient}})
+|-
+| +12
+| {{plink|Bonecrusher necklace}}, {{plink|Dragonbone necklace}}
+|}
+
+===[[Rings]]===
+{| class="wikitable align-center-1"
+! Bonus
+! Items
+|-
+| +1
+| {{plink|Explorer's ring|pic=Explorer's ring 1}}s
+|-
+| +2
+| {{plink|Ring of shadows}}, {{plink|Ring of suffering}}
+|-
+| +4
+| {{plink|Ring of suffering (i)}}, {{plink|Ring of the gods}}
+|-
+| +8
+| {{plink|Ring of the gods (i)}}
+|}
+
+===Ammunition===
+{| class="wikitable align-center-1"
+! Bonus
+! Items
+|-
+| +1
+| {{plink|Rada's blessing 2}}, {{plink|Rada's blessing 3}}
+[[God blessing]]s ({{plink|Peaceful blessing|txt=Peaceful}}, {{plink|Holy blessing|txt=Holy}}, {{plink|Unholy blessing|txt=Unholy}}, {{plink|Honourable blessing|txt=Honourable}}, {{plink|War blessing|txt=War}}, {{plink|Ancient blessing|txt=Ancient}})
+|-
+| +2
+| {{plink|Rada's blessing 4}}
+|-
+|}
+
+==Highest Prayer bonus==
+The following armour gives the highest possible Prayer bonus.
+
+{| class="mw-collapsible wikitable align-center-2" style="width: 100%;"<!--
+-->{{#vardefine:int|0}}{{#vardefine:1hweap|0}}{{#vardefine:2hweap|0}}{{#vardefine:shield|0}}{{#vardefine:1htotal|0}}{{#vardefine:2htotal|0}}
+|-
+! width=0% |Slot
+! width=0% |Image
+! width=10% |Item
+! width=0% |Prayer<br/>bonus
+! width=100% |Notes
+|-
+|{{plinkp|Worn Equipment#Head slot|pic=Head slot}}
+|{{plinkt|Sunfire fanatic helm}}
+| {{+=|int|+6|echo=2}}
+|Requires {{SCP|Defence|40}} and {{SCP|Prayer|60}} to be worn.
+|-
+|{{plinkp|Worn Equipment#Neck slot|pic=Neck slot}}
+|{{plinkt|Dragonbone necklace}}
+| {{+=|int|+12|echo=2}}
+|Requires {{SCP|Prayer|70}} to wear. The [[Bonecrusher necklace]] has the same bonus, requirements, and prayer-restoring effect, but also acts as a [[Bonecrusher]].
+|-
+|{{plinkp|Worn Equipment#Body slot|pic=Body slot}}
+|{{plinkt|Sunfire fanatic cuirass}}
+| {{+=|int|+10|echo=2}}
+|Requires {{SCP|Defence|40}} and {{SCP|Prayer|60}} to be worn.
+|-
+|{{plinkp|Worn Equipment#Legs slot|pic=Legs slot}}
+|{{plinkt|Sunfire fanatic chausses}}
+| {{+=|int|+8|echo=2}}
+|Requires {{SCP|Defence|40}} and {{SCP|Prayer|60}} to be worn.
+|-
+|{{plinkp|Worn Equipment#Boots slot|pic=Boots slot}}
+|{{plinkt|Devout boots}}
+| {{+=|int|+5|echo=2}}
+|Requires {{SCP|Prayer|60}} to wear.
+|-
+|{{plinkp|Worn Equipment#Cape slot|pic=Cape slot}}
+|{{plinkt|Soul cape|pic=Soul cape (red)}}
+| {{+=|int|+8|echo=2}}
+|Requires {{SCP|Prayer|70}} to wear and 2,500 [[Zeal Tokens]].
+|-
+|{{plinkp|Worn Equipment#Shield slot|pic=Shield slot}}
+|{{plinkt|God book|txt=Any god book|pic=Book of Balance}}
+| {{+=|int|+5|echo=2}}
+| Requires completion of [[Horror from the Deep]]. [[Broodoo shield]]s also give the same bonus, but require {{SCP|Magic|25}} and {{SCP|Defence|25}}.<br/>The [[Falador shield 4]] gives the same [[Prayer bonus]] and requires completion of the elite [[Falador Diary]].
+|-
+|{{plinkp|Worn Equipment#Hands slot|pic=Hands slot}}
+|{{plinkt|Holy wraps}}
+| {{+=|int|+3|echo=2}}
+| Requires {{SCP|Prayer|31}} to wear.
+|-
+|{{plinkp|Worn Equipment#Ring slot|pic=Ring slot}}
+|{{plinkt|Ring of the gods (i)}}
+| {{+=|int|+8|echo=2}}
+| The [[Ring of the gods]] initially gives +4 [[Prayer bonus]]. However, players can [[Imbuing|imbue]] their ring to increase its [[Prayer]] bonuses to +8. The [[Ring of suffering (i)]] gives +4 Prayer and has significantly higher [[Defence bonuses]], but does not give the [[Holy wrench]] effect and additionally requires {{SCP|Hitpoints|75}}.
+|-
+|{{plinkp|Worn Equipment#Weapon slot|pic=Weapon slot}}
+|{{plinkt|Crozier|txt=Any crozier|pic=Guthix crozier}}
+| {{#vardefineecho:1hweap|+6}}
+| Requires {{SCP|Prayer|60}} to wield. The [[Void knight mace]] also gives the same [[Prayer bonus]], but requires {{SCP|Attack|42}}, {{SCP|Strength}}, {{SCP|Ranged}}, {{SCP|Magic}}, {{SCP|Defence}}, {{SCP|Hitpoints}}, {{SCP|Prayer|22}}, and 250 [[commendation points]].
+|-
+|{{plinkp|Worn Equipment#Ammo slot|pic=Ammo slot}}
+|{{plinkt|Rada's blessing 4}}
+| {{+=|int|+2|echo=2}}
+| Requires completion of the elite [[Kourend & Kebos Diary]].
+|-
+! colspan="3" |TOTAL<!--
+-->{{+=|1htotal|{{#var:int}}+{{#var:1hweap}}+{{#var:shield}}}}{{+=|2htotal|{{#var:int}}+{{#var:2hweap}}}}
+| style="text-align:left;" | '''+{{max|{{#var:1htotal}}|{{#var:2htotal}}}}'''
+|
+|}
+
+==See also==
+*[[Prayer]]
+
+{{Prayer items}}
+[[Category:Prayer]]

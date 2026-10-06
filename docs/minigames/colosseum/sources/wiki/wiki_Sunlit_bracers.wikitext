@@ -1,0 +1,75 @@
+{{Gone}}
+{{Infobox Item
+|name = Sunlit bracers
+|image = [[File:Sunlit bracers.png]]
+|release = [[27 November]] [[2024]]
+|update = Leagues V: Raging Echoes OUT NOW!
+|removal = [[12 November]] [[2025]]
+|removalupdate = No
+|members = Yes
+|quest = No
+|tradeable = No
+|bankable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wear, Drop
+|examine = Two bracers that provide a divine connection to the Sun God.
+|value = 50000
+|weight = 0.250
+|id = 30386
+}}
+[[File:Sunlit bracers detail.png|130px|left]]
+The '''sunlit bracers''' are gloves that were rewarded when completing all column six tasks in [[Grid Master]]. The bracers have a [[passive effect]] which doubles any base healing received, including from the [[amulet of blood fury]], [[blood spells]], and [[Guthan the Infested's equipment]], but doesn't double modifiers like [[bloodbark armour]]. They will protect the wearer from [[nettles]].
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +10
+|aslash = +10
+|acrush = +10
+|amagic = +6
+|arange = +18
+|dstab = +12
+|dslash = +12
+|dcrush = +12
+|dmagic = +6
+|drange = +12
+|str = +8
+|rstr = 4
+|mdmg = 0
+|prayer = +0
+|slot = hands
+|image = [[File:Sunlit bracers equipped male.png|140px]]
+|altimage = [[File:Sunlit bracers equipped female.png|140px]]
+}}
+
+==Past appearances==
+This item has appeared in a previous [[temporary event]]:
+*[[Raging Echoes League]]
+**The bracers were dropped by [[Echo Sol Heredit]] at a rate of 1/7.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 November 2025
+|change = The sunlight bracers were removed at the conclusion of [[Grid Master]].
+}}
+{{Subject changes
+|date = 15 October 2025
+|update = 
+|change = The sunlit bracers were re-added at the start of [[Grid Master]].
+}}
+{{Subject changes
+|date = 22 January 2025
+|update = Bank QoL & Mini Menu Improvements
+|change = The sunlit bracers were removed at the conclusion of [[Raging Echoes League]].
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+Raging Echoes League - echo gear concept art.png|Concept art of the Raging Echo equipment, by [[Mod Jerv]].
+</gallery>
+
+{{Grid Master}}
+{{Raging Echoes League}}

@@ -878,7 +878,15 @@ return {
 
             ---------------------------------------------------------------- fightNezikchenedInFire
             t.exec("fightNezikchenedInFire", t.player.attack, "nezikchened", 2, 20)
-            t.exec("fightNezikchenedInFire.dead", t.npc.await_dead_engaged, 500, 60, { eat = { item = "shark", below = 50 } })
+            do
+                local _, sharks_before = t.inv.count("shark")
+                local _, detail = t.exec("fightNezikchenedInFire.dead", t.npc.await_dead_engaged, 500, 60, { eat = { item = "shark", below = 50 } })
+                local lowest = tonumber(tostring(detail):match("lowest hp (%d+)/"))
+                local _, sharks_left = t.inv.count("shark")
+                t.check("fightNezikchenedInFire-margin", lowest ~= nil and lowest >= 25 and (sharks_left or 0) >= 1,
+                    "lowest hp " .. tostring(lowest) .. "/99, sharks " .. tostring(sharks_before) .. " -> " .. tostring(sharks_left)
+                    .. " (margin: lowest hp >= 25 AND sharks left >= 1)")
+            end
             -- nezikchened.rs2:99: the corpse stage, then a last-ditch hit and Ungadulu's mesbox
             t.ticks(6)
             t.chat.drain({ max_pages = 8 })
@@ -1765,8 +1773,16 @@ return {
 
             ---------------------------------------------------------------- fightNezikchenedAtSource
             t.exec("fightNezikchenedAtSource", t.player.attack, "nezikchened", 2, 30)
-            t.exec("fightNezikchenedAtSource-dead", t.npc.await_dead_engaged, 500, 60,
-                { eat = { item = "shark", below = 50 } })
+            do
+                local _, sharks_before = t.inv.count("shark")
+                local _, detail = t.exec("fightNezikchenedAtSource-dead", t.npc.await_dead_engaged, 500, 60,
+                    { eat = { item = "shark", below = 50 } })
+                local lowest = tonumber(tostring(detail):match("lowest hp (%d+)/"))
+                local _, sharks_left = t.inv.count("shark")
+                t.check("fightNezikchenedAtSource-margin", lowest ~= nil and lowest >= 25 and (sharks_left or 0) >= 1,
+                    "lowest hp " .. tostring(lowest) .. "/99, sharks " .. tostring(sharks_before) .. " -> " .. tostring(sharks_left)
+                    .. " (margin: lowest hp >= 25 AND sharks left >= 1)")
+            end
             settle_chat("fightNezikchenedAtSource-settle")
             t.ticks(1)
             t.expect("quest.stage.defeated_nezikchened_water", t.quest.expect_stage(22))
@@ -1952,9 +1968,70 @@ return {
                 return type(reading) == "table" and reading.level or 0
             end
 
+            -- Prayer does not regenerate: every point the final fight spends comes from a prayer potion.
+            -- Prayer 60 (setup) is 60 points; a dose restores 7 + 60/4 = 22. Protect from Melee drains
+            -- one point per 5 ticks at +0 prayer bonus (full rune), so a fight of T ticks costs T/5.
+            local potions = { "1doseprayerrestore", "2doseprayerrestore", "3doseprayerrestore", "4doseprayerrestore" }
+            local function doses_left()
+                local doses = 0
+                for size, pot in ipairs(potions) do
+                    local got, n = t.inv.count(pot)
+                    if got == "ok" and type(n) == "number" then doses = doses + size * n end
+                end
+                return doses
+            end
+            -- drink the smallest potion first until the points reach `want`; the row asserts they rose
+            local function drink_to(step, want)
+                local before = prayer_level()
+                local drank = 0
+                for _ = 1, 4 do
+                    if prayer_level() >= want then break end
+                    local pot
+                    for _, p in ipairs(potions) do
+                        local got, n = t.inv.count(p)
+                        if got == "ok" and type(n) == "number" and n > 0 then pot = p break end
+                    end
+                    if not pot then break end
+                    t.player.inv_op(pot, 1)
+                    t.ticks(3)
+                    drank = drank + 1
+                end
+                local after = prayer_level()
+                t.check(step, (drank > 0 and after > before and after >= want) or (drank == 0 and before >= want),
+                    "prayer " .. before .. " -> " .. after .. " after " .. drank .. " dose(s) (want >= " .. want
+                    .. "), doses left " .. doses_left())
+            end
+            local function melee_varbit()
+                local _, on = t.var.varbit("varb4118_prayer_protectfrommelee")
+                return on
+            end
+            -- Protect from Melee on if a dry prayer book switched it off; the row asserts it is on
+            local function protect_on(step)
+                if melee_varbit() ~= 1 then
+                    t.ui.tab("prayer")
+                    t.ticks(1)
+                    local widget_result, widget = t.ui.widget("prayerbook:prayer15")
+                    if widget_result == "ok" then t.ui.invoke(widget, 1) end
+                    t.ticks(2)
+                end
+                local on = melee_varbit()
+                t.check(step, on == 1, "prayer_protectfrommelee varbit " .. tostring(on) .. ", prayer " .. prayer_level())
+            end
+
             ---------------------------------------------------------------- the pack
             -- Quest Helper (useTotemOnTotem): the Yommi totem, combat gear, food and potions. The
             -- character wears full rune (setup); food is topped up here, four hero fights follow.
+            -- The spent lockpicks, swamp rocks and pickaxe of legs 2-7 fill the backpack first: with them
+            -- carried the sharks below take the last free slots and the two prayer potions never land
+            -- (leg.10.pack read sharks 11 and only leg 4's two potions, 2026-10-03).
+            for _, junk in ipairs({ "lockpick", "swamprocks1", "swamprocks2", "swamprocks3", "rune_pickaxe" }) do
+                for _ = 1, 4 do
+                    local got, remaining = t.inv.count(junk)
+                    if got ~= "ok" or remaining == 0 then break end
+                    t.player.drop(junk)
+                    t.ticks(1)
+                end
+            end
             t.cheat("::give shark 12")
             t.ticks(1)
             t.cheat("::give 4doseprayerrestore 2")
@@ -1967,12 +2044,22 @@ return {
                     "yommi totem pole " .. totem .. ", sharks " .. sharks .. ", 4-dose prayer restores " .. pots
                     .. ", prayer " .. prayer_level())
             end
+            -- the plan below drinks about 8 doses from an empty book (3 to fill, one before Irvig, one
+            -- before Ranalph, 3 after Nezikchened's arrival drain): carry at least 10
+            do
+                local doses = doses_left()
+                t.check("leg.10.pack-prayer", doses >= 10, "prayer potion doses " .. doses .. " (need >= 10), prayer "
+                    .. prayer_level() .. " of 60")
+            end
 
             ---------------------------------------------------------------- Protect from Melee
-            -- the guide: "Put Protect from Melee on" -- the prayer book's own button (prayerbook:prayer15)
+            -- the guide: "Put Protect from Melee on" -- the prayer book's own button (prayerbook:prayer15).
+            -- Fill the book first: it arrives empty (leg 4's fire chamber drains 90%, nothing regenerates)
+            drink_to("useTotemOnTotem-drink", 50)
             do
                 local tab_result, tab_detail = t.ui.tab("prayer")
                 t.check("useTotemOnTotem-prayertab", tab_result == "ok", "prayer tab -> " .. tostring(tab_result) .. " " .. tostring(tab_detail))
+                t.ticks(1) -- verbs-combat.md: the widget resolves a tick after the tab switch (the drink above left the inventory open)
             end
             do
                 local widget_result, widget = t.ui.widget("prayerbook:prayer15")
@@ -1991,18 +2078,45 @@ return {
             t.exec("useTotemOnTotem", t.player.use_on, "thtotempole", pole, { at = { 2852, 2917 } })
             settle_chat("useTotemOnTotem-settle")
 
-            local function hero(step, symbol)
+            -- `want`: drink up to it once the fighter is present (Nezikchened's arrival takes 75% of the
+            -- current Prayer, nezikchened.rs2:189, so his top-up waits for him); `need`: the points the
+            -- fight costs, from its length on the v3 run of 2026-10-03 (San 121, Irvig 113, Ranalph 147,
+            -- Nezikchened 269 ticks) at one point per 5 ticks
+            local function hero(step, symbol, want, need)
                 t.exec(step .. "-present", t.npc.await_present, symbol, 12, 40)
+                drink_to(step .. "-drink", want)
+                protect_on(step .. "-protect")
+                t.check(step .. "-prayer", prayer_level() >= need, "prayer " .. prayer_level() .. " (need >= " .. need
+                    .. " for the fight), doses left " .. doses_left())
+                local _, sharks_before = t.inv.count("shark")
                 t.exec(step, t.player.attack, symbol, 2, 30)
-                t.exec(step .. "-dead", t.npc.await_dead_engaged, 400, 30, { eat = { item = "shark", below = 50 } })
+                local _, detail = t.exec(step .. "-dead", t.npc.await_dead_engaged, 400, 30, { eat = { item = "shark", below = 50 } })
+                local lowest = tonumber(tostring(detail):match("lowest hp (%d+)/"))
+                local _, sharks_left = t.inv.count("shark")
+                t.check(step .. "-margin", lowest ~= nil and lowest >= 25 and (sharks_left or 0) >= 1,
+                    "lowest hp " .. tostring(lowest) .. "/99, sharks " .. tostring(sharks_before) .. " -> " .. tostring(sharks_left)
+                    .. ", prayer after " .. prayer_level() .. " (margin: lowest hp >= 25 AND sharks left >= 1)")
                 settle_chat(step .. "-settle")
             end
-            hero("killSan", "san_tojalon")
-            hero("killIrvig", "irvig_senay")
-            hero("killRanalph", "ranalph_devere")
-            hero("defeatDemon", "nezikchened")
+            hero("killSan", "san_tojalon", 45, 30)
+            hero("killIrvig", "irvig_senay", 45, 30)
+            hero("killRanalph", "ranalph_devere", 45, 35)
+            hero("defeatDemon", "nezikchened", 55, 55)
             t.ticks(2)
             t.expect("quest.stage.defeated_nezikchened_final", t.quest.expect_stage(35))
+            -- the rest of the leg is talk and travel: Protect from Melee off
+            do
+                if melee_varbit() == 1 then
+                    t.ui.tab("prayer")
+                    t.ticks(1)
+                    local widget_result, widget = t.ui.widget("prayerbook:prayer15")
+                    if widget_result == "ok" then t.ui.invoke(widget, 1) end
+                    t.ticks(2)
+                end
+                local on = melee_varbit()
+                t.check("defeatDemon-protectOff", on == 0, "prayer_protectfrommelee varbit " .. tostring(on) .. ", prayer " .. prayer_level()
+                    .. ", doses left " .. doses_left())
+            end
 
             ---------------------------------------------------------------- useTotemOnTotemAgain
             -- quest_legends.rs2:1817: stage 35 -> 40, the corrupted pole is replaced and Gujuo comes

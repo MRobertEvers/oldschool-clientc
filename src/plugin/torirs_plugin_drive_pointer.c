@@ -72,6 +72,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* See the file banner: defined in torirs_plugin_bridge.u.c (this group's
@@ -666,6 +667,222 @@ DrivePointer_PickPoint(struct App* app, struct DrivePickPoint* out_point)
         out_point->view_h = 0;
     }
     return DRIVE_OK;
+}
+
+/*
+ * SEAM uzer_stairs_press_aims_where_the_renderer_draws_the_model_not_at_the_
+ * stairwell_pit (matthew-mbp-m4-b66-seam1): WHERE ON SCREEN IS THIS ELEMENT'S
+ * MODEL DRAWN -- as candidate pixels to probe, never as an aim.
+ *
+ * drive_pointer_screen_position_loc aims at a loc's footprint centroid on the
+ * ground. For a model that is a rim round a hole that pixel is the hole:
+ * golem_insidestairs_top (model 6071, the Uzer ruin stairs) projects into the
+ * open stairwell, where nothing is drawn (TORIRS_PICK_DEBUG=all: zero hits,
+ * not even terrain), and the stairs are held only 75-105 px away -- outside
+ * the press hunt's +-64 px ladder, so every pose answered `covered`.
+ *
+ * The b65 fix MOVED the aim to a face centroid whenever its own reprojection
+ * said the origin was on no face, and broke five greens: a reprojection is not
+ * the renderer's pick (vampire's stairstop origin 416,241, which the renderer
+ * holds, was moved off the model). So this answers no question about the
+ * origin and moves nothing. It lists the screen centroids of the element's
+ * visible faces, nearest `origin` first, at least DRIVE_MODEL_POINT_SPACING px
+ * apart; pointer.lua probes them ONLY after the whole pose sweep and pixel
+ * hunt answered `covered`, and presses one only once the renderer's own
+ * pickset holds the element there (QD.drive._hover_probe). A wrong candidate
+ * costs a probe, never a press, and no press that landed before can move.
+ *
+ * Placement is re-derived the way app_overlay_outline_element_mesh_trans
+ * derives it (roll, pitch, yaw about the model origin, then the element's
+ * world_position) and projected through drive_pointer_project_point, the same
+ * camera app_world_project_at uses. Hidden faces (TORIDRAWHSL16_HIDDEN) are
+ * skipped because the renderer's per-face pick skips them; a face with a
+ * vertex behind the near plane is skipped as the pick skips a clipped one; a
+ * face whose doubled area is under DRIVE_MODEL_POINT_MIN_AREA2 is a sliver.
+ *
+ * DRIVE_NOT_FOUND: the element is not live (a runtime state -- the loc can be
+ * replaced between the hunt and this call). DRIVE_UNSUPPORTED: the handle is
+ * not a full model, or has no faces. DRIVE_NOT_VISIBLE: no face centroid lands
+ * inside the viewport.
+ */
+enum
+{
+    DRIVE_MODEL_POINT_SPACING = 6,
+    DRIVE_MODEL_POINT_MIN_AREA2 = 24,
+    DRIVE_MODEL_POINT_CAP = 32
+};
+
+struct DriveModelPoint
+{
+    int x;
+    int y;
+    long distance;
+};
+
+static int
+drive_pointer_model_point_compare(void const* a, void const* b)
+{
+    struct DriveModelPoint const* pa = a;
+    struct DriveModelPoint const* pb = b;
+    if( pa->distance != pb->distance )
+        return pa->distance < pb->distance ? -1 : 1;
+    if( pa->y != pb->y )
+        return pa->y < pb->y ? -1 : 1;
+    if( pa->x != pb->x )
+        return pa->x < pb->x ? -1 : 1;
+    return 0;
+}
+
+static int
+drive_pointer_model_vertex_screen(
+    struct App* app,
+    struct ToriDraw_Position const* at,
+    struct ToriDraw_Model const* model,
+    int vertex,
+    int* out_x,
+    int* out_y)
+{
+    long long vx = model->vertices_x[vertex];
+    long long vy = model->vertices_y[vertex];
+    long long vz = model->vertices_z[vertex];
+    long long tmp;
+
+    /* app_overlay_outline_element_mesh_trans's order: roll (Z), pitch (X),
+     * yaw (Y), 64-bit intermediates. */
+    if( at->roll != 0 )
+    {
+        long long s = ToriDraw_Sin(at->roll);
+        long long c = ToriDraw_Cos(at->roll);
+        tmp = (vy * s + vx * c) >> 16;
+        vy = (vy * c - vx * s) >> 16;
+        vx = tmp;
+    }
+    if( at->pitch != 0 )
+    {
+        long long s = ToriDraw_Sin(at->pitch);
+        long long c = ToriDraw_Cos(at->pitch);
+        tmp = (vy * c - vz * s) >> 16;
+        vz = (vy * s + vz * c) >> 16;
+        vy = tmp;
+    }
+    if( at->yaw != 0 )
+    {
+        long long s = ToriDraw_Sin(at->yaw);
+        long long c = ToriDraw_Cos(at->yaw);
+        tmp = (vz * s + vx * c) >> 16;
+        vz = (vz * c - vx * s) >> 16;
+        vx = tmp;
+    }
+    return drive_pointer_project_point(
+        app, at->x + (int)vx, at->z + (int)vz, at->y + (int)vy, out_x, out_y);
+}
+
+static enum DriveResult
+drive_pointer_model_points(
+    struct App* app,
+    int element_id,
+    int origin_x,
+    int origin_y,
+    struct DriveModelPoint* out,
+    int cap,
+    int* out_count,
+    int* out_faces)
+{
+    struct ToriDraw_SceneElement* element;
+    struct ToriDraw_Model const* model;
+    struct DriveModelPoint* all;
+    int all_count = 0;
+    int f;
+
+    assert(app);
+    assert(element_id >= 0);
+    assert(out);
+    assert(cap > 0);
+    assert(out_count);
+    assert(out_faces);
+    *out_count = 0;
+    *out_faces = 0;
+    if( !app->scene || !app->world || !app->world_view_valid )
+        return DRIVE_NOT_VISIBLE;
+    if( !ToriDraw_SceneElementIsLive(app->scene, element_id) )
+        return DRIVE_NOT_FOUND;
+    element = ToriDraw_SceneElementGet(app->scene, element_id);
+    assert(element);
+    if( !ToriDraw_ModelKindIsFull(element->model.kind) )
+        return DRIVE_UNSUPPORTED;
+    model = ToriDraw_ModelRead(element->model);
+    assert(model);
+    if( model->face_count <= 0 || model->vertex_count <= 0 )
+        return DRIVE_UNSUPPORTED;
+    assert(model->vertices_x);
+    assert(model->vertices_y);
+    assert(model->vertices_z);
+    assert(model->face_indices_a);
+    assert(model->face_indices_b);
+    assert(model->face_indices_c);
+    *out_faces = model->face_count;
+
+    all = malloc(sizeof(*all) * (size_t)model->face_count);
+    assert(all);
+    for( f = 0; f < model->face_count; f++ )
+    {
+        int a = (int)model->face_indices_a[f];
+        int b = (int)model->face_indices_b[f];
+        int c = (int)model->face_indices_c[f];
+        int ax, ay, bx, by, cx, cy;
+        long area2;
+        int sx, sy;
+
+        if( model->face_colors_c && model->face_colors_c[f] == TORIDRAWHSL16_HIDDEN )
+            continue;
+        if( a < 0 || b < 0 || c < 0 || a >= model->vertex_count || b >= model->vertex_count ||
+            c >= model->vertex_count )
+            continue;
+        if( !drive_pointer_model_vertex_screen(app, &element->world_position, model, a, &ax, &ay) ||
+            !drive_pointer_model_vertex_screen(app, &element->world_position, model, b, &bx, &by) ||
+            !drive_pointer_model_vertex_screen(app, &element->world_position, model, c, &cx, &cy) )
+            continue;
+        area2 = (long)(bx - ax) * (cy - ay) - (long)(by - ay) * (cx - ax);
+        if( area2 < 0 )
+            area2 = -area2;
+        if( area2 < DRIVE_MODEL_POINT_MIN_AREA2 )
+            continue;
+        sx = (ax + bx + cx) / 3;
+        sy = (ay + by + cy) / 3;
+        if( !drive_pointer_in_viewport(app, sx, sy) )
+            continue;
+        all[all_count].x = sx;
+        all[all_count].y = sy;
+        all[all_count].distance =
+            (long)(sx - origin_x) * (sx - origin_x) + (long)(sy - origin_y) * (sy - origin_y);
+        all_count++;
+    }
+    qsort(all, (size_t)all_count, sizeof(*all), drive_pointer_model_point_compare);
+    for( f = 0; f < all_count && *out_count < cap; f++ )
+    {
+        int k;
+        int near_kept = 0;
+        for( k = 0; k < *out_count; k++ )
+        {
+            int dx = all[f].x - out[k].x;
+            int dy = all[f].y - out[k].y;
+            if( dx < 0 )
+                dx = -dx;
+            if( dy < 0 )
+                dy = -dy;
+            if( dx < DRIVE_MODEL_POINT_SPACING && dy < DRIVE_MODEL_POINT_SPACING )
+            {
+                near_kept = 1;
+                break;
+            }
+        }
+        if( near_kept )
+            continue;
+        out[*out_count] = all[f];
+        (*out_count)++;
+    }
+    free(all);
+    return *out_count > 0 ? DRIVE_OK : DRIVE_NOT_VISIBLE;
 }
 
 /*
@@ -2575,6 +2792,48 @@ lua_drive_player_idle(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.model_points(element_id, origin_x, origin_y[, max=12]) ->
+ * (result, {faces = n, {x =, y =}, ...}). The screen centroids of the
+ * element's visible faces, nearest the origin first -- candidates to PROBE,
+ * never pixels to press; see drive_pointer_model_points. `faces` is the
+ * model's face count (0 when there is no model to read). */
+static int
+lua_drive_model_points(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int element_id = PluginDrive_ArgInt(L, 1);
+    int origin_x = PluginDrive_ArgInt(L, 2);
+    int origin_y = PluginDrive_ArgInt(L, 3);
+    int max = PluginDrive_ArgOptInt(L, 4, 12);
+    struct DriveModelPoint points[DRIVE_MODEL_POINT_CAP];
+    int count = 0;
+    int faces = 0;
+    enum DriveResult result;
+    int i;
+
+    assert(app);
+    if( element_id < 0 )
+        return luaL_error(L, "drive.model_points: element_id %d is not an element", element_id);
+    if( max < 1 || max > DRIVE_MODEL_POINT_CAP )
+        return luaL_error(L, "drive.model_points: max %d outside 1..%d", max, DRIVE_MODEL_POINT_CAP);
+    result = drive_pointer_model_points(
+        app, element_id, origin_x, origin_y, points, max, &count, &faces);
+    lua_pushstring(L, DriveResultName(result));
+    lua_createtable(L, count, 1);
+    lua_pushinteger(L, faces);
+    lua_setfield(L, -2, "faces");
+    for( i = 0; i < count; i++ )
+    {
+        lua_createtable(L, 0, 2);
+        lua_pushinteger(L, points[i].x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, points[i].y);
+        lua_setfield(L, -2, "y");
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 2;
+}
+
 
 static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"screen_position", lua_drive_screen_position},
@@ -2603,6 +2862,7 @@ static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"camera_state", lua_drive_camera_state},
     {"camera_events", lua_drive_camera_events},
     {"player_idle", lua_drive_player_idle},
+    {"model_points", lua_drive_model_points},
     {NULL, NULL},
 };
 

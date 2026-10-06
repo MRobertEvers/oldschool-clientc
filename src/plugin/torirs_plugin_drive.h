@@ -368,6 +368,13 @@ void PluginDriveChat_RegisterLua(struct lua_State* L, void* script); /* verbs-ch
 void PluginDriveRead_RegisterLua(struct lua_State* L, void* script); /* verbs-read */
 void PluginDrivePointer_RegisterLua(struct lua_State* L, void* script); /* verbs-pointer */
 void PluginDriveUi_RegisterLua(struct lua_State* L, void* script); /* verbs-ui */
+/* waves seam los_and_pack: api.drive.server_los / server_npc_pack
+ * (torirs_plugin_drive_los.c, over torirs_server_los_query.c). */
+void PluginDriveLos_RegisterLua(struct lua_State* L, void* script);
+/* waves seam npc_record_reads: api.drive.npc_record / seq_length / npc_pose
+ * (torirs_plugin_drive_record.c): an npc type's client and server record, a
+ * sequence's length as the client steps it, an npc's movement track. */
+void PluginDriveRecord_RegisterLua(struct lua_State* L, void* script);
 
 /*
  * Shared Lua argument helpers, defined in torirs_plugin_drive.c so six files
@@ -468,6 +475,8 @@ enum DriveSymbolKind
     DRIVE_SYMBOL_VARBIT,
     DRIVE_SYMBOL_STAT,
     DRIVE_SYMBOL_INV,
+    /* waves seam npc_record_reads: t.seq.length takes a seq symbol. */
+    DRIVE_SYMBOL_SEQ,
     DRIVE_SYMBOL_KIND_COUNT
 };
 

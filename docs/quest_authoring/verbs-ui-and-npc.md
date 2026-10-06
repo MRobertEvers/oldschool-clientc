@@ -21,6 +21,15 @@ A SKILL-MULTI MENU (the make-X picker a `use_on` on a potter's wheel opens) is
 `await_open("skillmulti")`, then `local r, cell = t.ui.widget("skillmulti:<letter>")` and
 `t.ui.invoke(cell, 1)`, then an `inv.await` on the product (`onesmallfavour.lua`'s spinPotLid).
 
+A SECOND `use_on` on the same station never settles (Swan Song, matthew-mbp-m4-b54). The first
+`use_on softclay` on the Crafting Guild wheel walks to it and settles `ok`. The second one, made
+from the tile the first left you on, opens `skillmulti` again but its row answers `timeout ...
+settle_after_click`: there is no walk and no chat page, and the click settle does not watch a
+skill-multi mount. A `t.ticks(4)` before it does not help. Call the second
+`t.player.use_on(...)` bare (not through `t.exec`) and make `t.ui.await_open("skillmulti", 10)`
+the row, then press the cell and `inv.await` the product as above
+(`test/quests/wip/swansong/round4_rejected.lua`, throwLid).
+
 #### Fade overlays (`eadgar.lua`)
 
 Worked example (`eadgar.lua`, the crate knockout): `await_open("fade_overlay")` FIRST -- it proves

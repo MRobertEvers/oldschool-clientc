@@ -175,3 +175,144 @@ and no map square places locs 19980-19984. So the game stands it up server-side,
 faithful mechanism; `bronze_room.rs2` now says so. Check the pristine cache before proposing a map
 row. Quest runs and JS5 read the pristine `cache.osrs239` (run.py `write_manifest`), never the
 `make torirsserver-cache` bake (`cache.osrs239.baked`), so a map row would be inert in a run anyway.
+
+## The Queen of Thieves: an uncooked stew cannot be cooked, so the stew is bought (matthew-mbp-m4-b53)
+
+O'Reilly wants a bowl of stew (Quest Helper `talkToOReilly`, item "Stew"). Making one gets as far
+as `uncooked_stew` (`skill_cooking/scripts/cooking_inv/scripts/stew.rs2`). But
+`skill_cooking/configs/cooking_generic.dbrow` has no row for it, so a range answers "You can't cook
+that." (`cooking.rs2` `[proc,attempt_cook]`, the `db_find(cooking_generic:uncooked, ...)` miss).
+The stew is a bring-along, so buying it is allowed: the Shayzien barman (`shayzien_barman`, op 3,
+shop `shayzien_pub`, The Cloak and Stagger, 1550,3560) sells one for 20 coins. The only setup
+`::give` is the coins. Once a `cooking_generic` row exists, cook the stew instead.
+
+## Only one of three `npc_add` ambush trolls appears (Swan Song, matthew-mbp-m4-b54; FIXED OSRS-Content f2902a94dd)
+
+FIXED by seam pass matthew-mbp-m4-b54-seam1: the offsets were written as `movecoord(coord, 2, 1, 0)`
+and `(-1, 2, 0)`, and `movecoord`'s middle argument is the LEVEL (LostCity ServerOps.ts:103-107),
+so trolls 2 and 3 stood on levels 1 and 2. Neither `npc_add` nor the map was the cause. See
+seam-facts: Seam pass matthew-mbp-m4-b54-seam1 (a); the rows are in `test/quests/wip/swansong/relay.md`.
+The original finding:
+
+
+`swansong_colony.rs2` `[proc,ssq_spawn_entrance_ambush]` (lines 119-123) calls `npc_add` three
+times for `swan_troll_ambush`: on `^ssq_entrance_ambush_coord`, at +2,+1 and at -1,+2. The client
+shows one troll (shots 030 and 032, and `t.npc.tiles` lists one copy), so `%varb2107` never
+reaches 3 and stage 50 cannot be reached. The test stops at `t.blocked` with `content_bug`. Not
+yet known: whether `npc_add` drops the two offset spawns or their tiles are blocked. Check that on
+the server first (the spawn tiles in the map's collision, and a server-side npc count after the
+proc). Do not work around it in the test.
+
+## Swan Song's entrance ambush: 3 trolls where the wiki has 8, and they despawn 50 ticks after entry (matthew-mbp-m4-b54; despawn FIXED OSRS-Content 1ef7c1e7b9)
+
+*The 50-tick despawn and the one-shot flag are FIXED (seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (c)): the trolls stay until killed, and a re-entry puts back the ones still owed. The 3-of-8 gap below stands.*
+
+This is a parity gap; the test does not need to work around it. The wiki says that inside
+the Colony grounds "you will be attacked by eight (8) level 79 Sea trolls" (Swan_Song revid
+15359363, "Battle at the Colony"). The port spawns three. `^ssq_trolls_needed` is 3, and the
+counter `%varb2107_swansong_trolls` has only 2 bits, so it cannot count to 8 without a wider
+varbit. Assert the port's 3 (`varb2107` reads 1, 2, 3, then stage 50). Note the gap in the
+test header; do not invent five more kills. Two things follow from the port's version:
+
+- `[proc,ssq_spawn_entrance_ambush]` calls `npc_add(..., 50)`, so each troll despawns 50 ticks
+  after it spawns. `varb2111_swansong_ambush=1` stops a second spawn, so a fight that runs past
+  about 50 ticks soft-locks stage 40. Kill the three without pausing; the measured run took
+  about 34 ticks (`test/quests/wip/swansong/relay.md`).
+- Malignius later wants 7 bones. With 3 ambush trolls, the rest have to come from later
+  trolls. Only one later troll exists (the one the first fishing cast wakes), so the trolls
+  leave 4 bones; see the next section for the other 3.
+
+## Swan Song: Franklin gives no hammer, and the trolls leave 4 of Malignius's 7 bones (matthew-mbp-m4-b54; hammer FIXED OSRS-Content 1ef7c1e7b9)
+
+*The hammer half is FIXED (seam-facts: Seam pass matthew-mbp-m4-b54-seam3 (d)): the hole no longer asks for one, and Franklin hands his over when you talk to him after lighting the firebox. Drop the general-store leg. The bones paragraph below stands.*
+
+*Origin: the matthew-mbp-m4-b54 round-4 review.*
+
+Quest Helper's hammer tooltip says "Franklin will give you one" (SwanSong.java:188). In the port
+nobody gives a hammer: no Swan Song script has an `inv_add` for one. The colony hole also refuses
+entry without it ("You'll want a hammer before heading in", `swansong_colony.rs2:109`), before you
+can reach Franklin. Quest Helper lists the hammer on `enterColony` too. So the hammer is bought in
+game, not given in setup: the Lumbridge general store (`generalshopkeeper1`, op 3, shop
+`generalshop1`) sells one for 1 coin. Setup gives only the coins.
+
+The bones tooltip says to pick them up from the sea trolls (SwanSong.java:154). The port has four
+sea trolls before Malignius: the three ambush trolls and the one the first fishing cast wakes. Each
+drops one `bones`, so three more are needed. Malignius asks for "the normal sort you get from
+people and small monsters", so kill three chickens (Lumbridge farm, `chicken_brown`) and pick up
+their bones. Do not `::give` bones.
+
+## Content gaps reviewers named in matthew-mbp-m4-b55
+
+*Origin: the matthew-mbp-m4-b55 reviews. Each line is a gap in the port, not in the test. Write it
+in the row and in doc_gaps, and never `::give`/`::setvar` around it.*
+
+- **The Hand in the Sand.** Rarve's sandpit cutscene is not ported. Entrana has no boat crossing and
+  no check that bans weapons, so Mazion is reached by `goto_tile` (parity notes). (The Port Sarim
+  monk's weapon search is FIXED: seam-facts, Seam pass matthew-mbp-m4-b59-seam1 (j).)
+- **Meat and Greet.** Emelio's "Trade" and the Spice Merchant's "Let's trade" open nothing, because
+  the shop stock files are not generated (PARITY.tsv row, `wiki_shop_owners.csv` regen).
+- **The Eyes of Glouphrie.** Brimstail hands out discs only while the stage is below
+  `^eyeglo_machine_ready` 35 (`eyeglo_quest.rs2:121-123`). He gives three random discs from an
+  18-disc pool (`random(18)`, `eyeglo_quest.rs2:403`), and none while you carry six or more. After
+  the front-panel unlock he has no disc line. So hold every disc the control panel needs BEFORE you
+  unlock it, using the exchanger to swap leftovers. Check the wiki before you report this as a bug.
+- **The Ascent of Arceuus.** Guide step `talkToArceuus` names Lord Trobin, but the content sends
+  you to Asteros (`[opnpc1,asteros_arceuus_vis]`, `ascentofarceuus.rs2:220`). Trobin talks only
+  at stage 13. The Favour reward and the Graceful recolour interface are not authored
+  (`aoa_leftover_*`). The Karuulm elevator lands at 1311,10188, not at the guide's 1312,10211
+  (Kaal's footprint).
+- **Another Slice of H.A.M.** (FIXED b55-seam1, OSRS-Content f97d2dcd59: the digs are the trowel USED
+  on the artefact and the cleaning an artefact used on the table; the route clicks end to end with
+  `::complete quest_losttribe`, whose trigger is on the hole's multiloc child -> seam-facts: Seam
+  pass matthew-mbp-m4-b55-seam1 (a)-(c).) `slice_artifact_hotspot_0N_1` (`configs/all.loc:256904`, "Artefact")
+  has no op1, so the menu offers only Examine. `[oploc1,slice_artifact_hotspot_0N]`
+  (`slice_tegdak.rs2:103-143`) never fires, and there is no `[oplocu]` for the trowel. Stage 2 to 3
+  cannot be driven (content_bug), and the stage 3-11 tail is still to be driven after the fix.
+  `[oploc1,cave_goblin_city_doorr]` refuses until Lost Tribe is complete
+  (`lotg_intro.rs2:67-71`), so setup needs `::complete quest_losttribe`, which the scaffold
+  leaves out. Nothing has a trigger on `lost_tribe_cellar_wall`. Guide steps 1.3 (Kazgar) and 1.4
+  (`climbThroughHole`) are therefore travelled with `goto_tile` and graded as content gaps.
+
+## A goto right after a fight hides a return teleport that never fired (H.A.M. watchtower, matthew-mbp-m4-b55 round 6; FIXED matthew-mbp-m4-b55-seam2)
+
+*Symptom: the stage advances after a kill and a mesbox says you head back, but the next row's
+`goto_tile` detail reads `from <the fight's tile>`. The content's own teleport did not run.*
+
+- **Another Slice of H.A.M.** When both H.A.M. rangers die, `slice_ham_rangers_check`
+  (`slice_hammage.rs2:110-115`) runs inside `[ai_queue3,slice_ham_archer]`. It shows "With both
+  ambushers down, you make your way back to report to the Generals." and sets stage 7, but
+  `p_teleport(^slice_generals_coord)` leaves the player on the tower top at 2447,5416,2. client.log
+  then prints `npc_findhero with no active npc` at `[proc,npc_default_death]` from
+  `slice_hammage.rs2:108`. The tower has no ladder down, so a real player is stranded there. The
+  committed test hid this with `goto-generals2`. The fix belongs in content: `queue()` a player
+  script for the mesbox, the teleport and the stage write, as seam-facts says for a `p_delay` in
+  an npc script (seam pass 21 (b), seam 37 (d)).
+- **For authors:** after a fight whose content should move you, read `t.world.tile()` and compare it
+  with the destination before any goto. A goto there is only travel when the content never meant
+  to move you.
+
+**FIXED (matthew-mbp-m4-b55-seam2, OSRS-Content 2ca4e77a52; seam-facts: Seam pass matthew-mbp-m4-b55-seam2).** `slice_hammage.rs2`: the death handlers do the npc's half only
+(flag, line, `~npc_default_death` with the npc still active) and `queue(slice_ham_rangers_return)` once
+both are dead at stage 6; that player script shows the mesbox, teleports to 2957,3512,0 and writes
+stage 7, and `slice_ham_combat_login` queues it again after a logout during the mesbox. The teleport
+is sourced: the second kill starts the kidnap cutscene, which ends at the generals (wiki
+Another_Slice_of_H.A.M. oldid 15292360; Transcript oldid 15263379 "Upon defeating the two H.A.M.
+members"; Quest Helper `talkToGeneralsAgain` at 2957,3512,0 straight after `killHamMageAndArcher`).
+Sigmund's death handler (`slice_sigmund.rs2`) had the same shape and now queues his parting line.
+Measured: `b55s2_slice_a` (mage first) and `b55s2_slice_b` (archer first) 148/0, `killHam.returned`
+`2957,3512,0` with no goto, no `npc_findhero with no active npc` in client.log.
+
+- **The shape to grep for in any quest:** a `[ai_queue<n>,...]` that binds `npc_findhero` and then
+  reaches `~mesbox`/`~chatnpc*`/`~chatplayer`/`p_delay` BEFORE `~npc_default_death`.
+  `tools/check_npc_script_player_suspend.py` does not catch it (it flags only a suspend with no
+  player bound). Queue the player's half; write any stage the kill decides in the npc's half or
+  in the queued script, never after a page.
+
+## An `npc_add` duration shorter than the fight despawns the npc mid-fight (Spirits of the Elid, matthew-mbp-m4-b68; FIXED b68-seam2, OSRS-Content 99061aaa2e)
+
+Swan Song's ambush trolls (50 ticks, FIXED b54-seam3) and Spirits of the Elid's door golems
+(50 ticks, FIXED b68-seam2) both despawned while the player was still fighting them, and the kill
+wait graded the despawn a kill by ABSENCE until b68-seam2 (it now answers `despawned`). When a
+quest npc's `npc_add` duration is shorter than its fight and no source names a timer, the content
+fix is 3000 ticks (walk-away clean-up only), with the sources cited at the constant
+(seam-facts: Seam pass matthew-mbp-m4-b68-seam2 (a)).

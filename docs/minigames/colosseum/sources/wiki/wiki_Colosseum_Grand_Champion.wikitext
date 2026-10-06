@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Colosseum Grand Champion
+|image = [[File:Sol Heredit.png|150px]]
+|release = [[17 April]] [[2024]]
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|members = Yes
+|description = Defeat Sol Heredit 10 times.
+|tier = Grandmaster
+|monster = Fortis Colosseum
+|type = Kill Count
+|id = 539
+|leagueRegion = Varlamore
+}}
+'''Colosseum Grand Champion''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to defeat [[Sol Heredit]] 10 times.
+
+==Other tasks==
+{{Combat Achievements list|Fortis Colosseum}}
+
+{{Combat Achievements}}

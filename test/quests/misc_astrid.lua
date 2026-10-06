@@ -2,7 +2,7 @@
 -- OSRS-Content/osrs239-content/server/scripts/quests/quest_misc/scripts/
 --   misc_king_vargas.rs2, misc_princess_astrid.rs2, misc_prince_brand.rs2,
 --   misc_queen_sigrid.rs2, misc_advisor_ghrim.rs2, misc_giant_nib.rs2,
---   misc_courting_emotes.rs2, misc_debug.rs2
+--   misc_courting_emotes.rs2, misc_door_guard.rs2, misc_debug.rs2
 -- and areas/area_miscellania/scripts/{flower_girl,derrik,lumberjack_leif}.rs2
 --
 -- Second Miscellania test (QUEUE.tsv last_failure): misc.lua already drives
@@ -16,16 +16,30 @@
 -- misc_prince_brand.rs2:23 -- fires for either partner, so getAnthem below
 -- is still driven, not a gap).
 --
+-- Travel (door rule, owner 2026-10-03): every door, stair and the throne
+-- room's guarded door is clicked on every visit, going in and coming out.
+-- The only gotos are overland hops between open outdoor tiles: Camelot (a
+-- Camelot Teleport cast by click from Lumbridge, past the Taverley members'
+-- gate) -> Rellekka's docks, where the viking sailor's
+-- longship (viking_sailor.rs2, gated on The Fremennik Trials) carries the
+-- player to the Miscellania dock; dock -> outside the castle gate; and
+-- between the castle gate, the Etceteria castle's west door, Derrik's house
+-- door and Lumberjack Leif, which the static map joins on foot.
+-- The castles' routes (doors read off maps/m39_60 and m40_60, landings from
+-- royaltrouble's own selftest ledger) are the helpers below:
+--   Miscellania L0: gate castledoor 2510,3860 -> entry hall -> castledoor
+--     2505,3860 -> main hall -> castledoor 2506,3851 -> spiralstairs_wooden
+--     2505,3848 -> L1 landing -> castledoor 2506,3851 (L1 copy) -> south
+--     corridor -> misc_ulby_throneroomdoor 2506,3857 -> throne room (Vargas,
+--     Ghrim). The north throne door 2506,3863 opens on the north corridor,
+--     where castledoor 2504,3867 is Astrid's room; castledoor 2504,3853 off
+--     the south corridor is Brand's.
+--   Etceteria L0: castledoor 2608,3875 -> corridor -> castledoor 2611,3866 ->
+--     spiralstairs 2613,3867 -> L1 -> castledoor 2615,3870 -> Sigrid.
 -- Access: misc_door_guard.rs2 hard-gates the throne room on %heroquest =
 -- ^hero_complete (Heroes' Quest, unported -- ::complete quest_heroes in
--- setup). goto_tile teleports straight past the door/guard and every
--- spiralstairs the same way it climbs stairs elsewhere in this pack
--- (QUEST_AUTHORING.md section 2) -- Vargas/Astrid/Brand/Ghrim (all level 1)
--- and the flower girl/Derrik/Leif (level 0) are each reached by a single
--- goto_tile at their own *.spawn tile; helper_coverage.py grades every
--- "go up/down stairs" Quest Helper step TRAVEL (merged into the step it
--- leads to) with no row of its own, confirmed against misc.lua's own
--- coverage run.
+-- setup); before the quest starts the first press of the throne room door
+-- is the guard's "Halt! Who goes there?" chat, which grants the audience.
 --
 -- Courting partner: Princess Astrid (%misc_partner_multivar = 0). Her ladder
 -- (misc_princess_astrid.rs2) is the mirror of Brand's: talk1 (flowers
@@ -35,7 +49,8 @@
 -- (ends "Truly?") -> Blow Kiss emote (real, same hook) -> give a ring
 -- (opnpcu) -> %misc_acceptedtorule = 1.
 --
--- Items: flowers (misc_flowergirl, 15gp, bought live below) are the only
+-- Items: flowers (misc_flowergirl, 15gp, bought live below -- first, as the
+-- guide's getFlowers step 1.2 does, so Astrid is visited once) are the only
 -- courting/anthem/pen ingredient actually sold in the quest area itself;
 -- the bow, iron bar, logs and ring are bring-along materials the same way
 -- Advisor Ghrim's own reputation item already is (setup, not driven).
@@ -64,6 +79,7 @@
 return {
     id = "misc_astrid",
     fixture = "fresh_lumbridge.ini",
+    max_frames = 300000, -- six round trips into the castle and three to Etceteria, every door and stair walked
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so everything below fits
         "::give coins 20", -- misc_flowergirl wants 15gp for three flowers
@@ -74,6 +90,10 @@ return {
         "::setlevel woodcutting 45", -- the maple row's own level gate (woodcutting_trees), also Ghrim's reputation-tool level for the real support grind
         "::give bronze_axe 1", -- the real axe ::misc_earnapproval's ~woodcutting_axe_checker needs
         "::complete quest_heroes", -- misc_door_guard.rs2's hard gate: %heroquest = ^hero_complete
+        "::complete quest_fremenniktrials", -- the Rellekka longship's gate (viking_sailor.rs2 ride offer) and the quest's own requirement
+        "::setlevel magic 45", -- Camelot Teleport (magic_spells.dbrow [magic_spell_teleport_camelot]: level 45, 5 air + 1 law)
+        "::give airrune 5", -- one Camelot Teleport: Lumbridge -> Camelot, past the Taverley members' gate, on the way to Rellekka
+        "::give lawrune 1",
     },
 
     run = function(t)
@@ -100,8 +120,272 @@ return {
         t.ticks(3) -- setup cheats (::give, ::complete) are not client-side yet
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
+        -- ------------------------------------------------ travel helpers
+        local function tile_text(r, tt)
+            if r == "ok" and type(tt) == "table" then
+                return tt.x .. "," .. tt.z .. "," .. tt.level
+            end
+            return tostring(r)
+        end
+
+        -- A box test on the player's tile: level, then x and z ranges.
+        local function inside(tt, level, x0, x1, z0, z1)
+            return type(tt) == "table" and tt.level == level
+                and tt.x >= x0 and tt.x <= x1 and tt.z >= z0 and tt.z <= z1
+        end
+
+        -- Wait for a teleport the click queued (a stair climb, the throne
+        -- room door's walk-through) to land; the row after reads the tile.
+        local function await_tile(pred, ticks, what)
+            return t.await({
+                level = function()
+                    local r, tt = t.world.tile()
+                    return r == "ok" and pred(tt)
+                end,
+                note = what .. ": waiting for the landing",
+            }, ticks)
+        end
+
+        -- A door that opens in place (castledoor <-> opencastledoor,
+        -- viking_abode_door <-> viking_abode_door_open: doors.loc
+        -- next_loc_stage; doors.rs2 ~door_open_active is loc_del(500) of
+        -- the closed leaf + loc_add(500) of the open one), crossed with the
+        -- driver's t.player.pass_door (b59-seam1): walk to the near side,
+        -- press the CLOSED leaf by tile AND level (both castles stack a
+        -- castledoor on levels 0 and 1 at one x,z) or, when it already
+        -- stands open, assert the open leaf on this level; walk to the far
+        -- side and grade the tile; then CLOSE it behind you (close = true:
+        -- the open leaf pressed on this level, the closed leaf graded back
+        -- on the door tile, the far tile graded again).
+        --
+        -- Why close it: round-1 runs 1 and 2 lost the castle gate at
+        -- vargas6.castleGateIn -- pressed open at vargas4, its 500-tick
+        -- revert fired while the player was ~40 tiles east at Derrik's and
+        -- Leif's, and the client drew neither leaf on the way back
+        -- (engine-side, fixed in 273db6393). Closing every door behind you
+        -- also keeps Derrik's own door leaf off his corner (round-1 run2:
+        -- "I can't reach that!" with viking_abode_door_open on 2551,3894).
+        local function pass_door(name, closed_sym, open_sym, door_x, door_z, level, near_x, near_z, far_x, far_z, far_ok, far_desc)
+            t.exec(name, t.player.pass_door, {
+                closed = closed_sym, open = open_sym,
+                at = { door_x, door_z, level }, near = { near_x, near_z }, far = { far_x, far_z },
+                far_ok = far_ok, far_desc = far_desc, close = true, ticks = 30,
+            })
+        end
+
+        local function castle_door(prefix, door_x, door_z, level, near_x, near_z, far_x, far_z, far_ok, far_desc)
+            pass_door(prefix, "castledoor", "opencastledoor", door_x, door_z, level, near_x, near_z, far_x, far_z, far_ok, far_desc)
+        end
+
+        -- A spiral staircase: click the named copy, wait for the plane to
+        -- change, and check the landing is the staircase's own foot or head
+        -- (within 2 tiles of `want_x,want_z`) on `want_level`.
+        local function climb(name, sym, op, loc_x, loc_z, loc_level, want_x, want_z, want_level)
+            local sr, st = t.world.tile()
+            local cr, cd = t.player.click_loc(sym, op, { at = { loc_x, loc_z, loc_level } })
+            await_tile(function(tt) return tt.level == want_level end, 12, name)
+            local wr, wt = t.world.tile()
+            t.check(name, (cr == "ok" or cr == "timeout") and sr == "ok" and st.level == loc_level
+                and wr == "ok" and wt.level == want_level
+                and math.abs(wt.x - want_x) <= 2 and math.abs(wt.z - want_z) <= 2,
+                "from " .. tile_text(sr, st) .. " click_loc(" .. sym .. " op" .. op .. " at " .. loc_x .. "," .. loc_z .. "," .. loc_level
+                    .. ") -> " .. tostring(cr) .. " " .. tostring(cd) .. "; landed " .. tile_text(wr, wt)
+                    .. " (want within 2 of " .. want_x .. "," .. want_z .. "," .. want_level .. ")")
+        end
+
+        -- The throne room door (misc_door_guard.rs2 ~misc_ulby_walk_door):
+        -- a walk-through teleport, never left open, so it is pressed on
+        -- every crossing. A one-tile walk-through can answer `timeout
+        -- settle_after_click` on a crossing that landed (start-and-travel:
+        -- "A short hop (stiles) does not trip it"), so the row is graded on
+        -- the tiles: not on the far side before the click, on it after.
+        local function throne_door(name, door_z, near_x, near_z, far_ok, far_desc)
+            t.player.walk_to(near_x, near_z, 30)
+            local br, bt = t.world.tile()
+            local cr, cd = t.player.click_loc("misc_ulby_throneroomdoor", 1, { at = { 2506, door_z, 1 } })
+            await_tile(far_ok, 10, name)
+            local wr, wt = t.world.tile()
+            t.check(name, (cr == "ok" or cr == "timeout") and br == "ok" and not far_ok(bt) and wr == "ok" and far_ok(wt),
+                "from " .. tile_text(br, bt) .. " click_loc(misc_ulby_throneroomdoor at 2506," .. door_z .. ",1) -> "
+                    .. tostring(cr) .. " " .. tostring(cd) .. "; world.tile -> " .. tile_text(wr, wt) .. " (want " .. far_desc .. ")")
+        end
+
+        -- Regions (static map, doors closed).
+        local function misc_outside(tt) return type(tt) == "table" and tt.level == 0 and tt.x >= 2511 end
+        local function misc_entry_hall(tt) return inside(tt, 0, 2505, 2510, 3857, 3863) end
+        local function misc_main_hall(tt) return inside(tt, 0, 2498, 2504, 3852, 3868) end
+        local function misc_south_stair_room(tt) return inside(tt, 0, 2504, 2508, 3846, 3851) end
+        local function misc_main_hall_south(tt) return inside(tt, 0, 2498, 2507, 3852, 3868) end
+        local function misc_south_landing(tt) return inside(tt, 1, 2503, 2508, 3846, 3851) end
+        local function misc_south_corridor(tt) return inside(tt, 1, 2505, 2507, 3852, 3856) end
+        local function misc_north_corridor(tt) return inside(tt, 1, 2505, 2507, 3864, 3868) end
+        local function misc_throne_room(tt) return inside(tt, 1, 2498, 2510, 3857, 3863) end
+        local function misc_astrid_room(tt) return inside(tt, 1, 2499, 2504, 3866, 3871) end
+        local function misc_brand_room(tt) return inside(tt, 1, 2499, 2504, 3849, 3854) end
+        local function etc_outside(tt) return type(tt) == "table" and tt.level == 0 and tt.x <= 2607 end
+        local function etc_corridor(tt) return inside(tt, 0, 2608, 2611, 3865, 3885) end
+        local function etc_stair_room(tt) return inside(tt, 0, 2612, 2617, 3865, 3870) end
+        local function etc_landing(tt) return inside(tt, 1, 2612, 2617, 3865, 3870) end
+        local function etc_sigrid_room(tt) return inside(tt, 1, 2610, 2617, 3871, 3879) end
+        local function derrik_house(tt) return inside(tt, 0, 2548, 2552, 3894, 3898) end
+        local function derrik_outside(tt) return type(tt) == "table" and tt.level == 0 and tt.z <= 3893 end
+
+        local MISC_GATE_X, MISC_GATE_Z = 2513, 3860 -- open ground east of the castle gate
+        local ETC_GATE_X, ETC_GATE_Z = 2606, 3875 -- open ground west of the Etceteria castle's west door
+        local DERRIK_X, DERRIK_Z = 2551, 3891 -- open ground south of Derrik's door
+
+        -- Miscellania castle: outside the gate -> main hall (L0), and back.
+        local function misc_castle_in(p)
+            castle_door(p .. ".castleGateIn", 2510, 3860, 0, 2511, 3860, 2508, 3860, misc_entry_hall, "the entry hall, x 2505-2510 z 3857-3863 level 0")
+            castle_door(p .. ".hallDoorIn", 2505, 3860, 0, 2505, 3860, 2503, 3860, misc_main_hall, "the main hall, x <= 2504 level 0")
+        end
+        local function misc_castle_out(p)
+            castle_door(p .. ".hallDoorOut", 2505, 3860, 0, 2504, 3860, 2507, 3860, misc_entry_hall, "the entry hall, x 2505-2510 level 0")
+            castle_door(p .. ".castleGateOut", 2510, 3860, 0, 2510, 3860, MISC_GATE_X, MISC_GATE_Z, misc_outside, "outside the gate, x >= 2511 level 0")
+        end
+        -- Main hall (L0) -> south corridor (L1) by the south spiral staircase, and back.
+        local function misc_south_up(p)
+            castle_door(p .. ".southStairDoor", 2506, 3851, 0, 2506, 3852, 2506, 3850, misc_south_stair_room, "the south stair room, z <= 3851 level 0")
+            climb(p .. ".southStairsUp", "spiralstairs_wooden", 1, 2505, 3848, 0, 2504, 3849, 1)
+            castle_door(p .. ".southLandingDoor", 2506, 3851, 1, 2506, 3851, 2506, 3853, misc_south_corridor, "the south corridor, x 2505-2507 z 3852-3856 level 1")
+        end
+        local function misc_south_down(p)
+            castle_door(p .. ".southLandingDoor", 2506, 3851, 1, 2506, 3852, 2506, 3850, misc_south_landing, "the south stair landing, z <= 3851 level 1")
+            climb(p .. ".southStairsDown", "spiralstairsmiddle_wooden", 3, 2505, 3848, 1, 2505, 3850, 0)
+            castle_door(p .. ".southStairDoor", 2506, 3851, 0, 2506, 3851, 2506, 3853, misc_main_hall_south, "the main hall, z >= 3852 level 0")
+        end
+        local function throne_in_south(p)
+            throne_door(p .. ".throneDoorIn", 3857, 2506, 3855, misc_throne_room, "the throne room, z 3857-3863 level 1")
+        end
+        local function throne_out_south(p)
+            throne_door(p .. ".throneDoorOut", 3857, 2506, 3858, misc_south_corridor, "the south corridor, z <= 3856 level 1")
+        end
+        local function throne_in_north(p)
+            throne_door(p .. ".throneDoorIn", 3863, 2506, 3865, misc_throne_room, "the throne room, z 3857-3863 level 1")
+        end
+        local function throne_out_north(p)
+            throne_door(p .. ".throneDoorOut", 3863, 2506, 3862, misc_north_corridor, "the north corridor, z >= 3864 level 1")
+        end
+        -- Outside the gate -> the throne room, and back out.
+        local function to_vargas(p)
+            misc_castle_in(p)
+            misc_south_up(p)
+            throne_in_south(p)
+        end
+        local function from_throne_room(p)
+            throne_out_south(p)
+            misc_south_down(p)
+            misc_castle_out(p)
+        end
+
+        -- Etceteria castle: outside its west door -> Queen Sigrid's room (L1), and back.
+        local function etc_in(p)
+            castle_door(p .. ".etcGateIn", 2608, 3875, 0, 2607, 3875, 2609, 3874, etc_corridor, "the castle corridor, x 2608-2611 level 0")
+            castle_door(p .. ".etcStairDoorIn", 2611, 3866, 0, 2611, 3866, 2613, 3866, etc_stair_room, "the stair room, x 2612-2617 z 3865-3870 level 0")
+            climb(p .. ".etcStairsUp", "spiralstairs", 1, 2613, 3867, 0, 2614, 3867, 1)
+            castle_door(p .. ".sigridDoorIn", 2615, 3870, 1, 2615, 3870, 2614, 3873, etc_sigrid_room, "Queen Sigrid's room, z 3871-3879 level 1")
+        end
+        local function etc_out(p)
+            castle_door(p .. ".sigridDoorOut", 2615, 3870, 1, 2615, 3871, 2615, 3869, etc_landing, "the stair landing, z <= 3870 level 1")
+            climb(p .. ".etcStairsDown", "spiralstairstop", 1, 2614, 3867, 1, 2614, 3866, 0)
+            castle_door(p .. ".etcStairDoorOut", 2611, 3866, 0, 2612, 3866, 2610, 3866, etc_corridor, "the castle corridor, x <= 2611 level 0")
+            castle_door(p .. ".etcGateOut", 2608, 3875, 0, 2608, 3875, ETC_GATE_X, ETC_GATE_Z, etc_outside, "outside the west door, x <= 2607 level 0")
+        end
+        -- The overland hops between the two castles (open ground, joined on foot).
+        local function to_etceteria(name)
+            t.exec(name, t.player.goto_tile, ETC_GATE_X, ETC_GATE_Z, 0)
+        end
+        local function to_miscellania(name)
+            t.exec(name, t.player.goto_tile, MISC_GATE_X, MISC_GATE_Z, 0)
+        end
+
+        -- ---------------------------------------------------- flowers first (guide getFlowers)
+        -- ---------------------------------------------------- travelToMisc: the longship
+        -- The guide's travelToMisc. Lumbridge -> Rellekka on foot crosses the
+        -- Taverley members' gate (reach.py 3206,3233 -> 2629,3691: NEEDS-DOOR
+        -- via membergater 2933,3320 at margins 30/80/160; sampler ruling b59
+        -- (a)), so the player uses what a player uses: Camelot Teleport by
+        -- click from the spellbook, graded on three rows -- the cast's own
+        -- answer, the exact runes it took (magic_spells.dbrow
+        -- [magic_spell_teleport_camelot]: 5 air, 1 law) and the landing
+        -- (tele_coord 2757,3478,0, map_findsquare within 2: teleport.rs2
+        -- [label,magic_teleport]). Then an overland goto from Camelot to
+        -- Rellekka's open docks (reach.py 2757,3478 -> 2629,3691: REACH with
+        -- doors closed), and the sailor rows the rest. viking_sailor.rs2's [label,viking_sailor_
+        -- ride_offer] (gated on The Fremennik Trials, completed in setup)
+        -- asks "Can I get a ride on your ship?", the "Let's go!" choice runs
+        -- [label,viking_sailor_sail]: p_telejump to the Miscellania dock
+        -- 2581,3845,0, then ~mesbox("The ship arrives at Miscellania.").
+        -- Graded on the tiles: on Rellekka's docks before, on the dock after.
+        local tp_air_result, tp_air0 = t.inv.count("airrune")
+        local tp_law_result, tp_law0 = t.inv.count("lawrune")
+        local tp_result, tp_detail = t.player.cast("camelot_teleport")
+        t.check("camelotTeleport.cast", tp_result == "ok" and string.find(tostring(tp_detail), "TELEPORTED", 1, true) ~= nil,
+            "cast camelot_teleport -> " .. tostring(tp_result) .. " " .. tostring(tp_detail) .. " (want ok TELEPORTED)")
+        t.ticks(1)
+        local tp_air_after_result, tp_air1 = t.inv.count("airrune")
+        local tp_law_after_result, tp_law1 = t.inv.count("lawrune")
+        t.check("camelotTeleport.runes", tp_air_result == "ok" and tp_law_result == "ok" and tp_air_after_result == "ok"
+                and tp_law_after_result == "ok" and tp_air0 == 5 and tp_air1 == 0 and tp_law0 == 1 and tp_law1 == 0,
+            "airrune " .. tostring(tp_air0) .. " -> " .. tostring(tp_air1) .. ", lawrune " .. tostring(tp_law0) .. " -> "
+                .. tostring(tp_law1) .. " (want 5 -> 0 and 1 -> 0)")
+        local tp_tile_result, tp_tile = t.world.tile()
+        t.check("camelotTeleport.landed", tp_tile_result == "ok" and tp_tile.level == 0
+                and math.abs(tp_tile.x - 2757) <= 2 and math.abs(tp_tile.z - 3478) <= 2,
+            "landed " .. tile_text(tp_tile_result, tp_tile) .. " (want within 2 of 2757,3478,0)")
+        t.exec("goto-rellekka-docks", t.player.goto_tile, 2629, 3691, 0)
+        local dock_before_result, dock_before = t.world.tile()
+        t.exec("travelToMisc", t.player.talk_to, "viking_sailor", 1)
+        t.exec("travelToMisc-dialog", t.chat.play, {
+            "player:Hello. Can I get a ride on your ship?",
+            "npc:If you're ready to jump aboard",
+            "choose:Let's go!",
+            "player:Let's go!",
+        })
+        await_tile(function(tt) return tt.x == 2581 and tt.z == 3845 and tt.level == 0 end, 15, "travelToMisc")
+        local dock_after_result, dock_after = t.world.tile()
+        t.check("travelToMisc.landed",
+            dock_before_result == "ok" and inside(dock_before, 0, 2600, 2660, 3660, 3720)
+                and dock_after_result == "ok" and dock_after.x == 2581 and dock_after.z == 3845 and dock_after.level == 0,
+            "before the ride " .. tile_text(dock_before_result, dock_before) .. " (want Rellekka, x 2600-2660 z 3660-3720 level 0); after "
+                .. tile_text(dock_after_result, dock_after) .. " (want the Miscellania dock 2581,3845,0, viking_sailor.rs2 p_telejump)")
+        t.exec("travelToMisc-arrive", t.chat.play, { "mesbox:The ship arrives at Miscellania.", "end" })
+        -- Dock -> outside the castle gate: open ground on one island
+        -- (reach.py 2581,3845 -> 2513,3860 level 0: REACH with doors closed
+        -- at margins 30/80/160, 83 steps), so this hop is travel.
+        t.exec("goto-misc", t.player.goto_tile, MISC_GATE_X, MISC_GATE_Z, 0)
+        t.exec("buyFlowers", t.player.talk_to, "misc_flowergirl", 1)
+        t.exec("buyFlowers-dialog", t.chat.play, {
+            "npc:Hello.",
+            "player:Good day. What are you doing?",
+            "npc:I'm selling flowers, 15gp for three",
+            "choose:Yes, please.",
+            "player:Yes, please",
+            "npc:Thank you! Here you go.",
+        })
+        local flowers_await_result, flowers_await_detail = t.inv.await("flowers_waterfall_quest", 1, 10)
+        t.check("inv.gotFlowers", flowers_await_result == "ok",
+            "inv.await(flowers_waterfall_quest,1) -> " .. tostring(flowers_await_result) .. " " .. tostring(flowers_await_detail))
+
         -- ---------------------------------------------------- King Vargas: offer
-        t.exec("goto-vargas1", t.player.goto_tile, 2501, 3859, 1)
+        t.player.walk_to(MISC_GATE_X, MISC_GATE_Z, 30)
+        misc_castle_in("vargas1")
+        misc_south_up("vargas1")
+        -- Before the quest starts (%misc_quest 0, %misc_grantedaudience 0)
+        -- the throne room door is the guard's: misc_door_guard.rs2
+        -- [oploc1,misc_ulby_throneroomdoor] runs @doornotyetpass while
+        -- misc_ulby_doorguard stands within 5 tiles, and that chat's last
+        -- line sets %misc_grantedaudience = 1. The next press walks through.
+        t.player.walk_to(2506, 3855, 30)
+        t.exec("throneGuard", t.player.click_loc, "misc_ulby_throneroomdoor", 1, { at = { 2506, 3857, 1 } })
+        t.exec("throneGuard-dialog", t.chat.play, {
+            "npc:Halt! Who goes there?",
+            "player:My name is",
+            "npc:I'm afraid the King won't give an audience",
+            "player:I am a member of the Heroes' Guild",
+            "npc:Then you may pass.",
+        })
+        throne_in_south("vargas1")
         t.exec("talkVargas1", t.player.talk_to, "misc_king_vargas", 1)
         t.exec("talkVargas1-dialog", t.chat.play, {
             "player:You wanted to see me, Your Maj",
@@ -132,7 +416,28 @@ return {
         -- BRANCH-IN: misc useRingOnBrand Astrid was courted here, the mutually exclusive choice; misc.lua drives the Brand branch (misc_prince_brand.rs2:132)
 
         -- ---------------------------------------------------- courting Astrid
-        t.exec("goto-astrid1", t.player.goto_tile, 2502, 3868, 1)
+        -- The throne room's north door opens on the north corridor, where
+        -- Astrid's room is: no stairs between them.
+        throne_out_north("astrid")
+        -- Astrid's door is the one door left OPEN while the player is inside:
+        -- she wanders (m39_60.spawn 2502,3868,1, default wander range) and
+        -- r3 run1 shut her out -- she stepped into the north corridor in the
+        -- ticks the door stood open behind the player, the close cut her
+        -- off, and every talk_to/use_on answered "I can't reach that!". Open
+        -- while the player is in the room, she is reachable wherever she
+        -- strays (the emote hook's npc_find radius 5 round ^misc_astrid_coord
+        -- covers the corridor). vargas2.astridDoorOut below walks out
+        -- through it (graded on the open leaf, or pressed if its 500-tick
+        -- revert shut it) and closes it behind.
+        t.exec("astrid.astridDoorIn", t.player.pass_door, {
+            closed = "castledoor", open = "opencastledoor",
+            at = { 2504, 3867, 1 }, near = { 2505, 3867 }, far = { 2503, 3868 },
+            far_ok = misc_astrid_room, far_desc = "Princess Astrid's room, x 2499-2504 z 3866-3871 level 1", ticks = 30,
+        })
+        local astrid_tiles_result, astrid_tiles = t.npc.tiles("misc_princess_astrid", 10)
+        local astrid_here_result, astrid_here = t.world.tile()
+        t.note("before talkAstrid1: player " .. tile_text(astrid_here_result, astrid_here) .. "; Astrid "
+            .. tostring(astrid_tiles_result) .. " " .. tostring(astrid_tiles))
         -- content-parity fix: Vargas now sets %misc_affection to
         -- not_started (not step0), so this FIRST visit reads astrid_talk1,
         -- the five-line courtship intro (Quest Helper's own talkAstrid1 step).
@@ -145,21 +450,6 @@ return {
             "npc:It's kind of you to listen. If you brought me some flowers",
         })
 
-        t.exec("goto-flowergirl", t.player.goto_tile, 2514, 3866, 0)
-        t.exec("buyFlowers", t.player.talk_to, "misc_flowergirl", 1)
-        t.exec("buyFlowers-dialog", t.chat.play, {
-            "npc:Hello.",
-            "player:Good day. What are you doing?",
-            "npc:I'm selling flowers, 15gp for three",
-            "choose:Yes, please.",
-            "player:Yes, please",
-            "npc:Thank you! Here you go.",
-        })
-        local flowers_await_result, flowers_await_detail = t.inv.await("flowers_waterfall_quest", 1, 10)
-        t.check("inv.gotFlowers", flowers_await_result == "ok",
-            "inv.await(flowers_waterfall_quest,1) -> " .. tostring(flowers_await_result) .. " " .. tostring(flowers_await_detail))
-
-        t.exec("goto-astrid2", t.player.goto_tile, 2502, 3868, 1)
         -- misc_princess_astrid.rs2's opnpcu flowers case ends in a plain
         -- mes() line (a chat-log message, not a ~mesbox), so use_on's own
         -- settle (new chat line / backpack change) is the whole of the row
@@ -182,7 +472,6 @@ return {
         t.exec("danceForAstrid", t.player.emote, "dance")
         t.expect("affection.s1_step5", t.var.expect("varb73_misc_affection", 15))
 
-        astrid = t.player.by_symbol("npc", "misc_princess_astrid")
         t.exec("talkAstrid2", t.player.talk_to, "misc_princess_astrid", 1)
         t.exec("talkAstrid2-dialog", t.chat.play, {
             "player:What happened next?",
@@ -226,14 +515,18 @@ return {
             "player:Princess Astrid, will you vouch for me",
             "npc:I will -- and gladly.",
         })
-        -- misc_acceptedtorule is the varBIT the ring case sets (opnpcu
-        -- misc_princess_astrid, gold_ring branch) -- proven live by the very
-        -- next row below, Vargas's "Wonderful!" branch, which only fires
-        -- when it reads 1 (misc_king_vargas.rs2's %misc_acceptedtorule
-        -- check); a direct var poll here is redundant with that.
+        -- The ring case inv_dels the ring it was handed (misc_princess_
+        -- astrid.rs2's gold_ring branch); misc_acceptedtorule = 1 is proven
+        -- live by Vargas's "Wonderful!" branch below, which only fires when
+        -- it reads 1.
+        t.ticks(2)
+        local ring_gone_result, ring_gone_count = t.inv.count("gold_ring")
+        t.check("useRingOnAstrid.consumed", ring_gone_result == "ok" and ring_gone_count == 0,
+            "inv.count(gold_ring) -> " .. tostring(ring_gone_result) .. " " .. tostring(ring_gone_count))
 
         -- ---------------------------------------------------- back to Vargas
-        t.exec("goto-vargas2", t.player.goto_tile, 2501, 3859, 1)
+        castle_door("vargas2.astridDoorOut", 2504, 3867, 1, 2504, 3867, 2506, 3866, misc_north_corridor, "the north corridor, x 2505-2507 level 1")
+        throne_in_north("vargas2")
         t.exec("talkVargas2", t.player.talk_to, "misc_king_vargas", 1)
         t.exec("talkVargas2-dialog", t.chat.play, {
             "npc:Wonderful! Now, let us discuss securing peace",
@@ -241,7 +534,9 @@ return {
         t.expect("quest.stage.talked_to_king", t.quest.expect_stage("talked_to_king"))
 
         -- ---------------------------------------------------- Etceteria diplomacy
-        t.exec("goto-sigrid1", t.player.goto_tile, 2612, 3877, 1)
+        from_throne_room("sigrid1")
+        to_etceteria("goto-etceteria1")
+        etc_in("sigrid1")
         t.exec("talkSigrid1", t.player.talk_to, "misc_queen_sigrid", 1)
         t.exec("talkSigrid1-dialog", t.chat.play, {
             "player:King Vargas sent me to discuss peace",
@@ -249,7 +544,9 @@ return {
         })
         t.expect("quest.stage.talked_to_queen", t.quest.expect_stage("talked_to_queen"))
 
-        t.exec("goto-vargas3", t.player.goto_tile, 2501, 3859, 1)
+        etc_out("vargas3")
+        to_miscellania("goto-misc2")
+        to_vargas("vargas3")
         t.exec("talkVargas3", t.player.talk_to, "misc_king_vargas", 1)
         t.exec("talkVargas3-dialog", t.chat.play, {
             "player:Queen Sigrid wants you to recognise Etceteria",
@@ -257,7 +554,9 @@ return {
         })
         t.expect("quest.stage.queen_requests_recognition", t.quest.expect_stage("queen_requests_recognition"))
 
-        t.exec("goto-sigrid2", t.player.goto_tile, 2612, 3877, 1)
+        from_throne_room("sigrid2")
+        to_etceteria("goto-etceteria2")
+        etc_in("sigrid2")
         t.exec("talkSigrid2", t.player.talk_to, "misc_queen_sigrid", 1)
         t.exec("talkSigrid2-dialog", t.chat.play, {
             "player:King Vargas says he'll recognise Etceteria",
@@ -270,7 +569,11 @@ return {
         -- who is being courted -- misc_prince_brand.rs2:23's guard runs
         -- before the toldking/partner check, so this leg is driven here
         -- exactly as in misc.lua, not a gap.
-        t.exec("goto-brand-anthem", t.player.goto_tile, 2502, 3852, 1)
+        etc_out("brand")
+        to_miscellania("goto-misc3")
+        misc_castle_in("brand")
+        misc_south_up("brand")
+        castle_door("brand.brandDoorIn", 2504, 3853, 1, 2505, 3853, 2503, 3852, misc_brand_room, "Prince Brand's room, x 2499-2504 z 3849-3854 level 1")
         t.exec("getAnthem", t.player.talk_to, "misc_prince_brand", 1)
         t.exec("getAnthem-dialog", t.chat.play, {
             "player:King Vargas mentioned you fancy yourself a bit of a bard",
@@ -282,7 +585,8 @@ return {
         t.check("inv.gotAwfulAnthem", awful_result == "ok",
             "inv.await(misc_awful_anthem,1) -> " .. tostring(awful_result) .. " " .. tostring(awful_detail))
 
-        t.exec("goto-ghrim1", t.player.goto_tile, 2499, 3857, 1)
+        castle_door("ghrim.brandDoorOut", 2504, 3853, 1, 2504, 3853, 2506, 3854, misc_south_corridor, "the south corridor, x 2505-2507 level 1")
+        throne_in_south("ghrim")
         t.exec("correctAnthem", t.player.talk_to, "misc_advisor_ghrim", 1)
         t.exec("correctAnthem-dialog", t.chat.play, {
             "player:Prince Brand wrote this anthem for Etceteria",
@@ -294,7 +598,9 @@ return {
         t.check("inv.gotGoodAnthem", good_result == "ok",
             "inv.await(misc_good_anthem,1) -> " .. tostring(good_result) .. " " .. tostring(good_detail))
 
-        t.exec("goto-sigrid3", t.player.goto_tile, 2612, 3877, 1)
+        from_throne_room("sigrid3")
+        to_etceteria("goto-etceteria3")
+        etc_in("sigrid3")
         t.exec("giveAnthemToSigrid", t.player.talk_to, "misc_queen_sigrid", 1)
         t.exec("giveAnthemToSigrid-dialog", t.chat.play, {
             "player:Advisor Ghrim has finished the new anthem.",
@@ -306,7 +612,9 @@ return {
             "inv.await(misc_treaty,1) -> " .. tostring(treaty_result) .. " " .. tostring(treaty_detail))
 
         -- ---------------------------------------------------- the treaty and the pen
-        t.exec("goto-vargas4", t.player.goto_tile, 2501, 3859, 1)
+        etc_out("vargas4")
+        to_miscellania("goto-misc4")
+        to_vargas("vargas4")
         t.exec("giveTreatyToVargas", t.player.talk_to, "misc_king_vargas", 1)
         t.exec("giveTreatyToVargas-dialog", t.chat.play, {
             "player:Queen Sigrid has agreed to the treaty.",
@@ -314,7 +622,13 @@ return {
         })
         t.expect("quest.stage.gave_king_treaty", t.quest.expect_stage("gave_king_treaty"))
 
-        t.exec("goto-derrik", t.player.goto_tile, 2551, 3897, 0)
+        from_throne_room("derrik")
+        t.exec("goto-derrik", t.player.goto_tile, DERRIK_X, DERRIK_Z, 0)
+        pass_door("derrik.derrikDoorIn", "viking_abode_door", "viking_abode_door_open", 2551, 3893, 0, 2551, 3893, 2550, 3895,
+            derrik_house, "Derrik's house, x 2548-2552 z 3894-3898 level 0")
+        local derrik_tiles_result, derrik_tiles = t.npc.tiles("misc_smithy", 10)
+        local here_result, here_tile = t.world.tile()
+        t.note("before forgeNib: player " .. tile_text(here_result, here_tile) .. "; " .. tostring(derrik_tiles_result) .. " " .. tostring(derrik_tiles))
         t.exec("forgeNib", t.player.talk_to, "misc_smithy", 1)
         t.exec("forgeNib-dialog", t.chat.play, {
             "player:I have a slightly strange request",
@@ -326,13 +640,22 @@ return {
             "inv.await(misc_giant_nib,1) -> " .. tostring(nib_result) .. " " .. tostring(nib_detail))
 
         -- misc_giant_nib.rs2's opheldu combine is a single mes() line too --
-        -- no dialogue to continue_() through, just an inventory change.
+        -- no dialogue to continue_() through, just an inventory change: the
+        -- nib and the log are inv_del'd and the pen inv_add'ed.
         t.exec("makePen", t.player.use_item_on_item, "misc_giant_nib", "logs")
         local pen_result, pen_detail = t.inv.await("misc_giant_pen", 1, 10)
         t.check("inv.gotPen", pen_result == "ok",
             "inv.await(misc_giant_pen,1) -> " .. tostring(pen_result) .. " " .. tostring(pen_detail))
+        local nib_left_result, nib_left = t.inv.count("misc_giant_nib")
+        local logs_left_result, logs_left = t.inv.count("logs")
+        t.check("makePen.consumed", nib_left_result == "ok" and nib_left == 0 and logs_left_result == "ok" and logs_left == 0,
+            "inv.count(misc_giant_nib) -> " .. tostring(nib_left_result) .. " " .. tostring(nib_left)
+                .. ", inv.count(logs) -> " .. tostring(logs_left_result) .. " " .. tostring(logs_left))
 
-        t.exec("goto-vargas5", t.player.goto_tile, 2501, 3859, 1)
+        pass_door("vargas5.derrikDoorOut", "viking_abode_door", "viking_abode_door_open", 2551, 3893, 0, 2551, 3894, DERRIK_X, DERRIK_Z,
+            derrik_outside, "outside Derrik's house, z <= 3893 level 0")
+        to_miscellania("goto-misc5")
+        to_vargas("vargas5")
         t.exec("giveVargasPen", t.player.talk_to, "misc_king_vargas", 1)
         t.exec("giveVargasPen-dialog", t.chat.play, {
             "npc:A giant pen! Now I can sign in a manner",
@@ -369,6 +692,7 @@ return {
         -- not land this time cannot fail the ledger over a loop that still
         -- reaches its target. approval.real_chops below is the row that
         -- proves the outcome.
+        from_throne_room("leif")
         t.exec("goto-leif", t.player.goto_tile, 2550, 3866, 0)
         local chop_attempts = 0
         local chop_last_result, chop_last_detail = "n/a", "n/a"
@@ -402,7 +726,8 @@ return {
         t.exec("get75Support", t.var.await_server, "varb72_misc_approval", 96, 10)
 
         -- ---------------------------------------------------- back to Vargas: the crowning
-        t.exec("goto-vargas6", t.player.goto_tile, 2501, 3859, 1)
+        to_miscellania("goto-misc6")
+        to_vargas("vargas6")
 
         -- The coffer reading taken on the tick BEFORE the crowning click, so
         -- the assertion below is a delta this run measured and not a guess

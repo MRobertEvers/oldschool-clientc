@@ -1,0 +1,57 @@
+mechanic_id	scope	note
+blob.hitpoints	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.combat_level	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.attack_strength_levels	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.defence_level	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.ranged_magic_levels	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.size	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.attack_speed	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.attack_gap_modal	stat	statistical: a share over 2417 blob gaps; a solo test reads its own gaps, the recorder tool weighs the Blert distribution
+blob.attack_gap_minimum	stat	statistical: a floor over many gaps; a solo test reads its own gaps
+blob.first_attack_after_spawn	stat	statistical: depends on spawn tile and sight; a solo test reads the blobs it fights over several wave entries
+blob.prayer_read_ticks_before_attack	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.style_after_protect_magic	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.style_after_protect_missiles	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.magic_share_with_no_protection	stat	statistical: a share over many unprotected reads
+blob.melee_possible_when_adjacent	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.melee_chance_adjacent	stat	statistical: a share over many attacks with the player adjacent
+blob.no_melee_under_protect_melee	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.max_hit	stat	seam pass 7 (TEST-4): the top of the roll; the author called it luck-dependent (test pass 1); the recorder tool settles it over many hits
+blob.attack_range	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.attack_completes_after_losing_sight	all	one solo test but needs a pillar that blocks line of sight (ENG-13: pillars block none today)
+blob.spawn_tick	stat	statistical: 723 of 745 on tick 0; the rest are revives (the mager unit)
+blob.spawn_tiles	stat	statistical: nine tiles shuffled per wave; several wave entries cover the set
+blob.count_in_double_waves	wave_table	seam pass 7 (TEST-4): wave 7 and the other double-blob waves are not this unit's wave (4); the wave-table test enters them
+blob.water_weakness	all	one solo test with a water spell against a blob and a non-weak target (needs runes and a magic level)
+blob.hit_chance_unprayed	stat	statistical: a share over many unprotected hits (open, M32)
+blob.hit_delay	all	one solo test per distance (open, M29)
+blob.bloblets_on_death	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.bloblet_spawn_delay	stat	statistical: 2223 of 2240 on one tick; a solo test reads each split
+blob.bloblet_offset_mage	stat	statistical: Blert shows 551 of 741 at the spec offset; a solo test reads every split it makes
+blob.bloblet_offset_range	stat	statistical: Blert shows 568 of 741 at the spec offset; a solo test reads every split it makes
+blob.bloblet_offset_melee	stat	statistical: Blert spawn rows scatter over 6 offsets; a solo test reads every split it makes
+bloblet.hitpoints	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+bloblet.combat_level	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+bloblet.defence_level	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+bloblet.style_levels	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+bloblet.size	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+bloblet.attack_speed	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+bloblet.attack_gap_modal	stat	statistical: a share over many bloblet gaps
+bloblet.max_hit	stat	seam pass 7 (TEST-4): the top of the roll; the author called it luck-dependent (test pass 1); the recorder tool settles it over many hits
+bloblet.attack_range	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+bloblet.first_attack_after_spawn	stat	statistical: depends on the bloblet's path to the player; a solo test reads each split
+bloblet.attacks_unprovoked	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.attack_seq_melee	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.attack_seq_magic	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.attack_seq_ranged	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.attack_anim_length	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.death_seq	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.death_anim_length	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.ready_walk_seq	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.defend_seq	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.models	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.projectile_spotanims	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.projectile_anim_length	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.magic_attack_sound	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.other_sounds	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)
+blob.projectile_anim_length_7616	all	one solo test (practice entry on wave 4 or 7; a real run; fought, not under a god mode)

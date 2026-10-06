@@ -1,0 +1,20 @@
+# ladder ribbitingtale quest_dir=quest_ribbitingtale guide=src/main/java/com/questhelper/helpers/quests/theribbitingtaleofalilypadlabourdispute/TheRibbitingTaleOfALilyPadLabourDispute.java steps=17 legs=1:1-17@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToMarcellus	NpcStep	npc:frog_quest_marcellus_normal	1683,2973,0	Talk to Marcellus near the Locus Oasis south of Civitas illa Fortis. AJP Fairy ring is fastest.			Yes.	quests/quest_ribbitingtale/scripts/ribbitingtale.rs2:45 opnpc1
+1	2	2	talkToBlueFrogs	NpcStep	npc:frog_quest_gary_unnamed	1694,2996,0	Talk to the blue frogs in the north-east of the oasis.				quests/quest_ribbitingtale/scripts/ribbitingtale.rs2:153 opnpc1
+1	3	4	talkToMarcellus2	NpcStep	npc:frog_quest_marcellus_normal	1683,2973,0	Return to Marcellus.				quests/quest_ribbitingtale/scripts/ribbitingtale.rs2:45 opnpc1
+1	4	6	talkToGary	NpcStep		1694,2996,0	Return to the blue frogs Sue and Gary in the north-east of the oasis.				
+1	5	8	talkToYellowFrogs	NpcStep		1696,2982,0	Talk to the yellow frogs Jane and Dave to the south of Gary.				
+1	6	10	pickUpAxe	ObjectStep	loc:log_withaxe	1683,2975,0	Take the axe from the logs next to Marcellus.				quests/quest_ribbitingtale/scripts/ribbitingtale_locs.rs2:4 oploc1
+1	7	10	chopOrangeTree	ObjectStep	loc:frog_quest_tree? loc:log_withaxe	1695,2980,0	Chop down the orange tree next to the yellow frog.	pickUpAxe	Any axe		quests/quest_ribbitingtale/scripts/ribbitingtale_locs.rs2:4 oploc1
+1	8	12	sabotageLilyPad	ObjectStep	loc:frog_quest_lily_pad_destroyable?	1692,2983,0	Sabotage the lily pad near to the yellow frogs.				
+1	9	14	talkToGary2	NpcStep		1694,2996,0	Return to Sue and Gary in the north-east of the oasis.				
+1	10	18	talkToMarcellus3	NpcStep	npc:frog_quest_marcellus_normal	1683,2973,0	Return to Marcellus.				quests/quest_ribbitingtale/scripts/ribbitingtale.rs2:45 opnpc1
+1	11	20	talkToGaryToBlame	NpcStep		1694,2996,0	Go talk to Sue and Gary to discuss framing the flies.				
+1	12	22	openChest	ObjectStep	loc:frog_quest_chest	1676,2974,0	Work out how to open the chest in Marcellus' house.	enterCode			quests/quest_ribbitingtale/scripts/ribbitingtale_locs.rs2:64 oploc1
+1	13	24	plantPlushy	ObjectStep	loc:frog_quest_poo?	1694,2976,0	Plant the plushy in the capybara dung east of Marcellus, south of the orange tree.				
+1	14	26	inspectDung	ObjectStep	loc:frog_quest_poo?	1694,2976,0	Inspect the dung east of Marcellus, south of the orange tree.				
+1	15	26	defeatCuthbert	NpcStep	npc:frog_quest_cuthbert_combat loc:frog_quest_poo?	1688,2977,0	Defeat Cuthbert, Lord of Dread.	inspectDung			quests/quest_ribbitingtale/scripts/ribbitingtale.rs2:365 opnpc2; +1
+1	16	28	talkToMarcellusEnd	NpcStep	npc:frog_quest_marcellus_normal	1683,2973,0	Tell Marcellus about the plushy.				quests/quest_ribbitingtale/scripts/ribbitingtale.rs2:45 opnpc1
+1	17	30	talkToGaryEnd	NpcStep		1694,2996,0	Talk to Sue and Gary to resolve the dispute!				

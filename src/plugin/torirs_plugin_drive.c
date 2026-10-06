@@ -125,12 +125,14 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
      * npc.await_dead_engaged holds (seam cast_spell_on_npc, 2026-09-27). */
     "plugins/quest_driver/spell.lua",
     /* The raid seam (docs/RAID_ORCHESTRATOR.md section 4): prayer.lua adds
-     * QD.prayer, raid.lua adds QD.raid, ticklog.lua adds QD.ticklog. Since
-     * seam22 raid.lua wraps three things (combat.lua's death fence and
-     * state.lua's death record for a party member, ticklog.lua's rows for
-     * `area`); they follow combat.lua because raid.lua reads
-     * QD._combat_last. */
+     * QD.prayer, raid.lua adds QD.raid, ticklog.lua adds QD.ticklog, and
+     * waves.lua (QD.wave, docs/WAVES_ORCHESTRATOR.md section 5) the waves
+     * loop's verbs. Since seam22 raid.lua wraps three things (combat.lua's
+     * death fence and state.lua's death record for a party member,
+     * ticklog.lua's rows for `area`); they follow combat.lua because raid.lua
+     * and a wave verb read QD._combat_last. */
     "plugins/quest_driver/prayer.lua",
+    "plugins/quest_driver/waves.lua",
     /* ticklog.lua BEFORE raid.lua (raid seam22): raid.lua wraps
      * QD.ticklog.rows to add the `area` filter (a room's own tiles, so a room
      * test never pulls every region npc) and asserts it is there. */
@@ -582,10 +584,11 @@ static enum ToriRSServerPackKind const DRIVE_SYMBOL_PACK[DRIVE_SYMBOL_KIND_COUNT
     TORIRSSERVER_PACK_VARBIT,
     TORIRSSERVER_PACK_STAT,
     TORIRSSERVER_PACK_INV,
+    TORIRSSERVER_PACK_SEQ,
 };
 
 static char const* const DRIVE_SYMBOL_KIND_NAMES[DRIVE_SYMBOL_KIND_COUNT] = {
-    "npc", "obj", "loc", "component", "interface", "varp", "varbit", "stat", "inv",
+    "npc", "obj", "loc", "component", "interface", "varp", "varbit", "stat", "inv", "seq",
 };
 
 /* -1 on a typo: a test's own mistake, not a contract violation, and the Lua
@@ -3943,7 +3946,7 @@ drive_install_modules(struct lua_State* L, void* script)
 {
     assert(L);
     assert(script);
-    /* One flat `api.drive`, assembled from seven files. Order is registration
+    /* One flat `api.drive`, assembled from nine files. Order is registration
      * order only; the names are disjoint and the inventory test proves it. */
     lua_newtable(L);
     PluginDriveCore_RegisterLua(L, script);
@@ -3953,6 +3956,8 @@ drive_install_modules(struct lua_State* L, void* script)
     PluginDrivePointer_RegisterLua(L, script);
     PluginDriveUi_RegisterLua(L, script);
     PluginDriveTicklog_RegisterLua(L, script);
+    PluginDriveLos_RegisterLua(L, script);
+    PluginDriveRecord_RegisterLua(L, script);
     lua_setfield(L, -2, "drive");
 }
 

@@ -1,0 +1,113 @@
+mechanic_id	scope	note
+wave_table.w1.fremennik_trio	all	one solo test
+wave_table.w1.serpent_shaman	all	one solo test
+wave_table.w1.tick0_npc_count	all	one solo test
+wave_table.w2.fremennik_trio	all	one solo test
+wave_table.w2.serpent_shaman	all	one solo test
+wave_table.w2.javelin_colossus	all	one solo test
+wave_table.w2.tick0_npc_count	all	one solo test
+wave_table.w3.fremennik_trio	all	one solo test
+wave_table.w3.serpent_shaman	all	one solo test
+wave_table.w3.javelin_colossus	all	one solo test
+wave_table.w3.tick0_npc_count	all	one solo test
+wave_table.w4.fremennik_trio	all	one solo test
+wave_table.w4.serpent_shaman	all	one solo test
+wave_table.w4.manticore	all	one solo test
+wave_table.w4.tick0_npc_count	all	one solo test
+wave_table.w5.fremennik_trio	all	one solo test
+wave_table.w5.serpent_shaman	all	one solo test
+wave_table.w5.javelin_colossus	all	one solo test
+wave_table.w5.manticore	all	one solo test
+wave_table.w5.tick0_npc_count	all	one solo test
+wave_table.w6.fremennik_trio	all	one solo test
+wave_table.w6.serpent_shaman	all	one solo test
+wave_table.w6.javelin_colossus	all	one solo test
+wave_table.w6.manticore	all	one solo test
+wave_table.w6.tick0_npc_count	all	one solo test
+wave_table.w7.fremennik_trio	all	one solo test
+wave_table.w7.javelin_colossus	all	one solo test
+wave_table.w7.manticore	all	one solo test
+wave_table.w7.shockwave_colossus	all	one solo test
+wave_table.w7.tick0_npc_count	all	one solo test
+wave_table.w8.fremennik_trio	all	one solo test
+wave_table.w8.javelin_colossus	all	one solo test
+wave_table.w8.manticore	all	one solo test
+wave_table.w8.shockwave_colossus	all	one solo test
+wave_table.w8.tick0_npc_count	all	one solo test
+wave_table.w9.fremennik_trio	all	one solo test
+wave_table.w9.javelin_colossus	all	one solo test
+wave_table.w9.manticore	all	one solo test
+wave_table.w9.tick0_npc_count	all	one solo test
+wave_table.w10.fremennik_trio	all	one solo test
+wave_table.w10.javelin_colossus	all	one solo test
+wave_table.w10.manticore	all	one solo test
+wave_table.w10.tick0_npc_count	all	one solo test
+wave_table.w11.fremennik_trio	all	one solo test
+wave_table.w11.javelin_colossus	all	one solo test
+wave_table.w11.manticore	all	one solo test
+wave_table.w11.shockwave_colossus	all	one solo test
+wave_table.w11.tick0_npc_count	all	one solo test
+wave_table.w1.reinf_jaguar_warrior	all	one solo test
+wave_table.w2.reinf_jaguar_warrior	all	one solo test
+wave_table.w3.reinf_jaguar_warrior	all	one solo test
+wave_table.w4.reinf_jaguar_warrior	all	one solo test
+wave_table.w4.reinf_serpent_shaman	all	one solo test
+wave_table.w5.reinf_jaguar_warrior	all	one solo test
+wave_table.w5.reinf_serpent_shaman	all	one solo test
+wave_table.w6.reinf_jaguar_warrior	all	one solo test
+wave_table.w6.reinf_serpent_shaman	all	one solo test
+wave_table.w7.reinf_minotaur	all	one solo test
+wave_table.w8.reinf_minotaur	all	one solo test
+wave_table.w9.reinf_minotaur	all	one solo test
+wave_table.w10.reinf_serpent_shaman	all	one solo test
+wave_table.w10.reinf_minotaur	all	one solo test
+wave_table.w11.reinf_serpent_shaman	all	one solo test
+wave_table.w11.reinf_minotaur	all	one solo test
+wave_table.w12.sol_heredit	all	one solo test
+wave_table.w12.fremennik_trio	all	one solo test
+wave_table.w12.tick0_npc_count	all	one solo test
+wave_table.w12.sol_first_seen_tick	all	one solo test
+wave_table.w12.seated_sol_swap	all	one solo test
+wave_table.w12.quartet_extra_fremennik	all	one solo test
+wave_table.w12.sol_entry_sequences	all	one solo test
+wave_table.wave_count	all	one solo test
+wave_table.regular_wave_count	all	one solo test
+wave_table.reinforcement_tick	all	one solo test
+wave_table.reinforcement_in_wave_cleared_early	all	one solo test
+wave_table.reinforcement_on_clearing_tick	all	one solo test
+wave_table.tick0_clock	all	one solo test
+wave_table.w12_start_message	all	one solo test
+wave_table.time_choice_to_wave_start	all	one solo test
+wave_table.pre_wave1_modifier_choice	all	one solo test
+wave_table.intermission_interface	all	one solo test
+wave_table.wave_complete_banner	all	one solo test
+wave_table.spec_energy_regained_between_waves	all	one solo test
+wave_table.molten_sand_damage_between_waves	all	one solo test
+wave_table.doom_stacks_at_wave_end	all	one solo test
+wave_table.hitpoints_restored_between_waves	all	one solo test
+wave_table.prayer_restored_between_waves	all	one solo test
+wave_table.stat_levels_reset_between_waves	all	one solo test
+wave_table.modifier_quartet	all	one solo test
+wave_table.modifier_dynamic_duo	all	one solo test
+wave_table.javelin_first_wave	all	one solo test
+wave_table.manticore_first_wave	all	one solo test
+wave_table.shockwave_first_wave	all	one solo test
+wave_table.shaman_last_tick0_wave	all	one solo test
+wave_table.w1.length_ticks	stat	distribution; the recorder tool settles it
+wave_table.w2.length_ticks	stat	distribution; the recorder tool settles it
+wave_table.w3.length_ticks	stat	distribution; the recorder tool settles it
+wave_table.w4.length_ticks	stat	distribution; the recorder tool settles it
+wave_table.w5.length_ticks	stat	distribution; the recorder tool settles it
+wave_table.w6.length_ticks	stat	distribution; the recorder tool settles it
+wave_table.w7.length_ticks	stat	distribution; the recorder tool settles it
+wave_table.w8.length_ticks	stat	distribution; the recorder tool settles it
+wave_table.w9.length_ticks	stat	distribution; the recorder tool settles it
+wave_table.w10.length_ticks	stat	distribution; the recorder tool settles it
+wave_table.w11.length_ticks	stat	distribution; the recorder tool settles it
+wave_table.w12.length_ticks	stat	distribution; the recorder tool settles it
+wave_table.spawn_seq.javelin_colossus	all	one solo test
+wave_table.spawn_seq.shockwave_colossus	all	one solo test
+wave_table.spawn_seq.manticore	all	one solo test
+wave_table.spawn_seq.minotaur	all	one solo test
+wave_table.spawn_seq.fremennik_jaguar_shaman	all	one solo test
+wave_table.wave_message	all	one solo test

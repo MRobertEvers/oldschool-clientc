@@ -17,17 +17,69 @@
 -- amulet, spade, needle, 5 thread, a silver bar, 3 bronze wire, coins, and a
 -- weapon (armor is listed generically as "Armour and weapons defeat a level
 -- 51 monster" -- a rune scimitar plus setlevel'd combat stats stand in for
--- gear the fixture does not hand out).
+-- gear the fixture does not hand out), and food for that fight. From Quest
+-- Helper's getItemRecommended(): a Fenkenstrain's Castle Teleport tablet
+-- (fenkenstrainTeleports) and a Falador teleport (teleportToFurnace's
+-- alternate) -- the spell's runes plus Magic 48, which is also the level
+-- teleport_tablet.rs2 [label,use_teleport_tablet] demands for the castle
+-- tablet (magic_spell_teleport_fenkenstrain_castle levelrequired=48).
+-- No ectotokens: neither the guide nor the wiki quick guide has you obtain
+-- any, so the furnace is Falador's, not Port Phasmatys's behind its toll.
+--
+-- WALLS (door rule, owner 2026-10-03; re-driven in b60). Every goto departs
+-- from and lands on open ground outside; every door, stair and ladder of the
+-- castle is pressed on every visit, in and out. The castle, from the static
+-- map (maps/m55_55.jl2, flooded with every door closed):
+--   level 0: the front double door fenk_door 3548,3535 -> entry hall ->
+--     fenk_door 3548,3543 -> the main hall (Fenkenstrain) -> fenk_door
+--     3548,3551 -> the north room -> fenk_door 3549,3558 -> the garden (the
+--     gardener, the cane pile; the shed behind fenk_shed_door 3548,3565).
+--     North room -> poordoor 3545,3555 -> poordoor 3540,3555 -> the west
+--     stair hall (fenk_stairs_lv1 3537,3551; maplink 3537,3550,0 ->
+--     3537,3554,1). North room -> poordoor 3552,3555 -> poordoor 3557,3555
+--     -> the east stair hall (fenk_stairs_lv1 3559,3551; 3559,3550,0 ->
+--     3559,3554,1). Stair tops come down to 3537,3549,0 / 3559,3549,0
+--     (ladders_stairs/configs/maplink.dbrow 13014-13126).
+--   level 1: the corridor joining both stair tops; poordoor 3558,3554 -> the
+--     east bookcase room; poordoor 3539,3554 -> the west room (bookcase,
+--     fireplace); fenk_door 3549,3543,1 -> the ladder 3548,3539 up to the
+--     conductor; fenk_tower_door 3548,3551,1 -> the ladder 3548,3554 up to
+--     the creature.
+--   The graveyard of the three lords (graves 3502-3506,3576-3577) is walled:
+--     it is reached only by the cave ladder 3504,9970 (maplink -> 3504,3569)
+--     and left by pushing its memorial fenk_coffin 3505,3571 (p_teleport
+--     ^fenk_experiment_cave 3577,9927) and climbing the cave ladder 3578,9927
+--     (-> 3578,3526): Quest Helper's "run back through the caves".
+--   The cavern's fenk_mausoleum_door 3510,9957 opens with the key and is
+--     walked through on foot.
+--   The furnace is Falador's (fai_falador_furnace 2976,3368), reached by the
+--     guide's own recommended Falador Teleport (Falador square 2965,3378,
+--     then a walk: reach.py 2965,3378 -> 2974,3369 REACH closed-doors len=18,
+--     no door) and left by the Fenkenstrain's Castle Teleport tablet
+--     (tele_coord 0_55_55_30_10 = 3550,3530, outside the front door).
 
 return {
     id = "fenkenstrain",
     fixture = "fresh_lumbridge.ini",
+    max_frames = 360000, -- the Paterdomus route in, every castle door, stair and ladder walked, the caves both ways
     setup = {
         "::clearinv",
-        "::fenkenstrain", -- quest debug reset: satisfies Priest in Peril /
-                            -- Restless Ghost prereqs, zeroes every %fenk_*
-                            -- flag, teleports to the Canifis signpost. This
-                            -- STAGES the quest (trap 8), it does not finish it.
+        -- The quest's own gate (fenkenstrain.rs2:6-22 [proc,fenk_has_requirements]):
+        -- %varp107_prieststart >= ^priest_started (Restless Ghost started) and
+        -- %varp302_priestperil >= ^fenk_pip_gate = 61 (fenkenstrain.constant:22),
+        -- the value Drezel's farewell advice sets AFTER Priest in Peril's
+        -- completion (60 -> 61, mausoleum_drezel.rs2:145-154). The two
+        -- `::complete` lines stage the prerequisite quests (as mortton.lua and
+        -- makinghistory.lua do); the run itself walks into Morytania and takes
+        -- Drezel's advice, so 61 is reached by a real conversation. The
+        -- `::fenkenstrain` debugproc used to stage all this AND p_teleport the
+        -- player to the Canifis signpost (fenkenstrain.rs2:238-255) -- a
+        -- placement with no on-foot route across the Salve -- so it is gone.
+        -- A fresh_lumbridge account holds every %fenk_* flag at 0 already
+        -- (quest.stage.not_started below grades that).
+        "::complete quest_priestinperil",
+        "::complete quest_restlessghost",
+        "::give dagger_wolfbane 1", -- Priest in Peril's own reward (::complete grants no items); Drezel's advice branch needs it held (mausoleum_drezel.rs2:28-33)
         "::setlevel hitpoints 80",
         "::setlevel attack 80",
         "::setlevel strength 80",
@@ -42,6 +94,23 @@ return {
         "::give silver_bar 1",
         "::give bronzecraftwire 3",
         "::give coins 200",
+        "::give lobster 4", -- food for the level-51 Experiment
+        -- Quest Helper getItemRecommended(): teleportToFurnace (its alternate
+        -- "a Falador teleport": [magic_spell_teleport_falador] level 37,
+        -- waterrune 1 + airrune 3 + lawrune 1) and fenkenstrainTeleports
+        -- (teletab_fenk; teleport_tablet.rs2:34 refuses it below Magic 48).
+        -- The OSRS wiki's tablet page says the opposite: no Magic level is
+        -- needed to break it, only Priest in Peril with Drezel's warning
+        -- (staged above, reached for real). The spell alone needs 37; the 48
+        -- is the content's gate, an open owner question on staged levels.
+        -- Magic 48 leaves the combat level where the 80 melee stats put it
+        -- (melee 0.325*160 = 52 over magic 0.325*72 = 23.4), so no dialogue
+        -- the run passes takes another branch.
+        "::setlevel magic 48",
+        "::give waterrune 1",
+        "::give airrune 3",
+        "::give lawrune 1",
+        "::give teletab_fenk 1",
     },
 
     run = function(t)
@@ -55,11 +124,206 @@ return {
             display = "Creature of Fenkenstrain",
             points = 2,
         })
+
+        local function tile_text(r, tt)
+            if r == "ok" and type(tt) == "table" then
+                return tt.x .. "," .. tt.z .. "," .. tt.level
+            end
+            return tostring(r)
+        end
+
+        local function await_tile(pred, ticks, what)
+            return t.await({
+                level = function()
+                    local r, tt = t.world.tile()
+                    return r == "ok" and pred(tt)
+                end,
+                note = what .. ": waiting for the landing",
+            }, ticks)
+        end
+
+        -- A walk inside a room or yard, graded on the tile it reached.
+        local function walk(name, x, z, level, tol)
+            tol = tol or 0
+            local wr, wd = t.player.walk_to(x, z, 40)
+            local r, tt = t.world.tile()
+            t.check(name, r == "ok" and tt.level == level and math.abs(tt.x - x) <= tol and math.abs(tt.z - z) <= tol,
+                "walk_to " .. x .. "," .. z .. " -> " .. tostring(wr) .. " " .. tostring(wd) .. "; at " .. tile_text(r, tt)
+                    .. " (want " .. x .. "," .. z .. "," .. level .. (tol > 0 and (" within " .. tol) or "") .. ")")
+        end
+
+        -- A stair or ladder climb by the driver's verb (t.player.climb,
+        -- verbs-pointer.md): the player walked to src on at's level before
+        -- the press, on dest's level within dest[4] (slack) of its x,z after
+        -- it. A cave ladder lands on the same level in the surface frame
+        -- (z // 6400 differs), which the verb accepts as a climb. Only the
+        -- climb moves the player between floors.
+        local function climb(name, sym, at, src, dest)
+            t.exec(name, t.player.climb, { loc = sym, op = 1, at = at, src = src,
+                dest = { dest[1], dest[2], dest[3] }, slack = dest[4] or 0 })
+        end
+
+        -- A key used on its locked door. The quest's label sets the unlock
+        -- bit and opens the leaf with ~door_open_active and no message, so
+        -- the press's own settle can time out although it worked (run 1,
+        -- openShedDoor): graded on the bit and the leaves on the door's own
+        -- level, the press's answer only in the detail.
+        local function key_door(name, key, closed, open, at, varbit)
+            local target = t.player.by_symbol("loc", closed)
+            local ur, ud = t.player.use_on(key, target, { at = at })
+            local fr, fd = t.var.await_server(varbit, 1, 10)
+            local opened = t.await({ level = function()
+                local r, row = t.world.loc_near(open, 3)
+                return r == "ok" and row.level == at[3] and math.abs(row.tile_x - at[1]) <= 1 and math.abs(row.tile_z - at[2]) <= 1
+            end, note = name .. ": the open leaf" }, 6)
+            local or_, orow = t.world.loc_near(open, 3)
+            local cr, crow = t.world.loc_near(closed, 3)
+            local still_closed = cr == "ok" and crow.level == at[3] and crow.tile_x == at[1] and crow.tile_z == at[2]
+            local function where(r, row)
+                return r == "ok" and (row.tile_x .. "," .. row.tile_z .. "," .. row.level) or tostring(r)
+            end
+            t.check(name, fr == "ok" and opened == "ok" and not still_closed,
+                "use_on " .. key .. " on " .. closed .. " at " .. at[1] .. "," .. at[2] .. "," .. at[3] .. " -> " .. tostring(ur) .. " "
+                    .. tostring(ud) .. "; " .. varbit .. " " .. tostring(fr) .. " " .. tostring(fd) .. "; " .. open .. " "
+                    .. where(or_, orow) .. "; " .. closed .. " " .. where(cr, crow)
+                    .. " (want the unlock bit 1, the open leaf within 1 of the door tile on its level, no closed leaf on it)")
+        end
+
+        -- ---------- the castle's doors (t.player.pass_door, one row each) ----------
+        local function fenk(at, near, far)
+            return { closed = "fenk_door", open = "fenk_door_open", at = at, near = near, far = far }
+        end
+        local function poor(at, near, far)
+            return { closed = "poordoor", open = "poordooropen", at = at, near = near, far = far }
+        end
+        local DOOR = {
+            frontIn = fenk({ 3548, 3535, 0 }, { 3548, 3534 }, { 3548, 3537 }),
+            frontOut = fenk({ 3548, 3535, 0 }, { 3548, 3537 }, { 3548, 3531 }),
+            hallIn = fenk({ 3548, 3543, 0 }, { 3548, 3542 }, { 3548, 3545 }),
+            hallOut = fenk({ 3548, 3543, 0 }, { 3548, 3545 }, { 3548, 3541 }),
+            northIn = fenk({ 3548, 3551, 0 }, { 3547, 3551 }, { 3548, 3553 }),
+            northOut = fenk({ 3548, 3551, 0 }, { 3548, 3553 }, { 3547, 3551 }),
+            gardenIn = fenk({ 3549, 3558, 0 }, { 3549, 3557 }, { 3549, 3560 }),
+            gardenOut = fenk({ 3549, 3558, 0 }, { 3549, 3559 }, { 3549, 3555 }),
+            -- north room <-> west stair hall, through the middle room
+            midWestIn = poor({ 3545, 3555, 0 }, { 3545, 3555 }, { 3543, 3555 }),
+            midWestOut = poor({ 3545, 3555, 0 }, { 3544, 3555 }, { 3546, 3555 }),
+            westHallIn = poor({ 3540, 3555, 0 }, { 3540, 3555 }, { 3538, 3555 }),
+            westHallOut = poor({ 3540, 3555, 0 }, { 3539, 3555 }, { 3541, 3555 }),
+            -- north room -> east stair hall
+            midEastIn = poor({ 3552, 3555, 0 }, { 3552, 3555 }, { 3554, 3555 }),
+            eastHallIn = poor({ 3557, 3555, 0 }, { 3557, 3555 }, { 3559, 3555 }),
+            -- level 1
+            eastRoomIn = poor({ 3558, 3554, 1 }, { 3558, 3554 }, { 3556, 3554 }),
+            eastRoomOut = poor({ 3558, 3554, 1 }, { 3557, 3554 }, { 3559, 3555 }),
+            westRoomIn = poor({ 3539, 3554, 1 }, { 3539, 3554 }, { 3541, 3554 }),
+            westRoomOut = poor({ 3539, 3554, 1 }, { 3540, 3554 }, { 3538, 3555 }),
+            conductorIn = fenk({ 3549, 3543, 1 }, { 3549, 3544 }, { 3549, 3541 }),
+            conductorOut = fenk({ 3549, 3543, 1 }, { 3549, 3542 }, { 3549, 3545 }),
+        }
+        local function door(prefix, key)
+            return t.exec(prefix .. "." .. key, t.player.pass_door, DOOR[key])
+        end
+        local function doors(prefix, keys)
+            for _, key in ipairs(keys) do
+                door(prefix, key)
+            end
+        end
+
+        local WEST_UP = { "fenk_stairs_lv1", { 3537, 3551, 0 }, { 3537, 3550 }, { 3537, 3554, 1 } }
+        local WEST_DOWN = { "fenk_stairs_lv1_top", { 3537, 3552, 1 }, { 3537, 3554 }, { 3537, 3549, 0 } }
+        local EAST_UP = { "fenk_stairs_lv1", { 3559, 3551, 0 }, { 3559, 3550 }, { 3559, 3554, 1 } }
+        local function stairs(name, s)
+            climb(name, s[1], s[2], s[3], s[4])
+        end
+
+        -- Castle front (open ground on the walkway's south end) <-> main hall.
+        local function enter_castle(prefix)
+            t.exec(prefix .. ".gotoCastleFront", t.player.goto_tile, 3548, 3528, 0)
+            doors(prefix, { "frontIn", "hallIn" })
+        end
+        local function leave_castle(prefix)
+            doors(prefix, { "hallOut", "frontOut" })
+        end
+        -- Main hall <-> the west stair hall (k), through the north room.
+        local function hall_to_west_stairs(prefix)
+            doors(prefix, { "northIn", "midWestIn", "westHallIn" })
+        end
+        local function west_stairs_to_hall(prefix)
+            doors(prefix, { "westHallOut", "midWestOut", "northOut" })
+        end
+
         t.ticks(2)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
         t.exec("equip.ghostspeak", t.player.equip, "amulet_of_ghostspeak")
         t.exec("equip.scimitar", t.player.equip, "rune_scimitar")
+
+        -- ================= Into Morytania =================
+        -- The fixture stands in Lumbridge (3206,3233); no walk crosses the
+        -- Salve (reach 3206,3233 -> 3496,3489 UNREACHABLE at margin 600), and no
+        -- spell this pack implements lands in Morytania (skill_magic/scripts/
+        -- spells/teleport.rs2). So the way in is the one Priest in Peril opens,
+        -- walked as mortton.lua / makinghistory.lua do (sample_tools/reach.py
+        -- --root <worktree>, doors closed):
+        --   * 3206,3233 -> 3318,3468, west of the Varrock members' gate
+        --     (REACH closed-doors len=389 at margins 30/80).
+        --   * fai_varrock_member_gatel 3319,3468 by pass_door, then
+        --     3321,3468 -> 3405,3506 beside the Paterdomus trapdoor (REACH len=122).
+        --   * The trapdoor 3405,3507 (open, climb down), the two mausoleum gates,
+        --     Drezel's advice (60 -> 61: this is also the quest's own
+        --     ^fenk_pip_gate requirement) and the holy barrier (p_telejump out
+        --     at 3423,3485, mausoleum_interactions.rs2:26).
+        --   * 3423,3485 -> 3496,3489 beside the Canifis signpost (3488,3485)
+        --     (REACH closed-doors len=95 at margin 30).
+        t.exec("goto-enterMorytania.varrockGate", t.player.goto_tile, 3318, 3468, 0)
+        t.exec("enterMorytania.varrockGate", t.player.pass_door, { closed = "fai_varrock_member_gatel",
+            open = "fai_varrock_member_gatel_open", at = { 3319, 3468, 0 }, near = { 3318, 3468 }, far = { 3321, 3468 } })
+        t.exec("goto-enterMorytania.trapdoor", t.player.goto_tile, 3405, 3506, 0)
+        t.exec("enterMorytania.openTrapdoor", t.player.click_loc, "trapdoor", 1, { at = { 3405, 3507, 0 } })
+        t.await({
+            level = function()
+                return t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } }) == "ok"
+            end,
+            note = "enterMorytania: the trapdoor opens",
+        }, 6)
+        local tdo_r, tdo = t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } })
+        local tdc_r = t.world.loc_near("trapdoor", 3, { at = { 3405, 3507, 0 } })
+        t.check("enterMorytania.trapdoorOpen", tdo_r == "ok" and tdc_r ~= "ok",
+            "trapdoor_open on 3405,3507,0 -> " .. tostring(tdo_r) .. " "
+                .. (tdo_r == "ok" and (tdo.tile_x .. "," .. tdo.tile_z .. "," .. tdo.level) or tostring(tdo))
+                .. "; closed trapdoor there -> " .. tostring(tdc_r) .. " (want the open leaf and no closed one)")
+        t.exec("enterMorytania.descend", t.player.climb, { loc = "trapdoor_open", op = 1, op_name = "Climb-down",
+            at = { 3405, 3507, 0 }, src = { 3405, 3506 }, dest = { 3405, 9906, 0 } })
+        t.exec("enterMorytania.gate1", t.player.cross_gate, { loc = "pip_underground_door1", at = { 3405, 9895, 0 },
+            near = { 3405, 9896 }, far_ok = function(tile) return tile.z > 6400 and tile.z <= 9894 end,
+            far_desc = "south of the golden-key gate, z <= 9894", ticks = 30 })
+        t.exec("enterMorytania.gate2", t.player.cross_gate, { loc = "pip_underground_door2", at = { 3431, 9897, 0 },
+            near = { 3430, 9897 }, far_ok = function(tile) return tile.z > 6400 and tile.x >= 3432 end,
+            far_desc = "Drezel's side of the second gate, x >= 3432", ticks = 60 })
+        -- Priest in Peril's farewell advice (mausoleum_drezel.rs2:145-154,
+        -- LostCity drezel.rs2:138-147): 60 -> 61, the holy barrier opens. The
+        -- advice has no combat-level branch, so the staged combat stats
+        -- (80 attack/strength/defence/hitpoints) change nothing here; no
+        -- dialogue this run passes reads ~player_combat_level.
+        t.exec("enterMorytania.talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
+        t.exec("enterMorytania.talkToDrezel-dialog", t.chat.play, {
+            "player:So can I pass through that barrier now?",
+            "npc:Ah, ",
+            "npc:Morytania is an evil land",
+            "npc:You should take some basic precautions",
+            "npc:In many ways Werewolves",
+            "npc:and it is a holy relic",
+            "npc:wolf form is incredibly powerful",
+            "player:Okay, I will keep it equipped",
+        })
+        t.exec("enterMorytania.drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
+        t.exec("enterMorytania.holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
+            at = { 3440, 9886, 0 }, near = { 3440, 9887 },
+            far_ok = function(tile) return tile.x == 3423 and tile.z == 3485 end,
+            far_desc = "east of the Salve at 3423,3485 (mausoleum_interactions.rs2 p_telejump(0_53_54_31_29))" })
+        t.exec("enterMorytania.holyBarrier-msg", t.msg.expect, "You pass through the holy barrier")
+        t.exec("goto-readSign", t.player.goto_tile, 3496, 3489, 0)
 
         -- ================= Panel: Starting off =================
         t.exec("readSign", t.player.click_loc, "fenk_signpost", 1)
@@ -68,7 +332,7 @@ return {
         })
         t.expect("quest.stage.sign_read", t.quest.expect_stage("sign_read"))
 
-        t.exec("goto-castle", t.player.goto_tile, 3551, 3550, 0)
+        enter_castle("talkToFrenkenstrain")
         t.exec("talkToFrenkenstrain", t.player.talk_to, "fenk_fenkenstrain", 1)
         t.exec("talkToFrenkenstrain-dialog", t.chat.play, {
             "npc:Have you come to apply for the",
@@ -106,7 +370,9 @@ return {
         -- (werewolfinnkeeper.rs2's beer-menu gate reads
         -- %creatureoffenkenstrain >= fenk_hired), so this leg runs after the
         -- interview even though Quest Helper lists it as its own earlier
-        -- panel.
+        -- panel. The Canifis bar has open doorways (no door loc; a static
+        -- flood from the castle front reaches the bar with doors closed).
+        leave_castle("getPickledBrain")
         t.exec("goto-bar", t.player.goto_tile, 3493, 3471, 0)
         t.exec("getPickledBrain", t.player.talk_to, "werewolfinnkeeper", 1)
         t.exec("getPickledBrain-dialog", t.chat.play, {
@@ -124,18 +390,23 @@ return {
         t.exec("getPickledBrain.held", t.inv.await, "fenk_brain", 1, 10)
 
         -- ================= Panel: Graverobbing =================
-        t.exec("goUpstairsForStar", t.player.goto_tile, 3559, 3552, 1)
-        t.exec("goto-eastBookcase", t.player.goto_tile, 3555, 3558, 1)
-        t.exec("getBook1", t.player.click_loc, "fenk_bookcase", 1)
+        -- Up the EAST staircase (the guide's goUpstairsForStar, 3560,3552).
+        enter_castle("goUpstairsForStar")
+        doors("goUpstairsForStar", { "northIn", "midEastIn", "eastHallIn" })
+        stairs("goUpstairsForStar", EAST_UP)
+
+        door("getBook1", "eastRoomIn")
+        t.exec("getBook1", t.player.click_loc, "fenk_bookcase", 1, { at = { 3555, 3558, 1 } })
         t.exec("getBook1-dialog", t.chat.play, {
             "options",
             "choose:Handy Maggot Avoidance Techniques.",
             "mesbox:As you pull the book a hidden",
         })
         t.exec("getBook1.held", t.inv.await, "fenk_obsidian_amulet", 1, 10)
+        door("getBook1", "eastRoomOut")
 
-        t.exec("goto-westBookcase", t.player.goto_tile, 3542, 3558, 1)
-        t.exec("getBook2", t.player.click_loc, "fenk_bookcase", 1)
+        door("getBook2", "westRoomIn")
+        t.exec("getBook2", t.player.click_loc, "fenk_bookcase", 1, { at = { 3542, 3558, 1 } })
         t.exec("getBook2-dialog", t.chat.play, {
             "options",
             "choose:The Joy of Grave Digging.",
@@ -145,10 +416,12 @@ return {
 
         t.exec("combineAmulet", t.player.use_item_on_item, "fenk_marble_amulet", "fenk_obsidian_amulet")
         t.exec("combineAmulet.held", t.inv.await, "fenk_star_amulet", 1, 10)
+        t.check("combineAmulet.consumed", t.inv.expect_absent("fenk_marble_amulet"))
 
-        t.exec("goDownstairsForStar", t.player.goto_tile, 3537, 3551, 0)
+        door("goDownstairsForStar", "westRoomOut")
+        stairs("goDownstairsForStar", WEST_DOWN)
 
-        t.exec("goto-gardener1", t.player.goto_tile, 3551, 3561, 0)
+        doors("talkToGardenerForHead", { "westHallOut", "midWestOut", "gardenIn" })
         t.exec("talkToGardenerForHead", t.player.talk_to, "fenk_gardener_multi_2", 1)
         t.exec("talkToGardenerForHead-dialog", t.chat.play, {
             "player:What happened to your head?",
@@ -157,8 +430,11 @@ return {
         })
         t.exec("talkToGardenerForHead.flag", t.var.await_server, "varb193_fenk_spoken_to_gardener", 1, 10)
 
+        doors("goToHeadGrave", { "gardenOut", "northOut" })
+        leave_castle("goToHeadGrave")
         t.exec("goToHeadGrave.goto", t.player.goto_tile, 3608, 3489, 0)
-        t.exec("goToHeadGrave", t.player.click_loc, "fenk_grave_poor", 2)
+        -- Ed Lestwit's grave, ^fenk_ed_grave 0_56_54_24_35 (fenkenstrain.constant:34).
+        t.exec("goToHeadGrave", t.player.click_loc, "fenk_grave_poor", 2, { at = { 3608, 3491, 0 } })
         -- The dig's mesbox opens after anim(human_dig,0); p_delay(2), and a
         -- click_loc that first has to step off the grave's own tile (trap 8
         -- of section 8) adds a further tick -- click_loc's settle can win
@@ -174,32 +450,42 @@ return {
 
         t.exec("combinedHead", t.player.use_item_on_item, "fenk_head_empty", "fenk_brain")
         t.exec("combinedHead.held", t.inv.await, "fenk_head_full", 1, 10)
+        t.check("combinedHead.brainUsed", t.inv.expect_absent("fenk_brain"))
 
-        t.exec("goto-coffin", t.player.goto_tile, 3578, 3527, 0)
+        t.exec("goto-coffin", t.player.goto_tile, 3578, 3525, 0)
         local coffin_target = t.player.by_symbol("loc", "fenk_coffin")
-        t.exec("useStarOnGrave", t.player.use_on, "fenk_star_amulet", coffin_target)
+        t.exec("useStarOnGrave", t.player.use_on, "fenk_star_amulet", coffin_target, { at = { 3578, 3527, 0 } })
         t.exec("useStarOnGrave-dialog", t.chat.play, {
             "mesbox:The star amulet fits exactly",
         })
         t.exec("useStarOnGrave.flag", t.var.await_server, "varb192_fenk_coffin", 1, 10)
+        t.check("useStarOnGrave.amuletUsed", t.inv.expect_absent("fenk_star_amulet"))
 
-        t.exec("enterExperimentCave", t.player.click_loc, "fenk_coffin", 1)
-        t.ticks(2)
-        local _, cave_tile = t.world.tile()
-        t.check("enterExperimentCave.tile", cave_tile ~= nil and cave_tile.z > 6400,
-            "tile " .. tostring(cave_tile and cave_tile.x) .. "," .. tostring(cave_tile and cave_tile.z)
-                .. "," .. tostring(cave_tile and cave_tile.level) .. " (underground band is z+6400)")
+        t.exec("enterExperimentCave", t.player.click_loc, "fenk_coffin", 1, { at = { 3578, 3527, 0 } })
+        await_tile(function(tt) return tt.z > 6400 end, 8, "enterExperimentCave")
+        local cave_r, cave_tile = t.world.tile()
+        t.check("enterExperimentCave.tile", cave_r == "ok" and cave_tile.x == 3577 and cave_tile.z == 9927 and cave_tile.level == 0,
+            "tile " .. tile_text(cave_r, cave_tile) .. " (want ^fenk_experiment_cave 3577,9927,0: fenkenstrain_parts.rs2 [oploc1,fenk_coffin])")
 
+        -- One cavern passage: the landing to the Experiment is open floor
+        -- (reach.py REACH closed-doors len=44), so the hop is travel.
         t.exec("goto-experiment", t.player.goto_tile, 3554, 9948, 0)
         t.exec("killExperiment", t.player.attack, "fenk_experiment_1", 2, 25)
         -- Fight it to the end, however long the rolls take: every swing is
         -- on the player's own stream (seam28), and on it the level-51
         -- Experiment sat at a sliver of health past the old 40-tick budget.
-        t.exec("killExperiment.dead", t.npc.await_dead_engaged, 200, 6)
+        local _, kill_detail = t.exec("killExperiment.dead", t.npc.await_dead_engaged, 200, 6,
+            { eat = { item = "lobster", below = 40 } })
+        local kill_low = tonumber(tostring(kill_detail):match("lowest hp (%d+)/"))
+        local food_r, food_left = t.inv.count("lobster")
+        t.check("killExperiment.margin", kill_low ~= nil and kill_low >= 20 and food_r == "ok" and food_left >= 1,
+            "Experiment (level 51): lowest hp " .. tostring(kill_low) .. "/80, lobsters staged 4, left "
+                .. tostring(food_left) .. " (" .. tostring(food_r) .. ") (margin: lowest hp >= 20, a quarter of 80, AND food left)")
 
         local key_result, key_row = t.world.obj_near("fenk_mausoleum_key", 15)
         t.check("pickupKey.locate", key_result == "ok",
-            "world.obj_near(fenk_mausoleum_key,15) -> " .. tostring(key_result) .. " " .. tostring(key_row))
+            "world.obj_near(fenk_mausoleum_key,15) -> " .. tostring(key_result) .. " "
+                .. (type(key_row) == "table" and (tostring(key_row.tile_x) .. "," .. tostring(key_row.tile_z)) or tostring(key_row)))
         if key_result == "ok" then
             t.exec("goto-key", t.player.goto_tile, key_row.tile_x, key_row.tile_z, key_row.level)
         end
@@ -208,14 +494,17 @@ return {
         t.check("pickupKey", pickup_result == "ok", "click_obj fenk_mausoleum_key -> " .. tostring(pickup_result))
         t.exec("pickupKey.held", t.inv.await, "fenk_mausoleum_key", 1, 10)
 
+        -- The same passage west to the mausoleum door (REACH closed-doors len=72).
         t.exec("goto-mausoleumDoor", t.player.goto_tile, 3511, 9957, 0)
-        local mausoleum_door = t.player.by_symbol("loc", "fenk_mausoleum_door")
-        t.exec("openMausoleumDoor", t.player.use_on, "fenk_mausoleum_key", mausoleum_door)
-        t.exec("openMausoleumDoor.flag", t.var.await_server, "varb199_fenk_unlocked_cavern", 1, 10)
+        key_door("openMausoleumDoor", "fenk_mausoleum_key", "fenk_mausoleum_door", "fenk_mausoleum_door_open",
+            { 3510, 9957, 0 }, "varb199_fenk_unlocked_cavern")
+        t.check("openMausoleumDoor.keyUsed", t.inv.expect_absent("fenk_mausoleum_key"))
+        t.exec("leaveExperimentCave.mausoleumDoor", t.player.pass_door, { closed = "fenk_mausoleum_door",
+            open = "fenk_mausoleum_door_open", at = { 3510, 9957, 0 }, near = { 3511, 9957 }, far = { 3509, 9957 } })
+        -- Up the cave ladder into the walled graveyard (maplink 0_54_155_48_49 -> 0_54_55_48_49).
+        climb("leaveExperimentCave", "ladder_from_cellar_directional", { 3504, 9970, 0 }, { 3504, 9969 }, { 3504, 3569, 0, 1 })
 
-        t.exec("leaveExperimentCave", t.player.goto_tile, 3503, 3576, 0)
-
-        t.exec("getTorso", t.player.click_loc, "fenk_grave", 2)
+        t.exec("getTorso", t.player.click_loc, "fenk_grave", 2, { at = { 3502, 3576, 0 } })
         t.await({ level = function() return t.chat.kind() ~= "none" end,
             note = "getTorso dig mesbox" }, 8)
         t.exec("getTorso-dialog", t.chat.play, {
@@ -223,8 +512,7 @@ return {
         })
         t.exec("getTorso.held", t.inv.await, "fenk_torso", 1, 10)
 
-        t.exec("goto-armsGrave", t.player.goto_tile, 3504, 3577, 0)
-        t.exec("getArm", t.player.click_loc, "fenk_grave", 2)
+        t.exec("getArm", t.player.click_loc, "fenk_grave", 2, { at = { 3504, 3577, 0 } })
         t.await({ level = function() return t.chat.kind() ~= "none" end,
             note = "getArm dig mesbox" }, 8)
         t.exec("getArm-dialog", t.chat.play, {
@@ -232,8 +520,7 @@ return {
         })
         t.exec("getArm.held", t.inv.await, "fenk_arms", 1, 10)
 
-        t.exec("goto-legsGrave", t.player.goto_tile, 3506, 3576, 0)
-        t.exec("getLeg", t.player.click_loc, "fenk_grave", 2)
+        t.exec("getLeg", t.player.click_loc, "fenk_grave", 2, { at = { 3506, 3576, 0 } })
         t.await({ level = function() return t.chat.kind() ~= "none" end,
             note = "getLeg dig mesbox" }, 8)
         t.exec("getLeg-dialog", t.chat.play, {
@@ -241,7 +528,15 @@ return {
         })
         t.exec("getLeg.held", t.inv.await, "fenk_legs", 1, 10)
 
-        t.exec("goto-castle2", t.player.goto_tile, 3551, 3550, 0)
+        -- Back through the caves: the graveyard's own memorial drops into
+        -- the cavern by the east ladder, which climbs out beside the coffin.
+        t.exec("deliverBodyParts.pushMemorial", t.player.click_loc, "fenk_coffin", 1, { at = { 3505, 3571, 0 } })
+        await_tile(function(tt) return tt.z > 6400 end, 8, "deliverBodyParts.pushMemorial")
+        local mem_r, mem_tile = t.world.tile()
+        t.check("deliverBodyParts.inCavern", mem_r == "ok" and mem_tile.x == 3577 and mem_tile.z == 9927 and mem_tile.level == 0,
+            "after the push " .. tile_text(mem_r, mem_tile) .. " (want ^fenk_experiment_cave 3577,9927,0)")
+        climb("deliverBodyParts.caveLadder", "ladder_from_cellar_directional", { 3578, 9927, 0 }, { 3577, 9927 }, { 3578, 3526, 0, 1 })
+        enter_castle("deliverBodyParts")
         t.exec("deliverBodyParts", t.player.talk_to, "fenk_fenkenstrain", 1)
         t.exec("deliverBodyParts-dialog", t.chat.play, {
             "options",
@@ -270,7 +565,7 @@ return {
         t.expect("quest.stage.lightning", t.quest.expect_stage("lightning"))
 
         -- ================= Panel: Attracting lightning =================
-        t.exec("goto-gardener2", t.player.goto_tile, 3551, 3561, 0)
+        doors("talkToGardenerForKey", { "northIn", "gardenIn" })
         t.exec("talkToGardenerForKey", t.player.talk_to, "fenk_gardener_multi_2", 1)
         t.exec("talkToGardenerForKey-dialog", t.chat.play, {
             "options",
@@ -280,17 +575,25 @@ return {
         })
         t.exec("talkToGardenerForKey.held", t.inv.await, "fenk_shed_key", 1, 10)
 
-        t.exec("goto-shedDoor", t.player.goto_tile, 3548, 3567, 0)
-        local shed_door = t.player.by_symbol("loc", "fenk_shed_door")
-        t.exec("openShedDoor", t.player.use_on, "fenk_shed_key", shed_door)
-        t.exec("openShedDoor.flag", t.var.await_server, "varb200_fenk_unlocked_shed", 1, 10)
-
-        t.exec("goto-cupboard", t.player.goto_tile, 3546, 3563, 0)
+        walk("searchForBrush.atShedDoor", 3548, 3565, 0)
+        key_door("openShedDoor", "fenk_shed_key", "fenk_shed_door", "fenk_shed_door_open", { 3548, 3565, 0 },
+            "varb200_fenk_unlocked_shed")
+        t.exec("searchForBrush.shedIn", t.player.pass_door, { closed = "fenk_shed_door", open = "fenk_shed_door_open",
+            at = { 3548, 3565, 0 }, near = { 3548, 3565 }, far = { 3547, 3564 } })
         t.exec("searchForBrush.open", t.player.click_loc, "fenk_broomcupboard", 1)
+        -- [oploc1,fenk_broomcupboard] loc_change(fenk_broomcupboard_open, 500):
+        -- wait for the opened cupboard to reach the client before searching it.
+        local cup_r = t.await({ level = function()
+            local r, row = t.world.loc_near("fenk_broomcupboard_open", 4)
+            return r == "ok" and row.tile_x == 3546 and row.tile_z == 3563
+        end, note = "the opened cupboard at 3546,3563" }, 8)
+        t.check("searchForBrush.cupboardOpen", cup_r == "ok",
+            "fenk_broomcupboard_open at 3546,3563,0 after op1 Open -> " .. tostring(cup_r))
         t.exec("searchForBrush", t.player.click_loc, "fenk_broomcupboard_open", 2)
         t.exec("searchForBrush.held", t.inv.await, "fenk_brush0", 1, 10)
+        t.exec("searchForBrush.shedOut", t.player.pass_door, { closed = "fenk_shed_door", open = "fenk_shed_door_open",
+            at = { 3548, 3565, 0 }, near = { 3547, 3565 }, far = { 3549, 3565 } })
 
-        t.exec("goto-canepile", t.player.goto_tile, 3551, 3564, 0)
         t.exec("grabCanes-1", t.player.click_loc, "fenk_canepile", 1)
         t.exec("grabCanes-2", t.player.click_loc, "fenk_canepile", 1)
         t.exec("grabCanes-3", t.player.click_loc, "fenk_canepile", 1)
@@ -300,41 +603,75 @@ return {
         t.exec("extendBrush-2", t.player.use_item_on_item, "fenk_cane", "fenk_brush1")
         t.exec("extendBrush-3", t.player.use_item_on_item, "fenk_cane", "fenk_brush2")
         t.exec("extendBrush.held", t.inv.await, "fenk_brush3", 1, 10)
+        t.check("extendBrush.canesUsed", t.inv.expect_absent("fenk_cane"))
 
-        t.exec("goUpWestStairs", t.player.goto_tile, 3538, 3552, 1)
-        t.exec("goto-fireplace", t.player.goto_tile, 3544, 3555, 1)
+        doors("goUpWestStairs", { "gardenOut", "midWestIn", "westHallIn" })
+        stairs("goUpWestStairs", WEST_UP)
+        door("searchFirePlace", "westRoomIn")
         local fireplace_target = t.player.by_symbol("loc", "fenk_fireplace")
-        t.exec("searchFirePlace", t.player.use_on, "fenk_brush3", fireplace_target)
+        -- Only the west upstairs fireplace (1_55_55_24_35) holds the mould.
+        t.exec("searchFirePlace", t.player.use_on, "fenk_brush3", fireplace_target, { at = { 3544, 3555, 1 } })
         t.exec("searchFirePlace-dialog", t.chat.play, {
             "mesbox:A lightning conductor mould falls",
         })
         t.exec("searchFirePlace.held", t.inv.await, "fenk_lightning_mould", 1, 10)
 
         -- Any furnace works (smelting.rs2's silver_bar case calls
-        -- fenk_try_cast_conductor before the ordinary jewellery menu). None
-        -- is placed near Canifis; Keldagrim's smithing quarter is the
-        -- already-proven target (test/quests/betweenarock.lua's own
-        -- smeltCannonball leg).
-        t.exec("makeLightningRod.goto", t.player.goto_tile, 2869, 10202, 0)
-        local furnace_result, furnace = t.world.loc_near("dwarf_keldagrim_furnace", 60)
-        t.check("makeLightningRod.locate", furnace_result == "ok",
-            "world.loc_near(dwarf_keldagrim_furnace,60) -> " .. tostring(furnace_result) .. " " .. tostring(furnace))
-        if furnace_result == "ok" then
-            t.exec("makeLightningRod.goto2", t.player.goto_tile, furnace.tile_x, furnace.tile_z, furnace.level)
-        end
-        local furnace_target = t.player.by_symbol("loc", "dwarf_keldagrim_furnace")
-        t.exec("makeLightningRod", t.player.use_on, "silver_bar", furnace_target)
+        -- fenk_try_cast_conductor before the ordinary jewellery menu). Quest
+        -- Helper: "Go to any furnace make a lightning rod", recommending a
+        -- Falador teleport; the wiki quick guide (oldid 15266785) names
+        -- "teleport to Falador" among its furnaces. Cast from where the
+        -- mould was found, walk into Falador's furnace room, and come back
+        -- by the recommended Fenkenstrain's Castle Teleport tablet.
+        t.player.teleport_cast("falador_teleport", { 2965, 3378, 0 }, { name = "makeLightningRod.faladorTeleport",
+            runes = { { "waterrune", 1 }, { "airrune", 3 }, { "lawrune", 1 } },
+            where = "Falador square, tele_coord 0_46_52_21_50" })
+        -- Falador square -> the furnace room (2973-2977,3366-3372; the open
+        -- doorway fai_falador_poor_door_open 2977,3373): reach.py 2965,3378
+        -- -> 2974,3369 REACH closed-doors len=18, so the walk is travel.
+        t.exec("makeLightningRod.toFurnace", t.player.walk_to, 2974, 3369, 40)
+        local furnace_target = t.player.by_symbol("loc", "fai_falador_furnace")
+        t.exec("makeLightningRod", t.player.use_on, "silver_bar", furnace_target, { at = { 2976, 3368, 0 } })
         t.exec("makeLightningRod.held", t.inv.await, "fenk_conductor", 1, 10)
+        -- fenkenstrain_lightning.rs2 [proc,fenk_try_cast_conductor]: the
+        -- conductor's own sentence, not the ordinary silver-crafting menu.
+        t.exec("makeLightningRod.msg", t.msg.expect, "You cast a silver lightning conductor")
+        t.check("makeLightningRod.barUsed", t.inv.expect_absent("silver_bar"))
 
-        t.exec("goUpWestStairsWithRod", t.player.goto_tile, 3537, 3553, 0)
-        t.exec("goUpTowerLadder", t.player.goto_tile, 3549, 3537, 2)
+        -- Back: break the tablet (teleport_tablet.rs2 [opheld1,teletab_fenk]),
+        -- graded on the landing (map_findsquare within 2 of 3550,3530,0) and
+        -- the tablet leaving the backpack.
+        local tab_before_r, tab_before = t.inv.count("teletab_fenk")
+        local tab_r, tab_d = t.player.inv_op("teletab_fenk", 1)
+        await_tile(function(tt) return tt.level == 0 and math.abs(tt.x - 3550) <= 2 and math.abs(tt.z - 3530) <= 2 end,
+            12, "goUpWestStairsWithRod.castleTeleport")
+        local land_r, land = t.world.tile()
+        local tab_after_r, tab_after = t.inv.count("teletab_fenk")
+        t.check("goUpWestStairsWithRod.castleTeleport",
+            tab_r ~= "refused" and land_r == "ok" and land.level == 0 and math.abs(land.x - 3550) <= 2
+                and math.abs(land.z - 3530) <= 2 and tab_before_r == "ok" and tab_after_r == "ok"
+                and tab_before == 1 and tab_after == 0,
+            "inv_op(teletab_fenk,1) -> " .. tostring(tab_r) .. " " .. tostring(tab_d) .. "; landed " .. tile_text(land_r, land)
+                .. "; teletab_fenk " .. tostring(tab_before) .. " -> " .. tostring(tab_after)
+                .. " (want within 2 of 3550,3530,0, tele_coord 0_55_55_30_10, and the tablet 1 -> 0)")
+
+        -- The tablet lands four tiles from the castle front: walked, not goto'd.
+        walk("goUpWestStairsWithRod.toCastleFront", 3548, 3528, 0)
+        doors("goUpWestStairsWithRod", { "frontIn", "hallIn" })
+        hall_to_west_stairs("goUpWestStairsWithRod")
+        stairs("goUpWestStairsWithRod", WEST_UP)
+        door("goUpTowerLadder", "conductorIn")
+        climb("goUpTowerLadder", "ladder", { 3548, 3539, 1 }, { 3549, 3539 }, { 3549, 3539, 2, 1 })
         t.exec("repairConductor", t.player.click_loc, "fenk_conductor_broken", 1)
         t.exec("repairConductor-dialog", t.chat.play, {
             "mesbox:You repair the lightning conductor",
         })
         t.expect("quest.stage.alive", t.quest.expect_stage("alive"))
 
-        t.exec("goBackToFirstFloor", t.player.goto_tile, 3551, 3550, 0)
+        climb("goBackToFirstFloor.ladderDown", "laddertop", { 3548, 3539, 2 }, { 3549, 3539 }, { 3549, 3539, 1, 1 })
+        door("goBackToFirstFloor", "conductorOut")
+        stairs("goBackToFirstFloor", WEST_DOWN)
+        west_stairs_to_hall("goBackToFirstFloor")
         t.exec("talkToFenkenstrainAfterFixingRod", t.player.talk_to, "fenk_fenkenstrain", 1)
         t.exec("talkToFenkenstrainAfterFixingRod-dialog", t.chat.play, {
             "player:So did it work, then?",
@@ -347,20 +684,15 @@ return {
         t.expect("quest.stage.tower", t.quest.expect_stage("tower"))
 
         -- ================= Panel: Facing the monster =================
-        t.exec("goToMonsterFloor1", t.player.goto_tile, 3548, 3549, 1)
-        local tower_door = t.player.by_symbol("loc", "fenk_tower_door")
-        t.exec("openLockedDoor", t.player.use_on, "fenk_tower_key", tower_door)
-        t.exec("openLockedDoor.flag", t.var.await_server, "varb198_fenk_unlocked_tower", 1, 10)
-
-        local walk_result = t.player.walk_to(3548, 3553)
-        t.check("towerRoom.walk", walk_result == "ok", "walk_to 3548,3553 -> " .. tostring(walk_result))
-
-        t.exec("goToMonsterFloor2", t.player.click_loc, "ladder", 1)
-        t.ticks(3)
-        local _, plane2_tile = t.world.tile()
-        t.check("goToMonsterFloor2.tile", plane2_tile ~= nil and plane2_tile.level == 2,
-            "tile " .. tostring(plane2_tile and plane2_tile.x) .. "," .. tostring(plane2_tile and plane2_tile.z)
-                .. "," .. tostring(plane2_tile and plane2_tile.level))
+        hall_to_west_stairs("goToMonsterFloor1")
+        stairs("goToMonsterFloor1", WEST_UP)
+        walk("openLockedDoor.atDoor", 3548, 3551, 1)
+        key_door("openLockedDoor", "fenk_tower_key", "fenk_tower_door", "fenk_tower_door_open", { 3548, 3551, 1 },
+            "varb198_fenk_unlocked_tower")
+        t.check("openLockedDoor.keyKept", t.inv.expect_has("fenk_tower_key", 1))
+        t.exec("goToMonsterFloor2.towerDoor", t.player.pass_door, { closed = "fenk_tower_door", open = "fenk_tower_door_open",
+            at = { 3548, 3551, 1 }, near = { 3548, 3551 }, far = { 3548, 3553 } })
+        climb("goToMonsterFloor2", "ladder", { 3548, 3554, 1 }, { 3548, 3553 }, { 3548, 3553, 2, 1 })
 
         local present_result, present_creature = t.npc.await_present("fenk_creature", 6, 5)
         t.check("talkToMonster.present", present_result == "ok",
@@ -392,14 +724,11 @@ return {
         t.expect("quest.stage.spoke_creature", t.quest.expect_stage("spoke_creature"))
 
         -- ================= Panel: Finishing off =================
-        t.exec("goto-descend", t.player.click_loc, "laddertop", 1)
-        t.ticks(3)
-        local _, plane1_tile = t.world.tile()
-        t.check("goto-descend.tile", plane1_tile ~= nil and plane1_tile.level == 1,
-            "tile " .. tostring(plane1_tile and plane1_tile.x) .. "," .. tostring(plane1_tile and plane1_tile.z)
-                .. "," .. tostring(plane1_tile and plane1_tile.level))
-
-        t.exec("goto-doctor", t.player.goto_tile, 3551, 3548, 0)
+        climb("pickPocketFenkenstrain.ladderDown", "laddertop", { 3548, 3554, 2 }, { 3548, 3553 }, { 3548, 3553, 1, 1 })
+        t.exec("pickPocketFenkenstrain.towerDoor", t.player.pass_door, { closed = "fenk_tower_door", open = "fenk_tower_door_open",
+            at = { 3548, 3551, 1 }, near = { 3548, 3552 }, far = { 3548, 3550 } })
+        stairs("pickPocketFenkenstrain.downstairs", WEST_DOWN)
+        west_stairs_to_hall("pickPocketFenkenstrain")
         local snap_result, snap = t.skill.snapshot()
         t.check("reward.snapshot", snap_result == "ok", "skill.snapshot -> " .. tostring(snap_result))
 

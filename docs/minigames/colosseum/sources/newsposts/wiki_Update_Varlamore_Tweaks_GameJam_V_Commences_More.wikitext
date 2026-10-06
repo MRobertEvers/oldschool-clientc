@@ -1,0 +1,125 @@
+{{Update|date=24 April 2024|url=https://secure.runescape.com/m=news/varlamore-tweaks-gamejam-v-commences--more?oldschool=1|category=game}}
+[[File:Varlamore Tweaks, GameJam V Commences & More! newspost.jpg|right]]
+{{clear}}
+__TOC__
+''This week’s update is short and sweet, as we focus on our Game Jam projects!''
+
+This week marks the start of our ''fifth'' bi-annual Game Jam – and so today’s update is rather on the small side. Tune in next week to see what we’ve been up to!
+
+We'll be releasing a small update to our most recent Project Rebalance blog later today, so keep an eye out!
+
+[[File:Varlamore Tweaks, GameJam V Commences & More! (1).png|600px|center]]
+
+==Varlamore Feedback Tweaks ==
+Last week’s fresh batch of Combat Achievements saw you taking on Perilous Moons and the Fortis Colosseum in droves!
+
+Notably absent from the festivities were ‘Zerker’ builds, who are limited to 45 Defence and are therefore extra challenged when completing Combat Achievements. Obtaining the prestigious ‘Zuk Helm’ on these accounts is no small feat! Unfortunately, two of last week’s Achievements are inaccessible for these players, so we’ve made some tweaks:
+
+* 'Betrayal' now only requires you to use a Perilous Moons weapon for the fight instead of a full set. This still heavily incentivises the use of a full set but lets everybody have a go if they don't mind making things harder on themselves.
+* 'I Brought Mine Too' has been updated to include ''all'' spears and hastae, as well as halberds. Spears/hastae grant Defence XP on every combat style, so we've included halberds in the mix to keep on theme and provide a more Strength-focused alternative. Note that the fight feels even trickier with a halberd, and you might have to unlearn a little bit of muscle memory to tick this one off!
+
+Beyond the bloodshed and brutality of Combat Achievements, we've got more changes in and around the Shining Kingdom this week:
+
+* Adjusted the weight of various Moons of Peril rewards:
+** Eclipse Moon Helm - 0.907kg
+** Eclipse Moon Chestplate - 3kg
+** Eclipse Moon Tassets - 1kg
+** Blue Moon Helm - 0.453kg
+** Blue Moon Chestplate - 3.175kg
+** Blue Moon Tassets - 1.360kg
+** Blood Moon Helm - 0.907kg
+** Blood Moon Chestplate - 5.443kg
+** Blood Moon Tassets - 4.083kg
+* Unbuilt Quetzal landing sites now stand out better among Varlamore’s beautiful scenery.
+* Updated the names of various speed-related Colosseum Combat Achievements in line with the others.
+* Players who run out of Membership are now able to freely reclaim Quetzin and Smol Heredit upon regaining Membership status.
+* The 'Mantimayhem' modifier will no longer be offered as an option going into Wave 12, since it doesn't do anything during the Sol Heredit fight. We ''could ''add a Manticore into the mix here, but we're not sure it would be a welcome addition...
+* Sol Heredit will no longer damage players with his 'grab' attack after he runs out of hitpoints. Apologies to anybody who's missed out on juicy rewards as a result of this nasty bug.
+* Kebbity Tufts from Hunter rumours can now only be handed in if they were obtained from the same kebbit that you've been assigned.
+* Razor-backed kebbit footprints have been made darker so that they don't blend in with the environment quite as much. While not strictly Varlamore-related, Hunter rumours have led to these prickly fellas seeing a little engagement than they're used to!
+* Bees inside the Colosseum are now more visible and easier to keep track of.
+* It’s now possible to charge multiple Quetzal Whistles at once.
+* Updated the appearance of the Cam Torum pickaxe stall.
+* Finally, an apology! A few changes were included in a previous newspost by mistake, but are only going live today:
+** Nagua are now classified as spectral creatures, so should offer Prayer XP when killed if the player has an Ectoplasmator in their Inventory.
+** Rune prices in Nahta's shop should increase at a rate of 0.1% per missing stock, as opposed to 1%.
+** Mapping around the Sunlight Antelopes has been improved so they don't get stuck quite as often while you're hunting them.
+** Deadfall NPCs have had their pathfinding improved for similar reasons.
+** The Fur and Meat Pouches can now be opened to automatically accept their storeable items. Additionally, their contents can be emptied directly into the Bank.
+** Impling Jars and Rings of Pursuit can now be stored inside the Huntsman's Kit.
+
+==Other Changes==
+In other news this week:
+
+* Fixed a bug where the Imbued Slayer Helmet wasn't refunding the points/scroll used to imbue it in some instances when lost on death.
+* Moved the Elite Clue Step formerly inside the Wilderness Agility Course to the small mound just south of the Pirates' Hideout.
+* If an NPC is afflicted by venom, standard poison attacks will no longer downgrade the venom effect to a poison effect.
+* When you check the charges of a Tome of Fire, it now tells you what kind of page was used to charge it, meaning you're able to tell whether you're using Burnt or Searing Pages.
+* Leo's dialogue in the Gravedigger random event is no longer so gratuitously loquacious (apologies, we simply could not resist).
+
+Additionally, this week sees the release of our updated 'Report Abuse' interface. We spoke about it in detail during [https://secure.runescape.com/m=news/a=13/undead-pirates-tweaks-varlamore-cas--more?oldschool=1 last week's game update newspost] so check that out if you didn't catch it last week! Ultimately, these improvements should improve the useability of the 'Report Abuse' system for players on both PC and mobile, make it easier to report players that you suspect aren't playing by the rules, and allow [https://www.gov.uk/eu-eea#:~:text=EU%20countries&text=Austria%2C%20Belgium%2C%20Bulgaria%2C%20Croatia,%2C%20Slovenia%2C%20Spain%20and%20Sweden residents of EU Member State countries] to report law-breaking content if it ever pops up in-game.
+
+[[File:Varlamore Tweaks, GameJam V Commences & More! (2).png|thumb|516px|center|''Apologies 'Dodgy Git', we saw your post but we're using the same image. We're sure you're a lovely, rule-abiding player, despite your username!'']]
+
+
+[[File:Varlamore Tweaks, GameJam V Commences & More! (3).png|434px|center]]
+
+==Game Jam V==
+Game Jam (or as we like to call it, ‘Jame Gam’) is in full swing once more!
+
+We do these internal events twice a year, and they provide us with a fantastic opportunity to come together as a team and pursue passion projects outside the normal roadmap. Game Jams gone by have introduced projects that eventually became Scurrius, the Hairdresser overhaul, Perilous Moons, Wilderness updates, Project Rebalance, and more!
+
+If you want to see what we’re up to this time, take a look at the '''#OSRSGameJam''' hashtag on X. We’re jamming until Monday, May 6th, so there’ll be '''no game update '''next week – although there may still be some downtime.
+
+==Community Updates==
+We've got a couple of things to update you on that aren't strictly related to game content today, so take a look before you race off to make those gains!
+
+===Gielinor Games - Season 4===
+The return of the ''fantastic'' Gielinor Games is almost upon us! Gielinor Games 4 premieres on Saturday, May 4th at 6pm UTC on SoupRS' [https://www.twitch.tv/Soup Twitch] and [https://www.youtube.com/@SoupRS YouTube] channels. Check out [https://www.youtube.com/watch?v=ZEystoCEYsE the trailer] for a taste of what's in store!
+
+<center>{{Youtube|ZEystoCEYsE}}</center>
+
+===A SkillSpectacular Cooking stream...===
+To celebrate the release of RuneScape: The Official Cookbook we're delighted to announce that SkillSpecs will be donning his apron to wreak havoc in the kitchen once again.
+
+Join SkillSpecs on Saturday, April 27th at 7pm UTC on his [https://www.twitch.tv/skillspecs Twitch channel] and see what unique takes he'll have on some of Gielinor's finest recipes.
+
+If you haven't already done so, check out the gorgeous hardback book which is available now in your friendly local bookstore and [https://geni.us/runescapecookbook online retailers]!
+
+[[File:Varlamore Tweaks, GameJam V Commences & More! (4).jpg|600px|center]]
+
+===Creator Crafted Merch Updates===
+Community merch outlet Creator Crafted has just launched three new LED signs: The Wise Old Man, Dragon Warhammer, and Tumeken's Warden, all featuring artwork from the talented Golden Gnome finalist, Artistic Imp.
+
+[[File:Varlamore Tweaks, GameJam V Commences & More! (5).png|600px|center]]
+
+They're also offering a brand-new mousepad designed by the talented Uber, which captures the Fortis Colosseum in brilliant detail!
+
+[[File:Varlamore Tweaks, GameJam V Commences & More! (6).png|600px|center]]
+
+To top all of that off, we've heard that you can get 10% off of any orders by using the code 'CREATOR10' at the checkout. If you're interested in any of the designs above or want to see what else is on offer, [https://creatorcrafted.com/collections/may-drop  click here] to take a look!
+
+''Creator Crafted LED signs and mousepads are produced in collaboration with members of the OSRS art community, under license from Jagex.''
+
+==PvP World Rota ==
+The PvP rota has moved to '''Period B:'''
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

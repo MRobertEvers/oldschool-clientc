@@ -1,0 +1,213 @@
+{{Update|date=12 August 2021|link=https://secure.runescape.com/m=news/tombs-of-amascut-rewards-beta?oldschool=1|category=game}}
+[[File:Tombs of Amascut- Rewards Beta newspost.png|right]]
+{{clear}}
+{{ToC}}
+
+''This week it's time to reveal the new rewards for Raids III! Take them out for a spin on your favourite bosses, or simply bully some poor unsuspecting goblins. Most importantly, let us know what you think! We’ve also got Combat Achievement updates and a spicy summer sale offer on Premier Club Membership!''
+
+==Tombs of Amascut: Rewards Beta==
+[[File:Tombs of Amascut- Rewards Beta (1).gif|thumb|centre|400px|''We're so excited to share some of our reward ideas for Raids III with you!'']]
+
+
+Our next Raid launches in early 2022, but we’re already dreaming up cool rewards for our pluckiest players! The Tombs of Amascut will feature some seriously smart gear to make battering the bosses a breeze – and if you log into a Beta World today, you’ll be able to give some of it a try!
+
+These beta worlds will be highlighted in blue on the world selection screen and consist of the following:
+* 407 (UK)
+* 409 (US)
+* 412 (AUS)
+
+Upon logging into a Beta World, all reward items will be added to your inventory and you can also check your bank for some other goodies! We've also enabled access to the Inferno, since we reckon many of the rewards will be utilised in late game PvM!
+
+By the way, we haven’t started designing the artwork for these new rewards yet, so for now we've given them a very gaudy default magenta skin. We won't actually release them in that style...
+
+… or will we?
+
+Err, no. Rest assured they’ll be looking lovely come 2022! Anyway, let's take a look at those shiny new rewards!
+
+''As always, we refer to the in-game timings as cycles. Each cycle is equal to 0.6 seconds and is also commonly referred to as a 'tick' by the wider community.''
+
+===Keris Partisan===
+After completing the quest Beneath Cursed Sands, players will be provided the option to upgrade their Keris into a mighty spear – the Keris Partisan!
+
+This powerful one handed weapon has a socket for inserting various jewels, obtained as rare rewards from the Tombs of Amascut, which will provide some handy effects. Only one jewel can be used at a time, but if you choose to switch jewels, the rejected one can be used again later.
+
+Here are some of the jewel buffs we're toying with. Please note, these ideas haven’t been finalized and could still change:
+
+====Eye of the Corrupter====
+Using this jewel adds a damage-over-time effect to any enemies you hit within the Tombs of Amascut (this cannot be stacked on the same NPC multiple times, but can be applied to multiple NPCs at once).
+
+====Jewel of the Sun====
+Using this jewel within the Tombs applies a debuff resulting in the NPC taking higher damage for X seconds.
+
+====Breach of the Scarab====
+This jewel buffs the Keris Partisan with an additional 33% accuracy against Kalphites/Scarabs/Beetles.
+
+====Details, Stats and Requirements:====
+* Requires 80 Attack and completion of Beneath Cursed Sands to wield.
+* Non-degradable.
+* Once upgraded, the Keris Spear has a crush option, which makes it particularly useful against Beetles!
+* The Keris Spear is untradeable, as are the jewels.
+* It retains the effect of the normal Keris.
+* Upon death in the Wilderness, it will break.
+
+[[File:Tombs of Amascut- Rewards Beta (2).png|centre]]
+
+===Heka of Tumeken===
+Tumeken was the God of the Sun. He jointly led the Menaphite Pantheon with his wife, the Fertility Goddess Elidinis. While Tumeken and Elidinis guided their people spiritually, it was the responsibility of a human Pharaoh to rule over the Kharidian Lands.
+
+The last Pharaoh to rule was Osmumten, and he fought alongside Tumeken against enemy forces in an ancient war. After Tumeken sacrificed himself to end the war, Elidinis gifted his Heka to Osmumten.
+
+Introducing our very first powered Wand: The Heka of Tumeken! This bad boy is a new, fast-attacking wand with its own built-in spell. It will hit three times as fast for low damage followed by a fourth sequential attack that launches a more powerful, slower projectile. Thanks to its variable attack speed, this is a pretty special weapon, offering potential new and effective ways to approach various encounters. We might even be designing some new encounters with this weapon in mind!
+
+====Details, Stats and Requirements:====
+* Requires 84 Magic to wield.
+* Can be charged (untradeable) and uncharged (tradeable). The Heka can be charged with 1 soul rune and 3 chaos runes.
+* The unique attack effect is new: it will hit three times in quick succession for low damage, and its fourth hit will launch a powerful (but slower) projectile.
+* It can’t be used in PvP – this is consistent with all powered staves. However, if it is dropped in PvP, any charged versions will drop as uncharged.
+* The Heka of Tumeken will have +25 Magic Attack, +20 Magic Defence. The standard faster attacks will only benefit from 50% of your Magic strength. The slower fourth hit will be much stronger, benefitting from 150% of your Magic strength bonus. You can find the full formula in our recent Tombs of Amascut: Raid Rewards newspost.
+* It will also have a slightly shorter attack range than power staves – but not by too much.
+
+[[File:Tombs of Amascut- Rewards Beta (3).png|centre]]
+
+===Ward of Elidinis===
+As well as gifting Osmumten with Tumeken’s Heka, the wise Elidinis also bestowed upon the grieving Pharoah her Ward, before disappearing to mourn her husband and daughter.
+
+This powerful best-in-slot Magic Shield is a rare reward from the Tombs of Amascut, but there’s a catch – it’s totally broken. Now, it is tradeable, if you wish to sell it on - but we recommend restoring it to its full power. To do so, you’ll need to combine it with an Arcane Sigil and 10,000 Soul Runes.
+
+====Details, Stats and Requirements:====
+* 80 Magic, 80 Defence and 80 Prayer are required to wield it.
+* Players will require 90 Prayer and 90 Smithing to combine the Broken Ward with an Arcane Sigil and 10,000 Soul runes, creating the Ward of Elidinis. If you don't meet this requirement, you may pay Abbot Langley 20,000,000 coins to do it for you (provided you have the right materials).
+* Should you wish to separate the Arcane Sigil from the Ward of Elidinis, you can do so yourself. You will not need to pay, but any Soul Runes you use will be lost.
+* The broken Ward will be tradeable, but the fixed Ward of Elidinis will not. It’s pretty awesome though, and you’ll want to hang on to it!
+* Upon PvP death, the Ward of Elidinis drops as a Broken Ward, and the Arcane Sigil.
+
+[[File:Tombs of Amascut- Rewards Beta (4).png|centre]]
+
+===Masori Armour and Amulet===
+During the war, a group of rangers known as the Masori banded together. While they did their fair share of fighting, their primary role was to defend people from the thieves and murderers who would take advantage of the wartime chaos. The group dissolved soon after the war ended, but some of their equipment can still be found in the homes of more wealthy Menaphites… or among the possessions of long dead Pharaohs.
+
+The Masori Armour is a two-piece unique armour set, with a ‘low life’ set effect plugged in that gives you additional accuracy and damage when you’re below 40% HP - making it a powerful piece of offensive gear. When you’re above 40% HP, however, your gear will have decent range but weak defence.
+
+We're also introducing a new Masori Amulet that will help you activate the ‘low life’ effect. When equipped, the Masori Amulet will damage the player for 15% of their current health every three cycles. It will cease damage ticking when your HP hits 40% or below.
+
+We're pretty excited about this new mechanic! It should result in different playstyles that we haven't seen before, and potentially encourage riskier strategies. Let us know what you think!
+
+====Details, Stats and Requirements:====
+* Players will require 80 Ranged and 20 Defence to wear any pieces of Masori Armour.
+* The Masori Armour and Amulet are tradeable.
+* It will drop in PvP normally.
+
+[[File:Tombs of Amascut- Rewards Beta (5).png|centre]]
+
+
+[[File:Tombs of Amascut- Rewards Beta (6).png|centre]]
+
+
+[[File:Tombs of Amascut- Rewards Beta (7).png|centre]]
+
+===Lightbearer===
+As the war drew to a close, many nefarious types attempted to capitalise on the chaos and destruction. One of these individuals was a ruthless warrior known as Ahmek. He crafted a powerful ring imbued with unstable energy left behind from Tumeken's sacrifice. Ahmek hoped to use this ring to forcibly unite the assorted bands of thieves and mercenaries under his command – and to overthrow Osmumten. Fate, however, had other plans. On the very night he created it, he was murdered in his sleep and the ring stolen. Soon after, this dreaded item was snatched from the body of a thief by some Menaphite Guards, who presented it to the Pharaoh.
+
+[[File:Tombs of Amascut- Rewards Beta (8).png|centre]]
+
+
+The Lightbearer is a new ring that doubles the rate at which special attack energy is restored while worn! It's tradeable, does not degrade, and if unequipped resets your special attack restore timer. There are absolutely no requirements to wield the Lightbearer, but there are also no special stats given to it. We think this will have plenty of utility within the game, from PvM, to PvP, and even Skilling!
+
+===Osmumten's Khopesh===
+When he wasn't battling on the frontlines of war, Osmumten was a passionate hunter. He used armour and weapons crafted by the finest artisans in the land to bring down the deadliest beasts. Of particular note was his magnificent Khopesh. While based on a classic Kharidian design, it was modified with a long and sharp end, making it far larger – while remaining more versatile – than the average Khopesh. It was eventually buried with Osmumten.
+
+Osmumten’s Khopesh is a new melee weapon which excels against monsters with very high defence! It’s also fine against low defence monsters, but less optimal, as it’s slower (but very accurate). It also boasts a special attack that increases the max hit of the weapon to its true max hit for one attack – and it boosts accuracy by an additional 50%! Using it in this way costs 50% of the player's special attack energy.
+
+====Details, Stats and Requirements:====
+* Requires 82 Attack to wield.
+* It has a five cycle tick speed and its accuracy is similar to an Elder Maul.
+
+[[File:Tombs of Amascut- Rewards Beta (9).png|centre]]
+
+
+You can also find some more information including concept art, setting and details about the precursor quest by checking out our [https://secure.runescape.com/m=news/tombs-of-amascut-raid-rewards?oldschool=1 Tombs of Amascut: Raid Rewards] newspost.
+
+So, fancy wielding some of these weapons? Jump into a Beta World, give them a spin and let us know what you think! We’re also happy to answer any questions that aren’t addressed here – just get in touch at the links below.
+
+==Premier Club - Summer 2021==
+[[File:Tombs of Amascut- Rewards Beta (10).png|centre|600px]]
+
+
+What better way to follow up the Summer Summit than with a juicy Summer Sale? You can enjoy all the forthcoming content we just announced by joining our Premier Club, '''on sale from the 16th August'''!
+
+If you didn't know already, Premier Club offers our best-value yearly Membership package, giving you access to Deadman Mode, Leagues, Group Ironman and more. You can purchase the bumper Gold package until September 14th, so grab it whilst you can.
+
+Did you know you can purchase Premier Club via your mobile device now, too? However, be warned that you may run into eligibility issues if you have recurring Membership already enabled. If this is the case for you, quickly swap to your PC to complete the purchase and you'll be good to go!
+
+==Mini Poll Improvements==
+[[File:Tombs of Amascut- Rewards Beta (11).png|centre|600px]]
+
+
+We’ve made some more changes from the recent Mini Poll. Here's what’s new:
+* Players may now trade in their duplicate Enhanced Crystal Weapon Seeds for 1,500 Crystal Shards each.
+* Ultimate Ironmen can now store the Bow of Faerdhinen in a STASH unit, similar to other account types.
+* We've changed the weighting and number of Sourhogs that can be assigned by a Slayer Master. You'll now receive between 15-25 Sourhogs per task and you're less likely to receive the task in the first place.
+* And finally, players will now receive 100% Prayer XP from the Ash Sanctifier upon completion of the Elite Kourend and Kebos Diary!
+
+We know you're eagerly awaiting the remaining changes from the mini poll, and we'll make sure to implement them as soon as possible. If you'd like a refresher on the proposed tweaks, check out our [https://secure.runescape.com/m=news/mini-poll---miscellaneous-improvements?oldschool=1 Mini Poll blog]!
+
+==Combat Achievements==
+[[File:Tombs of Amascut- Rewards Beta (12).png|centre|600px]]
+
+
+Adventurers – we’re so proud of the challenges you've completed so far. So proud, in fact, that we've gone ahead and fixed the Adventurers' Log! You'll now be able to see your Combat Achievements displayed in all their glory within your Player Owned House. Engage smug mode!
+
+This week, we're raising the stakes by adding '''brand new Combat Achievement tasks''' within Phosani's Nightmare! When you check your Combat Achievement interface, you'll see 10 new tasks, ranging from Elite and Master to Grandmaster. As mentioned in our [https://secure.runescape.com/m=news/combat-achievements-poll-blog?oldschool=1 original blog], you'll need to complete each tier in order to regain access to any associated rewards. Speed and Kill Count tasks will apply retroactively, taking into account your current progress and completion times.
+
+The race begins! Complete the new tasks and let us know how you get on…
+{|class=wikitable style="text-align:center; width:665px;"
+!Name
+!Description
+!Tier
+|-
+|Phosani's Champion || Kill Phosani's Nightmare once. || Elite
+|-
+|Phosani's Adept || Kill Phosani's Nightmare 25 times. || Master
+|-
+|Phosani's Veteran || Kill Phosani's Nightmare 100 times. || GM
+|-
+|Crush Hour || Kill Phosani's Nightmare while killing every parasite and husk in one hit. || Master
+|-
+|Perfect Phosani's Nightmare || Kill Phosani's Nightmare while only taking damage from husks, power blasts and weakened Parasites. Also, without having your attacks slowed by the Nightmare Spores or letting a Sleepwalker reach Phosani's Nightmare. || GM
+|-
+|Can't Wake Up || Kill Phosani's Nightmare 5 times in a row without leaving Phosani's Dream. || GM
+|-
+|I Will Simply React || Kill Phosani's Nightmare without allowing your prayer to be disabled. || Master
+|-
+|Dreamland Express || Kill Phosani's Nightmare without a sleepwalker reaching her during her desperation phase. || Master
+|-
+|Phosani's Speedchaser || Defeat Phosani's Nighmare within 8 minutes. || Master
+|-
+|Phosani's Speedrunner || Defeat Phosani's Nighmare within 7 minutes. || GM
+|}
+
+==Poll 75 Improvements==
+* There's now less variation in where the Maiden Blood Spawns appear in the theatre, making your survival a little less dependent on the whims of the RNG Gods! Additionally, if you successfully dodge the blood, a maximum of one Blood Spawn only will appear.
+* Additionally, we've improved the area where Killerwatts are found, as it was visually uncomfortable for some players.
+We only have a few changes left to get through from Poll 75. Expect to see them soon!
+
+==PvP World Rota==
+The PvP rota has moved to Period B:
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+* 390 - (AUS) - LMS Competitive
+
+==Extras==
+* On the recommended Castle Wars Worlds, players now need a skill total of 500 or more if they want to set up barricades. Players without that level are welcome to use the barricades on other worlds.
+* Rings of Suffering no longer vanish if their charges are discarded on free-to-play Worlds.
+* Random events are no longer permitted to bother you while you're dodging elementals in the Sorceress' Garden.
+
+----
+
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums?380,381,747,66225133 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums] or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Grub, Halo, Havik, Husky, Jerv, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Skylark, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

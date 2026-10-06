@@ -36,7 +36,7 @@ export const meta = {
 // sampler (or the closer when nothing was accepted) commits wip/, syncs both
 // repos with origin before pushing, and releases the batch's leftover claims.
 
-const WT = '/Users/matthewevers/Documents/git_repos/3draster'
+const WT = (args && args.wt) || '/Users/matthewevers/Documents/git_repos/3draster'
 const batch = args && args.batch
 // The batch branch (docs/QUEST_ORCHESTRATOR.md): <host>-b<N>, the pass name without its -parity / -seamN suffix, or args.branch.
 const BATCH = (args && args.branch) || String(batch || '').replace(/-(parity|seam\d+)$/, '')
@@ -44,13 +44,18 @@ const tests = (args && args.tests) || []
 const authorModel = (args && args.author_model) || 'claude-sonnet-5-5'
 const relay = (args && args.relay) || {}   // { test_id: number of legs } -- from `python3 tools/quest_gate/ladder.py <id>`; a quest over ~30 guide steps is authored as a relay
 const extraContext = (args && args.context) ? `\n\nCURRENT PICTURE (from the orchestrator): ${args.context}` : ''
+// args.round: the round this launch opens (2, 3, ...). A persisted review is
+// final for its launch -- a relaunch with the same args replays it from disk --
+// so a NEW round must say so, or a quest a reviewer rejected last round is
+// replayed, not authored again (b55 round 2: two of three quests skipped).
+const round = Number((args && args.round) || 0)
 const sheetDir = (args && args.sheet_dir) || `${WT}/build/author_state/${batch}/sheet`
 if (!batch) throw new Error('args.batch is required (e.g. "sonnet-b11")')
 if (!tests.length) throw new Error('args.tests is empty: pick test_ids with tools/quest_gate/queue.py first')
 const STATE = `${WT}/build/author_state/${batch}`
 const WIP = (id) => `${WT}/test/quests/wip/${id}`   // tracked: relay legs, notebooks, hand-off, parked file
 
-const COMMON = `Work ONLY inside ${WT} (branch v3). (the owner's checkout; the 2026-09-25 disk cleanup deleted the old worktree, so this checkout IS the working tree now -- never delete build or cache directories, never run git clean/checkout/reset on paths you did not change). Absolute paths under ${WT} for every command. Never git stash/checkout/reset/clean/amend, never git add -A or -u. Never commit saves/, build*, cache*, manifests/.*.ini, preferences.ini, plugin_prefs.ini. Run every run.py in the FOREGROUND and wait for it; never background it or wait on a monitor/notification. run.py refuses a second concurrent run of one quest id. BATCH STATE DIR: ${STATE} (mkdir -p it); every worker persists its result there so a paused or killed batch resumes from disk.${extraContext}`
+const COMMON = `Work ONLY inside ${WT} (branch ${BATCH}, the batch branch the SYNC block names). (the owner's checkout; the 2026-09-25 disk cleanup deleted the old worktree, so this checkout IS the working tree now -- never delete build or cache directories, never run git clean/checkout/reset on paths you did not change). Absolute paths under ${WT} for every command. Never git stash/checkout/reset/clean/amend, never git add -A or -u. Never commit saves/, build*, cache*, manifests/.*.ini, preferences.ini, plugin_prefs.ini. Run every run.py in the FOREGROUND and wait for it; never background it or wait on a monitor/notification. run.py refuses a second concurrent run of one quest id. BATCH STATE DIR: ${STATE} (mkdir -p it); every worker persists its result there so a paused or killed batch resumes from disk.${extraContext}`
 
 const SYNC = `BATCH-BRANCH MODEL (docs/QUEST_ORCHESTRATOR.md): this pass runs on the batch branch ${BATCH} in BOTH repos (git -C ${WT} branch --show-current and git -C ${WT}/OSRS-Content branch --show-current must both print ${BATCH}; if not, stop and report). Never merge origin/v3 into the branch and never push to v3: v3 carries only the claim ledger and the batch reaches it through one PR at the end (claim.py done). Commit the submodule, stage the OSRS-Content gitlink in the parent, commit, then push BOTH branches: git -C ${WT}/OSRS-Content push -u origin ${BATCH} ; git -C ${WT} push -u origin ${BATCH}. A rejected push on the batch branch means another agent of THIS batch pushed first: git pull --no-rebase origin ${BATCH} in that repo, then push again. Never force, rebase, reset or stash.`
 const CLAIM_SCHEMA = { type: 'object', properties: { exit: { type: 'integer' }, claimed: { type: 'array', items: { type: 'string' } }, dropped: { type: 'array', items: { type: 'string' } }, output: { type: 'string' } }, required: ['exit', 'claimed', 'dropped', 'output'] }
@@ -141,8 +146,16 @@ Do, in order:
 1. If the author's outcome is blocked or content_bug: confirm the file is green up to its t.blocked row (python3 tools/quest_gate/run.py ${id} --no-build ; python3 tools/quest_gate/gate.py ${id} --allow-blocked ; python3 tools/quest_gate/lint_quest.py test/quests/${id}.lua). If it is, commit it (step 4) and report queue_status = that status with queue_failure = the blocker. If it is not: queue_status todo with the failure; if the file was never committed PARK it (mkdir -p ${WIP(id)} && mv test/quests/${id}.lua ${WIP(id)}/parked.lua -- never delete an author's work: b41's reviewer deleted a three-leg relay file and it had to be recovered from the run directory; test/quests/wip/ is tracked so another machine can resume it, and the batch's closer commits it, not you) and put 'RELAY STATE: parked at test/quests/wip/${id}/parked.lua' in queue_failure, otherwise restore it with git show HEAD:test/quests/${id}.lua > the file. A blocker that names an npc or loc visible in the author's own shots, never clicked, is not a blocker: reject. A blocker that re-states a seam the queue row says is FIXED ("RETRY after <sha>") must be re-verified live before it is believed. gave_up: judge whatever file exists by step 2.
 2. Otherwise re-run yourself: run.py ${id} --no-build ; gate.py ${id} ; lint_quest.py test/quests/${id}.lua. All three green or the verdict is rejected (queue_status todo, keep the file, queue_failure = why, prefixed "REJECTED (${batch}): ").
 3. THE GUIDE FIRST: open the Quest Helper guide (queue.py show ${id} names helper_dir/helper_file under /Users/matthewevers/Documents/git_repos/quest-helper/src/main/java/com/questhelper/helpers/quests/) and walk its step ladder against the file and ledger: every step must be driven by a row, or the file must stop at t.blocked content_bug naming the leg the port lacks. A stage the content advances by a narrating mes() is a content gap (verdict content_bug, not accepted). A goto_tile past a gated door, wall, fence, stair or puzzle the guide names; a ::give of an item the guide has you obtain in game; a debugproc doing quest work; a ::setvar on a quest varp -- each is one finding and any one of them rejects. If tools/quest_gate/helper_coverage.py exists, run it and quote its verdict. Then read the quest file against the quest's own .rs2 scripts: does it drive the real accept and hand-in branches through clicks and chat, not through a cheat that does the quest's work? Any item, kill, craft, search or fetch the .rs2 makes the player do that the file hands over with ::give/::kill/::setvar is a cheated hand-in. Does it end in t.quest.expect_complete() (or expect_stage + one BLOCKED row)? Every documented reward has a row asserting the LITERAL amount inside a t.check/t.expect. Open EVERY PNG under build/quest_gate/${id}/shots/ with the Read tool and confirm each shows what its name says; count them in shots_checked. Two or more findings = rejected.
-4. Accept: run.py just published evidence under osrs239-content/server/scripts/selftest/quests/<quest_dir>/play/ (<quest_dir> is QUEUE.tsv's quest_dir column for ${id}, or quest_${id} if ${id} has no row -- run.py's own "published ... -> ..." line names the exact path). Commit that directory in the submodule first (git -C OSRS-Content add osrs239-content/server/scripts/selftest/quests/<quest_dir>/play && git -C OSRS-Content commit -m "selftest/quests: ${id} play evidence" with the trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"), then in the parent: git add test/quests/${id}.lua OSRS-Content ; git commit -m "quests: ${id} <green|blocked|content_bug> (<rows> rows, <shots> shots)" with the same trailer. Stage only those two paths; other reviewers commit in this worktree at the same time, so never amend, reset, or add -A. Do not push. If you reject, delete any published evidence run.py left under OSRS-Content/.../selftest/quests/<quest_dir>/play/ that is not committed.
+4. Accept: run.py just published evidence under osrs239-content/server/scripts/selftest/quests/<quest_dir>/play/ -- or play-${id}/ when another QUEUE row shares the quest_dir (misc_astrid beside misc; run.py play_dir_for) -- (<quest_dir> is QUEUE.tsv's quest_dir column for ${id}, or quest_${id} if ${id} has no row -- run.py's own "published ... -> ..." line names the exact path). Commit that directory in the submodule first (git -C OSRS-Content add osrs239-content/server/scripts/selftest/quests/<quest_dir>/play && git -C OSRS-Content commit -m "selftest/quests: ${id} play evidence" with the trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"), then in the parent: git add test/quests/${id}.lua OSRS-Content ; git commit -m "quests: ${id} <green|blocked|content_bug> (<rows> rows, <shots> shots)" with the same trailer. Stage only those two paths; other reviewers commit in this worktree at the same time, so never amend, reset, or add -A. Do not push. If you reject, delete any published evidence run.py left under OSRS-Content/.../selftest/quests/<quest_dir>/play/ that is not committed.
 Do NOT edit QUEUE.tsv (the Queue phase writes every row once from the review files). FINISH: write the schema JSON to ${STATE}/${id}.review.json, then return it. doc_gaps = the author's doc_gaps you judge real.`
+
+if (round) {
+  phase('State')
+  const opened = (await attempt('round', 2, () => agent(`${COMMON}
+
+YOUR JOB: open round ${round} of batch ${batch} on disk, nothing else. mkdir -p ${STATE}. Read ${STATE}/round.json ({"round": N}; a missing file is round 0). If its round is ${round} or more, change nothing and return {"round": N, "moved": []}. Otherwise, for each of these quests -- ${tests.join(' ')} -- whose ${STATE}/<id>.review.json has a verdict other than "accepted" (or that has an <id>.author.json and no <id>.review.json): move <id>.author.json, <id>.review.json and <id>.review.progress.md (those that exist) into ${STATE}/round${round - 1}/ (mkdir -p; mv, never rm; keep <id>.author.progress.md, the author's notebook, where it is). A quest whose review is accepted is left alone. Then write {"round": ${round}} to ${STATE}/round.json. Return {"round": ${round}, "moved": [the ids whose files you moved]}. No git, no edits to any other file.`, { label: 'round', model: 'claude-sonnet-5-5', effort: 'low', schema: { type: 'object', properties: { round: { type: 'number' }, moved: { type: 'array', items: { type: 'string' } } }, required: ['round', 'moved'] } }))) || { round: 0, moved: [] }
+  log(`round: ${opened.round}; moved aside for a fresh author: ${(opened.moved || []).join(', ') || 'none'}`)
+}
 
 phase('State')
 const state = (await attempt('state', 3, () => agent(`${COMMON}
@@ -154,6 +167,8 @@ const keptReviews = state.reviewed.filter(r => !sentBack.has(r.test_id))
 const reviewedIds = new Set(keptReviews.map(r => r.test_id))
 const authoredById = Object.fromEntries(state.authored.filter(a => !sentBack.has(a.test_id)).map(a => [a.test_id, a]))
 log(`state: ${keptReviews.length} reviewed, ${Object.keys(authoredById).length} authored, ${sentBack.size} sent back`)
+const replayed = keptReviews.filter(r => tests.includes(r.test_id) && r.verdict !== 'accepted').map(r => `${r.test_id} (${r.verdict})`)
+if (replayed.length) log(`REPLAY: ${replayed.join(', ')} carry a persisted review from an earlier launch and will NOT be authored again. To author them again pass round: N, one more than ${STATE}/round.json (2 if that file is missing).`)
 
 phase('Claim')
 // Every launch claims what it is about to author: a relaunch re-claims rows a
@@ -226,7 +241,11 @@ const missing = batchTests.filter(id => !reviewed.some(r => r.test_id === id))
 log(`${reviewed.filter(r => r.verdict === 'accepted').length} accepted, ${reviewed.filter(r => r.verdict === 'blocked').length} blocked, ${reviewed.filter(r => r.verdict === 'content_bug').length} content bugs, ${reviewed.filter(r => r.verdict === 'rejected').length} rejected; ${missing.length ? 'NO REVIEW for ' + missing.join(', ') + ' (relaunch with the same args)' : 'every quest reviewed'}`)
 
 phase('Queue')
-const writtenIds = new Set(state.queue_written_ids || [])
+// A review made by THIS launch is always written: queue.json lists every id an
+// earlier launch wrote, and a quest authored again in a later round is in it
+// (b55 round 6: both re-reviewed rows were skipped and stayed `todo`).
+const freshIds = new Set(freshReviews.map(r => r.test_id))
+const writtenIds = new Set((state.queue_written_ids || []).filter(id => !freshIds.has(id)))
 const toWrite = reviewed.filter(r => !writtenIds.has(r.test_id))
 if (toWrite.length) {
   await attempt('queue', 3, () => agent(`${COMMON}
@@ -264,4 +283,4 @@ if (!state.sheet_built || freshReviews.length) {
 YOUR JOB: build the contact-sheet page for batch ${batch} (quests: ${batchTests.join(' ')}) with /usr/bin/python3 tools/quest_gate/batch_sheet/build_sheet.py . ${sheetDir} ${batchTests.join(' ')} [--quality N] then /usr/bin/python3 tools/quest_gate/batch_sheet/render_page.py ${sheetDir} ${batch} "Quest Batch ${batch}". The published total (all .webp + index.html) must be under 58 MB: build at the default quality first; if over, rebuild with --quality lowered until under. Do not publish; do not edit BATCHES.tsv; never commit. FINISH: write the schema JSON to ${STATE}/sheet.json, then return it (index_html = the absolute path, files = the .webp names, bytes = total published bytes, quality used, quests included).`, { label: 'sheet', model: 'claude-sonnet-5-5', schema: SHEET_SCHEMA }))
 } else log('sheet: already built by a previous launch (read build/author_state/' + batch + '/sheet.json)')
 
-return { batch, claimed: [...claimedSet], dropped: droppedIds, reviewed, missing, sample, sheet }
+return { batch, claimed: [...claimedSet], dropped: droppedIds, replayed, reviewed, missing, sample, sheet }

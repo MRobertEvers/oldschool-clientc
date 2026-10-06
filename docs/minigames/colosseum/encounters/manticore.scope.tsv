@@ -1,0 +1,100 @@
+mechanic_id	scope	note
+manticore.stats.hp	all	one solo test
+manticore.stats.combat_level	all	one solo test
+manticore.stats.attack_level	all	one solo test
+manticore.stats.defence_level	all	one solo test
+manticore.stats.strength_level	all	one solo test
+manticore.stats.ranged_level	all	one solo test
+manticore.stats.magic_level	all	one solo test
+manticore.stats.size	all	one solo test
+manticore.stats.attack_rate_param	all	one solo test
+manticore.stats.attack_strength_ranged_magic_bonus	all	one solo test
+manticore.stats.melee_defence_bonus	all	one solo test
+manticore.stats.magic_defence_bonus	all	one solo test
+manticore.stats.ranged_defence_bonus	all	one solo test
+manticore.stats.poison_venom_resistance	all	one solo test
+manticore.stats.aggressive	all	one solo test
+manticore.stats.attack_option	all	one solo test
+manticore.stats.styles	all	one solo test
+manticore.stats.range	all	one solo test
+manticore.stats.observed_burst_distance_max	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.maxhit.melee_orb_unprayed	all	one solo test
+manticore.maxhit.ranged_orb_unprayed	all	one solo test
+manticore.maxhit.magic_orb_unprayed	all	one solo test
+manticore.maxhit.burst_total_unprayed	all	one solo test
+manticore.maxhit.strategies_table_value	all	one solo test
+manticore.maxhit.prayed	all	one solo test
+manticore.accuracy.orb_hit_chance	all	one solo test
+manticore.orb.prayer_read_tick	all	one solo test
+manticore.spawn.first_wave	all	one solo test
+manticore.spawn.count_waves_4_to_8	all	one solo test
+manticore.spawn.count_waves_9_to_11	all	one solo test
+manticore.spawn.count_wave_12	all	one solo test
+manticore.spawn.tick	all	one solo test
+manticore.spawn.tiles_observed	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.spawn.animation_candidates	all	one solo test
+manticore.charge.starts_on_sight	all	one solo test
+manticore.charge.duration	all	one solo test
+manticore.charge.first_burst_earliest	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.charge.first_burst_median	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.charge.cancel_rule	all	one solo test
+manticore.cadence.burst_start_gap	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.cadence.burst_gap_exceeding_share	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.cadence.lull_after_burst	all	one solo test
+manticore.cadence.inner_orb_gap	all	one solo test
+manticore.cadence.pair_cadence_unchanged	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.burst.orb_count	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.burst.last_orb_melee	all	one solo test
+manticore.burst.orders_observed	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.burst.order_fixed_per_instance	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.burst.first_order_mage_first_share	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.burst.order_draw_moment	all	one solo test
+manticore.burst.orb_prayer_style_independent	all	one solo test
+manticore.pair.copy_when_alive_together	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.pair.copy_range	all	one solo test
+manticore.pair.first_killed_picks_own	all	one solo test
+manticore.pair.delay_ticks	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.pair.effective_cadence	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.pair.overlap_when_unseen	all	one solo test
+manticore.mantimayhem.id	all	one solo test
+manticore.mantimayhem.tier1_projectiles_per_orb	all	one solo test
+manticore.mantimayhem.tier1_separate_rolls	all	one solo test
+manticore.mantimayhem.tier1_second_hit_tick	all	one solo test
+manticore.mantimayhem.tier2_venom	all	one solo test
+manticore.mantimayhem.tier2_venom_amount	all	one solo test
+manticore.mantimayhem.tier3_order	all	one solo test
+manticore.mantimayhem.tier3_observed	all	one solo test
+manticore.mantimayhem.not_offered_wave_12	all	one solo test
+manticore.mantimayhem.sample_tiers_in_force	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.death.volatility_explosion_tiles	all	one solo test
+manticore.death.animation_candidates	all	one solo test
+manticore.death.length	all	one solo test
+manticore.death.explosion_graphic	all	one solo test
+manticore.death.gib_npc	all	one solo test
+manticore.movement.max_step	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.movement.moved_share_before_first_burst	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.movement.moved_share_during_burst	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.movement.moved_share_during_recharge	stat	statistical: settled by the recorder tool over many waves; one solo test cannot weigh a share
+manticore.movement.rule	all	one solo test
+manticore.sight.line_of_sight_blockers	all	one solo test
+manticore.presentation.model	all	one solo test
+manticore.presentation.idle	all	one solo test
+manticore.presentation.walk	all	one solo test
+manticore.presentation.walk_backwards	all	one solo test
+manticore.presentation.throw_animation	all	one solo test
+manticore.presentation.throw_length	all	one solo test
+manticore.presentation.throw_sounds	all	one solo test
+manticore.presentation.charge_animation	all	one solo test
+manticore.presentation.charge_length	all	one solo test
+manticore.presentation.charge_sounds	all	one solo test
+manticore.presentation.charge_placement	all	one solo test
+manticore.presentation.orb_graphics	all	one solo test
+manticore.presentation.orb_graphic_art	all	one solo test
+manticore.presentation.orb_graphic_timing	all	one solo test
+manticore.presentation.orb_spacing	all	one solo test
+manticore.presentation.orb_impacts	all	one solo test
+manticore.orb.flight_delay	all	one solo test
+manticore.presentation.death_sounds	all	one solo test
+manticore.presentation.spawn_sequence	all	one solo test
+manticore.presentation.unbound_sounds	all	one solo test
+manticore.presentation.sound_menu	all	one solo test

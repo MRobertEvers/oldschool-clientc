@@ -1,0 +1,140 @@
+{{Redirect|Sol|the weapon|Staff of Light}}
+{{HasStrategy}}
+{{Switch infobox
+|text1 = Monster
+|item1 =
+{{Infobox Monster
+|name = Sol Heredit
+|image = [[File:Sol Heredit.png|250px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|combat = 1563
+|size = 5
+|examine = Its stompin' time!
+|xpbonus = 85
+|max hit = 44 (Typeless AOE), 44 (Grapple), 15-25-35 (Triple Parry 1), 15-30-45 (Triple Parry 2)
+|aggressive = Yes
+|poisonous = No
+|attack style = Various
+|attack speed = Varies
+|hitpoints = 1500
+|att = 350
+|str = 400
+|def = 200
+|mage = 300
+|range = 350
+|attbns = 250
+|strbns = 5
+|amagic = 0
+|mbns = 0
+|arange = 150
+|rngbns = 5
+|dstab = 65
+|dslash = 5
+|dcrush = 30
+|dmagic = 750
+|dlight = 825
+|dstandard = 825
+|dheavy = 825
+|poisonresistance = 100
+|venomresistance = 100
+|immunethrall = Yes
+|freezeresistance = 100
+|id = 12821
+|leagueRegion = Varlamore
+}}
+|text2 = Sitting
+|item2 = 
+{{Infobox NPC
+|name = Sol Heredit
+|image = [[File:Sol Heredit (sitting).png|250px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|location = [[Fortis Colosseum]]
+|gender = Male
+|examine = He looks important!
+|map = {{Map|name=Sol Heredit|1823,3123|mtype=pin}}
+|id = 12827
+|leagueRegion = Varlamore
+}}
+}}
+[[File:Sol Heredit chathead.png|left]]
+'''Sol Heredit''' is the final boss in the [[Fortis Colosseum]], and is currently the [[strongest monster]] in ''[[Old School RuneScape]]'' with a [[combat level]] of 1,563.
+
+Upon reaching wave 12 of the Colosseum, he will address the player and begin the fight after jumping off of his [[Throne (Fortis Colosseum)|throne]]. During this wave, the Colosseum arena is reduced to the area between the four pillars, bordered by NPCs wielding shields.
+
+==History==
+According to [[Mod Ed]], Sol Heredit intentionally does not have any backstory in-game. Instead, it has been opted that players would think up the lore surrounding the final boss of the Colosseum.{{CiteVideo|author=Jagex|title=Old School RuneScape Lore Q&A {{!}} Discord Stages Modcast|url=https://www.youtube.com/watch?v=ZI5a63TrCXg&t=2483|timestamp=41:23|date=9 August 2024|site=YouTube}}
+
+Sol Heredit would oversee the Fortis Colosseum, watching challengers battle in the stadium for glory and fame, though he appeared to have considered them insignificant. When a particular adventurer defeated all of the combatants of the Colosseum, Heredit became intrigued, claiming that there was finally a worthy challenger and decided to challenge them himself. Despite the numerous abilities at his disposal, the challenger also defeated him. Heredit's [[Smol Heredit|son]] considers his father's defeat to them a humiliation.{{CiteNPC|npc=Smol Heredit|quote=I'm still disappointed that my father failed against you. I will suffer in humiliation alongside him for the rest of time.}}
+
+==Fight overview==
+{{Main|Fortis Colosseum/Strategies#Sol Heredit}}
+
+As the climax of the Fortis Colosseum, Sol Heredit presents a great challenge to most players, and focuses much more on mechanics and memorization in comparison to [[TzKal-Zuk]], the final boss of the [[Inferno]].
+
+Sol primarily uses AoE attacks that are unaffected by prayer, forcing the player to dodge his attacks to avoid taking up to 44 [[Typeless|typeless melee]] damage.<!--this does not factor in Relentless--> Heredit’s attacks are dodged by reacting to the cues corresponding to his attacks.
+
+The attack patterns follow a rule in which if two of the same style, Spear attack or Shield attack, are used in a row, the second one will use a different pattern. Using a single Spear attack and following up with a Shield attack, or vice-versa, will reset the pattern back to its first one. He will remember his previous attack during a phase transition, but will reset if a special attack (grapple or combo) was used. '''Sol Heredit will always use a Spear attack first after phase transitions; if his previous attack was Spear 1, his next attack will be Spear 2.'''
+
+Sol Heredit has 4 main AoE attacks, all of which will create a 6x6 dust hazard under the boss, making the attacks avoidable only by stepping out. (See [[Fortis Colosseum/Strategies#Sol Heredit|''Fortis Colosseum/Strategies § Sol Heredit'']] for a diagram)
+
+* '''Spear 1''': Sol will always begin the fight with this attack. Dodged by moving back from his centre or edge tiles.
+
+* '''Spear 2''': Dodged by moving to any of his off-centre tiles.
+
+* '''Shield 1''': Sol Heredit will create a 7x7 hazard under him, with a 1 tile gap between the next line of hazards which will cover the entire arena. Dodged by moving 1 tile back.
+
+* '''Shield 2''': Same as shield 1, however increasing the middle hazard’s area to 9x9, which is dodged by moving 2 tiles back.
+
+Sol Heredit transitions phases at 90%, 75%, 50%, 25% and 10% HP respectively. Each phase starts with 6 beams of light randomly placed in a 9x9 area around the player, which will spawn [[molten sand]] after 2 ticks. Each new phase will spawn a crystal which will rotate around the edges of the arena which will stop periodically and shoot a harmless beam of light, after 4 ticks a sphere of light will be launched, dealing up to 75 damage. '''These lasers must be avoided at all costs, as they are by far the most dangerous hazard during the fight.'''
+
+Sol Heredit has 2 special attacks, a '''Grapple''' and a '''Triple Parry'''. 
+
+His grapple attack can only be performed below 75% HP; he will drop his shield and call out a body part, and the player will have 4 ticks to click on the item in the respective slot to parry the attack. If the item is not clicked on or an incorrect item is selected, the equipment will be torn from the player, dealing ~45 damage and placing it into the player's inventory. Defending a body part on the last possible tick will result in a '''perfect parry''', which makes the player’s next attack within 5 ticks be a guaranteed [[maximum hit]].
+
+The triple parry can be performed under 90% HP, and requires the player to precisely activate [[Protect from Melee]] on the tick before he lands his spear. The timing to pray is as follows:
+
+* '''1st attack:''' 3 ticks after the start of his animation
+* '''2nd attack:''' 3 ticks after first
+* '''3rd attack:''' 3 ticks after the second (delayed to 4 ticks if under 50%)
+
+If the player prays too early against an incoming hit in the '''Triple Parry''', Sol will forcibly disable the prayer, preventing them from turning it on until the hit lands, resulting in an unavoidable hit. The damage from these hits are 15, 25 and 35 respectively, but from phase 4 onwards the second and third hits in sequence are increased to 30 and 45 respectively.
+
+Upon reaching 10% (150 hitpoints), Sol will become enraged, summoning a final batch of molten sands into the arena. Molten sands will continually target the arena with one tile targeted every 3 ticks (1.8 seconds) around the player in a 9x9 AoE, lasers will aim at the player every 4.2 ticks (7 seconds) and will fire within 2 ticks (1.2 seconds) of becoming stationary.
+
+==Dialogue==
+{{hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 24 April 2024
+|update = Varlamore Tweaks, GameJam V Commences & More!
+|change = Sol Heredit will no longer damage players with his 'grab' attack after he runs out of hitpoints.
+}}
+{{Subject changes
+|date = 21 March 2024
+|type = hotfix
+|change = Increased attack range of Heredit's attacks, as to prevent players from attacking him while avoiding damage from them.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="160" style="text-align:left">
+Sol Heredit concept art.jpg|Concept art of Sol Heredit, by [[Mod Grub]].
+</gallery>
+
+==Trivia==
+* The name "Sol Heredit" comes from the Latin words ''[[wiktionary:sol#Latin|sōl]]'' ("sun") and ''[[wiktionary:heredito#Latin|hērēditō]]'' ("to inherit"), loosely translating as "Heir of the Sun".
+
+==References==
+{{Reflist}}
+
+{{Succession|predecessor=[[Verzik Vitur]]|title=[[Strongest monster|Strongest monster in ''Old School RuneScape'']]|successor=Incumbent}}
+{{Fortis Colosseum}}
+{{Bosses}}
+
+[[Category:Seated NPCs]]

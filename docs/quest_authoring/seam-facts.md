@@ -290,7 +290,9 @@ header reads 'Someone', as Captain Bleemadge's does.
 down and all four crystals are held; the player keeps the crystals for the pillars.
 
 (h) A wiki transcript whose `index.php?action=raw` 403s is fetchable as
-`api.php?action=parse&oldid=<id>&prop=wikitext&format=json`.
+`api.php?action=parse&oldid=<id>&prop=wikitext&format=json`. Since 2026-10 every `action=raw` URL
+answers curl with a Cloudflare challenge page; the api.php forms still work (seam pass
+matthew-mbp-m4-b53-seam2 (d)).
 
 ### Seam pass 25 (2026-09-28)
 
@@ -741,7 +743,7 @@ a deck skips a guide step. zanaris, grail and hero (the committed ferry users) s
 docs/quests/ladders/deviousminds.notes.md. Desert Treasure's guide items are all obtainable in
 content (docs/quests/ladders/deserttreasure.notes.md); the Ardougne SILVER shop opening EMPTY in
 the client (a content-declared inv, `cell 3 of shopmain:items is not mounted`) is FIXED in seam35
-(Seam pass 35 (a)); open: the Entrana monk's weapon search is unported.
+(Seam pass 35 (a)); the Entrana monk's weapon search is FIXED (Seam pass matthew-mbp-m4-b59-seam1 (j)).
 
 ## Seam pass 35 (2026-10-01)
 
@@ -1271,10 +1273,11 @@ row per (tile, obj id), and an OBJ_ADD for an id already on the tile overwrites 
 copy dropped on its twin's tile never raised anything the client shows, and a real drop read
 `timeout ... backpack 1 -> 0, ground 1` (legends b51 `makeBowl.drop-spare-bar-2`). The detail is
 now `drop <item>: backpack B -> A, ground on the player's tile G0 -> G1 (N row(s))`, and G1 can equal
-G0 on a second copy. Conformance `seam.drop_second_copy_on_one_tile`. OPEN (client engine): the same
-merge means that after two logs land on one tile and you pick one up, the client shows NO log there
-and a second pick finds no menu row (`dropseam_pickone` rows 4-5). The server still holds the
-second log. Do not plan a test on picking up the second of two identical drops from one tile.
+G0 on a second copy. Conformance `seam.drop_second_copy_on_one_tile`. FIXED in seam pass
+matthew-mbp-m4-b53-seam1 (a), which removed the client merge: after two logs land on one tile and you
+pick one up, the second is still drawn and takeable, and G1 now rises on a second copy. (Before
+that, the client showed NO log after the first pick and a second pick found no menu row,
+`dropseam_pickone` rows 4-5.)
 
 (b) `npc_setmode(none|null)` no longer clears `step_dir` (torirs_server_scripts.c SS_OP_NPC_SETMODE).
 LostCity never touches the step there either: `null` is `resetDefaults()` (NpcOps.ts:216-218,
@@ -1308,7 +1311,8 @@ proving it, and both bite any scratch row:
 - ANY xp gain snaps a drained stat back to its base level (torirs_server_combat.c:1174
   `stat_boosted < stat_level`), which LostCity's `addXp` does not do (Player.ts:1840-1851). An Attack-xp
   hit cancels the Sourhog drain. Keep xp off the stat a drain row asserts (aggressive style pays
-  Strength only).
+  Strength only). FIXED b53-seam2: a drained stat now stays drained through xp (seam pass
+  matthew-mbp-m4-b53-seam2 (a)).
 - A boss raised with `npc_setowner` + `npc_setmode(opplayer2)` (`porcine_sourhog_second`) does not walk
   to an idle owner. Engage it with `t.player.attack` before waiting on its attacks.
 Also: a 1-tick `t.msg.await` loop interleaved with skill reads can miss a line that lands between
@@ -1346,3 +1350,1417 @@ leg's pickups. An RNG shift upstream changes how much food an earlier leg eats. 
 leg 7 then ended on 19 items, leg 8's `::give lobster 15` filled the pack, and Klank's gauntlets were
 lost to "Your inventory is full." Count free slots with `t.inv.slot` (an empty slot reads name `""`)
 and give `min(15, free - 3)`.
+
+## Seam pass matthew-mbp-m4-b53-seam1 (2026-10-02, batch matthew-mbp-m4-b53)
+
+(a) The client keeps a LIST of ground objs per tile. Every OBJ_ADD is a new row, even for an obj id
+the tile already holds, and OBJ_DEL removes the FIRST row of that id. That is what both references
+do: LostCity_JavaClient `Client.java:8206-8213` pushes a new ClientObj per OBJ_ADD and `:8222-8228`
+unlinks the first one of the id; the rev-239 deob appends a TileItem (`Statics.method1385`) and
+unlinks one (`method6879`). `App_WorldObjStackAdd` (src/app/app_world_rebuild.c) used to find the
+tile's row of the id and overwrite its count, so two identical drops were one row, and the first
+Take removed it while the server still held the second copy. Now two logs dropped on one tile are
+two rows with two Takes (`build/quest_gate/b53s1_pick2_before` 4 FAIL -> `b53s1_pick2_after` 7/0;
+conformance `seam.two_copies_one_tile_both_takeable`). A count-0 add (rev 239's ObjEnabledOps,
+passed through as OBJ_REVEAL) names the existing row and adds nothing. OPEN (client): OBJ_DEL
+carries no count, so with two stacks of one STACKABLE id with different counts on one tile, the
+deob (which matches id and quantity) and ours can remove different stacks.
+
+(b) The Chaos Altar is a four-level ladder maze, not a misplaced altar. The chaos talisman/tiara
+lands you on level 3 (2275,4847) and the altar is on level 0 (2270,4841). LostCity agrees on both
+(`runecraft.dbrow:113` `enter_coord,3_35_75_35_47`; `maps/m35_75.jm2` LOC `0 30 41: 2487 10`, 2487 =
+chaos_altar), and the OSRS wiki says so (Chaos Altar oldid 15350445: "players must navigate four
+levels of a chaotic maze"). Route: three `laddertop` Climb-downs, plain travel:
+`click_loc("laddertop", 1, { at = { 2255, 4829, 3 } })` -> 2255,4830,2; `{ 2275, 4834, 2 }` ->
+2274,4834,1; `{ 2259, 4845, 1 }` -> 2258,4845,0. From level 3, `click_loc("chaos_altar")` answers
+`covered ... menu has no row for it`, and `t.world.loc_near("chaos_altar", r)` answers ok because
+it ignores the plane (Trap 29), so assert the floor with `t.world.tile().level`. Proof:
+`build/quest_gate/wlb_altar_route_s3` 13/13 (chaos runes crafted) and a What Lies Below copy 57/0
+through `useWandOnAltar`. Route rows: `test/quests/wip/whatliesbelow/relay.md`.
+
+(c) (The child-record spawn and the stage-8 gap below are superseded: FIXED b53-seam2, seam pass
+matthew-mbp-m4-b53-seam2 (b) -- the rows are the shells now.) The Ribbiting Tale's Marcellus and
+frogs (Locus Oasis) are placed by a quest-local
+`quest_ribbitingtale/configs/ribbitingtale.spawn`, not by `gen_spawns.py`. The xrsps dump has no
+npc anywhere near (x 1660-1720, z 2960-3010), so there was no dump row to correct. Rule: an npc the
+dump lacks ENTIRELY goes in a quest-local `<quest>.spawn` with cited tiles (idesofmilk,
+bearyoursoul, ribbitingtale); `NPC_SPAWN_ADDITIONS`/`NPC_SPAWN_ID_CORRECTIONS` are for world
+npcs whose dump row drifted. The rows name the op-carrying CHILD records, not the cache's multinpc
+shells (13401-13405), because ribbitingtale.rs2 binds its ops on the children (Trap 19):
+`frog_quest_marcellus_normal` 1683,2973, `frog_quest_gary_unnamed` 1695,2996,
+`frog_quest_sue_unnamed` 1695,2995, `frog_quest_dave_named` 1697,2984, `frog_quest_jane_named`
+1696,2983 (Quest Helper TheRibbitingTaleOfALilyPadLabourDispute.java :117/:120/:126; wiki
+Marcellus oldid 15319067, Gary 15197135, Sue 15197137, Dave 15197136, Jane 15197139). Cuthbert is
+not placed. Consequences: the blue frogs always read "Frog" and Dave/Jane always their names (the
+shells' stage forms do not show). A copy of the test starts the quest by click and reaches stage 8
+(`build/quest_gate/seam1_ribbit_copy` 21/0). OPEN (content): at stage 8 Dave and Jane only say
+"Hello there!": `[label,ribbit_yellow_talk]` guards the election talk on `>= ^ribbit_chop` (10)
+and nothing but `[debugproc,ribbitrun]` writes 10.
+
+(d) The Queen of Thieves' tent doorway `piscquest_tentdoor` (1765,10149, a wall on the tile's north
+edge) is scripted: `[oploc1,piscquest_tentdoor]` in `queenofthieves_locs.rs2` walks you through with
+the shared `@door_walkthrough_try`. Going in is refused before Devan's go-ahead (stage <
+`^qot_queen` = 8); going out is never refused. Sources for the gate: wiki
+Transcript:The_Queen_of_Thieves oldid 14962997 ("You should head on in and speak to her"),
+The_Queen_of_Thieves oldid 15352295, Quest Helper TheQueenOfThieves.java:104-107. The refusal line
+"You should speak to Devan Rutter before going in there." is port wording (no source records it).
+Drive it with `t.exec("enterTent", t.player.click_loc, "piscquest_tentdoor", 1)` from outside, then
+assert 1765,10150; the same click from inside lands on 1765,10149. Proof: pre-fix pack
+`qot_tentdoor_pre` "I can't reach that!" at the Queen; fixed `qot_tentdoor_post` 14/0; the
+reverted test with its tent `goto_tile`s replaced by doorway clicks ran 78/78. Rows:
+`test/quests/wip/queenofthieves/relay.md`. This resolves Sample matthew-mbp-m4-b53 (a).
+
+(e) To prove a content failure on the PRE-fix pack without mutating the shared tree: rsync
+`server/scripts` to the scratchpad (leave out png/bmp/build/selftest and the lane `.rs2` files,
+keep the lane `.constant` files), put HEAD's version of the changed file there, run
+`src/build_opt/sscompile --src <copy> --out <dir> --content-root <content> --pack <content>/pack
+--pack <content>/configs`, then run the scratch test with `TORIRSSERVER_SCRIPTS=<dir>`.
+`client.log` names the pack it loaded.
+
+(f) FIXED b53-seam2 (seam pass matthew-mbp-m4-b53-seam2 (a)). Was NOT LANDED: the xp-grant drain snap (seam pass matthew-mbp-m4-b52-seam1 (d)). A fix that
+follows LostCity `Player.ts:1841-1851` (a drained stat stays drained through an xp grant; a
+level-up replenishes it by the levels gained) was written and selftested, but it turned committed
+green Desert Treasure RED: the Ice Path cold (deserttreasure.rs2:1222-1247) then really drains
+Magic to 57/99 before Kamil, under Fire Blast's 59 ("Your Magic level is not high enough for this
+spell."). The closer reverted it. It must land in one pass together with a deserttreasure.lua leg-5
+restore (restore potions as a bring-along) and a free backpack slot before the child troll. The
+patch and the evidence are in `build/seam_state/matthew-mbp-m4-b53-seam1/drain_fix_carried.patch`
+and `build/seam_state/next-seam-carry.md` item 4.
+
+## Seam pass matthew-mbp-m4-b53-seam2 (2026-10-02, batch matthew-mbp-m4-b53)
+
+(a) A drained stat stays drained through an xp grant. `ToriRSServer_CombatAddXp`
+(src/torirsserver/torirs_server_combat.c) follows LostCity `Player.ts:1841-1851` (addXp): the
+current level moves with the base only while the two are equal, a level-up adds the levels gained to
+a drained stat (6/60 -> 7/61, never to the base), and a boost survives a grant. Before, the next xp
+grant snapped any drained stat back to its base, so one hit cancelled the Ice Path cold, the
+Sourhog spit or any `stat_sub`. Proof: `build/quest_gate/b53s2_drain_before` FAIL `attack 60/60` ->
+`b53s2_drain_after` 7/0 `attack 6/60`; the world selftest's drain stanza; conformance
+`seam.drain_survives_xp_gain`. It landed with Desert Treasure's leg 5 edit (gaps-combat: "Your
+Magic level is not high enough" after a draining walk). Supersedes b52-seam1 (d)'s first bullet and
+b53-seam1 (f). Still open: `::maxstats` (stat_advance) leaves a drained stat drained by its deficit,
+as LostCity's `::maxme` does; and the `[advancestat]` trigger still runs before the current level
+is updated (LostCity updates first).
+
+(b) The Ribbiting Tale's npcs are placed as the cache's multinpc SHELLS
+(`ribbitingtale.spawn`: `frog_quest_marcellus`/`_gary`/`_sue`/`_dave`/`_jane`, 13401-13405,
+configs/all.npc:429457-429520), and Talk-to is bound on the shells (Trap 19). The live child
+follows `varb9844_frog_quest` (`varb9845_frog_quest_patch_unlocked` for Marcellus), read by VALUE
+with the last rung as the default for every larger value (Trap 28): Gary/Sue are "Frog" before
+stage 4, Dave/Jane a Talk-less "Frog" before stage 4, and Marcellus turns into the farmer (npc 12936)
+at completion. Drive them by the SHELL symbol: a child symbol stops resolving once the varbit picks
+another child (verbs-pointer: `t.player.talk_to`). `[label,ribbit_yellow_talk]` is rebuilt from the
+wiki Transcript:The_Ribbiting_Tale_of_a_Lily_Pad_Labour_Dispute (oldid 15005191); stage 8 is the
+election talk (Quest Helper talkToYellowFrogs, TheRibbitingTaleOfALilyPadLabourDispute.java:75/:126)
+and writes `^ribbit_chop` (10). Proof: `build/quest_gate/seam2_ribbit_copy3` 97/0 to the scroll
+(`quest.stage.chop` 10, `names.*` rows per stage). Cuthbert, Lord of Dread kills a fresh 10 hp
+character: bring 40 combat stats, a wielded mithril scimitar and lobsters. Rows:
+`test/quests/wip/ribbitingtale/relay.md`. OPEN (content, no guide step): the "It's all sorted"
+branch at stage 14 is shadowed, the lily pad refusal at stages 8-10 is not authored, and the
+farmer's Pay/Trade have no trigger.
+
+(c) The Queen of Thieves' doorway refusal "You should speak to Devan Rutter before going in there."
+stays port wording: a search on 2026-10-02 found no source for what the doorway says (transcripts
+14962997/14785766, The_Queen_of_Thieves 15352295 and Quick_guide 15013569, Devan_Rutter 15353387,
+The_Warrens 15317408, Doorway 15335504, Quest Helper). Devan_Rutter oldid 15353387 is a second
+source for the gate itself ("will not let players enter until they prove their loyalty by killing
+Conrad King"). The searched list is in the comment above `[oploc1,piscquest_tentdoor]`.
+
+(d) Fetch a cited wiki oldid with
+`curl -A '<ua>' 'https://oldschool.runescape.wiki/api.php?action=query&prop=revisions&revids=<oldid>&rvprop=content|ids&rvslots=main&format=json&formatversion=2'`;
+`index.php?action=raw` now returns a Cloudflare challenge page to curl.
+
+## Seam pass matthew-mbp-m4-b53-seam3 (2026-10-02, batch matthew-mbp-m4-b53)
+
+(a) Contact!'s Maisa is talked to ACROSS the chasm; nothing walks to her. She stands "at the other
+end of a gaping chasm" (wiki Contact! oldid 15292391), and she says Kaleef "wouldn't have been able
+to get across this chasm" (Transcript:Contact! oldid 15263370). Quest Helper Contact.java:244 puts
+her at 2258,4317, "on the west side of the chasm". The chasm is `maps/m35_67.jm2`'s flag-1 strip at
+x2259..2263, unbroken from z4298 to z4338, with no bridge flag on level 1. The map, the maze ladder
+landing and the spawn were all right. The port lacked the across-the-gap talk:
+`[apnpc1,contact_maisa_multi]`/`[apnpc1,contact_maisa]` are now stacked on her `[opnpc1]`
+(OSRS-Content fd1bf2f29f), the shape LostCity uses for Hudon across the river (`quest_waterfall/scripts/hudon.rs2`).
+The engine's ap rung fires at range 10 with line of sight (`torirs_server_world.c` ~2087-2099), and
+line of sight crosses a floor-blocked chasm. Proof: `build/quest_gate/b53s3_maisa_before`
+talkToMaisa FAIL "I can't reach that!" -> `b53s3_maisa_after2` 11/0; the committed contact.lua
+copy with Maisa and Osman rows ran 130/0 to `quest.stage.told_osman` (70), with `maisa.across`
+"talked from 2264,4317; Maisa 2258,4317 across the chasm". Rows: `test/quests/wip/contact/relay.md`.
+OPEN (parity): the port splits Maisa's two questions over two talks and lacks the transcript's
+"I don't know." row.
+
+(b) An npc's lines titled with another npc's name and no chathead (What Lies Below: Rat Burgiss
+headed "Outlaw"). `npc_find` and `npc_add` both rebind the PRIMARY active npc in this engine
+(`torirs_server_scripts.c` SS_OP_NPC_ADD / NPC_FIND call `SSVM_SetActive(..., SSVM_PRIMARY, ...)`),
+so a spawn proc called before a `~chatnpc` makes every later line speak as the npc it found or
+added. `.npc_add` is not a fix here (it still sets the primary pointer); `.npc_find` is. The
+What Lies Below fix (OSRS-Content fd1bf2f29f) calls `~wlb_spawn_outlaws` after the last `~chatnpc` of
+the two paths that leave the player collecting pages; the hand-in paths no longer spawn. Proof:
+`b53s3_wlb_speaker_before` `name=ok:Outlaw` 10/4 -> `_after` `name=ok:Rat Burgiss` 14/0;
+whatliesbelow.lua 89/0, shot 053 headed "Rat Burgiss" with his head. `t.chat.play` matches the
+text, not the title: only `t.chat.name()`/`expect_head` or a shot sees this. Unchecked: other
+`npc_find` calls inside another npc's handler (`whatliesbelow_surok.rs2:92`,
+`whatliesbelow_zaff.rs2:78`, `whatliesbelow_king.rs2:20`).
+
+(c) The Queen of Thieves writes `' - '` for its four em dashes (gaps-dialogue: A gap where an em
+dash should be), and the Queen's Hughes line follows Transcript:The_Queen_of_Thieves oldid 14962997
+("find proof of her corruption ... northern side of Kingstown ... she's never in"; no door to pick,
+no lock), OSRS-Content fd1bf2f29f. A content reword must keep every `chat.play` prefix a green test
+asserts, punctuation included: dropping the period after "Kingstown" sent the run to 64/14.
+
+## Seam pass matthew-mbp-m4-b54-seam1 (2026-10-03, batch matthew-mbp-m4-b54)
+
+(a) **`npc_add`ed copies missing from `t.npc.tiles` (Swan Song: one of three ambush trolls).**
+`movecoord(coord, dx, dlevel, dz)` takes the LEVEL in its middle argument, not x or z (LostCity
+`engine/src/engine/script/handlers/ServerOps.ts:103-107`,
+`CoordGrid.packCoord(position.level + y, position.x + x, position.z + z)`; ours,
+`torirs_server_scripts.c` `SS_OP_MOVECOORD`, is the same). Swan Song's
+`[proc,ssq_spawn_entrance_ambush]` wrote `movecoord(..., 2, 1, 0)` / `(-1, 2, 0)`, so trolls 2 and 3
+spawned on levels 1 and 2 above the entrance. Neither engine's `npc_add` checks collision
+(ours `npc_spawn`, world.c; LostCity `NpcOps.ts:57-68`), so a missing copy is never a blocked tile.
+Fixed in OSRS-Content f2902a94dd (`(2, 0, 1)` / `(-1, 0, 2)`). Proof: the committed swansong.lua's
+`kill79Trolls-present` read `1 copy(s)` before and `3 copy(s) -- 2343,3657 / 2342,3659 / 2345,3658 L0`
+after; a copy without the `t.blocked` killed all three (varb2107 1/2/3) to `quest.stage.trolls_beaten`
+(50). Rows and the next leg (Herman behind `swan_desk`): `test/quests/wip/swansong/relay.md`.
+OPEN: the wiki (Swan_Song revid 15359363) has EIGHT level-79 trolls, the port three (`varb2107` is
+2 bits); the ambush `npc_add` duration is 50 ticks, so a slower fight softlocks stage 40. UNCHECKED,
+same bug class: `skill_hunter/scripts/stymphike.rs2:111` `movecoord(%varp6583_..., 2, 2, 0)`.
+
+(b) **A quest drop added by hand to a generated `wiki_*.rs2` vanishes on regeneration.** A
+quest-owned Tertiary drop goes in `tools/wiki_droptable.py` `QUEST_TERTIARY_HOOKS` (obj gameval ->
+proc and call line, with a wiki oldid). The generator emits the call at the end of every label whose
+npc's OWN Tertiary block lists that obj, and stops with exit 2 when a rule's proc or obj no longer
+exists. Never hand-edit a generated `wiki_*.rs2`; regenerate it:
+`tools/wiki_droptable.py --regenerate <drop_tables/scripts/wiki_x.rs2> --write --out-dir <scratch>`,
+diff, install. Rag and Bone Man I's goblin skull is the one rule (OSRS Wiki 'Goblin' rev 15290833:
+Always, in Drop table 1 AND 2; 'Rag and Bone Man I' rev 15292348: "Each bone is a guaranteed drop");
+the old hand edit covered table 1 only. A regeneration of any wiki file written before 79d754bf0 also
+adds the `~gwd_death_was_npc_kill` early return to every label (115 of 128 lack it): expect that
+diff; it does nothing outside the God Wars Dungeon.
+
+(c) **A scroll title that looks like "Rag and Bone Man II" is "Rag and Bone Man I!".** In the p12
+scroll font a trailing "I!" draws like "II". Settle a scroll-title complaint from the
+`quest.scroll_title` row's `got=` text, never from the pixels: here it read `You have completed Rag
+and Bone Man I!` (questscroll.rs2:73 + the `quest_ragandboneman1` displayname), which is the wiki's
+own scroll image (Rag and Bone Man I oldid 15292348, Rewards). The quest was renamed from "Rag and
+Bone Man" to "Rag and Bone Man I"; the old name is not the title. NO CHANGE.
+
+## Seam pass matthew-mbp-m4-b54-seam2 (2026-10-03, batch matthew-mbp-m4-b54)
+
+(a) **"You can't go any further." on a cellar ladder (`ladder_cellar`, 17384; Swan Song's Wizards'
+Guild basement at 2594,3085).** The ladder was bound only through its `climb_down_ladder`
+category: `~climb_ladder(-1)` -> `~climb` -> `~maplink_try`, which is keyed on the PLAYER's tile.
+The guild's one row, `[maplink_0_40_48_34_13_down]`, is keyed on the ladder's own tile, and a
+shape-10 ladder blocks that tile, so a press from 2594,3086 never matched it. The miss fell through
+to the plane default (level 0 - 1) and the blocked message. LostCity climbs every copy from the
+player's own tile one dungeon mapsquare down: `[oploc1,loc_1754] p_arrivedelay;
+~climb_ladder(movecoord(coord(), 0, 0, 6400), false);` (LostCity_Content2
+`scripts/ladders+stairs/scripts/ladders.rs2:83-85`; the same tile, `maps/m40_48.jm2:6369`
+`0 34 13: 1754 10`). Fixed in OSRS-Content 662de599a5: a name binding `[oploc1,ladder_cellar]` in
+`ladders_stairs/scripts/ladders.rs2` animates, lets a verified maplink row answer first, and
+otherwise `p_telejump`s to `movecoord(coord, 0, 0, 6400)`. All 33 harvested `ladder_cellar` rows
+were already exactly +6400, so the cellar ladders that worked still land on the same tiles (ikov
+`enterDungeonForBoots` PASS). Proof: scratch `b54s2_cellar_before2` FAIL "You can't go any
+further." at 2594,3086,0 -> `b54s2_cellar_after` 10/0, tile 2594,9486,0, Wizard Frumscone at
+2588,9489, `quest.stage.frumscone_done` 95. Rows: `test/quests/wip/swansong/relay.md`.
+FIXED by matthew-mbp-m4-b66-seam1 (b) -- was OPEN: `ladder_from_cellar` (17385) in that basement
+climbs to 2594,9486 **level 1** by the plane default; LostCity `loc_1755` is `movecoord(coord(), 0,
+0, -6400)` (`ladders.rs2:87-94`). A rowless copy now leaves by the ladder (-6400); climb it with
+`t.player.climb`, not `goto_tile`.
+
+(b) **`no npc ... in the client's entity pool` on the first `talk_to` after a ladder into a new
+mapsquare.** `click_loc` returns on `map_flag` while the player is still walking to the ladder, so
+the climb lands later (here at the end of the following `t.ticks(3)`), and the npc pool for the new
+mapsquare arrives a tick after the tile does. Put `t.exec("<npc>-present", t.npc.await_present,
+"<npc>", 15, 10)` between the ladder's `-tile` row and the `talk_to`. Swan Song's round-2 file went
+from row 122 FAIL to 152/12 (`quest.stage.queen_fight` 170) with that one row added
+(`b54s2_round2_await`).
+
+## Seam pass matthew-mbp-m4-b54-seam3 (2026-10-03, batch matthew-mbp-m4-b54)
+
+(a) **A level-170 boss dies to one spell; a level-79 troll reads 21/30 after one hit of 3 (Swan Song's
+Sea Troll Queen and sea trolls).** Neither npc had a server `.npc` block, so both fought on
+`npc_default.npc`'s 10 hitpoints and 1/1/1. Fixed in OSRS-Content 1ef7c1e7b9: the new
+`quest_swansong/configs/swansong.npc` comes from wiki Sea_Troll_Queen oldid 15215925 and Sea_troll
+oldid 15329222 (version "Level 79", id 4308), and the cache's `stat1..6` in `configs/all.npc` agree.
+The Queen has 200 hp, 100/70/100, magic 150, Water Wave max 37, melee max 16 and speed 4. Each troll has
+100 hp, 60/60/60, crush, speed 3, max hit 7 and drops Bones. Her swing is
+`[ai_opplayer2,swan_seatroll_queen]` in `swansong_finale.rs2`; gaps-combat has how the fight goes
+("A boss you cannot reach on foot"). The bars cannot tell 200 from 10, so the content has two server
+reads. `::swansong_queen_hp` answers `Sea Troll Queen hitpoints 200/200 attack 100 strength 70 defence
+100 magic 150`. `::swansong_troll_hp` answers `Sea trolls 3: 100/100 100/100 100/100`: the count, then
+each troll within 25 tiles. Proof: `b54s3_trolls_b` 27/0 (kills of 86/81/106 ticks). The restaged
+round-4 copy `b54s3_round4_copy_a` went 211/0 to the scroll, the Queen dead after 128 ticks. Swan Song
+is in `docs/bosses/quest_combat_manifest.json` with three pinned oldids and six known_gaps, and
+`check_swansong` is in `tools/check_quest_combat_contract.py`.
+
+(b) **"I'm already under attack." on every Attack after the first, against several aggressive npcs
+at once.** The port's `maps/multiway.csv` is LostCity's 2004 list, so a later multicombat area is
+single-way here, and the npcs that attacked first claim the player. Check the wiki's Multicombat_area
+list. If the place is on it, give the npc records `forcemulti=yes` (the per-record escape God Wars and
+the Dagannoth lair use). Swan Song's colony is on the list (oldid 15307059). Before the fix,
+`b54s3_fights_a` got three refusals. After it, all three trolls died (`b54s3_trolls_b`).
+
+(c) **An `npc_add`ed ambush or boss vanishes mid-fight and the stage never moves.** Swan Song added the
+ambush and the fishing troll for 50 ticks and the Queen for 100, behind a one-shot spawn flag. A real
+fight outlasted them and soft-locked stages 40 and 170. The wiki has no timer (Swan_Song oldid
+15359363). They now last `^ssq_fight_duration` 3000. Re-entering `swan_hole` at stage 40 puts back
+the trolls still owed, and Herman at stage 170 puts back a missing Queen (`~ssq_queen_ensure`). In this
+engine an `npc_add` duration of 0 or less means the npc never despawns (`torirs_server_scripts.c`
+despawn_tick -1), unlike LostCity. Swan Song uses the finite duration and the put-back instead of
+relying on that.
+
+(d) **The guide says an npc gives you a tool, but a gate before him demands it (Swan Song's Franklin
+and the hammer).** Fixed in OSRS-Content 1ef7c1e7b9. `swan_hole` no longer asks for a hammer: it is
+"(obtainable during the quest)" (Swan_Song oldid 15359363). Franklin's talk after the firebox is lit,
+before the wall is whole, follows wiki Transcript:Swan_Song oldid 15263341 (`swansong_franklin.rs2`).
+If the player holds no hammer: "Also I think I need a hammer." / "Hammer? Not a problem - here's
+mine.", and a hammer lands in the pack. With a hammer already held there is no second one. With a full
+pack the player gets "You don't have enough inventory space." Proof: closer scratch
+`b54s3c_franklin_hammer` 13/0 (`live.hammer`: `hammer count after the live lit-stage talk = 1`).
+`b54s3c_full_franklin` entered the colony with no hammer (shot 033). Its `talkToFranklinHammer-hammer`
+read `hammer 1 -> 1` (shot 083), and the run went on to `quest.stage.queen_fight` 170. OPEN, same
+source: the transcript also has Franklin hand out a tinderbox at the intro, and the wiki says the bars
+and logs can be gathered inside the colony. The hole still demands logs, a tinderbox and 5 iron bars.
+
+(e) **Triage: give each file to one seam only.** The hammer seam's two edit sites were in
+`swansong_colony.rs2`, which this pass gave to the combat seam. Its fixer could not edit them, and the
+closer had to wire them in. When two seams must edit one file, give the file to one seam and list the
+other's edits as its work.
+
+## Seam pass matthew-mbp-m4-b55-seam1 (2026-10-03, batch matthew-mbp-m4-b55)
+
+(a) **An artefact or a table offers only Examine, and its `[oploc1]` never fires (Another Slice of
+H.A.M.'s dig sites and specimen table).** The cache gives `slice_artifact_hotspot_0N_1`/`_2`
+("Artefact"/"Hole") and `slice_table_01` no op at all (`configs/all.loc:256904ff`, `257038`). In the
+real game both are USES: wiki Another_Slice_of_H.A.M./Quick_guide oldid 14458352 #Excavation "Dig up
+artefacts from the ground with the trowel", "Use artefacts on the specimen table to clean them";
+Quest Helper's dig1..dig6 are trowel-highlighted ObjectSteps. Fixed in OSRS-Content f97d2dcd59: the
+digs are `[oplocu,slice_artifact_hotspot_0N]` (anything but the trowel: "You need a trowel to
+excavate this site."; a dug site: "You've already excavated this site."), and the dead `[oploc1]`
+bindings are gone. Hotspot N writes `varb355(0+N)_slice_artifact_N` (the hotspot's own cache
+`multivarbit`, so the dug site turns into its Hole) and gives `slice_artifact_N_dirty`; before,
+hotspot 2 wrote artefact 5's varbit (turning hotspot 5 into a Hole), 4 wrote 2 and 5 wrote 4. Quest
+Helper's `artefact1..6` labels run 1,5,3,2,4,6 only because that is the objs' id order. Proof:
+`b55s1_dig_before` "Nothing interesting happens.", 0 items, varbit 0 -> `b55s1_slice_b` 146/0 to
+the scroll (six `dig<N>` rows each `gained slice_artifact_<N>_dirty`, `varb355<N> = 1`). A loc
+with no op in the cache is a `use_on` target, never a `click_loc`.
+
+(b) **The route into a city needs a quest the guide does not list (Another Slice of H.A.M. needs
+The Lost Tribe's varb532).** `::complete` writes only the named quest's own var. Quest Helper lists
+Death to the Dorgeshuun, not The Lost Tribe, but the cellar hole (`lost_tribe_cellar_wall`'s
+multiloc child `lost_tribe_cavewall_hole_walldecor`, values 4..12), Kazgar (`lost_tribe_guide`,
+9..12) and `cave_goblin_city_doorr` (refuses below `^lt_complete`, `lotg_intro.rs2:67`) all read
+`varb532_lost_tribe_quest`. Without `::complete quest_losttribe` the three are absent from the
+client (`b55s1_route_noLT`: `no loc 6905 ... in the client's entity pool`). The scaffold's
+`ROUTE_PREREQS` (`tools/quest_gate/new_quest.py`, batch matthew-mbp-m4-b55) stages it before DTTD.
+With it the route clicks end to end (`b55s1_route_b` 18/0): trapdoor, hole (3221,9618,0), Kazgar
+"Can you show me the way to the mines?" (lands beside Mistag, 3319,9615,0), the city door
+(2704,5365,0). The Lost Tribe is NOT in LostCity (grep of all five LostCity trees is empty).
+
+(c) **helper_coverage "no [op*] trigger on <loc> serves this quest" on a multiloc PARENT.** The
+trigger sits on the multiloc CHILD (`[oploc1,lost_tribe_cavewall_hole_walldecor]`,
+`losttribe.rs2:245`). The finding clears once a row named after the guide step clicks the child.
+
+(d) **`talk_to dorgesh_urtaq` answers "I can't reach that!" (Dorgesh-Kaan council room).** Ur-tag
+(2730,5365,1) stands in a walled room whose only entrance is `dorgesh_inner_door_posh_closed` at
+2733,5363,1. A `goto_tile 2729,5365,1` lands inside the room past that door; click the door
+(`click_loc ... { at = { 2733, 5363 } }`) and talk.
+
+(e) **OPEN (content): after a REAL Death to the Dorgeshuun completion, Kazgar, Mistag and the
+cellar hole vanish.** `dttd_shared.rs2:65` writes `varb532_lost_tribe_quest = 13`; the cache maps 13
+to -1 for `lost_tribe_guide`, `lost_tribe_mistag` and `lost_tribe_cellar_wall` (multinpc14 /
+multiloc14; multinpc is indexed by value). The value its own comment means is 12, the `_3ops`
+Talk-to/Mines/Watermill Kazgar (wiki Kazgar revid 15196282). `b55s1_route_dttd13` loses the hole;
+`b55s1_route_dttd12` passes 18/0. A test is not hit: `::complete quest_deathtothedorgeshuun` leaves
+532 at the Lost Tribe's 11.
+
+(f) **OPEN (tools): helper_coverage "X never reads %var" on a talk whose trigger header is stacked
+over another.** `script_body()` (`helper_coverage.py`) stops at the next line starting `[`, so the
+first of `[opnpc1,a]` / `[opnpc1,b]` written back to back has an empty body. Another Slice of
+H.A.M.'s generals were graded this way and do advance 5->6 and 7->8; the content now gives each
+header its own `@slice_generals_talk` jump. Other quests with stacked headers can be misgraded the
+same way.
+
+(g) **Quest Helper's `NpcID.LOTG_OLDAK_CUTSCENE` has no op.** It is the pre-gameval `NpcID.OLDAK`,
+renamed. The talkable Oldak is `dorgesh_oldak_there` (2704,5365,0), the id the Land of the Goblins
+helper uses; Another Slice of H.A.M. stage 4 goes through it (`lotg_yubiusk.rs2:12`).
+
+(h) **The Eyes of Glouphrie's Evil Creatures hit back, at most 1 a swing; that is the real game.**
+Wiki Evil_Creature oldid 15349482's infobox: `max hit = 1`, Crush, attack speed 4, aggressive No,
+1 hitpoint, plus an "Attacking" sound effect; nothing on the page says they do not fight back. The
+cache ships the swing (`all.seq [eyeglo_fluffie_attack]`). The engine latches retaliation on every
+hit (`torirs_server_combat.c` `ToriRSServer_CombatHitNpc`; only `retaliate=no` opts out), so
+`~npc_retaliate(0)` in the `[opnpc2]` bindings only starts the fight on the click. Max hit 1 is
+`strength=1` + `strengthbonus 0` through `[proc,npc_melee_maxhit]`: (1 + 9) * 64 = 640, (640 + 320)
+/ 640 = 1. `check_theeyesofglouphrie` now refuses `retaliate=no` or another strength. Any earlier
+note that they "never retaliate" is wrong. Proof: `b55s1_eyeglo_c` `creatures.hit_back` "hp 40 ->
+39 over 6 kills ... worst single tick 1".
+
+(i) **One fight's hp delta does not prove an npc never hits.** Each npc has its own seeded
+java.util.Random stream (`torirs_server_scripts.c`, `srv->npcs[slot].random`), so a scratch fight
+replays the same rolls even when its timing shifts: `b55s1_eyeglo_a`/`_b` read 40 -> 40 over 13
+creature swings, all 0. Prove "it hits back" or "it never hits" with several fights or a swing
+count (`[ai_opplayer2,<npc>]` lines under `TORIRSSERVER_VERBOSE=1`).
+
+## Seam pass matthew-mbp-m4-b55-seam2 (2026-10-03, batch matthew-mbp-m4-b55)
+
+(a) **A kill's return teleport never moves you, and client.log prints `npc_findhero with no active
+npc ... from [ai_queue3,<npc>]` (Another Slice of H.A.M.'s two H.A.M. rangers).** The death
+handler bound the hero, then called a proc that showed a `~mesbox`, `p_teleport`ed and wrote the
+stage. The page suspended the NPC script on the player: the stage write landed, the teleport did
+not move him off the watchtower (2447,5416,2, no way down from that side), and
+`~npc_default_death` resumed with no active npc. This is seam pass 21 (b) and seam 37 (d) one step
+further: binding the hero first is not enough, a page in an `[ai_queue]` still breaks the script.
+Fixed in OSRS-Content 2ca4e77a52 (batch matthew-mbp-m4-b55) (`slice_hammage.rs2`) the way LostCity's
+`grandtree_black_demon.rs2` does it (`queue(queue_defeat_blackdemon, 0, 0)` from the death
+handler): each handler does only the npc's half (dead flag, line, `~npc_default_death` while the npc
+is active) and, once both are dead at stage 6, `queue(slice_ham_rangers_return)`; that player
+script shows the mesbox, teleports to 2957,3512,0 and writes stage 7. `slice_ham_combat_login`
+queues it again after a logout during the mesbox. The destination is sourced: the second kill
+starts the kidnap cutscene, which ends at the generals (wiki Another_Slice_of_H.A.M. oldid
+15292360; Transcript oldid 15263379 "Upon defeating the two H.A.M. members"; Quest Helper
+`talkToGeneralsAgain` at WorldPoint(2957,3512,0) straight after `killHamMageAndArcher`, no travel
+step). The port has no kidnap cutscene; the mesbox narrates it. Sigmund's death handler
+(`slice_sigmund.rs2`) had the same shape: it now writes the flag and stage 10 in the npc's half
+and queues his parting line, which shows now (round 6 read `none`). Proof: `b55s2_slice_a` (mage
+first) and `b55s2_slice_b` (archer first) 148/0, `b55s2_close_b` 148/0 on the closer's pack:
+`killHam-box` "1 page(s): mesbox:With both ambushers down", stage 7, `killHam.returned`
+"2957,3512,0 (no goto)", `defeatSigmund.chat` "npc:Someday, somehow", no `no active npc` in
+client.log; `b55s2_slice_c` 109/0 relogs during the mesbox and lands at the generals.
+
+(b) **OPEN (tools): `tools/check_npc_script_player_suspend.py` passes a page AFTER `npc_findhero`.**
+It flags only a suspend with no player bound. Grep for an `[ai_queue<n>,...]` that binds
+`npc_findhero` and then reaches `~mesbox`/`~chatnpc*`/`~chatplayer`/`p_delay` before
+`~npc_default_death`. A comment-stripped sweep found five more, not fixed and not run:
+`quest_deserttreasure/deserttreasure.rs2:706` and `:1308` (`~chatplayer`),
+`quest_rumdeal/deal_combat.rs2:56`, `quest_thegreatbrainrobbery/brain_finale.rs2:45`,
+`quest_lunardiplomacy/lunardip_dream.rs2:166` (`~mesbox`).
+
+(c) **OPEN (content parity): the H.A.M. watchtower's own ladder down is out of reach.** The cache
+places `slice_goblin_ladder_top` (Climb-down) at 2442,5417,2 (`maps/m38_84.jl2:1753`), but the
+port lands you at 2447,5417,2 on the far side of the cover crates: `click_loc
+"slice_goblin_ladder_top" 1` answers `reach_failed: I can't reach that!` (`b55s2_slice_ladder`).
+In the game you arrive at the ladder with the crates as cover (wiki oldid 15292360). No guide step
+climbs down, so no test is blocked.
+
+## Seam pass matthew-mbp-m4-b56-seam1 (2026-10-03, batch matthew-mbp-m4-b56)
+
+Content in OSRS-Content 83c8fa8b73; grader in v3 e0d2cdfcc.
+
+(a) **`<p,mood>` tags printed in dialogue** -- FIXED, `~chat_mood` reads one leading tag
+(gaps-dialogue: "A `<p,happy>` tag drawn as text").
+
+(b) **Content trap: an rs2 string literal with an unclosed `<` swallows the rest of the file.**
+`ssc_lex.c` read_string counts bracket depth to find the closing quote, so `"<p,"` eats every line
+after it, and the error surfaces as `no proc named <x>` in some OTHER file (border_gate.rs2:51
+`no proc named chatplayer_anim`). Compare against `substring("<p,>", 0, 3)` instead.
+
+(c) **Swan Song: the firebox kept the log** -- FIXED, `[oplocu,swan_firebox]` deletes it (wiki
+Transcript:Firebox oldid 14859233, Swan_Song oldid 15359363, Quest Helper SwanSong.java:160-162: only
+the tinderbox is not consumed). A test no longer has to drop a spare log. OPEN: the firebox's
+lines differ from the transcript ("The firebox of the press is now filled with wood.") and the loc
+does not change to its Logs/Lit versions (wiki Firebox oldid 14859274, ids 13594-13596).
+
+(d) **"You have completed Contact!!"** -- FIXED: the shared `~quest_scroll_paint` appends `!` to
+the display name (questscroll.rs2:73). The real title is per quest: Contact!'s scroll has one `!`
+(wiki File:Contact! reward scroll.png revid 14120361) and `contact_shared.rs2` re-sets it after
+`~quest_complete_rewards`; Wanted!'s real scroll IS "Wanted!!" (revid 14226730), so never strip the
+bang in the painter. `quest.scroll_title` is a CONTAINS check and cannot see a doubled bang; only
+the scroll PNG can. Not checked against their wiki images: H.A.M.!, Between a Rock...!,
+Forgettable Tale...!.
+
+(e) **Ghosts Ahoy's giant lobster swung once** -- FIXED (gaps-combat: "A melee quest npc hits once").
+
+(f) **The grader missed a goto past a house door the guide does not name** -- FIXED for gotos INTO a
+walled room (coverage-and-gate: `enclosure_entries`; start-and-travel: "The grader now catches the
+goto inside").
+
+## Seam pass matthew-mbp-m4-b58-seam1 (2026-10-04, batch matthew-mbp-m4-b58)
+
+Content in OSRS-Content 6369379ada; client pick and `ladder.py` in the parent commit tagged
+`[seam:matthew-mbp-m4-b58-seam1]`. b58 re-drove eight tier 1 tests with no goto into or out of a
+closed space, and these are the gaps that walking them for real exposed.
+
+(a) **The Wilderness Ditch's Cross said "Nothing interesting happens."** -- FIXED,
+`area_wilderness/scripts/wilderness_ditch.rs2`. Every placed copy is a 1x2 segment. At angle 0/2
+(the border at z 3521-3522) the jump is z-1 <-> z+2, from 3523 to 3520 and back. At angle 1/3 (the
+north-south stretch at 2996-2997,3530-3533) it is x 2998 <-> 2995. The east end (x 3328-3340) is
+`ditch_wilderness_cover_members`, which crosses the same way. Drive it as
+`click_loc("ditch_wilderness_cover", 1, {at={x,3521}})`. The jump is an exactmove held 2 ticks, so
+call `t.ticks(4)` and then read the tile. The first jump north in a session (wilderness level > 0,
+`%varp5753_wilderness` unset) opens the strip's three mesbox pages first. Play them with
+`chat.play{"mesbox:WARNING! Proceed with caution", "mesbox:The further north you go",
+"mesbox:In the wilderness an indicator"}`. The pages are the pack's LostCity strip warning, not
+OSRS's `wilderness_warningscreen` interface, which nothing wires yet. A goto across the border is no
+longer justified by "the ditch cannot be crossed".
+
+(b) **Phoenix Gang weapon store: locked from inside, open from the street without the key** --
+FIXED. LostCity puts `phoenixdoor2` on the store tile (`m50_52.jm2:6944` `0 51 57: 2398 0 1`).
+The rev-239 cache encodes the same wall edge from the street tile (`m50_52.jl2:570`
+`0 51 58: 2398 0 3`), so LostCity's `~check_axis` "leaving" test was inverted here.
+`[label,unlock_weaponstore_door]` now decides inside from the store's row. Trap for any LostCity
+door script that reads `~check_axis` as inside/outside: compare the loc row in
+`LostCity_Content2/maps/*.jm2` with ours in `maps/*.jl2` before blaming the proc.
+
+(c) **Ernest the Chicken's maze gates answered "I can't reach that!" from their walled side** --
+FIXED. The cache rebuilt LostCity's nine shape-0 wall doors as shape-10 gates on a blocked tile, with
+a `blankwall_no_blockrange` (loc 44603, blockrange=0) on the 2004 door's edge. That wall blocks
+walking but not range, so no op can reach the gate from its side. Each gate now also answers
+`[aploc1]` (`[label,ernest_approach_maze_door]`, `p_aprange(1)`), the same pattern as seam27's
+`mdaughter_polerocks`. Press a gate from the tile in line with it on its own axis. You land two tiles
+across, on the mirror tile. A press from beside the gate in its own wall line does nothing. 26 map
+squares carry loc 44603, so another door there may need the same treatment. The maze is walkable
+end to end, which supersedes gaps-world's "The `goto_tile` bypass covers a puzzle-gated door".
+
+(d) **Eadgar's Ruse storeroom door unlocked but still blocked both ways** -- FIXED. A content door
+whose script `loc_change`s in place to an op-less, blocking `*_open` leaf blocks its own edge.
+LostCity's `~open_and_close_door2` instead walks the player through and adds the leaf one tile over,
+rotated, for 3 ticks. This pack has no shared copy of that proc, so port it as a quest-local proc
+(`viking_door_pass`, `eadgar_storeroomdoor_pass`). The door now follows LostCity
+`quest_eadgar.rs2:488-506`: the drawer key unlocks it once at `got_burnt_meat` and is used up
+("You unlock the door."). After that it opens with no key.
+
+(e) **Between a Rock: the ferry cave landed in sealed rock; the outer flames said "Nothing
+interesting happens."** -- FIXED. `dwarf_cavewall_tunnel` (troll room 2781,10161) lands on the ferry
+bank at 2838,10124. The bank's `dwarf_cave_entrance` (2838,10123) goes back to 2778,10161
+(shortest-path `transports.tsv:4330-4331`). That file is the source for any cave transition the
+maplink importer skipped because a quest trigger already claimed the loc. The realm's outer walls of
+flame (`dwarf_firewall_straight`/`_diagonal`, 10 copies) take op1 Jump-through to the far tile with
+no damage, since none is sourced: `click_loc("dwarf_firewall_straight", 1, {at={2372,4939}})` from
+2372,4938. The centre ring answers op2 Talk-to as well as op1. After the ferryman lands you at
+2823,10165, the scene rebuilds and Dondakan is missing from the client pool for 2-3 ticks, so call
+`t.npc.await_present("dwarfrock_dondakan", 15, 10)` before each talk or use on him (the INDEX line
+for seam b54-seam2 (b) applies). OPEN: `trollromance_stronghold_exit_tunnel` still lands on
+2781,10160, a rock tile beside the cave. LostCity and maplink give 2773,10162, and
+betweenarock's `enterDwarfCave` row pins the old tile.
+
+(f) **Keldagrim had no way out** -- FIXED, `area_keldagrim/scripts/keldagrim_travel.rs2`:
+- The city boatman `dwarf_city_boatman_city` lands at 2838,10127, beside `dwarf_cave_entrance`. On
+  op1 Talk-to, answer "Want me to take you back to the mines?" with "Yes, please take me."; op3
+  Travel goes straight there.
+- The mines boatman (`dwarf_city_boatman_mines` after The Giant Dwarf starts) lands at 2892,10225 on
+  the Keldagrim dock. Talk-to: "Hello again, <name>! Want to go back to Keldagrim?". He has op3
+  Travel too.
+- From the city boatman to the surface: `dwarf_cave_entrance` -> 2778,10161, then
+  `trollromance_piste_exit_tunnel_bottom` (2771,10161) -> 2730,3713 east of Rellekka.
+- The Dorgesh-Kaan platform's `slice_underground_wall_exit_dwarf` goes back to 2941,10179. There is
+  no train ride yet.
+- Conductors 1/2/3/5 sell Ice Mountain (150) and White Wolf Mountain (100, after Fishing Contest)
+  tickets. The track 3 cart (2923,10171) rides free to the Grand Exchange, 3141,3504. The track 1
+  cart (2923,10175) takes the Ice Mountain ticket to 2995,9835.
+
+Wait about 4 ticks after a landing before `talk_to`. `walk_to` answers `refused move_to` when the
+target is outside the scene the last landing built, so walk to a tile inside it first.
+
+(g) **`KeyError: '(goto past <door>)'` from `ladder.py` / `fail.py --leg`** -- FIXED (relay: "The
+ladder"). `build()` leaves helper_coverage's goto charges out of the numbered table, and
+`ladder_pseudo_step_test.py` holds it. 39 of 189 ladders crashed before the fix.
+
+(h) **`covered ... none of N pixels hittested` on an npc the shot shows nobody at** -- FIXED in the
+client. Biohazard's Chancy and Da Vinci (`gambler2`, `artist2`) are cache model 25362: a quad whose
+two faces are alpha 255, which lighting hides. The per-face pick skipped every face. An
+NPC/PLAYER/OBJSTACK whose model has no visible face now picks by its box, as the reference's
+`useAABBMouseCheck` does (`ToriDraw_ModelHasVisibleFace`, `torirs_frame.c`). Locs keep the per-face
+rule. Conformance row `seam.npc_drawing_no_face_is_pressed` covers it. biohazard's two `t.drive.op`
+fallbacks are no longer needed.
+
+(i) **Proving pre-fix content behaviour without mutating the shared tree**: build a symlink farm
+that mirrors `osrs239-content` with the one file replaced by its HEAD copy, compile it with
+`src/build_opt/sscompile --src <farm>/server/scripts --out <farm>/server/scripts/build`, and run with
+`TORIRSSERVER_SCRIPTS=<that build dir>` (the phoenixdoor2 and Keldagrim baselines).
+
+## Seam pass matthew-mbp-m4-b59-seam1 (2026-10-04, batch matthew-mbp-m4-b59)
+
+Content in the OSRS-Content commit tagged `[seam:matthew-mbp-m4-b59-seam1]`; the driver verbs in the
+parent commit with the same tag. b59 re-drove ten tier 1 tests with no goto past a closed door, and
+four stopped at content nobody could reach on foot. These are the fixes.
+
+(a) **`talk_to(kennith)` answers `I can't reach that!` from inside the cabin** -- FIXED,
+`area_fishing_platform/scripts/kennith.rs2`. Kennith (2766,3288,1) stands in a pocket behind
+`slug2_crate_stack`. The nearest standable tile is 2766,3286, two tiles back. He now has an
+`[apnpc1]` approach trigger at range 2 for both `kennith` and the `kennith_platform` leaf, the shape
+of At First Light's Verity. A multinpc needs both the base and the leaf bound. The crates are
+`blockrange=0`, so the talk lands across them. A wall still refuses even at range 2: from 2768,3288
+the answer is `I can't reach that!`. Talk from 2766,3286,1 (wiki Sea_Slug/Quick_guide oldid
+14957910).
+
+(b) **The Sinclair mansion spiral stairs say "It's just a staircase."** -- FIXED,
+`quest_kingsransom/scripts/kr_mansion.rs2`. King's Ransom's triggers on `murder_qip_spiralstairs` /
+`murder_qip_spiralstairstop` are more specific than `[oploc1,_climb_up]`, so outside its own
+`^kr_told_by_gossip` state they now do the plain `~climb(1)` / `~climb(-1)` (LostCity's mansion has
+a plain ladder here, `m42_55.jm2`, loc 1747). The stairs land at 2737,3580,1. Murder Mystery's
+level-1 evidence is there: barrels c 2733,3580,1, d 2733,3577,1, e 2747,3581,1, f 2747,3577,1, and
+the web at 2740,3574,1. Trap for any quest overlay on a shared staircase or ladder: fall through to
+the generic climb outside the overlay's own states.
+
+(c) **`walk_to` stalls at 2559,3299 against the West Ardougne wall door** -- FIXED,
+`area_ardougne_west/scripts/doors.rs2`. The map places `ardougnedoor_l`/`_r` (8738/8739, a 2x2 block
+at 2557-2558,3299-3300). The Biohazard walk-through was bound only to LostCity's
+`ardougnewalldoor_left/right`, which no map places. Now it is bound to both. Press a leaf from 2559
+(east) or 2556 (west); you are forcemoved two tiles through the block. Before Biohazard is complete
+the door answers "...But they will not open." and you stay put.
+
+(d) **The Mourner HQ door and its trapdoor lock out a player who finished Mourning's End Part I** --
+FIXED (`doors.rs2` mournerstewdoor, `mend1_disguise.rs2`). With the full mourner disguise worn, both
+admit from `^mend1_gathering` on, Part I complete included. Without the disguise, the door gives its
+mesbox and the trapdoor says "The trapdoor is bolted on the other side." (wiki
+Mourner_Headquarters oldid 15302196, Trapdoor_(Mourner_Headquarters) oldid 14713443). The trapdoor
+lands at 2044,4628,0 on Essyllt's spawn tile. Wait for him with `t.npc.await_present` before
+`talk_to`: the landing does not wait for the npc pool the way `goto_tile` does.
+
+(e) **Lletya's trees say "Nothing interesting happens."; the teleport crystal does nothing** --
+FIXED, new `quest_mourningsendparti/scripts/mend1_lletya_access.rs2`. `elf_village_treegate` op1
+Pass at 2305,3191 and 2305,3195 (the west column x=2304 to the east column x=2306, on your own row,
+both ways) once `%varp517_mourning_quest >= ^mend1_escorted`. `mourning_teleport_crystal_N` op1
+(`t.player.inv_op(<crystal>, 1)`) lands around 2328,3170 and steps the charge 5 -> 4 -> 3 -> 2 -> 1
+-> `elf_crystal_tiny`. Arianwyn (2353,3172) is out of entity-pool range from the landing: `walk_to`
+2350,3172 first. Never goto into Lletya. Sources: wiki Tree_(Lletya) oldid 14250252, Teleport_crystal
+oldid 15261004.
+
+(f) **The Mourner HQ basement ladder lands in a void at 2044,4649,1** -- FIXED, new
+`mend1_hideout_ladder.rs2`. `mourner_hideout_ladder1` (2044,4650) climbs to 2542,3326,0 beside the
+trapdoor, so the basement is left on foot, with no Camelot Teleport. Trap: a quest ladder whose
+destination the shortest-path data lacks is bound by name with `~climb_ladder_to(coord, true)`.
+Never hand-add a `maplink.dbrow` row: that file is generated and the importer erases it.
+
+(g) **Mourning's End Part I mints an extra ogre bellows per dye** -- FIXED, `mend1_sheep.rs2`. A
+dye now consumes the empty bellows and the toad catch hands it back, so the pack holds exactly one
+bellows through the whole sheep task (wiki Red_dye_bellows oldid 15186976). The four extra bellows
+had cut the 12-coal give to 9.
+
+(h) **The Temple of Light low wall's Climb-over says "Nothing interesting happens."** -- FIXED,
+`quest_mourningsendpartii/scripts/mend2_temple.rs2`. `mourning_temple_wall_jump` (1883,4620,1 and
+1883,4658,1) crosses 1882 <-> 1884 on the wall's row, with no level, no XP and no fail roll (wiki
+"Low wall (Temple of Light)" oldid 14748714). `click_loc` answers `timeout settle_after_click` for
+the short hop, so grade the crossing on `t.world.tile()`.
+
+(i) **No boat to Miscellania; `goto` from Lumbridge to the island dock** -- FIXED
+(`quest_viking/scripts/viking_sailor.rs2`, new `area_miscellania/scripts/misc_sailor.rs2`). Rellekka
+`viking_sailor` (2629,3693) Talk-to or op3 Miscellania lands at 2581,3845,0. Miscellania
+`misc_sailor` (2581,3847) Talk-to or op3 Rellekka lands at 2629,3693,0. Both need The Fremennik
+Trials: `::complete quest_fremenniktrials` in setup, a Quest Helper requirement of Throne of
+Miscellania. Without it the sailors give the before-trials lines and do not move you. The ride is
+`if_close`, `mes`, `p_delay(2)`, telejump, mesbox, so the dialogue CLOSES for two ticks before the
+arrival mesbox. End the `chat.play` list at `player:Let's go!`, `t.await` the landing tile, then
+`chat.play{"mesbox:The ship arrives at Miscellania.", "end"}`. One list spanning the gap answers
+`the dialogue closed after N page(s)`. Royal Trouble's `[opnpc1,misc_sailor]` falls back to the ride.
+Sources: wiki Transcript:Sailor oldid 15095248, Sailor oldid 15351110.
+
+(j) **The Port Sarim monk sails you to Entrana armed** -- FIXED,
+`areas/port_sarim/scripts/monk_of_entrana.rs2` `~has_entrana_restricted_items` (LostCity's proc).
+After "The monk quickly searches you." the monk checks worn AND carried items. Any `weapon_*` obj,
+any wearable with an attack or defence bonus (outside the neck and ring slots and the wiki's
+exceptions: ice gloves, wizard and other robes, god capes and books, and so on), and cannon parts
+are refused. The refusal is two npc pages, "NO WEAPONS OR ARMOUR are permitted on holy Entrana AT
+ALL..." and "Do not try and deceive us again...", and you stay on the dock (wiki Entrana oldid
+15352889). Bank or drop gear first, as hero.lua does at Draynor. Food, runes, arrows and jewellery
+pass. LostCity's "All is satisfactory" page is NOT ported, so the `chat.play` list still ends at
+`mesbox:The monk quickly searches you.`. Supersedes "open: the Entrana monk's weapon search is
+unported" (Seam pass 34).
+
+(k) **`t.world.loc_near` on level 1 answers the door on level 0 below; a hand-written `pass_door`**
+-- FIXED in the driver. `loc_near(sym, r, {level=n|"here"})` or `{at={x,z[,level]}, slack=s}`
+reads ONE floor, and a filtered `not_found` names the skipped copies with their levels.
+`t.player.pass_door{closed=, open=, at=, near=, far=[, close=true]}` crosses one door and grades it
+on the leaf reads and the tiles. See verbs-pointer: Stacked floors and `t.player.pass_door(spec)`.
+
+(l) **A door the player opened draws NEITHER leaf after its 500-tick revert while the player was
+away** (Miscellania castle gate 2510,3860,0 on the way back from Leif; the level-1 landing door
+2506,3851,1 after a stair climb) -- OPEN, an engine fix waiting to land. The client's
+`UPDATE_ZONE_FULL_FOLLOWS` cleared only obj stacks. The reference (Client-TS Client.ts ~7463) also
+resets the zone's locs to the map's. On top of that, the server never retired the open leaf's
+revert record (`torirs_server_zone.c`, a removed loc compared by angle). The fix and its conformance
+row `seam.door_revert_reaches_a_returning_client` are proved in a private worktree but not
+committed. Until it lands, close a door behind you when you leave its zone for 500+ ticks
+(`pass_door{..., close=true}`). `pass_door` answers `not_found ... neither leaf on level L` when the
+bug fires.
+
+## Seam pass matthew-mbp-m4-b60-seam0 (2026-10-04, batch matthew-mbp-m4-b60)
+
+Content in OSRS-Content 4b4cc88be6 (`[seam:matthew-mbp-m4-b60-seam0]`); the driver verbs, the
+sample tools and the conformance rows in the parent commit with the same tag. This pass ran BEFORE
+b60's door-rule fixers, on the owner's say-so, because every b56-b59 door-rule fixer had hand-written
+the same crossing helpers and three b59 tests went back for gotos the reach tool called clean.
+
+(a) **Crossing helpers are verbs now.** `t.player.cross_gate`, `cross_trap`, `walk_route` and
+`teleport_cast` sit beside `pass_door`; verbs-pointer.md "The crossing verbs" has the specs.
+Conformance `player.cross_gate` (Taverley east gate in and out, after proving a walk alone does not
+cross), `player.walk_route` (rovingelves' 26-waypoint chain, 106 tiles), `player.cross_trap` (the
+pitfall Jump, `You manage to cross safely.`) and `player.teleport_cast` (Camelot, 5 air + 1 law to
+0). The b59 tests (hero, hunt, rovingelves, mourningsendparti, misc) still carry their own copies; a
+copy of hunt.lua migrated to `cross_gate` ran 114/0 and graded FULL.
+
+(b) **`reach.py` charges op locs** -- coverage-and-gate.md "`reach.py` says NEEDS-OP". Landing it
+moved one committed quest: Monkey Madness (`mm`) is RED under `gate.py` (TEST_GAP: `goto-
+talkToZooknock` and `goto-useTalisman` land in a 294-tile pocket past `mm_double_springtrap_trigger`,
+`ape_atoll_dungeon.rs2`; the trap is crossed with a plank or walked over for damage). Its queue row
+was left green for the orchestrator to reopen.
+
+(c) **The camera "detached after a walk-triggered rebuild" was a slipped pitfall** -- FIXED,
+`quest_regicide/scripts/regicide_traps.rs2`. `[label,regicide_jump_pitfall]`'s slip played
+`anim(human_death, 0)` and never ended it. The seq's last frame holds 20,000 client cycles
+(`configs/all.seq`, and LostCity 225 alike), and while a primary seq with postanim DELAYMOVE plays,
+the client holds every walk the server sends (`World_MoverHeldByAnim`, the same as Client-TS
+`Client.ts` routeMove). So the player walked on server-side while his model, camera and minimap
+stayed at the pit, and every loc press answered `covered`. The client is faithful; no engine change.
+The slip now ends the fall a tick later (`p_delay(0); anim(null, 0);`), as LostCity's spike pit does
+(LostCity_Content2 `quest_upass/scripts/upass_grid.rs2:87-89`). Conformance
+`seam.slip_fall_releases_the_walk` slips at Agility 1, lands, walks 8 tiles and reads the eye 4-10
+tiles south of the player at pose 0/383/600; without the fix it read `d -1,-15`. A quick check for
+the shape anywhere else: `t.world.camera()` against `t.world.tile()`. Any content that plays
+`human_death` on a living player must clear it (unchanged, worth a look:
+`quest_viking/scripts/viking_thorvald.rs2:326`).
+
+(d) **The Isafdar woodspring passes both ways, and walking onto it springs it** -- FIXED,
+`regicide_traps.rs2` + `skill_agility/configs/maplink_agility.dbrow`. Before, the pass was a
+tile-keyed `~maplink_agility` lookup with one row per trap direction, and four reverse rows had been
+dropped by `tools/maplink_import.py` (its 2-tile radius misses the far side of a 3-wide loc;
+docs/MAPLINKS_REJECTS.md:273-276; a re-import must keep the four hand-added rows). Pressed from the
+east, the approach stood the player on the trap's middle tile and it printed `Nothing interesting
+happens.` It is now LostCity's handler (LostCity_Server `quest_regicide.rs2:31-134`): the pass is
+worked out from the trap's angle and the side the player stands on, a failed roll walks the player
+onto the trap, and the walk trigger (`regicide_zones.rs2:1-66`) springs it: `You set off the trap
+as you pass.`, 8 damage, thrown to the trap's fixed side (from the WEST that is the east side,
+across it). The sprung tiles are the middle two of each spring (2236-2237,3181; 2200-2201,3169;
+2275-2276,3163; 2257-2258,3227; 2181,3210-3211; 2295,3214-3215). `walk_to` re-issues into a spring
+on every idle tick until the player dies, so never walk across one: press it with `cross_trap`
+(op 1; no level gate, the roll is `stat_random(agility, 30, 155)`, so stage Agility to fail less) and grade the tile; a failed roll from the west lands on the east side,
+crossed with damage. The committed regicide.lua walks over the 2235,3181 spring in leg 3 and now
+dies there (row 119 `walk-climbThroughForest`); its fixer passes the trap before the walk.
+
+## Seam pass matthew-mbp-m4-b60-seam1 (2026-10-04, batch matthew-mbp-m4-b60)
+
+Content in the OSRS-Content commit tagged `[seam:matthew-mbp-m4-b60-seam1]`; the driver verbs and
+their conformance rows in the parent commit with the same tag. Five b60 door-rule reopens ended
+`content_bug` on a place no walk could reach; each fix below makes the real branch reachable.
+
+(a) **Spirits of the Elid: the Water Ravine Dungeon is reached and left on foot** -- FIXED,
+`quest_spiritsoftheelid/scripts/elid_dungeon.rs2`, `.constant`, `doors/configs/doors.loc`. No
+LostCity source; the wiki walkthrough has the rope used on the root "on the east bank". Three faults.
+(1) `desert_water_cave_root` (3369-3371,3132) stands over the waterfall pool, and every tile beside
+it is pool or cliff, so `[oplocu]` answered `I can't reach that!` from every bank tile. It is now
+`[aplocu]`, which narrows with `p_aprange(3)` until `distance(coord, loc_coord) <= 4` (the shape of
+LostCity `quest_waterfall.rs2:213` and this tree's `[aplocu,mdaughter_polerocks]`). A loc used across
+water needs this shape. The engine measures ap range to the loc's rectangle and the script to
+`loc_coord`, so the script check allows the loc's width. (2) `^elid_cave_exit_coord` was the pool
+(3370,3131), with no walk out; it is now the east bank 3372,3130 (inferred from the wiki's "east
+bank"; no source names the tile). (3) The robe door, the three golem doors and the lake door each had
+a quest `[oploc1]` that shadows doors.rs2's `[oploc1,_door_closed]` and never swung the leaf. Each
+now ends in `~door_open_active` after its checks (before the golem spawns). A door with no `_open`
+sibling in the cache can take a nameless, op-less sibling of the same model as its
+`next_loc_stage`: the golem doors open to `elid_underground_inactive_door` (model 10174, mirror=1),
+which nothing can close; the 500-tick revert shuts it. The pack does not require a reciprocal
+pair (`torirs_server_pack.c:1180`). A test crossing back past it names `open=` in `pass_door`.
+Proved on a copy of the committed test with 4 test-side edits: 138/0, helper_coverage FULL.
+
+(b) **Draynor Manor's crypt stairs go down and come back up** -- FIXED, new
+`quest_vampire/scripts/vampire_crypt_stairs.rs2`, ported from LostCity
+`ladders+stairs/scripts/stairs.rs2:408-424`. `cryptstairsdown`/`cryptstairsup` carried only the
+climb categories and no maplink row, so the generic `~climb` moved one plane below level 0:
+`You can't go any further.` Down now lands on 3077,9771,0 and up on 3115,3356,0. A climb-category
+loc whose real destination is in another region is fixed with a name rung `[oploc1,<sym>]` in the
+quest's own scripts (it beats the category rung); bind only the ops the record has (`all.loc`).
+
+(c) **Mountain Daughter: the rockslide is two-way and the rock tent has a door** -- FIXED,
+`quest_mountaindaughter/scripts/mountaindaughter_camp.rs2` + `.constant`. No LostCity source; wiki
+"Rockslide (Mountain Camp)" oldid 15360533 (the camp's entrance, Climb-over), Mountain Camp oldid
+15351048, Mountain Daughter oldid 15292291. The rockslide used to teleport to 2768,3668, a cliff tile
+walled on four sides, and only inward. Pressed from z < 3658 it now lands on 2760,3660 inside the
+camp, otherwise on 2760,3657 outside. The rock tent's double door (`mdaughter_rocktent_door`
+2799,3665 and `_doorl` 2800,3665) had no op1; Go-through now walks the player through
+(`open_and_close_door2` shape): from outside onto the door tile 2799,3665, which IS inside the tent;
+from inside to 2799,3666. The leaf is gone for only 3 ticks, so grade the entry with `pass_door`
+`far_ok` (inside the tent, x 2797-2802 z 3661-3665), not on the leaf's absence or a tile deeper in.
+Not ported yet: the wiki gates the rockslide on starting the quest (before it, a rope on the boulder
+climbs you down); the boulder still only prints a line, so the rockslide stays ungated.
+
+(d) **The Tourist Trap mine door lands on the door tile** -- FIXED,
+`quest_desertrescue/scripts/quest_desertrescue.rs2`, from LostCity
+`quest_desertrescue.rs2:433-440`. It used to land on 3278,9425, a walled pocket south of the exit
+door. It now lands on 3278,9426 for one tick (`p_delay(0)`) and steps through `thttmineexitl` to
+3278,9427, the mine side. A test reads the tile after the door with an await on 3278,9427, not at
+once. Not ported: LostCity's double-door swing (no `open_and_close_double_door2`, no open stages
+for `thttmineexitl/r`).
+
+(e) **One Small Favour: the Seers' roof ladder reaches the roof** -- FIXED,
+`quest_onesmallfavour/scripts/onesmallfavour_puzzles.rs2`. `favour_seer_ladder` (2715,3472,1) and
+`favour_roof_trapdoor` (2715,3472,3) used the generic one-plane climb categories, landing on plane 2,
+which the map blocks. Name rungs now call `~climb_ladder_to`: up to 2714,3472,3, down to
+2714,3472,1 (Quest Helper `OneSmallFavour.java:745,753`, roof zone `:365`; placements
+`m42_54.jl2:4299-4300`). A copy of the committed test without its block ran 468/0.
+
+(f) **A spell left armed after a fight, and a climb verb** -- driver. A re-cast whose presses all
+answered `covered` left Fire Blast armed after Family Crest's Chronozon. After that, every world
+press read `covered ... menu rows: <Cancel>`. `t.player.cancel_selection` drops it, and the driver
+calls it itself after a cast press that missed on every try and when `npc.await_dead_engaged`'s cast
+wrap ends. `t.player.climb` grades a level change on the level and the landing. Both are in
+verbs-pointer.md. Conformance `player.climb`, `player.cancel_selection` and
+`seam.cast_fight_ends_with_nothing_armed` (153 verbs / 104 seams).
+
+(g) **Two seam-pass traps, again** -- `run.py <quest id> --name X` does NOT rename a run started by
+quest id, and without `--no-publish` it rewrites `OSRS-Content/.../selftest/quests/<dir>/play`. Two
+fixers in this pass did so for cooks_assistant and druid, and a hand restore then zeroed 72 tracked
+files. When you read a file back with `git show HEAD:<path>`, remember that OSRS-Content's git root
+is `OSRS-Content/`, not `osrs239-content/`: the path needs the `osrs239-content/` prefix.
+
+## Seam pass matthew-mbp-m4-b61-seam1 (2026-10-05, batch matthew-mbp-m4-b61)
+
+Content in the OSRS-Content commit tagged `[seam:matthew-mbp-m4-b61-seam1]`; the driver verbs, the
+two engine commits and the conformance rows in the parent commits with the same tag. Engine rows run
+on `build/orchestrator/worktrees/b61-engine/src/torirs_b61engine`, which replaces `torirs_b59door`.
+
+(a) **Fight Arena: the compound door lets the player out at any stage** -- FIXED,
+`quest_arena/scripts/arena_locs.rs2` `[oploc1,fightarena_door1]`, ported from LostCity
+`quest_arena.rs2:32-35`. A player on the door's own axis (`~check_axis`: the loc tile, which is the
+compound side of both leaves, west 2585,3141 and north 2617,3171) goes straight to
+`[label,arena_pass_door1]`, silently, before any guard, stage or disguise test. The stage/disguise
+rule and the guard's lines apply to ENTERING only. Before, at stage 12 (after `arena_escape` drops
+the player in the yard at 2608,3151) the inside press answered "This door appears to be locked." and
+the guard attacked, so the player was locked in. Leave on foot by the west leaf 2585,3141 -> 2583,3140.
+
+(b) **The Abyss Law rift applies Entrana's item search** -- FIXED,
+`skill_runecraft/scripts/runecraft_abyss.rs2` `[proc,abyss_rift]` calls the Port Sarim monk's
+`~has_entrana_restricted_items` (worn and carried). Source: wiki Abyss oldid 15228428 ("entering it
+has the same restrictions as entering Entrana") and Entrana oldid 15352889. The Law rift only; the
+other rifts have no item rule. A refused player stays in the Abyss with "The power of Saradomin
+prevents you from taking weapons or armour through the Law rift." -- that wording is a paraphrase,
+no source quotes it. A quest route through the Law rift carries no weapon or armour (a pickaxe or axe
+counts). A probe stands on 3052,4838 to reach every rift; 3045,4836 is `reach_failed` on the Law rift.
+
+(c) **Zogre Flesh Eaters: the Brentle Vahn zombie fights with its real stats** -- FIXED,
+`quest_zogreflesheaters/configs/zogreflesheaters.npc` `[zogre_human_brentle_vahn]`: 50 hitpoints,
+30/30/30, crush, aggressive, undead, 50% fire weakness, `death_drop null` (wiki oldid 15272404; cache
+`all.npc` stat1-4 30/30/30/50). Before, it had no block and fought at the engine default 10 hp. Two
+facts came with it. (1) Only the FIRST `[gameval]` block across all `.npc` files survives, and a quest
+overlay block beats `npc/configs/npc_anims.generated.npc`. A quest block, even one that only adds
+params, must restate the generated anims and `attackrate`, or the npc silently loses them. The
+existing `[zogre_slash_bash]` block had lost them and now restates them. (2)
+`docs/bosses/quest_combat_manifest.json` is GENERATED: fill a row through `AUDITED_OVERRIDES` in
+`tools/generate_quest_combat_manifest.py`, never by hand-editing the JSON, or `--check` goes stale.
+When a seam raises an npc from 10 hp to its real hitpoints, check the test's `await_dead_engaged`
+budget: the real zombie takes about 64 ticks, against the 60 the old test allowed.
+
+(d) **The region-music unlock wrote quest varps 1-27** -- FIXED (engine),
+`tools/gen_music_regions.py`, `torirs_server_music_regions.gen.h`, `torirs_server_world.c`
+`ToriRSServer_MusicEnterRegion`. DBTable 44's unlock pair is (music VARIABLE 1-27, bit), and the
+generator emitted the variable as a varp id. So walking into a mapped square OR'd a bit into a quest
+varp: Draynor Village (48,50, "Unknown Land" = variable 5 bit 5) turned `%varp5_grail` spoken_crone
+4 into 36, and the Grail whistle then went to the restored realm. The generator now maps variable N
+to the `[varp<id>_musicmulti_N]` id from `interface_music/configs/music.varp` (variable 5 is varp
+24). Every quest-loop run since 350035439 (2026-08-20) had the bug: 58 of 92 greens wrote some other
+quest's varp 1-27, and none wrote its own or a staged prerequisite (audit:
+`build/seam_state/matthew-mbp-m4-b61-seam1/music/audit.json`). Draynor's bank is safe on
+`torirs_b61engine` or newer. Saves written by an older server may still carry stray bits.
+Conformance `seam.region_music_unlock_writes_the_musicmulti_varp`.
+
+(e) **An npc whose `[ai_queue3]` hands its death to a player queue is held until that queue
+decides** -- FIXED (engine), `torirs_server_combat.c` `npc_death_step`. LostCity never removes a
+dead npc on its own: `NpcOps.ts` NPC_DEL is the only removal, and `[proc,npc_death]` is its only caller
+on a death. `[ai_queue3,black_knight_titan]` only `queue()`s `queue_defeat_titan(npc_uid)`. The
+engine used to reap the titan on the same tick, so `npc_finduid` in the queue missed and neither
+"Maybe you need something more to beat the titan?" (heal, stage 7) nor "Well done! You have
+defeated the Black Knight Titan!" ever ran. Now the CORPSE stage records each new queue entry naming
+the npc's uid, and REAP holds the npc (still dying) while the entry is queued or the script it
+started is parked on the npc. After that, hitpoints > 0 means revived and 0 means reaped. A revived
+npc plays its death animation again on its next death. Residual divergence: the death animation
+plays before `[ai_queue3]`, so on the no-Excalibur branch the titan animates a death and stands back
+up healed. Only the titan and `alomone_hazeel_cultist` pass `npc_uid` to a queue today. Conformance
+`seam.npc_death_waits_for_its_queue`. To tell "the same npc survived" from "reaped and respawned"
+(the titan respawns in about 4 ticks), compare the `slot N` in `t.npc.await_present`'s detail.
+
+(f) Driver: `cross_gate` takes `chat=` / `chat_optional=` for a guarded walk-through, and the four
+crossing verbs take `loc_level=` for a loc on a bridge deck; see verbs-pointer.
+
+## Seam pass matthew-mbp-m4-b62-seam1 (2026-10-05, batch matthew-mbp-m4-b62)
+
+Content in the OSRS-Content commit tagged `[seam:matthew-mbp-m4-b62-seam1]`; the driver, grader,
+workflow and conformance changes in the parent commit with the same tag. Every run used
+`build/orchestrator/worktrees/b61-engine/src/torirs_b61engine` (no engine change this pass).
+
+(a) **The Karamja glider crash pages abort on `npc_coord with no active npc`** -- FIXED,
+`area_gnome/scripts/gnome_glider.rs2`. After "Take me to Karamja please!" the script
+`p_teleport`s the player to the wreck (2917,3058) and keeps talking as the op's npc, the pilot on
+top of the Grand Tree about 450 tiles away. This engine retires a static spawn beyond
+`TORIRSSERVER_STATIC_SPAWN_OUT` (224) of every player (`torirs_server_world.c`
+`world_static_npcs_sync`), so the first `~chatnpc_anim` aborted (`chat.rs2:273`). LostCity's
+engine keeps every npc live and needs nothing. The port now binds the wreck's pilot with
+`npc_find(coord, pilot_grand_tree, 5, 0)` (m45_47.spawn 2918,3057) and `error()`s if it is absent,
+and the crash-site test is LostCity's box `inzone(0_45_47_35_42, 0_45_47_45_53, npc_coord)`
+(LostCity `gnome_glider.rs2 [opnpc1,gnomepilot]`), not a square round `^gandius`, which matched the
+Karamja glider station's pilot instead. The rule for any port script: one that teleports the player
+more than 224 tiles and goes on talking must rebind the destination's npc first. Proof: scratch
+`seam1_glider_after` 9/9, crash pages "Sorry about that." .. "Take care little man."; grandtree copy
+184/184. OPEN (owner, design): should the engine keep a static spawn that a suspended script holds?
+Not changed.
+
+(b) **The Keldagrim Consortium's wide stairs land in a pocket sealed by crates** -- FIXED,
+`quest_giantdwarf/scripts/gdwarf_consortium.rs2`. Every press of
+`dwarf_keldagrim_wide_stairs_upper` used to `p_teleport` to 2895,10210,0, inside the east stairs'
+own footprint and boxed by crates, so a walk off it timed out; both tests detoured by Varrock
+Teleport and the GE trapdoor. The two name bindings now call `~climb(1)` / `~climb(-1)`, which asks
+`maplink.dbrow` for the copy pressed (the rows the binding used to shadow; docs/MAPLINKS.md), so
+the player lands beside that staircase. Up: 2863,10209 -> 2862,10209,1; 2863,10188 -> 2862,10188,1;
+2894,10209 -> 2896,10209,1; 2894,10188 -> 2896,10188,1; 2930,10180 -> 2930,10179,1. Down lands on the
+far side: 2865,10209 / 2865,10188 / 2893,10209 / 2893,10188 / 2930,10182, level 0. All four
+Consortium landings are one floor with the Blue Opal secretary (2869,10205) and director
+(2867,10203); the west pair is 7 tiles from both. The stage gate, the two `mes` lines and both stage
+writes are unchanged. Proof: probes `kel_wsp_s1a` 35/0 and `kel_wsp_s1b` 12/0; copies with the
+detour removed, forgettabletale 307/0 and giantdwarf 379/0. OPEN: the gate and the market `mes`
+lines also fire on the 2930,10180 pair, a separate building; no source says whether they should.
+
+(c) **A quest's name binding on a shared staircase sent Veldaban's HQ stair into the Laughing
+Miner** -- FIXED, `quest_forgettabletale/scripts/forget_brewing.rs2`. `[oploc1,dwarf_keldagrim_stairs_lower/upper]`
+were unguarded, and a name binding beats the locs' `category=climb_up/climb_down`, so every copy
+(ten lower ones, Veldaban's HQ at 2828,10215 among them) teleported into the pub. Each binding now
+guards on the pub copy's `loc_coord` (2915,10196, levels 0 and 1) and every other copy falls
+through to `~climb(1)` / `~climb(-1)` (the `warriorsguild_doors.rs2 [oploc1,spiralstairs]` and
+`zogre_finish.rs2 [oploc1,ladder]` shape). The rule: a quest file that binds a shared stair or
+ladder by name guards on `loc_coord` and falls through to the category's `~climb`. Proof:
+`lmstair_before` hqStairUp landed 2916,10193,1 with the pub line; `lmstair_after` 10/10, the HQ
+stair lands on its maplink dest 2828,10214,1 and the pub stair still lands 2916,10193,1.
+
+(d) **Brutus's specials: a stationary attacker dodged, and no sidestep could** -- FIXED,
+`quest_idesofmilk/scripts/idesofmilk_locs.rs2`. Both specials were measured from `npc_coord`,
+which for a size-N npc (and the driver's npc row x,z) is its SOUTH-WEST tile, so a player beside
+his east side at z+2 stood outside the charge lane. Both zones are now measured from the 3x3
+footprint (`[proc,cowboss_side]`, `nc_size(npc_type)`), the charge lane is the footprint swept 0..4
+tiles (wiki Brutus Strategy table: "Dash forward 4 Tiles"), and the special resolves after 3 ticks
+instead of 1. Two general facts came with it: measure a big npc's zones with `nc_size`, never from
+`npc_coord` alone; and a telegraphed special queued with `queue*(x, 1)` can never be dodged,
+because the player phase runs queues before movement (`torirs_server_world.c` `phase_player`),
+so use the telegraph sequence's own length (`configs/all.seq` frame cycles / 30; both Brutus
+telegraphs are 90 cycles = 3 ticks). Proof: `brutus_after2_b62` 15/15 stationary specials hit,
+sidesteps dodged 4/4; idesofmilk copy 92/0 with `killBrutus.margin` below full hp.
+
+(e) **The Crandor ropes are not missing** -- comment fix only, `quest_dragon/scripts/crandor.rs2`.
+The header said LostCity's `crandor_rock_opening` / `crandor_climbing_rope` / `elvarg_gate_*`
+were absent and "deferred". They are LostCity NAMES the cache does not carry; the OSRS locs exist:
+`dragon_slayer_qip_ruin_entrance` (the Hole, a maplink), `dragon_slayer_qip_climbing_rope`
+(2833,9657, `category=climb_unqualified` -> `~climb(1)` -> maplink rows -> 2834,3258,0) and
+`dragon_slayer_qip_stalagtite_jump`. The walk out of Elvarg's lair: the secret wall from 2836,9600
+to 2836,9599, then `walk_route` 2834,9593 / 2834,9585 / 2842,9585 / 2847,9582 / 2851,9578 / 2855,9574
+/ 2855,9569, then `climbing_rope2` (volcano.rs2) -> 2856,3166,0 on the volcano rim, "You climb up the
+hanging rope..." / "You appear on the volcano rim.". A rope or hole between a cave (z >= 6400) and
+the surface keeps level 0: grade it with `t.player.climb` (verbs-pointer: A climb that changes no
+level). Before you call a loc missing because a LostCity handler name is absent, look up the OSRS
+loc's `maplink.dbrow` rows and its `ladders.loc`/`maplinks.loc` category. Proof: scratch
+`b62s1_crandor_ropes` 12/0.
+
+(f) **"I can't reach that!" right after a teleport out of a fight is Auto Retaliate** -- not a
+bug (LostCity-faithful). An attacker's hit inside the teleport's `p_delay` queues
+`[queue,playerhit_n_retaliate]` (skill_combat/combat.rs2); it runs after the landing and
+`p_opnpc(2)`s the npc left behind, whose route fails. Seen in crest's
+`returnCrest.varrockTeleport.cast` after a respawned Chronozon (respawnrate 30, aggressive) reached
+the player during a 140-tick kill wait. Repro `crest_reach_repro1`: the line in 6 of 8 attempts,
+exactly the six with a hit between the press and the landing; with `::setvar varp172_option_nodef 1`
+(Auto Retaliate off) 0 of 8. The row still PASSes. A test that must not see it teleports before the
+respawn. OPEN (owner, design): should a landing drop a retaliate queue whose attacker is out of
+reach? No source says so; not changed.
+
+(g) **Zogre Flesh Eaters' tomb doors teleport to the boss floor from either side** -- FIXED,
+`quest_zogreflesheaters/scripts/zogre_finish.rs2` `[proc,zfe_tomb_door]`. Each press used to
+`p_teleport` to 2480,9446,0 on the boss floor, so the stairs were skipped and a player on the boss
+floor had no walk out (the test left by Camelot Teleport). Each press now walks the player through
+the leaf pressed to its far side (the `door_walkthrough_try` shape, `~check_axis_locactive` +
+`~door_open`). The gate is 2009scape's (`ZogreFleshEatersListeners.kt:51-73`, from both sides):
+stage >= 9 passes silently, the Ogre Tomb Key passes with "You use the Ogre Tomb Key to unlock the
+door.", no key gives "The door is locked.". Route (wiki Zogre_Flesh_Eaters oldid 15328252): the
+outer pair 2441-2442,9433,2, the inner pair 2440-2441,9426,2, then `ogre_stairs_down` 2443,9417,2 ->
+2442,9417,0; out the same way. `^zfe_tomb_past_door` is deleted. Proof: `zfe_doors_after` 19/19;
+copy 178/0, helper_coverage FULL.
+
+(h) Driver, grader and tools: `t.player.climb` grades a same-level landing in another map frame
+(verbs-pointer: A climb that changes no level); `t.player.walk_to` answers a detail on success
+(traps-01-12, verbs-pointer); `helper_coverage.py` no longer credits an NpcStep to a row only
+named after the npc (coverage-and-gate); `run.py` takes one quest id per call and honours
+`TORIRS_QUEST_NO_PUBLISH` (running).
+
+## Seam pass matthew-mbp-m4-b62-seam2 (2026-10-05, batch matthew-mbp-m4-b62)
+
+Content in the OSRS-Content commit tagged `[seam:matthew-mbp-m4-b62-seam2]`; the grader change in
+the parent commit with the same tag. Every run used
+`build/orchestrator/worktrees/b61-engine/src/torirs_b61engine` (no engine change this pass).
+
+(a) **The Dorgesh-Kaan station doorway lands on a walled-off train platform; `walk_to` Tegdak
+stalls at 2488,5536** -- FIXED, `quest_anothersliceofham/scripts/slice_zanik.rs2`.
+`slice_goblin_station_entrance` (2695,5277,1) had one maplink row, `[maplink_1_42_82_8_29]`, dest
+2488,5536,0: the FINISHED station's platform, a 296-tile room the static map walls off from the
+dig where Tegdak works (2512,5562), with no quest-state test. A new name binding
+`[oploc1,slice_goblin_station_entrance]` lands at `^slice_railway_dig_landing_coord` 2520,5607,0
+(the tile in front of the dig's own exit doorway, which blocks its own tile) while
+`%varb3550_slice_quest < ^slice_complete`, and falls through to `~maplink_transition` after, so the
+platform landing is unchanged at state 11; `maplink.dbrow` is untouched. Sources: Quest Helper
+`AnotherSliceOfHam.java:197` (the railway zone 2505..2523 x 5527..5630 is the dig) and
+:272/:275 (enterRailway -> talkToTegdak 2512,5564); the wiki quick guide (oldid 14458352,
+Excavation: "Walk south on the tracks and talk to Tegdak"). The pattern: a maplink row whose
+destination is an area's post-quest state needs a quest-state name binding that shadows
+`[oploc1,_maplink_transition]` and falls through to it (gaps-world: A cave or tunnel click answers
+a chat line; `curseofarrav.rs2:223-235`). Proof: `seam2_dorgesh_before` landed 2488,5536 and the
+walk stalled; `seam2_dorgesh_after` 10/10 (lands 2520,5607, walk reaches Tegdak in 23 ticks,
+`::complete` then lands 2488,5536); a copy of the fixer's test with the climb dest changed and the
+platform block deleted, `seam2_dorgesh_slice_copy`, 140/0. OPEN (not changed): the return doorway
+lands on 2695,5277,1, the station doorway's own tile; the reverse maplink row says 2696,5277.
+
+(b) **`helper_coverage` charges a goto OUT of a sealed pocket** (`sealed_exits`,
+coverage-and-gate). Before it, Another Slice of H.A.M.'s `goto-talkToTegdak` off the train
+platform read FULL. Landing it reopened Holy Grail (`goto-talkToFisherman` out of the 320-tile
+pocket east of the Black Knight Titan, where `defeat_titan`'s `p_teleport(movecoord(npc_coord, 1,
+0, 0))` lands the player; from the titan's near side the walk reaches the fisherman in 11 ticks,
+so the landing side may be the content bug -- check LostCity and the wiki first) and Watchtower
+(`goto-leaveGrewIsland` over the water instead of `tree_ropeswing3`). OPEN: the exemption accepts
+any press of a pocket op loc in the 500 ticks before, so a test that swings INTO a pocket and gotos
+out within 500 ticks is not charged (Watchtower's `goto-leaveGrewIsland2`); a tighter rule needs
+to know which op locs leave a passage open.
+
+## Seam pass matthew-mbp-m4-b63-seam1 (2026-10-05, batch matthew-mbp-m4-b63)
+
+(a) **Haunted Mine: the lift lands in the flooded pool and no walk leaves it; use-key-on-valve
+says "Nothing interesting happens."** -- FIXED, `quest_hauntedmine/scripts/hauntedmine_dungeon.rs2`.
+Every descent `p_teleport`ed to 2726,4455,0, inside a water pool whose south row (z 4453) the map
+blocks (`walk_to 2725,4452 ... stalled at 2725,4454`), and the valve had only Turn, which read the
+key from the pack. Now the descent wades out by `p_exactmove` to the south shore
+`^hmq_flooded_shore` 2725,4452 (Abandoned Mine wiki: "they appear in the flooded chamber and wade to
+the south shore"; the tile itself is the map's nearest open shore tile, not sourced); `lift_flooded`
+answers Go-up from the shore at range 4 (`[aploc1]` + `p_aprange`; wiki: "must click the lift");
+`[oplocu,hauntedmine_lift_valve]` with the Zealot's key sets `liftpoweredonce` and opens the flow
+("The key unlocks the valve."); Turn refuses with the transcript's "The valve seems to be locked in
+position. There is a small keyhole in the side." until then (Transcript:Haunted Mine; Quest Helper
+`HauntedMine.java` valveOpened = liftpoweredonce, valveOpen = liftpowerednow). The key is kept;
+`liftpowerednow` gates the lift during the quest, and it stays operable after. The contract pin in
+`tools/check_quest_combat_contract.py` moved with it. Proof: hm_lift_post 24/24; the full-route copy
+`hm_unblocked2` 101/1, quest complete. OPEN: the journal's "I've powered the lift" now reads from the
+unlock (liftpoweredonce's new meaning).
+
+(b) **Ratcatchers: reading the directions moves nobody; the trellis lands on a one-tile ledge; the
+Port Sarim manhole lands on a dead tile; the rat pits' ladder lands in a field** -- FIXED,
+`quest_ratcatchers/scripts/ratcatchers.rs2`. The directions now open the transcript's prompt
+(`mesbox:The scroll contains directions to a manor`, `choose:Follow the directions to the house.`)
+and teleport to 2847,5066,0 (Quest Helper `RatCatchers.java:336`, the first climbTrellis point;
+wiki: "you are teleported there instantly"), with the transcript's refusals (not from Ardougne, no
+cat, already done) and "Directions to... here, actually!" inside the grounds. Both trellises land on
+the cache's trellis top one plane up (2844,5104,1 / 2851,5104,1). The quest-local `vc_manhole_open` /
+`vc_ladder` bindings that `p_telejump`ed +/-6400 are deleted, so the category handlers take the
+cache rows `maplink_0_47_50_10_31_down` (-> 2962,9650) and `maplink_0_46_150_18_50_up` (-> 3018,3233).
+The general fact: a quest-local `p_telejump(movecoord(coord, 0, 0, +/-6400))` on a ladder or manhole
+is wrong whenever the underground sheet is not straight below; grep `maplink.dbrow` for the loc
+first. OPEN: the trellis down-climb still lands inside the ground floor (FIXED matthew-mbp-m4-b64-seam1
+(b): it now leaves the grounds for Ardougne);
+the "from Ardougne" box (map squares 38-42 x 49-52) is not sourced.
+
+(c) **Lost Tribe: the tunnel floor carries two, three, four brooches** -- FIXED,
+`quest_losttribe/scripts/losttribe.rs2` `[proc,lost_tribe_lay_brooch]`. The dig and every squeeze
+through the hole each `obj_add`ed one, and `obj_add(..., 0)` never despawns (SS_OP_OBJ_ADD maps a
+duration <= 0 to -1), so they stacked forever. Now one proc lays it only when neither the player
+(backpack, bank) nor the tile (`obj_find`) has one. The general fact: content that re-lays a quest
+item on entry must `obj_find` the tile first (`slugmenace_witchaven.rs2:180` has the same shape).
+Proof: ltbrooch_before tile count 4 / ltbrooch_after 1; the committed test copy 178/0.
+
+(d) **Watchtower: Gu'Tanoth's gates stood open 500 ticks after an earned opening** -- FIXED,
+`quest_itwatchtower/scripts/ogre_guard.rs2`. `open_gutanoth_gate` called the shared
+`~open_double_door_left/right` (`doors/scripts/doubledoors.rs2`, loc_del/loc_add 500), so once a
+friend of the ogres opened a gate anyone walked through at stage 2 (gutanoth_probe_pre s3). It now
+does LostCity's `~open_and_close_double_door2` (`quest_itwatchtower.rs2:274-281`): the player is
+walked through and both leaves come back in 3 ticks. The claim the pass was opened for (the NW gate
+opening from inside at stage 2) did not reproduce. Consequence for tests: drive these gates with
+`cross_gate` (verbs-pointer: A gate ported from LostCity's `~open_and_close_double_door*` is a
+WALK-THROUGH); the committed itwatchtower's `pass_door` on `leaveSouthPocket.southEastGate` went RED
+and the quest was reopened.
+
+(e) **A dropped bank note lands on the server but the client lists and draws nothing; `t.player.drop`
+of a `cert_*` stack times out with the pack empty** -- FIXED, `src/app/app_world_rebuild.c`. Every
+note, on any floor: `app_obj_stack_build_model` read the note's own `inventory_model_id` (0: a cert
+record is `certlink` + `certtemplate`) and `App_WorldObjStackAdd` dropped the OBJ_ADD. A note now
+takes the template's model and recolours (the reference's `ObjType.genCert`). Server half:
+`inv_dropslot` puts back whatever the floor refused and aborts the script naming obj, count and
+tile, instead of emptying the slot on a failed `ToriRSServer_WorldObjAdd`. Selftest row 5b (five
+`cert_blankrune` dropped at 3441,9898,0 = one pile of 5). Proof: noted_drop_probe2 (before, `client
+ground not_found`) against noted_drop_probe3 12/0; the Priest in Peril copy with the drop graded 180/0.
+
+(f) **The grader charges a goto through the only gate, onto a solid tile, off an island it swung
+onto, and a use that did nothing** -- coverage-and-gate: A goto through the only gate, onto a solid
+tile, or off an island it swung onto; a use that did nothing. The closer's fresh runs of every
+committed test (torirs_b63engine, this pass's content) moved 52 queued-green tests to RED: the
+grader's movers, plus doric, sheep, runemysteries and scorpcatcher, whose FIRST goto is now stamped
+in a fresh ledger and so judged by `enclosure_entries` (HEAD's grader reads the same charges on
+these ledgers), plus itwatchtower ((d) above). Eight move on their first goto alone and wait for the
+owner's first-goto ruling: death, doric, druid, eadgar, murder, sheep, sleepinggiants, soulsbane.
+The rest were reopened with their gotos named.
+
+(g) **Named npc copies one tile away answer `covered ... at 382,102`** -- FIXED in `pointer.lua`
+(verbs-pointer: A named npc copy is pressed at its OWN pose's pixel).
+
+(h) **A fight dies inside a re-attack press while hp falls and nothing eats** -- FIXED in
+`combat.lua`/`spell.lua` (verbs-combat: Eating inside an attack press and a re-engagement).
+
+(i) **`climb` stalls under a guard's page (Watchtower's towerladder)** -- FIXED in `world.lua`
+(verbs-pointer: A GUARDED ladder speaks first: `chat=`, `chat_optional=`).
+
+## Seam pass matthew-mbp-m4-b64-seam1 (2026-10-05, batch matthew-mbp-m4-b64)
+
+(a) **Biohazard: a teleport keeps the plague sample and the three vials; `teleport.rs2` listed the
+plague sample among its "Dropped" post-checks** -- comment only, `skill_magic/scripts/spells/
+teleport.rs2` header. The pack is right: OSRS removed the rule on 25 July 2019 ("Teleporting with
+the plague sample and vials no longer breaks them.", wiki Biohazard oldid 15256425, Changes;
+`docs/quests/biohazard.md:58-64`, `:239`). LostCity (2004) still deletes it in `[proc,
+p_telejump_safe]` (LC `teleport.rs2:72-75`). The header now says the check is absent on purpose; a
+future port pass must not restore it from LostCity. A test may still walk Ardougne -> Rimmington
+with the sample (legal under the door rule), but by choice, not because a teleport would break it.
+Proof: b64s1_biohaz_tele 6/6, a real Varrock Teleport landed 3213,3424,0 with plaguesample=1 and
+the three vials held.
+
+(b) **Ratcatchers: the trellis top's Climb-down lands INSIDE the house (2844,5104,0); the garden
+gates swing open and lead nowhere** -- FIXED, `quest_ratcatchers/scripts/ratcatchers.rs2`
+`[proc,ratcatch_leave_grounds]` and `doors/configs/doors_selfstage.loc`. Both ways out of the grounds
+now `p_telejump` to 2570,3322,0, the open tile outside Jimmy Dazzler's front door (poshdoor
+2569,3322), inside `~ratcatch_in_ardougne` so the directions work again from there. The trellis
+top (`[oploc1,vc_blank_trellis_top_trigger]`): "Climb back down the trellis to return to Ardougne OR
+use any teleport" (OSRS wiki Ratcatchers/Quick_guide; also the Ratcatchers page and the RuneScape
+wiki Rat_Catchers/Quick_guide "climb down it to return directly to Jimmy"). The gates
+(`[oploc1,vc_ornaterailing]`, no longer a `door_selfstage` door): the `Transcript:Ratcatchers`
+"Leaving through the gates" block, `Do you want to leave the grounds?` / `Yes, let's get out of
+here!` (transported back to Ardougne) / `No I've changed my mind.` (nothing). UNSOURCED: the
+Ardougne tile, and that the trellis exits at every stage. A test grades the trellis climb with
+`dest={2570,3322,0}`; an Ardougne Teleport after it is optional. The general fact: a name binding
+`[oploc1,<loc>]` on a `ladders.loc` category member shadows the category's generic `~climb`;
+`ladder_import.py` keeps the record in its category, so `ladders.loc` need not change.
+Proof: b64s1_ratc_leave 16/0 (trellis at stages 30 and 35, gates No then Yes); the committed test's
+copy with that one dest changed 254/0, gate green.
+
+(c) **The grader judges the run's start and the crossings a walk makes by a loc's own op** --
+coverage-and-gate: A goto through the only gate, onto a solid tile, or off an island it swung onto
+(the b64-seam1 paragraphs). An unstamped first goto leaves from the fixture's tile; a setup cheat
+that moves the player is a `(setup placement) <cheat>` CHEAT step; the Wilderness Ditch, the
+Shantay Pass and the Barbarian agility pipe are gates (`crosses (by its own op) ... NEEDS-OP`). The
+closer's fresh runs of all 143 committed tests moved six queued greens: currentaffairs,
+entertheabyss, taleoftherighteous (their setup placement), horror (goto-talkToGunnjorn past the
+agility pipe), ratcatchers ((b): its committed trellis row expects the old landing) and itwatchtower
+(NOT this pass: the same `leaveSouthPocket.southEastGate` pass_door FAIL as b63-seam1 (d), which the
+owner set back to green in d3427b3fe). The first five were reopened.
+
+## Seam pass matthew-mbp-m4-b65-seam1 (2026-10-05, batch matthew-mbp-m4-b65)
+
+(a) **Golem / Shadow of the Storm: the Uzer portal landed in an empty map square (3544,4952,0),
+the throne room's exit portal looped back into it, and the ruin stairs landed on their own
+footprint** -- FIXED in content. `quest_golem/configs/golem.constant`: `^golem_demon_lair` is now
+2720,4884,2 (the throne room floor beside its exit portal) and the new `^golem_ruin_portal` is
+2721,4911,0; the golem arm of `[oploc1,golem_demon_portal]` (`golem_portal.rs2`) says "You step
+into the portal." and lands there. `quest_shadowstorm/scripts/shadowstorm_dye.rs2` no longer binds
+`golem_insidestairs_top` / `golem_insidestairs_base` (and `^sots_stairs` is gone), so the stairs
+fall through to their `ladders.loc` category, `~climb`, then `~maplink_try`: Climb-down from
+3491,3090,0 lands 2721,4886,0 at the stairs' base; Climb-up lands 3491,3090,0, the open arch
+beside the top. `^golem_uzer` / `^sots_uzer` (the `::golem` / `::shadowstorm` stands) moved from
+3493,3090 (inside the stairs' footprint, a one-tile walking component) to 3491,3090. Sources: the
+shortest-path transport data `maplink.dbrow` is imported from,
+`tools/data/shortest_path/transports/transports.tsv:3551-3570` ("# Uzer": Climb-down Staircase
+6373 3491,3090,0 -> 2721,4886,0; Climb-up 6372 -> 3491,3090,0; Enter Door 6310 -> 2720,4884,2) and
+`teleportation_portals.tsv:85-93` (Enter Portal 6282 -> 2721,4911,0); Quest Helper
+`TheGolem.java:185`, `:340`, `:342`. The general fact: **`~maplink_try` is keyed on the PLAYER's
+tile**, so a stair with a maplink row answers only from that row's src tiles; a press from the
+loc's own footprint falls to `~climb`'s default and reads "You can't go any further." Press from
+the maplink src tile, and grade the landing as a same-level climb
+(`same_level="maplink_0_54_48_35_18_down"` / `"maplink_0_42_76_33_22_up"`). Proof:
+`golem_seam_probe` 21/0 (down 2721,4886,0; up 3491,3090,0; portal 2720,4884,2; exit 2721,4911,0)
+and a golem.lua copy 134/0 to `quest.varp_complete` -- its stair press through the logged
+`t.drive.op` bypass, because of (c). Moved: shadowstorm's `goIntoRuin`, `enterRuinAfterBook`,
+`enterRuinAfterRecruiting` (goto 3493,3090 then press: "You can't go any further."). Not changed:
+the Shadow of the Storm arm of the portal still lands at `^sots_throne` 2720,4912,2, and
+`^sots_mushroom` 3495,3088 is on `golem_black_mushrooms`' solid tile (parity notes).
+
+(b) **pass_door refused a double door whose open leaf arrived a frame late** -- FIXED in
+`world.lua`, see verbs-pointer: A double door's open leaf lands a frame late. Conformance
+`seam.pass_door_awaits_a_late_open_leaf`.
+
+(c) **FIXED by matthew-mbp-m4-b66-seam1 (a) below -- was OPEN: the Uzer ruin stairs cannot be pressed from the arch tile 3491,3090.**
+`golem_insidestairs_top` (model 6071, s10 r1 at 3492,3090,0) is a rim round an open stairwell; the
+loc projector aims at the footprint centroid, which projects into the pit where nothing is drawn
+(TORIRS_PICK_DEBUG=all: zero hits there, not even terrain), and the stairs are held only 75-105 px
+away, outside the hunt's +-64 px (fixer sweep: held at 12 pixels x 403..433 against the projected
+508,259). Every pose answers `covered ... pickset held=false, menu rows: Cancel, Walk here` and
+`none of 99 pixels ... holds it`. The fixer's C change (aim at the nearest visible face's screen
+centroid when the origin is on no face, reprojecting `element->model` through
+`drive_pointer_project_point`) pressed the Uzer stairs on press 1 but was REVERTED by the closer:
+its reprojection disagrees with the renderer's own pick, and it broke five committed greens on a
+full-suite run (vampire `goDownstairsMorgan` on `stairstop` 3100,3266,1: the origin 416,241 that the
+renderer holds was moved to 397,263 / 392,115, `covered`; losttribe, misc, misc_astrid,
+mountaindaughter also went RED and all five were green again on the HEAD-C binary). The probe (a
+worktree build printing the element) measured `at.y == ground_y` (-560) and yaw 0, so the
+mismatch is not the element's height or rotation; NOT CONFIRMED where it is (the drawn model or
+position vs `element->model`). A fix must answer "is the origin on the model" with the renderer's
+own test (`ToriDraw_ProjectedModelMouseHitTest` on the drawn command), or try the new point only
+after the existing hunt fails, so nothing that pressed before can move. Until then golem and
+shadowstorm stop at that press.
+
+(d) **The grader charges a hop with no on-foot route, and reads a goto by what the row did** --
+coverage-and-gate: "no on-foot route (UNREACHABLE at margin 600)" ... (matthew-mbp-m4-b65-seam1).
+The closer's fresh runs of all 143 committed tests (HEAD-C binary) moved exactly the ten queued
+greens the fixer's re-grade predicted (chompybird, cog, dreammentor, elena, fenkenstrain, ikov, imp,
+mortton, mourningsendpartii, sheepherder); all ten were reopened. `helper_coverage_two_op_test`'s
+`wt_swung_off_first` now wants `leaveGrewIsland` DRIVEN rather than a FULL verdict (its goto-goUpTrellis
+crosses membergater at margin 400).
+
+(e) **OPEN OWNER QUESTION: a staged level is a stat change** -- verbs-pointer: teleport_cast.
+
+## Seam pass matthew-mbp-m4-b66-seam1 (2026-10-06, batch matthew-mbp-m4-b66)
+
+(a) **A loc whose footprint centroid is a hole is pressed where its faces are drawn -- after the
+hunt, never instead of it** (uzer_stairs_press_aims_where_the_renderer_draws_the_model_not_at_the_
+stairwell_pit; closes b65 (c)). The loc projection is the footprint centroid on the ground; for
+`golem_insidestairs_top` (model 6071, a rim round the open Uzer stairwell) that pixel is the pit and
+every pose answered `covered ... none of 99 pixels hittested around the projected 382,240 holds it`.
+Now, ONLY after the whole pose sweep and pixel hunt said `covered`, and only for a loc,
+`click_minimenu` calls `QD.drive._model_aim` (pointer.lua): `api_drive.model_points(element,
+x, y, max)` (`torirs_plugin_drive_pointer.c` `drive_pointer_model_points`) lists the screen centroids
+of the element's visible, unclipped, non-sliver faces (the scene element's `world_position` and
+model, placed the way `app_overlay_outline_element_mesh_trans` places them), nearest the projection
+first; each is PROBED and pressed only when the renderer's own pickset holds the element there. A
+wrong candidate costs a probe, never a press, and no press that landed before can move -- the b65
+attempt MOVED the aim and broke vampire, losttribe, misc, misc_astrid and mountaindaughter. The row
+detail (the folded note) reads `click_minimenu: model aim: face centroid 394,258 (+12,+18 off the
+projected 382,240) held on probe 1 of 9 candidate(s) from 18 face(s)`; a miss reads `model aim: none
+of N face centroid(s) probed holds element E ...` or `model aim: not_visible for element E (F
+face(s))` inside the `covered` detail. `QD.drive._model_aim_last` holds the last aim found.
+Conformance `seam.stairwell_pressed_on_its_model_from_the_arch` (SEAM_COUNT 125): Climb-down from
+3491,3090 lands 2721,4886,0 through the model aim, and the control (`spiralstairsbottom_3`, shape 10,
+from the side tile 3205,3228) lands on press 1 with no model aim; it FAILS `covered` on the HEAD-C
+binary (conf_base) and passes 311/311 with the fix. Regressions on the rebuilt `torirs_b66engine`:
+vampire 60/0, losttribe 178/0, misc 208/0, misc_astrid 193/0, mountaindaughter 164/0, prince 78/0,
+cooks_assistant 78/0, druid 55/0, coldwar 250/0, entertheabyss 77/0, viking 403/0,
+thefremennikisles 502/0. Two viking rows now land through the model aim instead of the old recovery
+(`goBackUpstairs.down`: before, covered -> pressed again from the trapdoor's other side; now
+`model aim: face centroid 65,269 (-317,+16 ...)` on the first side; `fillVase`: the hunt's remembered
+offset no longer held, the model aim did) -- same outcome, different pixel. Golem copy (both
+`t.blocked` removed, enterRuin `dest={2721,4886,0}`, `same_level="maplink_0_54_48_35_18_down"`,
+leaveRuin `dest={3491,3090,0}`, `same_level="maplink_0_42_76_33_22_up"`) 133/0 to
+`quest.varp_complete`; Shadow of the Storm copy pressing from 3491,3090 (not 3493,3090) 131/0.
+
+(b) **A `ladder_from_cellar` with no maplink row climbs OUT of the dungeon (-6400), not one plane
+up** (ladder_from_cellar_with_no_maplink_row_climbs_one_plane_instead_of_out_of_the_dungeon; closes
+the b54-seam2 OPEN line above). The loc's category (`climb_up_ladder`) reaches `~climb(1)`, whose
+maplink miss is the +1 PLANE default, so a rowless copy stood the player on plane 1 of the same
+dungeon tile: Clock Tower's white-room ladder `2575,9656,0 -> 2575,9656,1`, the Asgarnian Ice
+Dungeon ladder `3009,9550,0 -> 3009,9550,1` (scratch `lfc_pre`, both FAIL). 49 copies are placed,
+all underground (z 9482 and up); 21 have no row from any side. A name binding
+`[oploc1,ladder_from_cellar]` in `ladders_stairs/scripts/ladders.rs2` (beside `ladder_cellar`'s)
+animates, lets a maplink row answer first (`~maplink_try(1)`), and otherwise `p_telejump`s to
+`movecoord(coord, 0, 0, -6400)`. Source: LostCity_Content2
+`scripts/ladders+stairs/scripts/ladders.rs2:87-94` `[oploc1,loc_1755]` (-6400), whose 1755 is placed
+on the same tiles (`m40_150.jm2:7424`, `m47_149.jm2:3712`); every row the harvest wrote for a
+`ladder_from_cellar` is already src -6400 but one (3097,9868, which still answers first). Proof
+(`lfc_post` 6/0): cog's copy lands 2575,3256,0, squire's 3009,3150,0, the rowed druid control
+2884,3398,0 unchanged; copies of cog (climbWhiteLadder up the ladder) 89/0 and squire (out of the
+Ice Dungeon by the ladder, no staged Magic or Lumbridge Teleport) 86/0, both helper_coverage FULL.
+NOT CONFIRMED: the OSRS-only copy 1623,9932 (no LostCity 1755) lands 1623,3532 by the same rule;
+`ladder_from_cellar_directional` (17387, Castle Wars' four rowless copies) keeps its category and
+still climbs +1 plane. The full suite on the new pack moved no committed green.
+
+(c) **Tears of Guthix: the climbing rocks land on their maplink row, both ways at the ledge**
+(tog_climbing_rocks_up_always_step_east_so_the_climb_back_from_junas_side_never_reaches_the_ledge).
+`[oploc1,tog_climbing_rocks_down]` / `[oploc1,tog_climbing_rocks_up]` did `p_teleport(movecoord(coord,
+2, 0, 0))` from every side, so the climb back from Juna's side (3241) landed on 3243, never the
+ledge. Now they answer with `~maplink_try(0)` (the pack's `maplink_2_50_148_*` rows, from
+shortest-path `transports.tsv`'s "# Tears of Guthix" block) and keep "You climb the rocks."; a tile
+with no row refuses with "Nothing interesting happens." (`~displaymessage(^dm_default)`, as
+`~maplink_transition` does). `tog_climbing_rocks_up` (6673, 3240,9524-9525) climbs 3239 <-> 3241;
+`tog_climbing_rocks_down` (6672, 3239,9497-9499) climbs only 3238 -> 3240 and its east side walks
+to Juna. Quest Helper `TearsOfGuthix.java:154-155` ("Go back up the rocks"). Probe
+`tog_rocks_probe2_b66s1` 17/17; tearsofguthix stays green (53/0). No before-fix ledger row: the
+pre-fix landing is read off the old code.
+
+(d) **Scorpion Catcher pays 6,625 Strength XP** (scorpcatcher_quest_complete_pays_no_strength_xp).
+`[queue,scorpcatcher_quest_complete]` paid the quest point alone; it now does `stat_advance(strength,
+66250)` (tenths) and names "6,625 Strength XP" on the scroll with the full cage as its model
+(LostCity `quest_scorpcatcher.rs2:55-60`; OSRS wiki Scorpion Catcher, Rewards). The
+`::scorpcatcherrun` debugproc mirror does the same and fails unless Strength rose by exactly 66250
+tenths. Scratch `b66s1_scorpxp_before` (HEAD pack) 9/2 `expect_gain: refused strength: before=0
+after=0` -> `b66s1_scorpxp_after` 11/0 `strength: +6625 xp (whole units)`. A content BEFORE row is
+made with the scratch pack in running.md ("To show a content seam's behaviour BEFORE the fix"); the
+same `TORIRSSERVER_SCRIPTS` env runs the server selftest against the HEAD pack for a failure-count
+baseline (13 = 13 here).
+
+(e) **The grader no longer credits a step to a same-named npc or another copy of its loc** --
+coverage-and-gate: A step credited to a same-named npc, or to another copy of its loc.
+
+(f) **OPEN OWNER QUESTION, unchanged: a staged level is a stat change** -- verbs-pointer:
+teleport_cast. Squire's staged Magic 31 (for the Lumbridge Teleport out of the Ice Dungeon) goes
+away once its re-author leaves by the ladder ((b) above); druid and pryingtimes still stage.
+
+## Seam pass matthew-mbp-m4-b67-seam1 (2026-10-06, batch matthew-mbp-m4-b67)
+
+(a) **The Khazard stronghold door lets the player out from inside** (khazard_stronghold_door_pressed_
+from_inside_runs_the_entering_half_and_puts_the_player_back_inside). `[oploc1,khazard_stronghold_door]`
+(quest_tree_locs.rs2) ran the entering half for every press from the north, so a player inside at
+2502,3251 was put back on 2502,3251 (`timeout settle_after_click; landed 2502,3251,0`). It now
+computes `$entering = ~check_axis(coord, loc_coord, loc_angle)` and keeps `$dest = loc_coord`
+unless `$entering`, as LostCity `quest_tree.rs2:32-36` passes it to `~open_and_close_door`
+(`doors/scripts/open_and_close_doors.rs2:20-35`; our `door_procs.rs2:112 [proc,check_axis]`). The
+door is a one-way walk-through out: pressed from inside it lands on the door tile 2502,3250,0;
+from the south it still refuses with "The door is locked from the inside." (the mesbox once
+treequest >= finding_trackers). Drive the exit with `t.player.cross_gate{loc="khazard_stronghold_door",
+at={2502,3250,0}, near={2502,3251}, far_ok=<z <= 3250>}` then `walk_to 2502,3249`, never a teleport
+out. Probe `khazard_door_probe_b67b` 7/7; a tree copy so driven 103/0, helper_coverage FULL. The
+loc_1532 swing is still deferred.
+
+(b) **Pirate Pete ferries to Braindeath Island and back** (rumdeal_no_travel_to_or_from_braindeath_
+island; supersedes gaps-world "Rum Deal: Pete says 'take a boat over'"). The accept now ends with
+Pete's lines from wiki Transcript:Rum_Deal oldid 15359833 ("Wonderful! Just pick up your diversion
+and we'll leave!" / "What diversion?"), sets the stage to started and runs `[proc,deal_pete_knockout]`:
+"Ow!", a fade, and a landing at 2144,5108,1 in Captain Braindeath's room, narrated by one mesbox
+("Pirate Pete knocks you out with a bottle..."; no `cam_*`, so no cutscene row is required). Once the
+stage is >= started, `deal_pete` (dock) and `deal_island_pete` (island) both run
+`[proc,deal_pete_standard]`, Pete's "Standard dialogue" verbatim from wiki Transcript:Pirate_Pete
+oldid 15079272: "Want a lift to Braindeath Island?" / "Want a lift to Port Phasmatys?", options
+Okay! / Not now / two questions. Okay! plays one of 5 random distractions, the knockout, and lands
+2162,5114,1 or 3680,3536,0 (boats.tsv:6-8); the far Pete speaks one of 4 random excuses. To drive a
+lift: `chat.play` up to `choose:Okay!`/`player:Okay!`, `chat.drain{max_pages=10}` (it ends at the
+fade: no page shows for about 4 ticks), await the landing tile AND a mounted page, then
+`chat.play{"player:Ooooh... my head", "npc:Are you ok? You, errr"}` and drain. Proof
+`b67s1_rumdeal_lift` 29/0. Still the port's paraphrase: the pre-start talk, whose "take the cash"
+branch starts the quest (the transcript's ends the talk); parity work for docs/quests/rum_deal.md.
+
+(c) **Braindeath Island's staircases have maplink rows** (braindeath_island_staircases_have_no_
+maplink_rows_and_climb_into_sealed_pockets). New `quest_rumdeal/configs/rumdeal_maplink.dbrow`, 28
+rows: `deal_stairs_bottom` 2137/2149/2163,5088 r1 climb up from every approach tile (south side
+x..x+2,5087 and both ends) to x/x+1,5089,1, the top's only open side; `deal_stairs_top` climbs down
+to x/x+1,5087,0. The 2129 pair runs west <-> east (2128,5094-5096 <-> 2130,5095/5096,1). The client
+presses an r1 bottom from its EAST end (x+3,5088, forceapproach). A `t.player.climb` on these stairs
+grades dest x/x+1,5089,1 (up) or x/x+1,5087,0 (down), slack 1. 2151,5109 r3 is unrouted: every tile
+round its bottom is a sealed pocket and the quest never uses it. The stairs are the wiki's
+(Rum Deal oldid 15315444, "Leave the building by the southernmost stairway") and Quest Helper's
+(RumDeal.java goUpFromBottom/goDownstairs 2150,5088, goDownForWater 2138,5088); the landing tiles
+are each stair's open sides read off this map (no transport source has 10136/10137). Probe
+`bdstairs_b67s1` 20/20. Pattern: a stair whose bottom and top footprints differ (3 vs 2), or whose
+floors join on opposite sides, needs one maplink row per approach tile (dir +1/-1), in a
+quest-owned `<quest>_maplink.dbrow` (ladders_stairs `maplink.dbrow` is generated).
+
+(d) **Witch's House: the basement ladder climbs, and the front door is keyed from outside**
+(witch_house_ladders_shadowed_by_grim_tales_and_front_door_checks_the_key_from_the_wrong_side).
+`grim_witch_ladder_down/up` are name bindings that shadow the `climb_*_ladder` categories for every
+player; down answered "Nothing of interest happens." and up p_teleported to a chair tile
+(2904,3470) while Grim Tales was unstarted, though Grim Tales needs Witch's House complete. Now
+both fall through to `~climb_ladder(-1/1)` (maplink 2906,3476 <-> 2906,9876) while
+`%varb2783_grim_quest = 0`; the Grim Tales branch is unchanged (unsourced). `witchhousedoor`
+(2900,3473 s0 r2) sits on the east edge of the OUTSIDE tile, so `~check_axis` is true for the
+outside player: the opposite of LostCity's placement (2901,3473 r0), whose `$leaving` name the
+port had kept, inverting the key check. The value is now `$entering`; the key (or using
+`witches_doorkey` on the door) is needed only to get in, and "It would be rude to break into this
+house." fires only when entering a never-started quest. Source: wiki Witch's House oldid 15168391.
+Probe `witchseam_s2` 24/25 (the miss is the expected non-key refusal); a ball copy past the old
+block 113/0, FULL.
+
+(e) **goldrock2 is ordinary gold; 'perfect' gold is by zone** (goldrock2_pays_perfect_gold_ore_
+everywhere_not_just_in_the_witchaven_room). `[perfect_gold_rock_table]` keyed on goldrock2 paid
+perfect_gold_ore at all 140 goldrock2 placements, 33 of them in Dondakan's mine. goldrock2 is back
+in `[gold_rock_table]` (LostCity mine.dbrow), and `[proc,mining_crest_perfect_gold]` (mining.rs2,
+both output sites) swaps a gold rock's ore for perfect_gold_ore only inside
+`^crest_perfect_mine_lower_bound/upper_bound` (quest_crest.constant, 2728-2747 x 9676-9701: the
+Witchaven room behind famcrest_doori2h1, re-measured on this map; LostCity's 2004 numbers hold none
+of this map's four rocks), as LostCity `mining.rs2 get_ore_normal` does. The Witchaven message is
+now "You manage to mine some gold." (LostCity's single gold row; the OSRS line is NOT CONFIRMED).
+Sources: wiki 'perfect' gold ore oldid 15302221, Dondakan's mine ("Gold ore"), Quest Helper
+FamilyCrest.java:265. crest_selftest checks the row, the four rocks in the zone and the realm
+outside it. crest 165/0 and betweenarock 207/0 stay green.
+
+(f) **Rum Deal's Evil spirit and Wanted!'s Solus fight on their own stats** (quest_bosses_fight_on_
+engine_default_stats_...) -- gaps-combat: A quest boss with no `hitpoints=` fights on the engine's 10.
+New `quest_rumdeal/configs/rumdeal.npc [deal_evil_spirit]` (wiki Evil_spirit oldid 15199641; cache
+all.npc:16097 agrees) and a `[solus]` block in `wanted.npc` (wiki Solus_Dellagar oldid 15204754;
+all.npc:140108). Both are AUDITED_OVERRIDES in `tools/generate_quest_combat_manifest.py` and checked
+by `tools/check_quest_combat_contract.py`. Proof: spirit 16 -> 56 ticks to kill (`hp no bar ->
+27/30, hitsplat 7`); wanted 204/0 green, Solus 8 -> 36 ticks.
+
+(g) **The grader** -- coverage-and-gate: A step below the block graded CHEAT; a setup give charged
+for a shared word; a goto charged on its near side.
+
+(h) **Fenkenstrain's lightning conductor without the Port Phasmatys toll** (fenkenstrain_pays_the_
+port_phasmatys_toll_with_setup_ectotokens_the_guide_never_has_you_obtain; test-side only). Falador's
+furnace (`fai_falador_furnace` 2976,3368) is a plain walk from the Falador Teleport landing
+2965,3378 (reach REACH closed-doors, 18 tiles; stand 2974,3369, `use_on at={2976,3368,0}`), so any
+"any furnace" step can avoid the ecto-token toll. Back by `teletab_fenk`: `t.player.inv_op(item, 1)`
+lands 3550,3530,0. (The tablet's Magic level gate, 48 here, is FIXED in b68-seam1: a tablet needs no
+Magic level, Seam pass matthew-mbp-m4-b68-seam1 (a); stage only what the guide's own spell needs.) The landing
+reads "start tile solid" to reach.py: walk off it, never goto from it. A fenkenstrain copy so driven
+201/0, FULL.
+
+(i) **A scratch A/B against HEAD content** needs both env vars: the server reads `.dbrow`/`.param`
+configs from `TORIRSSERVER_CONTENT/server/scripts` at run time, not only from script.dat. Point
+`TORIRSSERVER_CONTENT` at a scratch copy of the tree (other top-level dirs symlinked) AND
+`TORIRSSERVER_SCRIPTS` at a script.dat compiled from it (`sscompile --src <copy>/server/scripts
+--content-root <copy>`). That never touches the shared tree (running.md, "To show a content seam's
+behaviour BEFORE the fix").
+
+## Seam pass matthew-mbp-m4-b68-seam1 (2026-10-06, batch matthew-mbp-m4-b68)
+
+(a) **A teleport tablet needs no Magic level** (teleport_tablets_refuse_below_the_spells_magic_level).
+`[label,use_teleport_tablet]` (`skill_magic/scripts/spells/teleport_tablet.rs2`) refused a tablet
+below the spell's Magic level ("Your Magic level is not high enough to use this tablet."). The wiki
+says otherwise: "Magic tablet" oldid 15359329 ("Using one has no level requirements.") and
+"Fenkenstrain's castle teleport (tablet)" oldid 15187520 ("The player does not need to have the
+relevant Magic level to use the tablet"). The refusal is gone; the spell row is still read for its
+`tele_coord`, and the wilderness/teleblock gate (`~magic_teleport_gate(20)`) and Biohazard's West
+Ardougne gate stay. Proof: a scratch at Magic 1 breaking `teletab_fenk` from Lumbridge, BEFORE on
+the pre-edit pack `landed 3206,3233,0; teletab_fenk 1 -> 1` (refused), AFTER `landed 3550,3530,0;
+teletab_fenk 1 -> 0`; a fenkenstrain copy staging Magic 37 (the Falador spell's own level) 201/0.
+A test breaking a tablet stages no Magic level for it. Still open: the Fenkenstrain tablet page also
+names Priest in Peril + Drezel's warning; no varp source for the warning was found, so it is not
+gated.
+
+(b) **A before-run on the pre-edit pack without a worktree.** Copy
+`OSRS-Content/osrs239-content/server/scripts/build/script.{dat,idx}` aside BEFORE rebuilding, then
+run with `TORIRSSERVER_SCRIPTS=<copy> TORIRSSERVER_ALLOW_STALE_SCRIPTS=1` (configs read at run time
+still come from the tree: see b67-seam1 (i) for a config A/B).
+
+(c) **Twenty-nine test-fought npcs fought on the engine default, and the Evil spirit rolled 16, not
+its page's 28** (test_fought_npcs_fight_on_engine_default_stats_and_the_evil_spirit_rolls_16_not_its_page_28).
+None of these records had a block with `hitpoints=` in any `.npc` section (`npc_def_seed_from_cache`
+copies only the cache's bonus params and attackrate), so each fought at `npc_default.npc`'s 10 hp
+and 1/1/1. Each now has a quest-local block from its wiki Infobox Monster at a pinned oldid,
+compared with its `configs/all.npc` record (both cited in the block header);
+`tools/check_quest_combat_contract.py` `check_test_fought_npc_blocks` pins every line and the
+combat manifest row pins the oldid. The full list and the spirit's `[ai_opplayer2,deal_evil_spirit]`
+are in gaps-combat "A quest boss with no `hitpoints=`". Real stats move the fights: thefeud,
+biohazard, mourningsendparti, recruitmentdrive and pryingtimes stayed green with longer kills
+(Sir Leye 16 -> 52 ticks, ending at 8/20 hp bare-handed: a thin margin); rumdeal's spirit ate all
+10 sharks on 99 Defence (reopened: pray Protect from Melee, proved 160/160); spiritsoftheelid went
+red (below, (d)). A green test that reddens on a real stat block is fixed in the TEST, never by
+weakening the npc.
+
+(d) **An `npc_add` duration shorter than the fight is a silent despawn, and `await_dead_engaged`
+grades it a kill by ABSENCE.** `elid_dungeon.rs2` npc_adds each Elid golem for 50 ticks (a port
+invention: docs/quests/spirits_of_the_elid.md section 4; the wiki names no timer). At the page's 80
+hitpoints the golem outlived it: `whiteGolem.dead` read `dead after 48 tick(s) ... last hp 29/30
+... corroborated by ABSENCE`, and only the next quest row (`clearChannel.msg`, "disarm the spike
+trap") caught it. A kill wait that answers by ABSENCE with a high last bar is a despawn: read the
+last hp in the detail, and grade the kill by the quest's own outcome row after it. **FIXED
+b68-seam2** (OSRS-Content 99061aaa2e, below): the golems live `^elid_golem_duration` (3000), and
+both kill waits answer `despawned`, never `ok`, for an absence from a bar above a quarter. The test
+still needs stronger offence than bronze at unstaged levels and a longer budget.
+
+(e) **`t.npc.record(symbol, {need='server'})` proves a whole stat table cheaply**: it reads the
+server's content block by symbol with no live copy, so one scratch file with a row per npc
+(hp, levels, aggression, attackrate, damagetype, bonuses) proves every block landed in the pack.
+
+## Seam pass matthew-mbp-m4-b68-seam2 (2026-10-06, batch matthew-mbp-m4-b68)
+
+(a) **Spirits of the Elid's door golems have no timer** (elid_golems_npc_add_for_50_ticks_and_an_80_hp_golem_despawns_mid_fight).
+`elid_dungeon.rs2` :91/:142/:213 npc_add'ed each golem for 50 ticks, a port invention: the wiki
+(Spirits_of_the_Elid oldid 15306897 Walkthrough "The Golems", Transcript oldid 15338971, the
+White/Grey/Black golem pages oldids 15338923/15338925/15338922) and Quest Helper
+(`SpiritsOfTheElid.java` :245-263) all have the golem stand until it is killed. They now pass
+`^elid_golem_duration = 3000` (`quest_spiritsoftheelid.constant`), the walk-away clean-up value
+Swan Song (`^ssq_fight_duration`) and Contact! (`contact_scarab.rs2:17`) use; no put-back proc is
+needed, because each door re-adds its golem while its `%elid_*golem` bit is 0 and `npc_find` sees
+none. OSRS-Content 99061aaa2e. Proof: scratch `b68s2_elid_golem_after` 8/8, the white golem
+present at every 10-tick poll to 120 while fighting. The committed test now times out on the White
+golem at 25/30 after 120 ticks with a bronze dagger: reopened for real offence and a 300+ tick
+budget. The pattern to grep in any quest: an `npc_add(..., <n>)` whose `<n>` is shorter than the
+fight against it; for an npc the sources give no timer, use 3000.
+
+(b) **`await_dead`/`await_dead_engaged` answer `despawned` for an absence from a high bar**
+(await_dead_engaged_grades_a_despawn_as_a_kill_by_absence). The watch keeps the last bar it read
+and, on a vouched absence, credits a kill only from a bar at most a quarter of its width (or with
+no bar ever known); above a quarter it answers `despawned` with `NOT A KILL: ... last bar at 29/30
+..., above a quarter`, runs the death fence and consumes the stamp. The rule and its proof are in
+verbs-combat "An absence from a high bar is `despawned`, not a kill". Conformance
+`seam.absence_after_a_high_bar_is_a_despawn` (seam rows 125 -> 126). Before: the old Elid ledger
+rows 56/66/76 read `ok` at 29/30, 24/30 and 30/30; deserttreasure's Dessous kill (last bar 1/30)
+and tree's warlord (ZERO BAR) stay `ok`.

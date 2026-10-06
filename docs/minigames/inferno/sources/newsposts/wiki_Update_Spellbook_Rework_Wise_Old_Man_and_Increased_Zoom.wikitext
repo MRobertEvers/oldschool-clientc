@@ -1,0 +1,131 @@
+{{Update|date=11 October 2018|link=http://services.runescape.com/m=news/spellbook-rework-wise-old-man-and-increased-zoom?oldschool=1|category=game}}
+[[File:Spellbook Rework, Wise Old Man and, Increased Zoom newspost.png|right]]
+
+{{clear}}
+<center>''This week sees the release of the Spellbook Rework for mobile, the highly requested Wise Old Man update and Increased Zoom distance.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Spellbook Rework}}
+
+The spellbook tab on Mobile now has an Info button at the button for entering Info mode. In that mode, tapping a spell will bring up the tooltip that shows the required runes and Magic level, making this information properly accessible for Mobile users.
+
+[[File:Spellbook Rework, Wise Old Man and, Increased Zoom (1).png|center]]
+
+There’s also a Filter button to bring up a menu of simple filters. These let you choose which spells you want to see. As you hide unwanted spells, the app will re-space the remaining icons, and even make them substantially larger if the list is short enough to fit them. This should help you tap the correct button while spellcasting.
+
+[[File:Spellbook Rework, Wise Old Man and, Increased Zoom (2).png|center]]
+
+Players have requested this sort of filter before, even as far back as 2013-14; while we’ve brought it out on Mobile because those users had considerably greater difficulty tapping the spell icons, we’d be open to offering it on Desktop too once its teething issues are sorted.
+
+While the change sounds small, there’s been a vast amount of infrastructure work involved, since the metadata underlying every single spell needed replacing to enable this update. That means there’s always the chance of unexpected side-effects – for Desktop users as well as Mobile. If you run into problems, you can get your messages directly to the testers by right-clicking the ‘Report’ button in the game (long-press it if you’re on Mobile) to find the bug report form.
+
+We’ve also taken the opportunity to tidy up a couple of long-standing niggles, such as the uneven column spacing on the Ancient spellbook (1-2 pixels off!) and the inconsistent order of runes in the ingredient lists. This has been a huge maintenance task as well as a feature update, and your patience with any issues will be very much appreciated. For some insight into what’s changed, and why, see the blog from Mod Ash in last week’s [https://services.runescape.com/m=news/master-clue-reward-and-quality-of-life-changes?oldschool=1 newspost].
+
+{{Horizontal Line}}
+
+{{Headline|22|Other Mobile Changes}}
+
+
+'''Full Launch of Old School Mobile Coming Soon!'''
+
+This week sees plenty of changes for mobile in addition to the spellbook rework in preparation for full launch! To play the full mobile version '''the moment it's released''', make sure to pre-order on the [https://osrs.game/MobilePreRegistrationNP App Store] or pre-register on [Google Play] and be notified the second it goes live! Check out our [http://services.runescape.com/m=news/old-school-mobile-release-date-announcement?oldschool=1 dedicated news post] for full details and what will happen if you already have access to mobile through the beta.
+
+If you’re playing on '''Android''' then we’d like to thank you for playing Old School RuneScape and contributing its development! If you’re enjoying the game, please take a moment to leave us a review on Google Play.
+
+[[File:Spellbook Rework, Wise Old Man and, Increased Zoom (3).png|center|600px]]
+
+'''Special Attack Bar'''
+
+The attack styles interface has been rewritten on both desktop and mobile. Desktop users will see no difference in usage however the special attack bar has changed appearance slightly. The special attack bar was the only bar of its kind in game that used a model instead of just being a colour. The bar itself now uses a block colour like everything else.
+
+Mobile users will see that the buttons including the special attack button have been enlarged for easier use. The attack style buttons have been made larger to fill in the gaps.
+
+[[File:Spellbook Rework, Wise Old Man and, Increased Zoom (4).png|center]]
+
+'''Quantity Options for Deposit Boxes'''
+
+Deposit boxes now have quantity options on mobile, allowing you to deposit specific quantities in a single tap.
+
+[[File:Spellbook Rework, Wise Old Man and, Increased Zoom (5).png|center]]
+
+'''Quest Interface'''
+
+The quest tab has been modified to include arrows for switching between quests, minigames and, the achievement diaries. This allows easier access than the previously small buttons.
+
+{{Horizontal Line}}
+
+{{Headline|22|Wise Old Man}}
+
+This change has been highly requested and was met with a resounding '''Yes''' in the poll. The Wise Old man's ability to spot redundant non-member quest items in your bank has been rewritten. The feature now includes member's quests and uses a handy interface for discarding items directly so you can keep the ones you want! The Remove All button prompts you with a confirmation screen before removing all of the items shown in the interface.
+
+[[File:Spellbook Rework, Wise Old Man and, Increased Zoom (6).png|center]]
+
+This update required a large amount of data gathering work to be done to ensure that the Wise Old Man could remove all the quest items properly. Firstly, the current code infrastructure had to be rewritten, this was because although the Wise Old Man was checking your bank for the Free to Play quest items previously, he would only tell you that you had them and not remove them.
+
+[[File:Spellbook Rework, Wise Old Man and, Increased Zoom (7).png|center|700px]]
+
+This system of checking the items would also not be suitable for Members’ quest items, as there are so many more of them to check compared to the Free to Play quest items. The first step in checking which Members’ quest items that the player has was to create a list of every single item that is used in Members’ quests.
+
+To do this I manually went through the items that we have from each quest and put them into their own data structure for each quest. This was a tedious task as there were initially about two and a half thousand quest items that needed to be sorted through! I managed to cut this down to the items which could potentially be an issue and then store this information into a data structure for easy reference.
+
+[[File:Spellbook Rework, Wise Old Man and, Increased Zoom (8).png|center]]
+
+This is what we call an enum, they are a way in which we pass through a certain value and then output another value corresponding to it. This easily allowed me to keep a list of items for each quest, and then I can only display those items if you have them and have finished the quest.
+
+Once this information was sorted and stored into the data structures I then had to check which quests the player had completed so that they could only remove the items once the quest is finished. This was straightforward as we already have a similar system in place for checking quest completion in the quest journal.
+
+Finally, with the data able to be easily referenced it was a case of using an interface to display which items the player could remove and ensuring that these items could be removed from their bank, inventory, and worn. Everyone should now have an easier time removing those pesky leftover quest items in the future.
+
+''~ Mod Munro''
+
+{{Horizontal Line}}
+
+{{Headline|22|Increased Zoom Distance}}
+
+To allow players to see even more of what's around them, the maximum camera zoom distance has been increased. To account for the additional zoom, another notch has been added on the options side panel.
+
+[[File:Spellbook Rework, Wise Old Man and, Increased Zoom (9).png|center|600px]]<center>'A side by side comparison of the old and new maximum zoom distances.'</center>
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Guide The Future of Old School}}
+
+At Jagex, we are always looking to our players for help and guidance on Old School RuneScape. We are running a survey to ask players what Old School RuneScape means to you, and hear about other games and activities that you spend your time on.
+
+We are closing the survey on October 20th, so this is your last chance to give us your feedback and enter a prize draw to win one of fifty $50 Amazon vouchers (or your stated country’s equivalent currency). On top of this, five lucky participants will also receive a huge 60x40 cm (23 ½”x15 ¾”) print map of Gielinor! To select and contact prize winners, and validate you as an Old School RuneScape player, we will be asking for your in-game display name/character name as it appears in chat. Please note that we can only award prizes to surveys that are completed! So, if you want to guide the future of Old School RuneScape and win prizes, follow [https://www.surveymonkey.co.uk/r/HXMHGDS this link] to take part!
+
+[[File:Spellbook Rework, Wise Old Man and, Increased Zoom (10).png|center|500px]]
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+*Mobile players that are searching for items in the Grand Exchange can now drag and scroll the list of items in order to aid in usability.
+*A delay caused by failing to cast a spell (lack of rune or requirements) affecting your next cast has been removed.
+*Players may now use the incinerator while their search bar is open in the bank interface.
+*The orientation of banknoted versions Trident of the seas and some of its variants have been changed in the player inventory so they appear correctly.
+*The front patch of colour on the Music cape and trimmed Music cape is now correctly white instead of tan.
+*A barrel was moved out of a wall in the Miscellania castle.
+*An animation delay when defending with Thammoron's Sceptre has been fixed.
+*Removed a rogue fishing map icon on the first floor of Neitznot.
+*Cape hangers will now display the Infernal max cape hood when an Infernal max cape and its hood are mounted on them.
+*Burning bowls of onions will no longer give a message about burning eggs.
+*The details of the Fight Cave and Inferno Slayer tasks have been clarified regarding what happens if you die mid-task.
+*Some typos in the Mage Arena expansion have been corrected.
+*Additional information has been added to the examine option of Ali the Mayor's keys.
+*The spawn location of a Black demon in the Brimhaven Dungeon has been moved for convenience.
+*A typo in The Feud quest has been fixed, along with an adjacent grammatical error.
+*Joining a free-to-play total level world without the level requirement will now specify more clearly that the level requirement only includes free-to-play skills.
+*Players will now be notified that they are able to farm Mahogany trees by the level-up message when they reach the level 55 Farming.
+*A confusing phrase was reworded within the Recruitment Drive quest's dialogue.
+*The Woodcutting tutor will no longer reference the discontinued tree spirit random event when talking to him.
+*We’ve adjusted text that referred to the game as RuneScape, clarifying that the game is Old School RuneScape and the world is Gielinor. With two games on the market, both called RuneScape, we’d been finding a large amount of confusion from new players who’d landed in the wrong one.
+*The Troll Stronghold teleports unlocked from Making Friends with My Arm now check whether the Fremennik hard diary's rewards have been unlocked, rather than just checking what tasks have been done; this is more consistent with how other diary rewards work.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,520,66052025 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [https://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+'''''Mods Archie, Ash, Ayiza, Bruno, Curse, Ed, Gambit, Ghost, Kieren, Lenny, Lottie, Mat K, Maz, Munro, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

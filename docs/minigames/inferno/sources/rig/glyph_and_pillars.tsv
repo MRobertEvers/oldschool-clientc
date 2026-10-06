@@ -1,0 +1,7 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+inferno_moving_safespot	7707	1697	seq	7567	moving_safe_spot_ready	20	3.0 (90 client)	-	ready	bound	readyanim and walkanim both; forcedpriority=5
+inferno_moving_safespot	7707	1697	seq	7567	moving_safe_spot_ready	20	3.0 (90 client)	-	walk	bound	walkanim names the same sequence
+inferno_moving_safespot	7707	1697	seq	7568	moving_safe_spot_hit	20	2.0 (60 client)	-	unknown	rig	forcedpriority=6 priority=2; name says hit, not attack or defend
+inferno_moving_safespot	7707	1697	seq	7569	moving_safe_spot_death	42	4.0 (120 client)	-	death	rig+name	forcedpriority=10
+inferno_invisible_3x3	7709	-	seq	7561	safe_spot_distructible_pillar_collapse	22	2.0 (60 client)	-	unknown	name	off-rig: npc has no readyanim; sits alone on framemap 1700; shares words safe_spot with the pillar; Rocky support
+inferno_safespot_dying	7710	-	seq	7561	safe_spot_distructible_pillar_collapse	22	2.0 (60 client)	-	death	name	off-rig: no readyanim; name says collapse; inventory pairs the pillar with 7710; no cache link

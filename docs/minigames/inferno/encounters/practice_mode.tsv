@@ -1,0 +1,19 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+practice.osrs_mode_exists	whether OSRS has a paid or free Inferno practice mode (a run that starts at a chosen wave and cannot award the cape)	0	count	[jagex][wiki]	C	sources/newsposts/wiki_Update_Small_Game_Updates_and_Betas.wikitext:87; sources/wiki/wiki_Inferno.wikitext:3980	-	exact
+practice.jagex_free_practice_runs	Jagex's stated stance on free Inferno practice runs	not enabled: 'we'd prefer not to enable free practice runs there for all players'	text	[jagex]	A	sources/newsposts/wiki_Update_Small_Game_Updates_and_Betas.wikitext:87	-	exact
+practice.inferno_closed_on_practice_worlds	whether the Inferno is available on the beta and tournament worlds that otherwise allow free PvM practice	0	count	[jagex]	A	sources/newsposts/wiki_Update_Small_Game_Updates_and_Betas.wikitext:87; sources/newsposts/wiki_Update_Chambers_of_Xeric_Kebos_and_Collection_Log_Changes.wikitext:88	-	exact
+practice.sanctioned_practice_route	the way the game offers to practice an Inferno fight	TzHaar-Ket-Rak's Challenges (Jad only, capped at two while the Inferno is not cleared)	text	[wiki]	D	sources/wiki/wiki_Inferno_Strategies.wikitext:680	-	exact
+practice.normal_entry_start_wave	wave a fresh real entry starts at (no wave select)	1	count	[wiki]	D	sources/wiki/wiki_Inferno.wikitext:165	-	exact
+practice.entry_requirements_beyond_cape	requirements to attempt the Inferno beyond the sacrificed cape, a fee included	0	count	[jagex]	A	sources/newsposts/wiki_Update_The_Inferno.wikitext:69	-	exact
+practice.cache_interface_count	interfaces the rev 239 cache holds for a wave counter, timer, entry warning or practice mode	0	count	[cache]	A	sources/LEDGER_cache.md:136	-	exact
+practice.cache_varp_count	cache varps or varbits whose name carries 'practice' in the Inferno range	0	count	[cache]	A	sources/LEDGER_cache.md:136; sources/cache_vars.txt	-	exact
+practice.fee_coins	coins a practice start would charge, if the mode existed	?	count	[M15]	E	sources/newsposts/wiki_Update_The_Inferno.wikitext:69	M15	approx
+practice.fee_container_normal	container a practice fee is taken from for an ordinary account	?	text	[M15]	E	sources/newsposts/wiki_Update_The_Inferno.wikitext:69	M15	approx
+practice.fee_container_uim	container a practice fee is taken from for an ultimate ironman	?	text	[M15]	E	sources/newsposts/wiki_Update_The_Inferno.wikitext:69	M15	approx
+practice.fire_cape_consumed_on_start	fire capes a practice start consumes	?	count	[M15]	E	sources/newsposts/wiki_Update_Dev_Blog_Mor_Ul_Rek_The_Inferno.wikitext:80	M15	approx
+practice.waves_per_run	waves a practice run plays before it ends	?	count	[M17]	E	sources/wiki/wiki_Inferno.wikitext:165	M17	approx
+practice.can_pause	whether a practice run can be paused at a wave end and resumed	?	count	[M17]	E	sources/wiki/wiki_Inferno_Strategies.wikitext:680	M17	approx
+practice.exit_pays_tokkul	Tokkul paid when a practice run ends by the Cave exit or a cleared wave	?	count	[M16]	E	sources/newsposts/wiki_Update_Dev_Blog_Mor_Ul_Rek_The_Inferno.wikitext:80	M16	approx
+practice.zuk_kill_awards_cape	whether killing TzKal-Zuk in a practice run awards the Infernal cape	?	count	[M16]	E	sources/newsposts/wiki_Update_Dev_Blog_Mor_Ul_Rek_The_Inferno.wikitext:80	M16	approx
+practice.zuk_kill_counts	whether a practice Zuk kill counts toward the kill count, the pet roll and the combat achievements	?	count	[M16]	E	sources/newsposts/wiki_Update_Dev_Blog_Mor_Ul_Rek_The_Inferno.wikitext:80	M16	approx
+practice.end_chat_lines	chat lines a practice wave clear or practice exit prints	?	text	[M16]	E	sources/LEDGER_cache.md:136	M16	approx

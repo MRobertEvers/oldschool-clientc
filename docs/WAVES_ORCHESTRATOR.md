@@ -382,6 +382,28 @@ and the owner has the contact sheet. Then the next minigame.
 
 ## 12. Standing rules
 
+**Protection prayer is checked on the animation tick (owner, 2026-10-04).** For Jad and for
+most npcs the prayer is read when the attack animation starts; damage decided when the
+projectile lands is the exception and needs a pinned source naming the npc. A row that
+calls the swing-tick read a defect is sent back; a bot that prays after the animation has
+the wrong technique.
+
+**The wiki outranks the cache where they disagree (owner, 2026-10-03, late).** "The wiki is
+extremely likely to be correct. I would favor that over the cache." Where the OSRS wiki
+states a mechanic or a number and the cache (a client script, a struct's text) says
+otherwise, the wiki's value is the spec value and the cache's is recorded as the
+disagreement. The wiki also wins over a Jagex post unless the post is later and announces
+a change. Where the wiki is silent, section 9's ranking holds. An observed recording that
+contradicts the wiki is listed beside it, not overruled. This overrides any pass context
+that says the cache outranks the wiki, and the orchestrator rules on such disagreements
+itself: the owner is not asked.
+
+**The 2004 source is not a source here (owner, 2026-10-03).** Neither wave minigame existed
+in 2004: never cite LostCity, never port from it, and never call a difference from it a
+defect. Where sections 5 and 10 name LostCity for the eat delay and the stat drain, read
+"the modern rule, from a newspost, the cache, the pinned wiki mechanics page, plugin code
+or a recording"; a rule no modern source states is left unchanged and listed as open.
+
 Settle every disagreement from the source line and quote it. Found is not fixed: write
 the row. Never loosen a provenance tag, never delete an `[Mn]` with its guess, never
 promote a grade on a video alone. Mutate only in a throwaway worktree. Commit by explicit

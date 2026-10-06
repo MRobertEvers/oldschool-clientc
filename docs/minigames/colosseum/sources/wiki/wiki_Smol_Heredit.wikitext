@@ -1,0 +1,81 @@
+{{Redirect|Smol|the Zalcano pet|Smolcano}}
+{{Multi Infobox
+|text1 = Follower
+|item1 =
+{{Infobox NPC
+|name = Smol Heredit
+|image = [[File:Smol Heredit (follower).png|200px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|location = [[Fortis Colosseum]]
+|options = Talk-to, Pick-up
+|examine = Still somewhat imposing, I suppose.
+|map = No
+|id = 12767,12857
+|leagueRegion = Varlamore
+}}
+|text2 = Item
+|item2 =
+{{Infobox Item
+|name = Smol Heredit
+|image = [[File:Smol Heredit.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = Still somewhat imposing, I suppose.
+|value = 1
+|weight = 0.015
+|id = 28960
+|leagueRegion = Varlamore
+}}
+}}
+{{Synced switch
+|version1 = [[File:Smol Heredit chathead.png|left]]
+|version2 = [[File:Smol Heredit detail.png|130px|left]]
+}}
+'''Smol Heredit''' is a [[pet]] that can be obtained from completing the [[Fortis Colosseum]] after defeating [[Sol Heredit]]. Players have a 1/200 chance of obtaining him. Alternatively, players can exchange [[Dizana's quiver]] to [[Minimus]] for another 1/200 chance to obtain him. Unlike other boss pets, Smol Heredit is considered a main drop and will be shown accordingly on the colosseum interface upon reaching the final wave.
+
+When a player receives the pet, it will automatically try to appear as their follower. At the same time, a message in the [[Chat Interface|chatbox]] will state {{mes|You have a funny feeling like you're being followed.|color=red}} However, if a player receives a pet while having a follower out (for example, a [[cat]]), it will be placed into their [[inventory]]. When this occurs, the message in the chatbox will instead state {{mes|You feel something weird sneaking into your backpack.|color=red}}
+
+If a player's inventory is full '''and''' they have a follower already, they '''will not''' receive the pet; it must instead be claimed from [[Probita]] in [[East Ardougne]].
+
+==Item sources==
+{{Drop sources|Smol Heredit}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 August 2026
+|update = Summer Sweep Up - Agility & Chambers of Xeric Changes
+|change = The item was renamed from "Smol heredit" to "Smol Heredit".
+}}
+{{Subject changes
+|date = 24 April 2024
+|update = Varlamore Tweaks, GameJam V Commences & More!
+|change = Players who run out of Membership are now able to freely reclaim Smol heredit upon regaining Membership status.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Smol Heredit is the child of the [[Sol Heredit]].
+*Smol Heredit's rare dialogue is a reference to an obscure copypasta.{{CiteReddit|author=pointtodns|url=https://www.reddit.com/r/copypasta/comments/6dmts5/ironically_deep/|title=Ironically Deep|quote=|date=27 May 2017|archiveurl=https://web.archive.org/web/20230607005427/https://www.reddit.com/r/copypasta/comments/6dmts5/ironically_deep/|archivedate=7 June 2023|notes=|name=}}
+*Smol Heredit is one of the few boss pets in-game that is acquired as a main drop roll, sharing this trait with the [[abyssal orphan]], [[phoenix]], and [[tiny tempor]].
+*Smol Heredit follows a different pathing algorithm than other pets. Rather than move diagonally first to move towards the player, Smol Heredit will prefer moving in cardinal directions, assuming both choices reach their destination in the same amount of time.
+
+==References==
+{{Reflist}}
+
+{{Fortis Colosseum}}
+{{Pets}}
+
+[[Category:Collection log items]]

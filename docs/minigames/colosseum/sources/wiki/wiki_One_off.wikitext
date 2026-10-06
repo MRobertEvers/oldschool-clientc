@@ -1,0 +1,24 @@
+{{Infobox Combat Achievement
+|name = One-off
+|image = [[File:Fortis Colosseum.png|300px]]
+|release = [[17 April]] [[2024]]
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|members = Yes
+|description = Complete Wave 11 with either 'Red Flag', 'Dynamic Duo', or 'Doom II' active.
+|tier = Master
+|monster = Fortis Colosseum
+|type = Mechanical
+|id = 546
+|leagueRegion = Varlamore
+}}
+'''One-off''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete wave 11 of the [[Fortis Colosseum]] with either the 'Red Flag', 'Dynamic Duo', or 'Doom II' [[Fortis Colosseum#Handicaps|handicaps]] active.
+
+==Strategy==
+Of the three, Dynamic Duo is the least dangerous option, since mages are the easiest mobs to deal with overall. Red Flag will result in the [[Minotaur (Fortis Colosseum)|minotaur]] being able to path around pillars and prevent it from being safespotted, while Doom II removes the ability to recover from mistakes with brews.
+
+Wave 11 consists of a Fremennik warband, one [[Javelin Colossus]], one [[Shockwave Colossus]] (two if Dynamic Duo), two [[manticore]]s along with a minotaur and [[serpent shaman]] as reinforcements.
+
+==Other tasks==
+{{Combat Achievements list|Fortis Colosseum}}
+
+{{Combat Achievements}}

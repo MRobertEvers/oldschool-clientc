@@ -1,0 +1,15 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+inferno_creature_ranger	7698	1693	seq	7602	jalxil_ready	18	3.0 (90 client)	-	ready	bound	forcedpriority=5 priority=None
+inferno_creature_ranger	7698	1693	seq	7603	jalxil_walk	20	2.0 (60 client)	-	walk	bound	forcedpriority=5 priority=None
+inferno_creature_ranger	7698	1693	seq	7604	jalxil_attack_melee	21	2.0 (60 client)	-	attack (melee)	rig+name	forcedpriority=6 priority=None
+inferno_creature_ranger	7698	1693	seq	7605	jalxil_attack_ranged	31	3.0 (90 client)	-	attack (ranged)	rig+name	forcedpriority=6 priority=None
+inferno_creature_ranger	7698	1693	seq	7606	jalxil_death	30	3.0 (90 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_creature_ranger	7698	1693	seq	7607	jalxil_defend	8	1.0 (30 client)	-	defend	rig+name	forcedpriority=None priority=None
+inferno_ranger_finalwave	7702	1693	seq	7602	jalxil_ready	18	3.0 (90 client)	-	ready	bound	forcedpriority=5 priority=None
+inferno_ranger_finalwave	7702	1693	seq	7603	jalxil_walk	20	2.0 (60 client)	-	walk	bound	forcedpriority=5 priority=None
+inferno_ranger_finalwave	7702	1693	seq	7604	jalxil_attack_melee	21	2.0 (60 client)	-	attack (melee)	rig+name	forcedpriority=6 priority=None
+inferno_ranger_finalwave	7702	1693	seq	7605	jalxil_attack_ranged	31	3.0 (90 client)	-	attack (ranged)	rig+name	forcedpriority=6 priority=None
+inferno_ranger_finalwave	7702	1693	seq	7606	jalxil_death	30	3.0 (90 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_ranger_finalwave	7702	1693	seq	7607	jalxil_defend	8	1.0 (30 client)	-	defend	rig+name	forcedpriority=None priority=None
+inferno_creature_ranger	7698	-	spotanim	1377	inferno_xil_projectile	-	no anim (static)	-	attack-projectile	name	Jal-Xil projectile by Jagex name; model 33013, no anim= field; referenced by inferno_adds.rs2:278
+inferno_ranger_finalwave	7702	-	spotanim	1377	inferno_xil_projectile	-	no anim (static)	-	attack-projectile	name	Jal-Xil projectile by Jagex name; model 33013, no anim= field; referenced by inferno_adds.rs2:278

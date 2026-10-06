@@ -12471,7 +12471,7 @@ ToriRSServer_WorldSelftest(void)
     {
         static struct ToriRSServerCapture capture;
         const struct ToriRSServerMusicRegion* track = &k_ToriRSServer_MusicRegions[0];
-        int unlock_varp = ToriRSServer_MusicVariableVarp(track->varp);
+        int unlock_varp = track->varp;
         int old_song = player->music_track;
         int old_unlock;
         int text_at;
@@ -12479,9 +12479,9 @@ ToriRSServer_WorldSelftest(void)
 
         /* Keep this a pure output test: the selected first row has a real
          * unlock bit, but testing its UI label must not perturb the later
-         * varp/persistence cases. The bit lives in the musicmulti word the
-         * row's variable names (ToriRSServer_MusicVariableVarp). */
-        SELFTEST_CHECK(unlock_varp > 0, "the first music row's variable %d should name a word",
+         * varp/persistence cases. The bit lives in the musicmulti varp the
+         * generated row carries. */
+        SELFTEST_CHECK(unlock_varp > 0, "the first music row's varp %d should name a word",
                        track->varp);
         if( unlock_varp <= 0 )
             unlock_varp = 0;
@@ -12533,8 +12533,10 @@ ToriRSServer_WorldSelftest(void)
         int old_musicplay = player->varps[18];
         int old_varp1681_expected;
 
-        SELFTEST_CHECK(track != NULL && track->song == 556 && track->varp == 18 && track->bit == 8,
-                       "region 14642 should be song 556 with unlock variable 18 bit 8");
+        /* The generated table carries the musicmulti VARP id the variable maps
+         * to (tools/gen_music_regions.py), so variable 18 reads as 1681. */
+        SELFTEST_CHECK(track != NULL && track->song == 556 && track->varp == 1681 && track->bit == 8,
+                       "region 14642 should be song 556 with unlock varp 1681 (variable 18) bit 8");
         SELFTEST_CHECK(ToriRSServer_MusicVariableVarp(1) == 20 &&
                            ToriRSServer_MusicVariableVarp(18) == 1681 &&
                            ToriRSServer_MusicVariableVarp(27) == 5238,
@@ -12575,6 +12577,60 @@ ToriRSServer_WorldSelftest(void)
         player->music_track = old_song;
         player->varps[1681] = old_multi18;
         player->varps[18] = old_musicplay;
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: region music unlocks write musicmulti varps\n");
+    {
+        /*
+         * DBTable 44's unlock pair is (music VARIABLE 1-27, bit), and the
+         * table used to carry the variable as if it were a varp id. Draynor
+         * Village's square 48,50 ("Unknown Land", variable 5 bit 5) then
+         * OR'd bit 5 into %varp5_grail: spoken_crone 4 became 36 and the
+         * Grail whistle went to the restored realm. music.varp declares
+         * [varp24_musicmulti_5], which is where that bit belongs.
+         */
+        const struct ToriRSServerMusicRegion* draynor = ToriRSServer_MusicForRegion((48 << 8) | 50);
+        int below = 0;
+        int first_below = -1;
+
+        for( int i = 0; i < k_ToriRSServer_MusicRegionCount; i++ )
+        {
+            int varp = k_ToriRSServer_MusicRegions[i].varp;
+            if( varp >= 0 && (varp < TORIRSSERVER_MUSIC_FIRST_UNLOCK_VARP || varp >= TORIRSSERVER_VARP_COUNT) )
+            {
+                if( first_below < 0 )
+                    first_below = k_ToriRSServer_MusicRegions[i].region;
+                below++;
+            }
+        }
+        SELFTEST_CHECK(TORIRSSERVER_MUSIC_FIRST_UNLOCK_VARP == 20,
+                       "musicmulti_1 is varp 20 (music.varp), table says %d",
+                       TORIRSSERVER_MUSIC_FIRST_UNLOCK_VARP);
+        SELFTEST_CHECK(below == 0,
+                       "%d music rows unlock into a varp outside the musicmulti range (first square %d)",
+                       below, first_below);
+        SELFTEST_CHECK(draynor != NULL && draynor->varp == 24 && draynor->bit == 5,
+                       "Draynor Village (48,50) should unlock varp24 bit 5, got varp %d bit %d",
+                       draynor ? draynor->varp : -2, draynor ? draynor->bit : -2);
+        if( draynor )
+        {
+            int old_song = player->music_track;
+            int old_varp5 = player->varps[5];
+            int old_varp24 = player->varps[24];
+
+            player->varps[5] = 4;
+            player->varps[24] = 0;
+            ToriRSServer_MusicEnterRegion(player, 48, 50);
+            SELFTEST_CHECK(player->varps[5] == 4,
+                           "entering Draynor Village must leave varp5 (grail) at 4, got %d",
+                           player->varps[5]);
+            SELFTEST_CHECK(player->varps[24] == (1 << 5),
+                           "entering Draynor Village should set musicmulti_5 bit 5, varp24=%d",
+                           player->varps[24]);
+            player->varps[5] = old_varp5;
+            player->varps[24] = old_varp24;
+            player->music_track = old_song;
+        }
     }
 
     fprintf(stderr, "ToriRSServer selftest: instanced music resolves the source square\n");
@@ -19693,9 +19749,10 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(player->inv[0].obj_id == -1, "and be eaten");
 
             /*
-             * A bite sets the food timer (`%varp7219_consume_food_delay` =
-             * map_clock + ^eat_delay, consume_shared.rs2; LostCity
-             * consume.rs2:101-106), so a second bite inside it is *refused* —
+             * A bite sets the food timer (`%varp7224_consume_food_delay` =
+             * map_clock + ^eat_delay, consume_shared.rs2; wiki Food/Fast
+             * foods: "Standard food, when eaten, adds a 3 tick penalty to when
+             * a player may eat again"), so a second bite inside it is *refused* —
              * which, with the old `p_delay(^eat_delay)` park, used to make this
              * check pass for the wrong reason: it read "hitpoints are still 10"
              * off a script that never ran, and no amount of breaking
@@ -19719,8 +19776,9 @@ ToriRSServer_WorldSelftest(void)
                            player->hitpoints);
             /* An eat no longer parks the player (the food timer replaced the
              * p_delay), but a delayed player's OPHELD is refused and his OPNPC
-             * only latches (LostCity's `player.delayed`, OpHeldHandler.ts:16;
-             * seam24), so any script still running is run out here and the
+             * only latches (this engine's rule, torirs_server_world.c's
+             * delayed-OPHELD refusal; seam24), so any script still running is
+             * run out here and the
              * sections below are asked of an idle player. */
             for( int i = 0; i < 4 && player->active_script; i++ )
                 selftest_tick(srv);
@@ -23721,6 +23779,47 @@ ToriRSServer_WorldSelftest(void)
         SELFTEST_CHECK(player->stat_xp_tenths[TORIRSSERVER_STAT_ATTACK] == 0,
                        "a removal at 0 should stay at 0, got %d",
                        player->stat_xp_tenths[TORIRSSERVER_STAT_ATTACK]);
+
+        /*
+         * A drained stat stays drained through an xp grant. LostCity
+         * Player.ts:1841-1851 (addXp) moves the current level with the base only
+         * while `levels === baseLevels`, and a level-up replenishes a drained
+         * stat by the levels gained. The engine used to snap any drained level
+         * straight back to its base on the next grant, so the Sourhog's 90%
+         * spit drain (porcineofinterest) lasted until the player's next hit.
+         * 273,742 xp is level 60, 302,288 is 61, 333,804 is 62.
+         */
+        player->stat_xp_tenths[TORIRSSERVER_STAT_ATTACK] = 2737420;
+        player->stat_level[TORIRSSERVER_STAT_ATTACK] = 60;
+        player->stat_boosted[TORIRSSERVER_STAT_ATTACK] = 6; /* drained 90% (6/60) */
+        ToriRSServer_CombatAddXp(srv, TORIRSSERVER_STAT_ATTACK, 1000);
+        SELFTEST_CHECK(player->stat_level[TORIRSSERVER_STAT_ATTACK] == 60,
+                       "100 xp past 273,742 is still level 60, got %d",
+                       player->stat_level[TORIRSSERVER_STAT_ATTACK]);
+        SELFTEST_CHECK(player->stat_boosted[TORIRSSERVER_STAT_ATTACK] == 6,
+                       "a drained stat (6/60) must stay drained after an xp grant, got %d",
+                       player->stat_boosted[TORIRSSERVER_STAT_ATTACK]);
+        ToriRSServer_CombatAddXp(srv, TORIRSSERVER_STAT_ATTACK, (302288 - 273842) * 10);
+        SELFTEST_CHECK(player->stat_level[TORIRSSERVER_STAT_ATTACK] == 61,
+                       "302,288 xp is level 61, got %d",
+                       player->stat_level[TORIRSSERVER_STAT_ATTACK]);
+        SELFTEST_CHECK(player->stat_boosted[TORIRSSERVER_STAT_ATTACK] == 7,
+                       "a level-up replenishes a drained stat by the levels gained (6 -> 7), "
+                       "not to the base, got %d",
+                       player->stat_boosted[TORIRSSERVER_STAT_ATTACK]);
+        player->stat_boosted[TORIRSSERVER_STAT_ATTACK] = 66; /* boosted 66/61 */
+        ToriRSServer_CombatAddXp(srv, TORIRSSERVER_STAT_ATTACK, 10);
+        SELFTEST_CHECK(player->stat_boosted[TORIRSSERVER_STAT_ATTACK] == 66,
+                       "a boost (66/61) survives an xp grant, got %d",
+                       player->stat_boosted[TORIRSSERVER_STAT_ATTACK]);
+        player->stat_boosted[TORIRSSERVER_STAT_ATTACK] = 61; /* at its base */
+        ToriRSServer_CombatAddXp(srv, TORIRSSERVER_STAT_ATTACK, (333804 - 302289) * 10);
+        SELFTEST_CHECK(player->stat_level[TORIRSSERVER_STAT_ATTACK] == 62,
+                       "333,804 xp is level 62, got %d",
+                       player->stat_level[TORIRSSERVER_STAT_ATTACK]);
+        SELFTEST_CHECK(player->stat_boosted[TORIRSSERVER_STAT_ATTACK] == 62,
+                       "a stat at its base follows a level-up (61 -> 62), got %d",
+                       player->stat_boosted[TORIRSSERVER_STAT_ATTACK]);
 
         /* Put attack back where the checks above left it — 83 xp, level 2 — so
          * this stanza costs the ones after it nothing. */
@@ -29003,19 +29102,22 @@ ToriRSServer_WorldSelftest(void)
             memcpy(boosted_before, who->stat_boosted, sizeof(boosted_before));
             memcpy(xp_before, who->stat_xp_tenths, sizeof(xp_before));
 
-            /* An undrained account, which is what this stanza is about: the
-             * skill list. `::maxstats` is `stat_advance`, and since
-             * ToriRSServer_CombatAddXp follows LostCity's addXp a stat an
-             * earlier section left DRAINED (prayer points spent) stays drained
-             * by the same amount through the level-ups -- LostCity's own
-             * `::maxme` (the same `stat_advance` list) does the same. The
-             * snapshot above is restored below, drain included. */
+            /* Undrained first. `::maxstats` is stat_advance, and an xp grant
+             * leaves a drained stat drained by the same deficit (LostCity
+             * Player.ts:1841-1851; LostCity's own `::maxme`,
+             * _test/scripts/cheats/cheat_maxme.rs2, is the same bare
+             * stat_advance list). This stanza used to lean on the engine
+             * snapping every drained stat back to its base -- the prayer the
+             * sections above spent read 92/99 once that snap was gone. What it
+             * guards is a skill missing from the list, which an undrained
+             * account still shows. */
             for( int i = 0; i < TORIRSSERVER_STAT_COUNT; i++ )
             {
-                if( i != TORIRSSERVER_STAT_HITPOINTS && who->stat_boosted[i] < who->stat_level[i] )
+                if( i == TORIRSSERVER_STAT_HITPOINTS || i == TORIRSSERVER_STAT_SUMMONING )
+                    continue;
+                if( who->stat_boosted[i] < who->stat_level[i] )
                     who->stat_boosted[i] = who->stat_level[i];
             }
-
             handle_cheat(srv, cmd_maxstats, (int)sizeof(cmd_maxstats) - 1);
             for( int i = 0; i < TORIRSSERVER_STAT_COUNT; i++ )
             {
@@ -36362,6 +36464,54 @@ ToriRSServer_WorldSelftest(void)
                                    ToriRSServer_Ids()->lootdrop_duration);
                     ToriRSServer_WorldGroundTake(srv, ground);
                 }
+            }
+        }
+
+        /*
+         * 5b. A stack of NOTES dropped underground is ONE pile of the whole
+         * stack on the tile.
+         *
+         * Priest in Peril drops five noted Rune essence under Paterdomus
+         * (3441,9898,0, priestperil dropNotes). A note's own cache record
+         * states no stackability -- `[cert_blankrune]` is `certlink` plus
+         * `certtemplate` -- so this is the obj table's genCert rule
+         * (torirs_server_objinfo.c: a note is stackable) carried through
+         * inv_dropslot: one pile of 5, not five piles of 1 and not nothing.
+         * Seam matthew-mbp-m4-b63-seam1 noted_essence_drop_leaves_no_ground_obj.
+         */
+        {
+            const int note = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "cert_blankrune");
+            const int note_x = 3441;
+            const int note_z = 9898;
+            int saved_x = player->x;
+            int saved_z = player->z;
+            int saved_level = player->level;
+            int note_slot = inv_first_free(player);
+            int ground = -1;
+
+            SELFTEST_CHECK(note >= 0, "cert_blankrune resolves (%d)", note);
+            SELFTEST_CHECK(note_slot >= 0, "a free backpack cell for the notes");
+            if( note >= 0 && note_slot >= 0 )
+            {
+                SELFTEST_CHECK(ToriRSServer_ObjInfo(note)->stackable,
+                               "a note is stackable though its record says nothing");
+                ToriRSServer_WorldTeleport(srv, 0, note_x, note_z);
+                inv_set(player, note_slot, note, 5);
+                selftest_opheld(srv, 5, note_slot);
+                SELFTEST_CHECK(player->inv[note_slot].obj_id == -1,
+                               "~dropslot empties the notes' cell (holds %d x%d)",
+                               player->inv[note_slot].obj_id, player->inv[note_slot].count);
+                ground = ToriRSServer_WorldGroundFind(srv, note_x, note_z, 0, note);
+                SELFTEST_CHECK(ground >= 0 && srv->ground[ground].count == 5,
+                               "and ONE pile of 5 notes lies on %d,%d,0 (slot %d, count %d)",
+                               note_x, note_z, ground,
+                               ground >= 0 ? srv->ground[ground].count : -1);
+                if( ground >= 0 )
+                    ToriRSServer_WorldGroundTake(srv, ground);
+                SELFTEST_CHECK(ToriRSServer_WorldGroundFind(srv, note_x, note_z, 0, note) < 0,
+                               "and no second pile of the notes is on that tile");
+                ToriRSServer_WorldTeleport(srv, saved_level, saved_x, saved_z);
+                selftest_ack_scene(srv);
             }
         }
 
@@ -45675,6 +45825,16 @@ ToriRSServer_WorldSelftest(void)
             const int rocks_r = ToriRSServer_ContentSymbol(
                 TORIRSSERVER_PACK_LOC, "inferno_collapsing_wall_side_right_state3");
             int rocks_tick = -1;
+            /* ::zuk stands the player on ^inferno_player_zuk_lz, and the seal's
+             * locs sit at ^inferno_rock_w_lz (the flanks) and
+             * ^inferno_glyph_loc_lz (the slab): read all three rather than pin
+             * the start tile, which moved from local z 40 to 44 with Blert's
+             * wave-69 start (zuk_glyph_shield.player_start, WZ-START). */
+            int const zuk_lz = ToriRSServer_ContentConstantInt("inferno_player_zuk_lz", -1);
+            int const rock_dz =
+                ToriRSServer_ContentConstantInt("inferno_rock_w_lz", -1) - zuk_lz;
+            int const slab_dz =
+                ToriRSServer_ContentConstantInt("inferno_glyph_loc_lz", -1) - zuk_lz;
             int change_tick = -1;
             int anim_tick = -1;
             int removal_tick = -1;
@@ -45816,7 +45976,7 @@ ToriRSServer_WorldSelftest(void)
                  * instead made the measurement report change_tick whenever the
                  * wall went first, which is exactly the case under test. */
                 if( ToriRSServer_SceneFindLocId(
-                        player->x - 1, player->z + 11, player->level, middle) >= 0 )
+                        player->x - 1, player->z + slab_dz, player->level, middle) >= 0 )
                     mid_seen = 1;
                 else if( mid_seen && mid_removal_tick < 0 )
                     mid_removal_tick = tick;
@@ -45848,16 +46008,16 @@ ToriRSServer_WorldSelftest(void)
                  * content now uses `~inferno_coord`, so the rubble lands where
                  * the wall it replaces was rather than a storey above it. */
                 if( rocks_tick < 0 &&
-                    ToriRSServer_SceneFindLocId(player->x - 3, player->z + 12,
+                    ToriRSServer_SceneFindLocId(player->x - 3, player->z + rock_dz,
                                               player->level, rocks_l) >= 0 &&
-                    ToriRSServer_SceneFindLocId(player->x + 2, player->z + 12,
+                    ToriRSServer_SceneFindLocId(player->x + 2, player->z + rock_dz,
                                               player->level, rocks_r) >= 0 )
                     rocks_tick = tick;
                 if( anim_tick >= 0 && removal_tick < 0 &&
                     ToriRSServer_SceneFindLocId(
-                        player->x - 3, player->z + 12, player->level, left) < 0 &&
+                        player->x - 3, player->z + rock_dz, player->level, left) < 0 &&
                     ToriRSServer_SceneFindLocId(
-                        player->x + 2, player->z + 12, player->level, right) < 0 )
+                        player->x + 2, player->z + rock_dz, player->level, right) < 0 )
                     removal_tick = tick;
 
                 SELFTEST_CHECK(!(tick_left && (tick_left_seq || tick_right_seq)) &&
@@ -45991,9 +46151,9 @@ ToriRSServer_WorldSelftest(void)
                            cam_reset_tick, rocks_tick);
             {
                 int west_slot = ToriRSServer_SceneFindLocId(
-                    player->x - 3, player->z + 12, player->level, rocks_l);
+                    player->x - 3, player->z + rock_dz, player->level, rocks_l);
                 int east_slot = ToriRSServer_SceneFindLocId(
-                    player->x + 2, player->z + 12, player->level, rocks_r);
+                    player->x + 2, player->z + rock_dz, player->level, rocks_r);
                 struct ToriRSServerSceneLoc* west = ToriRSServer_SceneLoc(west_slot);
                 struct ToriRSServerSceneLoc* east = ToriRSServer_SceneLoc(east_slot);
                 SELFTEST_CHECK(west && west->angle == 3,
@@ -46502,7 +46662,8 @@ ToriRSServer_WorldSelftest(void)
                             { "north-east", 39, 40 },
                         };
                         int base_x = player->x - 31; /* ^inferno_player_zuk_lx */
-                        int base_z = player->z - 40; /* ^inferno_player_zuk_lz */
+                        int base_z = player->z - ToriRSServer_ContentConstantInt(
+                                                     "inferno_player_zuk_lz", -1);
                         int home_x = xil->x;
                         int home_z = xil->z;
                         int glyph_hp;
@@ -54952,6 +55113,206 @@ ToriRSServer_WorldSelftest(void)
                         if( npc->active )
                             ToriRSServer_WorldNpcFree(srv, slot);
                     }
+                }
+            }
+
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: a death handed to a player queue waits for it\n");
+    {
+        /*
+         * `[ai_queue3,black_knight_titan]` (quest_grail/scripts/
+         * black_knight_titan.rs2) does not decide the death: it `queue`s
+         * `queue_defeat_titan` on the hero with `npc_uid`, and that script
+         * either heals him ("Maybe you need something more to beat the
+         * titan?", %grail spoken_crone -> failed_defeat_titan) or, Excalibur
+         * worn, says "Well done!" and lets him go. LostCity never removes a
+         * dead npc on its own (NpcOps.ts NPC_DEL is the only removal), so the
+         * queue finds him. Here the engine reaps, and it used to reap on the
+         * tick `[ai_queue3]` returned: `npc_finduid` missed, neither branch
+         * ran, the grail stage never moved and the titan simply respawned.
+         *
+         * MUTATION TARGET: drop the `death_handoff_pending` hold in
+         * `npc_death_step` and the no-Excalibur kill leaves %grail at 4 with
+         * a NEW titan (generation bumped) in the slot.
+         *
+         * This harness's player does not drain its normal queue (see the
+         * ::vampirerun note above), so the hold is checked first with the
+         * entry pending, and the entry is then run by hand through the same
+         * queue drain once access is restored.
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int npc_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "black_knight_titan");
+            int obj_excalibur = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "excalibur");
+            int varp_grail = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5_grail");
+
+            SELFTEST_CHECK(npc_type >= 0 && obj_excalibur >= 0 && varp_grail >= 0,
+                           "the titan names should resolve: npc=%d excalibur=%d varp5_grail=%d",
+                           npc_type, obj_excalibur, varp_grail);
+            if( npc_type >= 0 && obj_excalibur >= 0 && varp_grail >= 0 )
+            {
+                int slot = npc_spawn(srv, npc_type, player->x + 2, player->z, player->level);
+
+                SELFTEST_CHECK(slot >= 0, "black_knight_titan should spawn");
+                if( slot >= 0 )
+                {
+                    struct ToriRSServerNpc* npc = &srv->npcs[slot];
+                    uint16_t const generation = npc->generation;
+                    int32_t const uid = (int32_t)(((uint32_t)generation << 16) | (uint32_t)slot);
+                    struct ToriRSServerItem const saved_weapon =
+                        player->worn[TORIRSSERVER_WEAR_WEAPON];
+                    int const saved_grail = player->varps[varp_grail];
+                    int const saved_delayed_until = player->delayed_until;
+                    struct ToriRSServerQueued saved_queue[TORIRSSERVER_QUEUE_MAX];
+                    int pending = -1;
+                    int said_well_done = 0;
+                    static struct ToriRSServerCapture titan_capture;
+
+                    /* Only the titan's entry in the queue, so the hand drain
+                     * below runs nothing else. */
+                    memcpy(saved_queue, player->queue, sizeof(saved_queue));
+                    memset(player->queue, 0, sizeof(player->queue));
+                    worn_set(player, TORIRSSERVER_WEAR_WEAPON, -1, 0);
+                    player->varps[varp_grail] = 4; /* ^grail_spoken_crone */
+                    ToriRSServer_WorldSetActive(srv, player);
+
+                    /* A: no Excalibur. */
+                    npc->last_movement = (int)srv->tick - 5;
+                    ToriRSServer_CombatHitNpc(srv, slot, 0, npc->hitpoints);
+                    for( int t = 0; t < 10; t++ )
+                    {
+                        if( player->rebuild_scene_pending )
+                            selftest_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                        selftest_tick(srv);
+                    }
+                    for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
+                    {
+                        if( player->queue[i].active && player->queue[i].argc >= 1 &&
+                            player->queue[i].args[0] == uid )
+                            pending = i;
+                    }
+                    SELFTEST_CHECK(npc->active && npc->generation == generation,
+                                   "MUTATION TARGET: the titan must still be the SAME npc while "
+                                   "queue_defeat_titan decides -- active=%d generation %u -> %u "
+                                   "(queue entry %s)",
+                                   npc->active, (unsigned)generation, (unsigned)npc->generation,
+                                   pending >= 0 ? "pending" : "gone");
+                    if( pending >= 0 )
+                    {
+                        SELFTEST_CHECK(npc->death_tick >= 0 &&
+                                           npc->death_stage == TORIRSSERVER_DEATH_REAP,
+                                       "a held titan is still dying (death_tick=%d stage=%d), "
+                                       "so nothing can engage it meanwhile",
+                                       npc->death_tick, npc->death_stage);
+                        /* Give the harness player access and drain by hand. */
+                        player->delayed_until = 0;
+                        player->mainmodal_group = 0;
+                        player->chatmodal_group = 0;
+                        player->queue[pending].delay = 1;
+                        ToriRSServer_WorldSetActive(srv, player);
+                        ToriRSServer_ScriptsProcessQueues(srv);
+                    }
+                    for( int t = 0; t < 3; t++ )
+                    {
+                        if( player->rebuild_scene_pending )
+                            selftest_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                        selftest_tick(srv);
+                    }
+                    SELFTEST_CHECK(player->varps[varp_grail] == 7,
+                                   "MUTATION TARGET: without Excalibur defeat_titan must run and "
+                                   "downgrade %%grail spoken_crone(4) -> failed_defeat_titan(7), got %d",
+                                   player->varps[varp_grail]);
+                    SELFTEST_CHECK(npc->active && npc->generation == generation &&
+                                       npc->hitpoints > 0 && npc->death_tick < 0,
+                                   "and he is healed and alive, the same life: active=%d "
+                                   "generation %u -> %u hp=%d death_tick=%d",
+                                   npc->active, (unsigned)generation, (unsigned)npc->generation,
+                                   npc->hitpoints, npc->death_tick);
+                    SELFTEST_CHECK(!npc->death_seq_sent,
+                                   "a revived npc's next death is owed its own animation "
+                                   "(death_seq_sent=%d)", npc->death_seq_sent);
+
+                    /* B: Excalibur worn. Close whatever A's dialogue left up. */
+                    ToriRSServer_WorldCloseModal(srv);
+                    if( player->active_script )
+                        ToriRSServer_ScriptsReleaseState(srv, player->active_script);
+                    player->active_script = NULL;
+                    memset(player->queue, 0, sizeof(player->queue));
+                    worn_set(player, TORIRSSERVER_WEAR_WEAPON, obj_excalibur, 1);
+                    player->varps[varp_grail] = 4;
+                    pending = -1;
+                    ToriRSServer_CaptureBegin(srv, &titan_capture);
+                    npc->last_movement = (int)srv->tick - 5;
+                    ToriRSServer_CombatHitNpc(srv, slot, 0, npc->hitpoints);
+                    for( int t = 0; t < 10; t++ )
+                    {
+                        if( player->rebuild_scene_pending )
+                            selftest_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                        selftest_tick(srv);
+                    }
+                    for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
+                    {
+                        if( player->queue[i].active && player->queue[i].argc >= 1 &&
+                            player->queue[i].args[0] == uid )
+                            pending = i;
+                    }
+                    if( pending >= 0 )
+                    {
+                        player->delayed_until = 0;
+                        player->mainmodal_group = 0;
+                        player->chatmodal_group = 0;
+                        player->queue[pending].delay = 1;
+                        ToriRSServer_WorldSetActive(srv, player);
+                        ToriRSServer_ScriptsProcessQueues(srv);
+                    }
+                    for( int t = 0; t < 3; t++ )
+                    {
+                        if( player->rebuild_scene_pending )
+                            selftest_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                        selftest_tick(srv);
+                    }
+                    ToriRSServer_CaptureEnd(srv);
+                    for( int i = ToriRSServer_CaptureFindNamed(&titan_capture, PKT_NAME_MESSAGE_GAME, 0);
+                         i >= 0;
+                         i = ToriRSServer_CaptureFindNamed(&titan_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
+                    {
+                        const char* text = selftest_message_text(srv, &titan_capture.packets[i]);
+
+                        if( text && strstr(text, "Well done! You have defeated the Black Knight Titan!") )
+                            said_well_done = 1;
+                    }
+                    SELFTEST_CHECK(said_well_done,
+                                   "MUTATION TARGET: with Excalibur worn defeat_titan must run "
+                                   "and say \"Well done! You have defeated the Black Knight Titan!\"");
+                    SELFTEST_CHECK(!npc->active || npc->generation != generation,
+                                   "and then the titan is reaped: active=%d generation %u -> %u",
+                                   npc->active, (unsigned)generation, (unsigned)npc->generation);
+                    SELFTEST_CHECK(player->varps[varp_grail] == 4,
+                                   "a won fight leaves %%grail at spoken_crone, got %d",
+                                   player->varps[varp_grail]);
+
+                    if( npc->active )
+                        ToriRSServer_WorldNpcFree(srv, slot);
+                    ToriRSServer_WorldCloseModal(srv);
+                    if( player->active_script )
+                        ToriRSServer_ScriptsReleaseState(srv, player->active_script);
+                    player->active_script = NULL;
+                    player->worn[TORIRSSERVER_WEAR_WEAPON] = saved_weapon;
+                    player->varps[varp_grail] = saved_grail;
+                    player->delayed_until = saved_delayed_until;
+                    memcpy(player->queue, saved_queue, sizeof(saved_queue));
                 }
             }
 

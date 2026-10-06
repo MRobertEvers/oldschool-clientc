@@ -1,0 +1,7 @@
+# Sol Heredit Trainer (colosim.com) -- pinned 2026-10-03
+
+- Site: https://colosim.com (title "Sol Heredit Trainer"); the build is a fork of OldSchoolSDK/InfernoTrainer. Source: https://github.com/OldSchoolSDK/InfernoTrainer branch `merge-sims` @cc557916 (2025-08-29, merge commit "Merge trainers"), directory src/content/colosseum/. Licence GPL-3.0 (LICENSE here; package.json says ISC). The `main` branch has no Colosseum content (checked: ls-files).
+- Copied: js/ (Constants, ColosseumRegion, ColosseumScene, ColosseumSettings, ColosseumLoadout, entities/*, mobs/SolHeredit.ts, utils/RingBuffer), tests/*.test.ts, sidebar.html. Left out: rendering/ (models), assets/ (images, sounds, glb).
+- It simulates ONLY Sol Heredit (p1) and his arena hazards. The wave monsters are in the other simulator (los.colosim.com, Supalosa/osrs-colosseum, no licence): see ../SIMULATORS.md.
+- Credits it states (ColosseumRegion.ts, credits button ~line 150): "Jagex; Supalosa (engine and logic); Tesla Owner (engine); KiwiIskadda (detailed feedback); Syndra, Varadium, ro0bo, zyth (early feedback and testing); @kattykoo". It is built from observation and player feedback, not Jagex code. Grade D until a second source agrees; the animation ids in its comments are an exception (they match the cache names).
+- Every number it states: ../CODE_CONSTANTS.md section D (file:line into js/mobs/SolHeredit.ts and js/entities/).

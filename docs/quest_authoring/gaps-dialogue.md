@@ -209,6 +209,18 @@ answered.
 Section 8's mesbox/p_delay recipe is the fix for a plain choice-to-choice chain too: end the list,
 `t.await` the reopened kind, then play a SECOND list.
 
+### A choice that reopens as a name prompt (`p_choice2` then `p_namedialog`) also reads as stale (The Garden of Death, matthew-mbp-m4-b56)
+
+The same classifier misreads a choice whose answer opens a NAME PROMPT. In The Garden of Death,
+"Attempt another translation?" (`gardenofdeath.rs2:274`) is a `~p_choice2`. Its Yes opens the
+`p_namedialog` word entry again. `t.chat.choose("Yes.")` reports that reopen as stale, even though
+the answer landed and the prompt is up.
+
+Answer that menu with a bare `t.chat.choose("Yes.")` (no row), then let the next
+`t.exec(..., t.chat.name_entry, word)` row prove the prompt came back. If the prompt did not come
+back, that row fails, so nothing goes unchecked. `test/quests/gardenofdeath.lua`'s word loops do
+this.
+
 ### A first effect that is a bare `mes()` (Mourning's End II wall support)
 
 The mirror shape is a trigger whose FIRST effect is a bare `mes()` line and whose real effect lands
@@ -276,6 +288,24 @@ out: A Tail of Two Cats' `[queue,twocats_quest_complete]` is
 already granted a doctor's hat, so the completion actually grants a NURSES hat -- a
 `reward.doctors_hat` row written from the wiki's "doctor's or nurse's hat" would fail on a correct
 run.
+
+### A brief names skill XP that the content pays as a lamp; "1 Quest Point" twice on the scroll
+
+*Origin: reviewer and sampler matthew-mbp-m4-b53, round 3 (Contact!).*
+
+An orchestrator brief asked for "7000 Strength + 7000 Magic literal". Contact! pays 7,000 Thieving
+XP and a Combat lamp with two wishes of 7,000 XP in a combat skill (wiki Combat_lamp oldid
+15185818; Quest Helper lists the same reward as two 7,000 XP combat lamps). The Strength and Magic
+in the brief were an earlier test's lamp picks. They are not documented reward amounts. Take the
+reward rows from the wiki and Quest Helper, not from a brief. Assert the fixed XP with
+`skill.expect_gain`. For a lamp, rub it, pick a skill, and assert the documented amount gained in
+the skill you picked. Name the picked skill in the row (`lamp.strength_xp_7000`).
+
+`~quest_complete_rewards` writes the quest point line itself. Contact!'s reward string started with
+`1 Quest Point|` (`contact_shared.rs2:22`), so its scroll showed "1 Quest Point" twice. No other
+quest in the tree passes it. Check the scroll shot for a doubled first line. FIXED by seam pass
+matthew-mbp-m4-b53-seam4 (OSRS-Content 4fa2748185): the scroll shows one quest-point line, and
+"and bank" is visible again (`b53s4_scroll_qp_after`, 9/0).
 
 ### `t.scroll.rewards()` returns wrapped lines
 
@@ -369,3 +399,30 @@ For matching, `t.chat.play` compares each entry against the page text by plain s
 that spans the break must spell the `|` (`"npc:Yes she was staying here,|but"`), and one that stops
 before it (`"npc:Yes she was staying here"`) matches as usual. The ledger detail prints the `|`.
 Copy the entry from there.
+
+## A gap where an em dash should be: the dialogue font has no glyph for U+2014
+
+*Origin: sample matthew-mbp-m4-b53 round 2 (b); fixed for The Queen of Thieves in seam pass
+matthew-mbp-m4-b53-seam3.*
+
+A real em dash (U+2014) inside `~chatnpc`/`~chatplayer`/`~mesbox` text draws as a blank gap: Devan's
+line read "see you now    tent at the end of the tunnels" (queenofthieves shot 048). `chat.play`
+fragments that stop short of the dash still match, so only a shot shows it. Content writes `' - '`
+for a dash, as LostCity dialogue does (LostCity_Content2 `quest_hero/scripts/npcs/grip.rs2:40`,
+`quest_grail/scripts/sir_percival.rs2:42`). OPEN: about 174 other port-authored chat lines in
+OSRS-Content still carry U+2014 (for example `quest_ethicallyacquiredantiquities`); a test whose
+`chat.play` entry spans one copies the dash byte for byte until the content is swept.
+
+## A `<p,happy>` tag drawn as text, and a page that runs over the speaker's name (FIXED matthew-mbp-m4-b56-seam1)
+
+Shades of Mort'ton's lines are written LostCity's way, `~chatnpc("<p,angry>Those disgusting ...")`,
+and the port's chat procs used to hand the tag to the client as text. The splitter measures a
+`<...>` tag as zero width, so the page also drew five rows over the name and "Click here to
+continue" (quest_mortton/play 053, 100). Now `~chat_mood` (interface_chat/scripts/chat.rs2) reads
+ONE leading `<p,name>` the way LostCity's SPLIT_INIT does (LostCity_Server StringOps.ts:82-89):
+the tag picks the `^chat_*` head (chat.constant's table, `<p,short>` = neutral) for every page of
+the string and is not drawn. `~chatnpc`, `~chatnpc_specific`, `~chatplayer` and their `_anim` forms
+all call it. So `chat.play`/`expect_text` see the line WITHOUT the tag: match the words, never
+`<p,`. An unknown name aborts the script with `chat_mood: no ^chat_* expression`. Untagged lines
+are unchanged (cooks_assistant's IF packets identical between packs). Not ported: LostCity's
+len1..len4 head variant by row count; one seq per expression here.

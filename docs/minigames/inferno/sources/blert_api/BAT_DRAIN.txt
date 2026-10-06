@@ -1,0 +1,12 @@
+# output of blert_bat_drain.py (seam 7, 2026-10-05): bat (7691-7696 harpie) hits, 'drain' = a player stat changed on the hit tick; pray = Protect from Missiles up. Unprayed: 16 of 113 drained (14%); prayed: 1 of 502.
+('pray', 'drain') 1
+('pray', 'none') 501
+('unpray', 'drain') 16
+('unpray', 'none') 97
+('pray', 'drain', 'dmg later') 1
+('pray', 'none', 'dmg later') 31
+('pray', 'none', 'no dmg later') 470
+('unpray', 'drain', 'dmg later') 5
+('unpray', 'drain', 'no dmg later') 11
+('unpray', 'none', 'dmg later') 26
+('unpray', 'none', 'no dmg later') 71

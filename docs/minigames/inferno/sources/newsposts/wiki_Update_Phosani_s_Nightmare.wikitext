@@ -1,0 +1,433 @@
+{{Update|date=30 June 2021|rev=1 July 2021|link=https://secure.runescape.com/m=news/phosanis-nightmare?oldschool=1|category=game}}
+[[File:Phosani's Nightmare newspost.png|right]]
+{{clear}}
+{{ToC}}
+==Issues and Hotfixes (Last Updated: July 1st - 16:00 BST)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Issues Raised
+!Current Progress
+|-
+|'''(June 30th - 11:52 BST)''' We've received reports that the Corporeal Beast is currently summoning multiple dark energy cores.
+|'''(June 30th - 12:20 BST)''' [FIXED] The Corporeal Beast will now spawn the correct amount of cores.
+|-
+|'''(June 30th - 12:18 BST)''' We've received reports of players spawning into empty rooms whilst facing Phosani's Nightmare.
+|'''(June 30th - 12:36 BST)''' [FIXED] The team has deployed a hotfix to tackle this issue. We will continue to monitor Phosani's Nightmare and update you here acordingly.
+|-
+|'''(June 30th - 13:30 BST)''' We've received reports of the rifts that appear during the Phosanis Nightmare encounter are stacking on top of each other, causing much more damage than intended.
+|'''(June 30th - 14:30 BST)''' [FIXED] A hotfix has been deployed which should stop rifts spawning on top of each other. We will continue to monitor Phosani's Nightmare and update you here acordingly.
+|-
+|'''(June 30th - 18:00 BST)''' If the Nightmare attempts to begin her power blast at the same time as a surge, she'll do both at once.
+|'''(June 30th - 18:30 BST)''' [FIXED] The Nightmare will no longer attack with both move at once.
+|-
+|'''(June 30th - 19:00 BST)''' Phosani's mage husks were instantly dealing damage on spawn.
+|'''(June 30th - 19:15 BST)''' [FIXED] The husks will no longer instantly deal damage.
+|-
+|'''(June 30th - 19:50 BST)''' An issue with The Nightmare dissapearing when a pillar is destroyed.
+|'''(June 30th - 20:20 BST)''' [FIXED] A hotfix has been deployed which should prevent The Nightmare from disappearing. W will continue to monitor Phosani's Nightmare and update you here acordingly.
+|-
+|'''(July 1st - 8:00 BST)''' The Slepey Tablet is appearing in the normal fight with The Nightmare.
+|'''(July 1st - 8:30 BST)''' [FIXED] You'll only be able to receive the Tablet against Phosani's Nightmare.
+|-
+|'''(July 1st - 9:00 BST)''' We are aware of an issue that causes The Nightmares position to desync on the client.
+|'''(July 1st - 16:00 BST)''' The team is still looking into this issue. We will continue to update the progress here.
+|}
+
+''Phosani’s Nightmare is even more of a scream this week with a daunting new challenge level, plus, we’ve made tons of tweaks as part of the Equipment Rebalance and New Client Feature projects! Read on for parasitic eggs, banana hats and much more! All will be explained…''
+
+==Phosani's Nightmare==
+Phosani's Nightmare is back and stronger than ever! This new challenge will test only the bravest warriors as you face off against the toughest version of the boss – ''all by yourself''. Naturally, you'll need to complete The Nightmare at least once before you can take on this terrifying new iteration.
+
+[[File:Phosani's Nightmare (1).png|600px|centre]]
+
+If you think you’re hard enough, journey past the slumbering creature to find Sister Senga and the Pool of Nightmares. Senga will give you some insight into what's happening in this area of the Sanctuary, and upon drinking from the Pool, you'll begin your fight against the toughest Nightmare ever! Hardcore Iron players beware – this will be an unsafe death for you.
+
+[[File:Phosani's Nightmare (2).png|600px|centre]]
+
+If you’d rather sit back and let someone else take the pain while you gloat from the sidelines – good news! By right-clicking on the Pool of Nightmares, you’ll be able to spectate. Yeah, watch other players eat it from the safety of your own cowardice, go on…
+
+There's also a tablet that will record both the personal and global kill counts, death counts and best times. How will you fare?
+
+===Rewards===
+The Parasitic Egg is similar to Metamorphic Dust and can be used on Little Nightmare to transform it into a Parasite version of itself. Gross!
+
+[[File:Phosani's Nightmare (3).png|600px|centre]]
+
+The Slepey Tablet lets you upgrade Drakan's Medallion so you can teleport inside the Sisterhood Sanctuary.
+
+The quantity of regular drops has been increased to match the difficulty of the challenge, and some less desirable drops have been replaced.
+
+Unique drop rates have been updated to match the fight length and difficulty increase.
+
+==Equipment Rebalance: Ranged Meta==
+===Bow of Faerdhinen===
+The newest bow from the Elven region requires 75 Ranged and 70 Agility to wield, and has the same attack range as the Crystal Bow. The Bow will work best with a full set of Crystal Armour.
+
+[[File:Phosani's Nightmare (4).png|600px|centre]]
+
+The Bow of Faerdhinen’s stats are:
+*Ranged accuracy 128
+*Ranged strength 106
+*Attack speed 5 (4 using the Rapid Attack style)
+
+It will consume one charge per attack. You’ll be able to tell when it's out of charge by its altered appearance.
+
+Like the Blade of Saeldor, the Bow can be corrupted – by paying 2,000 Crystal Shards you can give it unlimited charges. You'll then be able to change its colour (more info on that in the Poll 75 section below)!
+
+===Enhanced Crystal Weapon Seed===
+To incorporate this fancy new Bow, we've elected to change the way that receiving the Blade of Saeldor works. Instead of the Blade itself, you'll now be able to obtain a Seed from either version of the Gauntlet. The drop rate remains 1/2000 for the regular Gauntlet and 1/400 for the Corrupted Gauntlet.
+
+With this Seed, players can head to a Crystal Singing Bowl and turn it into either the Blade of Saeldor or the new Bow of Faerdhinen, for an additional cost of 100 Crystal Shards. This can only be done with 82 Crafting and 82 Smithing, and will reward players with 5,000 XP in each skill once the Seed is transformed. If you lack the requirements to change the Seed yourself, you can speak to any NPC near a Crystal Singing Bowl and pay 150 Crystal Shards, but you won’t get an XP reward (this will still result in either weapon gaining 10,000 charges).
+
+Changed your mind? By paying 250 Crystal Shards, you can transform the weapon back to its original form. The Collection Log has been updated to include the Enhanced Crystal Weapon Seed, replacing the Blade of Saeldor.
+
+===Crystal Armour===
+The following changes have been made to the Crystal Armour’s pieces:
+
+( {{Colour|green|Green}} = Buff, {{Colour|red|Red}} = Nerf)
+
+{| class=wikitable style="text-align:center; width:1000px;"
+! rowspan="2" |
+! colspan="5" |Attack
+! colspan="5" |Defence
+! colspan="2" |Set Bonus
+|-
+!Stab
+!Slash
+!Crush
+!Magic
+!Ranged
+!Stab
+!Slash
+!Crush
+!Magic
+!Ranged
+!Accuracy
+!Strength
+!Weight
+|-
+|'''Crystal Helmet'''
+| +0
+| +0
+| +0
+| -10
+| {{Colour|green|+9}}
+| +12
+| +8
+| +14
+| {{Colour|red|+10}}
+| +18
+| %5
+| %2.5
+| {{Colour|green|0.5kg}}
+|-
+|'''Crystal Body'''
+| +0
+| +0
+| +0
+| -18
+| {{Colour|green|+31}}
+| {{Colour|green|+46}}
+| {{Colour|green|+38}}
+| {{Colour|green|+48}}
+| +44
+| {{Colour|green|+68}}
+| +10%
+| +7.5%
+| {{Colour|green|2kg}}
+|-
+|'''Crystal Legs'''
+| +0
+| +0
+| +0
+| -12
+| {{Colour|green|+18}}
+| {{Colour|green|+26}}
+| {{Colour|green|+21}}
+| {{Colour|green|+30}}
+| +34
+| {{Colour|green|+38}}
+| +15%
+| +5%
+| {{Colour|green|1kg}}
+|}
+
+Please note that the Set Bonus for individual pieces of the Crystal Armour doesn't appear on the Equipment Stats Interface when wearing parts of the set as oppose to the full set. This will be fixed with next week's game update.
+
+===Toxic Blowpipe===
+The Toxic Blowpipe accuracy has been reduced to 30.
+
+The Toxic Blowpipe strength has been reduced to 20.
+
+The Ranged strengths of Darts used with the Blowpipe have changed as follows (and apply to all variants):
+*Bronze to +1
+*Iron to +2
+*Steel to +3
+*Black to +6
+*Mithril to +9
+*Adamant to +17
+*Rune to +26
+*Dragon to +35
+
+The accuracy of all darts has been reduced to +0.
+
+===Amethyst Darts===
+These new Darts will require 50 Ranged to equip (now reflected in the Skill Guide) and have poisoned, poisoned+ and poisoned++ variants. You can remove poison using a Cleaning Cloth. The Darts will have an Accuracy of +0 and a Strength of +28.
+
+You are also able to make Amethyst Darts. Up to 8 Dart Tips can be created by using a Chisel on each gem (with 89 Crafting), which will award the player 60 Crafting XP per Amethyst. These Tips can be fletched into a full Dart using Feathers along with 90 Fletching. You’ll gain 21 Fletching XP per dart created.
+
+You can also craft Amethysts into Bolt Tips (83 Crafting), Arrowtips (85 Crafting) and Javelin Heads (87 Crafting), which will all grant 60 Crafting XP per Amethyst.
+
+===Shayzien Armour===
+The Shayzien Platebody has been renamed the Shayzien Body. In order to allow the Shayzien Armour to better function as Ranged Armour, we’ve given all of the pieces Ranged accuracy but lowered the Melee defences of the Shayzien Body.
+
+Here are the stat changes in full:
+
+( {{Colour|green|Green}} = Buff, {{Colour|red|Red}} = Nerf)
+
+{| class=wikitable style="text-align:center; width:1000px;"
+! rowspan="2" |
+! colspan="5" |Attack
+! colspan="5" |Defence
+|-
+!Stab
+!Slash
+!Crush
+!Magic
+!Ranged
+!Stab
+!Slash
+!Crush
+!Magic
+!Ranged
+|-
+|'''Shayzien Helm (5)'''
+| +0
+| +0
+| +0
+| -6
+| {{Colour|green|+4}}
+| +10
+| +14
+| +12
+| -2
+| +13
+|-
+|'''Shayzien Body (5)'''
+| +0
+| +0
+| +0
+| -10
+| {{Colour|green|+10}}
+| {{Colour|red|+20}}
+| {{Colour|red|+24}}
+| {{Colour|red|+28}}
+| -4
+| +27
+|-
+|'''Shayzien Greaves (5)'''
+| +0
+| +0
+| +0
+| -20
+| {{Colour|green|+6}}
+| +23
+| +22
+| +21
+| -4
+| +23
+|-
+|'''Shayzien Gloves (5)'''
+| +0
+| +0
+| +2
+| -1
+| {{Colour|green|+6}}
+| +0
+| +2
+| +3
+| -1
+| +2
+|-
+|'''Shayzien Boots (5)'''
+| +0
+| +0
+| +0
+| -2
+| {{Colour|green|+4}}
+| +5
+| +7
+| +8
+| +0
+| +0
+|-
+|'''Total'''
+| +0
+| +0
+| +2
+| -39
+| {{Colour|green|+30}}
+| +68
+| +82
+| +84
+| -11
+| 65
+|}
+
+===Armadyl Crossbow===
+The cost of the Armadyl Crossbow's special attack has increased from 40% to 50%. The base chance for the Bolt activation has been doubled on the special attack and may differ from Bolt to Bolt (the bonus from Kandarin Diary does not increase this).
+
+===Crystal Bow===
+The Crystal Bow’s Ranged strength has increased to +78.
+
+===Dragonhunter Crossbow===
+The Dragonhunter Crossbow’s Ranged strength bonus has been reduced from 30% to 25%
+
+===Other Changes===
+Odium Ward's Ranged strength has been increased to 4.
+
+Dragonfire Ward's Ranged strength has been increased to 8.
+
+Twisted Buckler's Ranged strength has been increased to 10.
+
+HP from the the healers at Zuk and the rangers within the inferno have been reduced by 5.
+
+==Poll 75==
+''As always, we refer to the in-game timings as 'cycles'. Each cycle is equal to 0.6 seconds and is also commonly referred to as a 'tick' by the community.''
+
+The winning entry from the Design A Hat competition is now yours to wear! Head over to Diango to claim the opulent Banana Wizard Hat. It’s rich in potassium, probably.
+
+The Blade of Saeldor can now be recoloured to match the crowns found within Prifddinas. Lliann will sell you the following crystals, which can be used on a Corrupted version of the Blade to give it a new splash of colour:
+*Crystal of Amlodd
+*Crystal of Cadarn
+*Crystal of Crwys
+*Crystal of Hefin
+*Crystal of Iorwerth
+*Crystal of Ithell
+*Crystal of Meilyr
+*Crystal of Trahaearn
+
+[[File:Phosani's Nightmare (5).png|600px|centre]]
+
+With no players in its cave, the Corporeal Beast now heals 25 hitpoints every 7 cycles, instead of fully healing instantly. The boss still resets itself in full after three minutes of inactivity.
+
+The Imbued Skull Sceptre can now auto-cast Crumble Undead on both Member and Free-to-Play Worlds.
+
+Weaken spell effectiveness has been buffed by 50% for players using the Tome of Water. Splashing!
+
+The following NPCs’ bones will now work with the Bonecrusher's effect (this does not work for any noted bone drops):
+*Chaos Elemental
+*Insatiable bloodveld
+*Regular bloodveld
+*Jogre
+*Jungle horror
+
+Players can now toggle on/off the Dagannoth Bones perk from the Elite Fremennik Diary. Speak to Thorodin, just south of Rellekka.
+
+Bats in the Inferno no longer drain combat stats if you are praying Protect from Missiles. Phew.
+
+Zealot's Armour now has a Prayer bonus equal to Monk's Robes + 1.
+
+The warning message for the Barrows tunnels can now be compressed into one text box by speaking to the Strange Old Man. Keep it brief!
+
+We've added orange and blue recolours of the Sarachnis Pet. You can try them out by grabbing Egg Sacs from the Grubby Chest in the Forthos Dungeon.
+
+[[File:Phosani's Nightmare (6).png|600px|centre]]
+
+The Shooting Star XP rate has increased as follows:
+
+{| class=wikitable style="text-align:center;
+!Size
+!Current XP
+!New XP
+|-
+|1
+|11
+|12
+|-
+|2
+|20
+|22
+|-
+|3
+|23
+|26
+|-
+|4
+|26
+|31
+|-
+|5
+|38
+|48
+|-
+|6
+|57
+|74
+|-
+|7
+|91
+|123
+|-
+|8
+|116
+|162
+|-
+|9
+|168
+|244
+|}
+
+==A Kingdom Divided==
+Death Runes now give 10 charges to the Ash Sanctifier, rather than 100. Any existing charges will be divided by 10.
+
+Demonbane spells now have a base 20% accuracy buff that increases to 40% when Mark of Darkness is used.
+
+When the Mark of Darkness’s effect wears off, a new animation plays, reminding the player to reapply the spell.
+
+Offering spells from the Arceuus Spellbook now cast instantly, and have a cooldown animation instead of a warmup one.
+
+The scattering animation for Demonic Ash has been updated.
+
+The Giant's Den is now considered part of the Catacombs for the Prayer Restore effect.
+
+The swarms to the north of Piscarilius are no longer quite so aggressive!
+
+Death Charge restores can now be used when you defeat the Grotesque Guardians. A special attack is restored with each death.
+
+==New Client Features: Milestone #1==
+The correct text now displays on the new HP bar interface when tackling The Nightmare.
+
+The XP drop bar no longer clashes with the Theatre of Blood HP bar.
+
+Stat boost tooltips are now successfully cleared when the hovered stat is hidden.
+
+Some other typos and text changes have been fixed.
+
+==PvP World Rota==
+The PvP rota has moved to Period A:
+*539 - (US) - PvP World
+*548 - (Germany) - High-Risk PvP World
+*577 - (US) - Free-to-Play PvP World
+*559 - (UK) - LMS Competitive
+
+==Other News==
+There are more increments on the volume and brightness sliders in the Options menu, so you can get them just right.
+
+When a Kitten spawns, you’ll get a warning message if it's already on the verge of running away due to hunger or neglect.
+
+Trees on Tutorial Island no longer render underneath the adjacent coastline.
+
+Players must now be in the correct place when using the tunnel from the Forthos Dungeon down to the Catacombs.
+
+Loot notifications can now be sent to a Clan Channel when an Unsired is placed in the Font (assuming the Clan has enabled such broadcasts).
+
+Typos have been fixed on a soldier in Shayzien, in Commissioner Anwar’s dialogue, on the crate in Osten’s shop, and in the Settings menu.
+
+Your sale quantity is now updated correctly when you’re inputting a number during in-game shop purchases.
+
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our <u>[http://services.runescape.com/m=forum/forums?380,381,736,66220646 official forums]</u>, on the <u>[https://www.reddit.com/r/2007scape/comments/oau3o9/phosanis_nightmare/ 2007Scape Reddit]</u>, or the community-led <u>[http://discord.gg/OSRS OSRS Discord]</u> in the #gameupdate channel.
+
+----
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Grub, Halo, Husky, Jarv, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Skylark, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

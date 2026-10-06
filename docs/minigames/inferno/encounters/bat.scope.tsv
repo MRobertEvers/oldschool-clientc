@@ -1,0 +1,43 @@
+mechanic_id	scope	note
+bat.hitpoints	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.combat_level	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.defence_level	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.attack_strength_levels	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.ranged_magic_levels	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.size	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.attack_style_ranged_only	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.attack_speed	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.attack_gap_modal	stat	statistical: a share over many bats; a solo test reads its own gaps, the recorder tool weighs the 1872
+bat.attack_gap_minimum	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.first_attack_after_spawn	stat	statistical: depends on spawn tile and the player tile; the whole distribution is read over several waves
+bat.max_hit	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.damage_when_protected	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.attack_range	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.attack_stops_approach_in_range	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.attack_needs_line_of_sight	all	one solo test with the player behind a pillar and a bat on the far side; bats do not choose their side, so repeat entries
+bat.melee_attacks	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.hit_delay	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.prayer_read_tick	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.hit_chance_unprayed	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.run_drain_per_hit	all	one solo test, needs a run-energy read (no driver verb yet: DRIVER gap)
+bat.run_drain_blocked_by_missiles	all	one solo test, needs a run-energy read (no driver verb yet: DRIVER gap)
+bat.stat_drain_occurs_unprayed	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.stat_drain_amount	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.stat_drain_chance	stat	statistical: a share over many unprotected hits
+bat.stat_drain_boosts_bat	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.stat_drain_blocked_by_missiles	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.spawn_tick	all	one solo test (practice entry on wave 1 or 2)
+bat.spawn_tiles	stat	statistical: nine tiles shuffled per wave; one test sees one or two; several wave entries cover the set
+bat.resurrectable	unit:mager_resurrection	seam pass 7 (TEST-4): needs a Jal-Zek; wave 36 (one bat, one mager) is the mager unit's own wave, so its test fights the revive
+bat.resurrected_hitpoints	unit:mager_resurrection	seam pass 7 (TEST-4): read off the revived bat on the mager unit's wave 36
+bat.attack_seq	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.attack_anim_length	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.ready_walk_seq	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.defend_seq	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.death_seq	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.death_anim_length	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.model	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.projectile_spotanim	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.projectile_anim_length	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.projectile_shape	all	one solo test (practice entry on wave 2, 6 or later; a real run)
+bat.sounds	all	one solo test (practice entry on wave 2, 6 or later; a real run)

@@ -177,6 +177,11 @@ puts it there itself, and a row that reads the npc pool right after a cross-plan
 
 *Origin: section 8 ("Gaps reported by authors").*
 
+> SUPERSEDED (seam pass matthew-mbp-m4-b58-seam1, OSRS-Content 6369379ada): the owner's rule now
+> makes a goto into or out of any closed space a cheat, and Ernest's maze can be walked end to end.
+> Its gates answer from the walled side (seam-facts: "Ernest the Chicken's maze gates"), so drive the
+> levers and gates. The paragraph below is history.
+
 The doc's `goto_tile` bypass (ladders, stairs, trapdoors, `cog.lua`'s navigation-only side puzzle)
 covers a SCRIPTED PUZZLE-GATED door too, whenever the hand-in reads no lever or door state: Ernest
 the Chicken's six-lever maze is pure navigation, because `quest_haunted.rs2:451`'s hand-in tests
@@ -423,6 +428,10 @@ is fenced; approach `sherpa_door` (2822,3555, east wall) from 2823,3555.
   assert the landing x == 2847. In only while `%dragon_sailed`; out always; "You have already slain
   the dragon." after completion. The completion teleport now lands on 2845,9636 (west of the wall),
   not on the wall tile.
+- The ropes are NOT missing (b62-seam1): `crandor.rs2`'s old "deferred" header named LostCity loc
+  names the cache does not carry. `dragon_slayer_qip_climbing_rope` (2833,9657) climbs to
+  2834,3258,0, and the lair has a walk out to Karamja (secret wall, volcano dungeon,
+  `climbing_rope2` -> 2856,3166,0). Route and proof: seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (e).
 
 ## Dwarf Cannon: the tower's two ladders have different names
 
@@ -843,6 +852,17 @@ is `~maplink_transition;`, so the cave lands at 2803,10187 and the crevice at 27
 row `seam.trollweiss_cave_maplink_not_shadowed`). Before blaming `maplink.dbrow`, grep the loc symbol
 across `server/scripts/` for a name-specific `[oploc<N>,<loc>]`.
 
+## Talk-to answers "I can't reach that!" for an npc across a chasm, river or bars: it needs an `[apnpc1]`
+
+*Origin: seam pass matthew-mbp-m4-b53-seam3 (Contact!'s Maisa).*
+
+An npc the real game has you talk to over an obstacle (Maisa across the Sophanem chasm, Hudon across
+the river in Waterfall) is reached through an approach trigger: `[apnpc1,<npc>]`, which the engine
+fires within ap range 10 with line of sight (a floor-blocked chasm does not block the line). If
+`talk_to` answers `I can't reach that!` for such an npc, grep its `.rs2` for an `apnpc1` before you
+suspect the map, and report the missing trigger as a content seam. The walk is never the fix: do
+not `goto_tile` past the obstacle. Detail: seam-facts: Seam pass matthew-mbp-m4-b53-seam3 (a).
+
 ## Underground Pass: the fall pocket is left over five rockslides and a rock pile (matthew-mbp-m4-b49-seam1)
 
 Symptom: after the swamp (`upass_swampbubbles1`) or a failed rope swing you stand at 2485,9649, and
@@ -948,7 +968,11 @@ to the entrance. Check every `walk_to` result and the tile it reached; a stalled
 the row by itself. If you place a press from `t.world.loc_near`, read `tile_x`/`tile_z` from its
 table. It has no `x`/`z` fields (verbs-pointer).
 
-## Rum Deal: Pete says "take a boat over" and no boat goes to Braindeath Island (matthew-mbp-m4-b51 sample)
+## Rum Deal: Pete says "take a boat over" and no boat goes to Braindeath Island (matthew-mbp-m4-b51 sample; FIXED b67-seam1)
+
+**FIXED in seam pass matthew-mbp-m4-b67-seam1 (seam-facts (b)):** Pete knocks you out at the accept
+and you wake in Captain Braindeath's room (2144,5108,1); after that `deal_pete` and `deal_island_pete`
+offer the lift both ways. The goto from the dock below is now a cheat: drive the talk.
 
 *Origin: the matthew-mbp-m4-b51 round-2 sampler read rumdeal be4d36b9e row 6 `braindeath.goto1`, a
 goto from Port Phasmatys (3680,3536,0) to Captain Braindeath (2144,5109,1).*
@@ -1003,3 +1027,41 @@ left alone.
 - The ice troll runts (level 74) out-trade a melee fighter who has to eat. The green run set
   Attack/Strength 90, Defence 80, Hitpoints 90 and Prayer 99, prayed Protect from Melee for the ten
   kills, and switched to Protect from Magic for the King.
+
+## Contact!: the Sophanem dungeon maze is walked, never crossed with `goto_tile` (matthew-mbp-m4-b53)
+
+Contact!'s guide steps 1.5 and 1.13 go from the dungeon's entry ladder through the trapped maze to
+the south-west ladder (`contact_ug_boss_ladder`, 2116,4364,2). A `goto-bossladder` hop to that
+ladder skips the maze, so it reads CHEAT and sent the draft back. Walk it in short `walk_to` hops.
+The traps are cache ops that roll and hurt: `contact_spiketrap_floor` Evade is an Agility roll,
+and `contact_speartrap` Disable is a Thieving roll. A failure costs a tenth of max hitpoints
+(`contact_dungeon.rs2` `[oploc1,contact_spiketrap_floor]` / `[oploc1,contact_speartrap]`). The
+formulas are the port's own and they gate nothing, so carry food rather than relying on a roll.
+The same review sent back two more hops: the chasm west side to Al Kharid (`goto-osman`), and out
+of the private scarab instance to Sophanem (`goto-priest`). Each of them needs the climb or walk
+that the guide names.
+
+## "You need a pickaxe" with a pickaxe in the pack: the staged Mining is below the pick's level (Tale of the Righteous, matthew-mbp-m4-b56)
+
+Mining content checks the pickaxe AND the level needed to use it. If the pick is too good for the
+staged Mining, the content tells you that you have no pickaxe. Tale of the Righteous' rockfall
+(`shayzienquest_blockage`) answered `You need a pickaxe` to a rune pickaxe while Mining was below
+41, the level a rune pickaxe needs. Either stage Mining at or above the pick's level (the test used
+`::setlevel mining 45`), or give the pick that the quest's own level requirement allows.
+
+## A machine that repeats its op every tick: menu presses, not `click_loc`, and turn the camera off the hud (Sleeping Giants, matthew-mbp-m4-b56)
+
+The Giants' Foundry lava pool, waterfall and tools repeat their op every tick until you do
+something else. That breaks two verbs:
+
+- A settled `t.player.click_loc` waits for the action to end. The action never ends, so the verb
+  waits out its ~20-tick timeout while the sword's heat keeps moving, and the heat overshoots the
+  band. Press with `t.drive.click_minimenu(target, op)`, which returns at once, and read the heat
+  every tick in your own loop.
+- `walk_near` re-sends its move only while the player is idle. During a repeating op the player is
+  never idle, so `walk_near` stalls. Use `walk_to` an exact tile (instance-local) and then press.
+
+The foundry hud overlay covers the polishing wheel from the default camera, and a covered press
+burns about 20 ticks of heat before it answers. Turn the camera first: `t.drive.camera(128, 383,
+600)` was measured clear for the wheel. If a press still answers `covered`, step the yaw by 256
+and press again. `test/quests/sleepinggiants.lua`'s `press()` does both.

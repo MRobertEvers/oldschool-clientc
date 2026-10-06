@@ -1,0 +1,23 @@
+# ladder soulsbane quest_dir=quest_soulsbane guide=src/main/java/com/questhelper/helpers/quests/asoulsbane/ASoulsBane.java steps=20 legs=1:1-20@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToLauna	NpcStep	npc:soulbane_launa	3307,3454,0	Talk to Launa east of Varrock.			Yes. | Would you like me to go down to look for your husban…	quests/quest_soulsbane/scripts/soulsbane.rs2:8 opnpc1; +1
+1	2	1	useRopeOnRift	ObjectStep	loc:soulbane_falloff2_rope_multi	3310,3452,0	Use a rope on the rift.		Rope		quests/quest_soulsbane/scripts/soulsbane.rs2:149 oploc1; +1
+1	3	1	enterRift	ObjectStep	loc:soulbane_falloff2_rope_multi	3310,3452,0	Enter the rift.		Combat gear + food		quests/quest_soulsbane/scripts/soulsbane.rs2:149 oploc1; +1
+1	4	1	takeWeapon	ObjectStep	loc:soulbane_rack_multi	3012,5244,0	Take a weapon from the weapon rack. Kill the angry monsters with the appropriate weapon:				quests/quest_soulsbane/scripts/soulsbane_anger.rs2:8 oploc1
+1	5	1	killBears	NpcStep	npc:soulbane_anger_bear	3027,5232,0					quests/quest_soulsbane/scripts/soulsbane_anger.rs2:181 ai_queue3
+1	6	1	killGoblins	NpcStep	npc:soulbane_anger_goblin	3027,5232,0					quests/quest_soulsbane/scripts/soulsbane_anger.rs2:187 ai_queue3
+1	7	1	killRats	NpcStep	npc:soulbane_anger_rat	3027,5232,0					quests/quest_soulsbane/scripts/soulsbane_anger.rs2:184 ai_queue3
+1	8	1	killUnicorn	NpcStep	npc:soulbane_anger_unicorn	3027,5232,0					quests/quest_soulsbane/scripts/soulsbane_anger.rs2:178 ai_queue3
+1	9	1	killAnimals	DetailedQuestStep	npc:soulbane_anger_bear npc:soulbane_anger_goblin npc:soulbane_anger_rat npc:soulbane_anger_unicorn			killBears killGoblins killRats killUnicorn			quests/quest_soulsbane/scripts/soulsbane_anger.rs2:181 ai_queue3; +3
+1	10	3	leaveAngerRoom	ObjectStep	loc:soul_bane_awall_void_exit	3038,5229,0	Go to the next room.				quests/quest_soulsbane/scripts/soulsbane_anger.rs2:229 oploc1
+1	11	3	killReaper	NpcStep	npc:soulbane_fear_reaper	3058,5230,0	Kill the Fear Reaper.				quests/quest_soulsbane/scripts/soulsbane_fear.rs2:109 ai_queue3
+1	12	3	lookInsideHoles	ObjectStep	loc:soul_bane_fwall_void6 npc:soulbane_fear_reaper	3046,5240,0	Look inside the Dark Holes to cause fear reapers to appear. Kill 5 of them. You cannot search the same hole over and over again.	killReaper			quests/quest_soulsbane/scripts/soulsbane_fear.rs2:12 oploc1; +1
+1	13	5	leaveFearRoom	ObjectStep	loc:soulbane_fwall_exit_multi	3046,5236,0	Continue to the next room.				quests/quest_soulsbane/scripts/soulsbane_fear.rs2:146 oploc1
+1	14	5	killRealConfusionBeast	NpcStep	npc:soulbane_confu_creeper	3055,5199,0	Attack the confusion beasts until you find one which takes damage, and kill it. The others will take 8 hits to die.				quests/quest_soulsbane/scripts/soulsbane_confu.rs2:161 ai_queue3
+1	15	7	leaveConfusionRoom	ObjectStep	loc:soulbane_door_multi6	3051,5200,0	Leave the room through the confusing door.				quests/quest_soulsbane/scripts/soulsbane_confu.rs2:216 oploc1
+1	16	7	killHopelessCreatures	NpcStep	npc:soulbane_hope_monst3 npc:soulbane_hope_monst2 npc:soulbane_hope_monst1 npc:soulbane_less_beast3	3087,5198,0	Kill each hopeless creature 3 times.				quests/quest_soulsbane/scripts/soulsbane_hope.rs2:69 ai_queue3; +3
+1	17	9	leaveHopelessRoom	ObjectStep	loc:soul_bane_hwall_void_exit	3021,5188,0	Continue through the exit of the room.				quests/quest_soulsbane/scripts/soulsbane_hope.rs2:118 oploc1
+1	18	9	killHeads	NpcStep	npc:soulbane_final_tolna1 npc:soulbane_final_tolna2 npc:soulbane_final_tolna3	2984,5212,1	Kill all three of Tolna's heads.				quests/quest_soulsbane/scripts/soulsbane_tolna.rs2:85 opnpc2; +5
+1	19	11	talkToTolna	NpcStep	npc:soulbane_tolna	2984,5212,1	Talk to Tolna.				quests/quest_soulsbane/scripts/soulsbane_tolna.rs2:135 opnpc1
+1	20	12	talkToTolnaAgain	NpcStep	npc:soulbane_tolna_top	3307,3454,0	Talk to Tolna outside the rift.				quests/quest_soulsbane/scripts/soulsbane_tolna.rs2:162 opnpc1; +1

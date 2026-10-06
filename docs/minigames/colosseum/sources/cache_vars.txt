@@ -1,0 +1,386 @@
+# varps -- 15 records selected from cache.osrs239
+# source: OSRS-Content/osrs239-content/configs/all.varp (record header line given per record)
+# why= the selection rule(s) that chose the record (LEDGER_cache.md)
+
+[4127] varp4127_colosseum_int_temp_transmit_1    (configs/all.varp:8273)
+  why= name: varp4127_colosseum_int_temp_transmit_1; bind: basevar of varbit varb9788_colosseum_selected_modifier
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[4128] varp4128_colosseum_int_temp_transmit_2    (configs/all.varp:8275)
+  why= name: varp4128_colosseum_int_temp_transmit_2; bind: basevar of varbit varb4588_colosseum_modifier_mantimayhem_stacks_client, basevar of varbit varb9790_colosseum_modifier_blasphemy_stacks_client, basevar of varbit varb9791_colosseum_modifier_toxicity_stacks_client, basevar of varbit varb9792_colosseum_modifier_reentry_stacks_client, basevar of varbit varb9795_colosseum_modifier_myopia_stacks_client, basevar of varbit varb9796_colosseum_modifier_frailty_stacks_client, basevar of varbit varb9797_colosseum_modifier_solarflare_stacks_client, basevar of varbit varb9798_colosseum_modifier_relentless_stacks_client, basevar of varbit varb9799_colosseum_modifier_volatility_stacks_client, basevar of varbit varb9800_colosseum_sol_grapple_pending, basevar of varbit varb10681_colosseum_modifier_doom_stacks_client
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[4129] varp4129_colosseum_int_temp_transmit_3    (configs/all.varp:8277)
+  why= name: varp4129_colosseum_int_temp_transmit_3; bind: basevar of varbit varb9801_colosseum_doom_stacks_client, basevar of varbit varb9802_colosseum_loot_opened
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[4130] varp4130_colosseum_glory    (configs/all.varp:8279)
+  why= name: varp4130_colosseum_glory
+  read_by: torirs_var4130_tier  (scripts/torirs_var4130_tier.cs2:3): if (%varp4130_colosseum_glory < 2000) {
+  read_by: torirs_var4130_tier  (scripts/torirs_var4130_tier.cs2:5): } else if (%varp4130_colosseum_glory < 5000) {
+  read_by: torirs_var4130_tier  (scripts/torirs_var4130_tier.cs2:7): } else if (%varp4130_colosseum_glory < 8000) {
+  read_by: torirs_var4130_tier  (scripts/torirs_var4130_tier.cs2:9): } else if (%varp4130_colosseum_glory < 12000) {
+  read_by: torirs_var4130_tier  (scripts/torirs_var4130_tier.cs2:11): } else if (%varp4130_colosseum_glory < 16000) {
+  read_by: torirs_var4130_tier  (scripts/torirs_var4130_tier.cs2:13): } else if (%varp4130_colosseum_glory < 20000) {
+
+[4131] varp4131_total_colosseum_waves_completed    (configs/all.varp:8281)
+  why= name: varp4131_total_colosseum_waves_completed
+  read_by: torirs_zone_scale  (scripts/torirs_zone_scale.cs2:15): } else if (~inzone(29641745, 298617908, %varp3916_gravestone_creation_death_coord) = 1 & %varp4131_total_colosseum_waves_completed < 100) {
+
+[4132] varp4132_colosseum_current_glory    (configs/all.varp:8283)
+  why= name: varp4132_colosseum_current_glory
+  read_by: colosseum_reward_chest_2_summary_draw  (scripts/colosseum_reward_chest_2_summary_draw.cs2:9): def_string $glory_string2 = tostring(%varp4132_colosseum_current_glory);
+  read_by: colosseum_reward_chest_2_summary_draw  (scripts/colosseum_reward_chest_2_summary_draw.cs2:10): if (%varp4132_colosseum_current_glory = ^max_32bit_int) {
+  read_by: colosseum_intermission_2_summary_draw  (scripts/colosseum_intermission_2_summary_draw.cs2:9): def_string $glory_string2 = tostring(%varp4132_colosseum_current_glory);
+  read_by: colosseum_intermission_2_summary_draw  (scripts/colosseum_intermission_2_summary_draw.cs2:10): if (%varp4132_colosseum_current_glory = ^max_32bit_int) {
+  read_by: torirs_colosseum_wave_complete  (scripts/torirs_colosseum_wave_complete.cs2:8): def_string $total_string2 = tostring(%varp4132_colosseum_current_glory);
+  read_by: torirs_colosseum_wave_complete  (scripts/torirs_colosseum_wave_complete.cs2:9): if (%varp4132_colosseum_current_glory = ^max_32bit_int) {
+
+[4133] varp4133_colosseum_wave_start_time    (configs/all.varp:8285)
+  why= name: varp4133_colosseum_wave_start_time
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[4134] varp4134_colosseum_wave_damage_taken    (configs/all.varp:8287)
+  why= name: varp4134_colosseum_wave_damage_taken
+  read_by: colosseum_reward_chest_2_summary_draw  (scripts/colosseum_reward_chest_2_summary_draw.cs2:40): if (%varp4134_colosseum_wave_damage_taken <= 0) {
+  read_by: colosseum_reward_chest_2_summary_draw  (scripts/colosseum_reward_chest_2_summary_draw.cs2:57): $line_string3 = " <col=0dc10d>+<tostring($damage_bonus_int13)></col> (<tostring(%varp4134_colosseum_wave_damage_taken)>)";
+  read_by: colosseum_intermission_2_summary_draw  (scripts/colosseum_intermission_2_summary_draw.cs2:40): if (%varp4134_colosseum_wave_damage_taken <= 0) {
+  read_by: colosseum_intermission_2_summary_draw  (scripts/colosseum_intermission_2_summary_draw.cs2:57): $line_string3 = " <col=0dc10d>+<tostring($damage_bonus_int13)></col> (<tostring(%varp4134_colosseum_wave_damage_taken)>)";
+  read_by: torirs_colosseum_wave_complete  (scripts/torirs_colosseum_wave_complete.cs2:17): if (%varp4134_colosseum_wave_damage_taken <= 0) {
+  read_by: torirs_colosseum_wave_complete  (scripts/torirs_colosseum_wave_complete.cs2:120): cc_settext("<col=0dc10d>+<tostring($bonus_int13)></col> (<tostring(%varp4134_colosseum_wave_damage_taken)>)");
+
+[4135] varp4135_colosseum_last_modifier_glory    (configs/all.varp:8289)
+  why= name: varp4135_colosseum_last_modifier_glory
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[4136] varp4136_colosseum_last_wave_duration    (configs/all.varp:8291)
+  why= name: varp4136_colosseum_last_wave_duration
+  read_by: colosseum_reward_chest_2_summary_draw  (scripts/colosseum_reward_chest_2_summary_draw.cs2:6): def_string $time_text_string0 = ~torirs_secs_hms(~torirs_scale60_round(%varp4136_colosseum_last_wave_duration), 1);
+  read_by: colosseum_reward_chest_2_summary_draw  (scripts/colosseum_reward_chest_2_summary_draw.cs2:18): def_int $secs_int7 = %varp4136_colosseum_last_wave_duration;
+  read_by: colosseum_intermission_2_summary_draw  (scripts/colosseum_intermission_2_summary_draw.cs2:6): def_string $time_text_string0 = ~torirs_secs_hms(~torirs_scale60_round(%varp4136_colosseum_last_wave_duration), 1);
+  read_by: colosseum_intermission_2_summary_draw  (scripts/colosseum_intermission_2_summary_draw.cs2:18): def_int $secs_int7 = %varp4136_colosseum_last_wave_duration;
+  read_by: torirs_colosseum_wave_complete  (scripts/torirs_colosseum_wave_complete.cs2:4): def_int $time_secs_int7 = ~torirs_scale60_round(%varp4136_colosseum_last_wave_duration);
+  read_by: torirs_colosseum_wave_complete  (scripts/torirs_colosseum_wave_complete.cs2:15): def_int $time_int12 = %varp4136_colosseum_last_wave_duration;
+
+[4137] varp4137_colosseum_total_duration    (configs/all.varp:8293)
+  why= name: varp4137_colosseum_total_duration
+  read_by: colosseum_reward_chest_2_summary_draw  (scripts/colosseum_reward_chest_2_summary_draw.cs2:7): def_int $total_secs_int4 = ~torirs_scale60_round(%varp4137_colosseum_total_duration);
+  read_by: colosseum_intermission_2_summary_draw  (scripts/colosseum_intermission_2_summary_draw.cs2:7): def_int $total_secs_int4 = ~torirs_scale60_round(%varp4137_colosseum_total_duration);
+  read_by: torirs_colosseum_wave_complete  (scripts/torirs_colosseum_wave_complete.cs2:6): def_int $best_secs_int8 = ~torirs_scale60_round(%varp4137_colosseum_total_duration);
+
+[4138] varp4138_colosseum_rewards_1    (configs/all.varp:8295)
+  why= name: varp4138_colosseum_rewards_1; bind: basevar of varbit varb9803_dizanas_quiver_ammo_save, basevar of varbit varb9804_colosseum_gloria_met, basevar of varbit varb9806_colosseum_herb_patch_chat, basevar of varbit varb9807_colosseum_master_intro, basevar of varbit varb9808_colosseum_passionate_supporter_speech, basevar of varbit varb9809_colosseum_boss_cutscene_seen, basevar of varbit varb9810_colosseum_sol_failures, basevar of varbit varb9993_colosseum_entry_warning, basevar of varbit varb11410_colosseum_highest_wave, basevar of varbit varb9805_civitas_spawn
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[4139] varp4139_colosseum_killtime    (configs/all.varp:8297)
+  why= name: varp4139_colosseum_killtime; bind: basevar of varbit varb9811_colosseum_killtime_best, basevar of varbit varb9812_colosseum_killtime_latest
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[4141] varp4141_dizanas_quiver_temp_ammo_amount    (configs/all.varp:8301)
+  why= name: varp4141_dizanas_quiver_temp_ammo_amount
+  read_by: deathkeep_left_redraw_974  (scripts/deathkeep_left_redraw_974.cs2:74): $lost_subid_int14, $lost_y_int15 = ~torirs_deathkeep_emptied_slot(%varp4142_dizanas_quiver_temp_ammo, %varp4141_dizanas_quiver_temp_ammo_amount, $columns_int1, 
+  read_by: deathkeep_left_redraw_974  (scripts/deathkeep_left_redraw_974.cs2:76): $grave_subid_int12, $grave_y_int13 = ~torirs_deathkeep_item_slot(%varp4142_dizanas_quiver_temp_ammo, %varp4141_dizanas_quiver_temp_ammo_amount, $columns_int1, $
+  read_by: torirs_obj_slot_redraw  (scripts/torirs_obj_slot_redraw.cs2:5): ~torirs_obj_remove_slot($parent_component0, $subid_int1, %varp4142_dizanas_quiver_temp_ammo, %varp4141_dizanas_quiver_temp_ammo_amount);
+  read_by: torirs_dizanas_quiver_slot_draw  (scripts/torirs_dizanas_quiver_slot_draw.cs2:3): def_int $ammo_count_num2 = %varp4141_dizanas_quiver_temp_ammo_amount;
+
+[4142] varp4142_dizanas_quiver_temp_ammo    (configs/all.varp:8303)
+  why= name: varp4142_dizanas_quiver_temp_ammo
+  read_by: deathkeep_left_redraw_974  (scripts/deathkeep_left_redraw_974.cs2:74): $lost_subid_int14, $lost_y_int15 = ~torirs_deathkeep_emptied_slot(%varp4142_dizanas_quiver_temp_ammo, %varp4141_dizanas_quiver_temp_ammo_amount, $columns_int1, 
+  read_by: deathkeep_left_redraw_974  (scripts/deathkeep_left_redraw_974.cs2:76): $grave_subid_int12, $grave_y_int13 = ~torirs_deathkeep_item_slot(%varp4142_dizanas_quiver_temp_ammo, %varp4141_dizanas_quiver_temp_ammo_amount, $columns_int1, $
+  read_by: torirs_obj_slot_redraw  (scripts/torirs_obj_slot_redraw.cs2:5): ~torirs_obj_remove_slot($parent_component0, $subid_int1, %varp4142_dizanas_quiver_temp_ammo, %varp4141_dizanas_quiver_temp_ammo_amount);
+  read_by: torirs_dizanas_quiver_slot_draw  (scripts/torirs_dizanas_quiver_slot_draw.cs2:4): def_obj $ammo_obj3 = %varp4142_dizanas_quiver_temp_ammo;
+
+
+# varbits -- 35 records selected from cache.osrs239
+# source: OSRS-Content/osrs239-content/configs/all.varbit (record header line given per record)
+# why= the selection rule(s) that chose the record (LEDGER_cache.md)
+
+[4588] varb4588_colosseum_modifier_mantimayhem_stacks_client    (configs/all.varbit:22943)
+  why= name: varb4588_colosseum_modifier_mantimayhem_stacks_client; data: basevar varp4128_colosseum_int_temp_transmit_2 (configs/all.varbit:22944)
+  basevar=varp4128_colosseum_int_temp_transmit_2
+  startbit=0
+  endbit=2
+  read_by: torirs_colosseum_mod_rank  (scripts/torirs_colosseum_mod_rank.cs2:9): return(%varb4588_colosseum_modifier_mantimayhem_stacks_client);
+
+[9778] varb9778_ca_total_tasks_completed_colosseum    (configs/all.varbit:48893)
+  why= name: varb9778_ca_total_tasks_completed_colosseum
+  basevar=varp4082_ca_boss_tasks11
+  startbit=0
+  endbit=4
+  read_by: ca_specific_taskcount  (scripts/ca_specific_taskcount.cs2:50): $taskcount_int1 = %varb9778_ca_total_tasks_completed_colosseum;
+
+[9788] varb9788_colosseum_selected_modifier    (configs/all.varbit:48943)
+  why= name: varb9788_colosseum_selected_modifier; data: basevar varp4127_colosseum_int_temp_transmit_1 (configs/all.varbit:48944)
+  basevar=varp4127_colosseum_int_temp_transmit_1
+  startbit=0
+  endbit=1
+  read_by: torirs_colosseum_claim_continue_draw  (scripts/torirs_colosseum_claim_continue_draw.cs2:17): if (%varb9788_colosseum_selected_modifier > 0) {
+  read_by: torirs_colosseum_mod_set_card  (scripts/torirs_colosseum_mod_set_card.cs2:5): if (%varb9788_colosseum_selected_modifier = $slot_int1) {
+  read_by: torirs_toggle_vb9788  (scripts/torirs_toggle_vb9788.cs2:3): if (%varb9788_colosseum_selected_modifier = $modifier_int0) {
+  read_by: torirs_toggle_vb9788  (scripts/torirs_toggle_vb9788.cs2:4): %varb9788_colosseum_selected_modifier = 0;
+  read_by: torirs_toggle_vb9788  (scripts/torirs_toggle_vb9788.cs2:6): %varb9788_colosseum_selected_modifier = $modifier_int0;
+  read_by: colosseum_intermission_2_update_tab_content  (scripts/colosseum_intermission_2_update_tab_content.cs2:21): switch_int (%varb9788_colosseum_selected_modifier) {
+
+[9790] varb9790_colosseum_modifier_blasphemy_stacks_client    (configs/all.varbit:48953)
+  why= name: varb9790_colosseum_modifier_blasphemy_stacks_client; data: basevar varp4128_colosseum_int_temp_transmit_2 (configs/all.varbit:48954)
+  basevar=varp4128_colosseum_int_temp_transmit_2
+  startbit=3
+  endbit=5
+  read_by: torirs_colosseum_mod_rank  (scripts/torirs_colosseum_mod_rank.cs2:5): return(%varb9790_colosseum_modifier_blasphemy_stacks_client);
+
+[9791] varb9791_colosseum_modifier_toxicity_stacks_client    (configs/all.varbit:48958)
+  why= name: varb9791_colosseum_modifier_toxicity_stacks_client; data: basevar varp4128_colosseum_int_temp_transmit_2 (configs/all.varbit:48959)
+  basevar=varp4128_colosseum_int_temp_transmit_2
+  startbit=6
+  endbit=8
+  read_by: torirs_colosseum_mod_rank  (scripts/torirs_colosseum_mod_rank.cs2:7): return(%varb9791_colosseum_modifier_toxicity_stacks_client);
+
+[9792] varb9792_colosseum_modifier_reentry_stacks_client    (configs/all.varbit:48963)
+  why= name: varb9792_colosseum_modifier_reentry_stacks_client; data: basevar varp4128_colosseum_int_temp_transmit_2 (configs/all.varbit:48964)
+  basevar=varp4128_colosseum_int_temp_transmit_2
+  startbit=9
+  endbit=11
+  read_by: torirs_colosseum_mod_rank  (scripts/torirs_colosseum_mod_rank.cs2:11): return(%varb9792_colosseum_modifier_reentry_stacks_client);
+
+[9795] varb9795_colosseum_modifier_myopia_stacks_client    (configs/all.varbit:48978)
+  why= name: varb9795_colosseum_modifier_myopia_stacks_client; data: basevar varp4128_colosseum_int_temp_transmit_2 (configs/all.varbit:48979)
+  basevar=varp4128_colosseum_int_temp_transmit_2
+  startbit=12
+  endbit=14
+  read_by: torirs_colosseum_mod_rank  (scripts/torirs_colosseum_mod_rank.cs2:13): return(%varb9795_colosseum_modifier_myopia_stacks_client);
+
+[9796] varb9796_colosseum_modifier_frailty_stacks_client    (configs/all.varbit:48983)
+  why= name: varb9796_colosseum_modifier_frailty_stacks_client; data: basevar varp4128_colosseum_int_temp_transmit_2 (configs/all.varbit:48984)
+  basevar=varp4128_colosseum_int_temp_transmit_2
+  startbit=15
+  endbit=17
+  read_by: torirs_colosseum_mod_rank  (scripts/torirs_colosseum_mod_rank.cs2:15): return(%varb9796_colosseum_modifier_frailty_stacks_client);
+
+[9797] varb9797_colosseum_modifier_solarflare_stacks_client    (configs/all.varbit:48988)
+  why= name: varb9797_colosseum_modifier_solarflare_stacks_client; data: basevar varp4128_colosseum_int_temp_transmit_2 (configs/all.varbit:48989)
+  basevar=varp4128_colosseum_int_temp_transmit_2
+  startbit=18
+  endbit=20
+  read_by: torirs_colosseum_mod_rank  (scripts/torirs_colosseum_mod_rank.cs2:17): return(%varb9797_colosseum_modifier_solarflare_stacks_client);
+
+[9798] varb9798_colosseum_modifier_relentless_stacks_client    (configs/all.varbit:48993)
+  why= name: varb9798_colosseum_modifier_relentless_stacks_client; data: basevar varp4128_colosseum_int_temp_transmit_2 (configs/all.varbit:48994)
+  basevar=varp4128_colosseum_int_temp_transmit_2
+  startbit=21
+  endbit=23
+  read_by: torirs_colosseum_mod_rank  (scripts/torirs_colosseum_mod_rank.cs2:19): return(%varb9798_colosseum_modifier_relentless_stacks_client);
+
+[9799] varb9799_colosseum_modifier_volatility_stacks_client    (configs/all.varbit:48998)
+  why= name: varb9799_colosseum_modifier_volatility_stacks_client; data: basevar varp4128_colosseum_int_temp_transmit_2 (configs/all.varbit:48999)
+  basevar=varp4128_colosseum_int_temp_transmit_2
+  startbit=24
+  endbit=26
+  read_by: torirs_colosseum_mod_rank  (scripts/torirs_colosseum_mod_rank.cs2:21): return(%varb9799_colosseum_modifier_volatility_stacks_client);
+
+[9800] varb9800_colosseum_sol_grapple_pending    (configs/all.varbit:49003)
+  why= name: varb9800_colosseum_sol_grapple_pending; data: basevar varp4128_colosseum_int_temp_transmit_2 (configs/all.varbit:49004)
+  basevar=varp4128_colosseum_int_temp_transmit_2
+  startbit=30
+  endbit=30
+  read_by: wear_updateslot_546  (scripts/wear_updateslot_546.cs2:16): if (%varb9800_colosseum_sol_grapple_pending = 1) {
+
+[9801] varb9801_colosseum_doom_stacks_client    (configs/all.varbit:49008)
+  why= name: varb9801_colosseum_doom_stacks_client; data: basevar varp4129_colosseum_int_temp_transmit_3 (configs/all.varbit:49009)
+  basevar=varp4129_colosseum_int_temp_transmit_3
+  startbit=0
+  endbit=4
+  read_by: torirs_buff_bar_value  (scripts/torirs_buff_bar_value.cs2:466): return(%varb9801_colosseum_doom_stacks_client);
+
+[9802] varb9802_colosseum_loot_opened    (configs/all.varbit:49013)
+  why= name: varb9802_colosseum_loot_opened; data: basevar varp4129_colosseum_int_temp_transmit_3 (configs/all.varbit:49014)
+  basevar=varp4129_colosseum_int_temp_transmit_3
+  startbit=5
+  endbit=5
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9803] varb9803_dizanas_quiver_ammo_save    (configs/all.varbit:49018)
+  why= name: varb9803_dizanas_quiver_ammo_save; data: basevar varp4138_colosseum_rewards_1 (configs/all.varbit:49019)
+  basevar=varp4138_colosseum_rewards_1
+  startbit=0
+  endbit=2
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9804] varb9804_colosseum_gloria_met    (configs/all.varbit:49023)
+  why= name: varb9804_colosseum_gloria_met; data: basevar varp4138_colosseum_rewards_1 (configs/all.varbit:49024)
+  basevar=varp4138_colosseum_rewards_1
+  startbit=3
+  endbit=3
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9805] varb9805_civitas_spawn    (configs/all.varbit:49028)
+  why= data: basevar varp4138_colosseum_rewards_1 (configs/all.varbit:49029)
+  basevar=varp4138_colosseum_rewards_1
+  startbit=4
+  endbit=4
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9806] varb9806_colosseum_herb_patch_chat    (configs/all.varbit:49033)
+  why= name: varb9806_colosseum_herb_patch_chat; data: basevar varp4138_colosseum_rewards_1 (configs/all.varbit:49034)
+  basevar=varp4138_colosseum_rewards_1
+  startbit=5
+  endbit=5
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9807] varb9807_colosseum_master_intro    (configs/all.varbit:49038)
+  why= name: varb9807_colosseum_master_intro; data: basevar varp4138_colosseum_rewards_1 (configs/all.varbit:49039)
+  basevar=varp4138_colosseum_rewards_1
+  startbit=6
+  endbit=6
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9808] varb9808_colosseum_passionate_supporter_speech    (configs/all.varbit:49043)
+  why= name: varb9808_colosseum_passionate_supporter_speech; data: basevar varp4138_colosseum_rewards_1 (configs/all.varbit:49044)
+  basevar=varp4138_colosseum_rewards_1
+  startbit=7
+  endbit=10
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9809] varb9809_colosseum_boss_cutscene_seen    (configs/all.varbit:49048)
+  why= name: varb9809_colosseum_boss_cutscene_seen; data: basevar varp4138_colosseum_rewards_1 (configs/all.varbit:49049)
+  basevar=varp4138_colosseum_rewards_1
+  startbit=11
+  endbit=11
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9810] varb9810_colosseum_sol_failures    (configs/all.varbit:49053)
+  why= name: varb9810_colosseum_sol_failures; data: basevar varp4138_colosseum_rewards_1 (configs/all.varbit:49054)
+  basevar=varp4138_colosseum_rewards_1
+  startbit=12
+  endbit=14
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9811] varb9811_colosseum_killtime_best    (configs/all.varbit:49058)
+  why= name: varb9811_colosseum_killtime_best; data: basevar varp4139_colosseum_killtime (configs/all.varbit:49059)
+  basevar=varp4139_colosseum_killtime
+  startbit=0
+  endbit=15
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9812] varb9812_colosseum_killtime_latest    (configs/all.varbit:49063)
+  why= name: varb9812_colosseum_killtime_latest; data: basevar varp4139_colosseum_killtime (configs/all.varbit:49064)
+  basevar=varp4139_colosseum_killtime
+  startbit=16
+  endbit=31
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9814] varb9814_pet_insurance_solheredit    (configs/all.varbit:49073)
+  why= name: varb9814_pet_insurance_solheredit
+  basevar=varp1417_pet_insurance2
+  startbit=25
+  endbit=25
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9816] varb9816_pet_menagerie_solheredit    (configs/all.varbit:49083)
+  why= name: varb9816_pet_menagerie_solheredit
+  basevar=varp1416_menagerie_contents2
+  startbit=25
+  endbit=25
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9958] varb9958_quetzal_colosseum    (configs/all.varbit:49793)
+  why= name: varb9958_quetzal_colosseum; bind: multivarbit of npc quetzal_colosseum, multivarbit of loc quetzal_landing_site_colosseum
+  basevar=varp4184_quetzals_2
+  startbit=15
+  endbit=19
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[9990] varb9990_collection_bosses_colosseum_completed    (configs/all.varbit:49953)
+  why= name: varb9990_collection_bosses_colosseum_completed
+  basevar=varp3977_collection_sections4
+  startbit=4
+  endbit=4
+  read_by: torirs_collection_boss_complete  (scripts/torirs_collection_boss_complete.cs2:98): return(%varb9990_collection_bosses_colosseum_completed);
+
+[9992] varb9992_worn_items_dizanas_quiver_charged    (configs/all.varbit:49963)
+  why= name: varb9992_worn_items_dizanas_quiver_charged
+  basevar=varp2898_worn_item_bonus2
+  startbit=29
+  endbit=29
+  read_by: torirs_setbonus_text  (scripts/torirs_setbonus_text.cs2:94): if (%varb9992_worn_items_dizanas_quiver_charged = 1) {
+
+[9993] varb9993_colosseum_entry_warning    (configs/all.varbit:49968)
+  why= name: varb9993_colosseum_entry_warning; data: basevar varp4138_colosseum_rewards_1 (configs/all.varbit:49969)
+  basevar=varp4138_colosseum_rewards_1
+  startbit=15
+  endbit=15
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[10681] varb10681_colosseum_modifier_doom_stacks_client    (configs/all.varbit:53408)
+  why= name: varb10681_colosseum_modifier_doom_stacks_client; data: basevar varp4128_colosseum_int_temp_transmit_2 (configs/all.varbit:53409)
+  basevar=varp4128_colosseum_int_temp_transmit_2
+  startbit=27
+  endbit=29
+  read_by: torirs_colosseum_mod_rank  (scripts/torirs_colosseum_mod_rank.cs2:23): return(%varb10681_colosseum_modifier_doom_stacks_client);
+
+[11410] varb11410_colosseum_highest_wave    (configs/all.varbit:57048)
+  why= name: varb11410_colosseum_highest_wave; data: basevar varp4138_colosseum_rewards_1 (configs/all.varbit:57049)
+  basevar=varp4138_colosseum_rewards_1
+  startbit=16
+  endbit=21
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[16124] varb16124_charges_dizanas_quiver_blessing    (configs/all.varbit:78868)
+  why= name: varb16124_charges_dizanas_quiver_blessing
+  basevar=varp4688_charges_corruption_tracking_2
+  startbit=0
+  endbit=13
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[16127] varb16127_charges_dizanas_quiver_quantity    (configs/all.varbit:78883)
+  why= name: varb16127_charges_dizanas_quiver_quantity
+  basevar=varp4671_charges_toggle_quantity_1
+  startbit=15
+  endbit=30
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+[16161] varb16161_charges_tonalztics_of_ralos_quantity    (configs/all.varbit:79013)
+  why= name: varb16161_charges_tonalztics_of_ralos_quantity
+  basevar=varp4685_charges_toggle_quantity_15
+  startbit=11
+  endbit=26
+  read_by: no clientscript names it (scripts/*.cs2 scanned whole)
+
+
+# varcs (client-only vars) -- 3 records selected from cache.osrs239
+# source: OSRS-Content/osrs239-content/configs/all.varc (record header line given per record)
+# why= the selection rule(s) that chose the record (LEDGER_cache.md)
+
+[1194] varc1194_colosseum_selected_modifier_client    (configs/all.varc:2968)
+  why= name: varc1194_colosseum_selected_modifier_client
+  read_by: torirs_colosseum_claim_open  (scripts/torirs_colosseum_claim_open.cs2:4): %varc1194_colosseum_selected_modifier_client = 0;
+  read_by: torirs_colosseum_modifier_card  (scripts/torirs_colosseum_modifier_card.cs2:34): if (%varc1194_colosseum_selected_modifier_client = $slot_int2) {
+  read_by: torirs_colosseum_continue_claim_draw  (scripts/torirs_colosseum_continue_claim_draw.cs2:7): if (%varc1194_colosseum_selected_modifier_client = 0) {
+  read_by: torirs_colosseum_continue_claim_draw  (scripts/torirs_colosseum_continue_claim_draw.cs2:19): if (%varc1194_colosseum_selected_modifier_client = 0) {
+  read_by: torirs_colosseum_continue_claim_draw  (scripts/torirs_colosseum_continue_claim_draw.cs2:23): if ($mobile_int4 = 0 & %varc1194_colosseum_selected_modifier_client ! 0) {
+  read_by: torirs_colosseum_modifier_detail_panel  (scripts/torirs_colosseum_modifier_detail_panel.cs2:6): if ($slot_int0 = 0 & %varc1194_colosseum_selected_modifier_client ! 0) {
+  read_by: torirs_colosseum_modifier_detail_panel  (scripts/torirs_colosseum_modifier_detail_panel.cs2:7): $slot_int0 = %varc1194_colosseum_selected_modifier_client;
+  read_by: torirs_colosseum_modifier_detail_panel  (scripts/torirs_colosseum_modifier_detail_panel.cs2:58): } else if (%varc1194_colosseum_selected_modifier_client ! 0) {
+  read_by: torirs_colosseum_modifier_detail_panel  (scripts/torirs_colosseum_modifier_detail_panel.cs2:59): $modifier_id_int3 = %varc1194_colosseum_selected_modifier_client;
+  read_by: torirs_toggle_varcint1194  (scripts/torirs_toggle_varcint1194.cs2:6): if ($modifier_int2 = %varc1194_colosseum_selected_modifier_client) {
+  read_by: torirs_toggle_varcint1194  (scripts/torirs_toggle_varcint1194.cs2:7): %varc1194_colosseum_selected_modifier_client = 0;
+  read_by: torirs_toggle_varcint1194  (scripts/torirs_toggle_varcint1194.cs2:9): %varc1194_colosseum_selected_modifier_client = $modifier_int2;
+
+[1195] varc1195_colosseum_reward_chest_2_tab    (configs/all.varc:2970)
+  why= name: varc1195_colosseum_reward_chest_2_tab
+  read_by: torirs_colosseum_reward_chest  (scripts/torirs_colosseum_reward_chest.cs2:8): %varc1195_colosseum_reward_chest_2_tab = 0;
+  read_by: torirs_colosseum_reward_chest  (scripts/torirs_colosseum_reward_chest.cs2:17): %varc1195_colosseum_reward_chest_2_tab = 0;
+  read_by: torirs_loot_summary_tabs  (scripts/torirs_loot_summary_tabs.cs2:7): $x_int1 = ~torirs_framed_tab($tabs_component0, $x_int1, 0, $tab_width_int2, 4, 7496785, "Loot", 495, 16750623, 0, -1, 0, 0, 0, 0, ~torirs_int_eq(0, %varc1195_co
+  read_by: torirs_loot_summary_tabs  (scripts/torirs_loot_summary_tabs.cs2:9): $x_int1 = ~torirs_framed_tab($tabs_component0, $x_int1, 1, $tab_width_int2, 4, 7496785, "Summary", 495, 16750623, 0, -1, 0, 0, 0, 0, ~torirs_int_eq(1, %varc1195
+  read_by: colosseum_reward_chest_2_update_tab_change  (scripts/colosseum_reward_chest_2_update_tab_change.cs2:3): %varc1195_colosseum_reward_chest_2_tab = $tab_int0;
+  read_by: colosseum_reward_chest_2_update_tab_content  (scripts/colosseum_reward_chest_2_update_tab_content.cs2:7): switch_int (%varc1195_colosseum_reward_chest_2_tab) {
+
+[1196] varc1196_colosseum_intermission_2_tab    (configs/all.varc:2972)
+  why= name: varc1196_colosseum_intermission_2_tab
+  read_by: torirs_colosseum_intermission  (scripts/torirs_colosseum_intermission.cs2:75): %varc1196_colosseum_intermission_2_tab = 0;
+  read_by: torirs_colosseum_mod_hover  (scripts/torirs_colosseum_mod_hover.cs2:13): if (%varc1196_colosseum_intermission_2_tab = 0) {
+  read_by: torirs_colosseum_view_tabs  (scripts/torirs_colosseum_view_tabs.cs2:7): $index_int1 = ~torirs_framed_tab($tabs_component0, $index_int1, 0, $tab_width_int2, 3, 7496785, "Modifiers", 495, 16750623, 0, -1, 0, 0, 0, 0, ~torirs_int_eq(0,
+  read_by: torirs_colosseum_view_tabs  (scripts/torirs_colosseum_view_tabs.cs2:9): $index_int1 = ~torirs_framed_tab($tabs_component0, $index_int1, 1, $tab_width_int2, 3, 7496785, "Loot", 495, 16750623, 0, -1, 0, 0, 0, 0, ~torirs_int_eq(1, %var
+  read_by: torirs_colosseum_view_tabs  (scripts/torirs_colosseum_view_tabs.cs2:11): $index_int1 = ~torirs_framed_tab($tabs_component0, $index_int1, 2, $tab_width_int2, 3, 7496785, "Summary", 495, 16750623, 0, -1, 0, 0, 0, 0, ~torirs_int_eq(2, %
+  read_by: torirs_colosseum_tab_set  (scripts/torirs_colosseum_tab_set.cs2:3): %varc1196_colosseum_intermission_2_tab = $tab_int0;
+  read_by: colosseum_intermission_2_update_tab_content  (scripts/colosseum_intermission_2_update_tab_content.cs2:18): switch_int (%varc1196_colosseum_intermission_2_tab) {
+

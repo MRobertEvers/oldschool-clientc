@@ -1,0 +1,41 @@
+# sound effects -- 37 selected from OSRS-Content/osrs239-content/pack/4_soundeffects.pack (Jagex's own names)
+# why= the selection rule(s); `bind: frame sound of seq N` means the cache
+# itself plays it in-band; every other row is a server-side choice.
+
+155	fireblast_cast_and_fire	(pack/4_soundeffects.pack:156)	why= doc: INFERNO_SOUNDS.md s2/s8; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:161
+156	fireblast_hit	(pack/4_soundeffects.pack:157)	why= doc: INFERNO_SOUNDS.md s2/s8; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_adds.rs2:541 (+2)
+163	firewave_hit	(pack/4_soundeffects.pack:164)	why= doc: INFERNO_SOUNDS.md s3/s8; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_jad.rs2:243 (+1)
+166	heal	(pack/4_soundeffects.pack:167)	why= doc: INFERNO_SOUNDS.md s5/s8; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_adds.rs2:231
+291	firebat_attack	(pack/4_soundeffects.pack:292)	why= family: ^firebat_; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:656
+295	firebat_death	(pack/4_soundeffects.pack:296)	why= family: ^firebat_; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:658
+296	firebat_hit	(pack/4_soundeffects.pack:297)	why= family: ^firebat_; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:657
+408	dragon_attack	(pack/4_soundeffects.pack:409)	why= doc: INFERNO_SOUNDS.md s8; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:392 (+1)
+409	dragon_death	(pack/4_soundeffects.pack:410)	why= doc: INFERNO_SOUNDS.md s8; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:163 (+2)
+410	dragon_hit	(pack/4_soundeffects.pack:411)	why= doc: INFERNO_SOUNDS.md s2/s8; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:162 (+2)
+595	lavabeast_attack	(pack/4_soundeffects.pack:596)	why= family: ^lavabeast_; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:688 (+2)
+596	lavabeast_death	(pack/4_soundeffects.pack:597)	why= family: ^lavabeast_; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:690 (+3)
+597	lavabeast_hit	(pack/4_soundeffects.pack:598)	why= family: ^lavabeast_; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:689 (+3)
+598	magmaquiris_attack	(pack/4_soundeffects.pack:599)	why= family: ^magmaquiris_; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:309 (+3)
+599	magmaquiris_death	(pack/4_soundeffects.pack:600)	why= family: ^magmaquiris_; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:311 (+3)
+600	magmaquiris_hit	(pack/4_soundeffects.pack:601)	why= family: ^magmaquiris_; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:310 (+3)
+601	magmaquiris_spines	(pack/4_soundeffects.pack:602)	why= family: ^magmaquiris_
+608	lizard_cleric_attack	(pack/4_soundeffects.pack:609)	why= family: ^lizard_cleric_; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:430 (+5)
+609	lizard_cleric_death	(pack/4_soundeffects.pack:610)	why= family: ^lizard_cleric_; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:432 (+5)
+610	lizard_cleric_hit	(pack/4_soundeffects.pack:611)	why= family: ^lizard_cleric_; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:431 (+3)
+1615	dagganoth_attack	(pack/4_soundeffects.pack:1616)	why= family: ^dagganoth_(attack|hit|death|spines)$; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:469
+1621	dagganoth_death	(pack/4_soundeffects.pack:1622)	why= family: ^dagganoth_(attack|hit|death|spines)$; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:471
+1622	dagganoth_hit	(pack/4_soundeffects.pack:1623)	why= family: ^dagganoth_(attack|hit|death|spines)$; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:470
+1623	dagganoth_spines	(pack/4_soundeffects.pack:1624)	why= family: ^dagganoth_(attack|hit|death|spines)$
+2039	cave_collapse_1	(pack/4_soundeffects.pack:2040)	why= doc: INFERNO_SOUNDS.md s7 cave block; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_pillars.rs2:114 (+1)
+2040	cave_bats	(pack/4_soundeffects.pack:2041)	why= doc: INFERNO_SOUNDS.md s7 cave block
+2041	cave_bubbling_loop_1	(pack/4_soundeffects.pack:2042)	why= doc: INFERNO_SOUNDS.md s7 cave block
+2042	cave_growl_1	(pack/4_soundeffects.pack:2043)	why= doc: INFERNO_SOUNDS.md s7 cave block
+2043	cave_insects_1	(pack/4_soundeffects.pack:2044)	why= doc: INFERNO_SOUNDS.md s7 cave block
+2044	cave_insects_2	(pack/4_soundeffects.pack:2045)	why= doc: INFERNO_SOUNDS.md s7 cave block
+2045	cave_rumbling_1	(pack/4_soundeffects.pack:2046)	why= doc: INFERNO_SOUNDS.md s7 cave block; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:253
+2046	cave_rumbling_2	(pack/4_soundeffects.pack:2047)	why= doc: INFERNO_SOUNDS.md s7 cave block
+2066	fire_crackling_med	(pack/4_soundeffects.pack:2067)	why= bind: soundid of loc tzhaar_sulphar_vent
+2294	cavein	(pack/4_soundeffects.pack:2295)	why= doc: INFERNO_SOUNDS.md s7; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:381
+3528	surok_mindcontrol_impact	(pack/4_soundeffects.pack:3529)	why= doc: INFERNO_SOUNDS.md s2/s8; ref: server/scripts/minigames/minigame_inferno/configs/inferno.npc:736 (+1)
+4502	lore_inferno_impact	(pack/4_soundeffects.pack:4503)	why= name: lore_inferno_impact
+4524	lore_inferno	(pack/4_soundeffects.pack:4525)	why= name: lore_inferno

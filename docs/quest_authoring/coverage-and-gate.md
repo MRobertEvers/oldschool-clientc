@@ -356,7 +356,7 @@ Not judged: a hop further than 24 tiles or to another level (a player may telepo
 hop back to the door's side, a hop with an unknown start, and a room whose step is not driven after
 the hop.
 
-**Known gap: a sealed room the guide does not door-guard.** `room_exits` knows a room is closed only
+**Known gap: a sealed room the guide does not door-guard** (HALF FIXED matthew-mbp-m4-b56-seam1, e0d2cdfcc: `MapWalls` now reads the `.jl2` walls and `enclosure_entries` grades a goto INTO a walled room past its closed door, see below; a goto OUT through a wall still needs a guide obstacle step). `room_exits` knows a room is closed only
 because an obstacle step's door opens on it. A room enclosed by walls the guide never names (no
 obstacle step points into it), or a goto through a wall between two zones that the guide joins with no
 step, cannot be judged without the map's walls. `walkable_probe` (src/torirsserver/test/) reads
@@ -560,3 +560,584 @@ rows never counted, and the step fell through to a weak narration match. Now a r
 names a guide step (or alias) is graded as the step's action. It stays travel only when its source
 line is itself a `goto_tile`, `::goto`, `::tele` or `player.teleport` call (Fenkenstrain's
 `goToMonsterFloor1`). Name the row after the guide step, as usual; no GUIDE-GAP is needed.
+
+### CONTENT_GAP "only <other quest>.rs2, another quest's" for a trigger that serves every quest (matthew-mbp-m4-b55)
+
+Meat and Greet's `leaveColosseumToReturnToEmelio` names `colosseum_exit_lobby`. `helper_coverage`
+said "no [op*]/[ap*] trigger on colosseum_exit_lobby serves this quest (only
+twilightspromise.rs2:367, another quest's)" and then graded the step ALTERNATIVE, a sub-step of
+`returnToEmelioWithNewsOfYourAdvertisingSuccess`. But `[oploc1,colosseum_exit_lobby]` is an
+unconditional `p_teleport` out of the lobby, so it works for every quest. The test used
+`goto_tile` from 1819,9485 to Emelio and skipped the exit the guide names, while the grader read
+FULL. The sampler sent the quest back (sampler-findings: Sample matthew-mbp-m4-b55). When the
+grader cites another quest's file, open that trigger. If it reads no quest var, click it. The
+failure-path legs (`leaveColosseumToGetAnotherKebabFromEmelio`, `enterArenaAfterFailing`) are a
+real ALTERNATIVE when the first fight is won. The grader half is FIXED: see the next section.
+
+### A goto out of a place whose exit the guide names reads FULL through "no trigger ... serves this quest" (Meat and Greet, matthew-mbp-m4-b55; FIXED)
+
+Meat and Greet's `leaveColosseumToReturnToEmelio` names `colosseum_exit_lobby`. The test left the lobby
+with one `goto_tile` from 1819,9485 to Emelio and helper_coverage still read FULL. Two holes, both closed:
+
+- **A plain exit in another quest's file serves every quest.** The only `[oploc1,colosseum_exit_lobby]`
+  lives in `quest_twilightspromise/scripts/twilightspromise.rs2:367`, and `relevant_triggers` counted
+  another quest's loc only when that quest is a prerequisite, so the step read CONTENT_GAP ("no trigger
+  serves this quest (only ..., another quest's)") and then ALTERNATIVE. A trigger whose body reads no
+  `%variable` (`trigger_is_unconditional`) does the same thing for everyone and now counts.
+- **The departure stamp is where the player stood.** `teleported_across` judged a promoted sub-step by
+  the goto BEFORE the hop, which here landed outside the Colosseum (the player then walked in by the
+  entrance). When the goto row carries `at <landing> from <departure>`, the departure tile is now the
+  "before" side: beside the sub-step's loc, landing at the parent, no click on the loc since the last
+  goto -> CHEAT "leaves the <step> side (departure x,z,l stamped by its own row) ... without crossing".
+  The parent's targets are matched by family, so a guide id `mag_emelio_1op` is found in a test that
+  talks to the shell `mag_emelio`.
+
+What an author does: click the exit the guide names, then walk or goto from where it lands. All 130
+committed greens grade the same before and after the change.
+
+Fixture: `python3 tools/quest_gate/helper_coverage_departure_cross_test.py` (3 cases on the reverted
+Meat and Greet run: the goto from the lobby is CHEAT, a click on the exit first is DRIVEN, the same goto
+stamped outside the Colosseum is not a cheat). It reads commits 171bc81b0 and OSRS-Content 343f1b4163,
+which live on the b55 batch branch until that batch merges. On the grader before the fix it fails 2/3.
+
+### A goto back into a cave reads FULL when an earlier row already clicked its entrance (The Eyes of Glouphrie, matthew-mbp-m4-b55; FIXED by `frame_entries`, see the next section)
+
+The Eyes of Glouphrie's guide uses `enterCave` (Brimstail's cave entrance) as the default step of
+almost every stage: `ConditionalStep(this, enterCave)` with `addStep(inCave, ...)`, and in the
+repair stage `fixMachine.addStep(magicGlue, enterCaveAgain)`. The round-3 test clicked the entrance
+twice (rows 3 and 44). After that it went back into the cave three times with `goto_tile`:
+
+- `goto-repairMachine`, from the evergreen at 2359,3529,0;
+- `goto-killCreature1`, from Narnode at 2466,3496,0;
+- `goto-allDead`, from the Grand Tree.
+
+helper_coverage still read FULL 23/23. `enterCave` and `enterCaveAgain` are panel steps, matched to
+their first PASS row, and the crossing checks (`zone_crossing` for branch-only steps,
+`teleported_across` for promoted sub-steps) never look at the stages after that. The sampler sent
+the quest back.
+
+What an author does: when you are outside a place and the guide's step for that state is its way
+in, goto only to the entrance, click it, and read back the landing tile. Do this every time, not
+just the first. What a sampler does: check every goto row's `at <landing> from <departure>` against
+the guide's zones. A departure outside and a landing inside, with no click on the way in since the
+last goto, is a teleport past it.
+### A goto from one cave into another reads FULL (Eadgar's Ruse, matthew-mbp-m4-b55 round 4; OPEN)
+
+`frame_entries` only judges a goto that LEAVES from the surface. A goto that starts in one
+underground place and lands in another is not judged, even when the real route goes up to the
+surface and back down through a door the guide names. Eadgar's Ruse round 4 went from Eadgar's
+cave (2890,10085,2) straight to the Troll Stronghold prison rack (2829,10097,0) and to Burntmeat's
+kitchen (2844,10057,1). On the way it skipped `troll_mad_eadgar_exit`, `troll_stronghold_door` and
+the stairs. The guide names all of them for that state (`leaveEadgarsCaveWithParrot`,
+`enterStrongholdWithParrot`, `goDownNorthStairsWithParrot`, `goDownToPrisonWithParrot`, and the
+same for stages 85 and 87). The steps still read DRIVEN, because helper_coverage matched them to
+other rows: an earlier `catchParrot` row, and the first visit's door click at line 271.
+
+- What an author does: leaving one cave for another place underground is two trips. Click the
+  exit, goto the next entrance on the surface, click it, then click each flight of stairs. Read back
+  the landing tile (and level) after each click.
+- What a sampler does: list every goto row whose departure AND landing are both above z 6400. If
+  the two tiles are in different places (a different dungeon, building or floor), find the guide's
+  steps for that state. A goto that skips any exit, door or stairs the guide names there is a
+  teleport.
+- Grader gap (OPEN): judge an underground-to-underground hop the same way as a surface-to-cave one
+  when the landing zone is a step's zone and the departure is outside every zone of that step.
+
+### "lands at ... from ..., another map frame, without pressing the entrance <step> names ... on every visit" (`frame_entries`, matthew-mbp-m4-b55)
+
+The Eyes of Glouphrie's guide is `new ConditionalStep(this, enterCave)` with `addStep(inCave, ...)`
+at almost every stage. The round-3 test clicked Brimstail's cave entrance twice, then came back into
+the cave three times by `goto_tile` (from the evergreen, from Narnode, from the Grand Tree) and
+helper_coverage read FULL: `enterCave` already had a PASS row. The sampler sent it back.
+
+`frame_entries` now charges the entrance step for every such hop. It reads a `ConditionalStep` whose
+constructor default is ONE ObjectStep on a route obstacle, and whose state zone lies in another map
+frame directly under (or over) that obstacle: the zone's box, folded by whole 6400-tile frames, holds
+the obstacle's tile within 16 tiles. A goto row that leaves the entrance's frame from outside every
+zone of that step and lands in the zone, with no press of the entrance between, is CHEAT on the
+entrance step.
+
+- Not judged: a hop inside one frame (the other route rules read those), a start inside one of the
+  step's own zones, and a dungeon the map puts somewhere else than under its mouth (Eadgar's Ruse's
+  `useParrotOnRack` defaults to the Troll Stronghold entrance, and Eadgar's cave is not under it).
+- What an author does: goto only to the entrance, click it, read back the landing tile. Every visit.
+- One committed green moved when the rule landed: Eadgar's Ruse, `goto-eadgar-3` from Ardougne
+  (2610,3287) into Eadgar's cave (2890,10086,2) past `troll_mad_eadgar_entrance`
+  (`enterEadgarCaveWithTrainedParrot`). It was reopened into batch matthew-mbp-m4-b55. The other 129
+  grade the same before and after.
+
+Fixture: `python3 tools/quest_gate/helper_coverage_frame_entry_test.py` (3 cases on the reverted Eyes
+of Glouphrie run, commits 9813e5044 and OSRS-Content 30d5622731 on the b55 batch branch until it
+merges). 3/3 on the rule, 1/3 on the grader before it.
+
+### `enclosure_entries`: a goto into a walled room past its closed door (matthew-mbp-m4-b56-seam1)
+
+The b56 sampler sent Tale of the Righteous back for a goto past Phileas's house door that
+`door_entries` graded DRIVEN: that rule needs a guide `ObjectStep` on the door, and the guide has
+none. `MapWalls` (helper_coverage.py) parses `maps/m<x>_<z>.jl2` walls and the `.jm2`
+blocked/bridge flags with the server's stamp rules (`torirs_server_scene.c`), `blockwalk` from
+`configs/all.loc`. A door is a wall loc with an Open op or a door/gate name (an open leaf with only
+Close never closes a room). `Grader.enclosure_entries` floods the landing (at most 400 tiles,
+following the room's own climbs to their floors) and charges the goto's step CHEAT when the room has
+a closed door in its perimeter, the departure is outside it, and no PASS row pressed that door in
+the 500 ticks before. Proof: the reverted Tale ledger FULL 30/30 -> TEST_GAP (rows 36, 93);
+`tools/quest_gate/helper_coverage_enclosure_entry_test.py` 6/6, 1/6 with the rule stubbed out.
+Landing it moved 70 committed greens plus bonevoyage, every one on this rule alone (Hetty's house,
+Juliet's room, the Duke's room, Phileas ...); their rows were reopened. Conservative misses: a
+building with a climb down from level 0 (the Champions' Guild), a room over 400 tiles, run-time
+locs, a door-less sealed room reached by a ladder.
+
+### A goto onto a table, a stair or a bar's back reads FULL; a goto out of a room, or with no step named, too (matthew-mbp-m4-b56-grader2)
+
+The b56 round-1 sampler found gotos of the `enclosure_entries` class that the rule still read FULL
+in four tests (atfirstlight, twilightspromise, wanted, dreammentor; shot_sampling_b56_2026-10-03.md).
+Why each missed, and what grades it now:
+
+- **The landing was ON a loc.** A goto lands where it is told, and these landed on Atza's table, a
+  barrel, `civitas_stairs_1x3`'s footprint, the bar's rock: `MapWalls.enclosure` read a blocked tile
+  as no room at all. It now floods from the whole footprint of the loc the player stands in (a
+  2x3 staircase steps off at its front). A blocked landing whose flood reaches no walkable tile
+  (water, the museum barge's gangway) is still no room. A landing on a diagonal wall at a room's
+  corner (`goto-talkToAtza`, 1696,3061, shape 9) is read by where the player stood next, before any
+  press: `(a blocked tile on the room's edge; the player stood at x,z,l next)`. A departure on a
+  blocked tile that steps off into the room is inside it (this removed one seam-1 false CHEAT:
+  death's `goToHaroldDoor1`, from the top of the stairs into the corridor).
+- **No guide step to charge.** `goto-mage`, `pos2.goto` (Wanted!) and `goto-enterHQ` (no
+  `enterHQ` step) were dropped because `_hop_step` found no leaf. Such a hop is now charged to the
+  next guide row before the next goto (`goUpHQ`), else reported as a step of its own, CHEAT:
+  `(goto past <door>)`, `(goto out past <door>)`, `(goto into a sealed pocket)`, `(goto out of a
+  sealed pocket)` with "no guide step to charge: ...".
+- **`enclosure_exits`: "leaves a room the map walls in ... it went out past the closed door".**
+  The mirror: the departure's flood is a room with a closed door, the landing is outside it on the
+  same level at most 24 tiles away (`ENCLOSURE_EXIT_TILES`, `room_exits`' policy: further may stand
+  for a teleport out), and no PASS row pressed the door in the 500 ticks before. Dream Mentor's
+  `goto-returnToOneiromancer` (76 tiles out of the brazier hall) is left to that policy.
+- **`sealed_entries`: "lands at ... in a pocket the map closes on every side".** A landing whose
+  flood closes with no door and no climb, from a tile outside it on the same level of the same
+  frame: behind Verity's bar (`goto-talkToVerity`, 14 tiles, the flap has no op), behind the
+  Custodia and Rising Sun bars, inside the Ikov web, in Kennith's room. A pocket whose edge or
+  inside has a loc with an op or a script trigger is charged only when none of those was pressed in
+  the 500 ticks before (Wanted!'s `pos4.goto` past the swamp cave's stepping stone), and not at all
+  when the run uses one right after the goto (it stood the player AT that loc: Spirits of the Elid's
+  root, Twilight's Promise's Colosseum entrance).
+- **`sealed_exits`: "leaves a pocket the map closes on every side ... no walk leaves it"**
+  (matthew-mbp-m4-b62-seam2). The mirror of `sealed_entries`: the DEPARTURE's flood closes within
+  400 tiles with no door, no climb and no climb down from level 0, and the landing is outside it on
+  the same level of the same map frame, at ANY distance (a pocket has no door to walk out of, so
+  `enclosure_exits`' 24-tile cap does not apply). It is charged unless a PASS row pressed one of the
+  pocket's op locs in the 500 ticks before (since matthew-mbp-m4-b63-seam1: only a press made after
+  the player last arrived in the pocket that nothing after shows still inside; see "A goto through
+  the only gate" below). Another Slice of H.A.M.'s `goto-talkToTegdak` left the
+  train platform (2488,5536, 296 tiles, its only op loc the way back to the city) for Tegdak in the
+  dig and read FULL. Landing it reopened Holy Grail's `goto-talkToFisherman` (out of the pocket
+  past the Black Knight Titan, where `defeat_titan` lands the player) and Watchtower's
+  `goto-leaveGrewIsland` (over the water from Grew's island instead of the rope swing). Fixtures:
+  `asoh_sealed_departure`, `asoh_sealed_departed_outside`, `asoh_sealed_op_pressed`,
+  `asoh_run2_full_route`.
+- **Deliberately not graded:** a goto across a climb the guide names in an ObjectStep (the White
+  Knights' Castle stairs, the Taverley Dungeon ladder, the Lumbridge cellar trapdoor). Plain climbs
+  are travel; a prototype charging them moved 24 more tests (8 greens) and reverses that policy.
+  The Champions' Guild keeps its climb-down skip: `champions_trap_door_open` has no maplink row, so
+  where the cellar is cannot be read. McGrubor's Wood (876 tiles), the essence mine (825) and the
+  Black Knights' base in Taverley Dungeon (707) are over the 400-tile room limit.
+
+What an author does: never goto onto furniture or behind a counter; stand on the walkable side and
+talk or use across it. To leave a room, click its door (or walk out an open doorway), then goto.
+
+Proof: `tools/quest_gate/helper_coverage_enclosure_hops_test.py` (12 cases on the four round-1 runs,
+commits 7936d2d97 and OSRS-Content 994d64d507): 12/12, 4/12 with all four changes off, and each
+change off fails its own cases. Landing it moved 15 committed greens of b56 (blackknight,
+cooks_assistant, eadgar, enlightenedjourney, hauntedmine, hero, hunt, ikov, itgronigen, murder,
+queenofthieves, recruitmentdrive, seaslug, shadowsofcustodia, totem) and 25 of the 71 seam-1
+reopened rows; the list is build/seam_state/matthew-mbp-m4-b56-grader2/movers.tsv. Since
+matthew-mbp-m4-b62-seam2 the same file holds 16 cases (the four `asoh_*` `sealed_exits` cases on
+Another Slice of H.A.M.'s round-7 pair ab832b98d / OSRS-Content 58364738ca; `asoh_run2_full_route`
+is graded only while its build/orchestrator/fix_b62/r2/ files exist, else 15): 16/16.
+
+### `reach.py` says NEEDS-OP; a goto over a trap, a log or climbing rocks reads CHEAT (matthew-mbp-m4-b60-seam0)
+
+The sample tools (`test/quests/orchestrator/matthew-mbp-m4/reports/sample_tools/reach.py`,
+`goto_table.py`, `comp.py`) and `MapWalls` used to treat every `blockwalk=0` loc as floor. Regicide's
+pitfalls (Jump), tripwires (Step-over) and woodsprings (Pass) are such locs, and
+`regicide_traps.rs2:118-153` hurts a player who steps on them, so a goto from the Arandar gate to
+Islwyn's camp read `REACH closed-doors len=545`. Three b59 tests (rovingelves, mourningsendparti
+twice) went back for gotos the tool had called clean (sampler-findings, "Sample matthew-mbp-m4-b59,
+round 3" (a)).
+
+Now, by default:
+
+- **An OP LOC blocks the flood.** That is a loc on a tile the map leaves walkable (`blockwalk=0`, or a
+  ground decoration that is not `blockwalk=1` and active) with any `op1`-`op5`. Two kinds are not op
+  locs. A loc whose every op is in `PASS_THROUGH_OPS` is walked through: an open door leaf (Close) and
+  a crop (Pick: X Marks the Spot's dig in the Draynor wheat). A wall decoration (shapes 4-8) is clicked
+  from the tile beside it.
+- **A ZONE-TRIGGER tile blocks too.** These are the tiles a `[zone]`/`[mapzone]` timer hurts you on,
+  and `sample_tools/zone_triggers.tsv` lists them with the `.rs2` file:line. It covers Regicide's
+  tripwire (its tile and the tiles north and east of it), Regicide's pitfalls, and the Underground
+  Pass spear traps (the tile and the tile north). Add a row when you find another walk trigger.
+- **`reach.py` answers one rung**, in this order:
+  1. `REACH closed-doors`.
+  2. `NEEDS-DOOR via <door>@x,z`.
+  3. `NEEDS-OP len=N via <loc>@x,z,... [doors ...] [zone triggers: <file:line>]`. This is the path that
+     clicks the fewest op locs, then crosses the fewest doors. It may also cross a ground decoration
+     that blocks and has an op, such as Troll Stronghold's climbing rocks. REACH and NEEDS-DOOR treat
+     those as solid.
+  4. `UNREACHABLE`.
+
+  Pass `--allow-op-locs` to get the old flood back. `goto_table.py` tries margins 30, 100 and 250
+  until a hop reads REACH. A charge is the widest box's. `comp.py` prints the doors and op locs on the
+  edge of its component.
+- **`MapWalls` (`enclosure_entries`, `enclosure_exits`, `sealed_entries`, `sealed_exits`) agrees.** Op tiles and
+  trigger tiles stop its flood as blocked tiles do (`MapWalls.OP_LOCS_BLOCK`). The loc becomes one of
+  the room's `ops`.
+
+What an author does: walk to the trap and press it (`click_loc` with the op), then grade the tiles
+before and after. Never goto across one. Stage the Agility level the trap needs in setup.
+
+Proof: `tools/quest_gate/helper_coverage_op_loc_reach_test.py` 9/9. The test runs each rule in both
+settings:
+
+- The b59 rovingelves round-1 ledger (OSRS-Content 9f83f98e1b): rows 7, 16, 38, 44 and 93 read
+  NEEDS-OP via the pitfall at 2276-2278,3263 and the woodspring at 2235,3181. With `--allow-op-locs`
+  they read REACH.
+- The round-3 ledger (dafbe3c8e3) stays clean.
+- Lumbridge gotos stay REACH.
+- Monkey Madness `goto-talkToZooknock` grades CHEAT: a 294-tile pocket past
+  `mm_double_springtrap_trigger`. With `OP_LOCS_BLOCK` False it grades DRIVEN.
+
+What landing it moves:
+
+- **`helper_coverage --all-green`.** Of 78, only mm changed: FULL went to TEST_GAP (rows 110 and 221),
+  and `gate.py mm` is RED.
+- **`goto_table.py` over all 142 published ledgers (2,384 goto rows).** Six new NEEDS-OP rows:
+  - mm 110 and 221;
+  - regicide 362 (`goto-passTrap5-again` across `upass_speartrap`);
+  - troll 15 (`goto-enterArena` over the climbing rocks);
+  - contact 6 and 135 (`icthalarins_door_arch`). This arch is `blockwalk=0` with an Open op and has no
+    `[oploc]` handler, so a sampler should judge it.
+
+  The wider margins also turned 11 old `UNREACHABLE (margin 30)` rows into NEEDS-DOOR (desertrescue's
+  `thttmineexitl` four times, Taverley's member gate, ...) and 27 into REACH.
+
+### A "use X on Y" step reads DRIVEN though the run used another item on Y (Shades of Mort'ton, matthew-mbp-m4-b57-grader3)
+
+The b57 sampler (sampler-findings.md, b57 (a)) sent Mort'ton back. The run cured Razmire and
+Ulsquire with Serum 207 and never made Serum 208, but `use208OnRazmire` and `use208OnUlsquire`
+still read DRIVEN: "an action at line 366 names 'razmire_keelgan_afflicted'". Line 366 is only a
+`by_symbol` lookup. `use207OnFlame` read DRIVEN from the olive oil used on the altar. The verdict
+was FULL. There were two causes. `Guide.items` kept only an ItemRequirement's first id: no
+`addAlternates`, no ItemCollections, no `addIcon`. And nothing knew `mort_serum3` was a dose of the
+guide's `mort_serum1`. So the old `^use` check never saw the cure as a guide item, and the
+any-action-names-the-target loop drove the step.
+
+`Grader.use_item_wanted` / `use_item_driven` replace that now:
+
+- **Which steps.** A step counts when it has an npc/loc target and its text leads with "Use", or
+  when it is named `use<X>On<Y>`. A step named for another verb that a later clause does is left
+  out: "Use the filled druid pouch on a ghast ... and kill it" is `killGhasts`. So is "use the
+  ancient mace's special attack" (`useSpecial`) and a step that only carries its items.
+- **Which item.** Take the `use <X> on|with|in <Y>` clause whose `<Y>` names the target. "Then use
+  it on the pipe" means the clause before's `<X>`. X is the requirement or icon its words name
+  best, by the requirement's name or the display name of any id it accepts. If no name matches, use
+  the highlighted requirement, then the icon. Every id the requirement accepts counts: the ctor's,
+  `addAlternates`, ItemCollections (Quest Helper's `ItemCollections.java`).
+- **Same item.** `obj_family`: the noted form, placeholder and stack images (`certlink`,
+  `placeholderlink`, `countobj`), and dose or charge variants. Those are the objs whose display
+  name matches once a trailing `(N)` is cut, where one of the two carries the `(N)`. Olive oil(3)
+  is the guide's Olive oil(4). `same_thing`'s display rule also counts (Viking's sealed vase,
+  `_water` / `_frozen`). Not `next_obj_stage`, which walks into other objects (`oliveoil4 ->
+  sacred_oil4`).
+- **What drives it.** A `use_on(item, target)` call on the step's target, or one whose row is
+  named after the step when the call names no npc or loc this cache has (an unbound variable): a
+  row named after the step never stands in for a use on ANOTHER npc or loc (b66-seam1, the section
+  at the end of this file). The call's item must be in the family. That is its literal, the local it
+  was bound to, or a loop over `ipairs({...})`. If the item is a variable the test never binds,
+  the row's `[backpack: ... lost X]` must show the item left. A call that writes a named row needs
+  a PASS of that row in the ledger (`"x" .. i` matches by prefix). Without one, the run never got
+  there, and the step is refused. A row named after the step with no `use_on` counts when its
+  backpack diff lost X; a row a `use_on` line writes is judged by that call's target only.
+- **Otherwise.** The other classes grade it as they grade any undriven step. UNMATCHED reads "no
+  use_on of the step's item drives it: the guide's step uses <item> (<ids>) on <target>; line N
+  (ledger row ...) uses <what it used>".
+
+What an author does: use the guide's item on the guide's target with `t.player.use_on`. If the port
+offers another item (Legends' glowing dagger on Ungadulu), or the content's own op does the job
+(the Red Vine "Check", Viking's pipe), declare it with an `ANY-OF:` / `GUIDE-GAP:` marker that
+cites the `.rs2` branch.
+
+Proof: `tools/quest_gate/helper_coverage_use_item_test.py` uses the reverted Mort'ton run (Lua
+03d4ac076, OSRS-Content ledger b52050c293). Rule on: 8/8. With `QUEST_GATE_USE_ITEM_RULE=0`: 5/8.
+With the rule off, the three steps are DRIVEN, the unbound-item and never-ran cases fail, and
+every other grade is identical to v3 over the 62 b57 greens. The rule moves seven green steps in
+six tests, listed in build/seam_state/matthew-mbp-m4-b57-grader3/movers.tsv:
+
+- legends `talkToUngaduluForForce`: the glowing dagger, not the dark dagger.
+- itwatchtower `useNightshadeOnGuard` and `useNightshadeOnGuardAgain`: the run stopped BLOCKED
+  before them.
+- shadowstorm `useImplementOnGolem`: the same.
+- fishingcompo `goToRedVine`: a click on the vine.
+- thefeud `pickupDung`: no use at all.
+- viking `useStrangeObjectOnPipe`: a click on the pipe.
+
+Two verdicts change: legends FULL -> TEST_GAP, shadowstorm TEST_GAP -> MIXED.
+
+### "names <npc>, but its own action does not reach that npc": a row named after the npc is not a talk (matthew-mbp-m4-b62-seam1)
+
+An NpcStep's noun match ("retrieve it from Harold" against a row whose NAME holds `harold`) used to
+credit any action row. Death Plateau's optional `talkToHarold3` read DRIVEN through
+`goToHaroldStairs1.castleDoorOut`, a `pass_door`. Now (`Grader.row_reaches_npc`) the match counts
+only a row whose detail names one of the step's npc symbols (an accepted press reports its target),
+or whose own `t.exec` span presses that npc (`talk_to`/`click_npc`/`npc_op`, `attack`, `use_on`;
+`emote` for an NpcEmoteStep). A pass_door, a walk, a varbit read, a leg checkpoint or a dialogue
+page row named after the npc no longer drives a talk step; it is refused with `ledger row N 'X'
+names <noun>, but its own action does not reach that npc`. Fixture:
+`helper_coverage_two_op_test.py` `death_as_committed` / `death_row_reaches`. Moves at the time:
+death `talkToHarold3` DRIVEN -> ALTERNATIVE (still FULL); anothersliceofham FULL -> TEST_GAP
+(`talkToZanikRailway` was credited only by `zanik.at_dig`, a varbit read); eadgar, mm and seaslug
+steps regraded with no verdict move. OPEN: the generic target-token loop at the end of
+`Grader.driven` still credits by name (seaslug `travelWithHolgartFreeingKennith` via
+`holgartsunkboat.drain_board`; death `goToHaroldStairs3` via an earlier visit's stairs row).
+
+### A goto through the only gate, onto a solid tile, or off an island it swung onto; a use that did nothing (matthew-mbp-m4-b63-seam1)
+
+Four holes the b63 fixers found, each closed in `helper_coverage.py`, each with a `Grader` switch
+(False restores the old reading for the fixtures):
+
+- **`gate_crossings`: "goes from ... to ...: with every door shut no walk joins them (margin 160),
+  and every walk on foot opens <gate> (NEEDS-DOOR at margins 30/80/160) ... it skipped an only-way
+  gate"** (`GATE_CROSSINGS`). The b59 sampler ruling as a map question (sampler-findings.md "Sample
+  matthew-mbp-m4-b59" (a)): a gate that is the only way on foot between two regions is clicked on
+  every crossing, however large they are. `MapWalls.only_way_gates` is reach.py's flood on the
+  grader's own map reader: no walk with every closed door shut inside the hop's box widened by 160
+  tiles, and the shortest walk with doors open crosses the SAME gate (or the other leaf within 2
+  tiles) at every margin of 30, 80 and 160 that has a walk at all (a margin too small to go round
+  says nothing). Charged unless a PASS row pressed that gate (its copy, or a local bound to it:
+  `prince.unlock` uses the key on `alidoor_target`) in the 500 ticks before. This also covers a
+  fenced yard bigger than `enclosure_entries`' 400 tiles: Dwarf Cannon's railing yard closes at
+  1,325, and the committed run (69f7e7bd8 / OSRS-Content 22669be78) read FULL while it hopped in and
+  out of it and on to Nulodion's workshop. The departure: the goto's own `from` stamp, else the
+  reading before it when every row between kept the player on one side of every door (a talk, a
+  page, a read, a walk, a press of a loc that is no door, climb or travel loc: `_side_kept`); a
+  press's `walk_near: stepped off the target tile A (A -> B)` is read as B. The run's start is
+  judged (owner ruling 2026-10-05: the first goto and the setup placement obey the door rule;
+  matthew-mbp-m4-b64-seam1): a first goto with no `from` stamp leaves from the fixture's tile (its
+  ini's `x`/`z`/`level`), or from the last setup placement's landing, in every rule; and the setup's
+  net placement (a `::goto`/`::tele`, or a debugproc whose body reaches `p_teleport`/`p_telejump`
+  through `@label`/`~proc` two levels down) is a ledger row of its own, `(setup placement) <cheat>`,
+  from the fixture's tile to the run's first reading (else the tile the script names), charged to a
+  step of that name. A BLOCKING loc a walk crosses by its own op (shapes 9-21 with Cross, Go-through,
+  Squeeze, Jump...; never a ladder or stair: `MapWalls.is_crossing`) is a gate too: when no walk
+  exists even with the doors open, the route may enter it (fewest crossings, then doors, then
+  shortest) and names it -- the Wilderness Ditch (`ditch_wilderness_cover`, 3106,3521), the Shantay
+  Pass (`shantay_pass_henge_doorway`, 3302,3116, with its op-less `inviswall`), the Barbarian agility
+  pipe; the detail then says `crosses (by its own op) ... (NEEDS-OP ...)`. A `cross_trap` row
+  pressing it in the 500 ticks before credits it like a gate press. Not judged: a hop to another
+  level or map frame, a hop over 1,200 tiles on its longer axis, a row
+  `enclosure_entries`/`enclosure_exits` already charged, a start whose landing is unknown (a setup
+  `::tele <name>`, a debugproc whose teleport target is computed). A hop with NO route at margin 160
+  is no longer skipped: it is flooded at 250/400/600 and charged as a gate or as "no on-foot route"
+  (matthew-mbp-m4-b65-seam1, the section at the end of this file).
+- **`solid_landings`: "lands at x,z,l on a solid tile (<loc> at ...): no walk ends there"**
+  (`SOLID_LANDINGS`). A goto row (a `goto_tile`/`::goto` line, or goto_tile's bare `at x,z,l[ from
+  ...]` detail; never a climb row named `goToFirstFloor` whose `at` is the stair's own tile) that
+  lands on a tile the map blocks: an object's footprint (stairs, a ladder, a cave entrance, a
+  crate, a diagonal railing, a table), a blocking ground decoration, or a blocked floor flag (a pier
+  edge, water). Charged to a step of its own, `(goto onto <loc>)`, never to the guide step: the
+  fault is the goto row's, and a landing on the staircase the next row climbs did not skip the
+  climb. Every goto with a landing is judged, the first included.
+- **A "use X on Y" step needs an effect** (`USE_NEEDS_EFFECT`). `use_item_driven` used to refuse a
+  call only when it wrote a named row that never PASSed, so a bare `local r, d =
+  t.player.use_on(...)` was DRIVEN from its source line (Haunted Mine's `useKeyOnValve`: the press
+  timed out, the key stayed in the pack, no line was said). Now the call's row is its `t.exec`
+  span, or a `t.check`/`t.expect` within 12 lines that reads one of its answers; with neither it is
+  refused "line N is a bare use_on". The row (or a row named after it, `useX.var`, or a read row
+  before the next press, walk or goto) must show an effect: an item lost or gained, a server line
+  (`chat_message`: the driver answers `refused` on "Nothing interesting happens."), a `matched:`
+  line, a var or `quest.stage` read, a page or interface, a landing or a tile check. A row that only
+  says `map_flag` reads "shows no effect". `driven()`'s older `^use` fallback ("an action at line N
+  uses X on the target") takes the same test (`_line_use_effect`).
+- **`sealed_exits`' pocket press** (`POCKET_PRESS_SINCE_ARRIVAL`). Any press of a pocket's op loc
+  in the 500 ticks before used to exempt the hop out, so Watchtower's rope used on
+  `tree_ropeswing4_norope` (the way IN to Grew's island, `landed 2505,3087,0`) exempted a goto off
+  the island. `_pocket_left_by_press` reads the rows in order and each detail in its own order: a
+  press is a candidate; a reading outside the pocket after it keeps it (the press took the player
+  out); a reading inside drops it unless the row says it opened something (`open leaf`, `opened`,
+  `unlocked`). A press with no reading after it keeps the benefit (`asoh_sealed_op_pressed`).
+
+What an author does: never goto onto a loc (stand on a walkable tile beside it and press it);
+cross a members' gate, a yard gate or a fence gate with `t.player.cross_gate` / `pass_door` on
+every crossing, or use a real teleport (`t.player.teleport_cast`) for a long trip; record every use
+through `t.exec` (or a `t.check` of its answer) and read what it did on the next row.
+
+Proof: `tools/quest_gate/helper_coverage_two_op_test.py` 19/19 (the five old cases plus 14:
+`mcannon_rules_off` FULL with every switch off; `mcannon_committed` TEST_GAP with six
+`gate_crossings` CHEATs and three `(goto onto ...)` steps; `mcannon_gate_pressed` /
+`mcannon_gate_not_pressed`; `mcannon_off_the_crate`; five synthetic Haunted Mine use cases;
+`hm_fullroute`, the b63 fixer's copy with its GUIDE-GAP marker removed, graded only while
+build/orchestrator/fix_b63/ holds it; `wt_goto_off_island` CHEAT, `_off` FULL, `wt_swung_off_first`
+FULL). Every other helper_coverage fixture file holds. `--calibrate` 12/39 -> 15/39. Re-grading the
+108 green rows moved 47 (45 verdicts, plus mm and shadowstorm, already not FULL); the list with
+each charged goto is build/seam_state/matthew-mbp-m4-b63-seam1/helper_coverage.movers.json. Six
+movers' only charge is their first goto (death, druid, eadgar, murder, sleepinggiants, soulsbane):
+held for the owner's first-goto ruling, then queued `todo` (the owner ruled 2026-10-05 that the
+first goto obeys the door rule; matthew-mbp-m4-b64-seam1 also judges an UNSTAMPED first goto and the
+setup placement, below).
+The closer's FRESH runs of all 143 committed tests (a fresh ledger stamps the first goto's
+departure) moved 52 queued-green tests: the grader's movers, plus doric, sheep, runemysteries and
+scorpcatcher under the older `enclosure_entries` (HEAD's grader agrees on those ledgers), plus
+itwatchtower (a content change). doric and sheep join the first-goto-only list (eight in all: death,
+doric, druid, eadgar, murder, sheep, sleepinggiants, soulsbane); the other 44 were reopened naming
+their gotos (seam-facts: Seam pass matthew-mbp-m4-b63-seam1 (f)).
+Seam matthew-mbp-m4-b64-seam1 (`helper_coverage_judges_the_start_placement_and_crossing_locs`):
+`START_JUDGED` (an unstamped first goto from the fixture's tile; the setup placement as a
+`(setup placement) <cheat>` row) and `MapWalls.CROSSINGS` (a blocking crossing loc is a gate). Fixtures
+in helper_coverage_two_op_test.py (27/27: `druid_first_goto` CHEAT on goto-talkToKaqemeex past
+membergater 2935,3450, `_off` FULL; `atotc_sphinx` CHEAT naming shantay_pass_henge_doorway 3302,3116,
+`_off` DRIVEN; `eta_placement` CHEAT naming ditch_wilderness_cover, `_off` absent; `eta_remedy` clean;
+`eadgar_unchanged`) and helper_coverage_op_loc_reach_test.py (13/13: reach.py NEEDS-OP via the pass
+and the ditch, goto_table's goto-sphinx row, only_way_gates on and off, reach.py's `--root`).
+`--calibrate` 10/39 -> 9/39 (entertheabyss's audit FULL predates the ruling). Re-grading the 67 green
+rows moved 4: currentaffairs and taleoftherighteous (their setup placement), entertheabyss (its
+placement over the ditch), horror (goto-talkToGunnjorn into the Barbarian agility course past
+agility_obstical_pipe_barbarian 2552,3559; the route from the repaired bridge's east end also names
+two log balances and Lawgof's railing gate, because the bridge is a run-time loc).
+OPEN: a `GUIDE-GAP:` marker on a use step is still accepted when the content has a use trigger on
+the target (the b63 Haunted Mine copy declares "no [oplocu,hauntedmine_lift_valve]"; the
+concurrent content seam adds one).
+
+### "no on-foot route (UNREACHABLE at margin 600)", "the fewest-door walk on foot opens ... at margin N only"; a `goToX` crossing row is no goto (matthew-mbp-m4-b65-seam1)
+
+Two holes the b65 fixers found in `gate_crossings` and `player_track`, closed in
+`helper_coverage.py`, each with a switch (False restores the old reading for the fixtures):
+
+- **A hop with no on-foot route charged nothing** (`Grader.NO_ROUTE_CHARGED`, `MapWalls.NO_ROUTE`,
+  `MapWalls.hop_route`). `only_way_gates` returned `[]` both when a closed-doors walk exists and when
+  no walk exists at 30/80/160 at all, so a goto onto an island, into Morytania past the Paterdomus
+  trapdoor, or round a members' gate the margin-160 box could not hold was clean. Now a hop with no
+  route at 160 (doors open, crossing locs enterable) is flooded again at `WIDE_MARGINS` 250, 400,
+  600: a closed-doors walk there is clean; the FEWEST-door walk (door_route "cross": crossings, then
+  doors, then length -- a shortest walk cuts through every house on the way) is charged naming its
+  gate, "the fewest-door walk on foot opens membergater at 2933,3320,0 (NEEDS-DOOR at margin 250
+  only: no route at all at 30/80/160)" (Making History's row 5 Lumbridge -> Jorral at 250; Chompy
+  Bird's Lumbridge -> Rantz, Clock Tower's -> Kojo and Watchtower's -> the trellis at 400); none at 600
+  is "no on-foot route (UNREACHABLE at margin 600)" (the Pandemonium, Lunar Isle, Mort'ton, Canifis,
+  Lletya). Excused: a travel row between the departure and the goto (a cast or teleport, a climb, a
+  `t.sail` verb that moves the hull or disembarks, a page naming a ferry, boat, cart or carpet, a row
+  NAMED travel/ferry/boat/landed/arrived, or a row whose own detail reads a tile more than 30 from the
+  departure -- The Fremennik Isles' ferry talk whose check says `tile 2311,3782,0 want ...`). Not
+  charged as no-route: a hop whose departure or landing is in a room or pocket the enclosure rules
+  judge (`enclosure()` closes within 400 tiles: `enclosure_entries`/`exits`, `sealed_entries`/`exits`
+  own it), a hop off or onto a solid tile (`solid_landings` owns it), an end on a map square not on
+  disk. Any older switch off (`CROSSINGS`, `START_JUDGED`, `POCKET_PRESS_SINCE_ARRIVAL`,
+  `GOTO_BY_ACTION`) turns this rule off too, so their `*_off` fixtures keep meaning "the reading
+  before that seam".
+- **A diagonal door is a door** (`MapWalls.DIAGONAL_DOORS`). A closed door set diagonally across a
+  wall's corner is an object (shape 9) that blocks its tile; the doors-open walk read it as a wall.
+  The Wizards' Tower ladder room (`fai_wiztower_poor_door` at 3107,3162,0) was a 22-tile room with no
+  way in; Imp Catcher's `goto-moveToTower` now reads "every walk on foot opens fai_wiztower_poor_door
+  at 3109,3167,0, fai_wiztower_poor_door at 3107,3162,0" (Rune Mysteries `pass_door`s both).
+- **The departure is read past a sail verb that moves nothing** (`SAIL_NO_MOVE_KEPT`): `_side_kept`
+  read every `t.sail.` line as a side change, so Prying Times' `goto-thurgo` (after
+  `deliverCargo`, a `t.sail.cargo_deliver`) had no departure. `state`, `tasks`, `task_board`,
+  `task_accept`, `cargo_take`, `cargo_load`, `cargo_deliver` keep the player's side now.
+- **A goto is what a row DID, never its name** (`GOTO_BY_ACTION`). `player_track` read any row whose
+  step name holds `goto`/`goTo` as a goto, and the first `at x,z,l` in its detail as its landing: a
+  `cross_gate` row named `goToHemenster.gateIn` "landed" on the gate's own tile, so its own press was
+  not "before" it and Fishing Contest read CHEAT (the b65 fixer renamed the row to `enterHemenster` to
+  get past it). Now a row is a goto when it is a setup placement or `_real_goto` (its source line calls
+  `goto_tile`/`::goto`, or its detail is goto_tile's own `at x,z,l[ from a,b,c]`, its `::goto` retry's
+  `... on attempt N of M via ::goto` included). Any other row contributes its END tile
+  (`TRACK_END_READS`): `landed x,z,l` (climb, cross_gate), `-> at x,z,l` (pass_door's far side,
+  walk_route's end), a cast's `at a,b,c -> x,z,l`, `reached x,z,l`, `; at x,z,l` (walk_to),
+  `player at x,z,l`. Name a crossing row after the guide step; it no longer changes the grade.
+
+Proof: `tools/quest_gate/helper_coverage_departure_cross_test.py` 19/19 (committed Lua/ledger pairs
+read from git): Prying Times before b65 (753ee4a3c / 74e86ee0d4) gains CHEAT on the `::pryingtimes`
+placement and on `goto-thurgo` (getKey), neither with `NO_ROUTE` off, goto-thurgo not with
+`SAIL_NO_MOVE_KEPT` off; Making History before b65 (9a9d57559 / 776bd1593e) gains talkToJorral row 5
+naming membergater 2933,3320 at margin 250 only; Watchtower 16ad11389 / c436ddab5a (FULL before)
+reads CHEAT on goto-goUpTrellis; Fishing Contest with `enterHemenster` renamed `goToHemenster` reads
+FULL (CHEAT with `GOTO_BY_ACTION` off); death keeps exactly its one charge, grandtree stays FULL; the
+b65 greens of pryingtimes, makinghistory and itwatchtower stay FULL. Re-grading the 71 green rows
+against their committed ledgers moved 10: chompybird, cog, elena, ikov, sheepherder (a members' gate
+at 250/400), dreammentor, mortton, fenkenstrain (`::fenkenstrain`), mourningsendpartii (`::mend2`)
+(no on-foot route), imp (the Wizards' Tower doors). arena, biohazard, mourningsendparti and seaslug
+are not charged. `--calibrate` 10/39 -> 10/39. The closer's fresh runs of all 143 committed tests
+(matthew-mbp-m4-b65-seam1 close) moved exactly those ten and no other queued green; all ten were
+reopened. `helper_coverage_two_op_test`'s `wt_swung_off_first` (the same Watchtower pair) now wants
+`leaveGrewIsland` DRIVEN instead of a FULL verdict.
+
+### A step credited to a same-named npc, or to another copy of its loc (matthew-mbp-m4-b66-seam1)
+
+Seam `helper_coverage_credits_a_step_to_a_same_named_npc_or_another_copy_of_its_loc`. Two ways a
+step read DRIVEN off a row that did not do it:
+
+- **A same-named npc.** `same_thing`'s display-name rule took any npc of the guide npc's display
+  name. Scorpion Catcher's questscorpiona (Taverley), questscorpionb (the Barbarian Outpost) and
+  questscorpionc (the monastery) are all "Kharid scorpion", so a run catching a, b, c credited
+  catchMonasteryScorpion to the use on questscorpionb and catchOutpostScorpion to the use on
+  questscorpiona. Now two npc or loc symbols that BOTH exist in this cache, differ, and are not in
+  each other's `family()` (multinpc/multiloc parents) are different things (`distinct_things`),
+  whatever their names share: the spelling-prefix rule no longer reads `gertrude` as
+  `gertrudescat` or `mourning_temple_pillar_1_1` as `..._1_10` either. The display-name rule is the
+  objs' alone (a guide item's rev 239 variants, `use_item_matches`). A use step is credited only by
+  a `use_on` on the step's own npc or loc (`USE_ON_OWN_TARGET`).
+- **Another copy of the loc.** The last resort credits a row whose detail merely NAMES the step's
+  loc. Cog's climbWhiteLadder (ladder_from_cellar 2575,9655) read DRIVEN off `enterBasement-black`,
+  which climbed ladder_cellar 2566,3242 and only says it landed "beside ladder_from_cellar
+  2566,9642". Now, when the guide step has a WorldPoint, such a row credits it only if it worked the
+  copy within 2 tiles (`row_off_point`, `POINT_SLACK`): the tile written right after the symbol, else
+  any world tile in the detail (four-digit x; a screen pixel pair is not one), else the copy nearest
+  where the player last stood (`player_track`, within 15 tiles). A row with no tile and no copy in
+  reach is not judged. The refusal reads "ledger row N 'x' names <loc>, but names it at <tile>, not
+  the copy within 2 tiles of the guide's x,z,l". A plain stair or ladder the run took at another copy
+  then grades TRAVEL (merged into the step it leads to), not DRIVEN.
+
+What a test does about it: catch, talk to or use on the npc the guide step names (its own symbol),
+and drive each guide step in the guide's item order. Scorpion Catcher's catchOutpostScorpion wants
+the cage holding the Taverley AND monastery scorpions (scorpioncageac): a run that catches the
+outpost scorpion second (cage a) reads UNMATCHED there until it visits the monastery first.
+
+Proof: `tools/quest_gate/helper_coverage_use_item_test.py` 16/16: `scorp_same_name` (the b66
+fixer's three catches, run3's ledger details), `scorp_named_row_elsewhere`, `cog_white_ladder_other_copy`
+(test/quests/cog.lua at 5e3675055, its ledger at OSRS-Content 6762eaf875), four `same_thing` rows,
+and `rules_off`: every case fails with `DISTINCT_SYMBOLS` / `USE_ON_OWN_TARGET` / `ROW_AT_POINT` off
+(each flag alone fails its own case). The b66 scorpcatcher fixer's file on run3's ledger reads
+catchMonasteryScorpion line 349 and catchOutpostScorpion UNMATCHED (was 299 and 234, FULL).
+Re-grading the 68 green rows against their published ledgers moved no verdict: cog climbWhiteLadder,
+grail goUpStairsBrokenCastle, misc_astrid goUpstairsToAstrid and runemysteries
+goF1ToF0LumbridgeCastle went DRIVEN -> TRAVEL (each was credited to another copy of a stair).
+`--calibrate` 11/39 -> 12/39 (scorpcatcher now agrees with the audit's TEST_GAP).
+
+### A step below the block graded CHEAT; a setup give charged for a shared word; a goto charged on its near side (matthew-mbp-m4-b67-seam1)
+
+Seam `helper_coverage_credits_by_a_shared_word_and_charges_steps_below_a_block_by_proximity`. Three
+rules in `tools/quest_gate/helper_coverage.py`, each behind a `Grader` switch:
+
+- **Below the block (`BELOW_BLOCK`).** On a ledger with a BLOCKED row, a step whose own lines (rows
+  named after it, and action lines naming its targets) all sit below the `t.blocked` call the run
+  stopped at grades UNMATCHED `below the block at line N: the run stopped there, and the step's own
+  lines ... never ran`. Such a step is never graded CHEAT, CONTENT_GAP or DRIVEN off a line that
+  never ran. The block line is found by the `t.blocked` reason's literal prefix (or the only call).
+  Rum Deal's useBucketOnTap and Witch's House's enterGate/useCheeseOnHole read CHEAT before, off
+  lines past the block.
+- **A setup give charges only its own step (`CHEAT_BY_OWN_ITEM`).** A setup `::give` charges a step
+  only for the step's own item: an obj target, its family, an ItemStep's requirement. A prose-only
+  step still matches by word, minus the quest's words and its dominant symbol prefix (`deal` in
+  `deal_slayer_gloves` vs `deal_brewvat_tap`), and never charges the step's INPUT item (the bucket a
+  "Fill a bucket" step fills). A bring-along given as one of its guide alternates is a bring-along.
+- **A goto past a gate is charged on its far side only (`GOTO_FAR_SIDE`).** "lands past the <gate>
+  the guide names" now fires only for a goto landing in the loc's own map frame and level (across
+  it, for a climb) whose ledger departure does NOT reach the landing with every door shut
+  (goto_table's `REACH closed-doors`, margins 30/100/250). A goto with no ledger row is judged on its
+  landing alone; one whose line never ran is not charged.
+
+Still by design: on a FULL run, an action line naming the step's target is fallback DRIVEN evidence
+even with no row of the step's own; on a BLOCKED run it can credit a step from a line ABOVE the
+block (ball's returnToBoy off the opening talkToBoy). Neither run is green. Known quirk, not fixed:
+`Test.action_lines` binds a table field `{ loc = "x" }` to the identifier `loc`, which then matches
+the string literal `"loc"` in `t.player.by_symbol("loc", ...)`.
+
+Proof: `helper_coverage_use_item_test.py` 29/29 (6 b67 cases on the real guides and walls, 4 rule-off
+cases reproducing the old CHEAT readings, 3 real-fixture cases). `--all-green`: 77/77 FULL before and
+after, no step class moved; `--calibrate` 11/39 before and after, row by row.

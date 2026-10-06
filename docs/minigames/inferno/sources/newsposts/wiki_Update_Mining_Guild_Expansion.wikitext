@@ -1,0 +1,107 @@
+{{Update|date=22 June 2017|link=http://services.runescape.com/m=news/mining-guild-expansion?oldschool=1|category=game}}
+[[File:Mining Guild Expansion newspost.png|right]]
+{{clear}}
+
+
+{{Headline|25|Mining Guild Expansion}}
+
+
+<center>'''The Mining Guild expansion has landed. The expansion brings with it a new high-level mineral to mine and new gloves to aid your mining efforts.'''</center>
+
+
+{{Horizontal Line}}
+
+<center>'''Mining Guild'''</center>
+
+
+The Mining Guild, below the city of Falador, has increased in size and utility. Free-to-play players will see some improvements, whilst an exclusive members-only area has been added to the guild. Level 60 Mining is still required to enter the guild.
+
+'''The free-to-play area''' now contains 2 Adamantite and 4 Iron rocks in addition to the existing 5 Mithril and 37 Coal. Two new shops have been added: one contains pickaxes and another for ores. The ore shop has no stock by default. 
+
+'''The members-only area''' is a new addition which contains a bank, a deposit box, a poll booth, and the following rocks to mine:
+*8 Iron
+*20 Coal
+*10 Mithril
+*8 Adamantite
+*2 Runite
+
+'''The members-only area''' also has two other passive benefits. All rocks in the guild have a halved respawn timer when compared to the same rocks found elsewhere in the game. In addition to this, there is an invisible +7 boost to your Mining level. This will improve your chances at mining ores, but will not allow you to access rocks which require a higher level than you have. This boost stacks with other boosts to your Mining level.
+
+[[File:Mining Guild Expansion (1).png|center|400px]]
+
+
+{{Horizontal Line}}
+
+<center>'''Amethyst'''</center>
+
+
+[[File:Mining Guild Expansion (2).png|center|300px]]
+
+The expansion brings with it a new mineral to mine. Amethyst was polled as a new high-level mineral to mine with its use found in creating ranged ammunition. 
+
+Amethyst requires 92 Mining, and provides approximately 22,000xp per hour at level 92 Mining, and 26,000xp per hour at level 99 Mining. 
+
+The crystals can be used to create Ranged ammunition by utilising the Crafting and Fletching skills. Details of the ammunition (as well as the level requirements to make them) are listed below:
+
+*'''Amethyst Bolt Tips''' can be made with 83 Crafting. Chiseling an Amethyst crystal yields 15 Bolt Tips and 60xp. Level 76 Fletching is required to add the tips to Broad Bolts and grants 10.6xp per bolt. The bolts can be used with Runite crossbows and above, and offer a ranged strength bonus of +115, equivalent to Runite bolts. ''The ability to fletch broad bolts must be unlocked in order to create Amethyst Broad Bolts. Amethyst Broad Bolts can only be used if the 65 Slayer requirement is met.''
+
+*'''Amethyst arrowtips''' can be made with 85 Crafting. Chiseling an Amethyst crystal yields 15 arrowheads and 60xp. Level 82 Fletching is required to make Amethyst Arrows, and awards 13.5 XP per arrow. The arrows can be used with Magic bows and above, and offer a ranged strength bonus of +55. 
+
+*'''Amethyst javelin heads''' can be made with 87 Crafting. Chiseling an Amethyst crystal yields 5 javelin heads and 60xp. Level 84 Fletching is required to make Amethyst javelins, and awards 13.5xp per javelin. Amethyst javelins provide a ranged strength bonus of +135.
+
+
+All Amethyst items are tradeable. '''Both the arrows and javelins can be poisoned''' (and it is possible to create Amethyst fire arrows, should you so desire).
+
+[[File:Mining Guild Expansion (3).png|center|400px]]
+
+
+{{Horizontal Line}}
+
+<center>'''Mining gloves'''</center>
+
+
+''Mining gloves'' can be found in two variants: standard and superior. These gloves can be purchased using ''Unidentified Minerals''. Mining any rock within the new area of the guild offers a chance at obtaining these minerals. The effects of the gloves are as detailed below:
+
+*'''The standard gloves''' require 20 Mining to equip and provide a chance of Silver, Coal, and Gold rocks instantly respawning when worn
+*'''The superior gloves''' require 55 Mining to equip and provide a chance of Mithril, Adamantite, and Runite rocks instantly respawning when worn
+
+{{Horizontal Line}}
+
+<center>'''Other associated changes'''</center>
+
+
+The teleport on the skills necklace has been moved slightly to accommodate both the Mining Guild and the Motherlode Mine. In addition to this, a new entrance to the Motherlode Mine can be found via a shortcut within the Mining Guild.
+
+
+{{Horizontal Line}}
+
+<center>'''In other news'''</center>
+
+
+*The Achievement Gallery now contains data for the Inferno
+*When leaving Pyramid Plunder with a full inventory, any plundered Pharaoh's sceptres will remain on the ground for longer than 30 seconds
+*The colour of the Holy Blessing has now been changed to match the Holy Book and to further distinguish it from the Honourable Blessing
+*The ::displayfps display will appear lower on the screen if it would otherwise overlap with the XP bar 
+*Gilbert and the Pride event have both been removed
+
+
+{{Horizontal Line}}
+
+<center>'''Bugfixes'''</center>
+
+
+*Players can now interact with scenery in the Inferno (dead clicks have now been removed from the northern edge of the arena)
+*The Achievement Diary task now correctly reads Equip a Fire Cape or Infernal Cape in the Tzhaar city
+*Jal-Zek is now able to perform its attack animation correctly even while taking damage
+*The Grim Tales dialogue line: "Oh. Ok, I see. That's an unusual name. Where is it from?" has been corrected. Unusual was previously spelled incorrectly 
+*Female characters will now find that their Ahrim's hood no longer appears over an equipped Trident of the Swamp
+*It is no longer possible to range Vespula’s abyssal portal from inappropriate places
+*Equipping crossbows will no longer cause your cape to lean towards the right
+
+
+{{Horizontal Line}}
+
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,397,65924240 forums].
+
+'''Mods Archie, Ash, Ed, Ghost, Jed, John C, Kieren, Mat K, Maz, Ronan, Roq, Ry, Stone, Sween, TomH, Weath, West & Wolf'''<br/>''The Old School Team''

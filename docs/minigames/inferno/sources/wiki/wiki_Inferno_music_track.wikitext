@@ -1,0 +1,62 @@
+{{Infobox Music
+|name = Inferno
+|number = 534
+|file = [[File:Inferno.ogg]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|location = [[Inferno]]
+|hint = This track unlocks in the Inferno.
+|quest = No
+|instruments = String Ensemble 1, Brass Section, French Horn, Acoustic Grand Piano, Lead 1 (square), Timpani, Standard Drum Kit, Orchestral Harp
+|duration = 05:00
+|signature = 4/4
+|tempo = 96 BPM
+|album = ''[[RuneScape-_Old School Combat Classics|RuneScape: Old School Combat Classics]]''
+|composer = Adam Bond
+|map = {{Map|2240,5312|2240,5376|2304,5376|2304,5312|plane=0|mapID=-1|mtype=polygon|bucket=yes}}
+|cacheid = 500
+|sortname = Inferno
+|unlockdetail = Unlocked inside the [[Inferno]] [[minigame]]. It can also be unlocked inside the [[TzHaar-Ket-Rak's Challenges]] minigame.
+}}
+'''Inferno''' is a [[music]] track unlocked inside the [[Inferno]] [[minigame]]. It can also be unlocked inside the [[TzHaar-Ket-Rak's Challenges]] minigame.
+
+Unlocking this music track requires the player to show a [[fire cape]] to a [[TzHaar-Ket]] guarding the entrance to [[Mor Ul Rek]]. As there are no further requirements to accept either of TzHaar-Ket-Rak's first two challenges, a fire cape does not need to be sacrificed in order to unlock this track.
+
+==Versions==
+{{Music changes header}}
+{{Music changes
+|version=2
+|date=1 June 2017
+|file=[[File:Inferno (8-bit).ogg]]
+}}
+{{Music changes
+|version=2
+|daterange=7 September - 5 October 2017
+|change=[[Audio#Fossil Island Soundbank|Fossil Island Soundbank]]
+|file=[[File:Inferno (Fossil Island).ogg]]
+}}
+{{Music changes
+|version=2
+|date=9 April 2025
+|change= [[Audio#16-bit_music|16-bit Music Update]]
+|file=[[File:Inferno.ogg]]
+}}
+{{Music changes footer}}
+==Analysis==
+This song is in the key of D minor with many Dorian modal inflections. The tempo is 96 beats per minute, and although in 4/4 time, most of the track uses the non-standard metrical subdivision 3+3+3+3+2+2. Extensive use of interrupted cadential harmony (V-VI) can be heard throughout, particularly in the transition to the B section at 0:38, where there is a surprising shift to major. Here an arpeggiated harp figuration is heard, which embodies the aspirational nature of the Inferno, before giving way to an unwieldy melody in parallel minor thirds making use of tonally distant chords.
+
+In terms of scoring, the track makes use of brass instruments such as the French Horn (GM Instrument 60) & Brass Ensemble (GM Instrument 61), performing heavy-sounding crescendos at various times. Adam Bond typically utilises brassy crescendos in his battle-like compositions (Including reworks), mostly in the main ''RuneScape'' game, hence why finding this in ''Old School RuneScape'' is a rare occurrence.
+
+One of the earliest examples of this would be in the track [[Fe Fi Fo Fum]], a song from the 4th of June, in 2007. Besides the brass in this composition, it also consists of Strings (GM Instrument 48) accompanied by an Acoustic Grand Piano (GM Instrument 0) which can be heard slightly in the background. This song also makes use of a Square Wave (GM Instrument 80), which is rarely used in ''Old School RuneScape''. The Square Wave instrument is most likely an imitation of the effects used in Bond's previous Lava Falls composition.
+
+==Trivia==
+* [[:File:PvP All Stars - PvP Inferno (Caster Bed 1).mp3|PvP Inferno]], a remix of the track, was created and used for [[All Stars: PvP Championship]].
+*This track bears resemblance to the song ''At Doom's Gate'' from the video game ''{{wp|Doom (1993 video game)|Doom}}''.
+*This track is in the same key as [[Mor Ul Rek (music track)|Mor Ul Rek]], another Adam Bond composition, which plays just outside the Inferno.
+*It is also very similar to another Adam Bond composition from the main ''RuneScape'' game, {{RSL|Lava Falls}}. Despite Inferno being similar to Lava Falls, the song has been transposed to another key and rearranged/recomposed.
+*This track is later remixed in ''RuneScape 3'' as ''{{RSL|The Glory of Combat}}''.
+
+{{Inferno}}
+{{Music}}
+[[Category:Old School-exclusive music]]

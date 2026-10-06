@@ -1,0 +1,106 @@
+{{Update|date=2 March 2017|link=http://services.runescape.com/m=news/march---the-month-ahead?oldschool=1|category=website}}
+[[File:March - The Month Ahead (2017) newspost.png|right]]
+{{clear}}
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">March - The Month Ahead</font></center>
+
+
+<center>'''March is going to mean big things for Old School in 2017. We're going to be opening discussions on {{Colour|#b22222|two of the year's biggest updates}}, as well as kicking off the first 2017 Deadman Mode season!'''</center>
+
+{{Horizontal Line}}
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">2017: The Big Updates</font></center>
+
+
+Over March we will be opening up discussions about two of the biggest updates we have planned for 2017: '''The Inferno''' and '''Fossil Island'''!
+
+[[File:March - The Month Ahead (2017) (1).png|center]]
+
+Due to come to Old School in '''June''' and '''September''' respectively, we want to open the discussion nice and early so we can make sure they are exactly what the community wants to see when they arrive.
+
+'''The Inferno''' is a PvM challenge which should be seen as a sequel to the Fight Cave. Using your PvM-prowess, you'll need to endure hordes of high-level enemies and make it to the final boss: TzKal-Zuk!
+
+'''Fossil Island''' is an unexplored isle found by the Varrock Museum, east of the Wilderness. Will you be the one to use all your skills to uncover the many secrets this ancient island holds?
+
+Both of these updates still need to pass a poll - and whether or not they end up in game is, of course, completely dependent on them reaching 75%+.
+
+The discussions throughout March will help guide what ends up being polled, so we encourage you to let us know what you think when these discussions open up!
+
+
+{{Horizontal Line}}
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Deadman Spring Invitational</font></center>
+
+
+[[File:March - The Month Ahead (2017) (2).png|center]]
+
+<center>On '''Saturday 25th March''' the winner of the Deadman Spring Invitational, and '''$10,000 grand prize''', will be decided, and the Deadman Seasonal servers will be opened once again!</center>
+
+In January we published a 'Deadman Overhaul' developer blog, detailing some of the changes we planned to make to both the upcoming Invitational and season. Following feedback from the community, we've decided to revisit some of the updates listed in this blog.
+
+'''Claim Your Victim's Experience - Scrapped'''
+
+In the Deadman Overhaul blog we proposed an additional reward from claiming someone's bank key: a portion of the experience they lost being added to your stats.
+
+One of the major concerns which arose from the community when we proposed this was the trading of experience.
+
+[[File:March - The Month Ahead (2017) (3).png|center]]
+
+This is a concern that we have, too. In order to avoid the wealthiest players from potentially getting a huge advantage with this change, we'll be holding off on adding this feature until we are able to tackle this potential negative.
+
+'''Automatic Quest Completion - Tweaked'''
+
+During the upcoming Deadman season, all quests will be automatically completed for every player after one week. However, quests will at no point be unlocked automatically during the Deadman Spring Invitational.
+
+[[File:March - The Month Ahead (2017) (4).png|center]]
+
+There were some concerns that giving all players access to quest unlocks like ancient magicks and the lunar spellbook would provide more of an advantage to clans than to any other subset of players. For this reason, quests will function as they usually do for the Deadman Spring Invitational.
+
+When quests are automatically completed, you will not receive the experience or item rewards you would've received for completing the quest normally. However, you will be able to claim some quest-specific items you otherwise wouldn't be able to get.
+
+
+{{Horizontal Line}}
+
+
+<center>'''March 25th - Save the Date!'''</center>
+
+The final hour will begin at 7pm GMT on '''Saturday 25th March''' and you can watch all of the action unfold live on [https://www.twitch.tv/runescape the RuneScape Twitch channel!]
+
+See who is declared the winner of the Deadman Spring Invitational, and who takes home the '''$10,000 grand prize'''!
+
+'''Don't forget''': If you want a shot at the winning the next Deadman tournament, or you just want to slay some noobs, immediately following the conclusion of the Deadman Spring Invitational the '''next season of Deadman Mode begins'''!
+
+
+{{Horizontal Line}}
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">General Quality of Life</font></center>
+
+
+We recently ran both PvP and General Quality of Life polls. With the content from the PvP poll going into game today, throughout March you can expect to see the remainder of the general quality of life making its way into Old School!
+
+[[File:March - The Month Ahead (2017) (5).png|center]]
+
+
+{{Horizontal Line}}
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Slayer & Skill Cape Polls</font></center>
+
+
+You all know we can't resist a good ol' slayer poll - and neither can Old School players! Later on this month we'll be running a poll for some new slayer content, as well as tweaks to existing slayer content.
+
+[[File:March - The Month Ahead (2017) (6).png|center]]
+
+We'll also be running a poll specifically focused around skill capes and skill cape perks. If you have ideas for skill cape perks, including changes to those which already exist, be sure to let us know!
+
+You'll be able to get details on both of the above polls in developer blogs later on in March. As always, we're eager to hear your ideas. '''Let us know what you would like to see on these polls and it may just happen'''!
+
+
+{{Horizontal Line}}
+
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,368,65887084 forums].
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath, West & Wolf'''''<br/>''The Old School Team''

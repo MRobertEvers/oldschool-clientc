@@ -1,0 +1,60 @@
+mechanic_id	scope	note
+glory.award.every_wave_complete	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.award.factors	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.model.performance_only	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.model.personal_best	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.model.kept_on_later_death	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.model.kept_on_teleport	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.model.run_total_is_sum_of_waves	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.model.best_write_timing	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.completion.formula	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.completion.waves_1_to_11	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.completion.wave12.client_display	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.completion.wave12.wiki	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.completion.wave12.server	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.completion.total_waves_1_to_12	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.no_damage.formula	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.no_damage.threshold	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.no_damage.waves_1_to_12	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.no_damage.total_waves_1_to_12	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.no_damage.excluded_sources	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.no_damage.damage_counted_rule	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.no_damage.display	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.speed.formula	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.speed.window	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.speed.duration_unit	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.speed.wiki_start_points	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.speed.wiki_points_lost_per_tick	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.speed.wiki_even_rounding	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.speed.even_rounding_server	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.speed.wiki_theoretical_total	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.speed.duration_start_and_stop	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.modifier.struct_value_by_index	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.modifier.client_wave_complete_sum	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.modifier.client_summary_rank_weighted	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.modifier.jagex_stacked_fix	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.modifier.card_text	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.modifier.wiki_points_by_wave	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.modifier.wiki_total	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.modifier.held_counts_every_wave	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.modifier.server_rank_rule	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.modifier.varp4135_last_modifier_glory	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.total.wiki_theoretical_max	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.total.wiki_likely_limit	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.total.wiki_minimum_completion	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.total.display_lots	all	one solo test: complete a wave and read varp4132/4134/4136 and the 866 panel
+glory.tier.thresholds	all	one solo test or data read in the lobby
+glory.tier.titles	all	one solo test or data read in the lobby
+glory.tier.2000.bank_chest	all	one solo test or data read in the lobby
+glory.tier.5000.respawn	all	one solo test or data read in the lobby
+glory.tier.8000.oriana_price	all	one solo test or data read in the lobby
+glory.tier.8000.house_agents	all	one solo test or data read in the lobby
+glory.tier.12000.dueling_teleport	all	one solo test or data read in the lobby
+glory.tier.16000.herb_patch	all	one solo test or data read in the lobby
+glory.tier.20000.fortis_salute	all	one solo test or data read in the lobby
+glory.tier.hiscores	all	one solo test or data read in the lobby
+glory.presentation.wave_complete_panel	all	one solo test or data read in the lobby
+glory.presentation.intermission_summary	all	one solo test or data read in the lobby
+glory.presentation.scoreboard_loc	all	one solo test or data read in the lobby
+glory.presentation.gloria_npc	all	one solo test or data read in the lobby
+glory.presentation.gloria_dialogue	all	one solo test or data read in the lobby

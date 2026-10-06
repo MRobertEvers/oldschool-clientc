@@ -1,0 +1,405 @@
+{{External|rs=Fight Kiln}}
+{{Safe activity}}
+{{HasStrategy}}
+{{Infobox Activity
+|name = Inferno
+|image = [[File:Inferno entrance.png|300px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|type = Minigame
+|members = Yes
+|location = [[Mor Ul Rek]]
+|players = 1
+|skills = [[Combat]]
+|currency = [[Tokkul]]
+|tutorial = No
+|music = [[Inferno (music track)|Inferno]]
+|map = {{Map|name=Inferno|x=2496|y=5122|zoom=3|mapID=23}}
+|leagueRegion = Karamja
+}}
+[[File:Inferno logo.png|left|130px]]
+The '''Inferno''' is a solo [[minigame]] that was added to ''[[Old School RuneScape]]'' on the [[1 June]] [[2017]], along with an update to the city of [[Mor Ul Rek]]. The player must survive 69 increasingly challenging waves, ultimately killing the level 1400 [[TzKal-Zuk]], to obtain the [[infernal cape]]. If defeated, the player must restart from the first wave. A successor to the [[TzHaar Fight Cave]]s, the Inferno was dubbed the greatest solo [[PVM]] challenge to date upon release.{{CiteNews|url=https://secure.runescape.com/m=news/the-inferno?oldschool=1|title=The Inferno|newsdate=1 June 2017|quote=The Inferno is the greatest solo PvM challenge ever to be introduced into Old School RuneScape. Beyond sacrificing a Fire Cape, there are '''no requirements''' to attempt The Inferno.}}
+
+In order to access the Inferno, players must give [[TzHaar-Ket-Keh]] a [[fire cape]]. This is a one-time fee, so after giving a fire cape to him, TzHaar-Ket-Keh will allow players to enter as much as they want. Restocking between waves is not possible and other players cannot enter, although the minigame can be paused by attempting to log out between waves. [[Purple sweet]]s also cannot be used in the Inferno.
+
+If the player has previously defeated TzKal-Zuk, it may be chosen as a Slayer task when assigned TzHaar, which will affect all monsters inside the Inferno. The task will also be cancelled in the event the player is defeated, much like the [[TzHaar Fight Cave|Fight Caves]].
+
+==History==
+{{References needed}}
+According to [[TzHaar-Ket-Keh]], the Inferno was originally a large incubation pool for newly hatched [[TzHaar]] to regain memories of their ancestors. The TzHaar found out that the deeper they placed the [[egg (TzHaar)|egg]]s, the TzHaar emerging from them would gain more memories and knowledge of their old ancestors. Unfortunately, they went too far and completely drained the lava, finding an ancient incubation chamber. They decided to place eggs from Fight Caves monsters there, but it backfired, creating new, volatile [[volcanic creatures]] that were extremely aggressive and fought for dominance. The TzHaar struggle against these new monsters and are hesitant to allow humans to tackle them. Similar to humans, these monsters are foreign to TzHaar, as their names are prefixed with Jal, meaning "foreign" in the TzHaar language.
+
+==Monsters==
+There are unique monsters encountered within the Inferno. Several of these monsters are similar to their [[TzHaar Fight Cave|Fight Caves]] counterpart, while others are completely new.
+{|class="wikitable"
+!Lvl
+!Image
+!Name
+(Colloq.)
+!HP
+!{{plink|Defence|pic=Defence icon}}
+!{{plink|Magic|pic=Magic icon}}
+!Attack(s)
+!Max Hit
+!Counterpart
+!Notes
+|-
+|32
+|[[File:Jal-Nib.png|center|110px]]
+|[[Jal-Nib]]
+("Nibbler")
+|10
+|15
+|15
+|Melee (Crush)
+|4
+|
+|They spawn in the middle and randomly pick any remaining pillar to attack. If they manage to destroy one, it cannot be used for safespotting and will damage players and monsters who are standing on adjacent tiles upon collapse. If no pillars remain, they will chase the player instead.
+|-
+|85
+|[[File:Jal-MejRah.png|center|110px]]
+|[[Jal-MejRah]]
+("Bat")
+|25
+|55
+|120
+|Ranged
+|19
+|[[Tz-Kih]]
+|Drains run energy on every hit and has a chance to drain all combat stats by 1 on every successful hit when not praying protect from missiles.
+|-
+|165
+|[[File:Jal-Ak.png|center|110px]]
+|[[Jal-Ak]]
+("Blob")
+|40
+|95
+|160
+|Magic, Ranged, Melee (Crush)
+|29
+|[[Tz-Kek]]
+|Attacks primarily with magic and ranged. Its attacks are delayed; it detects if the player is protecting against magic or ranged as soon as it is in range or 3 ticks after its last attack, and attacks with the opposite style after another three ticks. Spawns three smaller versions of itself on death using each side of the combat triangle ([[Jal-AkRek-Xil]], [[Jal-AkRek-Mej]], [[Jal-AkRek-Ket]]).
+|-
+|240
+|[[File:Jal-ImKot.png|center|110px]]
+|[[Jal-ImKot]]
+("Meleer")
+|75
+|120
+|120
+|Melee (Slash)
+|49
+|[[Yt-MejKot]]
+|It can only attack with melee. If unable to attack the player, it will burrow down and pop up near the player to attack them after 30 seconds. This timer can be reset by letting it attack at least once before seeking cover again.
+|-
+|370
+|[[File:Jal-Xil.png|center|160x160px]]
+|[[Jal-Xil]]
+("Ranger")
+|125
+|60
+|90
+|Ranged, Melee
+|46
+|[[Tok-Xil]]
+|It primarily uses ranged attacks but has the ability to melee any adjacent tile, including diagonally if it has line of sight.
+|-
+|490
+|[[File:Jal-Zek.png|centre|120x120px]]
+|[[Jal-Zek]]
+("Mager")
+|220
+|260
+|300
+|Magic, Melee
+|70
+|[[Ket-Zek]]
+|It primarily uses magical attacks but has the ability to melee any adjacent tile, including diagonally if it has line of sight. It can revive slain monsters in the current round they appear in. The revived monsters have half health and each can only be revived once.
+|-
+|900
+|[[File:JalTok-Jad.png|center|100px]]
+|[[JalTok-Jad]]
+|350
+|480
+|510
+|Magic, Melee, Ranged
+|113
+|[[TzTok-Jad]]
+|Uses each combat style with devastating damage, but each hit can be blocked with appropriate prayers. It summons 5 Yt-HurKot healers (3 during Waves 68 and 69) when it reaches half health.
+|-
+|141
+|[[File:Yt-HurKot.png|center|70px]]
+|[[Yt-HurKot]] ("Jad Healer")
+|90
+|100
+|150
+|Melee
+|18
+|
+|They are summoned when [[JalTok-Jad]] is at half health, and heals it until they are attacked. Identical to Yt-HurKot from the Fight Caves, but stronger.
+|-
+|1400
+|[[File:TzKal-Zuk.png|center|100px]]
+|[[TzKal-Zuk]]
+|1200
+|260
+|150
+|Magic, Ranged
+|148
+|
+|The final boss in the Inferno. He attacks using a devastating fireball that can be avoided by seeking cover behind the floating shield.
+|-
+|250
+|[[File:Jal-MejJak.png|center|130x130px]]
+|[[Jal-MejJak]] ("Zuk Healer")
+|75
+|100
+|1
+|Ground-targeted AoE
+|10
+|
+|Four are summoned when [[TzKal-Zuk]] falls to 240 health, and they will heal it until they are attacked. Upon being attacked, they throw lava into the arena which deals area of effect damage.
+|}
+
+==Wave breakdown==
+[[File:Inferno arena overview.png|thumb|The Inferno.]]
+Each wave displays which monster will spawn. There are 69 waves in total. Starting on wave 1, there are three [[Rocky support|pillars]] which the Jal-Nibs attempt to destroy. Each pillar has 255 hit points. Any remaining pillars by the end of wave 66 are automatically destroyed by the start of wave 67. This can damage the player if they are on an adjacent tile.
+
+Key to shortened names:
+*Nibbler: [[File:Jal-Nib.png|30px]] [[Jal-Nib]]
+*Bat: [[File:Jal-MejRah.png|30px]] [[Jal-MejRah]]
+*Blob: [[File:Jal-Ak.png|30px]] [[Jal-Ak]]
+*Melee: [[File:Jal-ImKot.png|30px]] [[Jal-ImKot]]
+*Ranger: [[File:Jal-Xil.png|x30px]] [[Jal-Xil]]
+*Mage:[[File:Jal-Zek.png|30px]] [[Jal-Zek]]
+*Jad: [[File:JalTok-Jad.png|30px]] [[JalTok-Jad]]
+
+<div class="mw-collapsible mw-collapsed">
+'''Waves 1–17'''
+<div class="mw-collapsible-content">
+*'''Wave 1:''' 3x Nibbler, 1x Bat
+*'''Wave 2:''' 3x Nibbler, 2x Bat
+*'''Wave 3:''' 6x Nibbler
+**Jal-Ak (Blob) will start to appear in the next round.
+*'''Wave 4:''' 3x Nibbler, 1x Blob
+*'''Wave 5:''' 3x Nibbler, 1x Blob, 1x Bat
+*'''Wave 6:''' 3x Nibbler, 1x Blob, 2x Bat
+*'''Wave 7:''' 3x Nibbler, 2x Blob
+*'''Wave 8:''' 6x Nibbler
+**Jal-ImKot (Melee) will start to appear in the next round
+*'''Wave 9:''' 3x Nibbler, 1x Melee
+*'''Wave 10:''' 3x Nibbler, 1x Melee, 1x Bat
+*'''Wave 11:''' 3x Nibbler, 1x Melee, 2x Bat
+*'''Wave 12:''' 3x Nibbler, 1x Melee, 1x Blob
+*'''Wave 13:''' 3x Nibbler, 1x Melee, 1x Blob, 1x Bat
+*'''Wave 14:''' 3x Nibbler, 1x Melee, 1x Blob, 2x Bat 
+*'''Wave 15:''' 3x Nibbler, 1x Melee, 2x Blob
+*'''Wave 16:''' 3x Nibbler, 2x Melee
+*'''Wave 17:''' 6x Nibbler
+**Jal-Xil (Ranger) will start to appear in the next round.
+</div>
+</div>
+<div class="mw-collapsible mw-collapsed">
+'''Waves 18–34: Ranger'''
+<div class="mw-collapsible-content">
+*'''Wave 18:''' 3x Nibbler, 1x Ranger
+*'''Wave 19:''' 3x Nibbler, 1x Ranger, 1x Bat
+*'''Wave 20:''' 3x Nibbler, 1x Ranger, 2x Bat
+*'''Wave 21:''' 3x Nibbler, 1x Ranger, 1x Blob
+*'''Wave 22:''' 3x Nibbler, 1x Ranger, 1x Blob, 1x Bat
+*'''Wave 23:''' 3x Nibbler, 1x Ranger, 1x Blob, 2x Bat
+*'''Wave 24:''' 3x Nibbler, 1x Ranger, 2x Blob
+*'''Wave 25:''' 3x Nibbler, 1x Ranger, 1x Melee
+*'''Wave 26:''' 3x Nibbler, 1x Ranger, 1x Melee, 1x Bat
+*'''Wave 27:''' 3x Nibbler, 1x Ranger, 1x Melee, 2x Bat
+*'''Wave 28:''' 3x Nibbler, 1x Ranger, 1x Melee, 1x Blob
+*'''Wave 29:''' 3x Nibbler, 1x Ranger, 1x Melee, 1x Blob, 1x Bat
+*'''Wave 30:''' 3x Nibbler, 1x Ranger, 1x Melee, 1x Blob, 2x Bat
+*'''Wave 31:''' 3x Nibbler, 1x Ranger, 1x Melee, 2x Blob
+*'''Wave 32:''' 3x Nibbler, 1x Ranger, 2x Melee
+*'''Wave 33:''' 3x Nibbler, 2x Ranger
+*'''Wave 34:''' 6x Nibbler
+**Jal-Zek (Mage) will start to appear in the next round.
+</div>
+</div>
+<div class="mw-collapsible mw-collapsed">
+'''Waves 35–49: Mage'''
+<div class="mw-collapsible-content">
+*'''Wave 35:''' 3x Nibbler, 1x Mage
+*'''Wave 36:''' 3x Nibbler, 1x Mage, 1x Bat
+*'''Wave 37:''' 3x Nibbler, 1x Mage, 2x Bat
+*'''Wave 38:''' 3x Nibbler, 1x Mage, 1x Blob
+*'''Wave 39:''' 3x Nibbler, 1x Mage, 1x Blob, 1x Bat
+*'''Wave 40:''' 3x Nibbler, 1x Mage, 1x Blob, 2x Bat
+*'''Wave 41:''' 3x Nibbler, 1x Mage, 2x Blob
+*'''Wave 42:''' 3x Nibbler, 1x Mage, 1x Melee,
+*'''Wave 43:''' 3x Nibbler, 1x Mage, 1x Melee, 1x Bat
+*'''Wave 44:''' 3x Nibbler, 1x Mage, 1x Melee, 2x Bat
+*'''Wave 45:''' 3x Nibbler, 1x Mage, 1x Melee, 1x Blob
+*'''Wave 46:''' 3x Nibbler, 1x Mage, 1x Melee, 1x Blob, 1x Bat
+*'''Wave 47:''' 3x Nibbler, 1x Mage, 1x Melee, 1x Blob, 2x Bat
+*'''Wave 48:''' 3x Nibbler, 1x Mage, 1x Melee, 2x Blob
+*'''Wave 49:''' 3x Nibbler, 1x Mage, 2x Melee
+</div>
+</div>
+<div class="mw-collapsible mw-collapsed">
+'''Waves 50–66: Mage & Ranger'''
+<div class="mw-collapsible-content">
+*'''Wave 50:''' 3x Nibbler, 1x Mage, 1x Ranger
+*'''Wave 51:''' 3x Nibbler, 1x Mage, 1x Ranger, 1x Bat
+*'''Wave 52:''' 3x Nibbler, 1x Mage, 1x Ranger, 2x Bat
+*'''Wave 53:''' 3x Nibbler, 1x Mage, 1x Ranger, 1x Blob
+*'''Wave 54:''' 3x Nibbler, 1x Mage, 1x Ranger, 1x Blob, 1x Bat
+*'''Wave 55:''' 3x Nibbler, 1x Mage, 1x Ranger, 1x Blob, 2x Bat
+*'''Wave 56:''' 3x Nibbler, 1x Mage, 1x Ranger, '''2x Blob'''
+*'''Wave 57:''' 3x Nibbler, 1x Mage, 1x Ranger, 1x Melee
+*'''Wave 58:''' 3x Nibbler, 1x Mage, 1x Ranger, 1x Melee, 1x Bat
+*'''Wave 59:''' 3x Nibbler, 1x Mage, 1x Ranger, 1x Melee, 2x Bat
+*'''Wave 60:''' 3x Nibbler, 1x Mage, 1x Ranger, 1x Melee, 1x Blob
+*'''Wave 61:''' 3x Nibbler, 1x Mage, 1x Ranger, 1x Melee, 1x Blob, 1x Bat
+*'''Wave 62:''' 3x Nibbler, 1x Mage, 1x Ranger, 1x Melee, 1x Blob, 2x Bat
+*'''Wave 63:''' 3x Nibbler, 1x Mage, 1x Ranger, 1x Melee, '''2x Blob'''
+*'''Wave 64:''' 3x Nibbler, 1x Mage, 1x Ranger, 2x Melee
+*'''Wave 65:''' 3x Nibbler, 1x Mage, 2x Ranger
+*'''Wave 66:''' 3x Nibbler, 2x Mage
+**Any remaining pillars collapse when the final enemy is slain, and deal half the player's current hp if the player is within one tile.
+</div>
+</div>
+<div class="mw-collapsible mw-collapsed">
+'''Waves 67-68: Jad & Triple Jads'''
+<div class="mw-collapsible-content">
+*'''Wave 67:''' 1x Jad
+**The JalTok-Jad summons five Yt-HurKot at half health.
+*'''Wave 68:''' 3x Jad
+**The penultimate wave. The Jads attack three ticks apart. Each will summon three Yt-HurKot at half health.
+</div>
+</div>
+
+==Final boss==
+{{Main|TzKal-Zuk}}
+
+[[File:TzKal-Zuk.png|right|200px]]
+On the 69th and final wave, [[TzKal-Zuk]] will break free from the northern wall. TzKal-Zuk cannot be reached with melee and has 1200 [[Hitpoints]]. Floating in the lava and moving back and forth between it and the player is an [[Ancestral Glyph]], which protects the player from Zuk's attacks. Standing behind this glyph is '''mandatory''', as Zuk's attacks have a max hit of 148, which has the potential to instantly kill the player even when fully overhealed; likewise, the attack cannot be [[Tick manipulation|tick eaten]] either.
+
+Due to two rock outcrops on either side of the boss, there are a total of six (three per side) grouped tiles from which a player has no line of sight to TzKal-Zuk for a ranged or magic attack. Attempting to attack from these tiles will draw the player towards the middle of the room until they have a line of sight which can be extremely dangerous, especially if the shield is moving in the opposite direction. Although the player may not attack from these tiles, they may be hit on them by TzKal-Zuk.
+
+Since TzKal-Zuk's normal attack cycle and the rotational cycle of the shield align, there are four consistent safespots that can be used to simplify the task of seeking cover behind the shield before TzKal-Zuk is putting up his last fight (occurs if Hitpoints are lowered below 240), which is when his attacks speed up considerably.
+
+Throughout this fight, other monsters spawn periodically and on cues. A set of Jal-Xil and Jal-Zek will regularly spawn behind the player on a repeating 3:30 minute timer, attacking the shield until they are attacked, whereupon they retaliate. When TzKal-Zuk is below 480 Hitpoints, a JalTok-Jad will spawn behind the player, similarly attacking the shield, and a one-time addition of 1:45 minutes is made to the set timer (which is paused between 600 and 480 Hitpoints and is resumed as soon as Jad spawns) to allow the player to face Jad without a set of Jal-Xil and Jal-Zek. 
+
+If the player neglects the monsters attacking the shield for too long, the shield will be destroyed, exposing the player to the attacks of TzKal-Zuk without any protection.
+
+When TzKal-Zuk is below 240 Hitpoints, four [[Jal-MejJak]]s are spawned, rapidly healing it, and TzKal-Zuk's attacks speed up considerably. When they are attacked, they stop healing and attack the player with area-of-effect blasts.
+{{clear}}
+
+==Rewards==
+[[File:Infernal cape detail animated.gif|right|The infernal cape]]
+Once players manage to defeat TzKal-Zuk, they will be rewarded with the [[infernal cape]]. 
+
+[[Tokkul]] is also given, with increasing amounts based on the wave they were defeated on (16,440 maximum; this is doubled if the player has completed the elite tier of the [[Karamja Diary]]).
+
+There is also a 1/100 chance of receiving a [[Jal-Nib-Rek]] [[pet]] upon defeating it. This chance is increased to 1/75 if the player was on a [[Slayer]] task to defeat TzKal-Zuk. Outside, players may give [[TzHaar-Ket-Keh]] any unwanted infernal capes for a second chance at a Jal-nib-rek, having also a 1/100 chance.
+
+==Collection log==
+The Inferno has 2 [[collection log]] items. The [[infernal cape]] is guaranteed upon successful completion.
+{{Sync}}
+{{Collection log list|category=The Inferno}}
+
+==Combat Achievements==
+{{Combat Achievements list|TzKal-Zuk|mobname=TzKal-Zuk and the Inferno}}
+
+==Competitions==
+[[File:Infernal cape IRL.png|thumb|Real life version of Infernal cape seen in The Inferno's behind-the-scenes video]]
+Upon release, Jagex started a competition where the first three players to obtain an Infernal cape would be rewarded in real life. The first player to obtain it would get a real-life version of the Infernal cape, a RuneFest 2017 ticket & travel, and lifetime membership. The second player would get a RuneFest 2017 ticket & travel but no real-life Infernal cape. The third player would get a RuneFest 2017 ticket and lifetime membership, but no travel expenses or cape.
+*''Woox'' was the first player to complete the Inferno.
+*''Kelvino'' was the second player to complete the Inferno.
+*''Cpl Erik'' was the third player to complete the Inferno.{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/872748916588122112|date=8 June 2017|archiveurl=https://reldo.runescape.wiki/i/102354|archivedate=29 May 2020|quote=Here are the first 12 to defeat the #Inferno, including the first Ironman. [https://pbs.twimg.com/media/DBygfG3XoAMmOqO.jpg]|name=firsts}}
+
+The first [[Ironman Mode|Ironman]] players to complete the Inferno were congratulated by the ''Old School'' team:
+*''BadIdeas'' was the first regular Ironman to complete the Inferno, on 8 June, seven days after its release.{{NamedRef|name=firsts}}
+*''UIPanda'' was the first Ultimate Ironman to complete the Inferno, on 7 August, two months after its release.{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/894495022921510912|date=7 August 2017|archiveurl=https://reldo.runescape.wiki/i/108852|archivedate=29 May 2020|quote=UIPanda has beaten the game. The first and only Ultimate Ironman to beat the Inferno and achieve the Infernal Cape.}}
+*''H ard'' was the first Hardcore Ironman to complete the Inferno, on 22 November, five and a half months after its release.{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/933279499625656320|date=22 November 2017|archiveurl=https://reldo.runescape.wiki/i/107420|archivedate=29 May 2020|quote=Congratulations to @LakeOSRS for being the first Hardcore Ironman to defeat TzKal-Zuk in the Inferno!}}
+
+==Development history==
+===Initial pitch===
+The concept of a Fight Cave expansion and "Jad 2" was first teased at [[RuneFest]] [[2015]], which was slated for a summer 2016 release. Here, upon defeating [[TzTok-Jad]], players could choose to claim their fire cape or sacrifice it, the latter in which would cause the floor to collapse and fight subsequent waves of more powerful monsters, all culminating into fighting "Jad 2".
+
+A [[Update:Devblog 38 - Zeah, Deadman Mode and Jad 2|Developer's Blog]] was released on [[11 January]] [[2016]], where it was revealed that the rewards would be one of three capes, each of them boasting best-in-slot stats for each combat style.
+
+The proposed stats for the capes obtained upon defeating "Jad 2" was as follows:
+{{Infotable Bonuses header}}
+{{Infotable Bonuses row|hideicon=yes|name=Fire cape|astab=1|aslash=1|acrush=1|amagic=1|arange=1|dstab=11|dslash=11|dcrush=11|dmagic=11|drange=11|str=4|rstr=0|mdmg=0|prayer=2}}
+{{Infotable Bonuses row|hideicon=yes|name=Jad 2 melee cape|astab=4|aslash=4|acrush=4|amagic=1|arange=1|dstab=12|dslash=12|dcrush=12|dmagic=12|drange=12|str=8|rstr=0|mdmg=0|prayer=2}}
+{{Infotable Bonuses row|hideicon=yes|name=Ava's accumulator|astab=0|aslash=0|acrush=0|amagic=0|arange=4|dstab=0|dslash=1|dcrush=0|dmagic=4|drange=0|str=0|rstr=0|mdmg=0|prayer=0}}
+{{Infotable Bonuses row|hideicon=yes|name=Jad 2 range cape|astab=1|aslash=1|acrush=1|amagic=1|arange=6|dstab=12|dslash=12|dcrush=12|dmagic=12|drange=12|str=0|rstr=6|mdmg=0|prayer=2}}
+{{Infotable Bonuses row|hideicon=yes|name=God cape|astab=0|aslash=0|acrush=0|amagic=10|arange=0|dstab=1|dslash=1|dcrush=2|dmagic=10|drange=0|str=0|rstr=0|mdmg=0|prayer=0}}
+{{Infotable Bonuses row|hideicon=yes|name=Jad 2 mage cape|astab=1|aslash=1|acrush=1|amagic=12|arange=0|dstab=12|dslash=12|dcrush=12|dmagic=12|drange=12|str=0|rstr=0|mdmg=5|prayer=2}}
+{{Infotable Bonuses footer}}
+
+<gallery captionalign="center" widths="200">
+Jad 2 Cape models.png|A WIP model for the "Jad 2" capes.
+Jad 2 WIP model.png|A WIP model for "Jad 2".
+</gallery>
+
+The Fight Cave expansion was [[poll]]ed in [[Poll:Old School Content Poll 38: Jad II, Deadman & Zeah|Old School Content Poll #38: Jad II, Deadman & Zeah]], failing by 2.5%. Shortly after the poll ended, another [[Update:Dev Blog: The Inferno v2|Developer's Blog]] was released, now referring to the expansion as The Inferno and its boss as TzKal-Zuk.
+
+The blog now revised the design as entirely separate from the Fight Cave, now revealing that the player will face 40+ waves of six new TzHaar creatures leading to the fight against TzKal-Zuk. In addition, the rewards were reduced to only the melee cape from the previous blog.
+
+The blog also stated that the Inferno was planned to be released around mid-February due to a gap in the Old School Team's release schedule, but due to it now being pitched as a separate piece of content, releasing it then would result in the graphics suffering as a result, likely having to re-use a lot of assets from the TzHaar area.
+
+Because of the tight release schedule past February ([[Monkey Madness II]], seasonal [[Deadman Mode]], Zeah batch 2 (the Wintertodt and the Paradigm of Exodus, now known as the [[Chambers of Xeric]])), the team then gave players the option of delaying the Inferno until Zeah batch 3 next year, the city of Keruulm (which is now in-game as [[Mount Karuulm]]). Player feedback resulted in Jagex delaying the update until next year.
+
+With February now freed up, another [[Update:Dev Blog: The Month of QoL|Developer's Blog]] was released, asking for quality-of-life (QoL) suggestions for their next polls. February would then become known as "QoL month" in the years to come, where the team dedicates the month to requested QoL updates.
+
+===Brimstone & The Inferno===
+Brimstone & The Inferno would later be revealed at RuneFest 2016:
+
+<gallery captionalign="center" widths="200">
+Inferno RF reveal 1.jpg
+Inferno RF reveal 2.jpg
+Inferno RF reveal 3.jpg
+Inferno RF reveal 4.jpg
+</gallery>
+
+[[File:Brimstone & The Inferno world map.png|thumb|250px|A mock-up of what Brimstone and The Inferno would have looked like on the world map.]]
+Over a year later on [[15 March]] [[2017]], Jagex released a [[Update:Dev Blog: Brimstone & The Inferno|Developer's Blog]], where the Kahlith, a race once created from the TzHaar and born from the core of the Inferno, resided in a village west of [[Lovakengj]] within a dormant volcano.
+
+Besides the Inferno, which rewards the now-named infernal cape, it was proposed that players would be able to pickpocket the Kahlith for gems and Tokkul, fishing [[infernal eels]] and attackable Kahlith citizens that would drop Kahlith armour.
+
+===Mor Ul Rek & The Inferno===
+After a day of feedback, the blog was quickly revised, changing the location from west of Lovakengj to within the inaccessible section of TzHaar City, now named [[Mor Ul Rek]], with all the content within it renamed (such as the Kahlith armour now being [[obsidian armour]].)
+
+Mor Ul Rek and The Inferno were then polled in [[Poll:Mor Ul Rek and The Inferno|Mor Ul Rek and The Inferno]] on 24 March 2017, with all the questions passing.
+
+[[File:Inferno login screen.png|thumb|Login screen for the release of Inferno]]
+[[File:Title Inferno.png|thumb|Title for the release of Inferno]]
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|change = * The [[Jal-MejJak]] and [[Jal-Xil]]'s hitpoints has been reduced by 5.
+* [[Jal-MejRah]] no longer drain combat stats when praying Protect from Missiles.
+}}
+{{Subject changes
+|date = 15 March 2018
+|update = QoL, Deadman and the Falador Party Room
+|change = You can no longer log out at the start of a wave during the Inferno.
+}}
+{{Subject changes
+|date = 8 June 2017
+|update = Pest Control & Open Weekend
+|change = * Players can no longer teleport out of the Inferno.
+* Items dropped in the Inferno now stay on the ground for 30 minutes before despawning.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* In 2018, the Inferno was made inaccessible on [[unrestricted world]]s to prevent players from practising an unlimited amount of times without supply costs.{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/972057245658832896|date=9 March 2018|archiveurl=https://reldo.runescape.wiki/i/105944|archivedate=29 May 2020|quote=We have now restricted access to The Inferno within the Beta worlds. This is to restrict free practicing.}} However, this decision appears to have been reversed since 2021, with nearly all unrestricted worlds since the [[Unrestricted world#Equipment Rebalancing Beta|Equipment Rebalancing Beta]] allowing players access to it.
+
+==References==
+{{reflist}}
+
+{{Inferno}}
+{{Activities}}
+{{Mor Ul Rek}}

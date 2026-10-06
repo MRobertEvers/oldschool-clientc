@@ -767,19 +767,15 @@ enum AppMinimapState
 #define APP_CLIENTSCRIPT_FENCE_MAX_CYCLES APP_SERVER_TICK_LOGIC_CYCLES
 
 /**
- * Logic cycles the client waits for the server to answer a logout request.
+ * The value App::logout_wait_cycles is armed with when a logout is requested.
  *
- * The reference's `logoutTimer` figure (Client.ts:11212) — 5 seconds — and it
- * means the same thing here for the whole of that time: the session is still
- * live, because the server has not said otherwise.
- *
- * Where this client departs from the reference is what it does when the window
- * runs out. The reference does nothing at all: a server whose content never
- * answers the button leaves the player in the world forever, which is fine for
- * the one server it was written against and is not fine for the several this
- * client is pointed at. Running out ends the session locally instead — the old
- * behaviour, arriving five seconds later, and said out loud in the log so a
- * server that is not answering can be told from one that is slow.
+ * The rev-239 client's logoutTimer value: its CS2 logout op (5630) and CS1
+ * clientCode 205 both store 250. It is NOT counted down, there or here: the
+ * rev-239 client has no decrement of that field, and the session ends only
+ * when the server ends it (a LOGOUT packet, or the socket it closes). A
+ * fallback that ended it locally after five seconds used to live here; it
+ * logged out a player the server had refused (CONTENT_BUGS ENG-29). See
+ * app_logout_tick in app/app_net.c.
  */
 #define APP_LOGOUT_WAIT_CYCLES 250
 
@@ -2025,11 +2021,12 @@ struct App
      * changed. What ends it is the server -- its LOGOUT packet, or the socket
      * it closes instead of sending one (app_net_tear_down_session reads this
      * to tell that answer apart from a connection that was lost). The
-     * reference's `logoutTimer`, armed at the same 250 cycles it uses
-     * (Client.ts:11212), and its whole point is that a logout the server never
-     * heard must not take the player off the world it is still playing.
+     * rev-239 client's logoutTimer, armed at the same 250 it uses, and its
+     * whole point is that a logout the server never heard, or refused, must
+     * not take the player off the world it is still playing.
      *
-     * @see APP_LOGOUT_WAIT_CYCLES for what happens when nothing answers.
+     * It stays armed until the session ends: nothing counts it down
+     * (@see APP_LOGOUT_WAIT_CYCLES).
      */
     int logout_wait_cycles;
     /** Client-behaviour era table (src/features/features.h). Never NULL after
@@ -3477,9 +3474,9 @@ App_NetSessionReset(struct App* app);
  * This is the ENDING, not the request. The logout button does not reach it:
  * the button sends its IF_BUTTON and arms App::logout_wait_cycles, and what
  * calls this is the server's answer -- the LOGOUT packet, or the socket it
- * closes instead. The three remaining ways in are that answer, a wait that ran
- * out with no answer at all, and a click with no session to answer it (an
- * offline profile, or a connection already gone).
+ * closes instead. The two ways in are that answer and a click with no session
+ * to answer it (an offline profile, or a connection already gone). A wait
+ * with no answer is not one: it lasts until the server ends the session.
  *
  * A profile that declares no [layout:title] has no login screen to return to;
  * the session still ends, and the client stays on the gameframe it booted into.

@@ -1,0 +1,12 @@
+runs 20; bats observed 971 (spawn rows 7692); spawned on tick 0: 876; spawned later: 95 (waves 36-62, a revive)
+attack animation ids on npc 7692: {'70/bat_auto': 2692}
+bats that never attacked before dying: 151 of 971
+gaps between one bat's attack ticks: total 1872; gap 3: 1451; gap <3: 0; gap 4-9: 324; gap >=10: 97
+gap histogram (gap:count) 3:1451 4:82 5:23 6:186 7:14 8:10 9:9 10:6 11:6 12:5 13:4 14:6
+first attack tick (tick-0 spawns that attacked, from the wave message): n 746 min 1 p10 3 median 11 p90 47 max 868
+tick-0 spawn tiles, local x,z:count 18,18:101 18,41:80 20,35:101 22,23:89 32,18:109 33,29:90 39,41:95 40,21:112 40,34:99
+tiles used by tick-0 spawns: 9 distinct
+bats per wave (tick-0, per run): {1: 292, 2: 292}
+bat count by wave number: w1:1 w2:2 w5:1 w6:2 w10:1 w11:2 w13:1 w14:2 w19:1 w20:2 w22:1 w23:2 w26:1 w27:2 w29:1 w30:2 w36:1 w37:2 w39:1 w40:2 w43:1 w44:2 w46:1 w47:2 w51:1 w52:2 w54:1 w55:2 w58:1 w59:2 w61:1 w62:2
+late (revived) bat spawns by wave: w36:7 w37:7 w39:7 w40:4 w43:4 w44:5 w46:5 w47:5 w51:7 w52:7 w54:4 w55:10 w58:8 w59:8 w61:4 w62:3
+death tick of tick-0 bats: n 876 median 27

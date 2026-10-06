@@ -1,0 +1,182 @@
+{{Update|date=13 August 2025|rev=20 August 2025|url=https://secure.runescape.com/m=news/a-poh-recode--more-fixes?oldschool=1|category=game}}
+[[File:A PoH Recode & More Fixes newspost.jpg|right]]
+__TOC__
+
+{| class="wikitable" style="text-align:center"
+!Known Issues
+!Status
+|-
+|We’re aware of an issue causing crashes related to Mahogany Homes.
+|Hotfixed.
+|-
+|We’re aware of an issue affecting the Player-Owned House viewer on the official client and mobile. In some cases, certain features such as topiary bushes or other hotspots with editable 'states' (i.e., portals or boss lairs), can cause the viewer to crash or behave unexpectedly.
+|Coldfixed.
+|}
+
+----
+
+''This week’s update features a full behind-the-scenes rewrite of the Player-Owned House system, alongside a handful of tweaks and fixes.''
+
+==Changelog - August 13th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Player-Owned-House Recode'''
+
+* Completely rewrote the Player-Owned House code. Everything should work the same, but please let us know if your furniture starts to haunt you.
+
+'''Delve Boss Updates and What We're Watching'''
+
+* Further altered the shape of the Ranged projectile to ensure it appears noticeably different to Melee.
+* Fixed a bug where valuable loot drops received from the Doom of Mokhaiotl did not broadcast to the clan chat. Note: We are aware this is also affecting the Colosseum, and we’re planning to fix it soon too.
+* A large number of hotfixes were deployed last week. For the full list, please see the table [https://secure.runescape.com/m=news/varlamore--summer-sweep-up-combat-tweaks?oldschool=1 here].
+* We've also addressed several points raised by players in the blog section below.
+
+'''Client and Mobile Updates'''
+
+* Fixed a bug where, when the XP tracker in the popout panel was closed, it would duplicate the last XP tracker in the list and create a 'ghost' tracker.
+* Fixed an issue on mobile where tapping near the side panel buttons could accidentally interact with the game beneath the UI.
+* Re-added the limit framerate option to the mobile side panel display settings.
+* Players in the new Renderer Beta will see improved visuals across multiple areas, with fixes for flickering, terrain clipping, and geometry issues in Lumbridge, Lumbridge Swamp, Player-Owned Houses, the Wizard’s Tower, and a bridge in Prifddinas.
+* Fixed a visual issue where the Amulet of Glory and similar amulets were missing their inner gem detail when using the new renderer beta.
+
+'''Other Changes'''
+
+* Added a new category to the 'Report Abuse' menu: 'PvP Cheating'. This may be used when you suspect someone of cheating in PvP, including through the use of macroing software.
+* Removing Raging Echoes curtains now correctly clears both the curtains and the wall decoration, without needing to reload your house.
+* Added a missing bass instrument to the Kastori music track.
+* Dimintheis and his sons can now give spare copies of their gauntlets more conveniently, if you have earned them, and Dimintheis now properly explains why he won't give you anything if you're ineligible.
+* Re-added a missing unsent letter to a house on the Sunset Coast.
+* Adjusted the GE buy limit of early League canes to that of other canes.
+* One version of the Fremennik helmet now has an improved model with horns that connect to the helmet.
+* Clicking out of Mr Mordaut's chat no longer tricks him into setting the same puzzle repeatedly.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using ''''Max/Med'''' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==PoH Under Construction==
+[[File:A PoH Recode & More Fixes (1).jpg|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-07/poh.jpg here]!'']]
+
+While this week’s update may appear light, it actually includes a major behind-the-scenes rewrite of the entire Player-Owned House (PoH) system. 
+
+Ideally, you won’t notice a thing; your humble abode should work just as it always has. But under the hood, we've done some pretty heavy-duty rewiring of our beloved spaghetti code. As with any large renovation project, there's always the chance of finding some bugs in the walls.
+
+'So why take the risk?' we hear you ask. Well, the old PoH code was ancient, creaky, and held together by developer prayers and duct tape. By modernising it, we’ve made it much easier to maintain and expand on in the future - so your dreams of a fully customisable, lava-moated, gilded, flying dungeon dragon house aren't quite as far-fetched anymore. 
+
+We’ve put this update through plenty of testing but given the scale of the changes, there’s always the possibility of the odd spooky surprise - ghost chairs, vanishing walls, portals to the void. You know, the usual snags. If you spot anything strange, please let us know!
+
+There’s still a lot more work ahead of us, but this is a big step in that direction, and we appreciate your patience and support as we build the foundations for the homes of the future.
+
+==Delve Boss Updates and What We're Watching==
+Last week we delivered several hotfixes to the Delve boss, which you can find in the table [https://secure.runescape.com/m=news/varlamore--summer-sweep-up-combat-tweaks?oldschool=1 here]. This week’s update includes a couple more touch-ups:
+
+* Further altered the shape of the Ranged projectile to ensure it appears noticeably different to Melee.
+* Fixed a bug where valuable loot drops received from the Doom of Mokhaiotl did not broadcast to the clan chat.
+
+===Addressing Your Feedback===
+We also want to take a moment to acknowledge some of the more common bits of feedback we've seen floating around. While these aren’t things we’re immediately changing, we hear you, and we want to be as clear as possible about where we’re currently at with each one:
+
+====Attack speed delay on Volatile Earth====
+
+* We’ve seen some concerns around the slower feel when attacking Volatile Earth, and we just want to clarify that this one’s working as intended. The 1-tick delay you’re used to seeing only applies when using Demonbane weapons on demons, and Volatile Earth doesn’t fall into that category.
+
+====Large grub damage confusion====
+
+* The phrase "triple-punishing damage" caused a bit of confusion - and understandably so! To clarify: the damage is meant to punish the player. The grub does not deal triple damage to the boss. We’ve updated the blog to reflect this more clearly. Apologies for the confusion!
+
+====Rapid or Unexpected Phase Changes (Melee Punish → Blue Shield)====
+
+* This one should now be resolved! Doom’s transition to shielded phase is now triggered by an attack timer instead of on-hit. To avoid instant phase transitions, Doom will also wait for two attacks after the last orb phase before triggering the shield.
+
+What this means in practice:
+
+* Hitting 75% HP no longer causes an immediate shield swap - instead, Doom will complete his current attack before making the change.
+* After the Volatile Earth special attack finishes, Doom will always perform two attacks before entering the shield phase.
+* This prevents rare cases where mechanics like grub explosions or midair arrows could skip the punish window and send him straight into shield phase.
+
+For most players, this should be a welcome quality-of-life change, making the flow of the fight more predictable, and fairer. However, we do acknowledge that a small group of high-end Delvers may find it harder to use late-fight stalling to force a second Volatile Earth special, as this will now require going through an additional shield phase. We’ll keep an eye on this feedback and see if there’s a way to support that playstyle without reintroducing the old issues.
+
+====Unavoidable damage from early Melee punish====
+
+* Triggering the Melee punish at the wrong tick on higher Delve levels can sometimes result in two overlapping hits from Doom. While we know this can feel punishing, we're keeping this one as it is for now - the aim being to reward precise timing and good preparation.
+
+====Eye of Ayak vs. Doom’s Beam Charge====
+
+* With the latest update, the Eye of Ayak now acts similarly to a Demonbane weapon when dealing with mage grubs, and we understand why some of you feel it should work the same way against Doom’s beam charge for consistency. After reviewing this, we’ve decided not to extend that interaction. While the Eye can help clear grubs more fluidly, using it to interrupt the beam would allow Doom’s shield to be drained far too quickly. Since the encounter already requires a Scorching Bow (providing a reliable ranged interrupt), we want to preserve the intended pacing and challenge of the fight.
+
+We’re generally happy with the challenge level of the encounter at the moment, so we’re taking a cautious approach to any further tweaks. However, there are [https://secure.runescape.com/m=news/varlamore--summer-sweep-up-combat-tweaks?oldschool=1 still a few bugs we're investigating], and rest assured, we’re watching your feedback closely, reviewing gameplay data, and monitoring for any emerging issues. Your feedback has been incredibly helpful so far, and we’re grateful for your continued support (and patience!) as we continue to refine the experience.
+
+==Client and Mobile Updates==
+
+* Fixed a bug where, when the XP tracker in the popout panel was closed, it would duplicate the last XP tracker in the list and create a 'ghost' tracker.
+* Fixed an issue on mobile where tapping near the side panel buttons could accidentally interact with the game beneath the UI.
+* Re-added the limit framerate option to the mobile side panel display settings.
+* Players in the new Renderer Beta will see improved visuals across multiple areas, with fixes for flickering, terrain clipping, and geometry issues in Lumbridge, Lumbridge Swamp, Player-Owned Houses, the Wizard’s Tower, and a bridge in Prifddinas.
+* Fixed a visual issue where the Amulet of Glory and similar amulets were missing their inner gem detail when using the new renderer beta.
+
+==Sailing Stress Test==
+====The Sailing Stress test will begin on Thursday, August 14th!====
+A single beta world will be accessible to players for '''15 minutes at a time''', '''four times''' over the course of one day. The exact times are: '''15:00 BST, 15:30 BST, 16:00 BST and 16:30 BST. '''
+
+We want as many players as possible to test our system to its absolute capacity so please do hop in if you’ve got time! When the test begins, we'll announce it via an in-game broadcast. There are no sign-ups or requirements – anyone can help out.
+
+Although this test isn’t focused on Sailing content, it’s still really important for the skill. We’ve already run a few internal stress tests - but now it's time to see how worlds fare in a live environment.
+
+During the stress test you’ll get to play a short minigame and (hopefully) meet some fellow sailors, including a few J-Mods! Once it's over, feel free to get back to your grind.
+
+Heads up! Originally the in-game poll stated that the poll would close on the 15th, however it was always meant to be the 14th, this has been changed now. Apologies for the miscommunication - go vote if you haven't already!
+
+==The Land of Kourend Album OUT NOW!==
+This soundtrack captures the essence of adventuring through the five unique houses of Great Kourend.
+
+[[File:A PoH Recode & More Fixes (2).jpg|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-08-07/land.jpg here]!'']]
+
+Now available on all major digital music platforms.
+
+Add the tracks to your playlist now using the handy links on [https://osrs.game/land-of-kourend this page]!
+
+==Other Changes==
+
+* Added a new category to the 'Report Abuse' menu: 'PvP Cheating'. This may be used when you suspect someone of cheating in PvP, including through the use of macroing software.
+* Removing Raging Echoes curtains now correctly clears both the curtains and the wall decoration, without needing to reload your house.
+* Added a missing bass instrument to the Kastori music track.
+* Dimintheis and his sons can now give spare copies of their gauntlets more conveniently, if you have earned them, and Dimintheis now properly explains why he won't give you anything if you're ineligible.
+* Re-added a missing unsent letter to a house on the Sunset Coast.
+* Adjusted the GE buy limit of early League canes to that of other canes.
+* One version of the Fremennik helmet now has an improved model with horns that connect to the helmet.
+* Clicking out of Mr Mordaut's chat no longer tricks him into setting the same puzzle repeatedly.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using ''''Max/Med'''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Donkey, Ed, Elena, Enigma, Entropi, Errol, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

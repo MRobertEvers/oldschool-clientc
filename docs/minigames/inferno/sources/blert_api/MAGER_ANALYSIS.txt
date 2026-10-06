@@ -1,0 +1,26 @@
+mager (7699) spawn rows 541; zuk-set mager (7703) spawn rows 12
+attack ids on 7699: {'81': 5810, '83': 189, '82': 24}
+mager that never acted before dying: 0 of 541
+gaps between two consecutive auto attacks (81->81): total 5103; gap 4: 4767; gap<4: 0; 5-9: 92; >=10: 244
+auto gap histogram 4:4767 5:26 6:17 7:15 8:16 9:18 10:23 11:15 12:17 13:7 14:12 15:10 16:11 17:7
+gap any two consecutive attacks: total 5482 min 4 histogram 4:4967 5:31 6:20 7:15 8:149 9:19 10:25 11:17 12:18 13:8 14:14 15:11
+gap AFTER a resurrect to the next attack: total 154 histogram 8:131 9:1 10:2 11:2 12:1 13:1 14:1 15:1 16:1 19:1 23:2 24:1 29:2 30:1
+gap BEFORE a resurrect from the previous attack: total 184 histogram 4:163 5:2 6:1 8:3 14:1 18:1 19:1 22:1 24:2 25:1 29:1 30:1 36:1 37:2
+gap after a melee attack: total 23 histogram 4:20 5:2 22:1
+resurrects per mager life: {0: 378, 1: 140, 2: 20, 3: 3}
+first attack kind (tick-0 spawns): {'81': 533, '83': 5}
+first attack tick (tick-0 spawns): n 538 min 1 p10 1 median 2 p90 27 max 959
+death tick (tick-0 spawns): n 538 min 18 p10 33 median 58 p90 112 max 1077
+tick-0 spawn tiles local x,z:count 18,18:64 18,41:51 20,35:49 22,23:61 32,18:62 33,29:64 39,41:63 40,21:66 40,34:58
+mager count by wave: w35:1 w36:1 w37:1 w38:1 w39:1 w40:1 w41:1 w42:1 w43:1 w44:1 w45:1 w46:1 w47:1 w48:1 w49:1 w50:1 w51:1 w52:1 w53:1 w54:1 w55:1 w56:1 w57:1 w58:1 w59:1 w60:1 w61:1 w62:1 w63:1 w64:1 w65:1 w66:2
+late (revived) mager spawn rows by wave: w66:3
+resurrect events 189; followed within 12 ticks by a later spawn row: 189
+resurrect->spawn tick offset: 0:189
+revived spawn tiles local x,z:count 35,33:10 34,32:9 36,31:9 33,29:7 32,33:7 34,33:6 35,34:6 36,33:6 35,29:6 32,30:6 32,29:5 36,34:5
+revived npc kinds: {'bat': 95, 'blob': 22, 'ranger': 7, 'meleer': 62, 'mager': 3}
+revived monster first attack minus its spawn tick: 4:26 5:4 6:1 7:17 9:2 10:2 11:2 12:1 13:2 14:3 15:1 16:3 17:3 21:2
+revived monster first attack minus spawn tick: n 135 min 4 p10 4 median 21 p90 49 max 161 (of 189 revived; the rest never attacked or died first)
+mager action events with >=1 eligible corpse available: 2163; resurrects among them 189 (8.7%)
+by corpses available (1,2,3+): 1: 121/1354=8.9% 2: 54/604=8.9% 3: 14/205=6.8%
+revived spawn tiles n 189: x 30-37 z 28-35 (local)
+which corpse (events with >=2 eligible corpses waiting: 68): revived type = oldest corpse type 40, = newest 46, expected by a uniform pick 42.8

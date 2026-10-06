@@ -1,0 +1,497 @@
+{{Update|date=04 February 2026|rev=5 February 2026|url=https://secure.runescape.com/m=news/deadman-annihilation-tweaks-shellbane-gryphon-cas--more?oldschool=1|category=game}}
+[[File:Deadman- Annihilation Tweaks, Shellbane Gryphon CAs & More! newspost.jpg|right]]
+{{clear}}
+__TOC__
+''Deadman: Annihilation first round tweaks are here! Plus, Shellbane Gryphon CAs, Getting Around poll changes and more…''
+
+----
+'''Update: 5th February 2026, 00:05 UTC'''
+
+We've added a number of worlds back for Deadman: Annihilation ahead of the breach in ~2 hours from now. Four of these are for the 3-60 bracket, two for 61-80, and two for 96+.
+
+We intend to keep these worlds online for the foreseeable, and we hope that it will help with the over-crowding issue experienced with the 19:00 UTC breach. We'll continue to monitor world activity during the course of Deadman and will make changes as we feel necessary.
+
+In addition to this, we believe we've resolved an issue that was sometimes preventing the top 16 players from receiving loot from breach NPC kills. If you experience any further issues with this, please do let us know.
+
+Apologies for the frustration caused during the earlier breach - the chaos was certainly fun to watch, but we appreciate the experience you had was less than ideal.
+
+Thanks for your patience and we'll be back in the morning to update further if needed!
+
+==Changelog - February 4th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Deadman: Annihilation Tweaks'''
+
+* Breaches now award points to the top 100 damage dealers per Breach NPC (up from 16).
+* Fixed a bug where the Deadman's Chests were taking longer to open than they should in both Single- and Multi-way combat areas.
+* Removed the limit on Starter Kit reclaims for non-PvP deaths. You can now receive an unlimited amount of Starter Kits from the Combat Tutors in Lumbridge, or Burger Brunsen at the Grand Exchange.
+** We're also converting the Chronicle pages you'd receive into charges already stored in the Chronicle.
+* Reduced the strength of Zemouregal’s summons from 300 to 150.
+* Adjusted the number of Deadman: Annihilation worlds per bracket to better match player demand. You can see the details further down the blog.
+* We've increased the Hitpoints for nearly all Breach NPCs to account for the increase in player numbers in Breaches.
+* We’ve slightly reduced the damage dealt by the Yama boulder across all brackets. In the 3-60 bracket specifically, the boulder’s damage will now max between 20 and 30, while in all other brackets it will max between 30-60.
+* Ancient Warrior equipment can now be bought and sold on the Grand Exchange.
+* Scroll of Redirection can be bought from the Emblem Trader, located the north of the Grand Exchange. This allows you to complete the Desert Medium Diary task, if you wish to.
+* If you have Level 80 Thieving and then pickpocket a Hero in Ardougne, it'll complete the diary task.
+* The descriptions for the Sigil of Nature and Enhanced Harvest have been updated to make clear that they don't work at Tithe Farm.
+* Fixed a visual issue when opening the Trinket of Advanced Weaponry, the weapons should be easier to see.
+
+Plus, a Permanent Deadman change:
+
+* Guards no longer spawn in the Unkah area.
+
+'''Sailing Updates'''
+
+* Gryphon tasks are more common. See further down the blog for the details.
+* Introduced an optional task extension for 50 Slayer points: Gryphon and on. This adds a flat +80 kills to the task you're assigned, making the Gryphon tasks more impactful once you get them.
+* Belle's Folly is now more common, dropping at a rate of 1/256 instead of 1/400.
+* Shellbane Gryphon Combat Achievements are here! Check out the details further down in the blog.
+* Facility Bottles are now purchasable from Shipwright Seb for 75,000 GP each.
+** They're also now more common across their existing salvaging sources.
+** Additionally, we've added Facility Bottles to the loot table of Opulent Salvage from Merchant Shipwrecks.
+* Added the new logs from Sailing (which are Camphor, Ironwood and Rosewood logs) to the loot tables of the salvage from the Mercenary and Fremennik shipwrecks.
+* You can now hunt Red Salamanders on Charred Island without any issues.
+
+'''Getting Around Poll Changes'''
+
+* Eluned will now recharge Teleport Crystals regardless of how many charges they currently have. Note that this will still cost the full amount, even though it may not be charging from empty to full.
+** Teleport Crystals now recharge up to 3 charges by default, or 5 charges if you’ve completed the Western Provinces Hard Diary.
+* Using a charged Quetzal Whistle now opens the Quetzal Transport interface immediately.
+** You can select your destination directly, provided it’s unlocked.
+** Added a 'Last Destination' option, teleporting you to the last travelled Quetzal site if there's one, allowing for quick repeat travel.
+** You can toggle whether the whistle sends you straight to the Hunter Guild or opens the destination selection menu, which is on by default.
+* Improved the level progression of Spirit Trees by spreading them more evenly across Farming levels, as follows:
+** Level 83: 1 Spirit Tree
+** Level 88: 2 Spirit Trees
+** Level 93: 3 Spirit Trees
+** Level 96: 4 Spirit Trees
+** Level 99: Unlimited Spirit Trees
+* The Red and Blue Rum from Trouble Brewing are now tradeable.
+* NPC spawns in the Fight Pits minigame now escalate over time, including Magers and Jads in later stages, with improved roaming behaviour and more frequent target switching.
+* Re-introduce the item's GP value shown when broadcasting raid uniques, and removed broadcasts for duplicate Thread of Elidinis or Tombs of Amascut gems.
+
+'''Other Changes'''
+
+* The 'Empty Containers' button now also empties worn containers, meaning equipped items can be emptied straight into the bank. These worn containers are:
+** Log Basket
+** Fish Sack Barrel
+** Forestry Basket
+* Potion Storage now immediately opens after clicking the button in the bank interface.
+* Fixed the following models from clipping into the ground:
+** Zuk's lava base is visible once again
+** Sailing skillcape animation
+** The defence animation of dragons when they're moving
+** The death animation of the Fever Spider
+** The trap pit animation of Antelopes
+** The bank note certificate
+* Fixed the terrain clipping on a cliff in Varlamore.
+* The River Dougne bridge's legs no longer stick out. Likewise, a terrain clipping issue by River Dougne was resolved.
+* The entrance of the Waterbirth Island Dungeon now renders and appears correctly.
+* Fixed an issue where some sounds were playing back at a lower quality than intended.
+* Fixed an issue where items could be incorrectly rotated when dropped on certain tiles of the floor.
+* Improved player and NPC height adjustment on sloped terrain.
+* Fixed an issue where some windows seemed detached from the wall.
+* Fixed incorrect camera positions during certain cutscenes.
+* Fixed an issue where destination tile highlights didn't work on boats.
+* Fixed some NPCs animating incorrectly while on boats.
+
+'''Upcoming Maintenance'''
+
+* With our continued efforts towards improving the core experience of all our games, from next week (Tuesday, February 10th) we are going to be starting an updated weekly maintenance schedule
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Zerker </b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Deadman: Annihilation Changes==
+[[File:Deadman- Annihilation Tweaks, Shellbane Gryphon CAs & More! (1).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-04/dmm.png here]!'']]
+
+Deadman: Annihilation launched last Friday and you've been ''busy ''since then. This has been one of our most action-packed Deadman events yet and it's been phenomenal to see so many of you getting stuck in, especially those of you without any prior PvP experience!
+
+We've got a handful of changes to make this week to address common pain points so that anybody looking to start late or make a further push for points has the best experience - or at least as good an experience as possible when surrounded by other players looking to send you back to the Grand Exchange...
+
+===Breach NPC Point Allocation===
+While it's fantastic to see worlds so full and Breaches so crowded, the increased levels of activity compared to the Deadman Modes of days gone by have shone a light on one issue in particular which hasn't really taken centre stage in the past: Deadman point allocation at Breaches.
+
+Points at Breaches are allocated per NPC, meaning that rather than tracking your damage on your own character, every NPC is tracking the players dealing damage to it in order to award them all points when the NPC meets its untimely ends. Since the inception of Breaches in 2023, the number of players that these NPCs can keep track of has been capped at 16 due to technical limitations - there are some NPCs in-game who exceed this cap like Nex or the Nightmare, but they handle damage contribution very differently.
+
+This week, we're happy to say that we have the ability to increase this number to 100, meaning the '''top 100 '''damage dealers to a Breach NPC will receive points when the NPC dies. This change is made possible by some behind the scenes tweaks we made while prototyping an infamous worm boss, but the tech was ultimately deployed alongside everybody's favourite crustacean: the Gemstone Crab! Thank you Gemstone Crab!
+
+===Deadman's Chest Changes===
+The Deadman's Chest is a brand new addition to Deadman: Annihilation, and while the tension of waiting to open it and hoping for some cool loot ''is ''a nail biter, we'd like to make some changes here to reduce the effectiveness of ragging and prevent some ''crafty ''players from mitigating their risk of being interrupted entirely.
+
+On Monday, we deployed a hotfix to prevent players from looting these chests if they were stood on directly on top of it, since some players were hopping worlds to log in directly under the chest and looting it with no real threat of retaliation from other players. 
+
+Today, we've got a fix for a bug where the chests were taking longer to open than they should in both Single- and Multi-way combat areas, meaning that it takes 60 seconds in a Singles area and 30 seconds in a Multi area, as opposed to 80 seconds and 41 seconds respectively.
+
+===Earlygame Tweaks===
+It's no secret that Deadman worlds aren't the ''most ''inviting places to be, even in the lower Combat brackets, but two things in particular stood out on launch that we'd like to improve for any players starting late!
+
+First up: we're removing the limit on Starter Kit reclaims for non-PvP deaths. With today's update, you'll be able to receive an unlimited amount of Starter Kits from the Combat Tutors in Lumbridge, ''or Burger Brunsen at the Grand Exchange. We're also converting the Chronicle pages you'd receive into charges already stored in the Chronicle to save you some clicks!''
+
+That should be a big help to players dying to NPCs while they're just trying to establish themselves, rather than needing them to die a PvP death to readily reclaim those kits. Usually NPC deaths at the start of Deadman are quite rare, but Zemouregal and his summons flipped that on its head a little, so we're reducing the Strength of Zemouregal's Summons from 300 to 150, meaning they'll hit less hard and should prove easier to tank so long as you've got a couple of Hitpoints levels and some food handy!
+
+===World Adjustment===
+We’ve adjusted the number of Deadman: Annihilation worlds per bracket to better match player demand, which should improve ping consistency overall. Below, you can see removed worlds highlighted in red and newly added worlds in green. 
+{| class="wikitable" style="text-align: center;"
+|-
+! 
+! 3-60
+! 61-80
+! 81-95
+! 96+
+|-
+| USW
+| 650, 651, '''<span style="color: #b11717">652^, 653^, 654^</span>'''
+| 655, 656, '''<span style="color: #b11717">657^</span>'''
+| 658, '''<span style="color: green">654*</span>'''
+| 659, '''<span style="color: #b11717">605^</span>'''
+|-
+| USE
+| 639, 640, 641
+| 642, 643, '''<span style="color: #b11717">644^</span>'''
+| 645, '''<span style="color: green">644*</span>'''
+| 646, 647
+|-
+| UK
+| 661, 662, '''<span style="color: #b11717">663^, 664^, 665^</span>'''
+| 
+| 
+| 
+|-
+| DE
+| 677, 678, 679, '''<span style="color: #b11717">680^, 681^</span>'''
+| 682, 683, 684
+| 685, '''<span style="color: green">681</span>'''
+| 686, 628
+|-
+| AU
+| 687, '''<span style="color: #b11717">688, 689</span>'''
+| 690, '''<span style="color: #b11717">691</span>'''
+| 592
+| 593, '''<span style="color: #b11717">594</span>'''
+|}
+
+''Worlds marked with '''*''' have been added, and those marked with '''^''' have been removed.''
+
+===Other Deadman: Annihilation Tweaks===
+Alongside all of the above, we've got a rapidfire list of quick fixes and improvements to make as you head in to week two of Deadman: Annihilation!
+
+* We've increased the Hitpoints for nearly all Breach NPCs to account for the increase in player numbers in Breaches.
+* We’ve slightly reduced the damage dealt by the Yama boulder across all brackets. In the 3-60 bracket specifically, the boulder’s damage will now max between 20 and 30, while in all other brackets it will max between 30-60.
+* Ancient Warrior equipment can now be bought and sold on the Grand Exchange.
+* Scroll of Redirection can be bought from the Emblem Trader, located the north of the Grand Exchange. This allows you to complete the Desert Medium Diary task, if you wish to.
+* If you have Level 80 Thieving and then pickpocket a Hero in Ardougne, it'll complete the diary task.
+* The descriptions for the Sigil of Nature and Enhanced Harvest have been updated to make clear that they don't work at Tithe Farm.
+* Fixed a visual issue when opening the Trinket of Advanced Weaponry, the weapons should be easier to see.
+
+====Permanent Deadman Change====
+
+* Guards no longer spawn in the Unkah area.
+
+We're excited to see you all keep progressing and gearing up and hope to see as many of you as possible kitted-out for the epic Deadman: Annihilation Finale on February 21st!
+
+==Sailing Updates==
+===Gryphon Task Weight Improvements===
+As promised in the <u>[https://secure.runescape.com/m=news/a=13/sailing-into-2026?oldschool=1 Winter Summit blog]</u>, we're increasing the task weighting of Gryphons, the Tortugans' deadliest enemy.
+
+You can also purchase an optional '''task extension''' for 50 slayer points''': "Gryphon and on". '''This adds a flat +80 kills to the task you're assigned, making Gryphon tasks more impactful once you get them.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Slayer Master
+! Weighting
+! Base Amount
+! Extended Amounts
+|-
+| Chaeldar
+| Up to '''10''' from 5 (out of '''360''')
+| 60-100
+| '''140-180'''
+|-
+| Duradel
+| 7 (out of 327)
+| 100-210
+| '''180-290'''
+|-
+| Nieve
+| 7 (out of 294)
+| 110-170
+| '''190-250'''
+|-
+| Vannaka
+| Up to '''10''' from 7 (out of '''325''')
+| 30-80
+| '''110-160'''
+|}
+
+====How does this affect Belle's Folly?====
+Additionally, alongside these changes we've improved the drop rate of Belle's Folly from the Shellbane Gryphon. Players told us that it didn't feel worthwhile to grind for one due to how uncommon it was. We pitched this item as a mid-game reward, comparable to the Zombie Axe, but just a stab version. Following your feedback, it now drops at a rate of 1/256 (previously 1/400).
+
+===Shellbane Gryphon Combat Achievements===
+[[File:Deadman- Annihilation Tweaks, Shellbane Gryphon CAs & More! (2).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-04/shellbanegryphon.png here]!'']]
+
+With task weightings now adjusted based on your feedback, you can get cracking on the Shellbane Gryphon Combat Achievements!
+
+The Shellbane Gryphon is a mid-level boss, so its CAs are designed to be challenging while not being overly difficult. We’ve also leaned into tasks that introduce mid-level players to some of the key Slayer fight mechanics. For example, the Featherweight Fighter CA is designed to teach you more about weight mechanics. Additionally, since the Shellbane Gryphon can be fought on a Slayer task, we took into account for all tasks to be achievable within a single task, so you don't have to keep rolling for more. 
+
+From pushing kill count limits to testing your endurance, it’s time to take on the challenge and level up your Slayer game!
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Shellbane Adept
+! Kill the Shellbane Gryphon 25 times.
+! Kill Count
+! Easy
+|-
+| Dry Cleaning
+| Kill the Shellbane Gryphon after clearing its corrosive spit from your armour.
+| Mechanical
+| Easy
+|-
+| Shellbane Veteran
+| Kill the Shellbane Gryphon 50 times.
+| Kill Count
+| Medium
+|-
+| Perfect Shellbane
+| Kill the Shellbane Gryphon without taking damage.
+| Perfection
+| Medium
+|-
+| Shellbane Speedrunner
+| Kill the Shellbane Gryphon 10 times within 12:30 minutes of entering the cave.
+| Speed
+| Medium
+|-
+| Shellbane Survivor
+| Kill the Shellbane Gryphon 25 times without leaving the cave.
+| Stamina
+| Hard
+|-
+| Featherweight Fighter
+| Kill the Shellbane Gryphon 5 times without leaving the cave, while wearing gear weighing less than 40kg.
+| Restriction
+| Hard
+|}
+
+===Facility Bottles Tweaks===
+We're making improvements to our design of Facility Bottles based on your feedback. Here's what's changing:
+
+* Facility Bottles are now purchasable from '''Shipwright Seb for 75,000 GP''' each.
+** This means that you don't have to engage in Shipwreck Salvaging to move your facilities if you would prefer to purchase them outright, however, it comes with a cost.
+** Note that purchasing them via Shipwright Seb will '''not''' unlock the collection log entry, as we don't want to encourage 'buyable' collection log items. We're aware there are places in game that allow this, but it's a direction we'd like to steer away from.
+* They're also now more common across their existing salvaging sources so that they're likely to drop more frequently.
+* Additionally, we've added Facility Bottles to the loot table of Opulent Salvage from Merchant Shipwrecks, so that you don't have to engage in only lower-levelled salvaging in order to obtain them.
+
+[[File:Deadman- Annihilation Tweaks, Shellbane Gryphon CAs & More! (3).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-04/shipwrightseb.png here]!'']]
+We hope that by making the bottles purchasable and more common from a wider range of salvages, they'll be easier to obtain. Also, reminder that with Facility Bottles, you can move your built-in facilities not only ''on ''your boat, but ''between ''your boats, too!
+
+Furthermore, we've seen players compare Facility Bottles to moving rooms in a Player Owned House. One has a cost, and the other is free. Why is that?Well, to start with: you have one POH, but you can own up to ''five ''boats, and we want you to make the most out of all five slots available. Moving your facilities is also different to changing your rooms in your POH. Not only can you change the location of your facility on your boat, but you can transfer it between your boats, too.It would be really easy for us to remove the cost entirely on Facility Bottles and call it a day, however, we're mindful about the long-term implications this could have. If facilities were incredibly easy to move, we might see you only use ''one ''boat and swap their facilities in and out of it in the same way we treat player gear!In making Facility Bottles have a cost, we're hoping to make boat facilities feel like more important milestones in your journey, and reward players who put the time into thinking about dedicated boat builds and ship layouts. We want to see players have dedicated boats for all sorts of things, like Combat, Trawling, and more!We understand that this might feel overly punishing for those of you who might have simply made a mistake early on in their Sailing journey, however, we hope that increasing their drop rate from Salvaging will help with this. Additionally, the increased price of them should mean that you're able to get some decent Alch value from them, too.
+
+===Other Sailing Changes===
+* Added the new logs from Sailing (which are Camphor, Ironwood and Rosewood logs) to the loot tables of the salvage from the Mercenary and Fremennik shipwrecks.
+* You can now hunt Red Salamanders on Charred Island without any issues.
+
+==Getting Around Poll Changes==
+We kicked things off with the Getting Around Poll changes by releasing Holy Moleys and the Hooded Slayer Helm in a previous game update, which you can find <u>[https://secure.runescape.com/m=news/a=13/holy-moleys-and-the-hooded-slayer-helm-are-here?oldschool=1 here]</u>. You can also check out the poll blog <u>[https://secure.runescape.com/m=news/a=13/getting-around?oldschool=1 here]</u>. We're now picking up from where we left off! Let's take a look at what updates we've got to make getting around Gielinor smoother.
+
+===Recharge Partially Charged Teleport Crystals===
+Ever had that 'only 1 charge left' Teleport Crystal staring you down in the bank? Yep, we know the feeling. But it's no longer the case!
+
+[[File:Deadman- Annihilation Tweaks, Shellbane Gryphon CAs & More! (4).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-04/eluned.png here]!'']]
+
+Now, you can recharge Teleport Crystals regardless of how many charges they currently have by talking to Eluned. Note that this will still cost the full amount, even though it may not be charging from empty to full. Crystals now recharge up to 3 charges by default, or 5 charges if you’ve completed the Western Provinces Hard Diary.
+
+If you use the right-click option on Eluned, she will recharge seeds and crystals without any further confirmation, prioritising seeds first. So make sure to bring enough GP to recharge crystals as well, otherwise you'll only be able to recharge the seeds.
+
+Teleport Crystals are handy, and we hope these changes make managing them so too!
+
+===Quetzal Whistle Improvements===
+Previously, activating a Quetzal Whistle always used to send you to Renu first, before asking where you actually want to go, adding an extra step every time.
+
+To simplify this, we've made it so that:
+
+* Using a charged Quetzal Whistle now opens the Quetzal Transport interface immediately.
+* You can select your destination directly, provided it’s unlocked.
+* Added a 'Last Destination' option, teleporting you to the last travelled Quetzal site if there's one, allowing for quick repeat travel.
+* You can toggle whether the whistle sends you straight to the Hunter Guild or opens the destination selection menu, which is on by default.
+
+This change gets rid of the unnecessary back-and-forth, while still keeping the original behaviour available for those who prefer it.
+
+===Spirit Tree Level Progression===
+We've improved the level progression of Spirit tree unlocks to spread them more evenly across the farming skill. Now, progression looks like this:
+
+* Level 83: 1 Spirit Tree
+* Level 88: 2 Spirit Trees
+* Level 93: 3 Spirit Trees
+* Level 96: 4 Spirit Trees
+* Level 99: Unlimited Spirit Trees
+
+[[File:Deadman- Annihilation Tweaks, Shellbane Gryphon CAs & More! (5).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-04/spirittrees.png here]!'']]
+Note that temporary boosts, like the Garden Pie, still let you plant Spirit Trees at lower levels. We hope this new system will streamline your progression and make levelling feel a little more rewarding.
+
+===Tradeable Trouble Brewing Rum Teleports===
+We've made it so that the Red and Blue Rum from Trouble Brewing are now '''tradeable''', meaning:
+
+* You can buy them from other players or via the Grand Exchange.
+* Players who regularly play Trouble Brewing could sell spare Red and Blue rum from the rewards shop of the minigame.
+
+Quest progression still applies! You have to complete the Cabin Fever quest so that the rum will whisk you away.
+
+Overall, this should make it easier to start playing Trouble Brewing without the prep work, or provide a handy route to Mos Le'Harmless, while also giving dedicated minigame enjoyers a way to turn excess rum into a tidy profit. 
+
+===Fight Pit Minigame Improvements===
+We’ve made a small update to the TzHaar Fight Pits to help matches reach a clearer conclusion.
+
+As matches progress, additional NPCs will now begin spawning over time, ramping up the pressure on any players still standing. This addresses situations where modern gear and potions made it possible to simply outlast the later stages rather than fight through them.
+
+The escalation now works as follows:
+
+* 1.5 minutes: Tz-Kih (Bats)
+* 3.5 minutes: Tz-Kek (Blobs)
+* 5.5 minutes: Tok-Xil (Rangers)
+* 7.5 minutes: Ket-Zek (Magers)
+* 9.5 minutes: TzTok-Jad (Jad)
+* 11.5 minutes: TzHaar gas begins dealing continuous damage, with a warning message in chat
+
+NPCs will now roam further around the arena, actively hunting down players and using improved pathfinding to avoid getting stuck. Aggro will also shift between players over time, rather than focusing on one player indefinitely.
+
+The aim here is to ensure that when Fight Pits are played (via organised Discords, clans, or more J-Mod community events), rounds feel more decisive, chaotic, and true to the spirit of the Pit.
+
+===Raid Unique Broadcast Tweaks===
+Last but not least, we're bringing a small improvement to how raid unique drops are broadcast.
+
+Previously, when a raid unique was broadcast, the message also included its Grand Exchange value. That extra bit of context helped put drops into perspective in the moment, whether you were the one getting the loot or watching it pop up in your clan chat.
+
+We've now brought this back, so raid unique broadcasts once again show the item’s GP value alongside the drop.
+
+Additionally, in order to reduce some unnecessary noise, we’ve removed broadcasting duplicate copies of the Thread of Elidinis or Tombs of Amascut gems, which can otherwise clutter chats without adding much value.
+
+That's it for today, but we'll continue from where we left off with the Getting Around Poll changes in the upcoming weeks - stay tuned!
+
+==Other Changes==
+Last week, we added the "Empty Container" button to the Bank Interface, allowing you to quickly empty the contents of containers like Coal Bags, Essence Pouches, Herb Sacks, and more. We also deployed a hotfix that allows the 'Empty Containers' button to empty the contents of containers that are in locked Inventory slots. Regarding this, we had said that we planned to develop a toggle for it, but it seems as though the behaviour that we've got now is what's best for all players. If you've got strong feelings on use-cases for those locked slots not being emptied and would like to see a toggle in the future, please let us know and we'll keep monitoring your feedback.
+
+Many of you requested that this button also work with worn containers. Following your feedback, '''the 'Empty Containers' button now also empties worn containers''', meaning equipped items can be emptied straight into the bank. These worn containers are:
+
+* Log Basket
+* Fish Sack Barrel
+* Forestry Basket
+
+Moreover, we've fixed an issue where Potion Storage opened slower than usual. It now opens immediately when you click the button in the bank interface.
+
+We've also seen some of you asking why the order of the deposit buttons have changed in the Deposit Box UI. This is to ensure a consistent order for deposit buttons between the Bank and Deposit Box interfaces, making it more straightforward in the long term. However, we’re aware that having the Deposit Worn Items button on the right has caused some players to accidentally deposit their gear into the Deposit Box by mistake and weren't able to retrieve back. To address this, we're exploring a toggle option to let you hide the "Deposit Worn Items" button in the Deposit Box UI. We don't have an ETA for this yet, but it's planned to come in the upcoming weeks.
+
+Some additional changes:
+
+* Fixed the following models from clipping into the ground:
+** Zuk's lava base is visible once again
+** Sailing skillcape animation
+** The defence animation of dragons when they're moving
+** The death animation of the Fever Spider
+** The trap pit animation of Antelopes
+** The bank note certificate
+* Fixed the terrain clipping on a cliff in Varlamore.
+* The River Dougne bridge's legs no longer stick out. Likewise, a terrain clipping issue by River Dougne was resolved.
+* The entrance of the Waterbirth Island Dungeon now renders and appears correctly.
+* Fixed an issue where some sounds were playing back at a lower quality than intended.
+* Fixed an issue where items could be incorrectly rotated when dropped on certain tiles of the floor.
+* Improved player and NPC height adjustment on sloped terrain.
+* Fixed an issue where some windows seemed detached from the wall.
+* Fixed incorrect camera positions during certain cutscenes.
+* Fixed an issue where destination tile highlights didn't work on boats.
+* Fixed some NPCs animating incorrectly while on boats.
+
+==Upcoming Maintenance==
+With our continued efforts towards improving the core experience of all our games, from next week ('''Tuesday, February 10th''') we are going to be starting an updated maintenance schedule!
+
+While this does mean a little bit more downtime each week and additional breaks for Mod 🐹, it will give our core infrastructure teams a more consistent timeline to continually update our systems and backend tech, rather than our current sporadic approach. So, what can you expect?
+
+At its core, we will be scheduling maintenance for '''every Tuesday at 9am UTC'''. During this time, both games will be taken offline for improvements with downtime usually lasting''' ~20 minutes'''. While this will normally be the case, there may be some instances that will warrant a longer period of downtime. To help, we will be adding a new part into the <u>[https://osrs.game/game-status Game Status]</u> page to show you a list of upcoming maintenance windows and approximate downtime.
+
+We are also looking to slightly alleviate those who are always online around that time, with every few weeks of maintenance happening at the later time of '''11am UTC''', with no changes in the amount of downtime stated above. Any period of downtime will be accompanied with a 45-minute shutdown timer to give you plenty of notice.
+
+You may wonder, why not just have these periods alongside the regular Game Update? While that approach does have benefits specifically for Old School, this approach means if any issues arise then we can isolate investigating the problem with the maintenance work taking place, rather than trying to first identify whether it comes from game changes or external ones.
+
+The team have already been doing some great maintenance work without it directly affecting both games (which we spoke about in our previous <u>[https://secure.runescape.com/m=news/behind-the-scenes-of-osrs-maintenance?oldschool=1 Spudworks]</u> <u>[https://secure.runescape.com/m=news/spudworks-ddos-protection--security?oldschool=1 blogs]</u>), but this is a continued effort to get our infrastructure into a place where the team are able to perform future maintenance without always needing to bring the games offline at all.
+
+To start off, here is the first batch of upcoming maintenance you can expect:
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Date
+! Time
+! Downtime
+|-
+| Tuesday, February 10th
+| 9am UTC
+| ~20 minutes
+|-
+| Tuesday, February 17th
+| 9am UTC
+| ~20 minutes
+|-
+| Tuesday, February 24th
+| 9am UTC
+| ~20 minutes
+|-
+| Tuesday, March 3rd
+| 11am UTC
+| ~20 minutes
+|}
+
+We wanted to thank everyone who took part in our recent opinion poll that helped us gauge how this would affect you. Remember to check the <u>[https://osrs.game/game-status Game Status]</u> to keep up to date with all the latest maintenance and upcoming downtime.
+
+==Birthday Cakes==
+To celebrate Old School’s upcoming 13th birthday and RuneScape's 25th, we’re hosting another: Bake a RuneScape-themed birthday cake competition! 
+
+Whip up a cake that would make the Lumbridge Cook proud!
+
+Competition opens 10:00 am UTC February 13th and ends 10:00 pm UTC February 22nd.
+
+Once the competition kicks off, share your masterpiece in the dedicated Birthday Cakes channel on the Official OSRS <u>[https://discord.gg/OSRS Discord]</u>- stay tuned!
+
+We’ll narrow it down to three finalists, and the ultimate winner will be determined by the <u>[https://www.twitch.tv/oldschoolrs Twitch]</u>chat live on our Birthday Stream on Friday, February 27th.
+
+Prizes for the winner include:
+
+* 12-month OSRS membership
+* 10 x Old School bonds
+
+Full Terms & Conditions <u>[https://osrs.game/Birthday-Cakes-2026 here]</u>. Good luck!
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1qvld31/dmm_tweaks_shellbane_gryphon_cas_more/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Lotus, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume'''
+
+''The Old School Team.''

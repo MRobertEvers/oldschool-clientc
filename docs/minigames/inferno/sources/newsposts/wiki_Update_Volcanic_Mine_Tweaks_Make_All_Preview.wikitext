@@ -1,0 +1,98 @@
+{{Update|date=28 September 2017|link=http://services.runescape.com/m=news/volcanic-mine-tweaks--make-all-preview?oldschool=1|category=game}}
+[[File:Volcanic Mine Tweaks & Make All Preview newspost.jpg|right]]
+{{clear}}
+
+
+<center>''RuneFest has come to a close and although we're sad to be leaving the event behind for another year, we're looking forward to start working on the many things to come over the next 12 months. This week sees the release of some tweaks to the Volcanic Mine found on Fossil Island, an upgrade to the fertile soil spell and an increased amount of bank space for players who keep their account secure with an Authenticator and/or bank pin!''</center>
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Dragon Slayer II Poll}}
+
+
+The Poll questions for Dragon Slayer II, alongside all of the asociated rewards and options have been added to the game so go cast your vote! If you didn't get chance to read through our previous news update, then you can read it [http://services.runescape.com/m=news/dev-blog-dragon-slayer-ii?oldschool=1 here]. We appreciate it's quite a lengthy one, but we wanted to make sure you had as much information as possible!
+
+We'll be live on [http://twitch.tv/runescape twitch.tv/runescape] Thursday 28th September with a design stream. Join Mod West and a host of other Mods throughout the day, beginning at 12pm UTC and ending at 5pm UTC. Tune in with any questions you have regarding the poll! 
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Volcanic Mine Improvements}}
+
+
+Now that the Volcanic mine has been in-game for a few weeks and more players have unlocked the Kudos requirement to enter, we've made some changes based on community feedback.
+
+[[File:Volcanic Mine Tweaks & Make All Preview (1).jpg|center]]
+
+*If the volcanic mine is particularly stable, you'll find the amount of meteorites and earthquakes will now be much lower.
+*Players are now able to unlock the upgraded version of the Fertile Soil spell on the lunar spellbook for the cost of 40,000 points from the Volcanic Mine. This spell requires Volcanic ash as well as the runes to cast. Players without the ash in their inventory will cast the regular Fertile Soil spell.
+*You can now purchase a heat-proof vessel container capacity upgrade for 10,000 points from Petrified Pete.
+*We have changed how Fragments are given within the Volcanic mine. More emphasis has been placed on mining earlier stages of the rock as people were leeching until the final stage.
+*We've substantially upped the chance of obtaining a fossil while mining the boulders found within the Volcanic mine.
+*Mining a boulder to the whirlpool in the volcanic mine will now award all players with an additional 100 points (providing they are downstairs in the mine).
+*We've buffed the experience in the Volcanic mine by 10%.
+*The Volcanic mine's shop has had many of its items reduced by ~30%.
+
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Customer Support Week}}
+
+
+Next week is ‘Customer Service Week’ which means we are shining the spotlight on Account Security! We’ve unlocked 16 additional bank spaces for the most security aware players to enjoy, you’ll get 8 spaces for having a Bank PIN, which you can set up by speaking to any Banker, and 8 more just for enabling the [https://support.runescape.com/hc/en-gb/articles/206344209-RuneScape-Authenticator Authenticator]! This applies to both Members and F2P.
+
+[[File:Volcanic Mine Tweaks & Make All Preview (2).jpg|center]]
+
+During our Q&A stream on the 4<sup>th</sup> October we’ll be joined by Mod Stevew, who will quiz the Old School team and test their knowledge of account security! There will be forfeits for those who struggle to answer the questions so you can either help them in the chat or sit back and watch them suffer – the choice is yours! 
+
+Don’t forget that you can also get account security advice at any time by speaking with Count Check inside the Lumbridge Graveyard. He can ‘check’ your account security and also offers a one-off free teleport to the Stronghold of Security where you can learn more about protecting your account from online perils. 
+
+There’s never been a better time to upgrade your account security so you can be sure that your hard-earned items never fall into the hands of a hijacker. Enjoy the extra bank space!
+
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Make All Update}}
+
+
+Great progress has been has been made on the Make All option in development - it's now ready for QA to get their hands on it! It's been a long and time consuming task to make sure all of the possible options are covered so we wanted to share some of the interfaces you can expect to see in-game.
+
+[[File:Volcanic Mine Tweaks & Make All Preview (3).png|center|600px]]
+
+Activities that previously had a Make-X option in the chatbox have been revamped! We've created a new custom interface as shown above, which will appear in your chat box. In this example players have the option to cook 1, 5, 10, X and the newly added "All" Sharks. If you selected a custom number of sharks to cook last time you opened the interface, it will try to offer you that number again if you’re trying to cook more sharks now. You can also press the space bar to start whichever action you select.
+
+[[File:Volcanic Mine Tweaks & Make All Preview (4).jpg|center]]
+
+Alongside improving the interface for many "Make All" options, we've also added shortcut keys for some interfaces that would have otherwise been a little more frustrating to work with. In the above image, we can still see the "Make All" option, alongside the numbers 1-9. Pressing the number 1 key for example, would start smelting as many Bronze Bars as you could.
+
+[[File:Volcanic Mine Tweaks & Make All Preview (5).png|center]]
+
+For activities that already had an existing interface, we've added the "All" option to the list. Others changes here include tidying up the interface a little to ensure all icons and text are in line, as well as reducing the overall size of the interface to give it a much cleaner look!
+
+[[File:Volcanic Mine Tweaks & Make All Preview (6).png|center|600px]]
+
+And lastly, just a little insight into the depth of how many different areas in the game this change impacted! Who knew you could churn milk?! There is no "Make All" option here because it didn't exist in the game previously. We have however updated the inferface for all of the avid cheese lovers out there!
+
+You can expect to see Make-All and the other improvements coming to the game in a few weeks!
+
+{{Horizontal Line}}
+
+
+{{Headline|22|In Other News}}
+
+
+*Worlds 101 and 107 are no longer Deadman worlds.
+*The points for unlocking the barrier in the tightrope room have been adjusted.
+*The message "You scratch a notch on your bow" from Chompy/Jubbly hunting has been added to the spam filter.
+*Talking to the Herbiboar pet while in the menagerie no longer shows the chathead of the Jal-Nib-Rek.
+*Some unnecessary push tiles have been removed from the Cave network in Monkey Madness 2.
+*Hoop Snakes can now be rolled outside of Fossil Island.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,425,65953374 forums]
+
+'''''Mods Archie, Ash, Ayiza, Delta, Ed, Ghost, Jed, John C, Kieren, Mat K, Maz, Roq, Ry, Stone, Sween, TomH, Weath, West & Wolf'''''<br/>''The Old School Team

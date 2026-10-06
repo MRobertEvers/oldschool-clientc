@@ -1,0 +1,19 @@
+mechanic_id	scope	note
+practice.osrs_mode_exists	all	solo; source-only (Jagex 2021 post + wiki); ours: the mode is the debugproc ::inferno <wave> only, the Cave entrance always starts practice 0 (inferno.rs2:226-239,413; scratch pm_scratch1 A.entered practice=true by ::inferno, real entrance writes 0)
+practice.jagex_free_practice_runs	all	solo; source-only quote, no tick measurement
+practice.inferno_closed_on_practice_worlds	all	solo; source-only; a world flag the harness cannot set
+practice.sanctioned_practice_route	all	other mode; TzHaar-Ket-Rak's Challenges is the fight cave unit, not the Inferno
+practice.normal_entry_start_wave	all	solo; ::inferno 1/3/30/69 entered at 1/3/30/69 (n=4, wave begun +8 ticks) and ::inferno 0 -> 1, ::inferno 200 -> 69 (clamp); a real entry at wave 1 is entry_and_cape's row
+practice.entry_requirements_beyond_cape	all	solo; ::inferno charged no coins: 2000000 in inventory before and after 6 entries (n=6, pm_scratch1); the fee procs are never called by an entry (static read, inferno_practice_fee.rs2 has only the selftest as caller)
+practice.cache_interface_count	all	solo; read from the cache ledger (a presentation row), no tick measurement
+practice.cache_varp_count	all	solo; read from the cache ledger (a presentation row), no tick measurement
+practice.fee_coins	all	solo; open row M15; the selftest stanza selftest_inferno_practice_fee pins 1500000 (the port's value, not a source)
+practice.fee_container_normal	all	solo; open row M15; selftest only (the entry never charges)
+practice.fee_container_uim	all	solo; open row M15; selftest only
+practice.fire_cape_consumed_on_start	all	solo; open row M15; ::inferno sets varb5646=1 first so no cape was taken (cape count 1 -> 1, n=6); inferno_enter itself would take one at varb 0
+practice.waves_per_run	all	solo; open row M17; wave 1 practice cleared (4 kills, 145 ticks fought) and left on its own: active false, tile 2495,5112 at +3 ticks
+practice.can_pause	all	solo; open row M17; Cave exit mid wave 3 ended the run at once (tick 179 click, run ended), ::infernopause in wave 30 and 69 left (n=3); logout does not pause (ENG-8)
+practice.exit_pays_tokkul	all	solo; open row M16; tzhaar_token 0 after a clear (wave 1), an exit (3), a pause cheat (30 and 69) (n=4)
+practice.zuk_kill_awards_cape	all	solo; open row M16; not played (a Zuk kill is the completion unit's; static read of inferno_leave: practice 1 skips the cape); ::inferno 69 settled practice=true wave 69
+practice.zuk_kill_counts	all	solo; open row M16; not played; INF-AV-008 and 009 say a real kill is never written either
+practice.end_chat_lines	all	solo; open row M16; chat.last read nil in every scratch step (the harness did not capture the line), static read only

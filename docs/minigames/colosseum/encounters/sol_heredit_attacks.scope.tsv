@@ -1,0 +1,106 @@
+mechanic_id	scope	note
+sol_heredit_attacks.stats.hp	all	one solo test
+sol_heredit_attacks.stats.combat_level	all	one solo test
+sol_heredit_attacks.stats.attack_level	all	one solo test
+sol_heredit_attacks.stats.defence_level	all	one solo test
+sol_heredit_attacks.stats.strength_level	all	one solo test
+sol_heredit_attacks.stats.ranged_level	all	one solo test
+sol_heredit_attacks.stats.magic_level	all	one solo test
+sol_heredit_attacks.stats.size	all	one solo test
+sol_heredit_attacks.stats.stab_defence_bonus	all	one solo test
+sol_heredit_attacks.stats.slash_defence_bonus	all	one solo test
+sol_heredit_attacks.stats.crush_defence_bonus	all	one solo test
+sol_heredit_attacks.stats.magic_defence_bonus	all	one solo test
+sol_heredit_attacks.stats.ranged_defence_bonus	all	one solo test
+sol_heredit_attacks.stats.attack_bonus_stab	all	one solo test
+sol_heredit_attacks.stats.ranged_attack_bonus	all	one solo test
+sol_heredit_attacks.stats.melee_strength_bonus	all	one solo test
+sol_heredit_attacks.stats.xp_bonus	all	one solo test
+sol_heredit_attacks.stats.immune_venom_poison	all	one solo test
+sol_heredit_attacks.spawn.tile_sw	all	one solo test
+sol_heredit_attacks.spawn.first_seen_tick	all	one solo test
+sol_heredit_attacks.first_attack.kind	all	one solo test
+sol_heredit_attacks.first_attack.delay_after_spawn	stat	statistical: 5 in 10 and 6 in 2 runs; a split of runs
+sol_heredit_attacks.first_attack.first_dust_tick	stat	statistical: 14 in 10 and 15 in 2 runs; a split of runs
+sol_heredit_attacks.first_attack.after_transition_kind	all	one solo test
+sol_heredit_attacks.cadence.thrust_to_next_above75	all	one solo test
+sol_heredit_attacks.cadence.thrust_to_next_below75	all	one solo test
+sol_heredit_attacks.cadence.slam_to_next_above75	all	one solo test
+sol_heredit_attacks.cadence.slam_to_next_below75	all	one solo test
+sol_heredit_attacks.cadence.grapple_to_next	all	one solo test
+sol_heredit_attacks.cadence.triple_to_next_below75	all	one solo test
+sol_heredit_attacks.cadence.triple_to_next_above75	all	one solo test
+sol_heredit_attacks.cadence.melee_range_start_of_tick	all	one solo test
+sol_heredit_attacks.cadence.freeze_after_aoe	all	open measurement M77: the test records the value, grade E
+sol_heredit_attacks.movement.speed_tiles_per_tick	all	open measurement M77: the test records the value, grade E
+sol_heredit_attacks.pool.regular_attack_gate	stat	statistical: counts over 12 runs; one solo test cannot weigh them
+sol_heredit_attacks.pool.spear_share	stat	statistical: share of 294 regular attacks that are spears; one solo run cannot weigh a share
+sol_heredit_attacks.pool.triple_gate_first_phase	stat	statistical: first phase a special appears depends on the draw; settled over many runs
+sol_heredit_attacks.pool.triple_short_last_phase	all	one solo test
+sol_heredit_attacks.pool.grapple_gate_first_phase	stat	statistical: first phase a special appears depends on the draw; settled over many runs
+sol_heredit_attacks.pool.regular_attacks_between_specials_min	stat	statistical: minimum over 21 intervals; one solo run holds a few
+sol_heredit_attacks.pool.special_weights	all	open measurement M20: the test records the value, grade E
+sol_heredit_attacks.damage.aoe_hit_tick	all	one solo test
+sol_heredit_attacks.damage.aoe_max_hit	all	one solo test
+sol_heredit_attacks.damage.aoe_min_observed	stat	statistical: lowest of 18 hits taken; a solo run takes a few
+sol_heredit_attacks.damage.aoe_ignores_protect_from_melee	all	one solo test
+sol_heredit_attacks.pattern.first_is_spear1	all	one solo test
+sol_heredit_attacks.pattern.alternate_on_repeat	stat	statistical: a 95 percent share over 111 pairs; settled by the recorder tool
+sol_heredit_attacks.pattern.style_change_resets_to_1	all	one solo test
+sol_heredit_attacks.pattern.transition_keeps_memory	all	one solo test
+sol_heredit_attacks.pattern.special_resets	all	one solo test
+sol_heredit_attacks.hazard.spear1_shape	all	open measurement M21: the test records the value, grade E
+sol_heredit_attacks.hazard.spear2_shape	all	open measurement M21: the test records the value, grade E
+sol_heredit_attacks.hazard.shield1_shape	all	open measurement M21: the test records the value, grade E
+sol_heredit_attacks.hazard.shield2_shape	all	open measurement M21: the test records the value, grade E
+sol_heredit_attacks.hazard.safe_step_back_distance	all	one solo test
+sol_heredit_attacks.hazard.dust_graphic_ids	all	one solo test
+sol_heredit_attacks.hazard.dust_graphic_2672	all	open measurement M21: the test records the value, grade E
+sol_heredit_attacks.triple.first_hit_offset	all	one solo test
+sol_heredit_attacks.triple.hit_spacing_above50	all	one solo test
+sol_heredit_attacks.triple.hit_spacing_below50	all	one solo test
+sol_heredit_attacks.triple.damage_unprayed_above50	all	one solo test
+sol_heredit_attacks.triple.damage_unprayed_below50	all	one solo test
+sol_heredit_attacks.triple.early_prayer_disabled	all	one solo test
+sol_heredit_attacks.triple.prayer_read_tick	all	open measurement M26: the test records the value, grade E
+sol_heredit_attacks.triple.in_phases_gate	all	one solo test
+sol_heredit_attacks.grapple.window_ticks	all	one solo test
+sol_heredit_attacks.grapple.hit_tick	all	one solo test
+sol_heredit_attacks.grapple.equipment_slots	all	one solo test
+sol_heredit_attacks.grapple.slot_choice_distribution	stat	statistical: a slot draw; 11 observed, a distribution needs many runs
+sol_heredit_attacks.grapple.announcement_lines	all	one solo test
+sol_heredit_attacks.grapple.result_messages	all	one solo test
+sol_heredit_attacks.grapple.perfect_parry_effect	all	one solo test
+sol_heredit_attacks.grapple.damage_max	all	one solo test
+sol_heredit_attacks.grapple.damage_min	all	one solo test
+sol_heredit_attacks.grapple.failure_effect	all	one solo test
+sol_heredit_attacks.grapple.no_damage_at_zero_hitpoints	all	one solo test
+sol_heredit_attacks.grapple.pending_varbit_redraw	all	one solo test
+sol_heredit_attacks.grapple.failures_varbit	all	open measurement M46: the test records the value, grade E
+sol_heredit_attacks.range.spear_and_shield_extended	all	open measurement M77: the test records the value, grade E
+sol_heredit_attacks.presentation.thrust.seq	all	one solo test
+sol_heredit_attacks.presentation.slam.seq	all	one solo test
+sol_heredit_attacks.presentation.grapple.seq	all	one solo test
+sol_heredit_attacks.presentation.triple_short.seq	all	one solo test
+sol_heredit_attacks.presentation.triple_long.seq	all	open measurement M41: the test records the value, grade E
+sol_heredit_attacks.presentation.plain_melee.seq	all	open measurement M41: the test records the value, grade E
+sol_heredit_attacks.presentation.length.thrust	all	one solo test
+sol_heredit_attacks.presentation.length.slam	all	one solo test
+sol_heredit_attacks.presentation.length.grapple	all	one solo test
+sol_heredit_attacks.presentation.length.triple_long	all	one solo test
+sol_heredit_attacks.presentation.length.triple_short	all	one solo test
+sol_heredit_attacks.presentation.length.death	all	one solo test
+sol_heredit_attacks.presentation.idle_walk	all	one solo test
+sol_heredit_attacks.presentation.thrust.sounds	all	one solo test
+sol_heredit_attacks.presentation.slam.sounds	all	one solo test
+sol_heredit_attacks.presentation.grapple.sounds	all	one solo test
+sol_heredit_attacks.presentation.triple_long.sounds	all	one solo test
+sol_heredit_attacks.presentation.triple_short.sounds	all	one solo test
+sol_heredit_attacks.presentation.death.sounds	all	one solo test
+sol_heredit_attacks.presentation.dust.spotanim_length	all	one solo test
+sol_heredit_attacks.presentation.triple_telegraph_graphics	all	open measurement M41: the test records the value, grade E
+sol_heredit_attacks.presentation.jump_in.land_graphic	all	open measurement M38: the test records the value, grade E
+sol_heredit_attacks.presentation.unknown_purpose	all	open measurement M47: the test records the value, grade E
+sol_heredit_attacks.ca.perfect_footwork	all	one solo test
+sol_heredit_attacks.ca.slow_dancing_in_the_sand	all	one solo test
+sol_heredit_attacks.ca.showboating	all	one solo test

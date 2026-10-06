@@ -1,0 +1,175 @@
+{{Update|date=6 October 2015|link=http://services.runescape.com/m=news/runefest-old-school-reveals?oldschool=1|category=website}}
+[[File:RuneFest- Old School Reveals newspost.png|right]]
+{{clear}}
+<center><font style="font-family:Trajan Pro,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">RuneFest: Old School Reveals</font></center>
+
+Over the weekend RuneFest took place. Over 1,100 'Scapers in one place to celebrate one thing: RuneScape. There were some big reveals for Old School RuneScape over the weekend and we are going to recap them here for those of you that couldn't attend or tune in.
+
+You can also view the talk below.
+{{youtube|j73Cgzp9nQs|height=315|width=560}}
+[[File:RuneFest- Old School Reveals (1).jpg|centre|500px]]
+<font style="font-family:Trajan Pro,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">The Last 12 Months</font>
+
+The last 12 months have been great for Old School. At RuneFest 2014 we spoke about doing a number of big content updates for Old School and almost all of them have now been done:
+
+*In-game polls ✔
+*Perma-death PvP worlds (to come as Deadman mode)
+*Auto-generated dungeons ✔ (to come with Zeah as raids)
+*Sailing ✔ (Polled)
+*New continent ✔ (Polled)
+*Slayer update ✔
+*High level solo boss ✔
+*New skill ✔
+*Titan brawl
+*Achievement diaries ✔
+*Trading solution ✔
+*Resizable mode ✔
+[[File:RuneFest- Old School Reveals (2).jpg|550px|centre]]
+One of the largest updates of the past 12 months that was not discussed at RuneFest 2014 was F2P and bonds. When we initially pitched F2P and bonds on livestream to the Old School community we showed a prediction of the impact that F2P and F2P with membership bonds may have on the membership of Old School. We can now show you what actually happened.
+[[File:RuneFest- Old School Reveals (3).png|550px|centre]]
+Following the release of F2P and membership bonds we saw a larger increase in membership than we had expected. In addition to this, the updates that we put into game this summer have allowed us to get an additional bump in membership.
+
+We are set on continuing to release new content updates that the you, the Old School community, love in the hopes of keeping these bumps in membership happening. Doing this will allow us to provide you with more content to enjoy and extend the lifespan of Old School so you can play the game you love for longer.
+
+<font style="font-family:Trajan Pro,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">The New Continent</font>
+
+Zeah was talked about quite a bit at RuneFest 2014. Since then not much has happened. This is largely due to the restructuring of the Old School team and our desire to make the content that we had already promised as good as it can be. We've focused on getting lots of great content out to you over the past 12 months and we can now look at shifting our focus back onto the new continent.
+
+We have decided to deliver Zeah in 3 phases, the first of which will arrive January next year. 
+
+'''Phase 1 - Great Kourend''' - January 2016 release
+
+Kourend is a city that was once torn to pieces by the 5 houses trying to rise to power and take control. A king rose and united these houses, bringing peace and order to the city.
+
+That king is now dead.
+
+[[File:RuneFest- Old School Reveals (4).jpg|550px|centre]]
+
+Once again, the 5 houses are struggling for power. Your choices in the city of Great Kourend help decide how much favour you earn with each house.
+
+Earning favour with each house comes with different advantages in various different skills.
+
+'''Archeus - Runecrafting & Magic'''
+
+The Archeus house focus on spirituality and magic.
+
+Earning the favour of the Archeus house will allow you access to a new spellbook. This spellbook will allow you to resurrect some monsters to help you in combat. There will also be a library that will offer a lot of insight into lore, new altars to be used and shortcuts to be unlocked throughout the city.
+
+'''Hosidius - Farming, Herblore, Hunting, Crafting & Cooking'''
+
+Earning the favour of the Hosidius house will earn you access to new crops. You will be able to use magic to tame living plants to harvest rewards.
+
+'''Lovakengj - Smithing & Mining'''
+
+Earning the favour of the Lovakengj family will allow you to collect new compounds used for blast mining. Blast mining will allow you to get ores at an accelerated rate, but only if you put the time in with the Lovakengj. You will also gain access to new routes leading to different mining areas.
+
+'''Piscarilius - Fishing & Thieving'''
+
+Earning favour with the Piscarilius family will focus mostly on Fishing and Thieving. You will be able to travel out to sea to take part in deep sea fishing as well as being able to travel to other areas of the continent. Aligning yourself with the pirate underworld will also allow you to steal, smuggle and rob.
+
+'''Shayzien - Combat'''
+
+House Shayzien are focused on military. They provide law, order and defence for the region. Earning favour with the house will allow you access to a training ground found verging on the bloodlands, a desolate area that holds nothing but the mutated remnants of war. You will also be able to police the city to help keep order.
+
+The city will provide more interesting and engaging ways to train without increasing the top experience rates in game.
+
+'''Phase 2 - Raids - June 2016 release'''
+
+The second phase of Zeah will focus on a volcano found on Zeah. This volcano has some incredibly challenging foes to throw at you, as well as some fitting rewards. You will be able to take on raids with up to 100 other players as you plummet the depths of the volcano and the surrounding caves.
+
+You will also be able to venture out into the bloodlands to take on new slayer creatures and seek new rewards.
+
+'''Phase 3 - The Colosseum - January 2017 release'''
+
+The Colosseum will offer large scale large PvP. You will be able to take part in enormous battles with many players taking part at once. PvM will also be a factor with unlockable monsters that you can bring into the Colosseum to spice up the fight.
+
+[[File:RuneFest- Old School Reveals (5).jpg|550px|centre]]
+<font style="font-family:Trajan Pro,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">Monkey Madness 2</font>
+
+For 10 years now an unfinished end to one of the greatest quests in RuneScape history has remained. Glough swore that the monkeys were listening and it is time for us to uncover what he meant.
+[[File:RuneFest- Old School Reveals (6).png|550px|centre]]
+A sequel to Monkey Madness will be coming in summer 2016.
+
+For years now, Glough has been working away, selectively breeding demons in a laboratory located beneath Ape Atoll. Still obsessed with taking over the world, Glough has spent this time hatching a new plan to make his absurd dream a reality.
+
+This new quest will offer you a brand new challenge in Old School quests and a way to look deeper into the story of Glough and the monkeys of Ape Atoll. It will be no easy feat, with some hefty requirements and a difficult quest to get past.
+
+Completing Monkey Madness 2 will offer you several rewards. You will receive:
+
+*A key allowing you access to Glough's laboratory and the demons that remain.
+*New high level skilling content
+*A new farming patch
+*New glider locations
+
+And potentially even more.
+
+<font style="font-family:Trajan Pro,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">Fight Cave Expansion & Jad 2</font>
+
+In summer 2016 we would like to offer an expansion to the Fight Cave. Upon defeating Jad you would be able to choose to leave and claim your fire cape or sacrifice that cape for a chance at something more.
+
+Falling into the cavern underneath the existing Fight Cave, you will encounter more powerful creatures and more challenges waves. This will be one of the most intense and difficult PvM experiences to be found in Old School.
+
+Multiple waves of Jad, even with other creatures included, all culminating in one intense battle with a new top tier opponent.
+
+Your reward will be a new best-in-slot cape fitting of the challenge that you must complete to earn it. You will not be disappointed.
+
+<font style="font-family:Trajan Pro,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">The Wintertodt</font>
+
+The Wintertodt is a malignant spirit that brings unfathomable cold to the abandoned and desolate reaches of Zeah. With nothing to stand in the way of the Wintertodt the city of Great Kourend would not last long.
+[[File:RuneFest- Old School Reveals (7).jpg|550px|centre]]
+The Archeus house head up into the mountains to try and drain the power of the Wintertodt, partly to try and weaken it to prevent it encroaching on Kourend and partly because they would like the power for themselves. 
+
+The Archeus cannot do it alone. They require the help of those more equipped to build fires, craft weapons, provide potions and food and lots more to help them maintain their stand against the spirit. If you choose to help the Archeus in their fight they will reward you for your efforts.
+
+<font style="font-family:Trajan Pro,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">Construction Updates</font>
+
+'''Relocating rooms'''
+
+Redesigning your player-owned house can be quite a fuss. Being unable to move rooms without having all of the furniture found inside lost makes even the simplest room switch a mammoth task.
+
+We would like to offer a simple solution for this problem. A single interface where you can add, delete and move rooms in your player-owned house without having to remove all of the furniture that you have placed.
+
+'''Superior garden'''
+
+The superior garden is a new type of garden that will house some very useful new features for your house. You will be able to place the following in your superior garden:
+
+*Fairy ring
+*Spirit tree
+*Boss bushes
+*Restoration pool - restores your prayer, special attack and run energy
+*Lots, lots more - If you have suggestions, let us know!
+[[File:RuneFest- Old School Reveals (8).jpg|550px|centre]]
+
+'''Achievement gallery'''
+
+The achievement gallery is another new type of room for your house that gives you everything you could ever need to show off your accomplishments in RuneScape. You will also be able to place some rather useful features in this room.
+
+We plan to allow you to place the following:
+
+*An altar to switch spell books
+*Achievement logs - clue scroll counter, boss log and slayer log that can be viewed by your guests
+*Mounted skill capes
+*Jewellery box - Unlimited teleports from various pieces of jewellery (games necklace, ring of dueling etc)
+*Boss lair display case - Finally, a place to put your jars of x to use!
+*A skill cape carpet
+
+[[File:RuneFest- Old School Reveals (9).jpg|550px|centre]]
+
+<font style="font-family:Trajan Pro,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">Deadman Mode</font>
+
+Deadman mode will be here in just a few weeks and we want to make sure you know what is in store. During the Old School reveals we went over the key differences between your usual Old School RuneScape experience and what you will be up against in Deadman mode.
+
+*PvP EVERYWHERE 
+*5 times XP rate
+*Lose 50% of your XP
+*Lose 28 stacks from your bank
+*Longer log out timer
+*The Grand Exchange is disabled
+
+If you are interested in reading more about the details of Deadman mode in preparation for the release in just a few weeks, make sure to give the [http://services.runescape.com/m=forum/forums.ws?380,381,196,65648331 Deadman mode v2] developer blog a read!
+
+Discuss this post on our [http://services.runescape.com/m=forum/forums.ws?380,381,225,65690464 forums].
+
+'''''Mods Alfred, Archie, Ash, Ghost, Ian, John C, Kieren, Mat K, Maz, Ronan, Weath'''''
+
+''The Old School Team''

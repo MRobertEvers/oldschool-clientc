@@ -54,6 +54,51 @@
 -- through `t.ui.journal_open` (runs the quest's own `~makinghistory_journal`
 -- proc server-side and returns literal text) and `t.inv.*` (real backpack
 -- contents), never `t.quest.expect_stage`/`t.var.server` past `not_started`.
+-- (That seam is fixed now -- see "the committed state" near the end -- so the
+-- server probes below grade their literal values.)
+--
+-- WALLS (fix_b59, re-driven fix_b65; orchestrator rule 2026-10-03, owner
+-- ruling 2026-10-05 on the first goto): a goto_tile departs from and lands
+-- on an open, walkable tile outside; every door, stair, barrier and gate
+-- between the player and the target is pressed by the driver's crossing
+-- verbs, going in and coming out. Checked against the map squares with
+-- test/quests/orchestrator/matthew-mbp-m4/reports/sample_tools/
+-- {reach,comp,locs_near}.py --root <worktree> (doors closed):
+--   * The start: the fixture stands in Lumbridge, east of the members'
+--     walls (reach 3206,3233 -> 2431,3347 NEEDS-DOOR via membergater
+--     2933,3320). Camelot Teleport (magic_spells.dbrow: level 45, 5 air +
+--     1 law, lands 2757,3478), then Camelot -> the outpost is open ground
+--     (REACH closed-doors len=469).
+--   * Jorral's outpost (maps/m38_52.jl2): room x 2434-2438 z 3346-3349, double
+--     door makinghistory_doubledoorl/r on the west edge (2433,3347-3348; both
+--     leaves swing together). Entered from 2432,3347 on every visit and left
+--     the same way before the next goto.
+--   * Open ground (REACH with every door closed): outpost -> Ardougne market
+--     (300), market -> the Castle Wars dig (394), dig -> Blanin in Rellekka
+--     (830 at margin 80), Blanin -> Dron (46), outpost <-> the castle door
+--     (231).
+--   * Morytania: a flood from outside never crosses the Salve. The way in is
+--     the one Priest in Peril opens: Varrock Teleport from Rellekka (level
+--     25, 3 air + 1 fire + 1 law, lands 3213,3424), the Varrock members' gate
+--     fai_varrock_member_gatel 3319,3468 (the only walk from Varrock to the
+--     temple: reach 3213,3424 -> 3318,3468 REACH 149, 3321,3468 -> 3405,3506
+--     REACH 122), the Paterdomus trapdoor (3405,3507), the two mausoleum
+--     gates, Drezel's advice (mausoleum_drezel.rs2:145-154, 60 -> 61) and
+--     the holy barrier (mausoleum_interactions.rs2:26-31, out at 3423,3485).
+--     3423,3485 -> the Phasmatys west barrier 3651,3485 is open (REACH 294).
+--   * Port Phasmatys is a walled town (flood from inside: 1932 tiles, no way
+--     out) behind ahoy_town_barrier_multi; the west barrier (3652,3485, faces
+--     east) charges the 2-ectotoken toll on op4 Pay-toll (quest_ghostsahoy/
+--     scripts/ahoy_hub.rs2 [label,ahoy_barrier_pass]).
+--   * The way OUT of Morytania is a real teleport: Camelot Teleport again.
+--   * Melina's house (maps/m57_54.jl2) x 3671-3678 z 3477-3484, door
+--     ahoy_harbour_door on the north edge of 3676,3476.
+--   * East Ardougne castle (maps/m40_51.jl2): double door w_ardougnedoubledoorl/r
+--     on the west edge of 2576,3298-3299; the stairs (2571-2572,3295-3297)
+--     climbed from 2571,3298 (no up maplink row: +1 plane on the stand tile);
+--     King Lathas's room x 2575-2579 z 3292-3294,1 behind elfdoor on the west
+--     edge of 2575,3293,1; down by stairstop from 2571,3294,1 (maplink
+--     maplink_1_40_51_11_30_down -> 2571,3298,0).
 
 return {
     id = "makinghistory",
@@ -65,9 +110,54 @@ return {
         "::give spade 1", -- the Castle Wars dig's own tool, not this quest's deliverable
         "::give amulet_of_ghostspeak 1", -- worn to understand Droalak/Melina, brought along not granted
         "::give strung_sapphire_amulet 1", -- Melina's reconciliation gift; no inv_add for it anywhere in makinghistory_ghost.rs2
+        "::give dagger_wolfbane 1", -- Priest in Peril's own reward (::complete grants no items); Drezel's advice branch needs it held (mausoleum_drezel.rs2:29-34)
+        "::give ectotoken 2", -- the Port Phasmatys barrier toll (ahoy_hub.rs2, ^ahoy_barrier_toll = 2), carried like coins
+        "::setlevel magic 45", -- Camelot Teleport (magic_spells.dbrow: level 45) to the outpost and out of Morytania
+        -- Camelot Teleport x2 (5 air + 1 law each) and Varrock Teleport x1
+        -- (3 air + 1 fire + 1 law): the exact runes the three casts cost.
+        "::give airrune 13",
+        "::give lawrune 3",
+        "::give firerune 1",
     },
 
     run = function(t)
+        local function tile_text(r, tt)
+            if r == "ok" and type(tt) == "table" then
+                return tostring(tt.x) .. "," .. tostring(tt.z) .. "," .. tostring(tt.level)
+            end
+            return tostring(r)
+        end
+
+        -- Long hauls are real teleports, cast from the spellbook and graded
+        -- on the answer, the exact runes (magic_spells.dbrow) and the landing.
+        local function camelot_teleport(name)
+            t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = name,
+                runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot" })
+        end
+        local function varrock_teleport(name)
+            t.player.teleport_cast("varrock_teleport", { 3213, 3424, 0 }, { name = name,
+                runes = { { "firerune", 1 }, { "airrune", 3 }, { "lawrune", 1 } }, where = "Varrock square" })
+        end
+
+        -- Jorral's outpost: in and out through its west double door (both
+        -- leaves swing together; pass_door presses the closed leaf or walks
+        -- through the open one).
+        local function in_outpost(tt)
+            return tt.level == 0 and tt.x >= 2434 and tt.x <= 2438 and tt.z >= 3346 and tt.z <= 3349
+        end
+        local function outpost_in(prefix)
+            t.exec("goto-" .. prefix, t.player.goto_tile, 2431, 3347, 0)
+            t.exec(prefix .. ".outpostDoorIn", t.player.pass_door, { closed = "makinghistory_doubledoorr",
+                open = "makinghistory_doubledoorr_open", at = { 2433, 3347, 0 }, near = { 2432, 3347 },
+                far = { 2436, 3348 }, far_ok = in_outpost, far_desc = "inside Jorral's outpost, x 2434-2438 z 3346-3349" })
+        end
+        local function outpost_out(prefix)
+            t.exec(prefix .. ".outpostDoorOut", t.player.pass_door, { closed = "makinghistory_doubledoorr",
+                open = "makinghistory_doubledoorr_open", at = { 2433, 3347, 0 }, near = { 2435, 3347 },
+                far = { 2431, 3347 }, far_ok = function(tt) return tt.level == 0 and tt.x <= 2432 end,
+                far_desc = "outside the outpost's west door, x <= 2432" })
+        end
+
         local bind_result, bind_detail = t.quest.bind({
             varp = "varb1383_makinghistory_prog",
             constants = {
@@ -105,9 +195,9 @@ return {
         t.exec("quest.stage.not_started", t.quest.expect_stage, "not_started")
 
         local qp_before_result, qp_before = t.var.varp("varp101_qp")
-        t.check("qp.baseline", qp_before_result == "ok",
+        t.check("qp.baseline", qp_before_result == "ok" and qp_before == 2,
             "t.var.varp(\"qp\") before any quest progress -> " .. tostring(qp_before_result)
-                .. " " .. tostring(qp_before))
+                .. " " .. tostring(qp_before) .. " (want 2: the setup's ::complete of Priest in Peril and The Restless Ghost, 1 each)")
 
         -- Wear the ghostspeak amulet now -- makinghistory_has_ghostspeak
         -- checks inv_total(worn, ...), not the backpack, and Droalak's own
@@ -118,8 +208,11 @@ return {
         -- Jorral, the outpost south of the Tree Gnome Stronghold
         -- (makinghistory_jorral.rs2 @makinghistory_jorral_offer, since
         -- %makinghistory_prog=not_started and makinghistory_qualifies() is
-        -- true with both prerequisite quests staged above).
-        t.exec("goto-talkToJorral", t.player.goto_tile, 2437, 3347, 0)
+        -- true with both prerequisite quests staged above). The fixture
+        -- stands in Lumbridge, east of the members' walls (WALLS): Camelot
+        -- Teleport, then the open walk to the outpost.
+        camelot_teleport("talkToJorral.camelotTeleport")
+        outpost_in("talkToJorral")
         t.exec("talkToJorral", t.player.talk_to, "makinghistory_jorral")
         t.exec("talkToJorral-dialog", t.chat.play, {
             "npc:Have you heard? King Lathas me",
@@ -210,8 +303,9 @@ return {
         })
 
         local prog_probe_result, prog_probe = t.var.server("varb1383_makinghistory_prog")
-        t.check("prog.serverProbeAfterOffer", true, "t.var.server(makinghistory_prog) right after Jorral's "
-            .. "offer -> " .. tostring(prog_probe_result) .. " " .. tostring(prog_probe))
+        t.check("prog.serverProbeAfterOffer", prog_probe_result == "ok" and prog_probe == 1,
+            "t.var.server(makinghistory_prog) right after Jorral's offer -> " .. tostring(prog_probe_result) .. " "
+                .. tostring(prog_probe) .. " (want 1, started)")
 
         -- The client's own copy of %makinghistory_prog is stuck at 0 from
         -- here on (the seam above) -- cross-check through the journal's own
@@ -236,6 +330,7 @@ return {
                 .. " -- channel: ui.journal_open (server-side ~makinghistory_journal proc, unaffected by "
                 .. "the client varp-transmit seam)")
         t.ui.journal_close()
+        outpost_out("leaveJorral")
 
         -- === Trader branch: the silver merchant, East Ardougne market =====
         -- (makinghistory_trader.rs2 @makinghistory_merchant_offer_key,
@@ -255,8 +350,9 @@ return {
         })
         t.expect("haveKey", t.inv.await("makinghistory_key", 1, 10))
         local traderprog_after_key_result, traderprog_after_key = t.var.server("varb1384_makinghistory_trader_prog")
-        t.check("traderProg.serverProbeAfterKey", true, "t.var.server(makinghistory_trader_prog) right after "
-            .. "the key lands -> " .. tostring(traderprog_after_key_result) .. " " .. tostring(traderprog_after_key))
+        t.check("traderProg.serverProbeAfterKey", traderprog_after_key_result == "ok" and traderprog_after_key == 1,
+            "t.var.server(makinghistory_trader_prog) right after the key lands -> " .. tostring(traderprog_after_key_result)
+                .. " " .. tostring(traderprog_after_key) .. " (want 1, trader_got_key)")
 
         -- Dig north of Castle Wars (general_use spade chain ->
         -- makinghistory_trader.rs2 makinghistory_try_dig, gated on
@@ -269,9 +365,9 @@ return {
         -- (QUEST_AUTHORING.md section 2), no more short-land-and-walk needed.
         t.exec("goto-dig", t.player.goto_tile, 2442, 3140, 0)
         local dig_tile_result, dig_tile = t.world.tile()
-        t.check("dig.tileProbe", true, "world.tile() right before the dig click -> " .. tostring(dig_tile_result)
-            .. " " .. tostring(dig_tile and (dig_tile.x .. "," .. dig_tile.z .. "," .. dig_tile.level))
-            .. " (^makinghistory_dig_coord 0_38_49_10_4 decodes to 2442,3140,0)")
+        t.check("dig.tileProbe", dig_tile_result == "ok" and dig_tile.x == 2442 and dig_tile.z == 3140 and dig_tile.level == 0,
+            "world.tile() right before the dig click -> " .. tile_text(dig_tile_result, dig_tile)
+                .. " (^makinghistory_dig_coord 0_38_49_10_4 decodes to 2442,3140,0)")
         t.exec("dig", t.player.inv_op, "spade", 1)
         t.expect("haveChest", t.inv.await("makinghistory_chest", 1, 10))
 
@@ -284,6 +380,14 @@ return {
         -- in the same row, no dialogue ever mounts).
         t.exec("openChest", t.player.use_item_on_item, "makinghistory_key", "makinghistory_chest")
         t.expect("haveJournal", t.inv.await("makinghistory_journal", 1, 10))
+        -- The guide's "Use the enchanted key on the chest": the chest leaves
+        -- the pack (inv_del in makinghistory_open_chest) and the key stays.
+        local chest_after_result, chest_after = t.inv.count("makinghistory_chest")
+        local key_kept_result, key_kept = t.inv.count("makinghistory_key")
+        t.check("openChest.chestUsed", chest_after_result == "ok" and chest_after == 0
+                and key_kept_result == "ok" and key_kept == 1,
+            "after the key-on-chest: makinghistory_chest " .. tostring(chest_after_result) .. " " .. tostring(chest_after)
+                .. " (want 0), makinghistory_key " .. tostring(key_kept_result) .. " " .. tostring(key_kept) .. " (want 1)")
 
         -- === Warrior branch: Blanin, then Dron's riddle, Rellekka ========
         -- (makinghistory_frem.rs2, %makinghistory_warr_prog). Blanin's own
@@ -364,7 +468,77 @@ return {
         -- ghost_prog/melina_pres). ghostspeak is already worn
         -- (equip-ghostspeak) so makinghistory_has_ghostspeak's own dead
         -- "impossible to make out" branch never fires.
-        t.exec("goto-talkToDroalak", t.player.goto_tile, 3657, 3469, 0)
+        --
+        -- Into Morytania the way Priest in Peril opened (WALLS in the
+        -- header): Varrock Teleport, the Varrock members' gate, the
+        -- Paterdomus trapdoor north of the temple, west of the Salve.
+        varrock_teleport("enterMorytania.varrockTeleport")
+        t.exec("goto-enterMorytania.varrockGate", t.player.goto_tile, 3318, 3468, 0)
+        t.exec("enterMorytania.varrockGate", t.player.pass_door, { closed = "fai_varrock_member_gatel",
+            open = "fai_varrock_member_gatel_open", at = { 3319, 3468, 0 }, near = { 3318, 3468 }, far = { 3321, 3468 } })
+        t.exec("goto-enterMorytania.trapdoor", t.player.goto_tile, 3405, 3506, 0)
+        t.exec("enterMorytania.openTrapdoor", t.player.click_loc, "trapdoor", 1, { at = { 3405, 3507, 0 } })
+        t.await({
+            level = function()
+                return t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } }) == "ok"
+            end,
+            note = "enterMorytania: the trapdoor opens",
+        }, 6)
+        local tdo_r, tdo = t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } })
+        local tdc_r = t.world.loc_near("trapdoor", 3, { at = { 3405, 3507, 0 } })
+        t.check("enterMorytania.trapdoorOpen", tdo_r == "ok" and tdc_r ~= "ok",
+            "trapdoor_open on 3405,3507,0 -> " .. tostring(tdo_r) .. " "
+                .. (tdo_r == "ok" and (tdo.tile_x .. "," .. tdo.tile_z .. "," .. tdo.level) or tostring(tdo))
+                .. "; closed trapdoor there -> " .. tostring(tdc_r) .. " (want the open leaf and no closed one)")
+        t.exec("enterMorytania.descend", t.player.climb, { loc = "trapdoor_open", op = 1, op_name = "Climb-down",
+            at = { 3405, 3507, 0 }, src = { 3405, 3506 }, dest = { 3405, 9906, 0 } })
+        t.exec("enterMorytania.gate1", t.player.cross_gate, { loc = "pip_underground_door1", at = { 3405, 9895, 0 },
+            near = { 3405, 9896 }, far_ok = function(tile) return tile.z > 6400 and tile.z <= 9894 end,
+            far_desc = "south of the golden-key gate, z <= 9894", ticks = 30 })
+        t.exec("enterMorytania.gate2", t.player.cross_gate, { loc = "pip_underground_door2", at = { 3431, 9897, 0 },
+            near = { 3430, 9897 }, far_ok = function(tile) return tile.z > 6400 and tile.x >= 3432 end,
+            far_desc = "Drezel's side of the second gate, x >= 3432", ticks = 60 })
+        -- Priest in Peril's farewell advice (mausoleum_drezel.rs2:145-154,
+        -- LostCity drezel.rs2:138-147): 60 -> 61, the holy barrier opens.
+        t.exec("enterMorytania.talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
+        t.exec("enterMorytania.talkToDrezel-dialog", t.chat.play, {
+            "player:So can I pass through that barrier now?",
+            "npc:Ah, ",
+            "npc:Morytania is an evil land",
+            "npc:You should take some basic precautions",
+            "npc:In many ways Werewolves",
+            "npc:and it is a holy relic",
+            "npc:wolf form is incredibly powerful",
+            "player:Okay, I will keep it equipped",
+        })
+        t.exec("enterMorytania.drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
+        t.exec("enterMorytania.holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
+            at = { 3440, 9886, 0 }, near = { 3440, 9887 },
+            far_ok = function(tile) return tile.x == 3423 and tile.z == 3485 end,
+            far_desc = "east of the Salve at 3423,3485 (mausoleum_interactions.rs2 p_telejump(0_53_54_31_29))" })
+        t.exec("enterMorytania.holyBarrier-msg", t.msg.expect, "You pass through the holy barrier")
+
+        -- Overland east to the west Energy Barrier (3652,3485, faces east):
+        -- op1 "Pass" is the ghost guard's toll talk, heard through the worn
+        -- ghostspeak amulet; 2 ectotokens and p_teleport straight across.
+        t.exec("goto-enterPhasmatys", t.player.goto_tile, 3651, 3485, 0)
+        local tok_before_r, tok_before = t.inv.count("ectotoken")
+        t.exec("enterPhasmatys", t.player.cross_gate, { loc = "ahoy_town_barrier_multi", op = 1, at = { 3652, 3485, 0 },
+            near = { 3651, 3485 }, far_ok = function(tile) return tile.x >= 3653 end,
+            far_desc = "inside Port Phasmatys, east of the west barrier, x >= 3653",
+            chat = {
+                "npc:All visitors to Port Phasmatys must pay",
+                "choose:I would like to enter Port Phasmatys - here's 2 Ectotokens.",
+                "player:I would like to enter Port Phasmatys",
+            } })
+        local tok_after_r, tok_after = t.inv.count("ectotoken")
+        t.check("enterPhasmatys.toll", tok_before_r == "ok" and tok_after_r == "ok" and tok_before == 2 and tok_after == 0,
+            "ectotoken " .. tostring(tok_before) .. " -> " .. tostring(tok_after) .. " (want 2 -> 0, ^ahoy_barrier_toll)")
+
+        t.player.walk_to(3658, 3467, 40)
+        local dr_r, dr = t.world.tile()
+        t.check("walkToDroalak", dr_r == "ok" and dr.level == 0 and math.abs(dr.x - 3658) <= 1 and math.abs(dr.z - 3467) <= 1,
+            "walked to 3658,3467 (outside the general store) -> " .. tile_text(dr_r, dr))
         t.exec("talkToDroalak", t.player.talk_to, "makinghistory_droalak_multi")
         t.exec("talkToDroalak-intro-dialog", t.chat.play, {
             "player:Excuse me -- were you here when the outpost was still standing?",
@@ -373,7 +547,12 @@ return {
             "npc:My wife, Melina, died not long after me.",
         })
 
-        t.exec("goto-talkToMelina", t.player.goto_tile, 3674, 3484, 0)
+        local function in_melina(tt)
+            return tt.level == 0 and tt.x >= 3671 and tt.x <= 3678 and tt.z >= 3477 and tt.z <= 3484
+        end
+        t.exec("talkToMelina.doorIn", t.player.pass_door, { closed = "ahoy_harbour_door", open = "ahoy_harbour_door_open",
+            at = { 3676, 3476, 0 }, near = { 3676, 3475 }, far = { 3675, 3479 }, far_ok = in_melina,
+            far_desc = "inside Melina's house, x 3671-3678 z 3477-3484" })
         t.exec("talkToMelina", t.player.talk_to, "makinghistory_melina_multi")
         t.exec("talkToMelina-dialog", t.chat.play, {
             "player:Droalak wanted you to have this. He said he's sorry.",
@@ -399,7 +578,13 @@ return {
             "strung_sapphire_amulet consumed within 10 ticks (" .. tostring(amulet_gone_result) .. ") count="
                 .. tostring(amulet_after) .. " (" .. tostring(amulet_after_read) .. ")")
 
-        t.exec("goto-talkToDroalak2", t.player.goto_tile, 3657, 3469, 0)
+        t.exec("returnToDroalak.doorOut", t.player.pass_door, { closed = "ahoy_harbour_door", open = "ahoy_harbour_door_open",
+            at = { 3676, 3476, 0 }, near = { 3676, 3477 }, far = { 3676, 3474 },
+            far_ok = function(tt) return tt.level == 0 and tt.z <= 3475 end, far_desc = "outside Melina's house, z <= 3475" })
+        t.player.walk_to(3658, 3467, 40)
+        local dr2_r, dr2 = t.world.tile()
+        t.check("returnToDroalak.walk", dr2_r == "ok" and dr2.level == 0 and math.abs(dr2.x - 3658) <= 1 and math.abs(dr2.z - 3467) <= 1,
+            "walked to 3658,3467 (outside the general store) -> " .. tile_text(dr2_r, dr2))
         t.exec("talkToDroalak2", t.player.talk_to, "makinghistory_droalak_multi")
         t.exec("talkToDroalak-scroll-dialog", t.chat.play, {
             "player:I spoke with Melina. She forgave you.",
@@ -409,7 +594,13 @@ return {
         t.expect("haveScroll", t.inv.await("makinghistory_scroll1", 1, 10))
 
         -- === Back to Jorral: all three leads done, hand in ================
-        t.exec("goto-talkToJorral-handin", t.player.goto_tile, 2437, 3347, 0)
+        -- Out of Morytania by Camelot Teleport, pressed in the spellbook
+        -- (teleport.rs2 [if_button,magic_spellbook:camelot_teleport]):
+        -- 5 air + 1 law (magic_spells.dbrow), lands tele_coord 0_43_54_5_22 =
+        -- 2757,3478,0 (map_findsquare within 2); Camelot -> the outpost is
+        -- open ground.
+        camelot_teleport("leaveMorytania")
+        outpost_in("talkToJorral-handin")
         t.exec("talkToJorral-handin", t.player.talk_to, "makinghistory_jorral")
         t.exec("talkToJorral-handin-dialog", t.chat.play, {
             "player:I've learned everything I can about the outpost's history.",
@@ -420,6 +611,7 @@ return {
             "npc:I've written it all down for King Lathas.",
         })
         t.expect("haveLetter1", t.inv.await("makinghistory_letter1", 1, 10))
+        outpost_out("leaveJorral-handin")
         -- (no journal cross-check here -- ui.journal_open measured an
         -- intermittent timeout at exactly this point, twice reproducibly,
         -- right after this five-page chat.play; haveLetter1 above and the
@@ -432,7 +624,20 @@ return {
         -- (additive into king_lathas.rs2's own [opnpc1,kinglathas], gated on
         -- %makinghistory_prog=castle -- fresh fixture has no %sote/%ds2
         -- state active to intercept the click ahead of it).
-        t.exec("goto-talkToKingLathas", t.player.goto_tile, 2578, 3293, 1)
+        local function in_kings_room(tt)
+            return tt.level == 1 and tt.x >= 2575 and tt.x <= 2579 and tt.z >= 3292 and tt.z <= 3294
+        end
+        t.exec("goto-goUpToLathas", t.player.goto_tile, 2577, 3298, 0)
+        t.exec("goUpToLathas.castleDoorIn", t.player.pass_door, { closed = "w_ardougnedoubledoorl",
+            open = "w_ardougnedoubledoorlopen", at = { 2576, 3298, 0 }, near = { 2577, 3298 }, far = { 2573, 3298 },
+            far_ok = function(tt) return tt.level == 0 and tt.x <= 2575 end, far_desc = "in the castle hall, x <= 2575" })
+        -- No up maplink row: ladders.rs2 [proc,climb] moves the player one
+        -- plane on the tile it stands on.
+        t.exec("goUpToLathas", t.player.climb, { loc = "stairs", op = 1, op_name = "Climb-up",
+            at = { 2571, 3295, 0 }, src = { 2571, 3298 }, dest = { 2571, 3298, 1 } })
+        t.exec("talkToLathas.kingsDoorIn", t.player.pass_door, { closed = "elfdoor", open = "elfdooropen",
+            at = { 2575, 3293, 1 }, near = { 2574, 3293 }, far = { 2577, 3293 }, far_ok = in_kings_room,
+            far_desc = "in King Lathas's room, x 2575-2579 z 3292-3294 level 1" })
         t.exec("talkToKingLathas", t.player.talk_to, "kinglathas")
         t.exec("talkToKingLathas-dialog", t.chat.play, {
             "player:I have a letter for you, from Jorral at the old outpost.",
@@ -442,6 +647,16 @@ return {
             "npc:Take this back to him as proof.",
         })
         t.expect("haveLetter2", t.inv.await("makinghistory_letter2", 1, 10))
+        -- Out the way in: the king's door, down the stairs, the castle door.
+        t.exec("leaveLathas.kingsDoorOut", t.player.pass_door, { closed = "elfdoor", open = "elfdooropen",
+            at = { 2575, 3293, 1 }, near = { 2576, 3293 }, far = { 2573, 3293 },
+            far_ok = function(tt) return tt.level == 1 and tt.x <= 2574 end, far_desc = "out of the king's room, x <= 2574 level 1" })
+        -- maplink_1_40_51_11_30_down is keyed on the stand tile 2571,3294,1.
+        t.exec("leaveLathas.downstairs", t.player.climb, { loc = "stairstop", op = 1, op_name = "Climb-down",
+            at = { 2571, 3295, 1 }, src = { 2571, 3294 }, dest = { 2571, 3298, 0 } })
+        t.exec("leaveLathas.castleDoorOut", t.player.pass_door, { closed = "w_ardougnedoubledoorl",
+            open = "w_ardougnedoubledoorlopen", at = { 2576, 3298, 0 }, near = { 2574, 3298 }, far = { 2577, 3298 },
+            far_ok = function(tt) return tt.level == 0 and tt.x >= 2576 end, far_desc = "on the street, x >= 2576" })
         -- (no journal cross-check here either -- the SAME ui.journal_open
         -- timeout measured at quest.stage.castle above also reproduced at
         -- this equivalent spot in an earlier run; haveLetter2 and the
@@ -452,18 +667,19 @@ return {
         -- skill.snapshot() BEFORE the hand-in click that queues
         -- makinghistory_quest_complete (0-tick queue -> t.ticks(3) below is
         -- load-bearing, QUEST_AUTHORING.md section 8).
-        local xp_snapshot_result, xp_snapshot = t.skill.snapshot()
-        t.step("xp_before_read", xp_snapshot_result == "ok" and "PASS" or "FAIL",
-            "skill.snapshot before hand-in -> " .. tostring(xp_snapshot_result))
+        -- (the snapshot's read status is not a row of its own: a failed
+        -- snapshot fails both reward.* rows below.)
+        local _, xp_snapshot = t.skill.snapshot()
         local coins_before_result, coins_before = t.inv.count("coins")
-        t.check("coins.baseline", coins_before_result == "ok",
-            "inv.count(coins) before hand-in -> " .. tostring(coins_before_result) .. " " .. tostring(coins_before))
+        t.check("coins.baseline", coins_before_result == "ok" and coins_before == 0,
+            "inv.count(coins) before hand-in -> " .. tostring(coins_before_result) .. " " .. tostring(coins_before)
+                .. " (want 0: ::clearinv, and nothing in this quest pays coins before the reward)")
         local key_before_result, key_before = t.inv.count("makinghistory_key")
-        t.check("key.baseline", key_before_result == "ok",
+        t.check("key.baseline", key_before_result == "ok" and key_before == 1,
             "inv.count(makinghistory_key) before hand-in (the original, never consumed opening the chest) -> "
                 .. tostring(key_before_result) .. " " .. tostring(key_before))
 
-        t.exec("goto-talkToJorral-finish", t.player.goto_tile, 2437, 3347, 0)
+        outpost_in("talkToJorral-finish")
         t.exec("talkToJorral-finish", t.player.talk_to, "makinghistory_jorral")
         t.exec("talkToJorral-finish-dialog", t.chat.play, {
             "player:King Lathas has agreed to preserve the outpost as a museum.",
@@ -492,10 +708,10 @@ return {
         -- The completion cheat re-grants makinghistory_key on top of the
         -- original (never consumed opening the chest), so the backpack
         -- should now hold two.
-        local key_after_result, key_after = t.inv.expect_has("makinghistory_key", (key_before or 0) + 1)
-        t.check("reward.key", key_after_result == "ok",
-            "inv.expect_has(makinghistory_key, " .. tostring((key_before or 0) + 1) .. ") after completion -> "
-                .. tostring(key_after_result) .. " " .. tostring(key_after))
+        local key_after_result, key_after = t.inv.count("makinghistory_key")
+        t.check("reward.key", key_after_result == "ok" and key_after == 2,
+            "inv.count(makinghistory_key) after completion -> " .. tostring(key_after_result) .. " "
+                .. tostring(key_after) .. " (want 2: the original plus the reward key)")
 
         -- ------------------------------------------------- the committed state
         -- The varp seam this file used to block on (see queue.py's

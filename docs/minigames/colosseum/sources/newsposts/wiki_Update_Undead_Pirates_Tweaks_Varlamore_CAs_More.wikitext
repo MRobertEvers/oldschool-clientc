@@ -1,0 +1,351 @@
+{{Update|date=17 April 2024|url=https://secure.runescape.com/m=news/undead-pirates-tweaks-varlamore-cas--more?oldschool=1|category=game}}
+[[File:Undead Pirates Tweaks, Varlamore CAs & More newspost.jpg|right]]
+{{clear}}
+__TOC__
+''We're stepping up the challenge this week with Varlamore Combat Achievements!''
+
+==Changelog April 17th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+
+'''Wilderness and Undead Pirates'''
+
+* Hotfixes from last week:
+** The Elder Chaos Druids’ teleblock is now correctly removed upon leaving the Wilderness.
+** We've also stopped those pesky Druids from closing your bank if you'd recently been in combat.
+** Drop rate of the Teleport Anchoring Scroll from the Zombie Pirate's Locker has been made 1 in 275.
+** The Teleport Anchoring Scroll is no longer doubled when obtained from the Locker.
+** Zombie Pirate Keys now drop at a rate of 1 in 24. On average, assuming you use up all of the keys you obtain, this makes the Teleport Anchoring Scroll around 4 times more common.
+* Reduced the wander range of Elder Chaos Druids.
+* Artio, Callisto, Calvar'ion, Spindel, Vet'ion and Venenatis won't attack for a short period after respawn, giving you the chance to manage your supplies and Inventory if needed.
+* Increased the despawn timer of consumables dropped in the Wilderness to 15 seconds.
+* Fixed an issue stopping you picking up loot on a particular tile at the Chaos Temple.
+
+'''Wilderness Agility Course'''
+
+* Hotfixes:
+** The rope swing can now be used by more than one player at a time.
+** The dispenser now provides Blighted Super Restores.
+* Moved the location of Clue Steps inside the Wilderness Agility Course to a slightly quieter spot.
+* Players can now take a pause between Wilderness Agility Course laps by logging out, although they will lose 25 laps for doing so. Leaving the arena or dying will still end the streak.
+* The skeletons on the surface of the Wilderness Agility Course now deal less damage. Watch out though, underground Skeletons still hit for a max of 4.
+* Damage now correctly applies through the ladder animation in the Wilderness Agility Course.
+* The Wilderness Agility Course lap streak and loot now display while Game Chat is set to 'Filtered'.
+* When paying the 150,000 GP fee to use the Agility Course, you'll now receive a looting bag if you don't currently own one.
+* The Ring of Wealth(i) now interacts properly with Medium Clue Scrolls at the Wilderness Agility Course.
+* The spikes underneath the Wilderness Agility arena no longer stop projectiles from travelling over them.
+
+'''Varlamore '''
+
+* Added Combat Achievements for the Colosseum and Perilous Moons.
+* Removed a tree blocking the path in Fortis Park.
+* Soar Leader Pitri now gives instructions about charging the Quetzal Whistle.
+* The Fortis Crop circle will now spawn correctly, letting you teleport to Puro Puro.
+
+'''Colosseum'''
+
+* Colosseum acid pools no longer deal damage between waves.
+* When using Dizana's Quiver alongside a Twisted Bow, the correct Ranged Strength stats will be used when firing Dragon Arrows.
+* Updated the Manticore’s examine text.
+* The Serpent Shaman's Water Surge now looks even more impressive!
+* Updated the Quiver's appearance for both the standard variants and the Max Cape version.
+
+'''Perilous Moons'''
+
+* During the Eclipse Moon Orb special attack, you're now able to avoid taking damage when standing behind the orb.
+
+'''Other Changes'''
+
+* Removed the 2024 Easter Event.
+* Wall Beasts in the Lumbridge Swamp Caves will now stay ''inside ''the walls.
+* The new left-click options on the polar and jungle eagles now work for completing the relevant Achievement Diary tasks.
+* Fixed an issue with the Collection Log search function on mobile, so you'll now be able to check your wins wherever you are.
+* Justiciar is now categorised correctly as metal armour by Ava's devices.
+* Resolved a crash issue observed inside the PoH dungeon under specific circumstances.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Undead Pirates and Wilderness Updates==
+Things are heating up in the Wilderness this week as players flock to join the battle between the Elder Chaos Druids and the Undead Pirates.
+
+Since [https://secure.runescape.com/m=news/a=97/undead-pirates-colosseum-changes--more?oldschool=1 last week’s update], we’ve made the following hotfixes:
+
+* The Elder Chaos Druids’ teleblock is now correctly removed upon leaving the Wilderness.
+* We've also stopped those pesky Druids from closing your bank if you'd recently been in combat.
+* Drop rate of the Teleport Anchoring Scroll from the Zombie Pirate's Locker has been made 1 in 275.
+* The Teleport Anchoring Scroll is no longer doubled when obtained from the Locker.
+* Zombie Pirate Keys now drop at a rate of 1 in 24. On average, assuming you use up all of the keys you obtain, this makes the Teleport Anchoring Scroll around 4 times more common.
+
+This week, we’re making the following changes in line with your feedback:
+
+* Reduced the wander range of Elder Chaos Druids.
+* Artio, Callisto, Calvar'ion, Spindel, Vet'ion and Venenatis won't attack for a short period after respawn, giving you the chance to manage your supplies and Inventory if needed.
+* Increased the despawn timer of consumables dropped in the Wilderness to 15 seconds.
+* Fixed an issue stopping you picking up loot on a particular tile at the Chaos Temple.
+* Players can now take a pause between Wilderness Agility Course laps by logging out, although they will lose 25 laps for doing so. Leaving the arena or dying will still end the streak.
+* The skeletons on the surface of the Wilderness Agility Course now deal less damage. Watch out though, underground Skeletons still hit for a max of 4.
+* Damage now correctly applies through the ladder animation in the Wilderness Agility Course.
+* The Wilderness Agility Course lap streak and loot now display while Game Chat is set to 'Filtered'.
+* When paying the 150,000 GP fee to use the Agility Course, you'll now receive a looting bag if you don't currently own one.
+* The Ring of Wealth(i) now interacts properly with Medium Clue Scrolls at the Wilderness Agility Course.
+* The spikes underneath the Wilderness Agility arena no longer stop projectiles from travelling over them.
+* Moved the location of Clue Steps inside the Wilderness Agility Course to a slightly quieter spot.
+
+[[File:Undead Pirates Tweaks, Varlamore CAs & More (1).png|thumb|600px|center|''The Hard Clue step formerly requiring you to enter the Wilderness Agility Course has been moved to the Ice Plateau - watch out for Ice Giants!'']]
+
+
+[[File:Undead Pirates Tweaks, Varlamore CAs & More (2).png|thumb|600px|center|''The similar Master Clue step has been moved just south-east of the course. Keep an eye out for traffic between Larran's Chest and the revamped Agility Course!'']]
+
+
+==Varlamore Combat Achievements==
+You’ve had plenty of time to get to grips with the new combat challenges Varlamore offers – so we’ve thrown a few complications into the mix! You may now take on 12 new Combat Achievements for Perilous Moons, and 13 for the Colosseum, ranging from Medium to Grand Master.
+
+===Perilous Moons===
+{| class="wikitable" style="text-align: center;"
+|-
+! Name
+! Type
+! Tier
+! Description
+|-
+| Lunar Triplet
+| Killcount
+| Medium
+| Open the Reward Chest after Defeating all three Moons.
+|-
+| Perilous Novice
+| Killcount
+| Medium
+| Open the Reward Chest 5 times.
+|-
+| Perilous Champion
+| Killcount
+| Medium
+| Open the Rewards Chest 25 times.
+|-
+| Back to Our Roots
+| Restriction
+| Medium
+| Defeat a Moon only using a Dragon Scimitar.
+|-
+| Moons of Peril Speed Trialist
+| Speed
+| Medium
+| Defeat all three Moons in one run in under 8 minutes.
+|-
+| The Clone Zone
+| Mechanical
+| Hard
+| Defeat the Eclipse Moon by only attacking its clones.
+|-
+| Perilous Dancer
+| Perfection
+| Hard
+| Defeat all three Moons in one run while only taking damage from regular attacks.
+|-
+| Fortified
+| Restriction
+| Hard
+| Defeat a Moon without consuming any supplies.
+|-
+| Betrayal
+| Restriction
+| Hard
+| Defeat a Moon while wearing a full set (head, chest, legs) of its associated armour set.
+|-
+| Moons of Peril Speed-Chaser
+| Speed
+| Hard
+| Defeat all three Moons in one run in under 6 minutes.
+|-
+| Fat of the Land
+| Stamina
+| Hard
+| Defeat 30 Moons of Peril without leaving the dungeon.
+|-
+| High Hitter
+| Mechanical
+| Elite
+| Defeat a Moon before they start their second special attack. 
+|}
+
+===Fortis Colosseum===
+{| class="wikitable" style="text-align: center;"
+|-
+! Name
+! Type
+! Tier
+! Description
+|-
+| Furball
+| Perfection
+| Elite
+| Complete Wave 4 without taking avoidable damage from a Manticore.
+|-
+| Denied
+| Mechanical
+| Elite
+| Complete Wave 7 without the Minotaur ever healing other enemies.
+|-
+| I Was Here First
+| Mechanical
+| Elite
+| Kill a Jaguar Warrior using a Claw-type weapon special attack.
+|-
+| Sportsmanship
+| Killcount
+| Master
+| Defeat Sol Heredit Once.
+|-
+| I Brought Mine Too
+| Restriction
+| Master
+| Defeat Sol Heredit using only a Zamorakian Hasta or Spear.
+|-
+| Showboating
+| Mechanical
+| Master
+| Defeat Sol Heredit after Fortis Saluting to the North, East, South and West of the arena while he's below 10% Hitpoints.
+|-
+| One-off
+| Mechanical
+| Master
+| Complete Wave 11 with either "Red Flag", "Dynamic Duo", or "Doom II" active.
+|-
+| Colosseum Speed-Trialist
+| Speed
+| Master
+| Complete the Colosseum with a total time of 30:00 or less.
+|-
+| Colosseum Grand Champion
+| Killcount
+| Grandmaster
+| Defeat Sol Heredit 10 Times.
+|-
+| Slow Dancing in the Sand
+| Restriction
+| Grandmaster
+| Defeat Sol Heredit without running.
+|-
+| Perfect Footwork
+| Perfection
+| Grandmaster
+| Defeat Sol Heredit without taking any damage from his Spear, Shield, Grapple or Triple Attack.
+|-
+| Reinforcements
+| Mechanical
+| Grandmaster
+| Defeat Sol Heredit with the "Bees! II", "Quartet", and "Solarflare II" modifiers active.
+|-
+| Colosseum Speed-Chaser
+| Speed
+| Grandmaster
+| Complete the Colosseum with a total time of 24:00 or less.
+|}
+
+==Third-party Client Guideline Updates==
+In other news, we’re updating our guidelines for Third-Party Clients, including RuneLite and HDOS.
+
+Firstly, we're removing the following from our 'disallowed features' list:
+
+* Any plugin which unhides, hides or moves components of the Spellbook Interface.
+** Resizing components of the Spellbook interface is still prohibited.
+* Any plugin which adds additional menu entries which cause actions to be sent to the server.
+** This one now includes exceptions for the Max Cape and Diary Cape.
+* Any plugin which modifies menu options for Construction, such as prioritising build or remove options.
+
+We’re allowing players to change elements of the Spellbook largely to give people greater flexibility over their gameplay experience. Most of our interfaces are over two decades old, and difficult to work with, but this legacy shouldn’t discourage us from giving players more freedom to make the UI comfortable. This change also gives ''us ''the flexibility to add new spells without worrying that we’ll mess up people’s muscle memory, as was the case with the new Teleport to Kourend requirement.
+
+Next, we’re allowing players to add additional menu entries specifically to allow for Max Cape and Diary Cape usability improvements. As we add more teleport options, the menus become harder to navigate – so we’re allowing small tweaks that spare players from clicking through multiple dialogue boxes.
+
+Saving the spiciest for last, we’re allowing players to modify menu options for the Construction skill. This is something we’d like to roll out to our own client at some point, and springs from a desire to make ‘traditional’ Construction training more approachable. Such changes won’t improve XP rates, but they ''will ''save your wrists!
+
+These changes go into effect immediately, though you might have to wait a little while for our talented community developers to make the best use of these updated guidelines!
+
+==GAME JAM V==
+We’re gearing up for our fifth internal game jam! This is the time of year when our devs come together to work on passion projects. In the past, this work has led to content like Scurrius, Project Rebalance, and Perilous Moons – so we can’t wait to see what the team comes up with this time!
+
+Game Jam V will run from April 22nd through to May 6th, which means April 24th will be a smaller update than usual, and May 1st will see no update at all – although '''there may still be downtime.'''
+
+We’ll be sharing what the team gets up to using the '''#OSRSGameJam''' hashtag – so keep your eyes peeled!
+
+==Coming Soon: Updated 'Report Abuse' Interface==
+Next week will bring some usability improvements to the in-game ‘Report Abuse’ interface. The current menu is awkward in various ways – it can be interrupted during combat, cannot be opened while in another menu, and on Mobile the keyboard obscures the interface completely!
+
+So, here's an updated version to address all three of these problems, which you can expect to see next week. Hooray!
+
+[[File:Undead Pirates Tweaks, Varlamore CAs & More (3).png|516px|center]]
+
+* This opens in the chatbox area rather than covering your game view, so it doesn't need to be dismissed by combat.
+* That also means it can stay open while menus like the bank are in use.
+* Plus, it won't be hidden under the keyboard on mobile devices.
+* We've enabled a keyboard short-cut for each rule, too. For example, '7' would report this player for macroing, or '9' would report them for advertising websites. This may be handy if you're often sending reports for the same few rules.
+* The menu's scrollbar remembers its position, too, where possible, so you hopefully won't have to scroll up and down too much when you use the menu.
+
+If you need to type or edit the name of the player you're reporting, that can be done in the Chat Box too:
+
+[[File:Undead Pirates Tweaks, Varlamore CAs & More (4).png|517px|center]]
+As a little extra feature, we're also adding a right-click option to the congratulatory messages you receive when you PK someone, making it easier to report them if you think they were suspicious:
+
+[[File:Undead Pirates Tweaks, Varlamore CAs & More (5).png|434px|center]]
+Now, while the game team is trying to improve what we can about the game's menus to help you report rule-breakers, the back-end systems are not changing in this particular update. This means that other rules, like not being able to report someone if they haven’t spoken or traded recently, will remain unchanged.
+
+Rest assured that our colleagues in the Player Support and Anti-Cheating teams are doing all they can to root out the rule-breakers from our community, and they do appreciate the in-game reports you sent them. We hope that next week’s update will make it easier for you all to help them out!
+
+An extra feature you may notice is the 'Law-breaking content' button. We've added this new button to make it more straightforward to report illegal content to us. Very rarely, you may see chat related to illegal topics that are not fully covered by our game rules. For now, reporting illegal content is restricted to residents of [https://www.gov.uk/eu-eea#:~:text=EU%20countries&text=Austria%2C%20Belgium%2C%20Bulgaria%2C%20Croatia,%2C%20Slovenia%2C%20Spain%20and%20Sweden. EU Member State countries], although we may expand this rule in future.
+
+To be clear, most of the rule-breaking behaviour players encounter is already covered by our game rules, and in those situations, the regular in-game 'Report' option is the best way to let us know about the issue.
+
+==Community==
+[[File:Undead Pirates Tweaks, Varlamore CAs & More (6).png|600px|center]]
+We want to take a moment to congratulate the mods over on our [http://discord.gg/OSRS Official Discord Server] for hosting a super successful event this past weekend, including Guardians of the Rift runs and a mass Hide and Seek!
+
+We’d also like to thank everyone who took part in our recent Discord survey. We've gone through all your feedback and can't wait to start introducing fun new opportunities to the server! Meanwhile, you can find clan recruitment spaces and our Discord Stages Modcasts, plus links to previous recordings there already. Keep an eye out for updates soon! Click the button below to visit the server.
+
+[[File:Undead Pirates Tweaks, Varlamore CAs & More (7).png|199px|center|link=http://discord.gg/OSRS]]
+
+==Other Changes==
+* Removed the 2024 Easter Event.
+* Wall Beasts in the Lumbridge Swamp Caves will now stay ''inside ''the walls.
+* The new left-click options on the polar and jungle eagles now work for completing the relevant Achievement Diary tasks.
+* Fixed an issue with the Collection Log search function on mobile, so you'll now be able to check your wins wherever you are.
+* Justiciar is now categorised correctly as metal armour by Ava's devices.
+* Resolved a crash issue observed inside the PoH dungeon under specific circumstances.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>'  loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

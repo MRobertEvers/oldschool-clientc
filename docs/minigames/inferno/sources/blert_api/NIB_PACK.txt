@@ -1,0 +1,9 @@
+# output of blert_nib_pack.py (seam 7, 2026-10-05): Blert pillar hp-loss ticks split by k = nibblers adjacent to the bitten pillar at T-1; gap = ticks between hp-loss ticks of one pillar.
+k_adjacent 0 n 7 delta [(1, 3), (2, 1), (3, 1), (4, 2)]
+   gap(same k both ends) [(2, 5), (4, 1)]
+k_adjacent 1 n 1930 delta [(1, 457), (2, 476), (3, 510), (4, 487)]
+   gap(same k both ends) [(1, 2), (2, 1), (4, 1145), (6, 1), (7, 1), (8, 219), (9, 44)]
+k_adjacent 2 n 1126 delta [(1, 239), (2, 290), (3, 262), (4, 256), (5, 34), (6, 17), (7, 17), (8, 11)]
+   gap(same k both ends) [(1, 74), (2, 495), (3, 78), (4, 231), (5, 2), (6, 21), (7, 4), (8, 6), (9, 1)]
+k_adjacent 3 n 335 delta [(1, 45), (2, 65), (3, 76), (4, 70), (5, 22), (6, 27), (7, 16), (8, 6), (9, 8)]
+   gap(same k both ends) [(1, 56), (2, 121), (3, 42), (4, 59), (6, 2), (7, 1)]

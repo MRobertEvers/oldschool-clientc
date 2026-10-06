@@ -6,8 +6,17 @@
 -- bed, the Fibonacci safe dial) -> hunting the traitor (barman, kebab
 -- sauce, camel dung, the snake-charm minigame, the Hag's poison, the
 -- poisoned beer) -> the Menaphite Leader/Tough Guy and Bandit
--- Leader/Bandit champion fights -> Ali the Mayor's reveal -> Ali
--- Morrisane's reward. Content source for every symbol/text/stage number:
+-- Leader/Bandit champion fights -> Ali the Mayor's reveal -> the carpet
+-- back to the Shantay Pass and north through its doorway -> Ali
+-- Morrisane's reward.
+--
+-- Door rule (b67 re-drive): the Shantay Pass doorway is pressed by its op
+-- both ways (cross_gate), the mayor's house is entered and left by its door
+-- (pass_door feud_closed_door_left 3370,2971) and its stairs are climbed
+-- (t.player.climb on the maplink rows); every goto lands on an open tile
+-- (reach.py: all REACH closed-doors, none solid). No dialogue on the route
+-- branches on combat level (grep combat_level over quest_thefeud, shantay*,
+-- magic_carpet*), so the staged 99 melee stats see the only branch there is. Content source for every symbol/text/stage number:
 -- OSRS-Content/osrs239-content/server/scripts/quests/quest_thefeud/
 --   scripts/{feud_alimorrisane,feud_recruitment,feud_heist,feud_traitor,
 --   feud_confrontation,feud_villagers}.rs2, configs/quest_thefeud.constant,
@@ -86,6 +95,32 @@ return {
         t.ticks(3) -- setup cheats not client-side yet
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
+        -- Fights: sharks eaten inside the attack press and the kill wait below
+        -- 60 hp (verbs-combat.md "Eating inside an attack press"). A fight's
+        -- margin (brief): the lowest hp either eater read is at least a quarter
+        -- of the maximum AND at least one shark is left.
+        local FIGHT_EAT = { item = "shark", below = 60 }
+        local function fight_margin(name, fight, attack_detail, dead_detail, food_before)
+            local lows = {}
+            for _, d in ipairs({ tostring(attack_detail), tostring(dead_detail) }) do
+                local low = tonumber(d:match("lowest hp (%d+)/"))
+                if low then lows[#lows + 1] = low end
+            end
+            local lowest = nil
+            for _, v in ipairs(lows) do
+                if lowest == nil or v < lowest then lowest = v end
+            end
+            local hp_r, hp = t.skill.read("hitpoints")
+            local max_hp = (hp_r == "ok" and type(hp) == "table") and hp.base_level or nil
+            local food_r, food_left = t.inv.count("shark")
+            t.check(name, lowest ~= nil and max_hp ~= nil and food_r == "ok"
+                and lowest * 4 >= max_hp and food_left >= 1,
+                fight .. ": lowest hp " .. tostring(lowest) .. "/" .. tostring(max_hp)
+                .. " (from " .. #lows .. " eater reading(s)), sharks " .. tostring(food_before)
+                .. " -> " .. tostring(food_left)
+                .. " (margin: lowest hp >= a quarter of max AND at least one shark left)")
+        end
+
         local equip_scim_r, equip_scim_d = t.player.equip("rune_scimitar")
         t.step("equipScimitar", equip_scim_r == "ok" and "PASS" or "FAIL", tostring(equip_scim_d))
 
@@ -148,23 +183,33 @@ return {
         t.check("buyShantayPass-verify", pass_r == "ok" and pass_has == true, "shantay_pass has=" .. tostring(pass_has))
 
         -- ==================== goToShantay: through the gate ===================
-        -- shantay_pass_henge_doorway sits at z=3116; its oploc1 short-circuits
-        -- into a bare 3-tile push (no pass/poster dialogue at all) whenever
-        -- coordz(player) <= coordz(loc) -- stand north of it (z=3118, beside
-        -- shantay_guard_still) so the real pass-check branch runs.
-        t.exec("goto-goToShantay", t.player.goto_tile, 3304, 3118, 0)
-        t.exec("goToShantay", t.player.click_loc, "shantay_pass_henge_doorway", 1)
-        t.exec("goToShantay-dialog", t.chat.play, {
-            "mesbox:There is a large poster on the wall",
-            "mesbox:The Desert is a VERY Dangerous place",
-            "mesbox:That seems pretty scary!",
-            "choose:Yeah, that poster doesn't scare me!",
-            "npc:Can I see your Shantay Desert Pass",
-            "mesbox:You hand over a Shantay Pass.",
-            "player:Sure, here you go!",
-            "npc:Here, have a disclaimer",
-        })
-        t.ticks(3) -- shantay_pass_enter is a queued teleport a tick behind the click
+        -- shantay_pass_henge_doorway (3302,3116) is the desert's only way in on
+        -- foot (b64-seam1: a blocking crossing loc is judged like an only-way
+        -- gate), so it is crossed by its own op on every trip. From the north
+        -- its oploc1 reads the poster, takes the pass, hands over the
+        -- disclaimer, then [queue,shantay_pass_enter] carries the player south
+        -- (shantay_pass.rs2 [oploc1,shantay_pass_henge_doorway]). cross_gate
+        -- walks to the north tile 3304,3118 itself (no goto) and is graded on
+        -- the player standing south of the doorway afterwards.
+        local pass_before_r, pass_before_n = t.inv.count("shantay_pass")
+        t.exec("goToShantay", t.player.cross_gate, { loc = "shantay_pass_henge_doorway", at = { 3302, 3116, 0 },
+            near = { 3304, 3118 }, far_ok = function(tile) return tile.z <= 3115 end,
+            far_desc = "south of the Shantay Pass doorway, z <= 3115",
+            chat = {
+                "mesbox:There is a large poster on the wall",
+                "mesbox:The Desert is a VERY Dangerous place",
+                "mesbox:That seems pretty scary!",
+                "choose:Yeah, that poster doesn't scare me!",
+                "npc:Can I see your Shantay Desert Pass",
+                "mesbox:You hand over a Shantay Pass.",
+                "player:Sure, here you go!",
+                "npc:Here, have a disclaimer",
+            } })
+        local pass_after_r, pass_after_n = t.inv.count("shantay_pass")
+        t.check("goToShantay-passHandedOver", pass_before_r == "ok" and pass_after_r == "ok"
+            and pass_before_n == 1 and pass_after_n == 0,
+            "shantay_pass " .. tostring(pass_before_n) .. " -> " .. tostring(pass_after_n)
+            .. " across the doorway (handed over, shantay_pass.rs2)")
 
         -- ==================== talkToRugMerchant: carpet flight to Pollnivneach
         t.exec("goto-talkToRugMerchant", t.player.goto_tile, 3311, 3109, 0)
@@ -192,12 +237,19 @@ return {
             note = "carpet landed on the north Pollnivneach pad 3349,3003",
         }, 80)
         local land_tr, land_tile = t.world.tile()
-        t.check("carpet-landed", landed_r,
+        t.check("carpet-landed", landed_r == "ok" and land_tr == "ok" and land_tile.x == 3349
+            and land_tile.z == 3003 and land_tile.level == 0,
             "carpet await " .. tostring(landed_r) .. " (landing tile reached and player idle)"
             .. "; rider at " .. tostring(land_tile and land_tile.x) .. "," .. tostring(land_tile and land_tile.z)
             .. "," .. tostring(land_tile and land_tile.level) .. " (the north Pollnivneach pad is 3349,3003,0)")
         t.ticks(3) -- ~carpet_ride's carpet_land + p_delay(1) + player_unlock
-        t.exec("goto-buyBeers", t.player.goto_tile, 3360, 2956, 0)
+        -- The pad (carpet_rolledout_multi 3349,3003) is a solid loc the ride
+        -- telejumps onto: step off it onto open ground before travelling on.
+        t.exec("carpet-stepOff", t.player.walk_to, 3349, 3004, 8)
+        -- The Asp & Snake bar has open arches (desertwall_arch_l/r at
+        -- 3356-3359,2953/2958, no door loc): land on an open floor tile inside
+        -- it, beside the table at 3360,2956 (reach.py: REACH closed-doors).
+        t.exec("goto-buyBeers", t.player.goto_tile, 3359, 2956, 0)
         t.exec("buyBeers-open", t.shop.open, "feud_ali_the_barman", 3, "feud_alispub")
         t.exec("buyBeers", t.shop.buy, "beer", 3)
         t.check("buyBeers-close", t.shop.close())
@@ -205,10 +257,18 @@ return {
         t.check("buyBeers-verify", br == "ok" and bn == 3, "beer count=" .. tostring(bn))
         local ali = t.player.by_symbol("npc", "feud_drunken_ali")
         for i = 1, 3 do
+            -- feud_recruitment.rs2 [opnpcu,feud_drunken_ali]: each beer is
+            -- inv_del'd and %feud_var_drink steps 0 -> 1 -> 2 -> 3.
+            local beers_before_r, beers_before = t.inv.count("beer")
             t.exec("drunkenAli-beer" .. i, t.player.use_on, "beer", ali)
             local pages = { "player:*", "npc:*" }
             if i == 3 then pages[3] = "npc:*" end
             t.exec("drunkenAli-beer" .. i .. "-dialog", t.chat.play, pages)
+            local beers_after_r, beers_after = t.inv.count("beer")
+            t.check("drunkenAli-beer" .. i .. "-drunk", beers_before_r == "ok" and beers_after_r == "ok"
+                and beers_before == 4 - i and beers_after == 3 - i,
+                "beer " .. tostring(beers_before) .. " -> " .. tostring(beers_after)
+                .. " (Drunken Ali took beer " .. i .. " of 3)")
         end
         t.expect("quest.stage.drunken_ali_done", t.quest.expect_stage("drunken_ali_done"))
         -- ==================== talkToThug / talkToBandit: question both gangs
@@ -268,7 +328,9 @@ return {
         t.exec("goto-operatorTask2", t.player.goto_tile, 3334, 2951, 0)
         t.exec("operatorTask2", t.player.talk_to, "feud_egyptian_minder", 1)
         t.exec("operatorTask2-dialog", t.chat.play, { "npc:Not bad. Now try again" })
-        t.exec("goto-urchin", t.player.goto_tile, 3353, 2960, 0)
+        -- 3352,2961: open street beside the outside stairs (feud_outsidestairs_base
+        -- 3353,2958 is solid).
+        t.exec("goto-urchin", t.player.goto_tile, 3352, 2961, 0)
         t.exec("urchin", t.player.talk_to, "feud_street_urchin", 1)
         t.exec("urchin-dialog", t.chat.play, {
             "npc:Need a distraction?",
@@ -305,15 +367,17 @@ return {
         t.exec("goto-blackjackVillager", t.player.goto_tile, 3356, 2951, 0)
         t.exec("blackjackVillager-lure", t.player.talk_to, "feud_villager_multi_1", 4)
         t.exec("blackjackVillager-lure-dialog", t.chat.play, { "player:Oi! Over here, you!" })
-        local lure_walk_r, lure_walk_d = t.player.walk_to(3371, 2958, 20)
-        local lure_tile_r, lure_tile = t.world.tile()
-        t.check("blackjackVillager-lead", lure_tile_r == "ok",
-            "led the villager east: walk_to 3371,2958 -> " .. tostring(lure_walk_r) .. " " .. tostring(lure_walk_d)
-            .. "; player at " .. tostring(lure_tile and lure_tile.x) .. "," .. tostring(lure_tile and lure_tile.z))
+        -- walk_to answers ok only on reaching the tile (verbs-pointer: a real graded row).
+        t.exec("blackjackVillager-lead", t.player.walk_to, 3371, 2958, 20)
+        -- Each Knock-Out press is an attempt (a Thieving roll), graded by a
+        -- note; the outcome row is blackjackVillager-knockedOut below.
         local knocked = false
+        local ko_tries, ko_last = 0, "no press"
         for attempt = 1, 8 do
-            local ko_r, ko_d = t.exec("blackjackVillager-knockout", t.player.press, "feud_villager_multi_1", 5, 12)
+            local ko_r, ko_d = t.player.press("feud_villager_multi_1", 5, 12)
             local ko_text = tostring(ko_d)
+            ko_tries, ko_last = attempt, tostring(ko_r) .. " " .. ko_text
+            t.note("blackjackVillager-knockout attempt " .. attempt .. ": " .. ko_last)
             if ko_r == "ok" and string.find(ko_text, "out cold", 1, true) then
                 knocked = true
                 break
@@ -324,12 +388,14 @@ return {
             t.exec("blackjackVillager-relure", t.player.talk_to, "feud_villager_multi_1", 4)
             t.exec("blackjackVillager-relure-dialog", t.chat.play, { "player:Oi! Over here, you!" })
             if string.find(ko_text, "will see me", 1, true) then
+                -- An attempt, not an outcome: the knock-out row above is the verdict.
                 local far_r, far_d = t.player.walk_to(3374, 2956 - attempt, 20)
-                t.check("blackjackVillager-leadFurther", far_r == "ok" or far_r == "timeout",
-                    "walk_to 3374," .. (2956 - attempt) .. " -> " .. tostring(far_r) .. " " .. tostring(far_d))
+                t.note("blackjackVillager-leadFurther: walk_to 3374," .. (2956 - attempt) .. " -> "
+                    .. tostring(far_r) .. " " .. tostring(far_d))
             end
         end
-        t.check("blackjackVillager-knockedOut", knocked, "knock-out landed within 8 presses: " .. tostring(knocked))
+        t.check("blackjackVillager-knockedOut", knocked, "knock-out landed: " .. tostring(knocked) .. " after "
+            .. ko_tries .. " press(es) of at most 8; last: " .. ko_last)
         t.exec("blackjackVillager", t.player.press, "feud_villager_multi_1", 3, 4)
         t.expect("blackjackVillager-msg", t.msg.expect("You pick the villager's pocket."))
         t.expect("quest.stage.pickpocket3_done", t.quest.expect_stage("pickpocket3_done"))
@@ -362,40 +428,36 @@ return {
         -- ==================== hideBehindCactus: disguise + gloves worn
         t.exec("equipDisguise", t.player.equip, "feud_desert_disguise")
         t.exec("equipGloves", t.player.equip, "leather_gloves")
-        t.exec("goto-hideBehindCactus", t.player.goto_tile, 3364, 2968, 0)
+        -- 3364,2969: open courtyard tile beside the cactus row (feud_cactus_row
+        -- 3363,2967 is solid; reach.py: REACH closed-doors from the Menaphite camp).
+        t.exec("goto-hideBehindCactus", t.player.goto_tile, 3364, 2969, 0)
         t.exec("hideBehindCactus", t.player.click_loc, "feud_cactus_row", 1)
         t.expect("hideBehindCactus-msg", t.msg.expect("coast is clear"))
 
         -- ==================== openTheDoor: the villa door, key in the pack
-        t.exec("openTheDoor", t.player.click_loc, "feud_closed_door_right", 1)
+        -- The door is a real two-leaf door since seam25 (feud_heist.rs2 ~feud_mayors_door calls
+        -- doors/scripts/doubledoors.rs2 ~open_double_door_left): feud_closed_door_left 3370,2971
+        -- (rot 2, the guide's leaf) swings to feud_open_door_left one tile east and pulls the
+        -- right leaf with it; both stand open 500 ticks. Wiki Transcript:The_Feud "Using the keys
+        -- on the Mayor's house door": "You hear a satisfying click as the door unlocks."
+        -- The house behind it is a closed space: walked into and out of by this door only
+        -- (reach.py 3373,2977 -> 3334,2951: NEEDS-DOOR via feud_closed_door_left).
+        t.exec("openTheDoor", t.player.pass_door, { closed = "feud_closed_door_left", open = "feud_open_door_left",
+            at = { 3370, 2971, 0 }, near = { 3369, 2971 }, far = { 3372, 2971 } })
+        t.expect("openTheDoor-unlock", t.msg.expect("satisfying click as the door unlocks"))
         t.expect("openTheDoor-msg", t.msg.expect("You slip inside, disguised"))
         t.expect("quest.stage.house_entered", t.quest.expect_stage("house_entered"))
-        local door_tile_r, door_tile = t.world.tile()
-        t.check("openTheDoor-tile", door_tile_r == "ok", "after the door click the player stands at " .. tostring(door_tile and door_tile.x) .. "," .. tostring(door_tile and door_tile.z) .. "," .. tostring(door_tile and door_tile.level))
-        -- The door is a real two-leaf door since seam25 (feud_heist.rs2 ~feud_mayors_door calls
-        -- doors/scripts/doubledoors.rs2 ~open_double_door_right): both leaves swing to
-        -- feud_open_door_* (maps/m52_46.jl2: 6238/6240 at 3370,2971/2970, rot 2) and the
-        -- courtyard behind the door line opens up. Wiki Transcript:The_Feud "Using the keys on
-        -- the Mayor's house door": "You hear a satisfying click as the door unlocks."
-        t.expect("openTheDoor-unlock", t.msg.expect("satisfying click as the door unlocks"))
-        local swung_r, swung = t.world.loc_near("feud_open_door_right", 8)
-        t.check("openTheDoor-swung", swung_r == "ok", "feud_open_door_right " .. tostring(swung_r) .. " at " .. tostring(swung and swung.tile_x) .. "," .. tostring(swung and swung.tile_z))
-        local walkin_r, walkin_d = t.player.walk_to(3372, 2970, 14)
-        local walkin_tile_r, walkin_tile = t.world.tile()
-        t.check("openTheDoor-walkin", walkin_tile_r == "ok" and walkin_tile.x == 3372 and walkin_tile.z == 2970,
-            "walk_to 3372,2970 through the swung door -> " .. tostring(walkin_r) .. " " .. tostring(walkin_d)
-            .. "; player at " .. tostring(walkin_tile and walkin_tile.x) .. "," .. tostring(walkin_tile and walkin_tile.z))
 
         -- ==================== heist: the study desk (3367,2966,0) -- the numbers note
+        -- (the study opens off the hall through the open curtain desertdooropen 3370,2966)
         t.exec("searchDesk", t.player.click_loc, "feud_mayors_desk", 1)
         t.expect("searchDesk-note", t.inv.await("feud_nos_note", 1, 10))
         t.expect("quest.stage.note_numbers", t.quest.expect_stage("note_numbers"))
 
         -- ==================== heist: upstairs (feud_insidestairs_base 3373,2978,0), the bed
-        t.exec("climbStairs", t.player.click_loc, "feud_insidestairs_base", 1)
-        t.ticks(2)
-        local lvl_r, lvl = t.world.level()
-        t.check("climbStairs-upstairs", lvl_r == "ok" and lvl == 1, "level after Climb-up = " .. tostring(lvl))
+        -- maplink.dbrow maplink_0_52_46_45_33_up: 3373,2977,0 -> 3374,2979,1.
+        t.exec("goUpStairs", t.player.climb, { loc = "feud_insidestairs_base", op = 1, op_name = "Climb-up",
+            at = { 3373, 2978, 0 }, dest = { 3374, 2979, 1 }, slack = 1 })
         t.exec("searchBed", t.player.click_loc, "feud_mayors_bed", 1)
         t.expect("searchBed-note", t.inv.await("feud_fib_hint", 1, 10))
         t.expect("quest.stage.note_fib", t.quest.expect_stage("note_fib"))
@@ -424,10 +486,14 @@ return {
         t.expect("quest.stage.safe_opened", t.quest.expect_stage("safe_opened"))
 
         -- ==================== leave the house: down the stairs and out through the door
-        t.exec("climbDown", t.player.click_loc, "feud_insidestairs_top", 1)
-        t.ticks(2)
-        local lvl2_r, lvl2 = t.world.level()
-        t.check("climbDown-ground", lvl2_r == "ok" and lvl2 == 0, "level after Climb-down = " .. tostring(lvl2))
+        -- maplink.dbrow maplink_1_52_46_46_34/35_down: -> 3373,2977,0.
+        t.exec("goDownStairs", t.player.climb, { loc = "feud_insidestairs_top", op = 1, op_name = "Climb-down",
+            at = { 3373, 2978, 1 }, dest = { 3373, 2977, 0 } })
+        -- Out of the house by the same door: it still stands open from the
+        -- way in (500 ticks) or is pressed again (~feud_mayors_door past
+        -- ^feud_safe_opened only swings the leaves).
+        t.exec("leaveHouse", t.player.pass_door, { closed = "feud_closed_door_left", open = "feud_open_door_left",
+            at = { 3370, 2971, 0 }, near = { 3372, 2971 }, far = { 3369, 2971 } })
 
         -- ==================== returnTheJewels: the Operator's traitor briefing
         t.exec("goto-returnJewels", t.player.goto_tile, 3334, 2951, 0)
@@ -456,7 +522,7 @@ return {
         t.exec("tellAliYouFoundTraitor-dialog", t.chat.play, { "npc:Find that traitor and deal with them" })
 
         -- ==================== talkToAliTheBarman: whose drink is it
-        t.exec("goto-talkToAliTheBarman", t.player.goto_tile, 3360, 2956, 0)
+        t.exec("goto-talkToAliTheBarman", t.player.goto_tile, 3359, 2956, 0) -- open floor beside the table 3360,2956
         t.exec("talkToAliTheBarman", t.player.talk_to, "feud_ali_the_barman", 1)
         t.exec("talkToAliTheBarman-dialog", t.chat.play, {
             "player:I'm looking for Traitorous Ali",
@@ -493,7 +559,7 @@ return {
         -- snake hand-in below only plays from %feud_hag_list = 1.
 
         -- ==================== talkToAliTheKebabSalesman: the special sauce
-        t.exec("goto-talkToAliTheKebabSalesman", t.player.goto_tile, 3352, 2973, 0)
+        t.exec("goto-talkToAliTheKebabSalesman", t.player.goto_tile, 3351, 2974, 0) -- open tile beside cookingshelves 3352,2973
         t.exec("talkToAliTheKebabSalesman", t.player.talk_to, "feud_kebabman", 1)
         t.exec("talkToAliTheKebabSalesman-dialog", t.chat.play, {
             "player:Would you sell me that bottle of special kebab sauce?",
@@ -509,14 +575,25 @@ return {
         local trough = t.player.by_symbol("loc", "feud_foodtrough2")
         t.exec("getDung", t.player.use_on, "superhot_kebab_sauce", trough)
         t.expect("getDung-bucket", t.inv.await("feud_camel_pooh_bucket", 1, 10))
+        -- feud_traitor.rs2 [oplocu,feud_foodtrough2]: the sauce and the empty bucket are spent.
+        local sauce_r, sauce_n = t.inv.count("superhot_kebab_sauce")
+        local bucket_left_r, bucket_left_n = t.inv.count("bucket_empty")
+        t.check("getDung-spent", sauce_r == "ok" and sauce_n == 0 and bucket_left_r == "ok" and bucket_left_n == 0,
+            "after the trough: superhot_kebab_sauce=" .. tostring(sauce_n) .. " bucket_empty=" .. tostring(bucket_left_n))
         t.expect("quest.stage.dung_bucketed", t.quest.expect_stage("dung_bucketed"))
 
         -- ==================== giveCoinToSnakeCharmer: coins on the money pot
         t.exec("goto-giveCoinToSnakeCharmer", t.player.goto_tile, 3356, 2951, 0)
         local pot = t.player.by_symbol("loc", "feud_money_bowl")
+        local pot_coins_before_r, pot_coins_before = t.inv.count("coins")
         t.exec("giveCoinToSnakeCharmer", t.player.use_on, "coins", pot)
         t.expect("giveCoinToSnakeCharmer-charm", t.inv.await("snake_flute", 1, 10))
         t.expect("giveCoinToSnakeCharmer-basket", t.inv.await("basket_for_snake", 1, 10))
+        local pot_coins_after_r, pot_coins_after = t.inv.count("coins")
+        t.check("giveCoinToSnakeCharmer-coin", pot_coins_before_r == "ok" and pot_coins_after_r == "ok"
+            and pot_coins_before - pot_coins_after == 1,
+            "coins " .. tostring(pot_coins_before) .. " -> " .. tostring(pot_coins_after)
+            .. " (one coin into the pot, ratcatchers.rs2 [oplocu,feud_money_bowl])")
 
         -- ==================== catchSnake: the charm on a desert snake
         t.exec("goto-catchSnake", t.player.goto_tile, 3334, 2960, 0)
@@ -577,6 +654,7 @@ return {
         local beer_table = t.player.by_symbol("loc", "feud_poison_beer_table")
         t.exec("poisonTheDrink", t.player.use_on, "poison_from_hag", beer_table)
         t.expect("quest.stage.beer_poisoned", t.quest.expect_stage("beer_poisoned"))
+        t.expect("poisonTheDrink-vialGone", t.inv.expect_absent("poison_from_hag")) -- feud_traitor.rs2:254 inv_del
 
         -- ==================== tellAliOperatorPoisoned: final orders
         t.exec("goto-tellAliOperatorPoisoned", t.player.goto_tile, 3334, 2951, 0)
@@ -602,8 +680,14 @@ return {
             "player:I know you started this feud",
             "npc:You think you can just walk in here",
         })
-        t.exec("killMenaphiteThug", t.player.attack, "feud_menap_toughguy", 2, 15)
-        t.exec("killMenaphiteThug-dead", t.npc.await_dead_engaged, 80)
+        -- Tough Guy (vislevel 75; configs/all.npc stat1..6 = 85/50/50/75/0/80, a real block;
+        -- docs/bosses/quest_combat_manifest.json quest-the-feud). Sharks are eaten inside the
+        -- press and the wait below 60 hp; the margin row reads the eater's lowest hp.
+        local thug_food_before_r, thug_food_before = t.inv.count("shark")
+        local _, thug_attack_d = t.exec("killMenaphiteThug", t.player.attack, "feud_menap_toughguy", 2, 15, { eat = FIGHT_EAT })
+        local _, thug_dead_d = t.exec("killMenaphiteThug-dead", t.npc.await_dead_engaged, 80, 10, { eat = FIGHT_EAT })
+        fight_margin("killMenaphiteThug.margin", "Tough Guy (level 75)", thug_attack_d, thug_dead_d,
+            thug_food_before_r == "ok" and thug_food_before or nil)
         t.ticks(5) -- the [ai_queue3] outcome lands after the release
         t.expect("quest.stage.menaphite_beaten", t.quest.expect_stage("menaphite_beaten"))
 
@@ -643,8 +727,12 @@ return {
             "player:I know about the stolen camel",
             "npc:Ha! You'll have to go through me first",
         })
-        t.exec("killBanditChampion", t.player.attack, "feud_bandit_toughguy", 2, 15)
-        t.exec("killBanditChampion-dead", t.npc.await_dead_engaged, 80)
+        -- Bandit champion (vislevel 70; configs/all.npc stat1..6 = 59/50/80/50/0/0, a real block).
+        local champ_food_before_r, champ_food_before = t.inv.count("shark")
+        local _, champ_attack_d = t.exec("killBanditChampion", t.player.attack, "feud_bandit_toughguy", 2, 15, { eat = FIGHT_EAT })
+        local _, champ_dead_d = t.exec("killBanditChampion-dead", t.npc.await_dead_engaged, 80, 10, { eat = FIGHT_EAT })
+        fight_margin("killBanditChampion.margin", "Bandit champion (level 70)", champ_attack_d, champ_dead_d,
+            champ_food_before_r == "ok" and champ_food_before or nil)
         t.ticks(5)
         t.expect("quest.stage.bandit_beaten", t.quest.expect_stage("bandit_beaten"))
         t.expect("bandit_beaten-mayorHidden", t.var.await_server("varb14604_feud_mayor_multivar", 2, 5))
@@ -653,7 +741,7 @@ return {
         -- feud_villagers.rs2 [label,feud_villager_talk_to_mayor] (Transcript:The_Feud,
         -- "Finishing up / Talking to a Villager"): %feud_talk_villager 1 -> 2,
         -- %feud_mayor_multivar 2 -> 0 -- Ali the Mayor is back by the well.
-        t.exec("goto-talkToAVillagerToSpawnMayor", t.player.goto_tile, 3358, 2966, 0)
+        t.exec("goto-talkToAVillagerToSpawnMayor", t.player.goto_tile, 3358, 2967, 0) -- open tile north of cactus5 3358,2965
         t.exec("talkToAVillagerToSpawnMayor", t.player.talk_to, "feud_villager_multi_1", 1)
         t.exec("talkToAVillagerToSpawnMayor-dialog", t.chat.play, {
             "player:Now are you satisfied?",
@@ -675,11 +763,59 @@ return {
         })
         t.expect("quest.stage.mayor_talked", t.quest.expect_stage("mayor_talked"))
 
+        -- ==================== back to Al Kharid: the carpet, then the doorway north
+        -- Pollnivneach -> Al Kharid crosses the Shantay Pass doorway (the
+        -- desert's only way out on foot). A player flies back the way he came:
+        -- the north Pollnivneach rug merchant (magic_carpet_seller4, m52_46.spawn
+        -- 3350,3001) -> the Shantay pad 3308,3110 (magic_carpet.rs2
+        -- @carpet_menu_return, ^carpet_route_npoll; fare ^carpet_fare_full 200).
+        t.exec("goto-carpetBack", t.player.goto_tile, 3350, 3004, 0) -- open ground north of the pad
+        local fare_before_r, fare_before = t.inv.count("coins")
+        t.exec("carpetBack", t.player.talk_to, "magic_carpet_seller4", 1)
+        t.exec("carpetBack-dialog", t.chat.play, {
+            "player:Hello.",
+            "npc:Greetings, desert traveller.",
+            "choose:Yes please.",
+            "player:Yes please.",
+            "npc:From here you can travel to the Shantay Pass",
+            "choose:Take me to the Pass then.",
+            "player:Take me to the Pass then.",
+        })
+        local back_r = t.await({
+            level = function()
+                local r, tl = t.world.tile()
+                return r == "ok" and tl.x == 3308 and tl.z == 3110 and select(2, t.drive._player_idle()) == true
+            end,
+            note = "carpet landed on the Shantay Pass pad 3308,3110",
+        }, 80)
+        local back_tr, back_tile = t.world.tile()
+        local fare_after_r, fare_after = t.inv.count("coins")
+        t.check("carpetBack-landed", back_r == "ok" and back_tr == "ok" and back_tile.x == 3308
+            and back_tile.z == 3110 and back_tile.level == 0,
+            "carpet await " .. tostring(back_r) .. "; rider at " .. tostring(back_tile and back_tile.x) .. ","
+            .. tostring(back_tile and back_tile.z) .. "," .. tostring(back_tile and back_tile.level)
+            .. " (the Shantay pad is 3308,3110,0)")
+        t.check("carpetBack-fare", fare_before_r == "ok" and fare_after_r == "ok" and fare_before - fare_after == 200,
+            "coins " .. tostring(fare_before) .. " -> " .. tostring(fare_after) .. " (fare 200, magic_carpet.constant ^carpet_fare_full)")
+        t.ticks(3) -- ~carpet_ride's carpet_land + p_delay(1) + player_unlock
+        -- Off the pad (a solid rug) onto the open sand south of the doorway.
+        t.exec("walk-shantaySouth", t.player.walk_to, 3304, 3113, 12)
+        -- North through the doorway: free from the south (shantay_pass.rs2: a
+        -- player at or south of the loc is pushed 3 tiles north), pressed by its op.
+        t.exec("leaveDesert", t.player.cross_gate, { loc = "shantay_pass_henge_doorway", at = { 3302, 3116, 0 },
+            near = { 3304, 3114 }, far_ok = function(tile) return tile.z > 3116 end,
+            far_desc = "north of the Shantay doorway, z > 3116" })
+
         -- ==================== finishQuest: Ali Morrisane's reward
         local reward_snap_r, reward_snap = t.skill.snapshot()
-        t.check("reward.snapshot", reward_snap_r == "ok" and reward_snap.thieving ~= nil, "thieving experience before hand-in = " .. tostring(reward_snap and reward_snap.thieving and reward_snap.thieving.experience))
-        local coins_before_r, coins_before = t.inv.count("coins")
-        t.check("reward.coinsBefore", coins_before_r == "ok", "coins before hand-in = " .. tostring(coins_before))
+        local function count_of(sym)
+            local r, n = t.inv.count(sym)
+            return r == "ok" and n or nil
+        end
+        local coins_before = count_of("coins")
+        local willow_before = count_of("blackjack_willow")
+        local addy_before = count_of("adamant_scimitar")
+        local disguise_before = count_of("feud_desert_disguise")
         t.exec("goto-finishQuest", t.player.goto_tile, 3304, 3211, 0)
         t.exec("finishQuest", t.player.talk_to, "feud_ali_m", 1)
         t.exec("finishQuest-dialog", t.chat.play, {
@@ -690,18 +826,29 @@ return {
         t.ticks(3)
         t.quest.expect_complete()
 
+        -- Rewards (feud_alimorrisane.rs2:57-66; wiki The_Feud "Rewards"): 1 quest
+        -- point (quest.points above), 15,000 Thieving xp, 500 coins, a willow
+        -- blackjack, an adamant scimitar, and a desert disguise when none is in
+        -- the pack (the one made at createDisguise is worn, so the pack holds 0).
         local xp_r, xp_d = t.skill.expect_gain("thieving", 15000, reward_snap)
-        t.check("reward.thievingXp", xp_r == "ok",
-            "t.skill.expect_gain(thieving, 15000) -> " .. tostring(xp_r) .. " " .. tostring(xp_d) .. " -- dbrow stat_xp_awarded 150000 tenths")
-        local coins_after_r, coins_after = t.inv.count("coins")
-        t.check("reward.coins", coins_after_r == "ok" and coins_after - coins_before == 500,
+        t.check("reward.thievingXp", reward_snap_r == "ok" and xp_r == "ok",
+            "snapshot " .. tostring(reward_snap_r) .. "; t.skill.expect_gain(thieving, 15000) -> " .. tostring(xp_r)
+            .. " " .. tostring(xp_d) .. " -- dbrow stat_xp_awarded 150000 tenths")
+        local coins_after = count_of("coins")
+        t.check("reward.coins", coins_before ~= nil and coins_after ~= nil and coins_after - coins_before == 500,
             "coins " .. tostring(coins_before) .. " -> " .. tostring(coins_after) .. " (+500 documented)")
-        local wb_r, wb_n = t.inv.count("blackjack_willow")
-        t.expect("reward.willowBlackjack", (wb_r == "ok" and wb_n == 1) and "ok" or "refused", "blackjack_willow count=" .. tostring(wb_n) .. " (scroll: Willow blackjack, feud_alimorrisane.rs2:63)")
-        local as_r, as_n = t.inv.count("adamant_scimitar")
-        t.expect("reward.adamantScimitar", (as_r == "ok" and as_n == 1) and "ok" or "refused", "adamant_scimitar count=" .. tostring(as_n) .. " (scroll: An Adamant scimitar, feud_alimorrisane.rs2:64)")
-        local dd_r, dd_n = t.inv.count("feud_desert_disguise")
-        t.expect("reward.desertDisguise", (dd_r == "ok" and dd_n == 1) and "ok" or "refused", "feud_desert_disguise count=" .. tostring(dd_n) .. " (scroll: Desert disguise, feud_alimorrisane.rs2:61)")
+        local willow_after = count_of("blackjack_willow")
+        t.check("reward.willowBlackjack", willow_before == 0 and willow_after == 1,
+            "blackjack_willow " .. tostring(willow_before) .. " -> " .. tostring(willow_after)
+            .. " (+1, scroll: Willow blackjack, feud_alimorrisane.rs2:63)")
+        local addy_after = count_of("adamant_scimitar")
+        t.check("reward.adamantScimitar", addy_before == 0 and addy_after == 1,
+            "adamant_scimitar " .. tostring(addy_before) .. " -> " .. tostring(addy_after)
+            .. " (+1, scroll: An Adamant scimitar, feud_alimorrisane.rs2:64)")
+        local disguise_after = count_of("feud_desert_disguise")
+        t.check("reward.desertDisguise", disguise_before == 0 and disguise_after == 1,
+            "feud_desert_disguise in the pack " .. tostring(disguise_before) .. " -> " .. tostring(disguise_after)
+            .. " (+1, the made one is worn; scroll: Desert disguise, feud_alimorrisane.rs2:60-61)")
         t.finish(0)
         return
     end,

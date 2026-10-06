@@ -1,0 +1,52 @@
+# Updated Colosseum Modifier Tier List 2.0 — transcript
+
+Auto-generated captions from <https://www.youtube.com/watch?v=52aMbMJ5cZw>
+(ItsBrianOSRS, *Updated Colosseum Modifier Tier List 2.0*, uploaded 2024-04-13, 9:11, 60 fps source).
+
+Downloaded with `yt-dlp --write-auto-subs` and converted by `tools/waves_gate/vtt_to_md.py` for the Fortis Colosseum source corpus. Timestamps are `H:MM:SS` and link back to the video. Machine transcription: every tick count, npc name and item name must be cross-checked against the wiki, the cache or a recording before it is encoded as a constant.
+
+## Chapter index
+
+- [0:00:00](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=0) — Intro
+- [0:00:21](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=21) — Myopia
+- [0:01:43](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=103) — Quartet
+- [0:02:09](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=129) — Doom
+- [0:02:40](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=160) — Relentless
+- [0:05:15](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=315) — Mantimayhem
+- [0:08:13](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=493) — Final Tier List
+
+## Transcript
+
+*[0:00:00](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=0)* — hey guys welcome back to another video there's been quite a few changes to the Coliseum modifiers since my last tier list video so I'm basically just aiming to update my previous tier list this should be a lot shorter than it was last time not a whole lot of changes occurred for most of these blasphemy I still think blasphemy is still one of the best ones to take myopia I still also think is one of the best ones to take although I will say currently tier three of my IIA is currently bugged uh hopefully they fix
+
+*[0:00:33](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=33)* — this after sometime after this video gets posted but myopia 3 is bugged where for some reason only for myopia 3 when you try autoc casting spells on enemies it won't AutoCast at all even if they're within range it'll only actually AutoCast if their true tile is in range and it's only for myopia 3 for some reason so I that's um it's not that big of a deal though because if they're that close you could just you can just manual cast on them
+
+*[0:01:06](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=66)* — over and over it's just annoying um I would say myopia is still pretty much a free invocation for the most part though um it just means that excuse me on the rare invoca not invocations on the rare instances where you have to let's say you need to be outside of a serpent Shaman's range and you have to like kill a ranger using AutoCast spells you're just you have to actually manual cast more often that's the only thing so it just means that every once while it's a little bit more tedious to do but it's not hard it's still a really easy invocation so I'm
+
+*[0:01:40](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=100)* — I'm pretty much going to keep it up there in the S tier uh quartet quartet is a little bit more annoying now since the Rangers deal more damage they don't do one damage anymore they're kind of like the majors they do a decent amount of damage now um I would still say it's an a tier though if you follow the strategy that I used in my Coliseum guide video uh which I'll put here on the screen quartet is still pretty much a free invocation doom doom is a lot better now I still avoid taking it if I
+
+*[0:02:14](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=134)* — can help it just because for the average player it's it's just not worth taking this is literally one of those like 1% try hard type of invocations man Mayhem okay so Mana mayhem's the new one they replace Doom scorpion with man but they kept the symbol for the modifier the same for some reason I would say man Mayhem is actually not that bad oh and I guess uh Relentless Relentless and man mayham it's the the two big ones that changed so let's start with Relentless Relentless I think personally I think
+
+*[0:02:48](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=168)* — Relentless is a bit of a red herring in case you're not aware um Relentless no longer automatically guarantees uh hits from enemies anymore now the way that Relentless works is that tier one makes it so that enemies ignore 33% of your defense tier 2 ignores 66 of your defense and then tier three ignores all of your defense so get guarantees that you get hit every single time tier one and maybe tier two at first glance maybe don't sound that bad depending on on what your gear is
+
+*[0:03:22](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=202)* — however based on my experience after like testing it quite a few times I don't think Relentless is it's I still don't think it's a good pick even Relentless one I would say Relentless one is a beat Tier like even in Max tank gear Relentless one I would put in B tier try still try to avoid it at all cost but if you absolutely have to it's doable um on that note I'm going to put Relentless two in the C tier and
+
+*[0:03:55](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=235)* — Relentless three in the D tier um s Relentless two that's the ignore 66 66% of your defense this is okay if you have Max tanking gear okay so like you either have full torva or Justus this year with like a d Bull workk and every single bulky tanky item in the game equipped that is the only time that Relentless 2 is like an okay pick anything besides that and it's it's just just not worth
+
+*[0:04:30](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=270)* — it from my experience Relentless Relentless ends up being really punishing in the super in the very last few waves like 9 10 11 um because that's when the most amount of enemies tend to spawn and it tends to be the three ways that you most likely will have to actually end up transferring to a different pillar if you guys have done colum before you know that anytime you have to move to a different pillar is when you're going to get the hit the most because everyone's shooting at you even though Relentless one doesn't sound too bad even with Max tank gear I can tell you from experience it's not worth
+
+*[0:05:03](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=303)* — it you're still going to get hit a lot uh with this on you're you're most you're much better off just not taking the invocation if you can help it uh with that being said mantore Manta Mayhem this one's a bit of a mixed bag um I feel like it's honestly not that bad to be honest it can be rough yes that's for sure uh it's kind of similar to Relentless where on the lay W waves if you have to transition to a different pillar it can be rough for sure 100% however if you have good tanking
+
+*[0:05:40](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=340)* — gear it's also not that bad at the same time so it's very iffy uh my issue with manto Mayhem is the fact that level one is probably the worst tier out of all three tiers so in case you're not aware oh it's also the one that's uh not accurate to it to a description so it says for manam 1 that it shoots an additional orb which at least to me I interpreted that to mean that instead of charging three orbs three attacks like the manord normally
+
+*[0:06:13](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=373)* — does it will start charging four attacks that's what I thought it was going to do no what it actually does is that it actually shoots double of each attack now so let's say for example uh a manticore charges up in this order uh a magic attack range attack and then a melee attack so instead of just shooting one of each in that order it'll start shooting double Mage double range double melee all on the same tick okay so like double Mage on the on the same tick double range on the same tick double
+
+*[0:06:45](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=405)* — melee on the same tick that's what it's actually doing and it's really punishing if you miss a prayer flick uh so and that is by far the hardest one cuz level two is not hard it just means that anytime you miss a flick you get venomed which okay at this like man Mayhem if you any of you guys plan to take man Mayhem start bringing a Ser Helm it'll help a lot for man Mayhem you won't have to worry about the Venom it kind of just ends up making that tier two irrelevant um Man mham level three makes
+
+*[0:07:19](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=439)* — it so that melee can be placed anywhere in the order now it's not always going to be last anymore uh so it just Shuffle randomly shuffles up the order with which is still free so it's quite literally tier one that's the hardest uh in terms of where I would place it I would say manm Mayhem one I'll put it in the B tier it's not bad you can take it it's still very doable I would probably take it over these other ones to be honest and then I would say man Mayhem 2 is an easy
+
+*[0:07:52](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=472)* — s tier it's free actually not even yeah I just put s tier is free if you you just bring it Sur B and then man Mayhem three I would say is also a tier I I might end up putting mantoa one in the B tier yeah I'll put in the B tier I would say it's probably one of the best B tiers though like I could I um I could argue to put it in a tier but because of the fact that if you need to transition between pillars you need to run to a different pillar it could kind of mess you up a little bit aside from those
+
+*[0:08:26](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=506)* — situations it's not that bad anyways I just wanted to give you guys an up on my thoughts about the Coliseum after trying out the new changes a bit by the way I really appreciate all the support that you guys have been giving me lately anything that interacts with the video such as commenting sharing subscribing Etc with the video helps boost the algorithm for it so I would really appreciate it I recently made a post as well asking about what type of guides you guys would like to see from me in the future so far I have the majority of people saying raid and combat achievement guides which I'm more
+
+*[0:08:58](https://www.youtube.com/watch?v=52aMbMJ5cZw&t=538)* — than happy to do if that is something you would like to vote on go ahead and go to the poll I'll leave a link to the poll in the description below other than that though if you enjoyed the video please leave a comment and subscribe I would really appreciate it and I see you guys in the next video peace

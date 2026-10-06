@@ -1,0 +1,25 @@
+{{Infobox Combat Achievement
+|name = Jad? What Are You Doing Here?
+|image = [[File:JalTok-Jad.png|280px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Tzkal-Zuk without killing the JalTok-Jad which spawns during wave 69.
+|tier = Grandmaster
+|monster = TzKal-Zuk
+|type = Restriction
+|id = 351
+|leagueRegion = Karamja
+}}
+'''Jad? What Are You Doing Here?''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to kill [[TzKal-Zuk]] without killing the [[JalTok-Jad]] which spawns during wave 69.
+
+==Strategy==
+JalTok-Jad will appear during Zuk's fight when he reaches 480 or lower hitpoints. As the task requires players to not kill this particular Jad, players will need to watch Jad's animations while moving alongside the [[Ancestral Glyph]] to avoid getting killed by Jad. It is beneficial, although not completely required, to  know when the [[Jal-Xil]] and [[Jal-Zek]] will spawn, as to minimise distractions as it is possible for them to attack in sync with each other.
+
+==Other tasks==
+{{Combat Achievements list|TzKal-Zuk}}
+
+==Trivia==
+*The achievement name is a reference to a quote by ''Woox'', the player who was the first to reach the Jad encounter on the final wave.
+
+{{Combat Achievements}}

@@ -1,0 +1,204 @@
+{{Update|date=05 June 2025|url=https://secure.runescape.com/m=news/summer-sweep-up-blog-update-combat--loot?oldschool=1|category=devblog}}
+[[File:Summer Sweep-Up Blog Update- Combat & Loot newspost.png|right]]
+{{clear}}
+__TOC__
+Hello, welcome to a blog update for last week's Summer Sweep-Up newspost! Ordinarily we'd pop this at the top of the blog, but we're a little tight on characters so we've split these up.
+
+In case you missed it, you can [https://secure.runescape.com/m=news/summer-sweep-up-combat--loot?oldschool=1 check out last week's blog by clicking here] to learn all about elemental weakness/defence changes, loot table changes, and a variety of tweaks to content like Tombs of Amascut, Phosani's Nightmare, Nex, Obor & Bryophyta and more!
+
+We'll try to keep things brief - the last blog was a behemoth after all - but wanted to start by saying that we're over the moon with the reception so far and all of the feedback that you've shared.
+
+Naturally, just like with Project Rebalance, a lot of the chatter has been on what's not mentioned rather than what is. That's totally fine, but in the interest of managing expectations we want to make it clear that we're not pulling in significant extra work on top of what we've already spoken about. While we're aware of feedback around the likes of the Corporeal Beast, Kalphite Queen, Chambers of Xeric loot/scrolls, etc., none of these projects are trivial and we simply don't have the resource to tackle any of them with the delicacy and consideration that each need - we don't want to be overly ambitious and rush out the rest of the changes here solely because we bit off more than we could reasonably chew for the time-being.
+
+Now let's turn our attention to what was included, and what we're looking to tune up a little following the discussion we've seen from you over the weekend.
+
+==Elemental Weaknesses & Monster Defences==
+We're pleased to see so many of you excited for us rolling out the Elemental Weakness system across considerably more NPCs! We know that some of the choices made feel a little 'up for debate' for some players, but we're not looking to make many changes here at all. We'd love to explore whether it's possible for us to implement multiple weaknesses of the same strength, so that both of the things that 'make sense' could work: Gargoyles would be a nice candidate for Earth and Air for example, though it's not currently possible. 
+
+The only change that we're making here is adjusting Vorkath to a Fire weakness, rather than a Water weakness. This means that he does break the pattern for dragons, but we think seeing an icy dragon covered in rotting flesh might more intuitively feel like he's weak to Fire than to Water - admittedly we don't expect anybody to really make use of this one, but it's a change nonetheless!
+
+More significantly, we'd like to add a low-level spell to the Standard Spellbook: Monster Inspect. Monster Inspect functions similarly to Monster Examine, but will reveal only the monster's stats and elemental weakness. This means that players just starting out aren't as reliant on tabbing out to visit the OSRS Wiki, and newer players have a more intuitive way to learn about the different weaknesses of different monsters early into their journey as opposed to waiting for the Lunar Spellbook. Remember that Spellbook reordering is allowed by verified third-party clients now, so feel free to move this to the very end of your spellbook if you're worried about muscle memory.
+
+Last up, we've removed the negative Flat Armour from Xamphur. A Kingdom Divided has become a staple achievement for 10 Hitpoints accounts since Thralls are a complete game changer, but giving Xamphur negative armour means they're forced to gain more Hitpoints XP. Since he's not a repeatable boss or anything, we'll leave him alone for now.
+
+==Tombs of Amascut==
+On the whole, it seems like you lot were excited at the prospect of tomb raiding with some much-requested tweaks, but we've got a few updates to share:
+
+
+* We're not looking to make further tweaks to Ba-Ba. We believe Red-X still has its place since performing it correctly effectively mitigates the 'spooky' part by preventing Ba-Ba from using the debris/rubble special attack.
+* For Akkha and the 'Stay Vigilant' invocation, we're adjusting our proposal so that Akkha only swaps style if he's attacked you with a regular attack before performing a Special attack. This means that if you're perfectly butterflying then you shouldn't run into style swaps. Coupled with Akkha only protecting against the style he's using, you still have some leeway here to make a mistake before being forced to use a non-Magic style for a phase.
+* For Zebak, we agree that the wave pushing is iconic. We'll be investigating whether we can make the pushing 'smarter' with your pathfinding so that it's less chaotic if you slip up once, but if our investigation leads to a dead-end then we'll have the waves deal reduced damage on subsequent hits instead.
+* For Kephri, we'll look into a bug where the Bone Dagger isn't acting as you'd expect if using its Special Attack on entry, and try to tidy up the annoying scenario of getting hit by dung back-to-back if you send Kephri into her final phase while she's using the attack. We're not certain that this is fixable, but if it is then we'll get it done.
+
+Now let's talk loot. We'll be moving forwards with changes here and we think we've got a solid direction after some time going over all of the data. We'll even throw in some fun facts!
+
+Our goals here are effectively two-fold:
+
+
+* Decrease the volume of Osmumten's Fangs and Lightbearers entering the game because they're considerably undervalued.
+* Decrease the overall volume of TOA uniques entering the game because the raid is far too generous at the top end, warping the rest of the unique economy around it.
+An extra 'side-goal' is to try and make things healthier economically (since the considerable majority of our players are not Iron accounts) without significantly harming the player journey for Iron players, and making sure that pushing to higher Raid Levels still feels worthwhile - we don't want skilled players to feel like they need to spend all of their time in mismatched Magic gear at 200 Raid Level for the best rates.
+
+To start with, let's take a look at where purples are coming from.
+
+
+* Solo clears account for 74% of all completions. Duos account for a further 16%. Teams of 3-8 make up the remaining 10%.
+* In terms of completions by raid level over the past year and the proportion of uniques they introduce, here's how things look (These numbers add up to 101% on account of rounding):
+** 0 - 149: 5% of total completions, ~1% of total uniques.
+** 150 - 299: 42% of total completions, 22% of total uniques.
+** 300 - 349: 23% of total completions, 23% of total uniques.
+** 350 - 399: 11% of total completions, 16% of total uniques.
+** 400 - 449: 12% of total completions, 25% of total uniques.
+** 450 - 499: 4% of total completions, ~7% of total uniques.
+** 500+: 3% of total completions, ~7% of total uniques.
+
+The biggest standout here is the well-known 400 Raid Level milestone. Completions at a Raid Level of 400 or above account for 19% of total completions, but contribute almost 40% of total uniques. While it is important that pushing your Raid Level up should be more rewarding, we think the data that we've got suggests that things are a tad too generous towards the top end.
+
+The first part of our proposal is to reduce the purple chance for Raid Level beyond 300. While necessary, we appreciate that this on its own doesn't feel great, and also doesn't necessarily strengthen the value of lower-tier uniques. 
+
+To counteract that, as Raid Level increases beyond 300, the weighting for the Fang and the Lightbearer will decrease, meaning that you're more likely to see a Masori piece, Tumeken's Shadow or an Elidinis' Ward (sorry) whenever you do hit that purple chest. We've got some approximate numbers here, but it's worth keeping in mind that these don't account for Invocations like Walk the Path or Pathseeker, nor do they account for things like skull skipping - meaning your odds at higher Raid Levels might be a little higher than indicated if you're making use of these.
+
+All of these values assume that you're soloing, since that's the most popular option by far.
+
+First, a look at how your chance at '''any''' purple changes as Raid Level increases:
+
+[[File:Summer Sweep-Up Blog Update- Combat & Loot (1).png|600px|center]]
+
+Now, a look at your chances for ''specific'' purples as Raid Level increases, to reflect the changes in Weightings:
+{| class="wikitable" style="text-align: center;"
+|-
+! Raid Level
+! Live Raids per Fang (also applies to Lightbearer)
+! Proposed Raids per Fang (also applies to Lightbearer)
+! Live Raids per Shadow
+! Proposed Raids per Shadow
+! Live Raids per Specific Masori piece
+! Proposed Raids per specific Masori piece
+! Live Raids per Ward
+! Proposed Raids per Ward
+|-
+| '''150'''
+| 171.4
+| 171.4
+| 1200
+| 1200
+| 600
+| 600
+| 400
+| 400
+|-
+| '''200'''
+| 138.8
+| 138.8
+| 971.7
+| 971.7
+| 485.8
+| 485.8
+| 323.9
+| 323.9
+|-
+| '''250'''
+| 108.8
+| 108.8
+| 761.9
+| 761.9
+| 381
+| 381
+| 254
+| 254
+|-
+| '''300'''
+| 82.8
+| 82.8
+| 579.7
+| 579.7
+| 289.9
+| 289.9
+| 193.2
+| 193.2
+|-
+| '''350'''
+| 60.3
+| 73.3
+| 421.8
+| 440
+| 210.9
+| 220
+| 140.6
+| 146.7
+|-
+| '''400'''
+| 40.4
+| 70.2
+| 282.9
+| 350.9
+| 141.5
+| 166.7
+| 94.3
+| 111.1
+|-
+| '''450'''
+| 33.3
+| 69.2
+| 232.8
+| 276.9
+| 116.4
+| 138.5
+| 77.6
+| 92.3
+|-
+| '''500'''
+| 26.6
+| 72.1
+| 185.9
+| 216.2
+| 93
+| 111.5
+| 62
+| 74.3
+|}
+That's a whole lot of numbers, some takeaways:
+
+
+* More Raid Level still means more uniques. It's always worth pushing as far as you can go!
+* On average, for Raid Levels above 300 - you'll see Purple chests less often.
+* The relative increase in purple rate is reduced. Using our data for average completion times, you'll still be much more likely to see a unique in a 500 than a 400, but the uniques per hour between the two will likely be closer than before.
+* Higher Raid Levels mean you'll see considerably fewer Fangs whenever you do get a purple chest.
+* Conversely, Higher Raid Levels mean you'll see slightly fewer Shadows. This means that if you're waiting for a big ticket payday, you'll see 'the big one' considerably more often if you're running 500s vs. 400s.
+
+Combining all of this with the uniques coming from each Raid Level, this should result in a slight reduction for the volume of Tumeken's Shadows, Elidinis' Ward and Masori armour pieces entering the game, and a considerable reduction in the volume of Osmumten's Fangs and Lightbearers entering the game.
+
+The caveat here is that the changes that we're making to the raid itself will also speed the raid up slightly, or perhaps drive more people to pushing their Raid Level higher - so it's hard to predict exactly where things might shake out.
+
+Naturally for the Irons among you, alarm bells are ringing. Pushing past Raid Level 300 without a Fang in your hand can be tedious to say the least. To address this, we'd like to add a new jewel for you to attach to your Keris Partisan, turning it into a viable mainhand weapon somewhere between the Zamorakian Hasta and Osmumten's Fang, specifically within the Tombs.
+
+On top of all of this, we're looking to make all of the untradeable jewels more common and add some more determinism to obtaining them. The disparity in your enjoyment running Raid Level 400+ with or without a Keris Partisan of the Sun is night and day, with some players having hundreds of killcount without the all-important yellow jewel. We're going to make these much more generous so that you're not relying on RNG within the raid to be able to keep pushing those Raid Levels up and improving your chances at scoring unique items - once these changes are in effect, the only thing stopping you is you!
+
+We're excited - if not a tad nervous - for your thoughts on this one, so let us know where your heads are at with everything we've mentioned so far!
+
+==Everything Else==
+For the rest of the sections, we've only got a couple of points for various bits of content, so we'll group them up to keep things brief and let you get back to grinding!
+
+
+* Reduce the rarity of the Slepey Tablet and adjust the dry protection alongside it. This is likely to wind up closer to 1 in 25 than the current 1 in 100.
+* In the same vein, dying at the Nightmare or Phosani's Nightmare will pop you out nearby, rather than at your respawn location - similar to Yama. This should make the learning curve a little less tedious and let you spend more time focusing on the boss than your cardio.
+* Adjust Bryophyta's Growthlings to be left-clickable if you have an axe equipped, rather than requiring you to use the axe on them.
+* Add a cooldown for Growthlings spawning so that you can't get spammed with multiple waves of them back-to-back.
+* Adjust the HiScores for Obor/Bryophyta to be for chest openings rather than killcount, meaning you'd have to kill the boss and use a key to gain killcount for the HiScores.
+* To introduce players to Obor and Bryophyta, require them to use at least one key to get into their respective lairs - meaning newer players should still learn about them passively if they get lucky while killing Hill Giants or Moss Giants.
+* Make the Dragon Hunter Wand 2x more common rather than 3x more common. Considering how good the Wand is with our proposed changes (particularly with Ancient Magicks autocasting), we think it could stand to be a little tougher to obtain than we'd initially written down.
+* Add a left-click 'Feed' option to Duke Sucellus so that you can use your potions or ingredients passively rather than needing to click repeatedly.
+* Allow Grandmaster Combat Achievers to gain the Slayer Helm bonuses while off-task in the Fight Caves alongside the Inferno. We can't control for rotations at this point so you'll still need to wait around a little if you're looking for ideal speedrunning spawns, but at least you won't need to Turael skip.
+* Adjust Grotesque Guardian's rock fall attack so that the outer radius of the attack doesn't stun the player. The centre tile will still stun. All of the 3x3 will still deal damage.
+
+That's all we've got for you today! We'll be back soon with another Sweep-Up blog with a heavy Slayer focus (among other things) so make sure to keep an eye out.
+
+Make sure to let us know your thoughts in all of the usual places and tell us whether or not these tweaks are welcome or if we're still missing the mark anywhere, until next time!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Donkey, Ed, Elena, Enigma, Entropi, Errol, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Ludo, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

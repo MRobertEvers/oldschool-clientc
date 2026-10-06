@@ -1,0 +1,191 @@
+{{Update|date=26 November 2021|rev=17 December 2021|link=https://secure.runescape.com/m=news/group-ironman-post-launch-improvements?oldschool=1|category=dev blog}}
+[[File:Group Ironman- Post Launch Improvements newspost.png|right]]
+{{Clear|right}}
+
+==Feedback and Changes (December 16th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Your Feedback
+!Our Response
+|-
+|Players not using a Group Iron account would like to be able to unlock additional Bank space in a similar way to Group Storage Expansion.
+|We've recently expanded the available Bank space to all accounts via the purchase of gold, but unfortunately, this is not something we can offer with the release of the Group Storage Expansion. It will be considered for the future though.
+|-
+|You wanted more clarity on the Emergency Teleport Shards and what areas are considered dangerous for HCGIM.
+|To clear up any confusion, the intention of the Emergency Teleport Shards is to provide a teleport out of areas that are newly dangerous to HCIM, and that don't already have a teleportation method. For example, it's impossible to use teleport spells to escape the Inferno, whereas you can teleport out of an encounter with Vorkath.
+
+We had hoped to release these Shards with the initial launch of HCGIM, but we were unable to have them ready in time, hence why we're offering them now!
+
+The list of usable locations for the Emergency Teleport Shards has also been updated to include the Fight Caves.
+|-
+|There were concerns raised about preventing others from entering your Player Owned House remotely.
+
+We also saw some questions about the benefit it would provide to main accounts.
+|You will be able to prevent others from entering your Player Owned House by either locking it (as normal) or by turning your Private Chat setting off.
+
+Main accounts would be able to benefit from this feature too, but there are still limitations. You would have to be on the same world, at the same time, as the other account. This is achievable already by players publicly hosting houses. We feel Construction will still be worth doing for the convenience of accessing your house whenever you want, alongside being able to teleport inside your own house.
+|-
+|You'd like additional clarity on how the teleport to group members' houses system would work.
+|This feature would only be available and visible to Group Iron players.
+
+In order to teleport to a group members house, you'll both need to be online and in the same world. The teleport will be accessible via a right-click on Teleport to House spell, with two available options.
+
+Option 1 - Configure who you want to teleport to and if you want to teleport inside or outside of the house.<br/>
+Option 2 - Teleport to the last GIM member's house you teleported to.
+
+Teleporting to a friend's house will allow you to leave their portal (or teleport outside) to the location their house is set.
+|-
+|The topic of Group Iron players being able to trade certain untradeable items amongst members of their group continues to be popular.
+|We really like this idea and feel like it's something we can achieve, though this would only be possible for certain items. We've updated the blog to include a new section covering this, so make sure you check that out for all the info!
+|}
+
+==Introduction==
+We've loved watching you all get stuck into Group Ironman and enjoying the many ways you've all been working together. We've also been listening to your feedback and have a number of proposed changes, some of which will also apply to non-Group Iron accounts.
+
+The proposals cover:
+
+* Group Storage Expansion
+* Emergency Teleport Shards
+* Enter other Player Owned Houses
+* Teleporting to the homes of other group members
+
+Let's dig in deeper and see what they're all about!
+
+==Group Storage Expansion==
+The Group Storage is a highly popular feature for both regular and Hardcore Group Iron players. The feedback we've received the most is that you all want more of it. We hear you!
+
+We want to offer increased storage space as a reward for completing tasks that are specifically tailored to groups, ensuring that your path feels different to when playing as a non-Iron character. We would therefore like to offer a group task list consisting of things such as:
+
+* Hitting certain individual and group levels
+* Completing Combat Achievement tiers
+* Completing Achievement Diaries tiers
+* Obtaining Quests Points
+* Various Combat achievements
+
+Achieve enough of these goals and your Group Storage could expand from 80 all the way up to 200 slots!
+
+You'll probably accomplish a lot of this through normal Group Ironman play, but with the new system in place, doing so will feel all the more meaningful. Remember that time your group yelled at you for staying at Wintertodt to get to 99, even though you had all the supply crates you wanted? Well, that 99 may now unlock you some storage slots - so it was definitely worth the grind!
+
+{{News Poll|1|Should it be possible for Group Iron players to increase the available Shared Storage slots as a reward for completing specific group tasks, as described in the blog? If this question passes, it will be possible for Group Iron players to unlock a maximum of 200 Group Storage slots.}}
+
+==Emergency Teleport Shards==
+Life in Gielinor is scary - but luckily you can always respawn if something goes horribly wrong. Of course, one particular group has it worse than the rest... we're looking at you, Hardcores!
+
+The following encounters have always been considered 'safe' for regular Hardcore players, but are dangerous deaths for Hardcore Group Iron players:
+
+* Chambers of Xeric (including Challenge Mode)
+* The Inferno
+* TzHaar Fight Cave
+* Pest Control
+* Barbarian Assault
+
+It's become apparent that these encounters can be quite brutal, and it can be hard to escape if you're caught in a bad spot. Perhaps a teammate is not pulling their weight, or someone tripped over a router cable. Regardless of the reason, there's a need for a quick way of teleporting out of such situations.
+
+One solution to this already exists in the Theatre of Blood - namely, Verzik's Crystal Shards. Currently they can be bought for 75k gold and allow you to instantly teleport outside of the theatre. They also let other players use their shard on you to teleport you out, and there will be a setting to toggle whether or not other players are allowed to do this.
+
+We would like to expand the Crystal Shard system so they can be used in other places - specifically, those named above. This means that extremely dangerous places such as the Inferno would have a one-click instant teleport to safety. Additionally, the Crystal will likely be renamed and purchasable from a more accessible location.
+
+Note that these teleports will be usable for all types of accounts, not just Hardcore Group Iron players. However, seeing as there's no punishment for other accounts when they die in these spots, we would like this to be polled only for the affected players.
+
+To those of you who have already conquered these dangers without this safety net - we salute you! No-one will ever be able to take that accomplishment away from you!
+
+{{News Poll|2|Should Emergency Teleport Shards be added to the game, as described in the blog? These crystals would allow Hardcore Group Iron players to have a one-click instant teleport to safety from areas that currently don't allow teleporting. These Shards can also be purchased by other group members to be used on members of the same Group Iron team, teleporting them to safety when they were unable to do so themselves.}}
+
+==Player Owned House Additions==
+===Enter another player's house remotely===
+Currently, you can only enter another player's Player Owned House if the owner is home. While that's usually how it works in real life as well, we'd like to offer you the ability to visit a friend's house when they're out and about. Consider it the same as having a spare key to your friend's house! This can only be done if the owner is online and in the same world as you (this is entirely down to tech restrictions).
+
+Our hope is that this makes accessing other player's homes a bit smoother. Of course, as a house owner, you're completely free to lock your house so that no one can enter it without your permission!
+
+We know that a lot of Group Iron players would love a shared house that they can build together. Unfortunately, the tech requirements for this are huge, and we can't really justify the resources when we have so many other projects we want to deliver to you. Many of you have said that you'd like to see Construction level for just one of your team, so this change will at least make it more viable for your team to have one dedicated 'builder'!
+
+{{News Poll|3|SShould<!--sic--> it be possible to teleport to another player's house while the owner is not home, as described in the blog? The owner of the house would have to be online and in the same world as you.}}
+
+===Teleport to group member's house===
+As a Group Iron player, you may have read the above and wondered "What good is my friend's house if I can't get there easily?". Well, we have the answer!
+
+Because there are many different locations where your house can be, it's unlikely that group member's houses are conveniently grouped together. We would like to offer a way for both regular and Hardcore Group Iron players to redirect their house teleport to a group member's house.
+
+The teleport will likely be accessible via a right click on the Home Teleport spell, as the regular spellbook doesn't have space for any more spells.
+
+{{News Poll|4|Should it be possible for Group Iron players to redirect their house teleport to a group member's house, as described in the blog?}}
+
+==Trading Untradeables==
+Since the release of Group Ironman, we've seen countless requests for players to be able to share certain items with their team members that would otherwise be untradeable.
+
+We've been looking into how feasible this would be, and good news! We believe we'll be able to make the following items tradeable between other members in your Group Iron team:
+
+* Charged Crystal armour
+* Crystal tools
+* Infernal tools
+* Charged/Corrupted Bow of Faerdhinen
+* Charged/Corrupted Blade of Saeldor
+* Charged Crystal Shield
+* Charged Crystal Bow
+* All Barrows armour
+* Charged scythe
+* Charged Dragonfire shield
+* Blood fury
+* Tentacle whip
+* Imbued rings (from Dagannoth Kings and the Wilderness)
+
+The reason we picked the above items is because they can easily be converted to tradeable items – it's just a convenience to the group to allow them to trade them in their charged state, as some of them can be rather awkward to un-charge.
+
+{{News Poll|5|Should it be possible for Group Iron players to trade certain items that would otherwise be untradeable with other members of the same group, as described in the blog?}}
+
+The list doesn't ''have'' end there though. Whilst the above will be the initial offering, we could look to expand upon this in the future if you'd like us to!
+
+===Items that could potentially be traded between Group Iron members of the same team===
+''Note: the following items will not be offered as part of the tradeable untradeables project – they are being posted to gauge your feedback on whether this is something we should continue investigating.''
+
+It would be very convenient for players to be allowed to trade these items between group members, but it may neglect some grinds that players traditionally have to do to reap the rewards. Let us know what you think of the following:
+
+* Scrolls of redirection
+* Xeric's talisman
+* Slayer rings (including Eternal slayer ring)
+* Digsite pendant (5) - (after having found the pendant in the Museum to learn how to teleport with it)
+* Daeyalt essence
+* Dark essence
+* Karambwanji
+* Crystal shards
+* Ancient shards
+* Long/curved bones
+* Moss/giant keys
+* Dark totem pieces
+* Peaches
+* Rune pouch
+* Looting bag
+
+The final list of items we've put together is a little different from the others. These are items that we don't want transferred when a player de-Irons. Certain untradeable items could circumvent item restrictions if players were to obtain them via group mates. These items can not be made tradeable because there's no way of detecting which items the player earned themselves, and which were tradeable.
+
+In short, we don't want the best way of obtaining an item be via becoming a GIM first, then de-Ironing!
+
+One way of getting around the problem is to make alternate versions of the items. These would act similar to the regular item, but would be deleted upon de-Ironing. This would be a lot of work to do as the items would have to be plugged in to all places where the existing ones are.
+
+These items include:
+
+* Void armour
+* Barbarian Assault gear (such as Fighter Torso)
+* Regular non-coloured graceful
+* Regular non-coloured prospector outfit
+* Carpenter's outfit
+* Farmer's outfit
+* Pyromancer outfit
+* Angler's outfit
+* Zealot's robes
+* Rogue equipment
+* Gold nuggets
+* Coal bag
+* Gem bag
+* Herb sack
+* Plank sack
+* Fish barrel
+* Spirit flakes
+
+
+----
+
+We'd love to hear your feedback so please let us know what you think via our [https://secure.runescape.com/m=forum/forums?380,381,771,66237070 official forums], on the [https://www.reddit.com/r/2007scape/comments/rijiaf/group_ironman_post_launch_improvements_updated_v2/ 2007Scape Reddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums] or the community-led [http://discord.gg/OSRS OSRS Discord].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Con, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Ellie, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, KT, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Sova, Squid, Steve W, Tide, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

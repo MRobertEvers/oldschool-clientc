@@ -1,0 +1,1018 @@
+# npc records -- 45 records selected from cache.osrs239
+# source: OSRS-Content/osrs239-content/configs/all.npc (record header line given per record)
+# why= the selection rule(s) that chose the record (LEDGER_cache.md)
+
+[12767] poh_solheredit_pet    (configs/all.npc:414489)
+  why= name: poh_solheredit_pet, name=Smol Heredit
+  name=Smol Heredit
+  model1=52580
+  model2=52582
+  model3=52578
+  head1=52737
+  readyanim=npc_colossi_finalboss_01_idle
+  walkanim=npc_colossi_shockwave_01_walk_nosound
+  op1=Talk-to
+  op3=Pick-up
+  minimap=no
+  vislevel=0
+  resizeh=50
+  resizev=50
+  ambient=20
+  contrast=150
+  category=764
+
+[12807] colosseum_master_outside    (configs/all.npc:415374)
+  why= name: colosseum_master_outside, name=Minimus
+  name=Minimus
+  model1=50749
+  head1=52659
+  readyanim=human_ready_alt
+  walkanim=human_walk_f
+  op1=Talk-to
+  vislevel=0
+  alwaysontop=yes
+  renderpriority=1
+  contrast=100
+  category=922
+
+[12808] colosseum_master    (configs/all.npc:415387)
+  why= name: colosseum_master, name=Minimus
+  name=Minimus
+  model1=50749
+  head1=52659
+  readyanim=human_ready_alt
+  walkanim=human_walk_f
+  op1=Start-wave
+  op3=Leave
+  vislevel=0
+  alwaysontop=yes
+  renderpriority=1
+  contrast=100
+
+[12809] colosseum_glory    (configs/all.npc:415400)
+  why= name: colosseum_glory, name=Gloria
+  name=Gloria
+  model1=382
+  model2=51114
+  model3=51065
+  model4=353
+  model5=51136
+  model6=437
+  head1=105
+  recol1s=6798
+  recol1d=6798
+  recol2s=4550
+  recol2d=4643
+  readyanim=human_ready
+  walkanim=human_walk_f
+  walkanim_b=human_walk_b
+  walkanim_l=human_walk_l
+  walkanim_r=human_walk_r
+  op1=Talk-to
+  vislevel=0
+  alwaysontop=yes
+  renderpriority=1
+
+[12810] colosseum_jaguar_warrior    (configs/all.npc:415423)
+  why= name: colosseum_jaguar_warrior
+  name=Jaguar warrior
+  model1=50748
+  model2=53213
+  model3=53214
+  size=2
+  readyanim=human_ready
+  walkanim=human_walk_f
+  walkanim_b=human_walk_b
+  walkanim_l=human_walk_l
+  walkanim_r=human_walk_r
+  op2=Attack
+  vislevel=234
+  resizeh=160
+  resizev=170
+  alwaysontop=yes
+  renderpriority=1
+  category=1939
+  stat1=200
+  stat2=125
+  stat3=330
+  stat4=125
+  stat5=160
+  stat6=100
+  footprintsize=102
+  param=param_26,int,1
+  param=attackrate,int,5
+  param=strengthbonus,int,25
+  param=magicattack,int,0
+  param=param_65,int,0
+  param=rangeattack,int,0
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,30
+  param=slashdefence,int,30
+  param=crushdefence,int,30
+  param=magicdefence,int,15
+  param=param_46,int,-1
+
+[12811] colosseum_standard_mager    (configs/all.npc:415461)
+  why= name: colosseum_standard_mager
+  name=Serpent shaman
+  model1=50747
+  model2=53212
+  model3=53213
+  model4=53214
+  readyanim=human_staffready
+  walkanim=human_halberdwalk_f
+  walkanim_b=human_halberdwalk_b
+  walkanim_l=human_halberdwalk_l
+  walkanim_r=human_halberdwalk_r
+  op2=Attack
+  vislevel=161
+  alwaysontop=yes
+  renderpriority=1
+  category=1939
+  stat1=100
+  stat2=90
+  stat3=90
+  stat4=125
+  stat5=160
+  stat6=220
+  param=param_26,int,5
+  param=attackrate,int,5
+  param=strengthbonus,int,0
+  param=magicattack,int,50
+  param=param_65,int,15
+  param=rangeattack,int,0
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,30
+  param=slashdefence,int,30
+  param=crushdefence,int,30
+  param=magicdefence,int,15
+  param=param_46,int,-1
+
+[12812] colosseum_minotaur    (configs/all.npc:415496)
+  why= name: colosseum_minotaur
+  name=Minotaur
+  model1=52497
+  size=3
+  readyanim=npc_minotaur_boss_idle
+  walkanim=npc_minotaur_boss_walk
+  op2=Attack
+  vislevel=318
+  alwaysontop=yes
+  renderpriority=1
+  ambient=10
+  contrast=100
+  category=1939
+  stat1=300
+  stat2=190
+  stat3=360
+  stat4=225
+  stat5=120
+  stat6=250
+  footprintsize=153
+  param=param_26,int,2
+  param=attackrate,int,5
+  param=strengthbonus,int,64
+  param=magicattack,int,0
+  param=param_65,int,0
+  param=rangeattack,int,0
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,0
+  param=slashdefence,int,0
+  param=crushdefence,int,0
+  param=magicdefence,int,0
+  param=param_46,int,-1
+
+[12813] colosseum_minotaur_routefind    (configs/all.npc:415529)
+  why= name: colosseum_minotaur_routefind
+  name=Minotaur
+  model1=52497
+  size=3
+  readyanim=npc_minotaur_boss_idle
+  walkanim=npc_minotaur_boss_walk
+  op2=Attack
+  vislevel=318
+  alwaysontop=yes
+  renderpriority=1
+  ambient=10
+  contrast=100
+  category=1939
+  stat1=300
+  stat2=190
+  stat3=360
+  stat4=225
+  stat5=120
+  stat6=250
+  footprintsize=153
+  param=param_26,int,4
+  param=attackrate,int,5
+  param=strengthbonus,int,64
+  param=magicattack,int,0
+  param=param_65,int,0
+  param=rangeattack,int,0
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,0
+  param=slashdefence,int,0
+  param=crushdefence,int,0
+  param=magicdefence,int,0
+  param=param_46,int,-1
+
+[12814] colosseum_warbander_ranged_female    (configs/all.npc:415562)
+  why= name: colosseum_warbander_ranged_female
+  name=Fremennik warband archer
+  model1=50931
+  model2=53213
+  model3=53214
+  readyanim=human_ready
+  walkanim=human_walk_f
+  walkanim_b=human_walk_b
+  walkanim_l=human_walk_l
+  walkanim_r=human_walk_r
+  op2=Attack
+  vislevel=104
+  alwaysontop=yes
+  renderpriority=1
+  ambient=10
+  contrast=100
+  category=1939
+  stat1=110
+  stat2=80
+  stat3=110
+  stat4=50
+  stat5=110
+  stat6=110
+  param=param_26,int,4
+  param=attackrate,int,5
+  param=strengthbonus,int,0
+  param=magicattack,int,0
+  param=param_65,int,0
+  param=rangeattack,int,150
+  param=rangebonus_ammo,int,10
+  param=stabdefence,int,0
+  param=slashdefence,int,0
+  param=crushdefence,int,0
+  param=magicdefence,int,75
+  param=param_46,int,-1
+
+[12815] colosseum_warbander_mage_male    (configs/all.npc:415598)
+  why= name: colosseum_warbander_mage_male
+  name=Fremennik warband seer
+  model1=50725
+  model2=53213
+  model3=53214
+  readyanim=human_staffready
+  walkanim=human_halberdwalk_f
+  walkanim_b=human_halberdwalk_b
+  walkanim_l=human_halberdwalk_l
+  walkanim_r=human_halberdwalk_r
+  op2=Attack
+  vislevel=104
+  alwaysontop=yes
+  renderpriority=1
+  ambient=10
+  contrast=100
+  category=1939
+  stat1=110
+  stat2=80
+  stat3=110
+  stat4=50
+  stat5=110
+  stat6=110
+  param=param_26,int,5
+  param=attackrate,int,5
+  param=strengthbonus,int,0
+  param=magicattack,int,150
+  param=param_65,int,0
+  param=rangeattack,int,0
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,50
+  param=slashdefence,int,50
+  param=crushdefence,int,50
+  param=magicdefence,int,30
+  param=param_46,int,-1
+
+[12816] colosseum_warbander_melee_male    (configs/all.npc:415634)
+  why= name: colosseum_warbander_melee_male
+  name=Fremennik warband berserker
+  model1=50720
+  model2=53213
+  model3=53214
+  readyanim=human_ready
+  walkanim=human_walk_f
+  walkanim_b=human_walk_b
+  walkanim_l=human_walk_l
+  walkanim_r=human_walk_r
+  op2=Attack
+  vislevel=103
+  alwaysontop=yes
+  renderpriority=1
+  ambient=10
+  contrast=100
+  category=1939
+  stat1=110
+  stat2=80
+  stat3=110
+  stat4=48
+  stat5=110
+  stat6=110
+  param=param_26,int,0
+  param=attackrate,int,5
+  param=strengthbonus,int,90
+  param=magicattack,int,0
+  param=param_65,int,0
+  param=rangeattack,int,0
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,50
+  param=slashdefence,int,50
+  param=crushdefence,int,50
+  param=magicdefence,int,0
+  param=param_46,int,-1
+
+[12817] colosseum_javelin_colossus    (configs/all.npc:415670)
+  why= name: colosseum_javelin_colossus
+  name=Javelin Colossus
+  model1=52579
+  model2=53209
+  size=3
+  readyanim=npc_colossi_javelin_01_idle
+  walkanim=npc_colossi_javelin_walk
+  op2=Attack
+  vislevel=278
+  resizeh=150
+  resizev=150
+  alwaysontop=yes
+  renderpriority=1
+  ambient=25
+  contrast=100
+  category=1939
+  stat1=200
+  stat2=190
+  stat3=300
+  stat4=220
+  stat5=360
+  stat6=225
+  footprintsize=153
+  param=param_46,int,-1
+  param=param_26,int,4
+  param=attackrate,int,5
+  param=strengthbonus,int,0
+  param=magicattack,int,0
+  param=param_65,int,0
+  param=rangeattack,int,25
+  param=rangebonus_ammo,int,20
+  param=stabdefence,int,15
+  param=slashdefence,int,15
+  param=crushdefence,int,15
+  param=magicdefence,int,20
+
+[12818] colosseum_manticore    (configs/all.npc:415706)
+  why= name: colosseum_manticore
+  name=Manticore
+  model1=52612
+  size=3
+  readyanim=npc_manticore_01_idle
+  walkanim=npc_manticore_01_walk
+  walkanim_b=npc_manticore_01_backwards_walk
+  walkanim_l=npc_manticore_01_walk
+  walkanim_r=npc_manticore_01_walk
+  op2=Attack
+  vislevel=320
+  resizeh=44
+  resizev=44
+  alwaysontop=yes
+  renderpriority=1
+  ambient=25
+  contrast=100
+  category=1939
+  stat1=300
+  stat2=250
+  stat3=300
+  stat4=250
+  stat5=350
+  stat6=300
+  footprintsize=153
+  param=param_46,int,-1
+  param=param_26,int,0
+  param=attackrate,int,10
+  param=strengthbonus,int,0
+  param=magicattack,int,0
+  param=param_65,int,0
+  param=rangeattack,int,0
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,0
+  param=slashdefence,int,0
+  param=crushdefence,int,0
+  param=magicdefence,int,10
+
+[12819] colosseum_shockwave_colossus    (configs/all.npc:415744)
+  why= name: colosseum_shockwave_colossus
+  name=Shockwave Colossus
+  model1=52584
+  model2=53209
+  size=3
+  readyanim=npc_colossi_shockwave_01_idle
+  walkanim=npc_colossi_shockwave_01_walk
+  op2=Attack
+  vislevel=239
+  alwaysontop=yes
+  renderpriority=1
+  ambient=25
+  contrast=100
+  category=1939
+  stat1=120
+  stat2=150
+  stat3=190
+  stat4=125
+  stat5=220
+  stat6=350
+  footprintsize=153
+  param=param_46,int,-1
+  param=param_26,int,5
+  param=attackrate,int,5
+  param=strengthbonus,int,0
+  param=magicattack,int,55
+  param=param_65,int,35
+  param=rangeattack,int,0
+  param=rangebonus_ammo,int,0
+  param=stabdefence,int,15
+  param=slashdefence,int,15
+  param=crushdefence,int,15
+  param=magicdefence,int,5
+
+[12820] colosseum_safespot_dying    (configs/all.npc:415778)
+  why= name: colosseum_safespot_dying
+  name=<col=00ffff>Pillar</col>
+  model1=33046
+  size=3
+  minimap=no
+  vislevel=0
+  footprintsize=153
+
+[12821] colosseum_sol_p1    (configs/all.npc:415786)
+  why= name: colosseum_sol_p1, name=Sol Heredit
+  name=Sol Heredit
+  model1=52580
+  model2=52582
+  model3=52578
+  model4=52585
+  head1=52738
+  size=5
+  readyanim=npc_colossi_finalboss_01_idle
+  walkanim=npc_colossi_finalboss_01_walk
+  op2=Attack
+  vislevel=1563
+  resizeh=300
+  resizev=300
+  alwaysontop=yes
+  renderpriority=1
+  ambient=25
+  contrast=100
+  category=1940
+  stat1=350
+  stat2=200
+  stat3=400
+  stat4=1500
+  stat5=350
+  stat6=300
+  footprintsize=256
+  param=strengthbonus,int,5
+  param=magicattack,int,0
+  param=param_65,int,0
+  param=rangeattack,int,150
+  param=rangebonus_ammo,int,5
+  param=stabdefence,int,65
+  param=slashdefence,int,5
+  param=crushdefence,int,30
+  param=magicdefence,int,750
+  param=param_509,int,2
+  param=param_510,str,Sol Heredit
+  param=param_46,int,-1
+
+[12822] colosseum_doom_scorpion    (configs/all.npc:415825)
+  why= name: colosseum_doom_scorpion
+  name=Doom Scorpion
+  model1=52511
+  recol1s=10545
+  recol1d=10285
+  recol2s=12589
+  recol2d=10281
+  recol3s=12713
+  recol3d=5157
+  recol4s=6466
+  recol4d=20
+  recol5s=6577
+  recol5d=295
+  recol6s=6697
+  recol6d=20
+  readyanim=scorpion_update_ready
+  walkanim=scorpion_update_walk
+  vislevel=0
+  resizeh=40
+  resizev=40
+  alwaysontop=yes
+  renderpriority=1
+  category=1941
+  param=attackrate,int,6
+  param=param_46,int,-1
+
+[12823] colosseum_modifier_bees    (configs/all.npc:415851)
+  why= name: colosseum_modifier_bees
+  name=Bee Swarm
+  model1=53132
+  size=2
+  readyanim=npc_colosseum_bees_idle_01
+  walkanim=npc_colosseum_bees_idle_01
+  op2=Attack
+  vislevel=0
+  ambient=10
+  contrast=500
+  turnspeed=0
+  category=1941
+  footprintsize=102
+  param=param_46,int,-1
+
+[12824] colosseum_beam_crystal    (configs/all.npc:415866)
+  why= name: colosseum_beam_crystal
+  model1=51243
+  readyanim=npc_colosseum_crystal_idle_01
+  walkanim=npc_colosseum_crystal_idle_01
+  vislevel=0
+  turnspeed=0
+  interactable=no
+  stat4=25
+  param=param_46,int,-1
+
+[12825] colosseum_healing_totem    (configs/all.npc:415876)
+  why= name: colosseum_healing_totem
+  name=Healing totem
+  model1=51251
+  readyanim=npc_colosseum_totem_idle_01
+  walkanim=npc_colosseum_totem_idle_01
+  op2=Attack
+  vislevel=0
+  resizeh=96
+  resizev=96
+  ambient=30
+  contrast=300
+  turnspeed=0
+  category=1941
+  param=param_46,int,-1
+
+[12826] colosseum_solar_flare    (configs/all.npc:415891)
+  why= name: colosseum_solar_flare
+  model1=51242
+  readyanim=npc_colosseum_solar_flare_crystal_idle_01
+  walkanim=npc_colosseum_solar_flare_crystal_idle_01
+  minimap=no
+  vislevel=0
+  resizeh=64
+  resizev=64
+  turnspeed=0
+  interactable=no
+  category=1941
+  stat4=25
+  param=param_46,int,-1
+
+[12827] colosseum_boss_seated    (configs/all.npc:415905)
+  why= name: colosseum_boss_seated, name=Sol Heredit
+  name=Sol Heredit
+  model1=52580
+  model2=52583
+  size=4
+  readyanim=npc_colossi_finalboss_01_sitting_idle
+  walkanim=npc_colossi_finalboss_01_sitting_idle
+  vislevel=0
+  resizeh=300
+  resizev=300
+  turnspeed=0
+  footprintsize=204
+  param=param_46,int,-1
+
+[12828] colosseum_human_gib    (configs/all.npc:415919)
+  why= name: colosseum_human_gib
+  model1=51247
+  vislevel=0
+  interactable=no
+
+[12829] colosseum_manticore_gib    (configs/all.npc:415924)
+  why= name: colosseum_manticore_gib
+  model1=51233
+  size=3
+  vislevel=0
+  resizeh=44
+  resizev=44
+  interactable=no
+  footprintsize=153
+
+[12830] colosseum_minotaur_gib    (configs/all.npc:415933)
+  why= name: colosseum_minotaur_gib
+  model1=51250
+  size=3
+  vislevel=0
+  ambient=-15
+  interactable=no
+  footprintsize=153
+
+[12831] colosseum_colossi_gib    (configs/all.npc:415941)
+  why= name: colosseum_colossi_gib
+  model1=51241
+  size=3
+  vislevel=0
+  interactable=no
+  footprintsize=153
+
+[12832] colosseum_sol_gib    (configs/all.npc:415948)
+  why= name: colosseum_sol_gib
+  model1=51241
+  size=5
+  vislevel=0
+  resizeh=150
+  resizev=150
+  ambient=-25
+  interactable=no
+  footprintsize=256
+
+[12833] colosseum_passionate_supporter    (configs/all.npc:415958)
+  why= name: colosseum_passionate_supporter
+  name=Passionate Supporter
+  model1=28321
+  model2=28714
+  model3=27154
+  model4=246
+  model5=10218
+  model6=27639
+  model7=181
+  recol1s=4550
+  recol1d=4550
+  recol2s=6798
+  recol2d=8134
+  recol3s=55232
+  recol3d=8134
+  recol4s=8741
+  recol4d=8078
+  recol5s=24
+  recol5d=8070
+  recol6s=7281
+  recol6d=7566
+  recol7s=908
+  recol7d=11144
+  recol8s=25238
+  recol8d=11148
+  recol9s=4626
+  recol9d=5786
+  readyanim=human_ready
+  walkanim=human_walk_f
+  walkanim_b=human_walk_b
+  walkanim_l=human_walk_l
+  walkanim_r=human_walk_r
+  runanim=human_running
+  runanim_b=human_walk_b
+  runanim_l=human_walk_l
+  runanim_r=human_walk_r
+  op2=Attack
+  vislevel=7
+  resizeh=120
+  resizev=120
+  alwaysontop=yes
+  renderpriority=1
+  stat4=10
+  param=param_46,int,28958
+
+[12834] colosseeum_gladiator_1    (configs/all.npc:416003)
+  why= name: colosseeum_gladiator_1
+  name=Gladiator
+  model1=50814
+  model2=50837
+  model3=50880
+  head1=52691
+  recol1s=4550
+  recol1d=5400
+  recol2s=4403
+  recol2d=4382
+  recol3s=4544
+  recol3d=5524
+  recol4s=4550
+  recol4d=5400
+  recol5s=1944
+  recol5d=6024
+  recol6s=4661
+  recol6d=7050
+  readyanim=human_ready
+  walkanim=human_walk_f
+  walkanim_b=human_walk_b
+  walkanim_l=human_walk_l
+  walkanim_r=human_walk_r
+  op1=Talk-to
+  vislevel=0
+  category=1942
+
+[12835] colosseeum_gladiator_2    (configs/all.npc:416030)
+  why= name: colosseeum_gladiator_2
+  name=Gladiator
+  model1=50795
+  model2=50861
+  model3=50905
+  head1=52650
+  readyanim=human_ready
+  walkanim=human_walk_f
+  walkanim_b=human_walk_b
+  walkanim_l=human_walk_l
+  walkanim_r=human_walk_r
+  op1=Talk-to
+  vislevel=0
+  category=1942
+
+[12836] colosseeum_gladiator_3    (configs/all.npc:416045)
+  why= name: colosseeum_gladiator_3
+  name=Gladiator
+  model1=50996
+  model2=51061
+  model3=51104
+  head1=52760
+  recol1s=4550
+  recol1d=4525
+  recol2s=4544
+  recol2d=4647
+  recol3s=4550
+  recol3d=4525
+  recol4s=1944
+  recol4d=3992
+  recol5s=4661
+  recol5d=4643
+  readyanim=human_ready
+  walkanim=human_walk_f
+  walkanim_b=human_walk_b
+  walkanim_l=human_walk_l
+  walkanim_r=human_walk_r
+  op1=Talk-to
+  vislevel=0
+  category=1942
+
+[12843] colosseum_duelist_flavour    (configs/all.npc:416194)
+  why= name: colosseum_duelist_flavour
+  name=Duelist
+  model1=217
+  model2=246
+  model3=28515
+  model4=326
+  model5=26619
+  model6=177
+  model7=28346
+  model8=185
+  model9=37082
+  recol1s=6798
+  recol1d=6798
+  recol2s=8741
+  recol2d=807
+  recol3s=25238
+  recol3d=6024
+  recol4s=9096
+  recol4d=9096
+  recol5s=906
+  recol5d=906
+  recol6s=4626
+  recol6d=4626
+  recol7s=7446
+  recol7d=7446
+  readyanim=human_ready
+  walkanim=human_walk_f
+  walkanim_b=human_walk_b
+  walkanim_l=human_walk_l
+  walkanim_r=human_walk_r
+  vislevel=0
+
+[12857] solheredit_pet    (configs/all.npc:416649)
+  why= name: solheredit_pet, name=Smol Heredit
+  name=Smol Heredit
+  model1=52580
+  model2=52582
+  model3=52578
+  head1=52737
+  readyanim=npc_colossi_finalboss_01_idle
+  walkanim=npc_colossi_shockwave_01_walk_nosound
+  op1=Talk-to
+  op3=Pick-up
+  minimap=no
+  vislevel=0
+  resizeh=50
+  resizev=50
+  ambient=20
+  contrast=150
+  pet=yes
+  lowpriorityops=yes
+
+[13110] colosseum_lobby_guard_static_m_1    (configs/all.npc:421337)
+  why= name: colosseum_lobby_guard_static_m_1
+  name=Guard
+  model1=55190
+  model2=246
+  model3=55300
+  model4=176
+  model5=55243
+  model6=50915
+  model7=55020
+  model8=55022
+  head1=52651
+  recol1s=4550
+  recol1d=8078
+  recol2s=4626
+  recol2d=5002
+  readyanim=human_staffready
+  walkanim=human_halberdwalk_f
+  walkanim_b=human_halberdwalk_b
+  walkanim_l=human_halberdwalk_l
+  walkanim_r=human_halberdwalk_r
+  op1=Talk-to
+  vislevel=0
+  category=1976
+
+[13111] colosseum_lobby_guard_static_m_2    (configs/all.npc:421361)
+  why= name: colosseum_lobby_guard_static_m_2
+  name=Guard
+  model1=55189
+  model2=246
+  model3=55300
+  model4=176
+  model5=55243
+  model6=50915
+  model7=55020
+  model8=55022
+  head1=52651
+  readyanim=human_staffready
+  walkanim=human_halberdwalk_f
+  walkanim_b=human_halberdwalk_b
+  walkanim_l=human_halberdwalk_l
+  walkanim_r=human_halberdwalk_r
+  op1=Talk-to
+  vislevel=0
+  category=1976
+
+[13112] colosseum_lobby_guard_static_f_1    (configs/all.npc:421381)
+  why= name: colosseum_lobby_guard_static_f_1
+  name=Guard
+  model1=55052
+  model2=55160
+  model3=353
+  model4=55100
+  model5=51136
+  model6=55017
+  model7=55019
+  head1=54379
+  recol1s=4550
+  recol1d=4663
+  readyanim=human_ready
+  walkanim=human_walk_f
+  walkanim_b=human_walk_b
+  walkanim_l=human_walk_l
+  walkanim_r=human_walk_r
+  op1=Talk-to
+  vislevel=0
+  category=1976
+
+[13113] colosseum_lobby_guard_static_f_2    (configs/all.npc:421402)
+  why= name: colosseum_lobby_guard_static_f_2
+  name=Guard
+  model1=55052
+  model2=55160
+  model3=353
+  model4=55100
+  model5=51136
+  model6=55017
+  model7=55019
+  head1=54379
+  readyanim=human_ready
+  walkanim=human_walk_f
+  walkanim_b=human_walk_b
+  walkanim_l=human_walk_l
+  walkanim_r=human_walk_r
+  op1=Talk-to
+  vislevel=0
+  category=1976
+
+[13350] quetzal_child_green    (configs/all.npc:428033)
+  why= bind: multinpc2 (value 1) of npc quetzal_colosseum
+  name=Renu
+  model1=52602
+  size=3
+  readyanim=npc_quetzal_idle_01
+  walkanim=npc_quetzal_flying_idle_01
+  op1=Travel
+  op3=Last-destination
+  op4=Pet
+  vislevel=0
+  alwaysontop=yes
+  renderpriority=1
+  footprintsize=153
+
+[13351] quetzal_child_orange    (configs/all.npc:428047)
+  why= bind: multinpc3 (value 2) of npc quetzal_colosseum
+  name=Renu
+  model1=52610
+  size=3
+  readyanim=npc_quetzal_idle_01
+  walkanim=npc_quetzal_flying_idle_01
+  op1=Travel
+  op3=Last-destination
+  op4=Pet
+  vislevel=0
+  alwaysontop=yes
+  renderpriority=1
+  footprintsize=153
+
+[13352] quetzal_child_blue    (configs/all.npc:428061)
+  why= bind: multinpc4 (value 3) of npc quetzal_colosseum
+  name=Renu
+  model1=52600
+  size=3
+  readyanim=npc_quetzal_idle_01
+  walkanim=npc_quetzal_flying_idle_01
+  op1=Travel
+  op3=Last-destination
+  op4=Pet
+  vislevel=0
+  alwaysontop=yes
+  renderpriority=1
+  footprintsize=153
+
+[13353] quetzal_child_cyan    (configs/all.npc:428075)
+  why= bind: multinpc5 (value 4) of npc quetzal_colosseum
+  name=Renu
+  model1=52605
+  size=3
+  readyanim=npc_quetzal_idle_01
+  walkanim=npc_quetzal_flying_idle_01
+  op1=Travel
+  op3=Last-destination
+  op4=Pet
+  vislevel=0
+  alwaysontop=yes
+  renderpriority=1
+  footprintsize=153
+
+[13354] quetzal_child_green_orange    (configs/all.npc:428089)
+  why= bind: multinpc6 (value 5) of npc quetzal_colosseum
+  name=Renu
+  model1=52608
+  size=3
+  readyanim=npc_quetzal_idle_01
+  walkanim=npc_quetzal_flying_idle_01
+  op1=Travel
+  op3=Last-destination
+  op4=Pet
+  vislevel=0
+  alwaysontop=yes
+  renderpriority=1
+  footprintsize=153
+
+[13362] quetzal_colosseum    (configs/all.npc:428230)
+  why= name: quetzal_colosseum
+  size=3
+  readyanim=npc_quetzal_idle_01
+  walkanim=npc_quetzal_flying_idle_01
+  vislevel=1
+  alwaysontop=yes
+  renderpriority=1
+  multivarbit=varb9958_quetzal_colosseum
+  multinpc1=-1
+  multinpc2=quetzal_child_green
+  multinpc3=quetzal_child_orange
+  multinpc4=quetzal_child_blue
+  multinpc5=quetzal_child_cyan
+  multinpc6=quetzal_child_green_orange
+  multinpc7=-1
+  category=2001
+  footprintsize=153
+
+[13420] colosseum_teoki_ralos    (configs/all.npc:429863)
+  why= name: colosseum_teoki_ralos
+  name=Ueman, Teoki of Ralos
+  model1=50739
+  head1=52653
+  readyanim=human_ready
+  walkanim=human_walk_f
+  walkanim_b=human_walk_b
+  walkanim_l=human_walk_l
+  walkanim_r=human_walk_r
+  op1=Talk-to
+  vislevel=0
+
+[13421] colosseum_teoki_ranul    (configs/all.npc:429875)
+  why= name: colosseum_teoki_ranul
+  name=Seia, Teoki of Ranul
+  model1=50961
+  head1=52790
+  recol1s=5342
+  recol1d=33979
+  recol2s=6606
+  recol2d=538
+  recol3s=801
+  recol3d=532
+  recol4s=22046
+  recol4d=37925
+  readyanim=human_ready
+  walkanim=human_walk_f
+  walkanim_b=human_walk_b
+  walkanim_l=human_walk_l
+  walkanim_r=human_walk_r
+  op1=Talk-to
+  vislevel=0
+

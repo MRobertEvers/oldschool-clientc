@@ -10,7 +10,6 @@ return {
         "::give lobster 20", "::give bread 1", "::give knife 1",
         "::passive red_dragon", "::passive red_dragon2", "::passive red_dragon3", "::passive red_dragon4",
         "::passive babyreddragon", "::passive hosdun_druid", "::passive hosdun_spider",
-        "::godmode",
         "::insearchofknowledge",
     },
 

@@ -13,20 +13,30 @@
 -- tinderbox, use it on the chasm climbing rocks for a light-creature, mine
 -- for real instead of ::tearsofguthix".
 --
--- Entrance + stepping-stone crossing: the engine reach fix landed at
--- seam10 (collision_map.c) -- a floor-decoration stepping stone with
--- chasm on every side is now reachable from the bank across one gap
--- square, with no stand-on-square opt-in needed (doc trap 32). The exact
--- goto/click sequence below is copied from the scratch proof that measured
--- this 12/12 (build/seam_state/seam10/scratch_reach/tog_option_a.lua).
--- Wall beasts (`swamp_wallbeast` -> `swamp_wallbeast_combat`,
--- tog_wallbeast_reveal.rs2's `[ai_timer]` `huntall(npc_coord, 1, 0)`) only
--- reveal and grab within 1 tile -- every goto/walk tile below stays >=2
--- tiles off every swamp_wallbeast *.spawn row
--- (areas/world/configs/m49_149.spawn, m50_149.spawn), and every
--- goto_tile here is plain travel (rule (b)): it lands directly on a bank
--- or entrance tile, never skips a stepping-stone click or the cave-down
--- descent itself.
+-- Route (b66 door-rule re-drive; every crossing by its own op):
+--   * the first goto lands on 3169,3171,0, the open tile north of the
+--     Lumbridge Swamp hole (`goblin_cave_entrance` 3169,3172 is solid);
+--     its maplink row maplink_0_49_49_33_35 (ladders_stairs/configs/
+--     maplink.dbrow) takes that tile to 3169,9571,0, so the descent is a
+--     `t.player.climb` (map frame 0 -> 1). The hole's oploc1
+--     (quest_anothersliceofham/scripts/slice_sergeants.rs2:62) ties the rope
+--     on the first visit (rope 1 -> 0, varb279).
+--   * the caves are walked: rope -> stepping stone a's bank 3204,9572 is
+--     the static flood's only walk (112 tiles), and it passes two wall
+--     beasts in one-tile corridors (swamp_wallbeast 3162,9574 and
+--     3198,9572, areas/world/configs/m49_149.spawn:31,72;
+--     tog_wallbeast_reveal.rs2 grabs within 1 tile). That is the real
+--     hazard, so trout are staged and the walk eats, with a margin row.
+--   * stones a and b by their own op (Jump-across, maplink_agility.dbrow
+--     0_50_149_4_36 -> 8_36 and 21_20 -> 21_16) through `cross_trap`.
+--   * the tunnel `tog_cave_down` (dttd_savezanik.rs2:37, p_teleport
+--     ^tog_juna_stand 3250,9517,2) is a `climb` 0 -> 2.
+--   * the chasm both ways on a light-creature (below); the return lands on
+--     the north ledge ^tog_chasm_north 3228,9527, which the climbing rocks
+--     `tog_climbing_rocks_up` (3240,9524-9525) wall off from Juna's side
+--     (no walk joins them), so the rocks are climbed by their op1
+--     (tearsofguthix_lantern.rs2 [oploc1]: p_teleport(movecoord(coord, 2,
+--     0, 0)): from 3239,9525 onto 3241,9525) and Juna is walked to.
 --
 -- Lantern lighting: [opheldu,tinderbox] (skill_firemaking/scripts/
 -- firemaking.rs2:36-41) now carries a tog_sapphire_lantern_unlit case
@@ -70,12 +80,13 @@ return {
         "::setlevel firemaking 49",
         "::setlevel crafting 20",
         "::setlevel mining 20",
-        "::give rope 1",               -- Quest Helper bring-along: the swamp caves hole (once-per-account; this port's maplink does not gate on it, but it is a documented bring-along item)
+        "::give rope 1",               -- Quest Helper bring-along: the swamp caves hole (once per account: the hole's oploc1 refuses without it and ties it, slice_sergeants.rs2:70-86)
         "::give bronze_pickaxe 1",     -- Quest Helper bring-along: mining the stone
         "::give chisel 1",             -- Quest Helper bring-along: chisel the stone into a bowl
         "::give sapphire 1",           -- Quest Helper bring-along: sapphire lantern components
         "::give bullseye_lantern_unlit 1",
         "::give tinderbox 1",
+        "::give trout 4",              -- food for the two wall beasts the swamp caves walk passes (route banner); no combat stat staged
         -- slayer_cave_crawler_1/3/4 (areas/world/configs/m49_149.spawn) are
         -- generic aggressive engine npcs along the Option A route, unrelated
         -- to the quest's own content (same idiom blackknight.lua uses for
@@ -107,61 +118,92 @@ return {
         t.expect("setup.have_sapphire", t.inv.expect_has("sapphire", 1))
         t.expect("setup.have_lantern", t.inv.expect_has("bullseye_lantern_unlit", 1))
         t.expect("setup.have_tinderbox", t.inv.expect_has("tinderbox", 1))
+        t.expect("setup.have_rope", t.inv.expect_has("rope", 1))
+        t.expect("setup.have_trout", t.inv.expect_has("trout", 4))
+
+        -- ------------------------------------------------- light the lantern
+        -- On the surface, before the hole: the swamp caves are dark (the
+        -- port's tunnels test for no light, losttribe.lua's note, but a
+        -- player goes down with one lit). [opheldu,sapphire]/
+        -- [opheldu,bullseye_lantern_unlit]: either click order swaps the
+        -- lens for the sapphire.
+        t.exec("tog.sapphire_swap", t.player.use_item_on_item, "sapphire", "bullseye_lantern_unlit")
+        local swapped_result = t.inv.await("tog_sapphire_lantern_unlit", 1, 10)
+        t.check("tog.lantern_sapphired", swapped_result == "ok",
+            "inv.await(tog_sapphire_lantern_unlit,1) -> " .. tostring(swapped_result))
+
+        -- [opheldu,tinderbox]'s tog_sapphire_lantern_unlit case (fixed --
+        -- see banner) -> @tog_light_sapphire_lantern.
+        t.exec("tog.light_lantern", t.player.use_item_on_item, "tinderbox", "tog_sapphire_lantern_unlit")
+        local lit_result = t.inv.await("tog_sapphire_lantern_lit", 1, 10)
+        t.check("tog.lantern_lit", lit_result == "ok",
+            "inv.await(tog_sapphire_lantern_lit,1) -> " .. tostring(lit_result))
 
         -- ------------------------------------------------- entrance (Option A)
-        t.exec("goto-swamp-hole", t.player.goto_tile, 3169, 3172, 0)
-        t.exec("tog.enter_swamp", t.player.click_loc, "goblin_cave_entrance", 1)
-        t.ticks(3)
-        local entered_result, entered_tile = t.world.tile()
-        t.check("tog.entered_swamp_caves",
-            entered_result == "ok" and entered_tile.level == 0 and entered_tile.z > 9000,
-            "world.tile() -> " .. tostring(entered_result) .. " "
-                .. tostring(entered_tile and entered_tile.x) .. ","
-                .. tostring(entered_tile and entered_tile.z) .. ","
-                .. tostring(entered_tile and entered_tile.level))
+        -- The first goto: Lumbridge -> the open tile north of the hole
+        -- (static flood REACH closed-doors 153 from the fixture tile). The
+        -- hole itself (3169,3172) is solid; maplink_0_49_49_33_35 keys this
+        -- tile.
+        t.exec("goto-swamp-hole", t.player.goto_tile, 3169, 3171, 0)
+        t.exec("tog.enter_swamp", t.player.climb, { loc = "goblin_cave_entrance", op = 1, op_name = "Climb-down",
+            at = { 3169, 3172, 0 }, src = { 3169, 3171 }, dest = { 3169, 9571, 0 } })
+        local rope_result, rope_left = t.inv.count("rope")
+        t.check("tog.rope_tied", rope_result == "ok" and rope_left == 0,
+            "rope count after the descent " .. tostring(rope_left) .. " (" .. tostring(rope_result)
+                .. "; the hole's first entry ties the rope: slice_sergeants.rs2:78-86)")
 
-        -- west bank of stepping stone a -- plain travel, >=2 tiles off the
-        -- swamp_wallbeast rows at 3198,9554 / 3198,9572 (m49_149.spawn)
-        t.exec("goto-stone-a-bank", t.player.goto_tile, 3200, 9572, 0)
-        t.exec("tog.stone_a_jump", t.player.click_loc, "swamp_cave_steppingstone_a", 1)
-        t.ticks(2)
-        local stone_a_result, stone_a_tile = t.world.tile()
-        t.check("tog.stone_a_crossed",
-            stone_a_result == "ok" and stone_a_tile.x == 3208 and stone_a_tile.z == 9572,
-            "world.tile() -> " .. tostring(stone_a_result) .. " "
-                .. tostring(stone_a_tile and stone_a_tile.x) .. "," .. tostring(stone_a_tile and stone_a_tile.z))
+        -- The swamp caves. Rope -> stone a's bank is the only walk (bfs 112
+        -- tiles: west, round the north loop, east, south), through two
+        -- one-tile corridors beside wall beasts (3162,9574 and 3198,9572).
+        -- Short hops by the beasts so the eater runs between them; the
+        -- eater records the lowest hitpoints it reads for the margin row.
+        local swamp = { low = nil, max = nil, ate = 0 }
+        local function swamp_vitals()
+            local hr, hs = t.skill.read("hitpoints")
+            -- a reading's `level` is the current (stated) level, `base_level` the maximum (_setup.lua:54)
+            if hr ~= "ok" or type(hs) ~= "table" or hs.level == nil or hs.base_level == nil then
+                return
+            end
+            swamp.max = hs.base_level
+            if swamp.low == nil or hs.level < swamp.low then
+                swamp.low = hs.level
+            end
+            if hs.level < 7 then
+                local er = t.player.inv_op("trout", 1)
+                swamp.ate = swamp.ate + 1
+                t.note("swamp.eat: hitpoints " .. tostring(hs.level) .. "/" .. tostring(hs.base_level)
+                    .. " -> trout (" .. tostring(er) .. ")")
+                t.ticks(2)
+            end
+        end
+        t.exec("swampCaves.toStoneA", t.player.walk_route, {
+            { 3169, 9571 }, { 3166, 9573 }, { 3163, 9573 }, { 3160, 9573 }, { 3152, 9573 }, { 3152, 9580 },
+            { 3152, 9586 }, { 3151, 9590 }, { 3158, 9591 }, { 3166, 9591 }, { 3170, 9588 }, { 3176, 9586 },
+            { 3184, 9586 }, { 3190, 9584 }, { 3194, 9581 }, { 3194, 9575 }, { 3196, 9572 }, { 3198, 9571 },
+            { 3200, 9571 }, { 3203, 9571 }, { 3204, 9572 } },
+            { level = 0, vitals = swamp_vitals })
+        t.exec("tog.stone_a_jump", t.player.cross_trap, { loc = "swamp_cave_steppingstone_a", op = 1,
+            op_name = "Jump-across", at = { 3206, 9572, 0 }, src = { 3204, 9572 }, dest = { 3208, 9572 },
+            vitals = swamp_vitals })
+        swamp_vitals()
+        local trout_result, trout_left = t.inv.count("trout")
+        t.check("swampCaves.margin",
+            swamp.low ~= nil and swamp.max ~= nil and swamp.low * 4 >= swamp.max
+                and trout_result == "ok" and trout_left ~= nil and trout_left >= 1,
+            "past both wall beasts: lowest hitpoints read " .. tostring(swamp.low) .. "/" .. tostring(swamp.max)
+                .. " (want >= a quarter), ate " .. tostring(swamp.ate) .. ", trout left " .. tostring(trout_left))
 
-        -- real walk (no goto) to stone b's north bank
-        local walk_b_result = t.player.walk_to(3221, 9556)
-        local bank_b_result, bank_b_tile = t.world.tile()
-        t.check("walk.stone_b_north_bank",
-            walk_b_result == "ok" and bank_b_result == "ok" and bank_b_tile.x == 3221 and bank_b_tile.z == 9556,
-            "walk_to -> " .. tostring(walk_b_result) .. " at "
-                .. tostring(bank_b_tile and bank_b_tile.x) .. "," .. tostring(bank_b_tile and bank_b_tile.z))
-        t.exec("tog.stone_b_jump", t.player.click_loc, "swamp_cave_steppingstone_b", 1)
-        t.ticks(2)
-        local stone_b_result, stone_b_tile = t.world.tile()
-        t.check("tog.stone_b_crossed",
-            stone_b_result == "ok" and stone_b_tile.x == 3221 and stone_b_tile.z == 9552,
-            "world.tile() -> " .. tostring(stone_b_result) .. " "
-                .. tostring(stone_b_tile and stone_b_tile.x) .. "," .. tostring(stone_b_tile and stone_b_tile.z))
+        t.exec("swampCaves.toStoneB", t.player.walk_route, {
+            { 3208, 9572 }, { 3211, 9571 }, { 3218, 9571 }, { 3223, 9570 }, { 3223, 9563 }, { 3221, 9559 },
+            { 3221, 9556 } }, { level = 0 })
+        t.exec("tog.stone_b_jump", t.player.cross_trap, { loc = "swamp_cave_steppingstone_b", op = 1,
+            op_name = "Jump-across", at = { 3221, 9554, 0 }, src = { 3221, 9556 }, dest = { 3221, 9552 } })
 
-        -- real walk on to the tunnel, then descend to the chasm / Juna
-        local walk_down_result = t.player.walk_to(3226, 9542)
-        local before_down_result = t.world.tile()
-        t.check("walk.tog_cave_down",
-            walk_down_result == "ok" and before_down_result == "ok",
-            "walk_to -> " .. tostring(walk_down_result))
-        t.exec("tog.descend_to_juna", t.player.click_loc, "tog_cave_down", 1)
-        t.ticks(2)
-        local juna_area_result, juna_area_tile = t.world.tile()
-        t.check("tog.reached_juna_chasm",
-            juna_area_result == "ok" and juna_area_tile.level == 2
-                and math.abs(juna_area_tile.x - 3250) <= 2 and math.abs(juna_area_tile.z - 9517) <= 2,
-            "world.tile() -> " .. tostring(juna_area_result) .. " "
-                .. tostring(juna_area_tile and juna_area_tile.x) .. ","
-                .. tostring(juna_area_tile and juna_area_tile.z) .. ","
-                .. tostring(juna_area_tile and juna_area_tile.level))
+        -- On to the tunnel in the south-east corner, then down it to Juna.
+        t.exec("swampCaves.toTunnel", t.player.walk_route, {
+            { 3221, 9552 }, { 3226, 9552 }, { 3226, 9546 }, { 3226, 9542 } }, { level = 0 })
+        t.exec("tog.descend_to_juna", t.player.climb, { loc = "tog_cave_down", op = 1, op_name = "Enter",
+            at = { 3225, 9539, 0 }, src = { 3226, 9542 }, dest = { 3250, 9517, 2 } })
 
         -- ------------------------------------------------- greet Juna
         -- [oploc1,tog_juna] -> @tog_juna_talk (not_started branch,
@@ -217,21 +259,6 @@ return {
             { op = "reset" },
         } })
         t.expect("quest.stage.need_bowl", t.quest.expect_stage("need_bowl"))
-
-        -- ------------------------------------------------- light the lantern
-        -- [opheldu,sapphire]/[opheldu,bullseye_lantern_unlit]: either
-        -- click order swaps the lens for the sapphire.
-        t.exec("tog.sapphire_swap", t.player.use_item_on_item, "sapphire", "bullseye_lantern_unlit")
-        local swapped_result = t.inv.await("tog_sapphire_lantern_unlit", 1, 10)
-        t.check("tog.lantern_sapphired", swapped_result == "ok",
-            "inv.await(tog_sapphire_lantern_unlit,1) -> " .. tostring(swapped_result))
-
-        -- [opheldu,tinderbox]'s tog_sapphire_lantern_unlit case (fixed --
-        -- see banner) -> @tog_light_sapphire_lantern.
-        t.exec("tog.light_lantern", t.player.use_item_on_item, "tinderbox", "tog_sapphire_lantern_unlit")
-        local lit_result = t.inv.await("tog_sapphire_lantern_lit", 1, 10)
-        t.check("tog.lantern_lit", lit_result == "ok",
-            "inv.await(tog_sapphire_lantern_lit,1) -> " .. tostring(lit_result))
 
         -- ------------------------------------------------- attract a light-creature, cross
         local before_creature_result, before_creature_detail = t.npc.nearest("tog_light_creature_op", 15)
@@ -298,7 +325,7 @@ return {
         t.exec("tog.attract_light_creature_return", t.player.use_on, "tog_sapphire_lantern_lit", creature2_target)
         t.ticks(3)
         local after_cross2_result, after_cross2_tile = t.world.tile()
-        -- ^tog_chasm_north = 3228,9527 -- the Juna-side bank the attract
+        -- ^tog_chasm_north = 3228,9527 -- the north ledge the attract
         -- from the mine side (z<9516) must land on.
         t.check("tog.crossed_chasm_return",
             after_cross2_result == "ok" and before_cross2_result == "ok"
@@ -313,11 +340,15 @@ return {
         t.step("reward.snapshot", craft_snap_result == "ok" and "PASS" or "FAIL",
             "skill.snapshot() -> " .. tostring(craft_snap_result))
 
-        -- The chasm round trip lands on the Juna-side bank, not on Juna's
-        -- own tile -- plain travel back to her stand, same idiom as the
-        -- entrance gotos above (rule (b): no click/gate is being skipped,
-        -- the crossing itself was already driven for real above).
-        t.exec("goto-return-to-juna", t.player.goto_tile, 3250, 9517, 2)
+        -- The ride back lands on the north ledge, walled off from Juna's
+        -- side by the climbing rocks (3240,9524-9525; no walk joins
+        -- 3228,9527 and 3250,9517 at margin 600): walk to the rocks' west
+        -- tile, climb them by their op1, then walk down to Juna.
+        t.exec("ledge.toRocks", t.player.walk_route, {
+            { 3228, 9527 }, { 3235, 9527 }, { 3236, 9525 }, { 3239, 9525 } }, { level = 2 })
+        t.exec("ledge.climbRocks", t.player.cross_trap, { loc = "tog_climbing_rocks_up", op = 1, op_name = "Climb",
+            at = { 3240, 9525, 2 }, src = { 3239, 9525 }, dest = { 3241, 9525 } })
+        t.exec("walk-return-to-juna", t.player.walk_to, 3250, 9517)
 
         -- Second click_loc on the same loc: %tog_juna_bowl is still
         -- need_bowl, but inv_total(inv, tog_bowl) > 0 now, so @tog_juna_talk

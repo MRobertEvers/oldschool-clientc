@@ -79,6 +79,16 @@ app_plugin_obj_notify(
  * any model id, so a dropped 100 coins draws the heap. Building straight from
  * the base objtype drew a single coin at every stack size.
  *
+ * A bank note states no model at all: its record is `certlink` plus
+ * `certtemplate`, and the reference's ObjType.genCert copies the TEMPLATE's
+ * model and recolours onto it (the paper) before getModel ever runs. Reading
+ * the note's own `inventory_model_id` (0) returned NULL here for every note,
+ * so App_WorldObjStackAdd dropped the OBJ_ADD on the floor: the server put five
+ * noted Rune essence on the tile and the client listed and drew nothing
+ * (seam matthew-mbp-m4-b63-seam1 noted_essence_drop_leaves_no_ground_obj;
+ * priestperil dropNotes). The note keeps its own contrast/ambient, as genCert
+ * copies neither. ObjModelLoad_NeedsWork already waits for the template.
+ *
  * NULL when the variant's objtype or model is not resident yet -- the caller
  * leaves the element alone and the async load lands on a later packet.
  */
@@ -89,19 +99,25 @@ app_obj_stack_build_model(
     int count)
 {
     struct ToriRS_Objtype* obj;
+    struct ToriRS_Objtype* shape;
     int model_ids[1];
 
     assert(app);
     obj = CacheProvider_ObjtypeGet(
         app->provider, ObjModelLoad_RenderObjId(app->provider, obj_id, count));
-    if( !obj || obj->inventory_model_id <= 0 )
+    if( !obj )
         return NULL;
-    model_ids[0] = obj->inventory_model_id;
+    shape = obj;
+    if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
+        shape = CacheProvider_ObjtypeGet(app->provider, obj->cert_template);
+    if( !shape || shape->inventory_model_id <= 0 )
+        return NULL;
+    model_ids[0] = shape->inventory_model_id;
     {
         struct AppModelRecolorSpec recolors = {
-            .recolors_from = obj->recolors_from,
-            .recolors_to = obj->recolors_to,
-            .recolor_count = obj->recolor_count,
+            .recolors_from = shape->recolors_from,
+            .recolors_to = shape->recolors_to,
+            .recolor_count = shape->recolor_count,
         };
         return app_world_build_model(
             app, model_ids, 1, &recolors, 128, 128, APP_LIGHT_SCENE, obj->contrast, obj->ambient);
@@ -187,6 +203,16 @@ App_WorldObjStackAdd(
      * root scene or a boat — never on app->world directly. See app.h
      * `active_world`. */
     world = App_ActiveWorldview(app)->world;
+    /*
+     * Rev 239 has no classic OBJ_REVEAL: osrs239_parse.c hands ObjEnabledOps
+     * through as one with count 0, and that names a stack ALREADY on the tile
+     * (the deob's ObjEnabledOps handler, Statics.method3127, finds the first
+     * TileItem of the id and only changes its ops). It never adds one. The old
+     * merge used to answer it by overwriting that stack's count with 0. Every
+     * other OBJ_ADD is a new row (this function's banner).
+     */
+    if( count <= 0 )
+        return World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
 
     /* The BASE objtype carries the name and the ground ops the minimenu reads;
      * the model comes from whichever count variant `count` selects. */

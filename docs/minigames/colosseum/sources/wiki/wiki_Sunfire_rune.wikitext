@@ -1,0 +1,117 @@
+{{Infobox Item
+|name = Sunfire rune
+|image = [[File:Sunfire rune.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = A fire rune empowered by the sun.
+|value = 20
+|weight = 0.000
+|exchange = Yes
+|id = 28929
+}}
+[[File:Sunfire rune detail.png|left|120px]]
+'''Sunfire runes''' are a type of rune created by using [[fire rune]]s, along with [[sunfire splinter]]s and [[pure essence|pure]]/[[daeyalt essence]], at a [[Shrine of Ralos]]. Doing so requires level 33 [[Runecraft]], with the output being doubled at level 49, and tripled at level 98.
+
+As a superior variant of the fire rune, any successful hit with offensive [[fire spells]] will deal a minimum of 10% of the player's max hit. If the player has a source of infinite fire runes equipped (e.g. [[twinflame staff]]) and casts a fire spell with sunfire runes in their inventory, the sunfire runes are still consumed and still grant their minimum hit effect.
+
+Though not advisable due to the cost per rune, they can be used in place of fire runes for non-combat spells such as teleporting or [[High Level Alchemy]].
+
+100 sunfire runes can also be used on [[burnt page]]s to create [[searing page]]s, which can be used on a [[tome of fire]] to give it the same effect.
+
+==Runecraft info==
+Any bonuses that increase sunfire rune output do not increase the input cost of [[sunfire splinters]], fire runes, and essence. It is advisable to use [[twisted extract]]s to substantially lower the amount of sunfire splinters needed. 
+
+Unlike all other runes, sunfire runes will use multiple extracts depending on the output multiplier: at level 49 Runecraft, two twisted extracts will be used '''per pure essence''' crafted, and at level 98 this increases to 3. Each additional extract used will increase the yield as normal.
+
+Additionally, the [[Raiments of the Eye]] increases the quantity of runes crafted by 60%, multiplicative with the baseline level multiplier. However, the raiment's bonuses does not stack with twisted extracts, and will not cause more extracts to be used.
+<div style="max-width:450px;"><!--limit width so twisted extract section doesn't spill over and go under infobox item-->
+{{Tabber
+|tab1 = Pure essence
+|tab1content = 
+{{Recipe
+|skill1 = Runecraft
+|skill1lvl = 33
+|skill1boostable = yes
+|skill1exp = 9
+|members = yes
+|ticks = 1
+|facilities = Shrine of Ralos
+|notes = [[Multiple runes|More runes]] per essence after 16 level, then after 49 levels.
+|mat1 = Fire rune
+|mat2 = Sunfire splinters
+|mat3 = Pure essence
+|output1 = Sunfire rune
+}}
+|tab2 = Daeyalt essence
+|tab2content = 
+{{Recipe
+|skill1 = Runecraft
+|skill1lvl = 33
+|skill1boostable = yes
+|skill1exp = 13.5
+|members = yes
+|ticks = 1
+|facilities = Shrine of Ralos
+|notes = [[Multiple runes|More runes]] per essence after 16 levels, then after 49 levels.
+|mat1 = Fire rune
+|mat2 = Sunfire splinters
+|mat3 = Daeyalt essence
+|output1 = Sunfire rune
+}}
+|tab3=Twisted extract
+|tab3content = 
+{{Recipe
+|skill1 = Runecraft
+|skill1lvl = 60
+|skill1boostable = no
+|skill1exp = 9
+|members = yes
+|ticks = 1
+|facilities = Shrine of Ralos
+|notes = Started [[Desert Treasure II - The Fallen Empire]]<br>[[Multiple runes|More runes]] per essence after 16 levels, then after 49 levels.
+|mat1 = Fire rune
+|mat2 = Sunfire splinters
+|mat3 = Pure essence
+|mat4 = Twisted extract
+|mat4cost=6000
+|output1 = Sunfire rune
+|output1quantity  = 62
+|output1quantitynote = Below 98 runecrafting, each pure essence consumes up to 2 extracts, producing runes based on the number of extracts used: 2 extracts → 122 runes, 1 extract → 62 runes.
+<br>At 98–99 runecrafting, each pure essence consumes up to 3 extracts, producing runes based on the number of extracts used: 3 extracts → 183 runes, 2 extracts → 123 runes, 1 extract → 63 runes.
+<br>[[Raiments of the Eye]] will not multiply the additional runes from the extract. 
+}}}}</div>
+
+==Products==
+{{Uses material list|Sunfire rune}}
+
+==Money making==
+{{Mmgsection|Crafting sunfire runes}}
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+Colosseum rewards concept art.png|Concept art of the sunfire rune, alongside other Colosseum rewards, by [[Mod Jerv]].
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 3 April 2024
+|update = Varlamore Tweaks & Drop Rates
+|change = The experience obtained per created rune has been increased from 4.5 to 9.
+}}
+{{Subject changes
+|date = 22 March 2024
+|type = hotfix
+|change = The experience obtained per created rune has been changed to 4.5. Previously, it scaled with the player's Runecraft level, up to 13.5 per rune.
+}}
+{{Subject changes footer}}
+
+{{Fortis Colosseum}}
+{{Runes}}

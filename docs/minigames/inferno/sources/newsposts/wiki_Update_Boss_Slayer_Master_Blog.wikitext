@@ -1,0 +1,332 @@
+{{Update|date=14 July 2020|rev=22 July 2020|link=https://secure.runescape.com/m=news/boss-slayer-master-blog?oldschool=1|category=dev}}
+[[File:Boss Slayer Master Blog newspost.jpg|right]]
+{{clear}}
+
+{{Collapsed section|18|Player Feedback and Changelog - Updated July 22nd}}
+
+'''Wednesday, July 22nd:'''
+
+We have been keenly observing your feedback and adapting the design based on your suggestions. After much discussion, we have decided not to poll the update in its current form. We've identified that, in order for it to provide a tangible improvement to Slayer whilst also creating something you can all be excited by, a comprehensive overhaul - rather than a series of tweaks - is needed. So, we'll be going back to the drawing board and hope to present something different to you in the future with a new design. It’s unlikely at this stage that would be this year, however. What this does mean is that there’s an opportunity for us to share a different idea for upcoming skilling content that we'll be working on instead. We'll be giving you a sneak-peek in the coming weeks - but suffice to say, we hope it'll ''nail'' it.
+
+'''Additional change - Friday, July 17th:'''
+
+Following discussions overnight, and taking into account your additional feedback, we'll be making one further change.
+
+*'''Daily skips will be removed, and replaced by a buyable item in the normal Slayer store - purchasable for a significant amount of regular Slayer points - that, upon handing to Tzhaar-Xil-Bak, will allow you to skip your current Boss Slayer task.''' 
+
+We've heard your concerns around Tzhaar-Xil-Bak offering one free daily skip.
+
+Primarily, this was in place to prevent certain account builds or players from being locked out of the content if they received a task they thought was unfeasible to do (as this Slayer master does not have a Turael equivalent system to bypass tasks).
+
+We believe it also compromised the integrity and overall balance of the content. Getting "bad" tasks is a big part of what balances Slayer, and the initial system was highlighted to us as likely to become something players simply roll the dice on once a day and see if they got a good task, and defer it for 24 hours if not. This means players could effectively do only the tasks they wanted to do.
+
+Removing the free skip alone is simply not a viable option but we hope this is a valid compromise that will neither lock specific players out of the content, nor ruin the balance of it for others.
+
+'''Initial changes - Thursday, July 16th:'''
+
+Thousands of you gave us great feedback since the blog was published earlier this week. As a team we met (virtually) to discuss everything you had to say and agree on content changes. Here's a summary of your feedback, our reaction to it, and the changes we've made.
+
+Content changes based on feedback:
+
+*'''Blood and Death Rune packs have been removed from the poll'''. You were vocal that the need for more runes should be filled by skilling rather than PvM and shops. We agree. We'll endeavour to find ways of incorporating more runes from runecrafting in the future.
+*'''We've removed The Great Olm task from the poll'''. We anticipated that this would be contentious, and we agree that for consistency we'll remove Raids-based content.
+*'''We've added a new question concerning the rare drop table (RDT)'''. You felt that we weren't solving the issue of the RDT. We're now going to ask you whether the RDT should be an additional drop rather than replacing a drop. We'd also like to change how the Lustrous Gem works. Players have pointed out that the Ring of Wealth is an item closely linked to the RDT, so we're now proposing that the Lustrous Ring could be created by combining a Lustrous Gem with a Ring of Wealth.
+*'''We've removed the combat level requirement to access the Slayer Master'''. You felt that locking competent boss-killing players away from content because an arbitrary combat level requirement wasn't the right way to go.
+*'''The Alchemical Hydra task will be polled separately'''. You suggested that we should offer this task separately because currently Konar is the only Slayer Master able to assign the Alchemical Hydra task.
+
+
+Other feedback discussed that hasn't resulted in changes:
+
+*There's been a lot of discussion around a lack of skilling content versus Slayer and combat. We don't feel that Slayer has had the level of attention shown to it that some players have claimed, but we do agree that there's a need for more updates to other existing skills. On last night's weekly livestream Mod Kieren mentioned a Fishing update we'd like to offer to you soon, and in next week's Gazette Mod MikeD is going to be taking a close look at the content roadmap.
+*There's some concern about the level of activity that Boss Slayer will bring to various bosses, and the impact it'd have on crowding, item prices, and the economy. We recognise that it's a valid concern, but we don't feel that that the proposal needs changing at this point. The specific tasks will be rare, and whilst we do expect there to be an increase in activity, we don't expect it to have the impact that some players were speculating.
+*Players like lore, we know that much - and we do too! We aren't intending to add a Quest to accompany this content, but we will endeavour to add lore, narrative and world-building as with other updates.
+*There's a lot of discussion around the free skip each day. We're going to keep it as is. We think it's the best solution to ensure that players aren't able to farm specific tasks (which would happen if we allowed more skips) or gating players out of content that they don't want to do (if we didn't allow any skips). If this content passes a poll then we will keep a close eye on the number of skips and boss kills that are happening, and we'd use those to inform any changes we offer you.
+*Some players were concerned that the Slayer Helm would be rendered more over-powered, and that it might devalue other Helms used. Similarly with the concern about the level of activity, we recognise that it'd a valid concern, but we don't believe that the proposal needs to be changed at this point. Task rarity will still mean that if players wanted to kill certain bosses then it'd be more efficient to do so off-task, without the use of a Slayer Helm. 
+
+{{Collapsed section end}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Boss Slayer Master Blog}}
+
+[[File:Boss Slayer Master Blog (1).png|center|300px]]
+
+Of all the races on Gielinor, few are as fascinating as the TzHaar. Despite appearances, these ancient beings of obsidian and magma are mostly peaceful. That said, they have a love for combat that few can rival.
+
+Due to their unique biology, it isn't practical for the TzHaar to leave their home of Mor Ul Rek for long periods. However, they have heard plenty of stories about the overworld from visiting JalYt. One TzHaar in particular, a member of the hunter class called TzHaar-Xil-Bak, has been keenly gathering tales of the great and powerful creatures that roam the world above.
+
+Although fascinated by the powerful beings of the overworld, they also trouble TzHaar-Xil-Bak. The TzHaar are some of the greatest fighters in the world, but they have never had the chance to prove their worth against these opponents. TzHaar-Xil-Bak is keen to rectify this issue, but being unable to leave his home he cannot do it himself. Instead, he needs a representative. Someone who, despite not being TzHaar, fights with the strength of one. He needs you.
+
+'''Requirements'''
+
+This new Slayer Master will have a 75 Slayer requirement.
+
+{{Horizontal Line}}
+
+{{Headline|22|Task System}}
+
+[[File:Boss Slayer Master Blog (2).png|center|75px]]
+
+This Slayer Master will have its own separate task system:
+*You can have a normal Slayer Task and a Boss Slayer task at the same time
+*If you have two tasks associated with the same NPC, boss tasks will take precedent
+*If active, both the Slayer helm and gem will show status of both tasks
+*You cannot use Turael to skip tasks for this Slayer Master
+*You get one free skip a day
+
+
+'''Task List'''
+
+This Slayer Master will offer the following bosses as tasks, all with their own specific weighting. There will be eligibility requirements for each (for example, you will still need 87 Slayer to get a Kraken Task).
+*Grotesque Guardians
+*Thermonuclear Smoke Devil
+*Dagganoth Kings
+*Abyssal Sire
+*Alchemical Hydra
+*Kalphite Queen
+*Kree'arra
+*K'ril Tsutsaroth
+*Kraken
+*Cerberus
+*TzTok-Jad/TzKal-Zuk
+*Giant Mole
+*Vet'ion
+*Venenatis
+*Callisto
+*Commander Zilyana
+*General Graador
+*Zulrah
+*Vorkath
+*Chaos Elemental
+*King Black Dragon
+*Sarachnis
+*Scorpia
+*Crazy Archaelogist
+*Chaos Fanatic
+*Barrows
+
+
+'''Task Quantities'''
+
+Currently tasks that have boss alternatives vary in time '''significantly'''. For instance, the Hellhound Task could take anywhere from 3-7 hours to complete depending on your gear and efficiency, and Hydra Tasks can also take a similarly extremely long time.
+
+The goal is for the new Boss Tasks to take 2-3 hours to complete - this is to avoid the monotony a single boss task can bring, as well as to help balance the points per hour.
+
+
+'''Point System'''
+
+This Slayer Master will have its own store with a separate points system. It will offer unique rewards and features unique task interactions, such as storing and picking tasks. It will also offer task skips, task blocks and the chance to extend tasks.
+
+It will also offer some of the same rewards as other Slayer Masters, such as:
+*Slayer Helm recolours
+*Gargoyle Smasher
+*Herb Sack
+*Rune Pouch
+
+
+'''Storing a Task'''
+
+The ability to store a task is something that's been previously requested by players. Sometimes you get a task you want to do, but just don't want to do at that moment in time.
+
+Storing the task means you can spend some points to 'bank' it for later, and then retrieve it at a more convenient time.
+
+You would only ever be able to store your current Boss Task with this, and not a task from other Slayer Masters.
+
+
+'''Picking a Task'''
+
+This sounds crazy powerful, right? That's because it is!
+
+What about those times when you are in the mood for a specific boss? Unless you have hundreds, maybe even thousands, of points spare, you simply cannot guarantee you will get a particular task.
+
+The alternative to this is currently for people to skip tasks with Turael repeatedly, meaning they have to do 20+ low-level tasks like killing bats or slimes... which is not a good experience. Task picking will hopefully remove this problem!
+
+This would cost a decent amount of points, so won't be available very often, but hopefully not too many so as to feel not worth it. This is a chance to guarantee that you can get your desired task in a set amount of time, and free you from the gods of RNG!
+
+
+'''Exclusive Tasks'''
+This Slayer Master could offer some exclusive tasks as optional unlocks, adding some variety and challenge to Boss Slayer. These include:
+*Corporeal Beast (solo-only)
+**A private task-only instance will be developed
+*The Nightmare (solo-only)
+*Gauntlet
+**No Slayer Helm benefits would apply here
+**Would also apply to corrupted gauntlet
+
+We expect a lot of discussion about the last one, as a Raids Slayer Task is unique and potentially contentious.
+
+{{Horizontal Line}}
+
+{{Headline|22|Rewards}}
+
+[[File:Boss Slayer Master Blog (3).png|center|100px]]
+
+
+This Slayer Master would have its own global-tertiary role, akin to Konar.
+
+Currently we want to propose some potential rewards for this - we'll choose the ones you are most happy with.
+
+
+'''Boss Teleport Scrolls'''
+
+[[File:Boss Slayer Master Blog (4).png|center|150px]]
+
+
+Every appropriate boss would have a rare chance of dropping a small number of teleport scrolls. These would be '''untradeable''', and would only be for the boss it was dropped from.
+
+We are very aware there are some lengthy walks to some bosses. We would not want to abolish this - the hope is that these scrolls would be slightly better than the current methods.
+
+For example:
+*The Kalphite Queen Scroll would teleport you to inside the Kalphite Cave (saving one potential rope), but not inside the Kalphite Queen's lair.
+*The Dagganoth Kings Scroll would teleport you to the entrance of the Dagganoth Cave, on Waterbirth Island. This still requires a pet rock (or friends) and the rune throwing axes, as well as the lengthy run to the boss lair itself.
+*The God Wars Bosses Scroll would teleport you near the entrance to God Wars itself.
+
+
+'''Supply Drops'''
+
+[[File:Boss Slayer Master Blog (5).png|center|75px]]
+
+
+Unlike Konar, we don't want to provide large resource drops. The goal for these drops would be to lengthen your trip slightly, possibly allowing for another 2-3 kills.
+
+Supplies could include:
+*1 x Prayer Potion (3 dose)
+*3 x Sharks
+*1 x Super Combat (2 dose)
+*1 x Ranging Potion (2 dose)
+
+
+'''Divine Reliquary'''
+
+[[File:Boss Slayer Master Blog (6).png|center|250px]]
+
+
+The Divine Reliquary would be a new item for the ammo slot, similar to how Blessings can go in there.
+
+Players will be able to store up to three God Blessings into the Reliquary, providing the benefits of the blessing such as protection but will remain +1 Prayer bonus.
+
+Whilst equipped, the Divine Reliquary will also have a 20% chance of granting you additional God Wars kill count while slaying the various minions in the God Wars dungeon.
+
+The goal of this item is to make bossing at the God Wars Dungeon slightly more convenient, saving you potentially 1-2 inventory spaces that would normally be taken up with god items, along with slightly speeding up the time it can take to get kill count.
+
+The Divine Reliquary would be tradeable when there are no blessings in it.
+
+This item would be very rare on the new Slayer Master's tertiary drop table.
+
+Let us know your thoughts about this reward!
+
+
+'''Lustrous Gem/Ring'''
+
+[[File:Boss Slayer Master Blog (7).png|center|200px]]
+
+
+We have heard your complaints with the current rare drop table, and we have two gameplay-focused solutions to that.
+
+Currently it's unlucky to land a drop on the rare drop table because it replaces a drop you'd otherwise have gotten. We want to offer you the choice to make the rare drop an additional drop, to complement another normal drop.
+
+The Lustrous gem would be a tradeable gem that is purely for creating the Lustrous Ring, by using the gem on a Ring of Wealth. The Ring would be untradable and gives you a chance getting items from an improved form of the rare drop table.
+
+We plan for this item to be a very rare drop.
+
+If you don't like it then shout! We are aware there are multiple solutions for it, of which this is just one.
+
+
+{{Headline|22|FAQ}}
+
+[[File:Boss Slayer Master Blog (8).png|center|100px]]
+
+
+'''Why can you have two tasks at the same time?''''
+
+This is to prevent people from potentially getting locked into a Boss Task they cannot realistically complete, meaning they're unable to do Slayer until the next day.
+
+It also has the added benefit of distinctly separating it from regular Slayer, since it has a different store and points system.
+
+'''If you have an Abyssal Demon Task and a boss-only Abyssal Sire Task, why would they both not register each kill?'''
+
+Because if this happened it would feel necessary to provide double the Slayer XP, which is not acceptable at all. It would also create a potential meta for farming points on both Slayer Masters simultaneously.
+
+'''Why can't I use Turael to skip with this master?'''
+
+It has a separate task system, and a separate point system. It would be very abusable if you could skip with Turael.
+
+'''Can I get a task that I have stored?'''
+
+Yes, otherwise it would effectively work as an extra block.
+
+'''Will Slaughter and Expeditious bracelets work on Boss Slayer tasks?'''
+
+Yes, they will function like they do on regular Slayer tasks.
+
+{{Horizontal Line}}
+
+{{Headline|22|Words From the Developer}}
+
+[[File:Boss Slayer Master Blog (9).png|center|100px]]
+
+
+This will be my first proper project. I've been on the Old School team for a couple of months now and have been able to use parts of my training on the Poll 71 jobs.
+
+This project should bring all of my training together, whilst simultaneously creating content that I hope the community will enjoy.
+
+My goals for this project are to hopefully get more players into bossing, as well as offering a much more engaging and fulfilling experience to existing players who enjoy boss-only Slayer.
+
+Bossing in Old School is my favourite thing to do and, if it isn't already, I hope it can be yours too!
+
+- Mod Arcane
+
+{{Horizontal Line}}
+
+{{Headline|22|Poll Questions}}
+
+[[File:Boss Slayer Master Blog (10).png|center|100px]]
+
+
+These questions are '''not''' final, and are heavily pending feedback. Please let us know what you think.
+
+{{News Poll|1|Should we introduce a new Slayer Master in Mor Ul Rek that only assigns boss tasks ? This Slayer Master would require you to have 100 Combat and 75 Slayer.}}
+
+{{News Poll|2|Assuming question #1 passes, should this Slayer Master have a separate task system, allowing you to have both a normal Slayer Task and a Boss Slayer Task at the same time?}}
+
+{{News Poll|3|Assuming question #1 passes, since you will not be able to skip tasks with this Slayer Master by talking to Turael, should the Master provide one free skip a day to alleviate the issue of getting stuck with a task you don't want to do?}}
+
+{{News Poll|4|Assuming question #1 passes, should this Slayer Master allow you to pick your own Boss Slayer Task for points?}}
+
+{{News Poll|5|Assuming question #1 passes, should this Slayer Master allow you to 'store' one Boss Task for points? This task would only be retrievable if you do not currently have a Boss Task.}}
+
+{{News Poll|6|Assuming question #1 passes, should this Slayer Master allow you to block tasks for points, similar to normal Slayer Masters? There would be two block slots available.}}
+
+{{News Poll|7|Assuming question #1 passes, should this Slayer Master allow you to extend certain Boss Tasks for points? This would increase the minimum and maximum quantity of the boss assigned.}}
+
+{{News Poll|8|Assuming question #1 passes, should this Slayer Master be able to assign you Alchemical Hydra tasks? Currently Konar quo Maten is the only Slayer Master able to assign this task.}}
+
+{{News Poll|9|Assuming question #1 passes, should this Slayer Master have an optional unlock to get a low quantity of Corporeal Beast as a Slayer Task? This task would have to be completed solo and require you to use the private task-only instance.}}
+
+{{News Poll|10|Assuming question #1 passes, should this Slayer Master have an optional unlock to get a low quantity of The Nightmare as a Slayer Task? This task would have to be completed solo.}}
+
+{{News Poll|11|Assuming question #1 passes, should this Slayer Master have an optional unlock to get a low quantity of Hunllef (The Gauntlet) as a Slayer Task?}}
+
+{{News Poll|12|Assuming question #1 passes, should this Slayer Master offer a tertiary roll for each kill on a task to give a chance of some rewards?}}
+
+{{News Poll|13|Assuming question #12 passes, should this Slayer Master's tasks give bosses a semi-rare chance to drop teleport scrolls that let you get to the boss slightly faster?}}
+
+{{News Poll|14|Assuming question #12 passes, should this Slayer Master's tasks give bosses an uncommon chance to drop a small amount of supplies, in aid of lengthening your trip?}}
+
+{{News Poll|15|Assuming question #12 passes, should this Slayer Master's tasks give bosses a very rare chance to drop the Divine Reliquary?}}
+
+{{News Poll|16|Should the rare drop table be changed so its drops are in addition to drops you'd otherwise get, rather than replacing other drops?}}
+
+{{News Poll|17|Assuming question #12 passes, should this Slayer Master's tasks give bosses a very rare chance to drop the Lustrous Gem?}}
+
+{{News Poll|18|Should having the Slayer Cape equipped or in your inventory let the player use any Slayer Master regardless of combat level restriction?}}
+
+
+Although Boss Slayer Master is exciting future content, we are aware that you’re keen to hear about our plans for fixing existing content, particularly Bounty Hunter and Revenant Caves. Stay tuned for a blog later this week that will outline proposals for both!
+
+{{Horizontal Line}}
+
+Discuss this poll blog on our [http://services.runescape.com/m=forum/forums.ws?380,381,649,66170490 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#oldschool''' channel. For reference on the above content, check out the official [[Wiki]].
+
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Banjo, Boko, Bonsai, Bruno, Curse, Deagle, Ed, Elena, Errol, Fed, Flippy, Gayns, Gee, Halo, Husky, Impact, Jndr, John C, Kandosii, Kieren, Lenny, Lottie, Lyric, Mack, Maylea, MikeD, Nasty, Oasis, Roq, Ry, Steve W, Sween, Tide, Vegard, Weath & West'''<br>''The Old School Team''

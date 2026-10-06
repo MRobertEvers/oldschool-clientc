@@ -33,7 +33,19 @@ return {
         "::setlevel defence 40",
         "::give magic_shortbow 1",
         "::give rune_arrow 150",
-        "::give shark 12",
+        -- Since the eat-delay port (raid branch, OSRS-Content 7936c59bf9) an eat no longer holds the Tyras guard's hits: the
+        -- 12 sharks ran out (lowest 20/70) and the tripwire's poison finished the character. The guard is pure melee
+        -- (regicide_tyras_guard.rs2 [ai_applayer2,regicide_old_camp_guard] ~npc_meleeattack), so leg 4 prays Protect from
+        -- Melee (needs Prayer 43; 70 points last ~350 ticks at 1 point / 5 ticks, wiki Prayer; the fight took 268).
+        "::setlevel prayer 70",
+        -- 2 sharks, not 12: prayed, the guard fight eats none, and the pack has no room for more. The run used to end
+        -- leg 4 with 0 sharks; leg 6 adds 10 slots (cloth, rabbit, 8 coal) to a pack of 15 + this antipoison, and leg 5
+        -- eats 2 at its start, so 4 staged reached leg 6 as 2 and filled it to 28 of 28 (harden_regicide_v3). Leg 1's
+        -- cloth wrap also needs a free slot: setup must stay <= 26 slots (27 broke lightArrow, hp_regicide_1).
+        "::give shark 2",
+        -- Quest Helper Regicide.java:260 recommends antidotes/antipoisons (ItemCollections.ANTIPOISONS) for the
+        -- tripwire's poison (regicide_traps.rs2:23 queue(poison_player, 0, 10)).
+        "::give 4doseantipoison 1",
     },
     bind = {
         varp = "varp328_regicide_quest",
@@ -878,9 +890,33 @@ return {
             t.check("climbThroughForest-o1-tile", me.x == 2231 and me.z == 3149, "standing at " .. me.x .. "," .. me.z .. " :: " .. last_lines(3))
             t.exec("guard.arrived", t.npc.await_present, "regicide_old_camp_guard", 12, 10)
 
+            -- Protect from Melee for the guard (recipe: verbs-combat.md "Turning on a protection prayer"); a prayed npc
+            -- melee hit is 0 (combat_stats.rs2 playerhit_n_melee_apply). Turned off after the kill.
+            local function protect_melee(name, want)
+                local tab_result = t.ui.tab("prayer")
+                t.ticks(2)
+                local wr, pw = t.ui.widget("prayerbook:prayer15")
+                t.ui.invoke(pw, 1)
+                t.ticks(2)
+                local _, on = t.var.varbit("varb4118_prayer_protectfrommelee")
+                local _, pr = t.skill.read("prayer")
+                t.check(name, tab_result == "ok" and wr == "ok" and on == want, "varb4118_prayer_protectfrommelee " .. tostring(on)
+                    .. " (want " .. want .. "); prayer " .. tostring(type(pr) == "table" and (tostring(pr.level) .. "/" .. tostring(pr.base_level)) or pr))
+            end
+            protect_melee("killGuard-protectMelee", 1)
+            local _, sharks_at_guard = t.inv.count("shark")
+
             -- killGuard: a real fight (lvl 110); the quest queues regicide_quest_guard_defeated on its death
             t.exec("killGuard", t.player.attack, "regicide_old_camp_guard", 2, 30)
-            t.exec("killGuard-dead", t.npc.await_dead_engaged, 400, 3, { eat = { item = "shark", below = 35 } })
+            local _, guard_detail = t.exec("killGuard-dead", t.npc.await_dead_engaged, 400, 3, { eat = { item = "shark", below = 35 } })
+            local guard_lowest = tonumber(tostring(guard_detail):match("lowest hp (%d+)/"))
+            local _, sharks_after_guard = t.inv.count("shark")
+            t.check("killGuard-margin", (sharks_after_guard or 0) >= 2 or (guard_lowest or 0) > 25,
+                "sharks staged 2, at the guard " .. tostring(sharks_at_guard) .. ", eaten in the fight "
+                .. tostring((sharks_at_guard or 0) - (sharks_after_guard or 0)) .. ", left " .. tostring(sharks_after_guard)
+                .. ", lowest hp in the fight " .. tostring(guard_lowest) .. "/70, guard dead after "
+                .. tostring(tostring(guard_detail):match("dead after (%d+) tick")) .. " ticks (margin: sharks left >= 2 or lowest hp > 25)")
+            protect_melee("killGuard-prayerOff", 0)
             t.ticks(3)
             t.expect("quest.stage.defeated_guard", t.quest.expect_stage("defeated_guard"))
 
@@ -891,6 +927,20 @@ return {
             t.ticks(6)
             local _, tw = t.world.tile()
             t.check("crossTripwire-tile", tw.z >= 3155, "player " .. tw.x .. "," .. tw.z .. " :: " .. last_lines(3))
+            -- A snag poisons at severity 10 (regicide_traps.rs2:23; poison.rs2 [queue,poison_player]): drink the
+            -- brought-along antipoison when it did (anti_poison.rs2: %varp102_poison = min(poison, -5) cures it).
+            local _, poison_at_wire = t.var.server("varp102_poison")
+            local antipoison_note = "not poisoned"
+            if (poison_at_wire or 0) > 0 then
+                antipoison_note = "drank antipoison: " .. tostring(t.player.inv_op("4doseantipoison", 1))
+                t.ticks(3)
+            end
+            local _, poison_after_wire = t.var.server("varp102_poison")
+            local _, hp_wire = t.skill.read("hitpoints")
+            local hp_after_wire = type(hp_wire) == "table" and hp_wire.level or nil
+            t.check("crossTripwire-poison", (poison_after_wire or 1) <= 0 and (hp_after_wire or 0) > 25,
+                "varp102_poison " .. tostring(poison_at_wire) .. " -> " .. tostring(poison_after_wire) .. " (" .. antipoison_note
+                .. "), hitpoints " .. tostring(hp_after_wire) .. "/70 (floor 25)")
 
             local _, w = t.world.tile()
             local _, stage = t.quest.stage()

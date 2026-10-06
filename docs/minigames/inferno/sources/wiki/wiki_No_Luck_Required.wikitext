@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = No Luck Required
+|image = [[File:TzKal-Zuk.png|270px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Tzkal-Zuk without being attacked by TzKal-Zuk and without taking damage from a JalTok-Jad.
+|tier = Grandmaster
+|monster = TzKal-Zuk
+|type = Perfection
+|id = 345
+|leagueRegion = Karamja
+}}
+'''No Luck Required''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to kill [[TzKal-Zuk]] without being hit by him and not taking any damage from a [[JalTok-Jad]].
+
+==Strategy==
+Jads will appear on waves 67-69. One Jad will appear on wave 67 and should prove to be no problem.
+
+Three Jads will appear on wave 68 with an attack speed of 9 instead of 8 and attack in a staggered rotation to allow players to pray against all three. 
+
+While fighting Zuk, players must be behind the [[Ancestral Glyph]] before he attacks, as it will block the incoming attack meant for the player. Therefore, if his attack goes for the player instead, the achievement is voided. In addition, a final Jad will appear during the fight when Zuk reaches 480 health for the first time.
+
+==Other tasks==
+{{Combat Achievements list|TzKal-Zuk}}
+
+{{Combat Achievements}}

@@ -20,6 +20,13 @@ return {
         "::clearinv", -- fourteen tutorial slots would otherwise crowd the backpack
         "::give jug_water 1", -- Quest Helper: brought-along item, not the quest's own deliverable
         "::give logs 1", -- Quest Helper: brought-along item (or a woodplank; logs is simplest)
+        -- The run starts in Lumbridge; East Ardougne lies past the members' wall, so the
+        -- player gets there the way a player does: Camelot Teleport (magic 45; 5 air + 1 law,
+        -- magic_spells.dbrow) from the spellbook, then overland (reach.py 2757,3478 ->
+        -- 2604,3209: REACH closed-doors len=422, no gate on the way).
+        "::setlevel magic 45",
+        "::give airrune 5",
+        "::give lawrune 1",
     },
 
     run = function(t)
@@ -44,6 +51,12 @@ return {
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
+        -- ---- To Ardougne: Camelot Teleport (teleport.rs2 [if_button,magic_spellbook:camelot_teleport]),
+        -- then overland to the monastery grounds south of East Ardougne. Omad stands on open
+        -- ground (reach.py 2561,3222 -> 2604,3209: REACH closed-doors len=59). ----
+        t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = "talkToOmad.camelotTeleport",
+            runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot, past the members' wall from Lumbridge" })
+
         -- ---- Brother Omad: accept the quest (omad_whats_wrong -> omad_why -> omad_help) ----
         t.exec("goto-talkToOmad", t.player.goto_tile, 2604, 3209, 0) -- brother_omad's m40_50.spawn row
         t.exec("talkToOmad", t.player.talk_to, "brother_omad", 1) -- [opnpc1,brother_omad]
@@ -67,7 +80,9 @@ return {
         -- ---- The hidden ladder: settimer(blanket_ladder,1) armed by omad_help above.
         -- [timer,blanket_ladder] adds loc wildymirrorladdertop1 at ^blanket_ladder_coord
         -- (0_40_50_1_22 = 2561,3222,0) once the player is within 2 tiles of it. ----
-        t.exec("goto-blanketLadder", t.player.goto_tile, 2561, 3222, 0)
+        -- Land BESIDE the ladder's coord, not on it (the loc is added on 2561,3222 itself);
+        -- distance <= 2 still fires the timer. Open ground: reach.py 2604,3210 -> 2562,3222.
+        t.exec("goto-blanketLadder", t.player.goto_tile, 2562, 3222, 0)
         local ladder_wait_result, ladder_wait_detail = t.await({
             level = function()
                 local r = t.world.loc_near("wildymirrorladdertop1", 3)
@@ -79,29 +94,51 @@ return {
             "t.world.loc_near(wildymirrorladdertop1,3) after goto -> " .. tostring(ladder_wait_result)
             .. " (" .. tostring(ladder_wait_detail) .. ")")
         -- lava_maze.rs2 [oploc1,wildymirrorladdertop1]: loc_coord=^blanket_ladder_coord ->
-        -- climb down, p_telejump(0_40_150_1_21) (square 40,150 local 1,21 = 2561,9621,0)
-        t.exec("goDownLadder", t.player.click_loc, "wildymirrorladdertop1", 1)
+        -- climb down, p_telejump(0_40_150_1_21) (square 40,150 local 1,21 = 2561,9621,0):
+        -- the same level in the dungeon frame, so a climb row graded on the landing.
+        t.exec("goDownLadder", t.player.climb, { loc = "wildymirrorladdertop1", op = 1, op_name = "Climb-down",
+            at = { 2561, 3222, 0 }, src = { 2562, 3222 }, dest = { 2561, 9621, 0 } })
 
         -- ---- The secret cave: fetch the child's blanket (obj childs_blanket, m40_150.spawn
-        -- 2570,9604,0), guarded by headthief_blanket/thief_blanket -- no script gates the
-        -- pickup itself, it is a plain ground item. ----
-        t.exec("goto-blanketLocation", t.player.goto_tile, 2570, 9604, 0)
+        -- 2570,9604,0, on the table bigtable2), in the thieves' room (x 2562-2572, z 9602-9612)
+        -- behind poordoor 2565,9612 (wall on the tile's north edge). Walk from the ladder's foot
+        -- to the door (reach.py 2561,9621 -> 2565,9613: REACH closed-doors len=12), through it,
+        -- then to the open tile west of the table (reach.py 2565,9611 -> 2569,9604: len=11). ----
+        t.exec("walk-grabBlanket.toDoor", t.player.walk_to, 2565, 9613)
+        t.exec("grabBlanket.doorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 2565, 9612, 0 }, near = { 2565, 9613 }, far = { 2565, 9611 } })
+        t.exec("walk-grabBlanket", t.player.walk_to, 2569, 9604)
         -- click_obj's own success path answers ok with a nil detail (the
         -- await it settles on carries none) -- hollow through t.exec, so call
         -- it directly and write the counts ourselves (trap 12).
         local take_before_result, take_before_count = t.inv.count("childs_blanket")
         local take_result, take_detail = t.player.click_obj("childs_blanket")
+        local take_wait_result = t.await({
+            level = function()
+                local r, c = t.inv.count("childs_blanket")
+                return r == "ok" and c > (take_before_result == "ok" and take_before_count or 0)
+            end,
+            note = "childs_blanket taken from the table",
+        }, 10)
         local take_after_result, take_after_count = t.inv.count("childs_blanket")
-        t.check("takeBlanket",
-            take_result == "ok" and take_after_result == "ok"
-                and take_after_count > (take_before_result == "ok" and take_before_count or 0),
+        t.check("grabBlanket",
+            take_before_result == "ok" and take_after_result == "ok"
+                and take_after_count == take_before_count + 1,
             "click_obj childs_blanket -> " .. tostring(take_result) .. " (" .. tostring(take_detail)
-                .. "); count " .. tostring(take_before_count) .. " -> " .. tostring(take_after_count))
-        t.exec("blanket.expect_has", t.inv.expect_has, "childs_blanket", 1)
+                .. "); count " .. tostring(take_before_count) .. " -> " .. tostring(take_after_count)
+                .. " (await " .. tostring(take_wait_result) .. ")")
 
-        -- No scripted climb back UP is bound for this cave (only the descent is wired in
-        -- lava_maze.rs2's wildymirrorladdertop1 handler) -- goto_tile back to the surface,
-        -- same traversal cheat every far step above already uses.
+        -- ---- Out the way in: the room's door, back to the ladder's foot, and up the cave's own
+        -- ladder (ladder_from_cellar 2561,9622; maplink_0_40_150_1_21_up -> 0_40_50_1_21 =
+        -- 2561,3221,0). ----
+        t.exec("goUpLadder.doorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 2565, 9612, 0 }, near = { 2565, 9612 }, far = { 2565, 9613 } })
+        t.exec("walk-goUpLadder", t.player.walk_to, 2561, 9621)
+        t.exec("goUpLadder", t.player.climb, { loc = "ladder_from_cellar", op = 1, op_name = "Climb-up",
+            at = { 2561, 9622, 0 }, src = { 2561, 9621 }, dest = { 2561, 3221, 0 },
+            same_level = "maplink.dbrow maplink_0_40_150_1_21_up" })
+
+        -- Overland from the stone circle back to Omad (reach.py 2561,3221 -> 2604,3209 on open ground).
         t.exec("goto-returnToOmadWithBlanket", t.player.goto_tile, 2604, 3209, 0)
         -- ---- Hand in the blanket (omad_have_blanket, inv_total(childs_blanket)>=1 branch) ----
         t.exec("returnToOmadWithBlanket", t.player.talk_to, "brother_omad", 1)

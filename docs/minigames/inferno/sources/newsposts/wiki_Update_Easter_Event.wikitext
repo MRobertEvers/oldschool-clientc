@@ -1,0 +1,144 @@
+{{Update|date=16 April 2025|url=https://secure.runescape.com/m=news/easter-event?oldschool=1|category=game}}
+[[File:Easter Event newspost.png|right]]
+{{clear}}
+__TOC__
+''This week brings springtime spirit to Gielinor, Deadman QoL fixes, and a whole lot of carrots - hop in and check it out!''
+
+==Changelog April 16th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Easter Event 2025'''
+
+* A mysterious trail of carrot bits leads to this year’s Easter event in Varrock... Go earn yourself an Easter-themed outfit!
+
+'''Permanent Deadman Tweaks'''
+
+* Heroes’ Quest and Shield of Arrav now autocomplete for all accounts.
+* S.T.A.S.H. units are now fully buildable and functional.
+* Nimbleness Charm now works with additional Agility shortcuts that were previously excluded.
+* Increased Trinket drop rates from breach monsters.
+* Ruby Bolt (e) Special Attacks are now capped at 30 damage against breach monsters, matching Deadman: Armageddon behaviour.
+
+'''Other Changes'''
+
+* As promised in [https://secure.runescape.com/m=news/a=1/farming--autocast-qol-improvements?oldschool=1 last week’s update], we’ve reverted the Tool Leprechaun location changes and the movement restrictions on gardeners.
+* Players can no longer receive a Farming Contract through the "take another contract" option if they no longer meet the level requirement.
+* The Run Energy drain effect of the Jal-MejRah can now be blocked by Prayer. This was already the case for their stat-stealing effect.
+* Using shortcuts in the Agility section of Monkey Madness II should no longer cause the game to crash.
+* Autocast settings will now be remembered upon switching gear in Castle Wars.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been activated with this rota.
+
+World 569 (AUS) for Bounty Hunter has been activated with this rota.
+
+The PvP Arena is using <b>'Zerker'</b> loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Easter Event 2025==
+Our egg-stra special friend, the Easter Bunny, has vanished like your GP after a bad PKing trip. The flowers aren’t blooming, the chocolate eggs aren’t rolling, and the citizens of Varrock are feeling disturbingly un-festive. Something’s wrong... Something’s eggstremely wrong!
+
+[[File:Easter Event (1).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-16/Easter.jpg here]!'']]
+
+This year’s Easter event is a mystery filled with strange clues, stranger characters, and a journey that will take you somewhere you’ve never been before. Things kick off in Varrock, where some less-than-jubilant citizens are wondering what happened to their favourite egg-centric holiday. Something about... carrot bits? Hmm.
+
+Follow the clues to hunt down the Easter Bunny and bring spring back on track!
+
+Completing the event will earn you a new seasonal outfit that will ''certainly'' help you stand out in the dark. You’ll also receive Easter rewards from any previous events you’ve missed.
+
+===Easter Livestream: The Hunt is On!===
+[[File:Easter Event (2).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-16/liveeaster.jpg here]!'']]
+
+Join us on April 17th at 16:00 BST for a special Easter Livestream, hosted by the ever-charming Mods Ayiza and Sween!
+
+We’re starting things off in true Easter spirit with a fashion-scape parade, starting from Lumbridge and ending in Varrock on World 522! Grab your most eggshellent Easter outfits and strut your stuff as we march toward this year’s event. 
+
+===J-Mod Hide and Seek===
+Once we arrive in Varrock, it’s time for a classic Easter egg hunt! We're hiding, you’re seeking. Find the egg-tastic J-Mods nesting around Gielinor. The first one to trade with them gets five Bonds. Nice!
+
+===Egg Decorating Competition Finale===
+Don’t forget to tune in for the livestream vote, where Twitch chat will decide the three winners of the Egg Decorating Competition! Check out all the entries in our [https://discord.com/channels/324132423636090880/1356998468564160565 #egg-competition] channel on Discord. 
+
+[[File:Easter Event (3).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-16/dragonlive.jpg here]!'']]
+
+In a grand finale, Mods Ayiza and Sween will be exploring RuneScape: Dragonwilds live on stream! You won’t want to miss this one.
+
+==Permanent Deadman Tweaks==
+While most of Gielinor are busy hunting eggs and examining root vegetables, our fiercest warriors in Permanent Deadman Mode have been busy dying gloriously on the fields of battle! To help them out, we’ve got a fresh bunch of tweaks and fixes.
+
+===No More Quest Blocking===
+We’ve seen too many brave souls get stuck in group quest limbo, so Heroes' Quest and Shield of Arrav will now autocomplete for all eligible Deadman accounts, including anyone who’s made progress on them before. No more begging for a Phoenix Gang partner just to slap some gloves on!
+
+===S.T.A.S.H. Units are Live===
+These convenient hidey holes are now completely functional in Permanent Deadman! Build them, store clue gear in them, and save precious Inventory space like a true clue master.
+
+===Nimbleness Charm Improvements===
+The Nimbleness Charm now works with more Agility shortcuts that were previously snubbed due to different checks under the hood. If it didn’t work before and should’ve - it probably does now! Just keep the Charm in your Inventory and it should work… well, like a charm!
+
+===Better Breach Rewards===
+We’ve adjusted the drop rates for breach monsters, giving you a much higher chance to hit the unique loot table. This includes Charms, Trinkets, and those deliciously deadly Ancient Warrior weapons.
+
+===Ruby Bolts Nerfed===
+We’ve reinstated a fix from Deadman: Armageddon! Ruby Bolt (e) Special Attacks are now capped at 30 damage against breach monsters. That’s right, no more one-tapping your way to domination with gemstone gimmicks. Still powerful, just not 100-damage powerful.
+
+Keep the feedback coming and the loot flowing!
+
+==Feedback Wanted: Bank UI Changes==
+[https://secure.runescape.com/m=news/poll-84-stackable-clues--more?oldschool=1 In Poll 84], we’re asking if you’d like to deposit the contents of handy items like the Fish Barrel, Coal Bag, Seed Box, and Log Basket straight into your Bank. Very nice. Very tidy. 
+
+That functionality is in the poll, but there’s one small catch: to make this magic happen, we need to squeeze in a shiny new Deposit Container button somewhere on the Bank interface, but space is precious!
+
+The current bank layout has four separate buttons at the bottom. Two are for Rearrange Mode (Swap/Insert), and two are for Withdraw As (Item/Note). We’re thinking we could turn those into two tidy toggles instead.
+
+Same functions, less button clutter, and just enough room left over to squeeze in that sweet, sweet Deposit button.
+
+Here’s how the Bank looks now:
+
+[[File:Easter Event (4).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-16/banknow.jpg here]!'']]
+
+And here’s our proposed update:
+
+[[File:Easter Event (5).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-16/Bank1.jpg here]!'']]
+
+Familiar functions? Still there. New button? Included. Interface clutter? Decreased. Vibes? Immaculate.
+
+But what do you think? Is this an improvement, or do you hate it with every pixel of your being? Let us know! Your feedback will help us fine-tune this feature if it passes the poll, so speak now or forever hold your peace.
+
+==Other Changes==
+* As promised in [https://secure.runescape.com/m=news/a=1/farming--autocast-qol-improvements?oldschool=1 last week’s update], we’ve reverted the Tool Leprechaun location changes and the movement restrictions on gardeners.
+* Players can no longer receive a Farming Contract through the "take another contract" option if they no longer meet the level requirement.
+* The Run Energy drain effect of the Jal-MejRah can now be blocked by Prayer. This was already the case for their stat-stealing effect.
+* Using shortcuts in the Agility section of Monkey Madness II should no longer cause the game to crash.
+* Autocast settings will now be remembered upon switching gear in Castle Wars.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been activated with this rota.
+
+World 569 (AUS) for Bounty Hunter has been activated with this rota.
+
+The PvP Arena is using <b>'Zerker'</b> loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1k0ghm2/easter_event/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Rach, Redfield, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

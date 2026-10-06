@@ -1,0 +1,67 @@
+{{Otheruses|the monster|the pet|Jal-Nib-Rek}}
+{{Infobox Monster
+|name = Jal-Nib
+|image = [[File:Jal-Nib.png|290px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|combat = 32
+|size = 1
+|examine = Small and aggravating, but cute.
+|xpbonus = 0
+|max hit = 4
+|aggressive = No
+|poisonous = No
+|attack style = [[Crush]]
+|attack speed = 4
+|slayxp = 10
+|cat = TzHaar
+|assignedby = chaeldar,nieve,duradel
+|hitpoints = 10
+|att = 1
+|str = 1
+|def = 15
+|mage = 15
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = -20
+|dslash = -20
+|dcrush = -20
+|dmagic = -20
+|dlight = -20
+|dstandard = -20
+|dheavy = -20
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = No
+|immunethrall = No
+|immuneburn = Immune to normal burns
+|id = 7691
+}}
+'''Jal-Nib''', often colloquially referred to as '''nibbler''', is one of the [[volcanic creatures]] which can be found in the [[Inferno]]. Several of these creatures spawn per wave and can cause damage to three [[Rocky support|pillars]] found within the arena. Once a pillar is damaged enough, it will fall.
+
+All of the Jal-Nib spawn near each other about midway between the three pillars. They will then move towards one of the pillars to attack it, ignoring the player. If all pillars are destroyed, they will attack the player instead. It is advisable to use an area of effect attack (such as [[barrage spells|barrage]] or [[burst spells]]), to immobilise/kill them quickly.
+
+When attacking the player their attacks have 100% accuracy no matter the player's defensive gear, meaning they deal much more damage than their low max hit of 4 might suggest. 
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 August 2025
+|update = More Doom Tweaks, Poll 84, & Summer Sweep Up Changes
+|change = Jal-Nib now has a 40% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Jal-Nibs have a festive override wearing a [[santa hat]] during the [[2023 Christmas event/Gallery|2023]], [[2024 Christmas event/Gallery|2024]], and [[2025 Christmas event/Gallery|2025]] Christmas events.
+*This monster closely resembles the Drone unit from ''{{wp|StarCraft}}''.
+
+{{Inferno}}

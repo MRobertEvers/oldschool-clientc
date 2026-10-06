@@ -1623,6 +1623,68 @@ drive_ui_shot_dedupe(char const* path, char const* name, int keep)
     return 0;
 }
 
+/* THE SHOT'S FILE NAME (TEST-3, waves seam pass 7, 2026-10-05).
+ *
+ * A capture's file is <session>/shots/<name>.png, and the name is the ledger
+ * row's own (core.lua's "NNN-<step>"). The screenshot slot it is queued in
+ * (struct App's plugin_screenshots[].name, app.h) holds 71 characters, and a
+ * name that did not fit used to be cut there, ".png" and all:
+ * "089-spec.nibblers_and_pillars.nibbler_player_hits_while_pillar_stands.p"
+ * was written with no extension, and gate.py then failed a green row for
+ * claiming a shot that was not on disk. Wave spec rows are long by
+ * construction (spec.<unit>.<mechanic>).
+ *
+ * So a name too long for the slot is SHORTENED HERE, never cut: the first
+ * DRIVE_UI_SHOT_HEAD characters (the NNN- number and the row's head), a "~",
+ * eight hex digits of the FNV-1a 32 hash of the WHOLE name, a "~", and the
+ * last DRIVE_UI_SHOT_TAIL characters (so a "-FAIL" capture still says so).
+ * The stem is exactly the slot's capacity less ".png". A name that fits is
+ * written byte-for-byte as before. gate.py's shot_file_stem mirrors this rule
+ * (the two must agree: the ledger's `shots` column keeps the row's own name),
+ * and ui.lua's QD.shot notes "shot <name> is file <file>" in the row's detail
+ * whenever the two differ. */
+#define DRIVE_UI_SHOT_HASH_DIGITS 8
+#define DRIVE_UI_SHOT_TAIL 8
+
+static unsigned int
+drive_ui_shot_name_hash(char const* name)
+{
+    unsigned int hash = 2166136261u;
+    unsigned char const* cursor;
+
+    assert(name);
+
+    for( cursor = (unsigned char const*)name; *cursor; cursor++ )
+    {
+        hash ^= (unsigned int)*cursor;
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+static void
+drive_ui_shot_file_stem(char const* name, size_t stem_max, char* out, size_t out_cap)
+{
+    size_t length;
+    size_t head;
+
+    assert(name);
+    assert(out);
+    assert(stem_max > DRIVE_UI_SHOT_HASH_DIGITS + DRIVE_UI_SHOT_TAIL + 2);
+    assert(out_cap > stem_max);
+
+    length = strlen(name);
+    if( length <= stem_max )
+    {
+        snprintf(out, out_cap, "%s", name);
+        return;
+    }
+    head = stem_max - DRIVE_UI_SHOT_HASH_DIGITS - DRIVE_UI_SHOT_TAIL - 2;
+    snprintf(out, out_cap, "%.*s~%08x~%s", (int)head, name,
+             drive_ui_shot_name_hash(name), name + length - DRIVE_UI_SHOT_TAIL);
+    assert(strlen(out) == stem_max);
+}
+
 static enum DriveResult
 drive_ui_shot(
     struct App* app,
@@ -1635,6 +1697,7 @@ drive_ui_shot(
     char const* session_dir;
     char dir[900];
     char filename[164];
+    char stem[sizeof(filename) - 4];
     struct stat info;
     int i;
 
@@ -1690,7 +1753,10 @@ drive_ui_shot(
     if( !session_dir )
         return DRIVE_REFUSED;
     snprintf(dir, sizeof(dir), "%s/shots", session_dir);
-    snprintf(filename, sizeof(filename), "%s.png", name);
+    /* The slot's capacity less ".png": see THE SHOT'S FILE NAME above. */
+    drive_ui_shot_file_stem(
+        name, sizeof(app->plugin_screenshots[0].name) - 1 - strlen(".png"), stem, sizeof(stem));
+    snprintf(filename, sizeof(filename), "%s.png", stem);
     if( !App_RequestScreenshot(app, dir, filename, g_drive_ui_shot_path, sizeof(g_drive_ui_shot_path)) )
     {
         g_drive_ui_shot_path[0] = '\0';
