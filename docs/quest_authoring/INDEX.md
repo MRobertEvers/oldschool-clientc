@@ -635,3 +635,4 @@ topic file with one line added here.
 - a goto frame shows only jungle canopy (Holy Grail 141/242 under the Brimhaven tower), so the landing is not visible -> sampler-findings: Sample matthew-mbp-m4-b62, Round 4 (b); verbs-root-and-quest: The shot camera is aimed for you
 - a reviewer says "goto_table.py absent" or "hops not reach.py-checked" in a worktree batch; `reach.py` reads `/Users/.../3draster` maps, not the batch checkout (FIXED b64-seam1: all four sample tools take `--root`, defaulting to the checkout they live in) -> sampler-findings: Sample matthew-mbp-m4-b64
 - a round-2 sampler is handed a quest round 1 already kept; `sample.json` is missing because round 1's state moved to `round1/` -> sampler-findings: Sample matthew-mbp-m4-b64 round 2
+- a margin row on a staged 99-melee account reads lowest hp 70-96, or 99/99 under a protection prayer against a one-style boss: not a send-back -> sampler-findings: Sample matthew-mbp-m4-b67 round 2 (a)
