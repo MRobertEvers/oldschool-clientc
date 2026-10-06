@@ -7315,3 +7315,32 @@ it is the worn weapon's colour; better, make the swap's press go to the new targ
 
 A plan edit needs no rebuild of a private binary. seed_survey and solo or regression runs
 overwrite build/quest_gate/<name>: copy the summary lines out before the next survey.
+## A whole-raid relay copies each room harness's pre-fight exactly (seam53)
+
+The worn set, the potion at the door and the weapon passed to t.raid.play
+must be the room harness's own. After seam40 every Normal plan is melee and
+every trio harness wears ::maxmelee, apart from Maiden's freezer, which keeps
+the ranged set. _play_normal had kept the ranged Maiden's masori into every
+room until seam53.
+
+## ::maxmelee then '::wield <boots>' costs a supply slot (seam53)
+
+The extra boots push the avernic treads into the backpack (survey2: seat 1
+held 8 anglerfish, not 9; seat 3 held 6, not 7). Leave the extra boots out,
+or drop the treads in run().
+
+## A room plan's re-boost empties the next room's potion in a relay (seam53)
+
+The Maiden plan (raid_play_tob_maiden.lua, about line 1700) drinks a super
+combat whenever attack or strength is under 108, from any dose in the pack.
+In a relay that leaves nothing for Bloat's door (bloat.potion FAIL on seats 1
+and 3 in survey1). Room plans need a reserve so a relay can play several
+rooms on one pack.
+
+## Normal ToB: the pack has to carry Maiden and Bloat together (seam53)
+
+The first supply chest stands after Bloat and is a points store
+(tob_midway_stores:items, Buy-1 on op 2, tob_chest.rs2:287-297). One Maiden
+cost a dps seat 35-56 drinks and 6-8 eats in seam53; the trio pages' kit
+for the whole raid is 8 brews, 4 restores and 3 anglers (10Boot 0:04:23).
+The relay stays supply-bound until a room costs about that.

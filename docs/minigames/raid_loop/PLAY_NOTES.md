@@ -1223,3 +1223,67 @@ party_repeat 3 runs AGREE):
 Before (ranged, HEAD cf69609bc): 2 of 3 names, room 591-833, P2 289-299, P3 146-407, hp lost 268-715.
 
 Closer seam45, on the tree with seam48's `t.raid.own_anim` built in (src/torirs_seam45_close): the party survey is 4 of 5, not the fixer's 5 of 5 (that run used the older binary). svdplayverzi p2 died at t611 in the enrage: all three raiders stood on ONE yellow pool at 6431,96, two tornadoes walked up column 6431 and touched p2 for 29, and the yellows blast took its last 50. OPEN: one raider per pool in the melee P3, and the hitpoints lost. Entry solo stays 5 of 5.
+
+## The whole raid, Normal trio, run once on the Blert-shaped rooms (raid seam53 play_tob_normal_relay_once), NOT KEPT
+
+One survey as the harness stood, one edit of `test/raids/_play_normal.lua` for the
+relay-level faults, one more survey (`seed_survey.py _play_normal --party 3 --names 3
+--jobs 3`, 43 s each). Both surveys 0 of 3. Logs and reports:
+`build/seam_state/matthew-mbp-m4-camera-b1-seam53/` (survey1.log, survey2.log,
+s1_report_*.txt, s2_report_*.txt).
+
+| name | survey1 (as it stood) | survey2 (after the edit) |
+|---|---|---|
+| own (`_play_normal`) | Maiden cleared, 437 ticks; leader died at Bloat t829 (role 3, entered with 0 fish, 2 brew doses, 0 restores, 0 combat) | all three died at Maiden: freezer t385 (blood at 6440,157), dps1 t549, dps2 t579 (her 48-59 hits) |
+| `svaplaynorma` | leader (dps1) died at Maiden t425, blood 30/30/30 at 6432-6435,160 | freezer t503 (blood 36 x3 at 6441,158), leader t517 |
+| `svbplaynorma` | freezer t542, leader t648 (hp 26 for ten ticks, pack empty: 7 eats, 56 drinks) | freezer t453 (blood 26 x3 at 6441,158), leader t558 |
+
+Supplies at Maiden, survey1 own name: seat 1 (dps1) used 7 fish, 30 brew doses, 20
+restore doses and all 4 combat doses; seat 2 (freezer) 3 fish, 2 brew, 6 restore; seat 3
+5 fish, 13 brew, 10 restore, 4 combat. One Maiden empties a dps seat's whole raid pack;
+the trio pages' kit for the whole raid is "eight brews, four restores, and three anglers"
+(10Boot yt_4i4lv-srJkw.md 0:04:23).
+
+RELAY-LEVEL, fixed in the one edit (survey2 shows the Maiden part; nobody reached Bloat,
+so the Bloat part is unexercised):
+
+- The worn set was the old ranged Maiden's (masori) in every room, while every room plan
+  since seam40 is melee and every trio harness wears `::maxmelee`. Seats 1 and 3 now wear
+  `::maxmelee` with the twisted bow at Maiden's door (`_play_maiden.lua` party_kit); seat 2,
+  Maiden's freezer, keeps its harness's ranged set.
+- Maiden's door: the dps seats drink the super combat (`maiden.potion` PASS on all six
+  dps seats in survey2) and play `weapon = scythe_of_vitur`, as `_play_maiden.lua`
+  party_run.
+- The supply mix is the Maiden harness's ratio in each seat's slots (seat 1 9 fish / 7
+  brews / 4 restores, seat 2 6 / 2 / 2, seat 3 7 / 5 / 3).
+- Bloat: the members cross with the starter (the harness since seam42), not on the first
+  down; role 1 (the heaviest in seam51's harness) goes to seat 2, the seat survey1's
+  Maiden left the most (14 brew doses, 6 restore, 4 combat), and seat 1 keeps role 3.
+
+RELAY-LEVEL, found in survey2, not fixed (one edit): `::wield slayer_boots` after
+`::maxmelee` puts the avernic treads in the pack, so seat 1 starts with 8 fish, not 9,
+and seat 3 with 6, not 7. Drop the slayer-boots line for seats 1 and 3, or drop the
+treads in run().
+
+ROOM-LEVEL, for the room seams:
+
+- Maiden's freezer stands in her blood at its home tile (6440-6441,157-161) for 3-4 ticks
+  and dies from 90+ hitpoints: survey2 3 of 3 names, survey1 1 of 3
+  (`raid_play_tob_maiden.lua`, the freezer's `holding` for a cast). Seam39 reported the
+  same thing.
+- In the `::maxmelee` set, the dps seats take 41-59 from npc 8363 (`tob_maiden_30`) every
+  10 ticks; in masori in survey1 the largest was 35. The Maiden harness wears the same set,
+  so this is the room's or the damage content's problem, not the relay's.
+- The Maiden plan's re-boost drinks every combat dose in the pack
+  (`raid_play_tob_maiden.lua` ~1700, the super combat under 108). Survey1's `bloat.potion`
+  failed on seats 1 and 3 because they had none left. A relay needs the plan to keep one
+  dose back.
+- What the dps seats spend at Maiden (35-56 drinks and 6-8 eats each) is more than one
+  pack holds. No relay mix makes Maiden plus Bloat fit in one pack until the room spends
+  closer to the trio pages' kit.
+- Not reached, still open on the relay side: the Normal supply chest after Bloat and
+  Sotetseg is never bought from. It is a points store, `tob_midway_stores:items`, with
+  Buy-1 on op 2 (tob_chest.rs2:287-297); each raider opens their own, and members have to
+  be standing in the old room's square for the passage to carry them. The relay also
+  carries no Dragon claws for Bloat's down spec (the `_play_bloat.lua` kit) and no Elder
+  maul for Sotetseg (the `_play_sotetseg.lua` kit).
