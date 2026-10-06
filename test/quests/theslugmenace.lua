@@ -230,10 +230,15 @@ return {
             t.exec("goto-talkToJeb", t.player.goto_tile, 2721, 3304, 0)
             t.exec("talkToJeb", t.player.talk_to, "slug2_jeb", 1)
             t.exec("talkToJeb-dialog", t.chat.play, {
-                "player:Can you take me out to the Fishing Platform",
-                "npc:Climb aboard, then",
+                "player:I understand you can take me to the Fishing Platform",
+                "npc:Yes, we can do that",
+                "player:Will you take me please",
+                "npc:Board the boat and we shall depart",
             })
+            -- ~slugmenace_jeb_witchaven_to_platform closes, delays, then opens
+            -- the arrival mesbox ("You arrive at the fishing platform.").
             t.ticks(3)
+            t.chat.drain({ stop_at = "none" })
             local _, jeb_tile = t.world.tile()
             t.check("talkToJeb.platform", jeb_tile ~= nil and jeb_tile.x >= 2760,
                 "tile=" .. tostring(jeb_tile and (jeb_tile.x .. "," .. jeb_tile.z)))
