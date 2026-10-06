@@ -1,6 +1,76 @@
 -- Underground Pass (upass). Relay file: one leg per author, legs table of docs/quest_authoring/relay.md.
 -- Scaffolded by tools/quest_gate/new_quest.py, hand-corrected against quests/quest_upass/scripts/.
 -- Tier (quest_inventory.tsv): 3.
+--
+-- Door rule (b69): every closed space is entered and left by its own door, gate, stair or op.
+--   * From the Lumbridge fixture the only way on foot to Ardougne is the members' gate south of
+--     Taverley (reach.py 3206,3233 -> 2577,3298 NEEDS-DOOR via membergater@2933,3320): the first goto
+--     stops on its south side (3206,3233 -> 2934,3318 REACH closed-doors len=387), cross_gate, then
+--     overland to the castle street (2934,3322 -> 2577,3298 REACH len=813).
+--   * East Ardougne castle (maps/m40_51.jl2): double door w_ardougnedoubledoorl 2576,3298, stairs
+--     2571,3295 (no up maplink: +1 plane on the stand tile 2571,3298), King Lathas's room x 2575-2579
+--     z 3292-3294,1 behind elfdoor 2575,3293,1; down by maplink_1_40_51_11_30_down (stand 2571,3294,1).
+--     In and out on both visits (route as makinghistory.lua).
+--   * The West Ardougne city doors (ardougnedoor_l/_r, 2557-2558,3299-3300, maps/m39_51.jl2) forcemove
+--     the player 2 tiles through (area_ardougne_west/scripts/doors.rs2:35-58): cross_gate both ways.
+--   * The plank is the guide's collectPlank (QH UndergroundPass.java:380, 2435,9726 "the north room",
+--     m38_151.spawn obj woodplank), picked up after the bridge on the way to the pit.
+
+-- The East Ardougne castle crossings (header), fresh tables per call.
+local function in_kings_room(tile)
+    return tile.level == 1 and tile.x >= 2575 and tile.x <= 2579 and tile.z >= 3292 and tile.z <= 3294
+end
+local function CASTLE_DOOR_IN()
+    return { closed = "w_ardougnedoubledoorl", open = "w_ardougnedoubledoorlopen", at = { 2576, 3298, 0 },
+        near = { 2577, 3298 }, far = { 2573, 3298 },
+        far_ok = function(tile) return tile.level == 0 and tile.x <= 2575 end, far_desc = "in the castle hall, x <= 2575" }
+end
+local function CASTLE_DOOR_OUT()
+    return { closed = "w_ardougnedoubledoorl", open = "w_ardougnedoubledoorlopen", at = { 2576, 3298, 0 },
+        near = { 2574, 3298 }, far = { 2577, 3298 },
+        far_ok = function(tile) return tile.level == 0 and tile.x >= 2576 end, far_desc = "on the street, x >= 2576" }
+end
+local function CASTLE_STAIRS_UP() -- up maplink row (151-row batch) lands on the down stand tile 2571,3294,1
+    return { loc = "stairs", op = 1, op_name = "Climb-up", at = { 2571, 3295, 0 }, src = { 2571, 3298 }, dest = { 2571, 3294, 1 } }
+end
+local function CASTLE_STAIRS_DOWN() -- maplink_1_40_51_11_30_down is keyed on the stand tile 2571,3294,1
+    return { loc = "stairstop", op = 1, op_name = "Climb-down", at = { 2571, 3295, 1 }, src = { 2571, 3294 }, dest = { 2571, 3298, 0 } }
+end
+local function KINGS_DOOR_IN()
+    return { closed = "elfdoor", open = "elfdooropen", at = { 2575, 3293, 1 }, near = { 2574, 3293 }, far = { 2577, 3293 },
+        far_ok = in_kings_room, far_desc = "in King Lathas's room, x 2575-2579 z 3292-3294 level 1" }
+end
+local function KINGS_DOOR_OUT()
+    return { closed = "elfdoor", open = "elfdooropen", at = { 2575, 3293, 1 }, near = { 2576, 3293 }, far = { 2573, 3293 },
+        far_ok = function(tile) return tile.level == 1 and tile.x <= 2574 end, far_desc = "out of the king's room, x <= 2574 level 1" }
+end
+-- ardougnedoor_r copy 2558,3300 from the east forcemoves to 2556,3300; ardougnedoor_l copy 2557,3300 from the west to 2559,3300
+local function CITY_DOOR_WEST()
+    return { loc = "ardougnedoor_r", at = { 2558, 3300, 0 }, near = { 2559, 3300 },
+        far_ok = function(tile) return tile.x <= 2556 end, far_desc = "in West Ardougne, x <= 2556" }
+end
+local function CITY_DOOR_EAST()
+    return { loc = "ardougnedoor_l", at = { 2557, 3300, 0 }, near = { 2556, 3300 },
+        far_ok = function(tile) return tile.x >= 2559 end, far_desc = "in East Ardougne, x >= 2559" }
+end
+
+-- A fight's margin row (brief: lowest hp at least a quarter of the maximum AND food left), read from
+-- await_dead_engaged's detail ("lowest hp N/M") and the backpack after the kill.
+local FOODS = { "shark", "lobster", "meat_pie", "half_a_meat_pie", "meat_pizza", "half_meat_pizza", "bread", "stew" }
+local function fight_margin(t, name, detail, harmless)
+    local lowest = tonumber(tostring(detail):match("lowest hp (%d+)/"))
+    local _, hitpoints = t.skill.read("hitpoints")
+    local max_hp = type(hitpoints) == "table" and hitpoints.base_level or nil
+    local food, parts = 0, {}
+    for _, sym in ipairs(FOODS) do
+        local n = select(2, t.inv.count(sym)) or 0
+        if n > 0 then food = food + n parts[#parts + 1] = sym .. " x" .. n end
+    end
+    local ok = lowest ~= nil and max_hp ~= nil and lowest * 4 >= max_hp and (harmless or food >= 1)
+    t.check(name, ok, "lowest hp " .. tostring(lowest) .. "/" .. tostring(max_hp) .. "; food left " .. food
+        .. " (" .. table.concat(parts, ", ") .. ")" .. (harmless and "; a harmless fight needs no food" or "")
+        .. " (margin: lowest hp >= a quarter of max AND food left)")
+end
 
 return {
     id = "upass",
@@ -13,6 +83,11 @@ return {
         -- the rope swing (upass_obstacles.rs2:132 stat_random(agility,100,410)) and the rockslides roll agility; a level-1 account falls back into the
         -- swamp (deterministic in the b52 full run, leg 2 crossThePit landed 2485,9649). A questing account brings some agility.
         "::setlevel agility 50",
+        -- A questing account's Hitpoints and Defence (b69: staged here, not in leg 3). The spear traps cost 10% hp + 1 per failed
+        -- disarm (upass_obstacles.rs2:217), the swamp fall 15% (:74): a 10-hp account died at passTrap1 (b68 close run, row 65).
+        -- No upass dialogue branches on combat level (quest_upass/scripts: no stat_base/combat read; only stat(hitpoints) damage).
+        "::setlevel hitpoints 70",
+        "::setlevel defence 50",
         -- Quest Helper: Biohazard is a prerequisite (upass_entrance.rs2:9 refuses the cave until it is complete)
         "::complete quest_biohazard",
         -- Quest Helper items for the bridge leg: a bow (not crossbow), metal arrows, a tinderbox and a rope
@@ -39,13 +114,19 @@ return {
             t.ticks(3) -- a setup cheat's effect is not client-side yet
             t.expect("upass.reset", t.quest.expect_stage("not_started"))
 
-            t.exec("goto-goToArdougneCastleFloor2", t.player.goto_tile, 2572, 3295, 0)
-            t.exec("goToArdougneCastleFloor2", t.player.click_loc, "stairs", 1) -- ladders.rs2:175
+            -- the members' gate south of Taverley: the only way on foot from Lumbridge to Ardougne (header)
+            t.exec("goto-goToArdougneCastleFloor2.memberGate", t.player.goto_tile, 2934, 3318, 0)
+            t.exec("goToArdougneCastleFloor2.memberGate", t.player.cross_gate, { loc = "membergatel", at = { 2934, 3320, 0 },
+                near = { 2934, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2934) <= 2 end,
+                far_desc = "north of the members' gate, z >= 3320", far = { 2934, 3322 } })
+            t.exec("goto-goToArdougneCastleFloor2", t.player.goto_tile, 2577, 3298, 0)
+            t.exec("goToArdougneCastleFloor2.castleDoorIn", t.player.pass_door, CASTLE_DOOR_IN())
+            t.exec("goToArdougneCastleFloor2", t.player.climb, CASTLE_STAIRS_UP()) -- ladders.rs2 [proc,climb]
             t.ticks(3)
             local _, at = t.world.tile()
             t.check("goToArdougneCastleFloor2-level", at.level == 1, "tile after the stairs " .. at.x .. "," .. at.z .. " level " .. at.level)
 
-            t.exec("goto-talkToKingLathas", t.player.goto_tile, 2578, 3292, 1)
+            t.exec("talkToKingLathas.kingsDoorIn", t.player.pass_door, KINGS_DOOR_IN())
             t.exec("talkToKingLathas", t.player.talk_to, "kinglathas", 1) -- king_lathas.rs2:35
             t.exec("talkToKingLathas-dialog", t.chat.play, {
                 "player:Hello King Lathas",
@@ -63,15 +144,16 @@ return {
             t.ticks(2)
             t.check("talkToKingLathas-met", select(2, t.var.varbit("varb9125_upass_lathas_met")) == 1, "upass_lathas_met varbit read " .. tostring(select(2, t.var.varbit("varb9125_upass_lathas_met"))))
 
-            t.exec("goto-goDownCastleStairs", t.player.goto_tile, 2572, 3295, 1)
-            t.exec("goDownCastleStairs", t.player.click_loc, "stairstop", 1) -- ladders.rs2:178
+            t.exec("goDownCastleStairs.kingsDoorOut", t.player.pass_door, KINGS_DOOR_OUT())
+            t.exec("goDownCastleStairs", t.player.climb, CASTLE_STAIRS_DOWN()) -- maplink_1_40_51_11_30_down
             t.ticks(3)
             _, at = t.world.tile()
             t.check("goDownCastleStairs-level", at.level == 0, "tile after the stairs " .. at.x .. "," .. at.z .. " level " .. at.level)
+            t.exec("goDownCastleStairs.castleDoorOut", t.player.pass_door, CASTLE_DOOR_OUT())
 
             t.exec("goto-enterWestArdougne", t.player.goto_tile, 2559, 3300, 0)
-            t.exec("enterWestArdougne", t.player.click_loc, "ardougnedoor_r", 1) -- doors.rs2:89
-            t.ticks(3)
+            t.exec("enterWestArdougne", t.player.cross_gate, CITY_DOOR_WEST()) -- area_ardougne_west/scripts/doors.rs2:35
+            t.ticks(2)
 
             t.exec("goto-talkToKoftik", t.player.goto_tile, 2437, 3314, 0)
             t.exec("talkToKoftik", t.player.talk_to, "caveguide1", 1) -- koftik.rs2:14
@@ -90,7 +172,7 @@ return {
             t.ticks(2)
             t.expect("quest.stage.spoken_koftik", t.quest.expect_stage("spoken_koftik"))
 
-            t.exec("goto-enterTheDungeon", t.player.goto_tile, 2434, 3314, 0)
+            -- Koftik stands beside the cave mouth: the click walks there (2434,3314 is under upass_caveentrance2, 2433,3313)
             t.exec("enterTheDungeon", t.player.click_loc, "upass_caveentrance2", 1) -- upass_entrance.rs2:9
             t.ticks(6)
             _, at = t.world.tile()
@@ -213,7 +295,7 @@ return {
             climb_to("climbOverRockslide2-again", 2471, 9706, 2470, 9706)
             climb_to("climbOverRockslide3-again", 2458, 9712, 2458, 9713)
 
-            t.exec("goto-talkToKoftikAtBridge", t.player.goto_tile, 2452, 9715, 0)
+            t.exec("goto-talkToKoftikAtBridge", t.player.goto_tile, 2453, 9716, 0) -- beside Koftik (2452,9715 is under upass_gear)
             t.exec("talkToKoftikAtBridge", t.player.talk_to, "caveguide2", 1) -- koftik.rs2 [opnpc1,caveguide2]
             t.exec("talkToKoftikAtBridge-dialog", t.chat.play, {
                 "player:Koftik, how can we cross the bridge",
@@ -269,6 +351,25 @@ return {
             end
             t.check("shootBridgeRope-crossed", crossed, "after the shot at " .. at.x .. "," .. at.z .. " level " .. at.level .. " stage " .. tostring(select(2, t.quest.stage())) .. " :: " .. last_lines(4))
             t.expect("quest.stage.passed_bridge", t.quest.expect_stage("passed_bridge"))
+
+            -- collectPlank (QH UndergroundPass.java:380, a sub-step of crossThePit): "Pick up the plank in the north room."
+            -- m38_151.spawn places woodplank at 2435,9726; from the bridge's west end it is open floor (reach.py 2442,9716 ->
+            -- 2436,9725 REACH closed-doors len=21). The blessed spiders there are incidental: eat between the hops.
+            local function hp_now2()
+                local r, row = t.skill.read("hitpoints")
+                return r == "ok" and row.level or 0
+            end
+            local plank_walk = ""
+            for _, hop in ipairs({ { 2440, 9720 }, { 2436, 9725 } }) do
+                if hp_now2() <= 30 and select(2, t.inv.count("lobster")) > 0 then t.player.inv_op("lobster", 1) t.ticks(3) end
+                local r, d = t.player.walk_to(hop[1], hop[2], 30)
+                local _, w = t.world.tile()
+                plank_walk = plank_walk .. hop[1] .. "," .. hop[2] .. ": " .. tostring(r) .. " now " .. w.x .. "," .. w.z .. "; "
+            end
+            local planks_before = select(2, t.inv.count("woodplank"))
+            t.exec("collectPlank", t.player.click_obj, "woodplank", 3)
+            t.ticks(2)
+            t.check("collectPlank-held", select(2, t.inv.count("woodplank")) == planks_before + 1, "woodplank " .. planks_before .. " -> " .. tostring(select(2, t.inv.count("woodplank"))) .. "; " .. plank_walk .. "hp " .. hp_now2())
 
             t.exec("goto-crossThePit", t.player.goto_tile, 2461, 9699, 0)
             local pit_rock = t.player.by_symbol("loc", "obstical_rockswing_norope")
@@ -353,6 +454,8 @@ return {
                     local hp_result, hp_row = t.skill.read("hitpoints"); local hp = hp_result == "ok" and hp_row.level or hp_result
                     detail = "attempt " .. attempt .. ": click " .. tostring(result) .. ", chat " .. played .. ", x " .. before .. " -> " .. there.x .. "," .. there.z .. ", hp " .. tostring(hp) .. " :: " .. last_lines(3)
                     if there.x < trap_x then passed = true break end
+                    -- a failed disarm costs 10% hp + 1 (upass_obstacles.rs2:217): eat before the next attempt
+                    if hp_result == "ok" and hp_row.level <= 30 and select(2, t.inv.count("lobster")) > 0 then t.player.inv_op("lobster", 1) t.ticks(3) end
                 end
                 t.check(name, passed, detail)
             end
@@ -362,7 +465,7 @@ return {
             pass_trap("passTrap4", 2432, 9675)
             _, at = t.world.tile()
             local hp_result, hp_row = t.skill.read("hitpoints")
-            t.check("leg.2.state", true, "at " .. at.x .. "," .. at.z .. " level " .. at.level .. "; upass stage " .. tostring(select(2, t.quest.stage())) .. "; shortbow worn, bronze_arrow x" .. tostring(select(2, t.inv.count("bronze_arrow"))) .. ", tinderbox x" .. tostring(select(2, t.inv.count("tinderbox"))) .. "; hitpoints " .. tostring(hp_result == "ok" and hp_row.level or hp_result) .. " (traps cost hp, no food carried)")
+            t.check("leg.2.state", true, "at " .. at.x .. "," .. at.z .. " level " .. at.level .. "; upass stage " .. tostring(select(2, t.quest.stage())) .. "; shortbow worn, bronze_arrow x" .. tostring(select(2, t.inv.count("bronze_arrow"))) .. ", tinderbox x" .. tostring(select(2, t.inv.count("tinderbox"))) .. ", woodplank x" .. tostring(select(2, t.inv.count("woodplank"))) .. ", lobster x" .. tostring(select(2, t.inv.count("lobster"))) .. "; hitpoints " .. tostring(hp_result == "ok" and hp_row.level or hp_result))
             -- LEG 2 END
         end },
         { name = "traps_planks_orbs", run = function(t)
@@ -377,9 +480,7 @@ return {
             -- food for the trap damage (leg 2 left the player at about 2 hp)
             t.cheat("::give lobster 14") -- b52: the closer died walking to orb 3 (hp 7 at the last hop, blessed spiders 2395-2404,9680-9684 hit the whole way)
             -- the western cave is full of blessed spiders and ogres (m37_151.spawn); the guide's player is a fighter, a 10-hp
-            -- account dies to them (run 3-4). Levels a questing account brings:
-            t.cheat("::setlevel hitpoints 70")
-            t.cheat("::setlevel defence 50")
+            -- account dies to them (run 3-4). The levels a questing account brings (hitpoints 70, defence 50) are staged in setup.
             t.ticks(2)
             local hp_result, hp_row = t.skill.read("hitpoints")
             t.check("leg.3.start", true, "at " .. at.x .. "," .. at.z .. " level " .. at.level .. "; hitpoints " .. tostring(hp_result == "ok" and hp_row.level or hp_result) .. "; woodplank x" .. tostring(select(2, t.inv.count("woodplank"))))
@@ -387,10 +488,7 @@ return {
             t.ticks(3)
             hp_result, hp_row = t.skill.read("hitpoints")
             t.check("leg.3.fed", hp_result == "ok" and hp_row.level > 5, "hitpoints after the lobster " .. tostring(hp_result == "ok" and hp_row.level or hp_result))
-            -- Quest Helper: the Plank is a brought-along requirement of plankRock1-3 (items: Plank). The guide's collectPlank (2435,9726) is a
-            -- substep of crossThePit (leg 2), reachable only from Koftik's ledge before the bridge; from here the four traps and the pit lie between
-            -- (walk_to stalls at 2444,9677, tried b49), so it is given here. A leg 2 that picks it up at crossThePit would let this line go.
-            t.cheat("::give woodplank")
+            -- the Plank for plankRock1-3 was picked up in leg 2 (collectPlank, the guide's sub-step of crossThePit)
             local function pass_trap(name, trap_x, trap_z)
                 local detail = ""
                 local passed = false
@@ -510,7 +608,7 @@ return {
             t.ticks(4)
             -- leg 5 needs 7 free slots (upass_encounters.rs2:101) and leg 4 gives its own lobsters: eat what heals, drop the surplus down to 3
             local surplus_detail = ""
-            for _ = 1, 14 do
+            for _ = 1, 30 do -- up to 24 lobsters carried here now that setup stages hitpoints 70 (fewer eaten on the way)
                 local _, lobsters = t.inv.count("lobster")
                 if lobsters <= 3 then break end
                 local hpr, hprow = t.skill.read("hitpoints")
@@ -823,8 +921,10 @@ return {
                     eat_if_low(22)
                     local attack_result = t.player.attack(sym, 2, 25)
                     t.ticks(2)
-                    local dead_result = t.npc.await_dead_engaged(60, 10, { eat = { item = "lobster", below = 22 } })
+                    local dead_result, dead_detail = t.npc.await_dead_engaged(60, 10, { eat = { item = "lobster", below = 35 } })
                     fought = fought .. sym .. " attack " .. tostring(attack_result) .. " dead " .. tostring(dead_result) .. "; "
+                    -- a refused attack (the skeleton out of reach behind the cage) is no fight and has no margin to read
+                    if attack_result == "ok" then fight_margin(t, "leg.4.skeletons." .. sym .. ".margin", dead_detail) end
                 end
             end
             eat_if_low(14)
@@ -914,7 +1014,8 @@ return {
                 eat_if_low(30)
                 local attack_result = t.player.attack(sym, 2, 25)
                 t.ticks(2)
-                local dead_result = t.npc.await_dead_engaged(200, 15, { eat = { item = "lobster", below = 35 } })
+                local dead_result, dead_detail = t.npc.await_dead_engaged(200, 15, { eat = { item = "lobster", below = 45 } })
+                fight_margin(t, step .. ".margin", dead_detail)
                 t.ticks(2)
                 local take_result = t.player.click_obj(badge, 3)
                 t.ticks(3)
@@ -1118,9 +1219,11 @@ return {
             door_walk = door_walk .. cross_bridge("bridgecollapsed2", 2147, 4583, 2150, 4583)
             door_walk = door_walk .. walk_hops("toDoor2", { { 2149, 4579 }, { 2150, 4574 }, { 2154, 4572 }, { 2158, 4570 }, { 2160, 4567 } })
             local door = t.player.by_symbol("loc", "cavewitch_door")
+            local cats_before = select(2, t.inv.count("cavewitchcat"))
             t.exec("useCatOnDoor", t.player.use_on, "cavewitchcat", door)
             t.ticks(12)
-            t.check("useCatOnDoor-gone", select(2, t.inv.count("cavewitchcat")) == 0, "cat x" .. tostring(select(2, t.inv.count("cavewitchcat"))) .. " gavecat " .. tostring(select(2, t.var.varbit("varb9123_upass_gavecat"))) .. " at " .. here().x .. "," .. here().z .. " :: " .. door_walk .. " :: " .. last_lines(3))
+            local cats_after = select(2, t.inv.count("cavewitchcat"))
+            t.check("useCatOnDoor-gone", cats_after == 0 and select(2, t.var.varbit("varb9123_upass_gavecat")) == 1, "lost cavewitchcat " .. tostring(cats_before) .. "->" .. tostring(cats_after) .. "; varb9123_upass_gavecat " .. tostring(select(2, t.var.varbit("varb9123_upass_gavecat"))) .. " (kardia.rs2:12) at " .. here().x .. "," .. here().z .. " :: " .. door_walk .. " :: " .. last_lines(3))
             -- searchWitchsChest: through the door (kardia.rs2:12 gavecat = 1 walks you in), then the chest (kardia.rs2:91)
             t.exec("openWitchDoor", t.player.click_loc, "cavewitch_door", 1)
             t.ticks(6)
@@ -1163,6 +1266,7 @@ return {
                 local attack_result, attack_detail = t.player.attack(sym, 2, 30)
                 t.ticks(2)
                 local dead_result, dead_detail = t.npc.await_dead_engaged(300, 20, { eat = { item = "shark", below = 60 } })
+                fight_margin(t, step .. ".margin", dead_detail)
                 t.ticks(2)
                 local take_result = t.player.click_obj(amulet, 3)
                 t.ticks(3)
@@ -1339,6 +1443,7 @@ return {
             local kalrag_attack, kalrag_attack_detail = t.player.attack("kalrag", 2, 40)
             t.ticks(2)
             local kalrag_dead, kalrag_dead_detail = t.npc.await_dead_engaged(400, 30, { eat = { item = "lobster", below = 45 } })
+            fight_margin(t, "killKalrag.margin", kalrag_dead_detail)
             t.ticks(6)
             t.check("killKalrag", kalrag_dead == "ok" and var("varb9115_upass_venom_on_doll") == "1", "attack " .. tostring(kalrag_attack) .. " (" .. tostring(kalrag_attack_detail) .. ") dead " .. tostring(kalrag_dead) .. " (" .. tostring(kalrag_dead_detail) .. "); upass_venom_on_doll " .. var("varb9115_upass_venom_on_doll") .. "; hp " .. hp_now() .. " :: " .. last_lines(3))
             -- ascendToHalfSoulless: the north-west exit at 2304,9915 climbs to the upper level (upass_tunnels.rs2:21)
@@ -1377,6 +1482,7 @@ return {
             local disciple_attack, disciple_attack_detail = t.player.attack("ibanmonk", 2, 40)
             t.ticks(2)
             local disciple_dead, disciple_dead_detail = t.npc.await_dead_engaged(300, 20, { eat = { item = "lobster", below = 45 } })
+            fight_margin(t, "killDisciple.margin", disciple_dead_detail, true) -- a level-13 disciple against 99 hp
             t.ticks(3)
             local after_kind = t.chat.kind()
             if after_kind ~= "none" then
@@ -1446,11 +1552,17 @@ return {
             local surface = here()
             t.check("leaveThePass-surface", surface.z < 4000, "now " .. surface.x .. "," .. surface.z .. " L" .. surface.level .. " :: " .. last_lines(3))
             -- goUpToLathasToFinish / talkToKingLathasAfterTemple (king_lathas.rs2:149 case defeated_iban)
-            t.exec("goto-goUpToLathasToFinish", t.player.goto_tile, 2572, 3295, 0)
-            t.exec("goUpToLathasToFinish", t.player.click_loc, "stairs", 1)
+            -- back the way the leg-1 trip came: West Ardougne (reach.py 2436,3315 -> 2556,3300 REACH closed-doors len=137),
+            -- the city doors east, the castle street (2559,3300 -> 2577,3298 REACH len=78), then the castle door, stairs and
+            -- the king's door, each pressed again
+            t.exec("goto-goUpToLathasToFinish.cityDoor", t.player.goto_tile, 2556, 3300, 0)
+            t.exec("goUpToLathasToFinish.cityDoor", t.player.cross_gate, CITY_DOOR_EAST())
+            t.exec("goto-goUpToLathasToFinish", t.player.goto_tile, 2577, 3298, 0)
+            t.exec("goUpToLathasToFinish.castleDoorIn", t.player.pass_door, CASTLE_DOOR_IN())
+            t.exec("goUpToLathasToFinish", t.player.climb, CASTLE_STAIRS_UP())
             t.ticks(3)
             t.check("goUpToLathasToFinish-level", here().level == 1, "now " .. here().x .. "," .. here().z .. " L" .. here().level)
-            t.exec("goto-talkToKingLathasAfterTemple", t.player.goto_tile, 2578, 3292, 1)
+            t.exec("talkToKingLathasAfterTemple.kingsDoorIn", t.player.pass_door, KINGS_DOOR_IN())
             local reward_snapshot_result, reward_snapshot = t.skill.snapshot()
             t.check("reward.snapshot", reward_snapshot_result == "ok", "skill.snapshot before the hand-in -> " .. tostring(reward_snapshot_result))
             t.exec("talkToKingLathasAfterTemple", t.player.talk_to, "kinglathas", 1)
