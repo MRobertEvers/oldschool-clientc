@@ -42,7 +42,15 @@
 -- inside the teleporter's own room (runecraft.constant ^essence_mine_to_*),
 -- so each visit walks back out through that room's door.
 --   Wilderness Ditch: ditch_wilderness_cover (op1 Cross) at 3106,3521, crossed
---     south 3106,3523 -> 3106,3520 (wilderness_ditch.rs2).
+--     north 3106,3520 -> 3106,3523 to reach the Wilderness mage and south
+--     3106,3523 -> 3106,3520 on the way back (wilderness_ditch.rs2).
+-- Start (owner ruling 2026-10-05: the setup placement obeys the door rule):
+-- ::entertheabyss resets the miniquest and drops the player beside the mage,
+-- past the ditch; the setup's ::goto then stands the player on open Edgeville
+-- ground SOUTH of it (3106,3510), so the arrival in the Wilderness is a real
+-- walk north through the warning strip (wilderness_warning.rs2, zone
+-- 0_48_54_32_56, z 3512-3515: the three warning pages on a fresh account)
+-- and a Cross of the ditch by its own op.
 --   Varrock Zamorak chapel: fai_varrock_poor_door_flipped 3255,3388 (street
 --     x <= 3255, chapel x >= 3256; maps/m50_52.jl2).
 --   Aubury's shop: fai_varrock_poor_door 3253,3398 on its north wall, open in
@@ -70,6 +78,7 @@ return {
         "::give lawrune 2", -- Camelot 1 + Varrock 1
         "::give firerune 1", -- Varrock 1
         "::entertheabyss", -- @eta_debug_reset: %runemysteries=complete, %abyssal_miniquest=0, teleports to the Wilderness mage
+        "::goto 3106 3510 0", -- the start (owner 2026-10-05): open Edgeville ground south of the Wilderness Ditch; the run walks north and Crosses it
         "::complete quest_runemysteries", -- prerequisite Quest Helper lists (RUNE_MYSTERIES); already true, harmless no-op here
     },
 
@@ -174,8 +183,38 @@ return {
         end
 
         -- ---- 1. Wilderness Mage of Zamorak: accept the errand ----
-        -- ::entertheabyss stands the player beside the mage on the open Wilderness plain.
-        t.exec("goto-talkToMageInWildy", t.player.goto_tile, 3106, 3558, 0)
+        -- The setup's ::goto 3106 3510 0 stands the player on open ground south of the ditch (reach.py
+        -- 3106,3510 -> 3106,3520: REACH closed-doors len=10; -> 3106,3523: NEEDS-OP via the ditch).
+        -- Into the Wilderness on foot: walk north into the warning strip (wilderness_warning.rs2: a
+        -- step into zone 0_48_54_32_56 with %varp5753_wilderness unset stops the walk on z 3512-3515
+        -- and opens the three warning pages, then sets the varp), read them, walk on to the ditch and
+        -- Cross it north by its own op (wilderness_ditch.rs2 ~wilderness_ditch_cross: from z 3520 the
+        -- jump lands on the loc's z + 2 = 3523; the varp is now set, so the jump opens no page). Then
+        -- the open Wilderness plain to the mage (reach.py 3106,3523 -> 3106,3558: REACH len=37).
+        t.exec("walkIntoWarningStrip", t.player.walk_to, 3106, 3512, 40)
+        -- The zone fires a queued script, so the first page opens a tick or more after the step
+        -- (run r2/1: chat.play read nothing on the arrival tick, and the queue ran later during the
+        -- next walk, past z 3515, setting the varp with no page). Stand still and wait for it.
+        local paged = t.await({
+            level = function() return t.chat.kind() ~= "none" end,
+            note = "the strip's first warning page",
+        }, 10)
+        local sr, st = t.world.tile()
+        t.check("walkIntoWarningStrip.pageOpened", paged == "ok" and t.chat.kind() == "mesbox",
+            "await -> " .. tostring(paged) .. ", chat.kind() -> " .. tostring(t.chat.kind()) .. " at "
+                .. tile_text(sr, st) .. " (want a mesbox: zone 0_48_54_32_56 on z 3512-3515, %varp5753_wilderness unset)")
+        t.exec("walkIntoWarningStrip-warning", t.chat.play, {
+            "mesbox:WARNING! Proceed with caution",
+            "mesbox:The further north you go",
+            "mesbox:In the wilderness an indicator",
+        })
+        t.exec("walkToWildernessDitchSouth", t.player.walk_to, 3106, 3520, 20)
+        t.exec("crossWildernessDitchNorth", t.player.cross_trap, { loc = "ditch_wilderness_cover", op_name = "Cross",
+            at = { 3106, 3521, 0 }, src = { 3106, 3520 }, dest = { 3106, 3523 }, attempts = 1 })
+        local nk = t.chat.kind()
+        t.check("crossWildernessDitchNorth.noWarning", nk == "none",
+            "chat.kind() after the north jump -> " .. tostring(nk) .. " (want none: the strip's pages already set %varp5753_wilderness)")
+        t.exec("goto-talkToMageInWildy", t.player.goto_tile, 3106, 3558, 0) -- from 3106,3523 across the open plain
         t.exec("talkToMageInWildy", t.player.talk_to, "rcu_zammy_mage1", 1)
         t.exec("talkToMageInWildy-dialog", t.chat.play, {
             "npc:This location is unsafe",
