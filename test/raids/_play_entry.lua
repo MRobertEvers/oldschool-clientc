@@ -418,13 +418,8 @@ end
 PRE.nylocas = function(t, ox, oz)
     wear(t, "nylocas.equip.arrows", "rune_arrow")
     t.exec("nylocas.equip.bow", t.player.equip, "magic_shortbow")
-    t.ui.tab("combat")
-    t.ticks(1)
-    local _, sw = t.ui.widget("combat_interface:style_slot_1")
-    t.ui.invoke(sw, 1)
-    t.ticks(2)
-    local _, style = t.var.varp("varp43_com_mode")
-    t.check("nylocas.rapid", style == 1, "varp43_com_mode " .. tostring(style))
+    local style_result, style_detail = t.ui.style("Rapid")
+    t.check("nylocas.rapid", style_result == "ok", tostring(style_detail))
     local _, before = t.var.varp("varp172_option_nodef")
     if before == 0 then
         local _, rw = t.ui.widget("combat_interface:retaliate")
@@ -564,10 +559,8 @@ end
 -- Out of the Nylocas: the bow's rapid and auto retaliate are set back the way
 -- every other room's harness plays (style 0, retaliate on), then the walkway.
 POST.nylocas = function(t, ox, oz)
+    t.ui.style("Reap")
     t.ui.tab("combat")
-    t.ticks(1)
-    local _, sw = t.ui.widget("combat_interface:style_slot_0")
-    t.ui.invoke(sw, 1)
     local _, ret = t.var.varp("varp172_option_nodef")
     if ret == 1 then
         local _, rw = t.ui.widget("combat_interface:retaliate")

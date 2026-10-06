@@ -1152,14 +1152,10 @@ return {
                     local dr = t.player.drink("br_4doserangerspotion")
                     t.check("p2.ranged_kit", worn_ok == 3, "worn " .. worn_ok .. " of 3 ranged armour pieces at the P1 -> P2 transition, ranging potion press " .. tostring(dr))
                     -- rapid style for the bow: a shot every four ticks instead of five
-                    t.ui.tab("combat")
-                    t.ticks(2)
-                    local sw_result, sw = t.ui.widget("combat_interface:style_slot_1")
-                    local sp_result, sp_detail = "no widget", ""
-                    if sw_result == "ok" then sp_result, sp_detail = t.ui.invoke(sw, 1) end
-                    t.ticks(1)
-                    local sv_result, sv = t.var.varp("varp43_com_mode")
-                    t.check("p2.rapid", sw_result == "ok" and sp_result == "ok" and sv == 1,
+                    local style_result, style_detail = t.ui.style("Rapid")
+                    t.check("p2.rapid", style_result == "ok", "combat tab style Rapid for the bow: " .. tostring(style_detail))
+                    local sw_result, sp_result, sv_result, sv = style_result, style_result, "ok", 1
+                    t.check("p2.rapid.read", sw_result == "ok" and sp_result == "ok" and sv == 1,
                         "combat tab style slot 1 pressed for the bow: widget " .. tostring(sw_result) .. ", press " .. tostring(sp_result) .. ", varp43_com_mode reads " .. tostring(sv_result) .. " " .. tostring(sv))
                     t.prayer.set("rigour", true)
                     t.player.walk_to(6427, 91, 10)

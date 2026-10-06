@@ -368,14 +368,12 @@ end
 -- The combat tab's style slot (0 accurate/the melee rooms; 1 rapid for the
 -- bow and the blowpipe: _play_maiden.lua party_run, _play_nylocas.lua) and
 -- auto retaliate (off in the Nylocas only: _play_nylocas.lua).
-local function set_style(t, row, slot, want_varp)
-    t.ui.tab("combat")
-    t.ticks(1)
-    local _, sw = t.ui.widget("combat_interface:style_slot_" .. slot)
-    t.ui.invoke(sw, 1)
-    t.ticks(2)
-    local _, style = t.var.varp("varp43_com_mode")
-    t.check(row, style == want_varp, P .. "style slot " .. slot .. ": varp43_com_mode " .. tostring(style))
+-- The style by its NAME on the combat tab (ui.style reads the four buttons'
+-- text and presses the one that shows it; seam54: a slot number pressed for
+-- every seat put the scythe seats on Chop, stab in our content).
+local function set_style(t, row, name)
+    local result, detail = t.ui.style(name)
+    t.check(row, result == "ok", P .. tostring(detail))
 end
 
 local function set_retaliate(t, row, off)
@@ -574,7 +572,8 @@ local PRE = {}
 -- _play_maiden.lua party_run: the bow on rapid (raid seam33), the loaded
 -- pipe read back on its rangers, the leader's barrier, the members across.
 PRE.maiden = function(t, ox, oz)
-    set_style(t, "maiden.rapid", 1, 1)
+    -- the freezer's bow on Rapid; the scythe seats on Reap (the scythe is worn at the door)
+    set_style(t, "maiden.style", ROLE_IN.maiden[role] == 2 and "Rapid" or "Reap")
     -- raid seam53: the dps seats' super combat at the door, as _play_maiden.lua
     -- party_run (raid seam40: "a scythe seat's super combat at the door")
     if ROLE_IN.maiden[role] ~= 2 then boost(t, "maiden") end
@@ -596,7 +595,7 @@ end
 local BLOAT_STARTER = 2  -- the seat playing Bloat role 1 (ROLE_IN.bloat)
 PRE.bloat = function(t, ox, oz)
     wear(t, "bloat.equip.scythe", "scythe_of_vitur")
-    set_style(t, "bloat.style", 0, 0)
+    set_style(t, "bloat.style", "Reap")
     boost(t, "bloat")
     stamina(t, "bloat")
     start_room(t, "bloat", function()
@@ -629,7 +628,9 @@ PRE.nylocas = function(t, ox, oz)
     if nrole ~= 2 then wear(t, "nylocas.equip.arrows", "rune_arrow") end
     local own = (nrole == 1 and "eye_of_ayak") or (nrole == 2 and "toxic_blowpipe_loaded") or "abyssal_whip"
     wear(t, "nylocas.equip.own", own)
-    set_style(t, "nylocas.rapid", 1, 1)
+    -- the same slot the old press chose, by the worn weapon's name for it: the
+    -- staff's Accurate, the pipe's Rapid, the whip's Lash
+    set_style(t, "nylocas.style", (nrole == 1 and "Accurate") or (nrole == 2 and "Rapid") or "Lash")
     set_retaliate(t, "nylocas.retaliate_off", true)
     start_room(t, "nylocas", function()
         local fr, fight, ftext = t.raid.start_tile()
@@ -722,7 +723,7 @@ end
 AFTER.nylocas = function(t)
     wear(t, "nylocas.after.scythe", "scythe_of_vitur")
     wear(t, "nylocas.after.arrows", "dragon_arrow")
-    set_style(t, "nylocas.after.style", 0, 0)
+    set_style(t, "nylocas.after.style", "Reap")
     set_retaliate(t, "nylocas.after.retaliate_on", false)
     drop_spent(t, "nylocas")
 end
