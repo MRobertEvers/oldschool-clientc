@@ -331,10 +331,15 @@ never lose work like that.
   - `goto_tile` into or out of a closed space. A goto lands only on an open, walkable tile
     OUTSIDE: every door (a plain one-click house door too, not only a locked or quest-gated
     one), bar counter, stair, gate or puzzle between the player and the target is clicked, on
-    every visit, going in and coming out (owner, 2026-10-03). `helper_coverage` reads the
-    map's walls for this but does not grade plain climbs, rooms over 400 tiles or exits over
-    24 tiles: reviewers and samplers judge every goto against the walls
-    (`test/quests/orchestrator/matthew-mbp-m4/reports/sample_tools/reach.py`);
+    every visit, going in and coming out (owner, 2026-10-03) -- including the room a setup
+    cheat stands the player in and the run's first goto (owner, 2026-10-05: both are judged
+    from the fixture's tile). `helper_coverage` reads the map's walls for this (a walled room,
+    a sealed pocket, an only-way gate or crossing loc -- the Wilderness Ditch, the Shantay
+    Pass -- on any hop up to 1,200 tiles, the setup placement) but does not grade plain
+    climbs, a room over 400 tiles entered past a door that is not the only way, or locs
+    content adds at run time: reviewers and samplers judge every goto against the walls
+    (`test/quests/orchestrator/matthew-mbp-m4/reports/sample_tools/reach.py` and
+    `goto_table.py`, which read the checkout they live in);
   - `::give` of an item the guide has you obtain;
   - a debugproc doing quest work;
   - `::setvar` on a quest var mid-run;

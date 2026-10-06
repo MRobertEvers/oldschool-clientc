@@ -2342,7 +2342,8 @@ the cache's trellis top one plane up (2844,5104,1 / 2851,5104,1). The quest-loca
 cache rows `maplink_0_47_50_10_31_down` (-> 2962,9650) and `maplink_0_46_150_18_50_up` (-> 3018,3233).
 The general fact: a quest-local `p_telejump(movecoord(coord, 0, 0, +/-6400))` on a ladder or manhole
 is wrong whenever the underground sheet is not straight below; grep `maplink.dbrow` for the loc
-first. OPEN: the trellis down-climb still lands inside the ground floor (no source gives the tile);
+first. OPEN: the trellis down-climb still lands inside the ground floor (FIXED matthew-mbp-m4-b64-seam1
+(b): it now leaves the grounds for Ardougne);
 the "from Ardougne" box (map squares 38-42 x 49-52) is not sourced.
 
 (c) **Lost Tribe: the tunnel floor carries two, three, four brooches** -- FIXED,
@@ -2392,3 +2393,45 @@ The rest were reopened with their gotos named.
 
 (i) **`climb` stalls under a guard's page (Watchtower's towerladder)** -- FIXED in `world.lua`
 (verbs-pointer: A GUARDED ladder speaks first: `chat=`, `chat_optional=`).
+
+## Seam pass matthew-mbp-m4-b64-seam1 (2026-10-05, batch matthew-mbp-m4-b64)
+
+(a) **Biohazard: a teleport keeps the plague sample and the three vials; `teleport.rs2` listed the
+plague sample among its "Dropped" post-checks** -- comment only, `skill_magic/scripts/spells/
+teleport.rs2` header. The pack is right: OSRS removed the rule on 25 July 2019 ("Teleporting with
+the plague sample and vials no longer breaks them.", wiki Biohazard oldid 15256425, Changes;
+`docs/quests/biohazard.md:58-64`, `:239`). LostCity (2004) still deletes it in `[proc,
+p_telejump_safe]` (LC `teleport.rs2:72-75`). The header now says the check is absent on purpose; a
+future port pass must not restore it from LostCity. A test may still walk Ardougne -> Rimmington
+with the sample (legal under the door rule), but by choice, not because a teleport would break it.
+Proof: b64s1_biohaz_tele 6/6, a real Varrock Teleport landed 3213,3424,0 with plaguesample=1 and
+the three vials held.
+
+(b) **Ratcatchers: the trellis top's Climb-down lands INSIDE the house (2844,5104,0); the garden
+gates swing open and lead nowhere** -- FIXED, `quest_ratcatchers/scripts/ratcatchers.rs2`
+`[proc,ratcatch_leave_grounds]` and `doors/configs/doors_selfstage.loc`. Both ways out of the grounds
+now `p_telejump` to 2570,3322,0, the open tile outside Jimmy Dazzler's front door (poshdoor
+2569,3322), inside `~ratcatch_in_ardougne` so the directions work again from there. The trellis
+top (`[oploc1,vc_blank_trellis_top_trigger]`): "Climb back down the trellis to return to Ardougne OR
+use any teleport" (OSRS wiki Ratcatchers/Quick_guide; also the Ratcatchers page and the RuneScape
+wiki Rat_Catchers/Quick_guide "climb down it to return directly to Jimmy"). The gates
+(`[oploc1,vc_ornaterailing]`, no longer a `door_selfstage` door): the `Transcript:Ratcatchers`
+"Leaving through the gates" block, `Do you want to leave the grounds?` / `Yes, let's get out of
+here!` (transported back to Ardougne) / `No I've changed my mind.` (nothing). UNSOURCED: the
+Ardougne tile, and that the trellis exits at every stage. A test grades the trellis climb with
+`dest={2570,3322,0}`; an Ardougne Teleport after it is optional. The general fact: a name binding
+`[oploc1,<loc>]` on a `ladders.loc` category member shadows the category's generic `~climb`;
+`ladder_import.py` keeps the record in its category, so `ladders.loc` need not change.
+Proof: b64s1_ratc_leave 16/0 (trellis at stages 30 and 35, gates No then Yes); the committed test's
+copy with that one dest changed 254/0, gate green.
+
+(c) **The grader judges the run's start and the crossings a walk makes by a loc's own op** --
+coverage-and-gate: A goto through the only gate, onto a solid tile, or off an island it swung onto
+(the b64-seam1 paragraphs). An unstamped first goto leaves from the fixture's tile; a setup cheat
+that moves the player is a `(setup placement) <cheat>` CHEAT step; the Wilderness Ditch, the
+Shantay Pass and the Barbarian agility pipe are gates (`crosses (by its own op) ... NEEDS-OP`). The
+closer's fresh runs of all 143 committed tests moved six queued greens: currentaffairs,
+entertheabyss, taleoftherighteous (their setup placement), horror (goto-talkToGunnjorn past the
+agility pipe), ratcatchers ((b): its committed trellis row expects the old landing) and itwatchtower
+(NOT this pass: the same `leaveSouthPocket.southEastGate` pass_door FAIL as b63-seam1 (d), which the
+owner set back to green in d3427b3fe). The first five were reopened.

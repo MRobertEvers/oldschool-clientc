@@ -90,6 +90,9 @@ topic file with one line added here.
 - `helper_coverage` CHEAT "leaves a pocket the map closes on every side ... no walk leaves it (sealed_exits)"; a goto off a platform, an island or a boss's landing with no door -> coverage-and-gate: A goto onto a table, a stair or a bar's back reads FULL (the `sealed_exits` bullet)
 - Haunted Mine: after the lift `walk_to 2725,4452 ... stalled at 2725,4454` in the flooded pool; `useKeyOnValve` answers "Nothing interesting happens." (FIXED b63-seam1: wade to the south shore, a real key use) -> seam-facts: Seam pass matthew-mbp-m4-b63-seam1 (a)
 - Ratcatchers: reading the party directions moves nobody; the trellis lands on 2844,5105,1 and every walk stalls; the Port Sarim manhole lands 3018,9631 (FIXED b63-seam1: teleport to the garden, trellis top, cache maplink rows) -> seam-facts: Seam pass matthew-mbp-m4-b63-seam1 (b)
+- Ratcatchers: the trellis top's Climb-down lands inside the house at 2844,5104,0; the garden gates swing open and lead nowhere (FIXED b64-seam1: both leave the grounds for Ardougne, 2570,3322,0) -> seam-facts: Seam pass matthew-mbp-m4-b64-seam1 (b)
+- a `ladders.loc` ladder or trellis does something other than its category's `~climb`: a quest `.rs2` binds `[oploc1,<loc>]` by name, which shadows the category -> seam-facts: Seam pass matthew-mbp-m4-b64-seam1 (b)
+- Biohazard: a teleport does NOT break the plague sample (LostCity's "too delicate...it disintegrates in the crossing." is 2004; OSRS dropped it 25 July 2019) -> seam-facts: Seam pass matthew-mbp-m4-b64-seam1 (a)
 
 ## Pressing and clicking
 
@@ -378,7 +381,8 @@ topic file with one line added here.
 - `ledger row N 'X' names <noun>, but its own action does not reach that npc`; a talk step credited by a pass_door named after the npc (b62-seam1) -> coverage-and-gate: "names <npc>, but its own action does not reach that npc"
 - a `walk_to` row FAILs `hollow -- ok with no detail` (FIXED b62-seam1: walk_to answers `walk_to x,z: reached x,z,level from a,b in N tick(s)`) -> traps-01-12: Trap 12; verbs-pointer: `t.player.walk_to`
 - helper_coverage CHEAT "with every door shut no walk joins them ... every walk on foot opens <gate> ... (gate_crossings)", a `(goto onto <loc>)` step "on a solid tile ... (solid_landings)", UNMATCHED "line N is a bare use_on" / "shows no effect" -> coverage-and-gate: A goto through the only gate, onto a solid tile, or off an island it swung onto; a use that did nothing
-- a quest queued green reads RED on a fresh run with its FIRST goto charged (membergater, a house door, a solid landing): the owner's open first-goto question; 8 tests wait on it (b63-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b63-seam1 (f)
+- a quest queued green reads RED on a fresh run with its FIRST goto charged (membergater, a house door, a solid landing), or a `(setup placement) <cheat> lands at x,z,l past <loc>` CHEAT step: the owner ruled 2026-10-05 that the first goto and the setup placement obey the door rule (b64-seam1 judges both from the fixture's tile) -> start-and-travel: "The grader now catches the goto inside"; coverage-and-gate: A goto through the only gate, onto a solid tile, or off an island it swung onto; a use that did nothing
+- helper_coverage CHEAT "every walk on foot crosses (by its own op) <loc> ... (NEEDS-OP ...)": a goto over the Wilderness Ditch, through the Shantay Pass or the Barbarian agility pipe; reach.py now says NEEDS-OP there, not UNREACHABLE (b64-seam1) -> coverage-and-gate: A goto through the only gate, onto a solid tile, or off an island it swung onto; a use that did nothing
 
 ## Harness and runs
 
