@@ -513,6 +513,14 @@ function QD.prayer._server_varbit(entry)
         return result, value, "client record (no api_drive.varbit_content in this binary)"
     end
     local result, value = api_drive.varbit_content(varbit_id)
+    if result == "unsupported" then
+        -- A PARTY MEMBER hosts no embedded server (the leader does), so the
+        -- server-side reader answers unsupported there: the client's record
+        -- is the member's truth, as on a binary without the reader (raid
+        -- seam42: after the v3 merge every member fought prayerless).
+        local client_result, client_value = api_drive.varbit_server(varbit_id)
+        return client_result, client_value, "client record (no embedded server in this process)"
+    end
     if result ~= "ok" then
         return result, "prayer: varbit_content(" .. entry[3] .. ") answered " .. tostring(result)
     end
