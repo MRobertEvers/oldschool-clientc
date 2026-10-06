@@ -6804,3 +6804,82 @@ Compile a scratch pack with `build_opt/sscompile --src <tree>/server/scripts --o
 the env reaches the leader's embedded server. `QUEST_BINARY=<HEAD build>` gives the
 before. The seam41 probe for a bound `p_oploc` is kept in the pass state dir
 (`probe/s41_oploc_probe.rs2`), not in the tree, so it has no conformance row.
+
+## blert_reference.py: a reference per room, mode and scale (seam40)
+
+blert_reference.py <room> --mode entry|normal|hard --scale N [--rooms N] [--offline] writes
+docs/minigames/theater_of_blood/sources/blert_api/reference/<room>_<mode>_<scale>.json and
+README.md. Streams are cached in build/blert/<room>/ and never fetched twice; .json.empty
+marks a room Blert has no stream for. Blert's Entry mode is 10, and Blert holds only ONE
+Entry solo Maiden room.
+
+## raid_report.py --against: read FLAG lines instead of replaying (seam40)
+
+raid_report.py RUN --against <reference.json> [--all-numbers] does the same arithmetic on
+both sides (ticklog -> trace -> blert_reference.room_numbers). FLAG = outside the real
+rooms' [min-max]. Read the FLAG lines instead of replaying. A party run directory reads
+p1/ticklog.tsv.
+
+## Reference roles and the Maiden trio gap (seam40)
+
+Maiden roles in a reference come from what raiders did: freezer (>= 1/3 barrage), then
+dps1/dps2 by attacks on her. Who tanks is a number, role.R.boss_targeted_pct. In the
+f5144341d trio's 30% wave, boss_pct_per_tick was 0.493 against a real 0.728 [0.607-0.987].
+The real dps put SCYTHE on her (23/24 rooms) standing at (5,6)/(6,5) from her SW tile; ours
+fired the twisted bow from (8,6)/(14,8).
+
+## Decoding a Blert stream (seam40)
+
+Blert decoding: hitpoints and prayer = current<<16|base, for players only on the recorder
+(source 0). prayerSet bits: 16 pmage, 17 pmissiles, 18 pmelee, 26 piety, 27 rigour, 28
+augury. equipmentDeltas = slot<<48|id<<32|added<<31|qty. npc xCoord/yCoord is the SW tile.
+
+## Maiden trio plan: scythe seats and the shared tank (seam40)
+
+Maiden trio plan (seam40): seats 1 and 3 are `melee` scythe seats (`side` north/east, homes
+(5,6)/(6,5) from her SW tile). Opener: tbow shot on the run in, then the hammer once, then
+the scythe the tick the energy is spent. THE SHARED TANK: seat 1 steps one tile north on
+next_attack-1 on every other storm. Her target rule ties every N/E edge tile at distance 3
+from her centre (+3,+3), and orb order would give seat 1 all of them.
+
+## Comparing a plan change: same seed_survey names, never single runs (seam40)
+
+Compare a run with the reference: raid_report.py <run> --against
+docs/minigames/theater_of_blood/sources/blert_api/reference/maiden_normal_3.json. A run's
+name seeds its RNG: compare plan changes on the same seed_survey names, never across
+differently named single runs (m40a-l varied by name).
+
+## _play_maiden party rows are the reference ranges (seam40)
+
+_play_maiden.lua party rows are the reference's ranges: tech.crabs_killed (leaks <= 13, heal
+<= 821), ref.room_ticks [132-204], ref.phase_100_ticks [32-52], ref.storm_share (each scythe
+seat 5.6-64.3 %), tech.freezer_casts (casts in all 3 of her thresholds, cast.form).
+
+## Per-attack damage against Blert on Maiden (seam40)
+
+Blert per-attack check: isolated real scythe swings on Maiden average 39.2 (n=12, cached
+streams), and ours 36.7 in phase 100. The crab-phase gap comes from specials and brew drain.
+A super combat re-drunk under 108 raised phase 50 output from about 9.5 to 10.8-12.8
+hp/tick.
+
+## Nylocas trio plan: the weapon key per target (seam40)
+
+Nylocas trio plan picks the weapon per target through QD.raid._play_nylocas_key(ny, style,
+big, boss) -> loadout keys <style>, <style>_big, <style>_boss; seat loadouts come from Blert
+recorder equipmentDeltas (ny40/ny_gear.py).
+
+## Nylocas offensive prayer: one per seat, not per swing (seam40)
+
+Offensive prayer per swing switching cost swings in the Nylocas waves (ny40e); per-seat
+colour in the waves and by Vasilias form on her is what Blert trios do and what the plan
+keeps.
+
+## Two potions at the room door need three ticks between drinks (seam40)
+
+Drinking two potions at the room door needs t.ticks(3) between drinks or the second is eaten
+by the delay (play.potion row).
+
+## P.trace_seat traces one party seat (seam40)
+
+P.trace_seat = <role> in the Nylocas plan traces one party seat without turning on the whole
+trace; leave it nil in committed code.
