@@ -1,0 +1,180 @@
+{{Update|date=13 May 2022|rev=20 May 2022|link=https://secure.runescape.com/m=news/tombs-of-amascut-reward-changes?oldschool=1|category=community}}
+[[File:Tombs of Amascut- Reward Changes newspost.png|right]]
+{{clear}}
+__TOC__
+==Your Feedback, Our Changes - May 20th==
+{| class=wikitable style="text-align:center; width:665px;"
+!Your Feedback
+!Our Response
+|-
+|The requirements to use the Thread of Elidinis seem to low for the reward.
+|We agree that this might be a bit low to get the benefits from the Thread. Because of this we are increasing the required level to '''75 Crafting''' (previously 60).
+|-
+|I'm disappointed that the Heka would be replaced by the Shadow of Tumeken, why can't we have both?
+|Tombs of Amascut already offers a lot in terms of rewards and it should, it is our next big raid after all!
+
+Whilst we really like the Heka's utility, it still doesn't seem to give the same 'oomph' as something like the Twisted Bow or Scythe of Vitur. While the Shadow of Tumeken doesn't offer as much utility, the power you'll get from the item means it becomes a viable option for content where Magic currently isn't viable.
+
+They are both great weapons in their own right and we think they both deserve their time in the spotlight but if the poll passes, we WILL bring the Heka back for another piece of content, so eventually you will be able to have both.
+|}
+
+We know that with the rewards passing, some of you felt as if we'd missed the mark with some of the rewards offered within Tombs of Amascut. There was a feeling amongst the team and the community that some rewards could be tweaked to be improved, and we've seen some great suggestions for additional rewards we agreed would strengthen the reward pool. So today, we're presenting you with an alternative proposal for a reward, a tweak to a reward, and a brand new reward. So what are they?
+
+<center>'''As always, we refer to the in-game timings as cycles. Each cycle is equal to 0.6 seconds and is also commonly referred to as a 'tick' by the wider community.'''</center>
+
+===Shadow of Tumeken===
+One of the biggest comparisons we made during the polling process of Tombs of Amascut is that if you look at the previous two Raids, they have that one standout item, being the Twisted Bow and the Scythe of Vitur. We think that it's very important that Tombs of Amascut has rewards that are deemed desirable for the foreseeable future, after all, Raids are some of our biggest pieces of PvM content and they should have rewards that showcase that.
+
+As much as you and the members of the team enjoyed the idea behind a more interesting weapon like the Heka, we couldn't ignore the fact the feedback that Tombs of Amascut was missing an item that would redefine Magic as a combat style just as the Scythe and Twisted Bow did. So, we are proposing to replace the Heka with a new mage weapon.
+
+Introducing the Shadow of Tumeken, a two-handed Magic Staff.
+
+<center>''When forces of the Ruinous Powers arrived in their lands, Tumeken and his people found themselves facing an enemy unlike any other. While his children, Amascut and Icthlarin, sought powerful allies to aid them, Tumeken himself hunted down a weapon of great power to use against this new threat. However, rather than claiming this weapon for himself, he instead used it to create the Shadow of Tumeken. This staff is powered by the sun itself, and with that brightest light comes the darkest shadows.''</center>
+
+'''Requirements:'''
+* 85 Magic
+
+[[File:Tombs of Amascut- Reward Changes (1).png|centre|400px|thumb|''Proposed Stats for the Shadow of Tumeken.]]
+
+Similar to a Powered Stave, it will have a built-in spell with charges powered by Soul & Chaos Runes. This staff will have an Attack Rate of 5 Cycles and can only be used in PvM, like other powered Magic weapons..
+
+Base max hit is calculated from the following formula: '''Magic Level / 3 + 1.'''
+
+The Shadow of Tumeken also comes with two passive effects:
+
+* Magic Strength from gear is tripled (capped at a total of 100% Magic Strength).
+* Magic Accuracy from gear is tripled.
+
+This allows the weapon to be set apart from others in two distinct ways. Firstly, this means that current Magic weaponry still remains viable if your setup includes a low amount of Magic switches, whereas for a setup with a fair amount of Magic switches the gap between this and prior mage weaponry will grow.
+
+Secondly, this weapon makes fighting with Magic viable against enemies that have a moderate Magic Defence. Currently, Magic is rarely used against any enemies with more than 20,000 Magic Defence as it is not overly accurate with low damage to boot. With other styles boasting much higher raw damage output and comparable if not significantly higher accuracy. This weapon should at least help to bridge that gap, although you'll be better off using another Combat Style against high Magic Defence enemies.
+
+Below is a handful of monsters that this new mage weapon might become viable at with all the additional accuracy. {{colour|#008000|GREEN}} indicates the highest DPS and {{colour|#8b0000|RED}} indcicates the lowest DPS.
+
+{| class="wikitable" style="margin:0 auto;"
+!Monster
+!Ranged DPS
+!Melee DPS
+!Mage DPS
+|-
+|TzKal-Zuk
+|{{colour|#008000|Twisted Bow - 7.12}}
+|N/A
+|{{colour|#8b0000|ToA Staff - 6.1}}
+|-
+|Demonic Gorillas
+|Blowpipe - 9.5
+|{{colour|#008000|Arclight - 9.9}}
+|{{colour|#8b0000|ToA Staff - 8.8}}
+|-
+|Commander Zilyana
+|Twisted Bow - 6.3	
+|{{colour|#8b0000|Rapier - 3.8}}
+|{{colour|#008000|ToA Staff - 7}}
+|-
+|Kree'Arra
+|{{colour|#8b0000|Twisted Bow - 3.7<br>Chinchompas - 6.2}}
+|N/A
+|{{colour|#008000|ToA Staff - 6.8}}
+|-
+|Cerberus
+|Twisted Bow - 10.3
+|{{colour|#008000|Scythe - 11.3}}
+|{{colour|#8b0000|ToA Staff - 7.9}}
+|-
+|Abyssal Portal	
+|{{colour|#8b0000|Twisted Bow - 6}}
+|N/A
+|{{colour|#008000|ToA Staff - 8.9}}
+|-
+|Kalphite Queen (Flying)
+|BOFA - 7.8
+|{{colour|#8b0000|Keris Partisan - 3.3}}
+|{{colour|#008000|ToA Staff - 9.6}}
+|-
+|Alchemical Hydra
+|{{colour|#008000|Twisted Bow - 11.7}}
+|Scythe - 9.7
+|{{colour|#8b0000|ToA Staff - 6.6}}
+|-
+|K'ril Tsutsaroth
+|{{colour|#8b0000|Twisted Bow - 6.3}}
+|Arclight - 6.5
+|{{colour|#008000|ToA Staff - 7.7}}
+|}
+
+These setups are done with the best possible accuracy/damage setups, off slayer-task, imbued heart/best potions available. We acknowledge the setups may be unrealistic for the content it is in, but it should provide a rough idea of how impactful the additional accuracy specifically can be.
+
+{{News Poll|1|Should the Shadow of Tumekun be added to the game, as explained in the 'Tombs of Amascut - Reward Changes' blog?}}
+
+<center>'''If this question would pass we would pull the Heka from ToA for potential future updates (subject to rebalancing) and replace it with the Shadow of Tumeken. If the question fails we will proceed with the Heka as previously polled.'''</center>
+
+===Osmumten's Fang===
+When creating Osmumten's Fang we had a couple of goals in mind:
+
+* Create a competitive high-accuracy weapon in order to create a new design space of high-defence monsters, without being overly frustrating to kill.
+* Introduce more meta >4 cycle weapons. These will interact somewhat uniquely with content and help to diversify gameplay.
+* Experiment with unique damage curves.
+
+It did pass and we believe it fulfils these goals well, but to our first goal, we had to chuck a lot of flat accuracy stat to make it achieve the levels needed for it to be desirable (a crazy 175 accuracy). This feels a little forced so we want to propose a shift in how we achieve this goal.
+
+'''Requirements:'''
+* 82 Attack
+
+[[File:Tombs of Amascut- Reward Changes (2).png|centre|400px|thumb|''Proposed Stats for the Osmumten's Fang.'']]
+
+Before we get into the changes made to the Fang, it should be noted that all of the previous workings of the Fang are still the same, including its special attack and special effect against the Corporeal Beast. You can find more about this from our previous [https://secure.runescape.com/m=news/tombs-of-amascut-raid-rewards-v2?oldschool=1 Tombs of Amascut: Raid Rewards V2] newspost below.
+
+{{Collapsed section|18|Osmumten's Fang - Previous Blog}}
+Osmumten’s Fang is a five-cycle weapon that packs serious punch while on Stab. It’s decently effective against low defence NPCs, but it excels against monsters with a high defence. We expect its damage-per-second output to be comparable to Rapier-tier weapons on opponents with low Defence, with much greater damage-per-second output on opponents with higher Defence.
+
+We’re doing something a bit different with the Fang, so let’s look at how the damage will be calculated. Instead of rolling ‘<nowiki/>'''0-max'''<nowiki/>’ hit like most weapons, it will instead:
+
+* Roll ‘(max hit * 0.15) - (max hit - (max hit * 0.15))’
+* For example: If the max hit is 60, then it would roll between 9-51.
+{{Collapsed section end}}
+
+The biggest change to this weapon is the Fang's ability to 'Double Roll' on accuracy, which makes it more accurate than the previous version of the Fang, and achieves its goal of being a highly accurate weapon more effectively. In order to balance this, we are reducing the Melee Accuracy to 105 (previously 175) and reducing the Melee Strength to 103 (previously 115).
+
+Here's a look at a DPS curve for comparison against the previous version and the Ghrazi Rapier.
+
+[[File:Tombs of Amascut- Reward Changes (3).png|centre|650px|thumb|''Comparisons for the newly proposed Osmumten's Fang.'']]
+
+Whilst there aren't many NPCs in the game where this weapon is likely to excel on launch, this is a space we are opening up by introducing new weapons in this category, and these changes make the Fang even more dominant in this area. We think these changes achieve our first goal even better without it feeling artificial, whilst also creating a unique accuracy curve that fits the fang and its unique damage curve well.
+
+{{News Poll|2|Should Osmumten's Fang have the changes made to it as explained in the 'Tombs of Amascut - Reward Changes' blog?}}
+
+<center>'''If this question passes we will change the stats of the fang and implement the unique accuracy curve, if it fails we will leave it as previously polled.'''</center>
+
+===Thread of Elidinis===
+And lastly, an additional reward that we would propose to add to the current set.
+
+With this being a somewhat magical raid, players suggested a potential upgrade to the Rune Pouch, a very popular item used in almost all content. So we are proposing to add the Thread of Elidinis, a new UNTRADEABLE reward.
+
+'''Requirements:'''
+* 75 Crafting
+
+This magical thread, once woven by an ancient seamstress, can be used together with a needle to imbue your Rune Pouch with magical energy, allowing you to store an additional type of rune within it. You won't be allowed to have both the new and old version of the Rune Pouch simultaneously as that might be a tad too powerful.
+
+If a player loses the Thread of Elidinis then they will need to re-obtain it through Tombs of Amascut. Although, you will be able to obtain multiple threads as this would be a somewhat common drop due to its untradeable nature, compared to other uniques, and not roll on the same unique drop table. You'll also be able to de-grade the rune pouch to re-obtain the Thread, in case you're getting involved in risky business and don't want to risk the Thread.
+
+This would be one of the first PvM-exclusive untradeable drops we have added like this, we think it's important that even regular players have a healthy incentive to experience a lot of the content OSRS has to offer and this would be a step towards that. That being said, we don't expect our non-ironman players to be happy grinding out 100s of hours of every content in the game, so these types of rewards will lean on the more common side.
+
+Let us know what you think about this approach!
+
+{{News Poll|3|Should the Thread of Elidinis be added to the game, as explained in the 'Tombs of Amascut - Reward Changes' blog? Allowing the Rune Pouch to be expanded to hold up to 4 different types of runes.}}
+
+===Breach of the Scarab===
+While we are here, we wanted to also bring up the Special Jewels you'll be able to get from Tombs of Amascut that can be inserted in the Keris Partisan. Although the majority of them only affect the Raid itself (and won't be polled), there is one that will affect things outside of it and is something we want to poll alongside these other questions.
+
+The Breach of the Scarab adds a 33% accuracy buff against Kalphites, Scarabs and Beetles, so will be a great weapon for certain areas within the Kharidian Desert.
+
+{{News Poll|4|Should the Breach of Scarab Jewel be added to the game, as explained in the 'Tombs of Amascut - Reward Changes' blog? The only Jewel to impact outside of the Tombs of Amascut.}}
+
+----
+
+Make sure to let us know your thoughts on the proposed changes to rewards for Tombs of Amascut. You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,811,66253067 official forums], on the [https://www.reddit.com/r/2007scape/comments/uorvdo/tombs_of_amascut_reward_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

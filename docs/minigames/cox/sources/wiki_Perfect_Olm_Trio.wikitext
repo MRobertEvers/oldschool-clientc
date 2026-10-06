@@ -1,0 +1,39 @@
+{{Infobox Combat Achievement
+|name = Perfect Olm (Trio)
+|image = [[File:Great Olm.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill the Great Olm in a trio raid without any team member taking damage from any of the following: Teleport portals, Fire Walls, Healing pools, Crystal Bombs, Crystal Burst or Prayer Orbs. You also cannot let his claws regenerate or take damage from the same acid pool back to back.
+|tier = Master
+|monster = Chambers of Xeric
+|type = Perfection
+|id = 318
+|leagueRegion = Kourend
+}}
+'''Perfect Olm (Trio)''' is a [[Combat Achievements/Master|master combat achievement]] which requires the team to kill the [[Great Olm]] without taking damage from his crystal burst, teleport, fire wall, healing pool, crystal bomb, and prayer orb attacks. The player must also not let his hands regenerate during phase 3 and not take consecutive damage from the same acid pool.
+
+Duo Group Ironmen are not required to do this task, as they would lose prestige status. They also will not gain combat achievement points for completing this.
+
+To do this in a solo raid, set scaling to 2. In a duo, set it to 1.
+==Strategy==
+'''Solo:''' Follow the [[Perfect Olm (Solo)|Perfect solo Olm]] strategy. As the task only requires Olm to be killed this way in a trio raid, one or two players can still handle the task, although extra time is likely to be needed due to the scaled stats.  
+
+Since the task doesn't disqualify players who die to Olm's standard attacks, players can suicide supplies if necessary.
+
+'''Trio:''' If you want to do it as an actual trio, keep the following in mind:
+
+- Lightning special attack hitting you does not fail the achievement. Still avoid it whenever you can since you might get stuck in a poison pool or flame wall.
+
+- The every-other-tick falling crystal attack that can occur during crystal phase does not fail the achievement if it hits you. Tank the hits in order to ensure you do portal special successfully.
+
+- Poison trails are the most likely thing to fail the achievement. Whenever Olm looks at you during acid phase and head phase, start walking and do not attack until he turns away. If you get the acid trail on you, just keep walking until it is gone.
+
+- In order to minimise specials during phase 3, it is beneficial to directly set the head as you normally would during phase 1 and 2, and have the runner hybrid down the melee hand.
+
+Hail Mary: If you do happen to get the portal special and acid trails at the same time, have the person with an acid trail walk from one side of the room to the other (ctrl-click). The other person can get a few tiles ahead and try to ctrl-click in the same direction at the proper tick. If you take poison damage, turn on run for one tick and then turn it off again. 
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

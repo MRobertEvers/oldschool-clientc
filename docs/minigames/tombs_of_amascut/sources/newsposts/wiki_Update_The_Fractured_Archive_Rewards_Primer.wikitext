@@ -1,0 +1,106 @@
+{{Update|date=05 March 2026|url=https://secure.runescape.com/m=news/the-fractured-archive---rewards-primer?oldschool=1|category=future}}
+[[File:The Fractured Archive - Rewards Primer newspost.png|right]]
+{{clear}}
+__TOC__
+''The Fractured Archive is coming later this year, we're here today to share our thoughts on making Raids rewarding.''
+
+{{Horizontal Line}}
+
+Old School's fourth raid: The Fractured Archive, is set to launch later this year. Between now and then you can expect more than a fair share of blogs and progress updates to let you know how we're getting on, but we wanted to kick things off with a bit of a think piece on where our heads are at when it comes to one of the most important aspects of any raid: rewards.
+
+The purpose of this blog is to explain our thought process heading into reward design, share with you the challenges that we're facing, and ultimately sense-check whether our line of thinking lines up with your expectations. 
+
+==Rewarding Raids==
+[[File:The Fractured Archive - Rewards Primer (1).png|thumb|500px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-05/primer1.png click here].]]
+<center>''If you can't see the image above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-05/primer1.png click here] to view it in a separate tab''</center>
+
+To kick things off, we'll keep things general. The first question we're asking ourselves is "What should a Raids loot table look like?" meaning we're less interested in the specifics of each item, but the number of items at each rarity, where their power sits, and whether they make sense holistically.
+
+There's no exact science here, it's more of a vibe. As an example, we suspect that many of you would agree with the following: Chambers of Xeric feels like it has too many rewards, Theatre of Blood feels like it has too few, Tombs of Amascut feels like a good number of rewards but rarities could likely be shifted. This touches on all of the above! Chambers of Xeric boasts 12 unique rewards, which feels like too bloated a table when compared to the seven uniques available from Theatre of Blood and Tombs of Amascut. Despite having the same volume of unique drops, Theatre of Blood has two drops that players really want (the Avernic Defender Hilt and Scythe of Vitur) and five that are likely to gather dust in the bank. Tombs of Amascut has seven unique rewards, all with enough use-cases to make them worth picking up, though some would argue that the rarities the various drops here could be rejigged a little.
+
+With three raids to draw from (and countless conversations over the years), we believe that a raid's unique loot table should look something like this:
+* Megarare - An absolute powerhouse, undisputed best-in-slot use-cases, a valuable pickup for any player. We think this should probably be a weapon, but we'll dive more into that later.
+* Armour Set - Ideally outright best-in-slot and not too niche, meaning more like Masori and Ancestral than Justiciar.
+* 1-3 standalone rewards - Strong pickups that don't need to be outright best-in-slot but could function very well within a certain niche use-case, e.g. Elder Maul, Dinh's Bulwark, Osmumten's Fang, Lightbearer, etc.
+
+We'd love to hear whether or not this lines up with what you'd expect in terms of a complete offering for unique rewards, whether or not the number is in the right ballpark, are there enough standalone rewards, and are our power expectations for each category roughly what you envision too?
+
+While you ruminate on those questions, let's dive in to a little more detail on the most challenging part of our design process here...
+
+==What Makes a Megarare?==
+[[File:The Fractured Archive - Rewards Primer (2).png|thumb|500px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-05/primer2.png click here].]]
+<center>''If you can't see the image above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-05/primer2.png click here] to view it in a separate tab''</center>
+
+What defines a set of Raids rewards if not a megarare? Strolling through the Grand Exchange sporting a Scythe of Vitur, Twisted Bow or Tumeken's Shadow and seeing private messages roll in from scammers (don't respond to these, by the way) is the closest many of us will ever get to feeling like a celebrity, they're status symbols capable of dishing out devastating DPS all over the game, so it's no surprise that you're crossing your fingers for a jackpot every time you see the colour purple.
+
+The elephant in the raid here is that we've got three megarares already, one for each Combat style, so where do we go with a fourth?
+
+This isn't the blog for specific designs, but we'd like to talk you through what we feel a megarare should be and then invite some conversation on where we should look with The Fractured Archive.
+* In general, we believe that megarares should probably be weapons. We've seen suggestions over the years for things like the Turmoil prayer, a second ring slot or access to Overload potions, and while we agree that these are powerful rewards, we're not sure that they hit the right excitement level when compared to equipping an absolute powerhouse and being able to clearly see it in action in future encounters.
+* Assuming a weapon is chosen, we like leaning into a niche design with a wide range of use-cases. The Twisted Bow and Scythe of Vitur are both niche in that it's easy to design content specifically where they're weak or strong, Tumeken's Shadow is a bit of an outlier here in that it's good everywhere Magic is good, which has come with no shortage of problems! We're able to lean into this by keeping these items in mind when designing future content if they're falling out of favour, recent years saw a number of boss releases where the Scythe had more opportunities to shine.
+* While not mandatory, the 'big numbers with a slower (usually 5-tick) attack rate' approach tends to make these items feel impactful. The jump from predominantly 4-tick weapons like the Abyssal Whip, Bow of Faerdhinen or Trident of the Swamp to these slower 5-tick weapons also somewhat symbolises a new step in progression and can make megarares feel like a class of items that stand out as a cut above the rest.
+
+Let us know how you feel about the above, are you also in the "megarares should be weapons" camp or do you think there are alternatives that feel appropriate?
+
+For now, we'll assume that we are moving forward with a weapon and talk through some of the considerations for weapons in particular that make this fourth spot difficult to fill.
+
+Our biggest concern here is one that extends beyond just The Fractured Archive and centres on powercreep. In this instance, we don't mean powercreep specifically from a megarare on the game itself (we believe that items of this calibre should be considerably stronger in their styles/niches than other offerings) but instead mean that any new megarare is bound to powercreep an existing one in some vicinity. It's worth keeping in mind that this has already been the case for the existing three: the Scythe of Vitur dethroned the Twisted Bow at various pieces of content where the Twisted Bow was best-in-slot, and Tumeken's Shadow outshined both of them in a handful of use-cases too, so this isn't anything new but is perhaps a little more obvious now than in the past. The key thing for us here is that we feel it's okay for a new megarare to steal some spotlight from an existing one, but there's absolutely a line that shouldn't be crossed and it's important not to take too much space away from an established and iconic piece of gear.
+
+Where does that leave us? Do we start cycling through Combat styles so that each gets their time in an uncontested spotlight? It's been nine years since the Twisted Bow released, could a Ranged weapon that fills a different niche be a good fit to naturally restart the cycle? We don't have answers for these, so we'd love to hear from you, let us know what thoughts come to mind when reading questions like the above! 
+
+Another consideration is that - for better or worse - we feel there's some expectation from players that megarares should stand out in the raids that they're obtained from, which is the case for all of the existing weapons. With that in mind, it's worth thinking about what we've got planned for the encounter design in the Fractured Archive. Naturally we're not going to divulge huge specifics here, but we think our current designs (and to some extent Old School in general) is more fun with Melee - the added pressure of proper movement, being able to drag yourself into an NPCs range by attacking to weave in and out of incoming damage just feels more dynamic than hitting from a distance.
+
+The Fractured Archive is shaping up to be a raid where Melee shines a little more than in Chambers of Xeric or Tombs of Amascut, and we do have Melee styles (Crush and Stab) that don't currently sport a megarare - could this be a reason for us to go down this route and prioritise a weapon that's fun to use in the raid itself? Is taking this approach for a reward that's fun in the raid at-odds with a more holistic view on megarares and overall game balance, like we've outlined above while talking about Ranged?
+
+Plenty of questions to think over and we're eager to hear your thoughts, but more than anything we hope that you can appreciate the difficulty of this particular design process! While we don't want to speak in absolutes here (because there's a lot of uncertainty), we're reasonably confident in saying that we think a Magic offering here is out of the question - Tumeken's Shadow is still relatively recent, and the Eye of Ayak has surpassed it in a handful of scenarios, so we're not convinced that now's the right time to add more Magic weaponry.
+
+===What We Think===
+We know that leaving things so open-ended can at times lead to camps forming and rallying behind certain ideas while discrediting others, so we'd like to cap off the section by summarising where our heads are at to see whether or not you unify (either for or against) what we've got in mind.
+
+As it stands, we're most-inclined towards a mainhand Melee megarare. We'd like for Melee to shine in the Raid so having a megarare that leans into this (similar to the Scythe at Theatre of Blood) seems sensible, and Crush is a style that's relatively underserved at the top end, with the Scythe of Vitur's limited Crush bonuses still winning out over dedicated Crush weaponry in many instances. This is also an easy one to tie into the 'hard-hitting, relatively slow' fantasy that existing megarares tap into.
+
+We know there's been a lot of discussion lately around Crush in a more general sense, and we do agree that there aren't many high-end use-cases for Crush at the moment. Similar to us adding more use-cases to make the Scythe of Vitur shine, we'd absolutely look to consider Crush more holistically were we to go down this route, meaning more use-cases, better stepping stones for progression, etc.
+
+That's all we've got to say on megarares for the time being, hopefully this has given you loads to think about and we're excited to hear your thoughts here!
+
+==Analysing Armour==
+[[File:The Fractured Archive - Rewards Primer (3).png|thumb|500px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-05/primer3.png click here].]]
+<center>''If you can't see the image above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-05/primer3.png click here] to view it in a separate tab''</center>
+
+Armour sets tend to occupy the 'rare' reward space from raids, meaning you'll see pieces more commonly than a megarare, but completing a full set can still see your killcount skyrocket. For this reason, we believe it's important for armour from raids to be best-in-slot and avoid making them too niche.
+
+In keeping with the general vibe of this blog: figuring out a good fit for an armour set here is tough. Here's a summary of our current thinking:
+* Ranged armour feels out of the question, Masori featured in the most recent raid and with Dizana's Quiver coupled with rewards from Blood Moon Rises, we don't think Ranged as a style needs any straight-up number increases here.
+* Melee armour feels a touch more grey. We feel that it could be 'too soon' for an upgrade here since Oathplate is still quite fresh as a style-specific armour, while Torva still maintains a high value and serves as an endgame target for many players despite not coming from a raid. Inquisitor likely could be improved-upon, but where does that leave the Nightmare of Ashihama's place in the game, and if we went down the 'armour upgrade' route, does 'upgradescape' feel appropriate for a raids reward?
+* Magic armour could make sense, but it's awkward. Ancestral is nine years old at this point (where does the time go?) so it's not too soon to upgrade, but could we upgrade in a way that doesn't completely invalidate it? We could go down the upgrade route, but our concerns around whether or not that's appropriate for a raid still stand.
+** Could we explore a sidegrade that excels in a specific niche? Perhaps something that boosts the power of the Standard, Lunar or Arceuus spellbook? If so, does that feel appropriate considering Virtus already does this for Ancient Magicks but isn't a raids-tier reward?
+
+It could be the case that you see our thoughts above and feel that now isn't the right time for an armour set, so perhaps we just wait for a more appropriate time in the future to fill this space. If we opt not to go for a full-on, best-in-slot armour set, then what alternatives are there?
+
+We could offer individual pieces of armour rather than a full set, like a new helmet for a certain style. This used to work quite well in the past, but in more recent years it feels as though we've gotten more fashion-forward and less comfortable with the idea of mismatched sets, rolling up to the raid looking like we've fallen through our wardrobe.
+
+We could offer a niche set similar to Justiciar. This likely wouldn't hold much value on its own, but could still sit nicely in the overall loot table if other offerings are appropriately strong and able to offset this relatively weaker slot.
+
+===What We Think===
+In this instance, we think that if we are looking to add an armour set, then an Ancestral sidegrade which shines with Elemental Weaknesses might be a good fit. This means Ancestral is still your go-to for content where powered staves win out, but you have a viable alternative if Chambers of Xeric isn't your scene, and we can add a little more power back to actual spellcasting from the Standard Spellbook at the top end, where it's been outcompeted by Lunar and Arceuus spells for the majority of Old School's lifespan. There's also a bit of a 'chicken and egg' scenario here where Elemental Weaknesses are 'bad' because there aren't many significant instances of them at endgame content, but it's hard for us to justify adding sources of extra power here because there aren't many use-cases, so perhaps adding a power increase here opens up some more endgame use-cases for Elemental Weaknesses which in turn improves the appeal of gear that strengthens them!
+
+Having said that, we're not certain this is a strong enough option to fit neatly into a raid, so we're also open to not having an armour set at all and instead offering a larger number of standalone items with simple power increases or creative 'gimmicks' (like the Soulreaper Axe or Venator Bow) that make them excel in a certain niche while making them a little more interesting to use.
+
+We don't have any overly strong opinions here, so we'll put it to all of you - share your strong opinions and we'll be eagerly awaiting to see which seeds take root among the community!
+
+==Next Steps==
+Up next is the thing we know that you have no problem with - let us know how you feel! We're excited to see the conversations you have and to understand whether or not we're all in agreement on what makes for a compelling set of Raids rewards.
+
+If we feel like we have a really clear path forwards, then we'll check back in with our updated thoughts and see how those sit with you. Once we're confident that we're on the right lines, we'll get to work on specific rewards concepts and hope to have them in front of you before Summer so that we have ample time to refine designs and make sure that your time in the Fractured Archive feels more than worthwhile!
+
+Before we sign off, we'd like to quickly say that we know there are questions raised by our Summit newspost around limited builds, and still some mentions of changes to the Tumeken's Shadow in case we explore Magic rewards space - we haven't forgotten about these and will address both in the coming months, but want to make sure that we're getting off on the right foot with arguably the toughest part about releasing a raid.
+
+We can't wait to hear what you've got to say, so get those discussions started!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1rlj5x6/the_fractured_archive_rewards_primer/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Lotus, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume'''
+
+''The Old School Team.''

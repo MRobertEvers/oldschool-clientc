@@ -1,0 +1,63 @@
+{{Infobox Monster
+|name = Cursed Baboon
+|image = [[File:Cursed Baboon.png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 77
+|size = 1
+|examine = An undead cursed baboon.
+|xpbonus = 
+|max hit = 7
+|aggressive = No
+|poisonous = No
+|attack style = None
+|attack speed = 4
+|hitpoints = 20
+|scaledhp = Yes
+|att = 60
+|str = 60
+|def = 20
+|mage = 60
+|range = 60
+|attbns = 25
+|strbns = 0
+|amagic = 25
+|mbns = 0
+|arange = 25
+|rngbns = 0
+|dstab = 900
+|dslash = 900
+|dcrush = 900
+|dmagic = -60
+|dlight = -50
+|dstandard = -50
+|dheavy = -50
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = Yes
+|id = 11717
+}}
+'''Cursed Baboons''' are a monster encountered in the Path of Apmeken within the [[Tombs of Amascut]]. They leave behind venom pools where they walk, which inflict [[venom]] if stepped on.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 2 July 2025
+|update = Stackable Clues are here!
+|change = Cursed baboon's [[Hitpoints]] have been decreased from 30 to 20.
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Cursed Baboons now always take maximum damage from Ranged attacks. To compensate, their HP has been increased from 10 to 30.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = The health of baboons in the Path of Apmeken are now static, rather than scaling based on raid level and group size.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

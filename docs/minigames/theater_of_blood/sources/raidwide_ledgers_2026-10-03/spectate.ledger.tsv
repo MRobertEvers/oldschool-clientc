@@ -1,0 +1,18 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	raid.enter	PASS	6	001-raid.enter	in tob maiden (entry) at 6452,94,0; boss present (tob_maiden_100_story slot 26 at 6426,92); handle 1, started 0, fight 6448,94,0
+2	measure.mate	PASS	1	002-measure.mate	tobmate: party of 2 (MEASUREMENT: a party member who is not a player)
+3	ticklog.start	PASS	0		ticklog on at tick 7 (now 7, serial 1) -> /Users/matthewevers/Documents/git_repos/3draster/build/orchestrator/worktrees/raid/build/quest_gate/spec_raidwide_spectate/ticklog.tsv [frame unchanged]
+4	barrier.click	PASS	2	003-barrier.click	map_flag
+5	barrier.confirm	PASS	2	004-options-p1,005-options-p2,006-barrier.confirm	2 page(s): options:options, options:choose:Yes, begin the fight.
+6	death.line	PASS	25	007-death.line	You have died. Death count: 1.
+7	spectate.held	PASS	9	008-spectate.cage	tobjail jailed=1 died_in=3 deaths=1 room=1 cleared=0 orbs=30,27,0,0,0 tile=6430,108,0 -- 9+ ticks after the death, no wipe (nil) [frame unchanged]
+8	spectate.hits_in_cage	PASS	0		hit_player rows at or after the death line (tick 36): t44:10(npc type 10814) [frame unchanged]
+9	spectate.hold	PASS	4	009-spectate.hold	tried to walk 2 east from 6430,108, stands at 6430,108
+10	spectate.orbs	PASS	0		my orb (6442) 30, the mate's (6443) 27 [frame unchanged]
+11	rejoin.released	PASS	10	010-rejoin.released	<col=8f0000>The way onward is open: back through the barrier, then the passage south. / tobjail jailed=0 died_in=2 deaths=1 room=1 cleared=1 orbs=27,27,0,0,0 tile=6452,94,0 after 5 poll(s) of the ::kill
+12	rejoin.uncaged	PASS	2	011-rejoin.entry,012-rejoin.uncaged	tobjail jailed=0 died_in=2 deaths=1 room=1 cleared=1 orbs=27,27,0,0,0 tile=6452,94,0
+13	rejoin.at_entry	PASS	0	013-rejoin.at_entry	tile 6452,94 (room entry 6452,94 per raid.enter)
+14	rejoin.orb_live	PASS	0		my orb (6442) 27 [frame unchanged]
+15	rejoin.can_walk	PASS	0	014-rejoin.can_walk	walk_to ok -> 6451,94
+SUMMARY	15	PASS	61	exit=0	pass=15 fail=0

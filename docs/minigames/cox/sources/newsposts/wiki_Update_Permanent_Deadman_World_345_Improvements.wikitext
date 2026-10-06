@@ -1,0 +1,284 @@
+{{Update|date=12 March 2025|url=https://secure.runescape.com/m=news/permanent-deadman-world-345-improvements?oldschool=1|category=game}}
+[[File:Permanent Deadman- World 345 Improvements newspost.jpg|right]]
+{{clear}}
+__TOC__
+''We’ve updated World 345, the permanent Deadman world! Introducing new charms, reimagined PvP mechanics, and the return of boss breaches.''
+
+==Changelog March 12th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Permanent Deadman W345 Updates'''
+
+* Added four new charms, obtained from killing NPCs at 200 combat level or higher:
+** Nimbleness Charm: Boosts Marks of Grace drops from one to five, lets you bypass Agility level requirement restrictions on shortcuts, and auto re-pickpockets NPCs.
+** Stockpiling Charm: Triples rewards from Wintertodt, Tempoross, and Guardians of the Rift, stacks Clue Scroll drops, and auto-Banks skilling resources.
+** Accumulation Charm: Triples Clue Scroll drops, Chinchompa captures, and skilling resources, and provides 5x Runecraft yields.
+** Vulnerability Charm: Increases Accuracy against monsters by 50%, multiplies Thrall Max Hits by 5, and cuts incoming monster damage by 25%.
+* Boss breaches now appear on weekends!
+** Both area and specific location breaches will occur, just as in Deadman Armageddon.
+*** Up to 25 NPCs spawn in area breaches, and up to 6 NPCs spawn in specific location ones. They'll be dropping:
+**** Ancient Warrior Weapons
+**** Trinkets previously seen in Deadman: Armageddon
+**** New charms (although you've mostly seen their effects in previous Deadman events)
+** Sigils and corrupted weapons remain off-limits.
+** If you have protection still, you will not be able to attack any breach NPCs, both in single and multi-combat zones.
+** Each breach monster drops one Chitin per kill with a 50% chance for a bonus supply drop instead.
+** Weekend breaches will occur every four hours, starting on Saturday at 02:00 GMT. The last breach will be on Sunday at 22:00 GMT.
+** You’ll get a timely notification in your chat when a breach goes live. You can also talk to Perdu to see where the breach is and how long it will be around for.
+* Combat brackets are now divided into Levels 3–75, 76–85, and 86+ with a 2x unique drop rate modifier for each bracket.
+* The PJ Timer now follows a last-hit system. Land that final blow to trigger an uninterrupted teleport, or risk having your escape cut off by a sneaky PKer.
+* When PKed, attackers now only grab 50% of your top 10 stackable items.
+* Added supply drop tables from Deadman: Armageddon.
+* Wilderness Slayer Tasks now yield both Tier 1 and Tier 5 Emblems.
+* Changes to Morrigan’s Javelin Special:
+** The bleed effect triggers every tick (down from every three ticks) with damage boosted from 5 to 10 per tick.
+** Total bleed equals 75% of your original hit (e.g. a 40-damage hit produces three bleed splats of 10 each).
+* Buffed Morrigan’s Thrownaxe: Now only consumes 25% special attack. A successful hit speeds up your next attack by 1 tick, making it a slick 3-tick attack on rapid.
+* Classic Content Returns:
+** Giant seaweed runs on Fossil Island are back!
+** Frog random events now stick around.
+** “Crack the Clue 3” can be completed.
+* Bounty Hunter Shop Additions:
+** Imbue Scroll: 1,000,000 points.
+** Castle Wars Halos: 500,000 points each.
+** Trouver Parchment: 250,000 points.
+* QoL changes:
+** Players can now receive regular loot from Revenants, though Emblem drops remain disabled.
+** For skulled players, an Emblem drop roll yields either Magic or Yew Seeds; unskulled players receive a Dragon Med Helm.
+** Players now receive double Dragon Bones and Superior Dragon Bones from Green and Black Dragons and Vorkath. Both Dragon Bones will be noted in the Wilderness if you've completed the Wilderness Elite Diary Tier.
+** Pest Control now awards 4x the points, and the Agility Pyramid now grants 30,000 coins instead of 10,000.
+** Blighted Overloads are now available in Permanent Deadman - craft them with Super Combat, Magic, and Ranging Potions, a Deadman Overload Chitin, and a dash of 83 Herblore.
+** Statius’s Warhammer now guarantees a hit on Tekton’s first Special Attack and doubles as a regular hammer for building chests in Chambers.
+** Players can no longer enter the Colosseum or create a private instance at the Hueycoatl while skulled.
+** Chat with Nigel at the Lumbridge graveyard or use a Deadman chest to toggle off Combat XP, or just Hitpoints XP individually, if you wish.
+
+'''Other Changes''' 
+
+* Fixed an issue where POH telescopes using the Civitas or Canifis wallkits would incorrectly display a message about the wall instead of showing incoming Shooting Stars. They will now function as intended, allowing stargazers to track Shooting Star landings properly.
+* The following items can now properly access charge configuration:
+** Crystal Halberd, Bow, and Shield: All three now share the same "Quantity" variable, and use Crystal charges, not coins.
+** Echo Venator Bow
+** Alchemist’s Amulet
+** Celestial Ring and Signet
+** Giantsoul Amulet
+** Pendant of Ates
+* Upon creating Emberlight, Scorching Bow, and Purging Staff from the Tormented Synapse, you will now receive the original 730 Smithing, Fletching, or Crafting XP for the first upgrade, followed by 73 XP every time after.
+* During a Hell-Rat Behemoth fight, you can now use Fish and Milk directly on your cat to support it, rather than having to pass them through the alcove's curtain.
+* Reanimated goblins can now drop the Champions' Challenge Scroll.
+
+'''PvP Rota '''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using ''''1 Def Pure'''' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==W45 Improvements==
+Greetings, Deadman fans! Today we’re bringing loads of improvements to the permanent Deadman world, including some of the additions you loved in Deadman: Armageddon.
+
+===Charming Changes===
+First up, we’re introducing four brand-new Charms that pack a serious punch - just don’t try to wear them, they’re strictly for your Inventory! If you fall in battle, two things will happen:
+
+* They turn into a small amount of coins for the PKer that killed you.
+* They shatter into glass, which goes to your gravestone so you can keep a little collection of all the Charms you’ve lost.
+
+[[File:Permanent Deadman- World 345 Improvements (1).png|thumb|400px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-12/charms.jpg here]''!'']]
+
+===The Nimbleness Charm===
+
+* Boosts the number of Marks of Grace on the floor from one to five.
+* Lets you use any shortcut regardless of your Agility level, although item requirements still apply.
+* Allows you to automatically re-pickpocket NPCs until you no longer can do so - for example, if you hit your coin pouch limit.
+
+===The Stockpiling Charm===
+
+* Triples your rewards from Wintertodt, Tempoross and Guardians of the Rift.
+* Stacks your Clue Scroll drops.
+* Sends resources gathered from Mining, Fishing, Woodcutting, and Farming straight to your Bank.
+
+===Accumulation Charm===
+
+* Triples Clue Scroll drop rates, Chinchompa captures, and resources from Mining, Fishing, Woodcutting and Farming.
+* Multiplies Runes produced during Runecrafting by five.
+
+===Vulnerability Charm===
+
+* Boosts your Accuracy against monsters by 50% in all styles.
+* Multiplies Thrall Max Hits by five.
+* Reduces incoming damage from monsters by 25%.
+
+Sounds cool, right? But you might be wondering, where can I get my hands on these awesome new items? Well, any NPC with 200+ combat has a chance to drop them, and you can also find them in boss breaches – what are those, again?
+
+===Boss Breaches===
+The legendary mechanic from Deadman: Armageddon is back, and here to stay!
+
+Every weekend, one of two breaches will appear across Gielinor, offering a shot at Ancient Warrior Weapons and a brand-new set of Permanent Deadman uniques - we’re talking Vengeance, Fairies, and Undead trinkets, plus those snazzy new Charms. Just a heads up: while you’ll be raking in the loot, Sigils and Corrupted Weapons are still off the table, and these breaches are strictly a weekend-only show. 
+
+Up to 25 NPCs spawn in area breaches, whereas up to 6 NPCs spawn in specific location ones. 
+
+[[File:Permanent Deadman- World 345 Improvements (2).png|thumb|400px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-12/breach.jpg here]''!'']]
+
+To help keep the breach chaos fair and square, we’ve made some balancing tweaks:
+
+* '''Breach Monster Attack Restrictions:'''
+** In the Permanent Deadman world, if you still have protection time remaining, you're in the no-attack zone! This means you can't attack anyone in multi or single areas, and breach monsters are off limits too.
+* '''Breach Loot Balancing:'''
+** Each breach monster now drops 1 Chitin per kill. There's a 50% chance to receive a second regular supply drop instead of a Chitin.
+** Breach spawns will occur only at the weekend and every 4 hours in Permanent Deadman, starting on Saturday at 02:00 GMT. The last breach will be Sunday at 22:00 GMT.
+
+Plus, you'll get a timely alert in your chat box when a breach breaks out - so you never miss the action or the chance to cause a little chaos.  You can also talk to Perdu to see where the breach is and for how long it will be around for.
+
+[[File:Permanent Deadman- World 345 Improvements (3).png|thumb|600px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-12/spawnnotification.jpg here]''!'']]
+
+===PvP Adjustments in Permanent Deadman===
+On the PvP front, we’ve reworked the combat brackets and tweaked the PJ timer to make every encounter a heart-pounding race.
+
+* '''Combat Brackets:'''
+** Brackets are separated into levels 3-75, 76-85, and 86+. The reason for these specific brackets is to try offer build diversity. Once you reach those higher combat levels, there are only a few specific types of builds that dominate the others!
+** Each bracket now enjoys a 2x unique drop rate modifier, ensuring that whether you're just starting out or you're a battle-hardened veteran, drops are as sweet as a perfectly timed PK.
+* '''PJ Timer:'''
+** We’re now rolling with a last-hit system. Nail that final blow and your teleport will fire off without a hitch, giving you the perfect getaway.
+** Miss the decisive moment, and well… another clever PKer might just intercept your escape.
+
+So, gear up, time your attacks like a well-oiled machine, and may your teleports always be spot-on!
+
+===Loot changes, Supply tables, and Emblem Drops===
+Here's the scoop on our latest risk/reward tweaks:
+
+* '''PK Loot key changes:''' When you get PKed, your attacker now only pockets 50% of your top 10 stackable items. The refreshed on-death UI makes it crystal clear - less loot-stealing means more chances to rebuild and get back out there!
+* '''Supply Drop Revival:''' We're bringing back the supply drop tables from Deadman: Armageddon. Yep, you have a chance to get some juicy rewards even if you're just killing a goblin in Lumbridge!
+* '''Balanced Emblem Drops:''' Wilderness Slayer Tasks now offer both Tier 1 and Tier 5 Emblems. The Tier 5 Emblems will still be offered when killing Breach NPCs, but this can be another passive way to obtain those coveted emblems which help maintain your supplies via the Emblem Trader at the Grand Exchange!
+
+===Morrigan's Javelin and Axes===
+Morrigan’s weaponry isn’t being left out of the fun - check out these wicked tweaks:
+
+* '''Javelin Special Attack:'''
+** Now triggers a bleed effect every tick instead of every three ticks.
+** Bleed damage is boosted from 5 to 10 per tick, so you’re doing some serious drip damage.
+** Total bleed now reflects 75% of your original hit (for example, a 40-damage hit yields three bleed splats of 10 each).
+* '''Thrownaxe Special Attack:'''
+** Nail a special attack hit with the Thrownaxe, and your next attack gets a 1-tick speed boost, effectively turning it into a 3-tick attack on rapid. Talk about keeping your foes on their toes.
+** Now only requires 25% special attack.
+
+===QoL and Content Resurrection===
+Now, we think it’s time to dust off some classic content and sprinkle in a few extra treats to keep your adventures as fresh as your most prized loot. 
+
+* Giant seaweed runs on Fossil Island are back!
+* Frog random events will no longer hop off the radar on Deadman worlds.
+* “Crack the Clue 3” is completable across all Deadman worlds.
+
+===Bounty Hunter Shop Additions:===
+
+* Imbue Scroll: 1,000,000 points.
+* Castle Wars Halos (Saradomin, Zamorak, Guthix, Brassica, Ancient, Seren, Bandos, Armadyl): 500,000 points each.
+* Trouver Parchment: 250,000 points.
+
+===QoL changes:===
+
+* Players can now receive regular loot from Revenants (though Emblem drops remain disabled).
+* For skulled players, an Emblem drop roll yields either Magic or Yew Seeds; unskulled players receive a Dragon Med Helm.
+* Players now receive double Dragon Bones and Superior Dragon Bones from Green and Black Dragons and Vorkath. Both Dragon Bones will be noted in the Wilderness if you've completed the Wilderness Elite Diary Tier.
+* Pest Control now awards 4x the points, and the Agility Pyramid now grants 30,000 coins instead of 10,000.
+* Combat level 200+ NPCs have a chance to drop any of the four available charms.
+* Blighted Overloads are now available in Permanent Deadman - craft them with Super Combat, Magic, and Ranging Potions, a Deadman Overload Chitin, and a dash of 83 Herblore.
+* Statius’s Warhammer now guarantees a hit on Tekton’s first special attack and doubles as a regular hammer for building chests in Chambers.
+* Players can no longer enter the Colosseum or create a private instance at the Hueycoatl while skulled.
+* Chat with Nigel at the Lumbridge graveyard or use a Deadman Chest to toggle off Combat XP, or just Hitpoints XP individually if you wish.
+
+[[File:Permanent Deadman- World 345 Improvements (4).png|thumb|600px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-12/XPtoggle.jpg.jpg here]''!'']]
+
+We hope you enjoy these changes! Your feedback is essential, so get out there, test these improvements, and let us know. In the wild and unpredictable realm of Deadman, only the cunning and quick-witted survive. Good luck…
+
+==Project Zanaris Sign-Up==
+Fancy a chance to dive headfirst into the madness of Project Zanaris playtests? If you're as hyped as we are, then hit the button below to register.
+
+[[File:Permanent Deadman- World 345 Improvements (5).png|thumb|200px|center|''If you can’t see the button above, click ''[https://jagex.questionpro.eu/zanaris-playtest-signup?src=newspost here]''!''|link=https://jagex.questionpro.eu/zanaris-playtest-signup?src=newspost]]
+
+
+
+These playtests are kicking off sooner than you think, so don't miss out! To stay in the loop with all things Project Zanaris, make sure to join our  [http://discord.gg/OSRS Official Old School Discord] and assign yourself the Project Zanaris role by reacting to the message in[https://discord.com/channels/324132423636090880/1280923150313324584  this channel]! This is the place to be for the latest news, updates, and maybe even a sneak peek or two…
+
+On that note, we'll soon be sharing all the dev panels from day two of RuneFest, including one all about Project Zanaris! This panel featured a World Portal demo showcasing more than 400 parameters and answers to the community’s most pressing questions. Stay tuned!
+
+==RuneFest Summit Survey==
+This week's game update also features a team full of J-Mods still coming down from the adrenaline rush of RuneFest!
+
+We all want to say thank you to everyone who attended or watched from home. You made our first RuneFest in five years an absolutely magical time – here’s to many more!
+
+Now, to business. Amidst all the festivities, we presented a RuneFest Summit packed ''full'' of announcements for what's on our roadmap in the current months. You can check out a quick summary of the roadmap in the image below, or read through the full [https://secure.runescape.com/m=news/a=97/runefest-2025-summit-summary?oldschool=1 RuneFest Summit Summary blog].
+
+[[File:Permanent Deadman- World 345 Improvements (6).jpg|thumb|600px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-runefest-summ7t-s3cr3ts/rf25roadmap.jpg here]''!'']]
+
+We'd love to hear how you felt about the Summit, so we've put together a short survey to let you tell us which of the announcements you're most excited for!
+
+[https://jagex.questionpro.eu/t/AB3u3HMZB3v9KQ Click here to participate in the survey]. It should only take around five minutes to complete.
+
+2024 was a massive year for Old School, and 2025's going to be even bigger. We can't wait to get cracking on everything we've shared!
+
+==Merch==
+===We Want Socks!===
+Most new merch lines launched at RuneFest are now live on the [https://runescape.backstreetmerch.com/ Official Merch Store] - including the full range of socks!
+
+[[File:Permanent Deadman- World 345 Improvements (7).jpg|thumb|600px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-12/Newspost%20socks.jpg here]''!'']]
+
+This includes Skillcape Socks, Fighting/Lobster/Skulled/Ironman Socks, a "Nice" cord cap, God Caps, Tipples of Gielinor Drink Mats, a Mod Ash Mug, a Lobster Tea Towel and a range of OSRS boss tees featuring Jad, Zuk, Zilyana, Graardor and Vorkath. On top of all that there are a few more lines we might add, so keep an eye out!
+
+[[File:Permanent Deadman- World 345 Improvements (8).jpg|thumb|600px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-12/Newspost%20caps.jpg here]''!'']]
+
+[[File:Permanent Deadman- World 345 Improvements (9).jpg|300px|center]]
+ [[File:Permanent Deadman- World 345 Improvements (10).jpg|thumb|300px|center|''If you can’t see the images above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-12/newspost%20new%20boss%20tees.jpg here]'' and ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-12/Newspost%20homewares.jpg here]''!'']]
+
+===Youtooz x OSRS Collab===
+[[File:Permanent Deadman- World 345 Improvements (11).jpg|thumb|600px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-12/newspost%20youtooz.jpg here]''!'']]
+
+If you were at RuneFest, you may have caught sight of the Youtooz Wise Old Man and Gnome Child prototypes on display at the Merch Store, alongside some as-yet unannounced plushies!
+
+You can now preorder the Wise Old Man and Gnome Child figures [https://youtooz.com/collections/old-school-runescape here]. Preorders close on the 21st March, so get ‘em while you can!
+
+Follow Youtooz on socials for the latest on all their new OSRS releases as they happen – without spoiling anything, we reckon you ought to do that before the end of the month. WINK.
+
+==Other Changes==
+
+* Fixed an issue where POH telescopes using the Civitas or Canifis wallkits would incorrectly display a message about the wall instead of showing incoming Shooting Stars. They will now function as intended, allowing stargazers to track Shooting Star landings properly.
+* The following items can now properly access charge configuration:
+** Crystal Halberd, Bow, and Shield: All three now share the same "Quantity" variable, and use Crystal charges, not coins.
+** Echo Venator Bow
+** Alchemist’s Amulet
+** Celestial Ring and Signet
+** Giantsoul Amulet
+** Pendant of Ates
+* Upon creating Emberlight, Scorching Bow, and Purging Staff from the Tormented Synapse, you will now receive the original 730 Smithing, Fletching, or Crafting XP for the first upgrade, followed by 73 XP every time after.
+* During a Hell-Rat Behemoth fight, you can now use Fish and Milk directly on your cat to support it, rather than having to pass them through the alcove's curtain.
+* Reanimated goblins can now drop the Champions' Challenge Scroll.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using ''''1 Def Pure'''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Rach, Redfield, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

@@ -1,0 +1,128 @@
+{{Beta|Tombs of Amascut: Rewards Beta}}
+{{Shelved content|polled=yes|pollname=Tombs of Amascut Rewards}}
+{{Infobox Item
+|defver = 2
+|version1 = Uncharged
+|version2 = Charged
+|name1 = Tumeken's heka (uncharged)
+|name2 = Tumeken's heka
+|image1 = [[File:Tumeken's heka (uncharged).png]]
+|image2 = [[File:Tumeken's heka.png]]
+|release = [[12 August]] [[2021]]
+|update = Tombs of Amascut: Raid Rewards
+|aka = Heka
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable1 = No
+|equipable2 = Yes
+|stackable = No
+|noteable = No
+|options1 = Wield, Charge, Drop
+|options2 = Wield, Check, Charge, Uncharge
+|wornoptions = Check
+|examine1 = A wand once used by Tumeken himself. It is currently uncharged.
+|examine2 = A wand once used by Tumeken himself.
+|value = 150000
+|weight = 0.198
+|id1 = beta25989
+|id2 = beta25987
+}}
+{{Synced switch
+|version1 = [[File:Tumeken's heka (uncharged) detail.png|left|130px]]
+|version2 = [[File:Tumeken's heka detail.png|left|130px]]
+}}
+'''Tumeken's heka''' was a proposed powered wand requiring 85 [[Magic]] to equip. It belonged to [[Tumeken]], the head of the [[Menaphite Pantheon]], and was given to Pharaoh [[Osmumten]] by [[Elidinis]] after his sacrifice that ended the [[Kharidian–Zarosian War]]. It was only available from the [[Supplies (unrestricted world)|supplies]] table in an [[unrestricted world]] as a test item for players, and was one of the proposed rewards for the [[Tombs of Amascut]] raid.
+
+Although Tumeken's heka passed [[Poll:Tombs of Amascut Rewards|its poll]], it was proposed to be replaced by the [[Shadow of Tumeken]] in a [[Update:Tombs of Amascut: Reward Changes|poll blog]] two months later, due to continued player feedback on the desire for a magic weapon that would "redefine Magic as a combat style just as the Scythe [of Vitur] and Twisted Bow did." It was then polled in the [[Poll:Tombs of Amascut Reward Changes|Tombs of Amascut Reward Changes]] [[poll]] with the caveat that the heka would be replaced with the Shadow of Tumeken if it passed the poll; this came to pass with 90.9% support.
+
+In order to use the wand's magic spell, it must be charged with [[soul rune|soul]] and [[chaos rune]]s, holding up to 20,000 charges when fully charged. Each cast requires 1 soul rune and 3 chaos runes, costing {{NoCoins|{{GEP|Soul rune|1}}+{{GEP|Chaos rune|3}}|c}} per cast. The total cost to fully charge the wand with 20,000 soul and 60,000 chaos runes is {{NoCoins|{{GEP|Soul rune|20000}}+{{GEP|Chaos rune|60000}}|c}}. Players can uncharge the wand whenever and wherever they choose, getting all of their runes back.
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Charged
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 25
+|arange = -4
+|dstab = 2
+|dslash = 3
+|dcrush = 1
+|dmagic = 20
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = varies
+|attackrange = 6
+|combatstyle = Powered Wand
+|image1 = [[File:Tumeken's heka (uncharged) equipped.png|170px]]
+|image2 = [[File:Tumeken's heka equipped.png|170px]]
+|altimage1 = [[File:Tumeken's heka (uncharged) equipped female.png|150px]]
+|altimage2 = [[File:Tumeken's heka equipped female.png|150px]]
+}}
+
+{{CombatStyles|Powered Wand|speed=varies|attackrange=6}}
+
+==Spell mechanics==
+[[File:Tumeken's heka.gif|thumb|280px|A player using Tumeken's heka's built in spell.]]
+Like [[powered staves]], Tumeken's heka has a built-in magic spell that can be used regardless of the [[spellbook]] the player is using and cannot be used to autocast any other combat spells.
+
+The heka's spell is an attack in which players will attack the target with three fast attacks, followed by a charged attack that deals significantly more damage (alongside a secondary effect dependent on the player's active [[spellbook]]), albeit with a longer delay after the attack. The first three fast attacks have an attack speed of two [[ticks]] (1.2 seconds), with the fourth charged attack having an attack speed of four [[ticks]] (2.4 seconds).
+
+The spell '''cannot''' be used against other players in the [[Wilderness]]. The only way that the spell can be used against other players is during the [[Castle Wars]], [[Soul Wars]] and [[TzHaar Fight Pit]] [[minigame]]s, as well as the [[Clan Wars]] minigame if the clan leaders enable it.
+
+===Charged attack mechanics===
+The heka's charged attack also carries with it a secondary effect that is dependent on the player's active [[spellbook]]:
+
+{| class="wikitable align-center-1" style="text-align:left; width:550px;"
+! colspan="2" |Spellbook
+!Effect
+|-
+|{{plinkt|Standard spellbook}}
+|The heka's charged attack will have its damage increased by 10%.
+|-
+|{{plinkt|Ancient Magicks|pic=Ancient spellbook}}
+|The heka's charged attack will strike in a 3x3 Area of Effect around its primary target.
+|-
+|{{plinkt|Lunar spellbook}}
+|The heka's attack range is increased to 7 squares for all attacks, and the charged attack will heal up to five allies along the path of the spell by 5% of the caster's current Magic level, rounded down.
+|-
+|{{plinkt|Arceuus spellbook}}
+|At the cost of three [[prayer points]], the heka's charged attack will drain 5% of the target's Magic level (capped at 20%), and boost the caster's Magic level by 50% of the drained levels from the target, up to a 15% increase of the caster's Magic level.
+|}
+
+===Maximum hit===
+The [[Maximum Magic hit|maximum hit]] dealt by Tumeken's heka is dependent on the player's current [[Magic]] level; the formula for the heka's fast and charged attacks are as follows. Note that any [[magic damage]] bonuses are applied after the base max hit is calculated.
+
+<math>\begin{align}
+Fast &= \frac{Magic}{6} + 1\\
+Charged &= \frac{Magic - 25}{2}\\
+\end{align}</math>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 October 2021
+|update = Tombs of Amascut & Nex Rewards Beta
+|change = 
+* Magic requirement increased from 84 to 85.
+* Magic base max hit of the fast attack increased by 1.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Tumeken's heka concept art.jpg|Concept art of Tumeken's heka by [[Mod Jerv]], along with an earlier concept of [[Elidinis' ward]].
+</gallery>
+
+==Trivia==
+* A heka, also known as a {{WP|Crook and flail|crook}}, is a hooked sceptre associated with the god {{WP|Osiris}} and was a symbol of rule in Ancient Egypt.
+* During the [[Unrestricted world#Tombs of Amascut: Rewards Beta|ToA Weapons Beta]] and [[Unrestricted world#Nex Rewards Beta|Nex Weapons Beta]] in which Tumeken's heka could be playtested, the heka's fast attack had an additional max hit of 1. In addition, the fast attacks only used 50% of the player's [[magic damage]] bonus from equipped items when calculating damage, whilst the charged attack used 150%. These were removed when the heka was reworked in the {{UD|Tombs of Amascut: Raid Rewards V2}} poll blog.
+
+{{Beta gear}}
+{{Tombs of Amascut}}

@@ -1,0 +1,143 @@
+{{Update|date=7 March 2019|link=http://services.runescape.com/m=news/qol-and-w45-changes?oldschool=1|category=game}}
+[[File:QoL and W45 Changes newspost.png|right]]
+{{clear}}
+
+<center>''This week sees the release of some QoL changes from the Re-run and Miscellaneous weeks of QoL month, some new additions to W45 Deadman Mode and the removal of this year's Birthday Event.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|QoL Changes}}
+
+
+The changes listed in this post wrap up everything that was polled in the Re-run week and includes some of the changes from the final QoL month: Miscellaneous.
+
+'''Special Attack Orb'''
+
+[[File:QoL and W45 Changes (1).png|center]]
+
+
+Clicking on the Special attack data orb will now activate your special attack if you are wielding a weapon which has one. This change only applies to non PvP areas. A PvP area is defined as follows:
+*Duel Arena battle arena
+*PvP world outside safe zones
+*DMM outside Barbarian Assault games and random event zones
+*LMS
+*Castle Wars
+*TzHaar Fight Pit (the PvP one)
+*Clan Wars instanced battles
+*Clan Wars free-for-all arena
+*The Wilderness, not including the Wilderness Ditch buffer zone
+
+'''Recolour god spell icons'''
+
+[[File:QoL and W45 Changes (2).png|center]]
+
+The God spells found on the standard spellbook have been recoloured to match their relevant Gods
+
+
+'''GFX update to Xeric's talisman'''
+
+[[File:QoL and W45 Changes (3).png|center]]
+
+Xeric's amulet both charged and uncharged have now been graphically updated. This update also affects the mounted version of the talisman in any player's POH.
+
+
+'''One-off payment on Saniboch'''
+
+[[File:QoL and W45 Changes (4).png|center]]
+
+Players may now pay a one-off fee to enter the Brimhaven dungeon from Saniboch for 1,000,000 coins.
+
+'''<nowiki>'Pay'</nowiki> option on Saniboch'''
+
+Left clicking on the Brimhaven dungeon entrance now automatically attempts to pay Saniboch for entry. If you have the coins with you to buy permanent access, you will also be offered this.
+
+'''Remove cap on dark totem pieces'''
+
+Players may now continue to gain Dark Totem pieces in order even if they have not combined their existing pieces.
+If you already have an incomplete set of dark totem pieces, the game will attempt to select a piece that will complete the set. This means that the chance of completing your set has not been made harder by this update.
+
+'''Expand GE history to 40'''
+
+The Grand Exchange history list now extends to 40 previous listings instead of 20.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|W45 Deadman Mode}}
+
+
+[[File:QoL and W45 Changes (5).png|center|450px]]
+
+
+Permanent Deadman World 345 now has a Grand Exchange! Please note that this world will become inaccessible right after the update to enable devs to do live testing on the Grand Exchange. It should come back online for you shortly after testing with the Grand Exchange and other changes that you can find listed below:
+
+'''Emblems'''
+
+[[File:QoL and W45 Changes (6).png|center|50px]]
+
+
+NPCs above 100 combat now have a chance of dropping tier 5 emblems.<br/>The drop rate of Tier 1 emblems on wilderness slayer tasks has been greatly improved. This now matches that of Seasonal/Tournament worlds.
+
+'''Broken items on PvP death'''
+
+The broken item system has been brought into Permanent Deadman. As on PvP worlds, throughout most of the game world, items with a ‘broken’ version will now be broken on death, with the PKer receiving coins based on the repair price. Speak to Perdu to repair your broken kit. Please note, in deeper Wilderness areas, above level 20, the standard behaviour still applies whereby untradeable items are turned into a small quantity of coins for the PKer.
+
+'''Looting Bag'''
+
+[[File:QoL and W45 Changes (7).png|center|50px]]
+
+
+On a Permanent Deadman world, players may put things into the looting bag anywhere outside "guarded" zones. This now matches the functionality in Seasonal/Tournament worlds.
+
+'''Temple Trekking / Burgh de Rott Ramble'''
+
+[[File:QoL and W45 Changes (8).png|center|50px]]
+
+
+The Temple Trekking / Burgh de Rott Ramble mini-game is now available, this gives players access to the rewards as well as the Lumberjack outfit.<br/>The clue that requires the lumberjack outfit has not been re-enabled.
+
+'''Slayer XP in instanced Slayer boss rooms'''
+
+Although training in instanced areas does not normally give XP on Deadman worlds, some Slayer XP for killing the Grotesque Guardians and Alchemical Hydra will now be awarded as those creatures die.
+
+
+'''Seed box'''
+
+The seed box is now able to be purchased from Farmer Gricoller.<br/>When killed via PvP, the seed box will attempt to move its contents to your bank before the loot is distributed to the PKer. This means any stacks of seeds in the seed box will be possible to be acquired as part of the bank key. 
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Song of the Elves: Rewards and Extras}}
+
+
+[[File:QoL and W45 Changes (9).png|center|125px]]
+
+
+We're proud to announce that everything from the first Song of the Elves poll passed in the polls, meaning the quest and main content will go into game this summer!
+
+Now's our chance to go more in depth with the smaller rewards and features you would like to see from Prifddinas. A second poll blog will be posted soon with the top suggestions and ideas for minor content in the Crystal City. If you would like to get involved and potentially have your ideas made reality in Old School, get involved in the discussion on [https://www.reddit.com/r/2007scape/comments/ax8w3t/song_of_the_elves_rewards_and_extras/ Reddit], [https://twitter.com/OldSchoolRS/status/1102612527282880512 Twitter], and the [http://services.runescape.com/m=forum/forums.ws?380,381,552,66087651 Official Forums].
+
+You may remember that we decided not to poll Crystal armour in the first poll as you weren't happy with the final design (in terms of stats and set effect) and neither were we. To make sure we get it right, we're also holding a separate discussion on separate threads on [https://www.reddit.com/r/2007scape/comments/ax8vmq/crystal_armour_balancing/ Reddit], [https://twitter.com/OldSchoolRS/status/1102962117509087234 Twitter] and the [http://services.runescape.com/m=forum/forums.ws?380,381,553,66087652 Official Forums]. Alternatively you can email in your suggestions to OldSchoolCommunity@Jagex.com. The deadline for all suggestions is '''Friday the 29th of March'''.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+
+The PvP World Rota is switching over to '''Period A'''. On the east of the Atlantic, host the Bounty Hunter world (W18, UK) and the High Risk PvP world (W43, Germany). On the west of the Atlantic, host the Standard PvP world (W24, USA) and the F2P PvP world (W117, USA).
+
+*Old School RuneScape's 6th Birthday Event has been removed. The birthday event rewards will be available again on our next birthday.
+*A graphical issue with one of the ladders within the essence mine has been fixed.
+*Confirming an offer in the GE multiple times will no longer add multiple entries to the GE History.
+*A message has been added for when a player receives a Golden tench.
+*A bug regarding items kept on death has now been patched.
+*Chambers of Xeric scaling will now be based on the player with the highest combat level rather than the average. This is means that if a team of level 80 players takes someone with 126 combat, their raid will be scaled around 126 combat rather than their average which would be much lower and would in turn give them fewer points.
+*On Friday 8th March at 5pm Game Time, we are delighted to be celebrating International Women's Day. We have teamed up with the [https://reddit.com/r/iama IAMA] team on Reddit, and a group of female JMods will be online and answering questions about their careers and the games industry, we hope to have you tune in!
+
+{{Horizontal Line}}
+
+Discuss this update on our [https://chbs25.jagex.com:18201/forums.ws?380,381,554,66088110 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''''Mods Acorn, Archie, Ash, Bruno, Curse, Ed, Gambit, Ghost, Gee, Husky, Kieren, Lenny, Lottie, Mat K, Maz, Nasty, Roq, Ry, Sween, Tide, Weath, West & Wolf'''''<br/>''The Old School Team''

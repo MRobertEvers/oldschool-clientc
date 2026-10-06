@@ -1,0 +1,470 @@
+{{External|rs}}
+{{Infobox Item
+|defver = 4
+|version1 = 1 dose
+|version2 = 2 dose
+|version3 = 3 dose
+|version4 = 4 dose
+|bucketname1 = (1)
+|bucketname2 = (2)
+|bucketname3 = (3)
+|bucketname4 = (4)
+|name1 = Sanfew serum(1)
+|name2 = Sanfew serum(2)
+|name3 = Sanfew serum(3)
+|name4 = Sanfew serum(4)
+|image1 = [[File:Sanfew serum(1).png]]
+|image2 = [[File:Sanfew serum(2).png]]
+|image3 = [[File:Sanfew serum(3).png]]
+|image4 = [[File:Sanfew serum(4).png]]
+|release = [[13 March]] [[2007]]
+|update = Burgh de Rott Ramble
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drink, Empty, Drop
+|examine1 = A 1 dose Sanfew Serum.
+|examine2 = A 2 dose Sanfew Serum.
+|examine3 = A 3 dose Sanfew Serum.
+|examine4 = A 4 dose Sanfew Serum.
+|value1 = 120
+|value2 = 180
+|value3 = 240
+|value4 = 300
+|weight1 = 0.020
+|weight2 = 0.025
+|weight3 = 0.030
+|weight4 = 0.035
+|exchange = Yes
+|id1 = 10931
+|id2 = 10929
+|id3 = 10927
+|id4 = 10925
+}}
+{{Synced switch
+|version1 = [[File:Sanfew serum(1) detail.png|left|130x200px]]
+|version2 = [[File:Sanfew serum(2) detail.png|left|130x200px]]
+|version3 = [[File:Sanfew serum(3) detail.png|left|130x200px]]
+|version4 = [[File:Sanfew serum(4) detail.png|left|130x200px|class=pageimage]]
+}}
+'''Sanfew serum''' is a [[potions|potion]] invented by the druid [[Sanfew]] that combines the properties of the [[super restore]], [[superantipoison]], and [[Relicym's balm]]. It restores 4 + 30% of the player's base level (rounded down) per dose in all skills except [[Hitpoints]], provides 6 minutes of immunity to [[poison]], and provides 15 minutes of immunity to [[disease]].
+
+Sanfew serums can also be used on [[nail beast]]s, which can deal 20-40 damage per dose and grants [[melee]] [[experience]]. This requires the player to have no weapons equipped; if they do, it will automatically be unequipped if there is space in their [[inventory]].
+
+Sanfew serum is made by adding, in order, [[unicorn horn dust]], [[Snake weed|clean snake weed]], and [[nail beast nails]] to an already made [[super restore]]. Partially completed Sanfew serums are called [[mixture - step 1]] and [[mixture - step 2|step 2]], but are not drinkable in these forms. Level 65 [[Herblore]] and completion of [[Zogre Flesh Eaters]] is required in order to make this potion.
+
+96 [[Herblore]] experience is given for a completed 1-dose Sanfew serum, 128 experience for a 2-dose serum, 160 experience for a 3-dose serum, and 192 experience for a 4-dose serum. Or more simply, the total experience given can be calculated with: <math>Experience = 32 \times Doses + 64</math>
+
+As Sanfew serums' higher price often makes [[super restore]]s and [[prayer potion]]s more cost efficient for restoring prayer, Sanfew serums are notably useful in situations where prayer restoration as well as poison protection are needed and inventory space is limited, such as [[Dagannoth Kings]], as it fulfills the two requirements in one inventory space. Similarly, Sanfew serums are effective for fighting [[The Nightmare]] as they offer the same utility against [[parasite]]s as Relicym's balm while also offering prayer restoration.
+
+==Effects==
+Stat/Prayer restore is calculated with: <math>\lfloor SkillLevel \times \frac{3}{10} \rfloor + 4</math>
+{| class="wikitable" style="text-align:center;"
+!{{SCP}} / {{SCP|Prayer}} Level
+!Boost
+!{{SCP}} / {{SCP|Prayer}} Level
+!Boost
+!{{SCP}} / {{SCP|Prayer}} Level
+!Boost
+|-
+|'''1-3'''||+4||'''34-36'''||+14||'''67-69'''||+24
+|-
+|'''4-6'''||+5||'''37-39'''||+15||'''70-73'''||+25
+|-
+|'''7-9'''||+6||'''40-43'''||+16||'''74-76'''||+26
+|-
+|'''10-13'''||+7||'''44-46'''||+17||'''77-79'''||+27
+|-
+|'''14-16'''||+8||'''47-49'''||+18||'''80-83'''||+28
+|-
+|'''17-19'''||+9||'''50-53'''||+19||'''84-86'''||+29
+|-
+|'''20-23'''||+10||'''54-56'''||+20||'''87-89'''||+30
+|-
+|'''24-26'''||+11||'''57-59'''||+21||'''90-93'''||+31
+|-
+|'''27-29'''||+12||'''60-63'''||+22||'''94-96'''||+32
+|-
+|'''30-33'''||+13||'''64-66'''||+23||'''97-99'''||+33
+|}
+If a [[ring of the gods (i)]] or [[Prayer cape]] is equipped, or alternatively if a Prayer cape or [[holy wrench]] is in the player's inventory, the amount of restored Prayer points is calculated with: <math>\lfloor PrayerLevel \times \frac{32}{100} \rfloor + 4</math> 
+
+This does not affect the rate of restoration of stats other than Prayer.
+{| class="wikitable" style="text-align:center;"
+!{{SCP|Prayer}} Level
+!Boost
+!{{SCP|Prayer}} Level
+!Boost
+!{{SCP|Prayer}} Level
+!Boost
+|-
+|'''1-3'''||+4||'''35-37'''||+15||'''69-71'''||+26
+|-
+|'''4-6'''||+5||'''38-40'''||+16||'''72-74'''||+27
+|-
+|'''7-9'''||+6||'''41-43'''||+17||'''75-78'''||+28
+|-
+|'''10-12'''||+7||'''44-46'''||+18||'''79-81'''||+29
+|-
+|'''13-15'''||+8||'''47-49'''||+19||'''82-84'''||+30
+|-
+|'''16-18'''||+9||'''50-53'''||+20||'''85-87'''||+31
+|-
+|'''19-21'''||+10||'''54-56'''||+21||'''88-90'''||+32
+|-
+|'''22-24'''||+11||'''57-59'''||+22||'''91-93'''||+33
+|-
+|'''25-28'''||+12||'''60-62'''||+23||'''94-96'''||+34
+|-
+|'''29-31'''||+13||'''63-65'''||+24||'''97-99'''||+35
+|-
+|'''32-34'''
+| +14
+|'''66-68'''
+| +25
+|
+|
+|}
+
+==Creation==
+
+The full creation process requires an untradeable ingredient, [[Snake weed]], which can only be found by searching [[Marshy jungle vine|marshy jungle vines]] south-west of [[Tai Bwo Wannai]] or as a drop from [[Jogre|Jogres]] and [[Tribesman|Tribesmen]]. Each step of the process must be done manually and one at a time, there is no make-x menu. The prescription goggles will save a secondary ingredient, but the reagent pouch will not hold them.
+
+<tabber>
+|-|
+Step One=
+
+{{Switch infobox
+|text1 = 1 dose
+|item1 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 28.5
+|notes = {{SCP|Quest}} Partial completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = 2
+|mat1 = Super restore(1)
+|mat2 = Unicorn horn dust
+|output1 = Mixture - step 1(1)
+|output1cost = No
+|bucket = No
+}}
+|text2 = 2 dose
+|item2 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 38
+|notes = {{SCP|Quest}} Partial completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = 2
+|mat1 = Super restore(2)
+|mat2 = Unicorn horn dust
+|output1 = Mixture - step 1(2)
+|output1cost = No
+|bucket = No
+}}
+|text3 = 3 dose
+|item3 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 47.5
+|notes = {{SCP|Quest}} Partial completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = 2
+|mat1 = Super restore(3)
+|mat2 = Unicorn horn dust
+|output1 = Mixture - step 1(3)
+|output1cost = No
+|bucket = No
+}}
+|text4 = 4 dose
+|item4 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 57
+|notes = {{SCP|Quest}} Partial completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = 2
+|mat1 = Super restore(4)
+|mat2 = Unicorn horn dust
+|output1 = Mixture - step 1(4)
+|output1cost = No
+|bucket = No
+}}
+}}
+
+|-|
+
+Step Two=
+
+{{Switch infobox
+|text1 = 1 dose
+|item1 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 31.5
+|notes = {{SCP|Quest}} Partial completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = 2
+|mat1 = Mixture - step 1(1)
+|mat1cost = No
+|mat2 = Snake weed
+|mat2cost = No
+|output1 = Mixture - step 2(1)
+|output1cost = No
+|bucket = No
+}}
+|text2 = 2 dose
+|item2 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 42
+|notes = {{SCP|Quest}} Partial completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = 2
+|mat1 = Mixture - step 1(2)
+|mat1cost = No
+|mat2 = Snake weed
+|mat2cost = No
+|output1 = Mixture - step 2(2)
+|output1cost = No
+|bucket = No
+}}
+|text3 = 3 dose
+|item3 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 52.5
+|notes = {{SCP|Quest}} Partial completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = 2
+|mat1 = Mixture - step 1(3)
+|mat1cost = No
+|mat2 = Snake weed
+|mat2cost = No
+|output1 = Mixture - step 2(3)
+|output1cost = No
+|bucket = No
+}}
+|text4 = 4 dose
+|item4 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 63
+|notes = {{SCP|Quest}} Partial completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = 2
+|mat1 = Mixture - step 1(4)
+|mat1cost = No
+|mat2 = Snake weed
+|mat2cost = No
+|output1 = Mixture - step 2(4)
+|output1cost = No
+|bucket = No
+}}
+}}
+
+|-|
+
+Step Three=
+
+{{Switch infobox
+|text1 = 1 dose
+|item1 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 36
+|notes = {{SCP|Quest}} Completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = 2
+|mat1 = Mixture - step 2(1)
+|mat1cost = No
+|mat2 = Nail beast nails
+|mat2quantity = 1
+|output1 = Sanfew serum(1)
+}}
+|text2 = 2 dose
+|item2 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 48
+|notes = {{SCP|Quest}} Completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = 2
+|mat1 = Mixture - step 2(2)
+|mat1cost = No
+|mat2 = Nail beast nails
+|mat2quantity = 1
+|output1 = Sanfew serum(2)
+}}
+|text3 = 3 dose
+|item3 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 60
+|notes = {{SCP|Quest}} Completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = 2
+|mat1 = Mixture - step 2(3)
+|mat1cost = No
+|mat2 = Nail beast nails
+|mat2quantity = 1
+|output1 = Sanfew serum(3)
+}}
+|text4 = 4 dose
+|item4 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 72
+|notes = {{SCP|Quest}} Completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = 2
+|mat1 = Mixture - step 2(4)
+|mat1cost = No
+|mat2 = Nail beast nails
+|mat2quantity = 1
+|output1 = Sanfew serum(4)
+}}
+}}
+
+|-|
+
+Full Process=
+
+{{Switch infobox
+|text1 = 1 dose
+|item1 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 96
+|notes = {{SCP|Quest}} Completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = na
+|mat1 = Super restore(1)
+|mat1quantity = 1
+|mat2 = Unicorn horn dust
+|mat2quantity = 1
+|mat3 = Snake weed
+|mat3cost = No
+|mat4 = Nail beast nails
+|mat4quantity = 1
+|output1 = Sanfew serum(1)
+}}
+|text2 = 2 dose
+|item2 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 128
+|notes = {{SCP|Quest}} Completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = na
+|mat1 = Super restore(2)
+|mat1quantity = 1
+|mat2 = Unicorn horn dust
+|mat2quantity = 1
+|mat3 = Snake weed
+|mat3cost = No
+|mat4 = Nail beast nails
+|mat4quantity = 1
+|output1 = Sanfew serum(2)
+}}
+|text3 = 3 dose
+|item3 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 160
+|notes = {{SCP|Quest}} Completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = na
+|mat1 = Super restore(3)
+|mat1quantity = 1
+|mat2 = Unicorn horn dust
+|mat2quantity = 1
+|mat3 = Snake weed
+|mat3cost = No
+|mat4 = Nail beast nails
+|mat4quantity = 1
+|output1 = Sanfew serum(3)
+}}
+|text4 = 4 dose
+|item4 = {{Recipe
+|skill1 = Herblore
+|skill1lvl = 65
+|skill1boostable = Yes
+|skill1exp = 192
+|notes = {{SCP|Quest}} Completion of [[Zogre Flesh Eaters]]
+|members = Yes
+|ticks = na
+|mat1 = Super restore(4)
+|mat1quantity = 1
+|mat2 = Unicorn horn dust
+|mat2quantity = 1
+|mat3 = Snake weed
+|mat3cost = No
+|mat4 = Nail beast nails
+|mat4quantity = 1
+|output1 = Sanfew serum(4)
+}}
+}}
+|-|
+</tabber>
+
+==Price per dose==
+{{See also|Calculator:Prayer/Prayer point cost}}
+{{Price per dose|Sanfew serum}}
+
+==Item sources==
+===Sanfew serum(3)===
+{{Drop sources|Sanfew serum(3)}}
+
+====Shop locations====
+{{Store locations list|Sanfew serum(3)}}
+
+===Sanfew serum(4)===
+{{Drop sources|Sanfew serum(4)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 May 2016
+|update = Sand Crabs & Soul Bearers
+|change = Sanfew serum can now be shared with the [[share potion]] spell.
+}}
+{{Subject changes
+|date = 15 April 2016
+|update = Bank Placeholder Feedback Changes
+|change = Half full potions could now be turned into bank placeholders.
+}}
+{{Subject changes
+|date = 7 April 2016
+|update = Hell-Rats, Fairy Rings & Perks
+|poll = 
+|change = Drinking any kind of antipoison will no longer decrease your poison immunity.
+}}
+{{Subject changes
+|date = 1 May 2014
+|update = Spirit trees, clues & more!
+|change = Sanfew serum is now correctly considered a potion rather than food when applying consumption delays and within the Duel Arena.
+}}
+{{Subject changes footer}}
+
+{{Potions}}
+[[Category:Items storable in the potion storage]]

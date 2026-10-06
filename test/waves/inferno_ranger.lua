@@ -179,7 +179,7 @@ local function heal_to(t, floor)
     end
 end
 local function pray_if_low(t)
-    local _, _, pts = t.prayer.points()
+    local _, pts, _ = t.prayer.points()
     if pts and pts.level and pts.level < 30 then restore(t) end
 end
 local function upkeep(t, floor)

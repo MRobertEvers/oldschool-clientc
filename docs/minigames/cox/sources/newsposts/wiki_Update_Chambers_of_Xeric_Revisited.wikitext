@@ -1,0 +1,129 @@
+{{Update|date=23 January 2019|link=http://services.runescape.com/m=news/chambers-of-xeric-revisited?oldschool=1|category=website}}
+[[File:Chambers of Xeric Revisited newspost.png|right]]
+{{clear}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Chambers of Xeric Revisited}}
+
+
+Following the huge Kebos expansion, we'd like to turn our attention to improving some older content. There's lots in the game that could do with improvements, whether small tweaks or a major rejuvenation. For now, we'd like to start with the Chambers of Xeric.
+
+Traffic through the Chambers has remained strong over the two years since they opened, but there are a lot of points that players would like us to smooth out for them. Most of these are changes to room balancing or scaling mechanics that we'd not normally expect to poll, but the Xeric's Ward scrolls detailed below are a substantially new feature that will be polled.
+
+[[File:Chambers of Xeric Revisited (1).png|center]]
+
+{{Horizontal Line}}
+
+{{Headline|22|But, first, an apology...}}
+
+
+Since its announcement at RuneFest in October, many of you have been asking about the Bounty Hunter rework that we pitched, in which additional rewards would be earned by performing assigned tasks such as killing one's target with a dragon scimitar, etc. While we did address quite a lot of Bounty Hunter issues later in the year, we weren't able to design and deliver that scale of expansion within 2018, at least not to the standard you all deserve. We're very sorry this didn't take place in 2018 as expected. However we would still like to proceed with that proposed expansion of Bounty Hunter. 
+
+To ensure the content is high quality and meets expectations, our community staff will be discussing the design plans with prominent members of the BH community, regarding suitable tasks and rewards and game mechanics. A full dev blog can expected in the coming weeks. In the meantime, however, we'd like to improve what we can in the Chambers of Xeric... 
+
+
+{{Horizontal Line}}
+
+{{Headline|22|General dungeon stuff}}
+
+
+Let's kick off the list with some straightforward tweaks:
+*The smaller scavengers are annoying, making it slower to get the stuff you want from them. We'll delete those, so you always get the version you want rather than having the random dungeon randomly giving something less desirable.
+
+[[File:Chambers of Xeric Revisited (2).png|center]]
+
+*The Monster Examine spell has never been able to work on monsters with custom attacks like this. While it's not going to become able to output details of all the custom attacks these bosses perform - after all, some calculate their max hit off the number of players standing nearby at the time, which the spell can't reasonably replicate - we'd like to enable the Monster Examine spell to reveal their combat stats.
+*Herb quantities can be a problem in a larger raid. The chance of a high yield already scales up as the party size increases from 1 to 50. We'd like to increase this effect so that more parties can benefit from it, with a party size of 14 or more accessing the optimal rate.
+*Some dungeon layouts don't give you a scavenger corridor before you get to the rooms that require the items they'd drop; we'll aim to weed out these possibilities.
+*Seed raking can be frustrating if you keep getting a seed you don't want. We'd like to make it remember which seed it last gave you, and always give a different seed next time, so that you're far more likely to get the one you're hoping for.
+*The energy pools at the ends of the floors will cure poison as well as replenishing energy, reducing your need to bring your own or to pre-pot.
+
+[[File:Chambers of Xeric Revisited (3).png|center]]
+
+*Clue scrolls will be given as an additional drop, instead of taking up one of the resource spots. This is more consistent with how clues are given elsewhere.
+
+A popular request is to let a dungeon instance remain open with no players inside. Unfortunately that's not something we'd be able to offer; the engine needs to be able to create enough instances for everyone on the world, even if the world is busy, so its ability to preserve empty instances is very limited. If we become able to do that in future, we'll be happy to revisit this topic.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Room balancing}}
+
+
+Some rooms are far less popular than others, driving players to scout their raids in advance so they can keep re-rolling until the game gives them a random layout they're willing to accept. That's not exactly a pleasant thing to do, especially for a solo raider who can't leave the instance empty to visit the bank.
+
+*In the Creature Keeper's room with the chests, a raid in Challenge Mode currently gives 5x points as you deposit grubs, and we'd like to roll this out to standard raids too. We'd also like to remove the Thieving level restriction, so that everyone in the party can contribute there; for parties with a wide range of levels, this should be a big help. A higher level will remain advantageous, but we'll reduce the scaling so that lower level players are able to contribute more effectively, and we'll allow the creature to eat faster.
+
+[[File:Chambers of Xeric Revisited (4).png|center]]
+
+
+*The Ice Demon's braziers currently encourage you to light them when carrying as much wood as possible, since that's more beneficial than adding it later. We'd like to remove that distinction, so that it'll be just as effective to replenish a brazier after it's lit. Players had suggested that we let you stock the brazier more before lighting it; this should ultimately achieve the same thing.
+*Vespula likes to start interacting with the grubs in her room even if the party's not entered the room yet. That's not a bug - after all, this is how she reproduces, for which she doesn't require an audience - but it'd be nicer for players if she waited for the party to assemble before she did her thing, so we'll change that. We'd also like to reduce the portal's health regeneration to 1/3 of its current rate, and to offer +2 more points per HP damage damage dealt to it, making the room a little more rewarding.
+
+[[File:Chambers of Xeric Revisited (5).png|center]]
+
+*Tekton's defence will be reduced by 25%, making it less dependent on defence-reducing attacks. It will also be made a bit less sensitive so that it's less likely to return to the anvil abruptly without trying to hit anyone.
+*The Vanguard don't always reset correctly if hit at the moment that they're starting their rearrangement trick. We hope to be able to resolve that.
+
+[[File:Chambers of Xeric Revisited (6).png|center]]
+
+
+*While we're mostly keen to keep the Olm unchanged, we'd like to let players extinguish its fires with a wider range of water vessels rather than having to use the elemental spells. It's been suggested that the Humidify spell could do this too, for anyone on Lunars.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Xeric's Ward scrolls}}
+
+
+As some rooms are nicer than others, this drives players to scout the room layout and re-randomise the cave repeatedly until they get a "random" outcome that they like. The aim of these changes is to help bring the rooms towards parity, so that there's less incentive to spend all that time repeatedly re-randomising the cave. That said, it's inevitable that players will continue to prefer some rooms over others.
+
+Rather than just leaving you to keep re-randomising the cave blindly, we'd prefer to let you earn something that influences what rooms you get, earning it by raiding in the Chambers.
+
+To that end, we'd like to introduce '''Xeric's Ward scrolls'''. When Xeric was exploring the caverns, all those years ago, he imbued some scrolls with power to protect his forces from the perils of the Chambers. This was especially important for Vespula, since she is not native to the Chambers and Xeric had no direct control over her, but even the threats he created himself (Tekton, Vanguard, Vasa Nistirio, etc.) needed to be kept at bay while Xeric's forces were still using the Chambers.
+
+[[File:Chambers of Xeric Revisited (7).png|center]]
+
+
+Xeric created a range of scrolls to repel the various denizens of the Chambers. One type keeps Vespula at bay, another works on Vasa Nistirio, another works on the Creature Keeper's monster, etc. Through the power of these scrolls, Xeric's forces were able to navigate the Chambers with reduced chances of encountering the various threats. The scrolls were abandoned in the Chambers when Xeric moved on, and now may occasionally be found by a raiding party.
+
+For example, '''to get a chance of finding Vespula scrolls, the party must have survived a raid that contained Vespula''', with similar requirements for the other scrolls. This is because a party who encountered that room seems to have traversed the Chambers via a route where such a scroll wasn't in use - so maybe the scroll will turn up in the chest at the end.
+
+A scroll would be given in addition to the existing loot, without affecting the chances of receiving other items; we'll be expanding Xeric's reward chest to accommodate this and the clue scroll change described above. Scrolls would be '''tradeable''', and would have a cash value that lets you '''alch them for 6k coins''' if you don't want them.
+
+Once you've got a scroll, you'd be able to read it, absorbing the power of the scroll into yourself, so you needn't carry the item around. Next time you're a party leader, with the Chambers generating a route for you, the affected room will be skipped on the next time the Chambers considered giving it to you. This consumes the power of the scroll.
+
+You can read lots of the scrolls, absorbing all their power into yourself, where it will remain until it's consumed. For example, you might have absorbed enough scrolls to dodge 8 Vespula rooms, 2 Muttdile rooms and one Ice Demon. On your next raid, the Chambers might give you a route free of Vespula and the Ice Demon, leaving you with the power to dodge another 7 Vespula rooms and 2 Muttadile rooms.
+
+Obviously there's only a finite number of room types, and the Chambers can't have you dodging them all, otherwise you'd have a ridiculously easy ride. For that reason, the Chambers will only let you dodge 2 combat challenge rooms and 1 skilling room per raid. (The Ice Demon counts as a skilling room for this purpose, since its brazier phase is more significant than its combat phase.)
+
+A board outside the dungeon will allow you to see how many more scrolls you've absorbed of each type. If you're in a party that's in its Recruiting phase, the board will try to find the leader and display for you how many scrolls they've absorbed.
+
+'''N.B.''' As this method of influencing the contents of your dungeon is earned, we'd prefer that players not be able to bypass it for free by using an alternate client to scout the dungeon and re-randomise over and over again until they get a "random" outcome they like, for free. This means that we'd need to remove scouting, though we know that's a really big deal for players, and we'd prefer to work with you to make a feature you'd be willing to accept, so please share any other constructive suggestions you've got for influencing which rooms you'll encounter without simply re-rolling "random" outcomes indefinitely.
+
+'''We'll be collecting your feedback and ideas on [http://services.runescape.com/m=forum/forums.ws?380,381,536,66078130 this forum thread].'''
+
+{{News Poll|1|Should Xeric's Ward scrolls be introduced, as described in the blog, allowing players to reduce their chances of encountering a specific room when generating a Chambers of Xeric instance?}}
+
+
+{{Horizontal Line}}
+
+{{Headline|22|How we'll proceed}}
+
+
+If players are interested in this idea, the Xeric's Ward scrolls will be offered in a forthcoming poll. The other changes to the balancing and mechanics aren't planned to be polled, but please let us know if you object to anything here, with your reasons.
+
+We'd expect to apply the relevant balancing changes to the Challenge Mode too. This would require us to bring the target times down slightly; we'd not be able to confirm exactly how much until we've been able to do some time-trials.
+
+[[File:Chambers of Xeric Revisited (8).png|center]]
+
+
+We know these aren't the only issues you may want us to address in the Chambers of Xeric. Realistically, we're not going to be able to try solving everything at once, which also means we'll be limited for bundling extra requests into this batch - other parts of the existing game need dev time spent on them too. However we don't expect this to be the last update to the Chambers of Xeric, and we would be able to address more issues in future updates.
+
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,536,66078130 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For reference on the above content, check out the official [[Chambers of Xeric|Wiki]].
+
+'''''Mods Archie, Ash, Bruno, Curse, Ed, Gambit, Gee, Ghost, Kieren, Lenny, Lottie, Mat K, Maz, Munro, Nasty, Roq, Ry, Sween, Tide, Weath, West & Wolf'''''<br/>''The Old School Team''

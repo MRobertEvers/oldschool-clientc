@@ -1,0 +1,278 @@
+{{Update|date=29 May 2024|url=https://secure.runescape.com/m=news/project-rebalance-combat-changes?oldschool=1|category=game}}
+[[File:Project Rebalance- Combat Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+''We’re back from Bank Holiday with a bumper newspost filled with Combat improvements from Project Rebalance!''
+
+==Project Rebalance: Combat Changes==
+You know all about Project Rebalance by now, so we shan’t repeat ourselves. If you’d like to catch up, you can check out the top-level [https://secure.runescape.com/m=news/a=13/project-rebalance---npc-defence-changes?oldschool=1 NPC Defence Changes] and [https://secure.runescape.com/m=news/a=13/project-rebalance---item--combat-adjustments?oldschool=1 Other Combat/Item Adjustment] blogs, the [https://www.youtube.com/watch?v=JavgCYb2RS4 dedicated Q&A], or [https://www.youtube.com/watch?v=jdwTV89Ykfo this video] which summarises the Defence changes.
+
+Just like our [https://secure.runescape.com/m=news/a=13/minigame-tweaks-skilling-adjustments--more?oldschool=1 last Project Rebalance update], today’s newspost covers a lot of ground and highlights some pretty big alterations to the status quo. With that in mind, we want to reiterate that we ''love'' Old School’s combat system exactly as it is. The aim of these changes is not to fundamentally change Combat, but to further improve the parts of the system which make it ''so ''satisfying to play. These changes open up new space for rewards that don’t contribute to bloat and powercreep, while leaning into the ‘right tool for the job’ element that makes getting gear upgrades feel like progress.
+
+Over the coming weeks, we’ll no doubt find small tweaks we can make to ensure Combat is running smoothly. While we’ve run betas and worked with the community to make sure we’re on the right track, no amount of testing can compare to thousands of you getting stuck in and letting us know how these changes actually ''feel. ''If something doesn’t seem right, you can let us know, and we’ll do our best to sort it out – even if that means rolling changes back.
+
+If this sounds a bit scary, don’t panic! Most of these changes won’t impact current gameplay at all, and simply pave the way for future activities, bosses and rewards. All your existing gear setups will still work just fine, although you may want to make one or two adjustments to squeeze a little extra power out of your equipment.
+
+If that sounds exciting, keep reading to learn more!
+
+==NPC Defence Changes==
+This video guide will tell you all you need to know about the two primary components of this segment: Elemental Weaknesses and split Ranged Defence types. Have a watch – we’ll wait.
+
+<center>
+{{Youtube|jdwTV89Ykfo}}
+
+''If this video doesn’t load on your browser, click ''[https://youtu.be/jdwTV89Ykfo?si=5H_PTauVr8e_VPC2 here ]''to watch!''
+</center>
+
+Time to put your popcorn down and learn more about Elemental Weaknesses!
+
+===Elemental Weaknesses===
+Elemental Weaknesses have always been present in a complex, roundabout way. Perhaps the most well-known example is the Ice Demon's weakness to Fire spells. These changes standardise the existing system, roll it out to more NPCs, and make it more readily accessible in-game via Monster Examine.
+
+In short, for every point of Elemental Weakness an NPC has, spells of that element will gain +1% Accuracy ''and ''+1% Damage. For example, if you cast Fire Surge on an NPC who’s got a 50% Fire Weakness, you’ll gain 50% bonus Accuracy and Damage.
+
+When you factor in your base Magic Damage, the formula looks like this:
+
+===Base Damage x (Magic Damage % + Elemental Weakness %)===
+This additive approach means elemental spells receive bigger buffs in middling setups, but don’t become overpowered in setups offering high Magic Damage boosts.
+
+This gives the good ol’ Standard Spellbook more of a foothold in combat progression, fleshing out options for players throughout their Magic journey without displacing properly optimised setups.
+
+[[File:Project Rebalance- Combat Changes (1).png|209px|center]]
+A monster’s Elemental Weakness will be clearly visible in the ‘Other Attributes’ tab of Monster Examine. Alternatively, you can check out the OSRS Wiki or [https://docs.google.com/spreadsheets/d/e/2PACX-1vROpFgFliMRmyvQ4NUVDZYlHhgOfmrxmwbJ16Wpy17RU-iJCfQJxbkrBl3L-DK2VQHZLjhmpac7xLMf/pubhtml?gid=1606162427&single=true this handy spreadsheet] with a granular and detailed list of changes.
+
+For convenience, here’s a big list of the enemies impacted by this change:
+
+<span style="color: #ffffff">'''Air Weakness'''</span>
+
+* The Barrows Brothers (Ahrim, Dharok, Karil, Guthan, Torag, Verac)
+* Aviansies (including Kree'arra and his minions)
+* Ghosts
+* Skeletons
+
+<span style="color: #0044fa">'''Water Weakness'''</span>
+
+* Chromatic Dragons (Green, Blue, Red and Black dragons, including their 'Baby' and 'Brutal' variants)
+** This includes the King Black Dragon
+* Lava Dragons
+* A variety of demons, owing to their origins from a fiery, faraway land
+** Demonic Gorillas
+** Greater Demons
+** Hellhounds (including Cerberus)
+** K'ril Tsutsaroth and his minions
+** Lesser Demons
+* Pyrefiends
+* Fire Giants
+* Giant Mole
+* Drakes
+
+<span style="color: #008000">'''Earth Weakness'''</span>
+
+* The following NPCs have been given an Elemental Weakness to Earth spells:
+** Metal Dragons (Bronze, Iron, Steel, Mithril, Adamant and Rune)
+** Waterfiends
+** Wyrms
+
+<span style="color: #8B0000">'''Fire Weakness'''</span>
+
+* Giant Spiders
+* Near enough anything whose name begins with 'Ice', including:
+** Ice Trolls
+** Ice Demon
+** Ice Giants
+** Icefiends
+** Ice Warriors
+* Moss Giants
+* Mountain Trolls
+* Scarab Swarms
+* Scarab Mages
+* Vespula
+* Abyssal Portal
+* The Nightmare’s Totems
+** Keep in mind that these also take double damage from Magic attacks generally, so you can expect to see some ''very'' high hitsplats on these.
+* Kephri and her Arcane, Soldier and Spitting Scarabs
+* Zulrah
+
+We’ve kept this list relatively tight so it doesn’t feel like every NPC in the game has changed overnight. While we’re not opposed to adding more NPCs to the list, we’re keen to let the dust settle and see how these changes impact the game before making further changes. Don’t worry – we won’t be drip-feeding them week by week, either. As much as we love writing the weekly newsposts, we know you don’t want to be constantly checking them for minor balancing changes!
+
+===Elemental Spell Scaling===
+Any wizard knows that Fire is stronger than Air – which rather throws a spanner in the works when it comes to making Elemental Weaknesses feel impactful.
+
+For this reason, your max hit with elemental spells (Strike, Bolt, Blast, Wave, and Surge) will now scale to the highest level spell you have unlocked.  
+
+For example, a player with Level 5 Magic has a max hit of 4 for both Wind Strike and Water Strike, since Water Strike is the highest tier of spell they have unlocked. If that same player reaches the lofty heights of Level 13 Magic, then all their elemental Strike spells will have a max hit of 8, since the highest level spell they’ve unlocked is now Fire Strike.
+
+Note that no spells hit higher than their tier’s max hit – if you have Level 99 Magic, your Fire Strike will still have a max hit of 8.
+
+If you’re wondering how this affects the Tomes of Fire and Water, keep scrolling – we have more information about that later in the blog.
+
+For now though, let’s take a look at the other side of the combat triangle...
+
+===Ranged Defence Types===
+Ranged Defence for '''NPCs '''is being split into three categories: Light, Standard, and Heavy. These are based on the type of ammunition used, as follows:
+
+* Heavy: Bolts, Javelins.
+* Standard: Arrows (this includes the Bow of Faerdhinen and Crystal Bow, magical arrows are still arrows...)
+* Light: Darts, Knives, other thrown weaponry like Thrownaxes or Toktz-xil-ul.
+
+This change won’t mean significant shifts in gameplay today, but it lets us target NPCs towards a specific Ranged style in future, and make cool new rewards to match. Imagine an enchanted bow that fires Light arrows, or a Ballista that’s actually worth shooting at something with.
+
+The overwhelming majority of existing NPCs, therefore, aren’t seeing any adjustments. For a detailed list of the changes we ''are ''making, check out [https://docs.google.com/spreadsheets/d/e/2PACX-1vROpFgFliMRmyvQ4NUVDZYlHhgOfmrxmwbJ16Wpy17RU-iJCfQJxbkrBl3L-DK2VQHZLjhmpac7xLMf/pubhtml?gid=1606162427&single=true this spreadsheet].
+
+Alternatively, here’s a top-level summary of the NPCs affected:
+
+* Dragons have had their Ranged - Heavy defence reduced.
+** This applies to metallic and chromatic dragons, including 'baby' and 'brutal' variants, as well as the King Black Dragon and Lava Dragons.
+* Commander Zilyana has had her Ranged - Heavy defence reduced.
+* Corporeal Beast has had its Ranged - Heavy defence reduced.
+* Gargoyles have had their Ranged - Heavy defence reduced.
+* Lizardmen have had their Ranged - Light defence reduced.
+* Nex has had her Ranged - Heavy defence reduced.
+* Vasa Nistirio has had his Ranged - Heavy defence reduced.
+* Vespula has had her Ranged - Light defence reduced.
+* Vespula's Abyssal Portal has had its Ranged - Heavy defence reduced.
+* Skeletal Mystics have had their Ranged - Heavy defence reduced.
+* Basilisk Knights have haid their Ranged - Heavy defence reduced.
+* Ba-Ba has had her Ranged - Heavy defence reduced.
+* The Leviathan has had its Ranged - Heavy defence reduced.
+
+Short term these changes mostly improve the standing of Crossbows in places where they’ve fallen behind the Bow of Faerdhinen or Twisted Bow. Again, the real benefit of these changes will be more flexibility when designing future updates – so keep your eyes peeled, and your arrows at the ready!
+
+On top of the above set of changes, we've made a handful of minor adjustments to existing Melee defences on NPCs to better accentuate their weaknesses:
+
+* Dragons across the board (with the exception of Vorkath) have had their Stab defence reduced. This includes Drakes and Wyrms, who aren't dragons but ''are'' draconic.
+* Gargoyles have had their Crush defence reduced, and their Stab and Slash defences increased.
+* Lizardmen (including Brutes and Shamans) have had their Stab defence reduced. If you'd like to subject yourself to meleeing them, bring something pokey!
+* Vasa Nistirio has had his Crush defence reduced.
+* Skeletal Mystics have had their Crush defence reduced.
+* Basilisk Knights have had their Crush defence reduced.
+* Duke Sucellus has had his Slash defence reduced.
+
+==Item Rebalances==
+This section deals with changes to items in order to spread progression out and bring certain pieces of gear up to par. You can read all about our reasoning in [https://secure.runescape.com/m=news/a=13/project-rebalance---item--combat-adjustments?oldschool=1 this blog].
+
+===Magic Damage Redistribution===
+[[File:Project Rebalance- Combat Changes (2).png|600px|center]]
+
+After a ''lot'' of back and forth, we're satisfied that this set of changes successfully spread out Magic progression and make gear upgrades feel more impactful.
+
+Keep in mind that 'set pieces' for Robes means the Helmet, Body and Legs slot items. Now, here are the changes!
+
+* Occult Necklace: Magic damage reduced from 10% to 5%.
+* Ancestral Robes set pieces: Magic damage per piece increased from 2% to 3%.
+* Virtus Robes set pieces: Magic damage per piece increased from 1% to 2%.
+* The following items have had their Magic damage per piece increased from 0 to 1%:
+** Infinity Robes.
+** Dagon'hai Robes.
+** 3rd Age Mage Armour.
+** Ahrim's Robes.
+** Blue Moon Armour.
+** Elder Chaos Druid Robes.
+** Bloodbark Armour.
+* Augury: Magic damage while active increased from 0 to 4%.
+** '''Note''': Tumeken's Shadow doesn't multiply accuracy or damage bonuses gained from Prayers, so this would remain a 4% increase rather than 12% when using the Shadow.
+* Mystic Might: Magic damage while active increased from 0 to 2%.
+* Mystic Lore: Magic damage while active increased from 0 to 1%.
+* Eternal Boots: Magic damage increased from 0 to 1%.
+* Mage's Book: Magic damage increased from 0 to 2%.
+* Ancient Wyvern Shield: Magic damage increased from 0 to 2%.
+* Malediction Ward: Magic damage increased from 0 to 2%.
+* Arcane Spirit Shield: Magic damage increased from 0 to 3%.
+* Seers' Ring and Seers' Ring (i): Magic damage increased from 0 to 0.5%
+* Elite Void Mage Set bonus: Magic damage increased from 2.5% to 5%.
+
+===Other Item Adjustments===
+Magic gear isn't the only thing that's changing! Today’s update also includes the highly-anticipated Elder Maul buff and a few other gear improvements:
+
+* Various improvements to the Soulreaper Axe:
+** Stacks will no longer be lost instantly upon switching weapon.
+** Stacks will start decrementing after 20 ticks (12s) without attacking, up from 10 ticks (6s).
+** When stacks naturally degrade, they'll heal you for the damage you took while building those stacks up, so long as you still have the Axe in your inventory.
+* Added a Special Attack to the Elder Maul, which costs 50% of your Special Attack Energy.
+** Hits with +25% increased accuracy, and reduces target's Defence by 35% of its current value on a successful hit.
+** Most importantly: this looks really cool.
+* Inquisitor's Armour set pieces now provide +2.5% Accuracy and Damage when worn alongside an Inquisitor's Mace.
+* Adjusted the Ancient Godsword's Special Attack:
+** Healing from a successful Blood Sacrifice now heals for 15% of the target's maximum HP, up to a cap of 25 HP.
+* The Tomes of Fire and Water now boost their respective elements by 10% against NPCs, down from 50%. They still boost their damage by 50% and 20% respectively against players.
+** This change is intended to sit alongside Elemental Weaknesses so that the Tomes stand out as clear best-in-slot items in their niche, but the strength of the Standard Spellbook no longer relies entirely on these helpful books!
+
+===Miscellaneous Combat-Adjacent Changes===
+
+* The Dragon Warhammer now drops at a rate of 1/3,000, up from 1/5,000.
+* 'Minimum hit' has been adjusted. Now, if you pass an Accuracy check, any damage rolls of 0 are boosted up to 1. So, if your max hit is 3, you can roll 1, 1, 2 or 3 for damage.
+** Note that you're still able to guarantee 0s via splashing and failing every Accuracy check.
+* Added a 'Cursed Amulet of Magic' drop at a rate of 1/5 from the Necromancer south of Shayzien. This amulet provides -80% Magic Damage, useful for some niche scenarios where you might want to keep your damage numbers as low as possible!
+* Reduced the Prayer drain rate for Thick Skin, Burst of Strength and Clarity of Thoughts, Sharp Eye and Mystic Will from 5 to 1.67 points per minute. Effectively, they should drain at a third of the speed they used to.
+* Sharp Eye and Burst of Strength now boost your Ranged and Strength by 1 level respectively, if those levels are lower than 20.
+** Note that this only applies when calculating your max hit, so you won't notice a visible stat boost or anything to that effect.
+* Attacking an NPC with auto-cast enabled no longer incurs an extra 0.6s delay. This has been requested for absolutely ages, all that's left now is to figure out what you're going to do with all the extra time you'll have!
+* Adjusted The Path of Apmeken:
+** Increased Hitpoints of style-specific enemies inside the infamous 'monkey room', although they'll always take maximum damage from their opposing style. Note that each of these has a 'weak' and 'strong' variant, hence the two values for HP.
+*** Baboon Brawler: 25 HP and 30 HP. Always max hit by Magic.
+*** Baboon Thrower: 30 HP and 35 HP. Always max hit by Melee.
+*** Baboon Mage: 20 HP and 25 HP. Always max hit by Ranged.
+** None of the enemies in the Path of Apmeken will scale with Raid Level or Group Size, so the Hitpoints values you see here should be consistent in every single Tombs of Amascut run. This also applies to NPCs not listed above like Volatile Baboons, Cursed Baboons and Baboon Shamans - though you won't be guaranteed max hits against these!
+* Improved Phosani's Nightmare’s drop rates:
+** Any specific piece of Inquisitor Armour now drops at a rate of 1/700, up from 1/1,000.
+** Any specific Orb now drops at a rate of 1/1,600, up from 1/3,000.
+** The Inquisitor's Mace now drops at a rate of 1/1,250, up from 1/2,000.
+** The Nightmare Staff now drops at a rate of 1/533, up from 1/666.7.
+* Improved the Nightmare’s drop rates, too! Note that drop rates at the Nightmare scale and that the values here only reflect the 'base' rate. For more info,[https://oldschool.runescape.wiki/w/The_Nightmare#Uniques  see here].
+** Any specific piece of Inquisitor Armour now drops at a rate of 1/420, up from 1/600.
+** Any specific Orb now drops at a rate of 1/960, up from 1/1,800.
+** The Inquisitor's Mace now drops at a rate of 1/750, up from 1/1,250.
+** The Nightmare Staff now drops at a rate of 1/300, up from 1/400.
+* Ava's devices will now apply their ammo-saving effects to Javelins, as they do for other ammo types.
+
+That’s all from Project Rebalance for now, but if you’d like more details about any of the changes we’ve discussed today, be sure to read through the blogs linked above.
+
+Do remember that we’re open to making further changes based on your feedback – so be sure to share your thoughts on all things Project Rebalance and let us know what you think of today’s changes!
+
+==Other Changes==
+For dessert, a short but sweet selection of miscellaneous changes:
+
+* Spell Tablet Lecterns in Player-Owned Houses now remember the position of their scrollbar when closed and reopened.
+* The Genie random event has stopped referring to everyone as "Master", and will use "Mistress" when appropriate.
+* The Varlamorian Master and Elite emote clue S.T.A.S.H. units now properly appear filled on the S.T.A.S.H. noticeboard.
+* The Blood Moon's Jaguar 'HP sap' no longer persists through teleports. This one can't technically kill you, but a pretty harrowing HCIM scare convinced us it was worth fixing…
+
+==RuneScape Kingdoms Board Game Shorlisted for Award!==
+RuneScape Kingdoms: Shadow of Elvarg has been shortlisted for a UK Games Expo Award!  
+
+The judges at UK Games Expo (also known as UKGE, the largest hobby games convention in the UK) shortlisted RuneScape Kingdoms as Best Boardgame (American-style).
+
+[[File:Project Rebalance- Combat Changes (3).png|600px|center]]
+
+The UKGE People’s Choice Winner in this category will be decided by an online public vote from  9am BST on the 31st May, which means YOU can help RuneScape win! Steamforged Games have really done a great job bringing the RuneScape experience to the tabletop and we’d love the Old School community to show their appreciation by voting for the game! 
+
+[[File:Project Rebalance- Combat Changes (4).png|600px|center]]
+
+If you don’t yet have a copy of the RuneScape Kingdom board game, the core game, Shadow of Elvarg, sold out in the Steamforged US store within weeks of release but there’s still stock available in other hobby board game retailers around the world (and on the [https://runescape.backstreetmerch.com/ RuneScape merch store]). Steamforged is reprinting the game as we speak, and will announce a restock date soon!
+
+In other board game news, we continue to be blown away by the painting skills of the community – check out a few more recent pictures of some painted miniatures from the RSK board game below. Do keep sharing - we love seeing your creativity on display!
+
+[[File:Project Rebalance- Combat Changes (5).png|600px|center]]
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

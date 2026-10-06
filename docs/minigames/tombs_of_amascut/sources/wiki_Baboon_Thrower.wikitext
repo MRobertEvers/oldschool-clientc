@@ -1,0 +1,76 @@
+{{Infobox Monster
+|version1 = Level 56
+|version2 = Level 68
+|name = Baboon Thrower
+|image1 = [[File:Baboon Thrower (level-56).png|280px]]
+|image2 = [[File:Baboon Thrower (level-68).png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat1 = 56
+|combat2 = 68
+|size = 1
+|examine = An undead baboon thrower.
+|xpbonus = 
+|max hit1 = 5
+|max hit2 = 7
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]]
+|attack speed = 4
+|hitpoints1 = 30
+|hitpoints2 = 35
+|scaledhp = Yes
+|att1 = 40
+|att2 = 60
+|str1 = 40
+|str2 = 60
+|def1 = 12
+|def2 = 20
+|mage1 = 40
+|mage2 = 60
+|range = 40
+|attbns1 = 20
+|attbns2 = 25
+|strbns = 0
+|amagic1 = 20
+|amagic2 = 25
+|mbns = 0
+|arange1 = 20
+|arange2 = 25
+|rngbns = 0
+|dstab = -50
+|dslash = -50
+|dcrush = -50
+|dmagic = 900
+|dlight = 900
+|dstandard = 900
+|dheavy = 900
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id1 = 11710
+|id2 = 11713
+}}
+'''Baboon Throwers''' are a monster encountered in the Path of Apmeken within the [[Tombs of Amascut]].
+
+When attacking them with melee, they will take damage equal to the player's maximum hit.
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Ba-Ba's baboons concept art.png|Concept art of Ba-Ba's baboons by [[Mod Jerv]].
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = 
+* Baboon Throwers will now take damage equal to the player's maximum hit if hit with melee attacks.
+* The health of baboons in the Path of Apmeken are now static, rather than scaling based on raid level and group size.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

@@ -1,0 +1,11 @@
+121e11d2 p1 62 ticks: 39 attacks, dawnbringer 11
+287a5e70 p1 64 ticks: 39 attacks, dawnbringer 11
+48daf88c p1 66 ticks: 40 attacks, dawnbringer 11
+71c56a70 p1 62 ticks: 37 attacks, dawnbringer 11
+757ac614 p1 58 ticks: 34 attacks, dawnbringer 10
+921e8f37 p1 83 ticks: 49 attacks, dawnbringer 14
+b4322256 p1 78 ticks: 46 attacks, dawnbringer 16
+c107b440 p1 75 ticks: 43 attacks, dawnbringer 10
+d2d2bcb6 p1 116 ticks: 69 attacks, dawnbringer 16
+fe1a8595 p1 89 ticks: 43 attacks, dawnbringer 15
+all rooms, (weapon id, attack type): count: [((25739, 38), 159), ((22516, 22), 104), ((31113, 104), 50), ((25736, 38), 36), ((22325, 38), 31), ((22516, 21), 21), ((24551, 33), 11), ((29084, 101), 10), ((4151, 0), 8), ((28338, 43), 7), ((28688, 12), 2)]

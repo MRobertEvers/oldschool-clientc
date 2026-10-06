@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Confident Raider
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete a Tombs of Amascut raid at level 100 or above.
+|tier = Hard
+|monster = Tombs of Amascut: Entry Mode
+|type = Restriction
+|id = 465
+|leagueRegion = Desert
+}}
+'''Confident Raider''' is a [[Combat Achievements/Hard|hard combat achievement]] which requires the player to complete a [[Tombs of Amascut]] raid at level 100 or above. Although this achievement is classified as an Entry Mode task, it can be completed in a Normal or Expert mode raid.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Entry Mode}}
+
+{{Combat Achievements}}

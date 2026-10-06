@@ -1,0 +1,24 @@
+{{Infobox Combat Achievement
+|name = Together We'll Fall
+|image = [[File:Fighting_the_Vanguard.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill the Vanguards within 10 seconds of the first one dying.
+|tier = Elite
+|monster = Chambers of Xeric
+|type = Mechanical
+|id = 303
+|leagueRegion = Kourend
+}}
+'''Together We'll Fall''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to kill all three [[Vanguard]]s within ten seconds of killing the first one.
+
+==Strategy==
+'''For solo-run attempts, be sure raid scaling is set to "0" for the easiest fight, as scaling a raid to "1" doubles boss health.'''
+
+After the Vanguards are at critically low health and perform a shuffle, dump high-damaging attacks on them as the health threshold will no longer exist to force a heal. This task is best completed in group encounters. If attempting in a solo encounter, it is recommended to kill the melee, magic and then ranged Vanguard in that order. One effective tactic is to kill the magic vanguard and then use the [[Voidwaker]] special attacks to quickly dispose of the remaining two.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

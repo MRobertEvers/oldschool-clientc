@@ -1,0 +1,244 @@
+{{Update|date=23 October 2024|url=https://secure.runescape.com/m=news/halloween-fixes--miscellaneous-changes?oldschool=1|category=game}}
+[[File:Halloween Fixes & Miscellaneous Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+''This week brings a whole heap of small but mighty miscellaneous tweaks!''
+
+==Changelog October 23rd==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+PSA: As of this week, Game Jam VI is in full swing, and the team will be diving into their passion projects from October 21st to November 1st! This means there will be '''no game update next week on Wednesday, October 30th.'''
+
+'''Halloween 2024 Changes'''
+
+* Marika will now believe you when you claim you’ve heard the cat. To help convince her, we’ve added a third chat option which lets you ''promise'' you heard it.
+* Moved a pumpkin in Draynor out of the path of would-be woodcutters.
+
+'''Varlamore: The Rising Darkness Changes'''
+
+* Using the Refiner at the Mastering Mixology minigame whilst wearing Ferocious Gloves will no longer cause hands to stretch. Safety first!
+* Clarified the criteria for the Perfect Hueycoatl Combat Achievement.
+
+'''Ironman Status Changes'''
+
+* An important update regarding Ironman accounts:
+** Previously, some Ironmen chose to lock their Ironman status 'permanently', worrying that a hijacker might downgrade it behind their back. However, over the years, we've seen an increasing number of Ironmen regret this. Additionally, we now have Jagex Accounts, bringing updated security options to keep hijackers out of the account in the first place. Therefore, as of today's update, the old 'permanent' option is no longer available. If you previously locked your Ironman status permanently and now wish to downgrade, you can do so - provided you have the security of a Jagex Account to protect your status.
+** Ironmen who are still concerned about a hijacker downgrading them may choose a downgrade cool-down delay of 90 days. Players whose Ironman status is due to downgrade will receive warnings on login, giving them ample chance to visit the Ironman Tutor in Lumbridge and cancel the change if they don't want it to proceed.
+
+'''Arclight Changes''' 
+
+* Arclight will no longer degrade to Darklight after running out of charges and will instead become an ‘Inactive’ version with the same stats.
+* Players can now use one or two Shards at a time to charge Arclight. 333 charges for one Shard, 666 for two, and 1,000 for three.
+** You will still require three Shards to upgrade Darklight.
+* A warning message will appear in chat when Arclight has 100 charges remaining.
+* Repositioned Arclight's Inventory icon to avoid parts being chopped off.
+
+'''Run Energy Changes Beta 2.0'''
+
+* Our Run Energy changes second beta launches tomorrow, '''Thursday October 24th'''! This is your opportunity to test out changes that will impact all game play experiences, so do give it a go.
+
+'''Other Changes'''
+
+* Added a visual indicator to the Tormented Demons which shows when they enter their 100% accuracy phase.
+* Examining the murals in the four Pyramid Plunder lobbies reveals how many of each gold chest you’ve looted.
+* The Araxyte Slayer Helm now correctly matches your character's skin tone.
+* The following weapons and armour from Varlamore have been added to the Supplies chests on PvP Arena worlds:
+** Blue Moon armour set and Spear
+** Blood Moon armour set
+** Eclipse Moon armour set
+** Eclipse Atlatl and Atlatl Darts
+** Dual Macuahuitl
+* Lumberjack Boots are now correctly proportioned to your character.
+* You'll no longer find yourself in an unexpected location when using the passageways to exit the Rogues’ Den maze area.
+* Fixed a bug causing the Skull Sceptre to forget its autocast setting when switching to another weapon and back again.
+* Fixed a bug causing players to teleport a few tiles when standing on the tile directly south of Miss Schism in Draynor Village.
+* Clicking Vorkath's Collection Log link no longer sends players to the Whisperer’s page.
+* Fixed an issue with the Yanille south Agility shortcut.
+* The Venator Ring can no longer be equipped without a Leviathan kill.
+* During the Colossal Hydra's special attack, the smaller Hydras are no longer able to attack you.
+* While it didn't affect your ability to play the minigame, we have made sure the Kraken's Tentacle is facing the right way during Fishing Trawler.
+* The Loot Tracker no longer counts dropped bones twice.
+* The Amulet of the Damned's effect now works with the Ahrim's set while manual casting as well as autocasting. Updated the set effect wording to reflect this change.
+* When you use 250 Firelighters to unlock a new colourway for your Phoenix pet, you will now have permanent access to that colour. After unlocking once, you can then freely use the 'Metamorphosis' option on the pet to change it.
+* We know there are some very dedicated fans of the Old Torva outfit, and while we currently aren't adding it to the game itself, this week we've added the files to the config. This means that RuneLite will now be able to utilise the file and give you the option to don the OG style for your own enjoyment. It's important to know that when activating it via the FashionScape plugin, the outfit will only be visible to you. The armour pieces are unavailable in the main game and are therefore untradeable, can't be sold or bought at the GE and will not leave placeholders in your Bank.
+* Fixed a Farming issue where curing a diseased herb could cause it to transform into a different kind of herb altogether.
+* Fixed an issue where the judge in King's Ransom appeared to have a beard but no head.
+* Added the Last Contract option when using NPC Contact, which will allow players to talk to Amy about Mahogany Homes contracts.
+* Enabled spectators scrying into the Theatre of Blood to be visible in the three waves previously exempt from this, meaning fighters will be able to see their audience. Public chat will be available between the fighters and spectators in the following fights:
+** Nylocas
+** Xarpus
+** Verzik
+* The latest Deadman Mode Rug item has been tweaked to make the skulls much clearer.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Halloween 2024 Changes==
+We settled into spooky season last week with Marika and her pumpkin problem. Your Scarecrow Shirts and customised pumpkin heads have been the talk of all Gielinor – but we have had reports of some creepy crawly bugs that needed squashing.
+
+* Some players were reporting that Marika didn't believe them when saying they had heard the cat, even when they had! To help convince her, we've added a third chat option, which lets you promise you heard the cat – if you have in fact heard it, of course.
+* Moved a pumpkin decoration in Draynor so it's once again possible to go cut the oak next to the Bank without having to walk all the way around.
+
+Reminder that if you haven't already, you can visit the farm south of Falador to start the event and snag yourself some wicked cosmetics!
+
+[[File:Halloween Fixes & Miscellaneous Changes (1).png|thumb|600px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-10-16/3.png here].'']]
+
+==Varlamore: The Rising Darkness Changes==
+It's been almost a month since Varlamore: The Rising Darkness was released. You ventured forth to explore Varlamorian ways of potion making, battle the fearsome Hueycoatl, snag yourself new rewards, take on the new Combat Achievements and more!
+
+As always, we kept monitoring your feedback, which has led to the following fixes:
+
+* Using the Refiner at the Mastering Mixology minigame whilst wearing Ferocious Gloves will no longer make your gloves get stuck to the machine and cause your hands to stretch.
+* We've clarified the criteria for the Perfect Hueycoatl Combat Achievement:
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Task Name
+! Task Description
+! Task Tier
+! Task Category
+|-
+| Perfect Hueycoatl
+| Kill the Hueycoatl perfectly 5 times without leaving. To get a perfect kill, you must not take any avoidable damage from the Hueycoatl's lightning attack, tail slam attack, or off-prayer projectile attacks.
+| Elite
+| Perfection
+|}
+
+==Ironman Status Changes==
+This week also brings an important update for Ironmen.
+
+Previously, some Ironmen chose to lock their Ironman status 'permanently', worrying that a hijacker might downgrade it behind their back. However, over the years, we've seen an increasing number of Ironmen regret this. Additionally, we now have Jagex Accounts, bringing updated security options to keep hijackers out of the account in the first place. Therefore, as of today's update, the old 'permanent' option is no longer available. If you previously locked your Ironman status permanently and now wish to downgrade, you can do so - provided you have the security of a Jagex Account to protect your status.
+
+Ironmen who are still concerned about a hijacker downgrading them may choose a downgrade cool-down delay of 90 days. Players whose Ironman status is due to downgrade will receive warnings on login, giving them ample chance to visit the Ironman Tutor in Lumbridge and cancel the change if they don't want it to proceed.
+
+==Arclight Changes==
+After the addition of While Guthix Sleeps, Arclight gained a new feature which allowed players to infuse spent'' ''charges to count towards the 10,000-charge total required to upgrade it to Emberlight. However, when Arclight depleted to 0 charges, it automatically downgraded to Darklight, which meant your infusion progress was lost.
+
+Following your feedback, running out of charges will now create an ‘Inactive’ version of the Arclight, which remains usable in combat with the same stats as Darklight and maintains your infusion progress.
+
+While we were at it, we also made some additional improvements:
+
+* Players can now use one or two Shards at a time to charge Arclight. 333 charges for one Shard, 666 for two, and 1,000 for three.
+** You will still require three Shards to upgrade Darklight.
+* A warning message will appear in chat when Arclight has 100 charges remaining.
+* Repositioned Arclight's Inventory icon to avoid parts being chopped off.
+
+==Run Energy Changes Beta 2.0==
+Our second Run Energy changes beta launches tomorrow, '''Thursday October 24th'''! This is your opportunity to test out changes that will impact all game play experiences, no matter what you get up to in Gielinor.
+
+For all the details on what these changes are and how to take part in the beta, keep your eye out for a dedicated Run Energy Changes blog on the day.
+
+==Game Jam VI==
+[[File:Halloween Fixes & Miscellaneous Changes (2).jpeg|thumb|600px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-10-23/Game_Jam6.jpeg here].'']]
+
+As we've stepped into the final quarter of the year, it's time for another Game Jam!
+
+Game Jams are internal events that we run twice a year, providing us with a fantastic opportunity to come together as a team and pursue passion projects outside the normal roadmap. Previous Game Jams have introduced projects that eventually became Scurrius, Perilous Moons, the Wilderness updates, Project Rebalance, and more!
+
+With our sixth Game Jam in full swing, the team will be diving into their passion projects from October 21st to November 1st. This means there will be '''no game update next week, on Wednesday, October 30th.'''
+
+J-Mods will be using the '''#OSRSGameJam''' hashtag on X to share what they've been cooking - so if you want to see what we’re up to this time, make sure to check it out!
+
+Likewise, there will also be a dedicated #Game-Jam-VI channel on [http://discord.gg/OSRS our Discord server], where some J-Mods will be sharing their ideas and soliciting your feedback!
+
+==Discord Activities==
+===J-Mod Activity===
+[[File:Halloween Fixes & Miscellaneous Changes (3).png|thumb|400px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-10-23/JMod_prophunt.jpg here].'']]
+
+Is it a tree, or is it a J-Mod? There’s only one way to find out!
+
+We know you lot love hide and seek, so we're hosting a '''J-Mod Prop Hunt''' event on [http://discord.gg/OSRS our official Discord server] this weekend! On Sunday, J-Mods will disguise themselves as props across Gielinor, and it's up to you and your fellow ‘Scapers to find them! We'll be dropping clues in the''' #F2P-Clues''' and '''#Members-Clues''' channels under the Events category on the day. Then it’s up to you to head to the right location and see what your favourite J-Mods have transformed into!
+
+Everyone will meet in Varrock Square to kick off the event. Make sure you're in the event discussion channels in the Discord server if you plan to take part!
+
+This is your official save the date:
+
+* This Sunday, October 27th
+* 19:00 BST
+* Members World 358 | Free-to-Play World 500
+* Meeting point: Varrock Square
+
+See you there!
+
+We work alongside our Discord Volunteer Moderators to help provide you with activities and events that you can take part in. For the past couple of months, our moderators have been hard at work organising and running events both in and out of game via the server. We've had J-Mod events, player-led activities and games hosted by our mod team themselves! The team are dedicated to bringing you the activities that you want to take part in, so felt it was high time we got your feedback on what they’ve put on so far, and what you want to see in the future. So, we would love it if you could take a couple of minutes to fill this in and let the mod team know your thoughts!
+
+===Discord Stages===
+[[File:Halloween Fixes & Miscellaneous Changes (4).png|thumb|400px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-10-23/JMods_Draw.jpg here].'']]
+
+We're excited to announce our next Discord Stage call!
+
+On '''Tuesday, October 29th at 16:00 GMT''', Mod Blossom will be joined by Mod Jerv (Concept Artist) and Mod Skylark (Character Artist) to chat about art in Old School while Mod Jerv live-draws your suggestions! We've opened up a new channel to gather your drawing ideas early, so Mod Skylark can mock some of them up in 3D to show off during the stages. Head to the ''Drawing Suggestions'' channel to start suggesting what you'd like to see created! Please bear in mind that this Stages is just for fun, and not to develop in-game items, which means you can go wild with your ideas and get creative. We can't wait to see what you come up with! We'll be opening our Ask Your Questions channel on the day of the Stages, too, so prepare any art-related questions you have and pop them in there.
+
+==Merch Update - Halloween!==
+[[File:Halloween Fixes & Miscellaneous Changes (5).jpg|thumb|600px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-10-23/Black%20hween%20mask-1.jpg here].'']]
+
+Halloween is creeping up fast, and we've ''pinned'' down the perfect item for your costume! Channel the classic creepy vibes with this limited-edition Black Halloween Mask pin by the talented Angels Scapes. Check out the [https://runescape.backstreetmerch.com/ official merch store] to get your hands on one!
+
+==Other Changes==
+* Added a visual indicator to the Tormented Demons which shows when they enter their 100% accuracy phase.
+* Examining the murals in the four Pyramid Plunder lobbies reveals how many of each gold chest you’ve looted.
+* The Araxyte Slayer Helm now correctly matches your character's skin tone.
+* The following weapons and armour from Varlamore have been added to the Supplies chests on PvP Arena worlds:
+** Blue Moon armour set and Spear
+** Blood Moon armour set
+** Eclipse Moon armour set
+** Eclipse Atlatl and Atlatl Darts
+** Dual Macuahuitl
+* Lumberjack Boots are now correctly proportioned to your character.
+* You'll no longer find yourself in an unexpected location when using the passageways to exit the Rogues’ Den maze area.
+* Fixed a bug causing the Skull Sceptre to forget its autocast setting when switching to another weapon and back again.
+* Fixed a bug causing players to teleport a few tiles when standing on the tile directly south of Miss Schism in Draynor Village.
+* Clicking Vorkath's Collection Log link no longer sends players to the Whisperer’s page.
+* Fixed an issue with the Yanille south Agility shortcut.
+* The Venator Ring can no longer be equipped without a Leviathan kill.
+* During the Colossal Hydra's special attack, the smaller Hydras are no longer able to attack you.
+* While it didn't affect your ability to play the minigame, we have made sure the Kraken's Tentacle is facing the right way during Fishing Trawler.
+* The Loot Tracker no longer counts dropped bones twice.
+* The Amulet of the Damned's effect now works with the Ahrim's set while manual casting as well as autocasting. Updated the set effect wording to reflect this change.
+* When you use 250 Firelighters to unlock a new colourway for your Phoenix pet, you will now have permanent access to that colour. After unlocking once, you can then freely use the 'Metamorphosis' option on the pet to change it.
+* We know there are some very dedicated fans of the Old Torva outfit, and while we currently aren't adding it to the game itself, this week we've added the files to the config. This means that RuneLite will now be able to utilise the file and give you the option to don the OG style for your own enjoyment. It's important to know that when activating it via the FashionScape plugin, the outfit will only be visible to you. The armour pieces are unavailable in the main game and are therefore untradeable, can't be sold or bought at the GE and will not leave placeholders in your Bank.
+* Fixed a Farming issue where curing a diseased herb could cause it to transform into a different kind of herb altogether.
+* Fixed an issue where the judge in King's Ransom appeared to have a beard but no head.
+* Added the Last Contract option when using NPC Contact, which will allow players to talk to Amy about Mahogany Homes contracts.
+* Enabled spectators scrying into the Theatre of Blood to be visible in the three waves previously exempt from this, meaning fighters will be able to see their audience. Public chat will be available between the fighters and spectators in the following fights:
+** Nylocas
+** Xarpus
+** Verzik
+* The latest Deadman Mode Rug item has been tweaked to make the skulls much clearer.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1ga6mr8/halloween_fixes_miscellaneous_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

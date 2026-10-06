@@ -1,0 +1,29 @@
+{{Infobox Combat Achievement
+|name = Stop Right There!
+|image = [[File:The Maiden of Sugadinti.png|250px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Defeat the Maiden of Sugadinti in the Theatre of Blood: Hard Mode without letting blood spawns create more than 15 blood trails.
+|tier = Grandmaster
+|monster = Theatre of Blood: Hard Mode
+|type = Mechanical
+|id = 372
+|leagueRegion = Morytania
+}}
+'''Stop Right There!''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to defeat [[The Maiden of Sugadinti]] in [[Theatre of Blood: Hard Mode|hard mode]] without letting her [[blood spawn]]s create more than 15 trails of blood.
+
+==Strategy==
+Blood spawns can appear at random during the fight against the Maiden, but their chances of appearing significantly increase if the Maiden's splatter attack manages to hit someone; thus, any melee users should carefully watch the Maiden's animations, as they will have less time to react compared to those attacking from afar. As the Maiden is generally killed with melee (as it is significantly higher damage when her Defence level is drained), players should be careful.
+
+If a blood spawn appears, the mager is responsible for freezing it in place; as they have near non-existent stats, there should be no issue of splashing in mage gear. An [[Ice ancient sceptre]] can be useful for the task, as it will bind the spawn for 21.6 seconds when using [[Ice Barrage]] compared to 19.2 seconds.
+
+An alternate strategy takes advantage of the fact that blood spawns that spawn in the north-east corner of the arena cannot move. To take advantage of this, a player can enter, stand on the north-east corner of the area until a blood splat attack occurs, then intentionally step on it to spawn a blood spawn. Then finish the rest of the kill without stepping on another blood splat.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Hard Mode}}
+
+==Trivia==
+*The achievement's name may be a reference to the "Stop Right There, Criminal Scum" from ''Elder Scrolls IV: Oblivion''.
+
+{{Combat Achievements}}

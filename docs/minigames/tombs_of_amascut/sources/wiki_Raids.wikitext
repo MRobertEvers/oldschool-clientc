@@ -1,0 +1,61 @@
+{{External|rs}}
+[[File:Fighting Tekton.png|thumb|A group of players fighting together in the [[Chambers of Xeric]] raid.]]
+[[File:Raids.png|left|120px]]
+'''Raids''' are group activities for [[members]] in which the goal of the player(s) is to defeat several bosses in a row, often without banking, before facing the final boss of the raid. When the final boss is defeated, players can claim their rewards from a chest. As raids are intended for endgame accounts, the rewards from raids are very lucrative and generally considered the best in their category. Raids possess numerous unique drops, but the most prized drops, known as "mega rares", are some of the strongest weapons players can possess.
+
+Due to the high-level nature of raids, players are expected to bring equipment to cover the entire [[combat triangle]].
+
+All raids take place in an instance, with the [[Chambers of Xeric]] (barring [[Chambers of Xeric/Challenge Mode|Challenge Mode]]) having a randomly generated arrangement. All three raids have a hard mode variant to them, and the [[Theatre of Blood]] and [[Tombs of Amascut]] both have easier, entry mode variants as well.<!--Tombs of Amascut expert can be considered hard mode-->
+
+Raids scale based on the following:
+
+*Chambers of Xeric - party size's overall combat stats determine the health and combat levels of enemies in the encounter, while party's overall skill stats determines resources and skill challenge requirements.
+*Theatre of Blood - party size determines overall health of enemies in raid - if attempted in a solo or duo scale, enemies' health is scaled to trio scale.
+*Tombs of Amascut - active raid invocations determines overall combat stats and health of enemies in raid. Party size, in groups higher than solo scale, also determine enemies' health.
+
+When completing a raid, multiple rolls are made on the normal drop table. If a unique item is received during a raid, the interacting item will have a purple indicator of some form instead.
+
+Raids can be identified with a brown star {{SCP|raid}} [[icon]] on the [[World map|map]].
+
+==List of raids==
+There are currently three raids, the [[Chambers of Xeric]], the [[Theatre of Blood]], and the [[Tombs of Amascut]]. Each one features its own unique mechanics that make the three raids very different in practice to one another, with different balances of combat, puzzles, and skilling encounters, as well as different amounts of customisability and difficulty levels.
+
+A fourth raid, [[The Fractured Archive]], is planned to be released around late 2026.
+
+{|class="wikitable"
+!Raid
+!Date Released
+!Description
+!Requirements
+!Unique Mechanics
+|-
+|[[File:Chambers of Xeric logo.png|160px|link=Chambers of Xeric]]
+|style="white-space:nowrap"|[[5 January]] [[2017]]
+|Explore a large cave system underneath [[Mount Quidamortem]] built by [[Xeric]].
+|{{NA}}
+|A randomly generated arrangement of combat and non-combat encounters mean each raid is different from the last. Up to 100 players may challenge the raid per instance. Players must clear their way through two floors of enemies and/or skilling challenges before a confrontation with the [[Great Olm]], the final enemy of the raid. [[Chambers of Xeric/Challenge Mode|Challenge Mode]] is also available for players wishing for a harder encounter, with all twelve potential rooms being placed in a set order, and enemies have higher stats. 
+
+The Chambers of Xeric is currently the only raid that requires some skilling proficiency for an optimal experience, and deaths in the raid are safe for all but group hardcore ironmen players.
+|-
+|[[File:Theatre of Blood logo.png|160px|link=Theatre of Blood]]
+|style="white-space:nowrap"|[[7 June]] [[2018]]
+|Survive the blood sports of the [[vampyres]] in [[Meiyerditch]].
+|style="white-space:nowrap"|{{SCP|quest}} [[Priest in Peril]]
+|Unlike the other raids, the Theatre of Blood features only combat encounters, with five mini-bosses leading up to the confrontation with [[Verzik Vitur]], previously the [[strongest monster]] in ''Old School RuneScape.'' The Theatre of Blood includes a Hard Mode as well as an Entry Mode. Up to five players may challenge the raid in all modes. Entry Mode is a beginner's introduction to the raid with the mechanics made more friendly for them, albeit at the cost of less rewards and no chance of obtaining rare rewards. [[Theatre of Blood/Hard Mode|Hard Mode]] is offered for players who have completed the raid at least once in normal mode, modifying the bosses' mechanics to make them more challenging.
+
+Unlike other raids, players cannot teleport out of the raid themselves; the only way to safely leave the raid outside of completing it or resigning through the [[Vyre Orator (Theatre of Blood)|vyre orator]] before all but the final fight is through [[escape crystal]]s, sold by the [[Mysterious Stranger]] for 75,000 [[coins]] each.
+|-
+|[[File:Tombs of Amascut.png|160px|link=Tombs of Amascut]]
+|style="white-space:nowrap"|[[24 August]] [[2022]]
+|Fight your way through Amascut's thralls inside the [[Jaltevas Pyramid]].
+|style="white-space:nowrap"|{{SCP|quest}} [[Beneath Cursed Sands]]
+|A unique ''invocation'' system allows players to scale the raid to the difficulty level of their choice, by selecting which challenging mechanics they want to tackle, which determines the raid's difficulty, presented as Entry, Normal and Expert mode. Up to eight players may attempt the raid. These invocations range from inventory restrictions to additional or modified special attacks from the bosses, to time and respawn limits. Additionally, players can choose to attempt each of the four mini-bosses and their respective puzzle rooms in any order they wish, with the four paths of the raid stretching out from a central nexus, before they can unlock the lower level where they can face the final bosses, [[Tumeken's Warden]] and [[Elidinis' Warden]], also in the order they choose.
+|-
+|[[File:The Fractured Archive logo.png|160px|link=The Fractured Archive]]
+|2026
+|Deep beneath Gielinor lies [[The Fractured Archive]].
+|style="white-space:nowrap"|{{SCP|quest}} [[While Guthix Sleeps]]
+|
+|}
+
+[[Category:Raids| ]]

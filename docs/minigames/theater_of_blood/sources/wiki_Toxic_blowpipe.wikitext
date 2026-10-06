@@ -1,0 +1,319 @@
+{{Infobox Item
+|defver = 2
+|version1 = Empty
+|version2 = Charged
+|name1 = Toxic blowpipe (empty)
+|name2 = Toxic blowpipe
+|image1 = [[File:Toxic blowpipe (empty).png]]
+|image2 = [[File:Toxic blowpipe.png]]
+|release = [[8 January]] [[2015]]
+|update = Zulrah - The Solo Snake Boss
+|aka = Bp, Blowpipe
+|members = Yes
+|quest = No
+|tradeable1 = Yes
+|tradeable2 = No
+|equipable = Yes
+|stackable = No
+|noteable1 = Yes
+|noteable2 = No
+|options1 = Dismantle, Drop
+|options2 = Wield, Check, Unload, Uncharge
+|wornoptions1 = None
+|wornoptions2 = Check
+|destroy1 = N/A
+|destroy2 = ''If you uncharge the blowpipe, all scales and darts will fall out.''
+|examine = Fires darts while coating them with venom.
+|value = 120000
+|weight1 = 0.300
+|weight2 = 0.500
+|exchange1 = Yes
+|exchange2 = No
+|id1 = 12924
+|id2 = 12926
+}}
+{{Synced switch
+|version1 = [[File:Toxic blowpipe (empty) detail.png|left|170px]]
+|version2 = [[File:Toxic blowpipe detail.png|left|170px]]
+}}
+The '''toxic blowpipe''' is a [[blowpipe]] that requires 75 [[Ranged]] to wield. Like all blowpipes, it is a two-handed weapon. It can be made by using a [[chisel]] on a [[tanzanite fang]], which requires 78 [[Fletching]]. Players using the blowpipe have a 25% chance of inflicting [[venom]] on their opponent with attacks or manually-cast combat spells. However, if the opponent is an NPC and the [[serpentine helm]] is worn in conjunction with the blowpipe, there is a 100% chance of envenoming them.
+
+The base [[attack speed]] of the toxic blowpipe varies; in [[player versus monster]] encounters, its attack speed is '''3''', or equal to darts. During [[player versus player]] combat, its attack speed is '''4''', or equal to a [[Shortbow (weapon)|shortbow]]. In addition, its [[attack range]] is '''+2''' higher than that of throwing darts, at '''5''' by default. Longrange increases attack range by 2.
+
+If the blowpipe is not [[Protect Item|protected]] upon death, all scale and dart charges will appear on the floor alongside the blowpipe. If the blowpipe IS protected upon death, ALL scale and dart charges will be maintained when you respawn. This makes it an effective weapon for ranging in the [[Wilderness]] as the weapon and the ammo is contained in one high-value item slot, being very effective at the [[Revenant Caves]] for those who are not [[Skull (status)|skulled]]. The blowpipe is only tradeable when uncharged (empty).
+
+Players can dismantle an uncharged blowpipe to receive 20,000 [[Zulrah's scales]], resulting in a loss of {{NoCoins|{{GEP|Zulrah's scales|20000}}-{{GEP|Toxic blowpipe (empty)}}|c}}.
+
+Players can toggle whether picked up ammunition is automatically reloaded into the blowpipe or remains in the inventory by talking to the [[Ranged combat tutor]] or by toggling the "ammo-picking behaviour" checkbox in the in-game settings.
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Empty
+|version2 = Charged
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = +30
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr1 = 0
+|rstr2 = +20
+|mdmg = 0
+|prayer = 0
+|slot = 2h
+|speed = 3
+|attackrange = 5
+|combatstyle = Thrown
+|image1 = [[File:Toxic blowpipe (empty) equipped male.png|140px]]
+|image2 = [[File:Toxic blowpipe equipped male.png|140px]]
+|altimage1 = [[File:Toxic blowpipe (empty) equipped female.png|140px]]
+|altimage2 = [[File:Toxic blowpipe equipped female.png|140px]]
+}}
+
+{{CombatStyles|Thrown|speed=3|attackrange=5}}
+
+==Special attack==
+[[File:Toxic blowpipe special attack projectile.gif|left|The projectile from the special attack.]]
+[[File:Toxic Siphon.gif|250px|thumb|A player performs the toxic blowpipe's special attack, ''Toxic Siphon''.]]
+The toxic blowpipe has a [[special attack]], ''Toxic Siphon'', which increases accuracy by 100% and damage by 50%, while healing the user by half of the damage dealt (rounded down). This consumes 50% of the player's special attack energy.
+
+Similar to the [[Saradomin godsword]] special attack, if the target dies from the special attack, it will still heal the player based on what they would have hit if the target  had more Hitpoints; for example, if the hit was calculated to deal 20 damage and the target only has 4 Hitpoints, it will heal the player by 10 Hitpoints. For certain monsters, it heals based on the damage dealt before calculating damage reduction, such as [[Vorkath]] during its acid phase (where it will take 50% reduced damage), [[kurasks]] that have 100% damage resistance to most weaponry, or [[Akkha]] during his ranged state which is 100% resistant to Ranged attacks.
+
+==Creation==
+{{Recipe
+|skill1 = Fletching
+|skill1lvl = 78
+|skill1boostable = Yes
+|skill1exp = 120
+|members = Yes
+|ticks = 0
+|tools = Chisel
+|mat1 = Tanzanite fang
+|output1 = Toxic blowpipe (empty)
+}}
+
+==Charging and costs==
+The toxic blowpipe is charged with [[Zulrah's scales]]; it cannot be wielded if it is uncharged, except when fully depleted while equipped. It uses unpoisoned [[dart]]s as ammunition, and can hold up to 16,383 scales and 16,383 darts, costing {{NoCoins|{{GEP|Zulrah's scales|16383}}|c}} to fully charge, excluding the cost of darts. Players can configure the charges while the weapon is in their bank by right-clicking on Configure-Charges, as long as players have the required materials. The blowpipe has a 1/3 chance to not use scales when firing; thus, on average, two scales are used for every three shots fired. A fully charged blowpipe lasts for 8 hours and 12 minutes of non-stop combat with the rapid attack style or 12 hours and 17 minutes with the accurate style.
+
+At the current price, the toxic blowpipe costs {{NoCoins|{{GEP|Zulrah's scales}} * 0.66|c}} per shot, excluding the cost of darts. When charged with scales, the toxic blowpipe has a Ranged attack of 30 and a Ranged strength of 20. These bonuses stack with the [[Ranged Strength]] of its ammunition. For example, using [[dragon dart]]s on the charged blowpipe will increase its Ranged strength to +55.
+
+Uncharging the blowpipe will return all remaining darts and scales.
+
+===Cost of use per hour===
+When using the rapid attack style on the toxic blowpipe, up to 3,000 darts may be fired per hour, equating to up to 2,000 [[Zulrah's scales]] used per hour. This makes the base cost per hour {{NoCoins|{{GEP|Zulrah's scales|3000 * (2 / 3)}}|c}}, excluding the cost of darts. Using an [[Ava's device]] or picking up used ammo will reduce the number of darts needed.
+{| class="wikitable sortable align-center-1 align-left-2 align-center-3" style="text-align:right;"
+! colspan="2" | Dart
+! {{plinkp|Ranged Strength|pic=Ranged Strength icon}}
+! Dart cost/hr
+(assembler)
+! Total cost/hr
+(assembler)
+!Dart cost/hr
+(accumulator)
+!Total cost/hr
+(accumulator)
+|-
+|{{plinkt|Mithril dart}}
+| +9
+|{{Coins|{{GEP|Mithril dart|600}}}}
+|{{Coins|{{GEP|Mithril dart|600}} + {{GEP|Zulrah's scales|3000 * (2 / 3)}}}}
+|{{Coins|{{GEP|Mithril dart|840}}}}
+|{{Coins|{{GEP|Mithril dart|840}} + {{GEP|Zulrah's scales|3000 * (2 / 3)}}}}
+|-
+|{{plinkt|Adamant dart}}
+| +17
+|{{Coins|{{GEP|Adamant dart|600}}}}
+|{{Coins|{{GEP|Adamant dart|600}} + {{GEP|Zulrah's scales|3000 * (2 / 3)}}}}
+|{{Coins|{{GEP|Adamant dart|840}}}}
+|{{Coins|{{GEP|Adamant dart|840}} + {{GEP|Zulrah's scales|3000 * (2 / 3)}}}}
+|-
+|{{plinkt|Rune dart}}
+| +26
+|{{Coins|{{GEP|Rune dart|600}}}}
+|{{Coins|{{GEP|Rune dart|600}} + {{GEP|Zulrah's scales|3000 * (2 / 3)}}}}
+|{{Coins|{{GEP|Rune dart|840}}}}
+|{{Coins|{{GEP|Rune dart|840}} + {{GEP|Zulrah's scales|3000 * (2 / 3)}}}}
+|-
+|{{plinkt|Amethyst dart}}
+| +28
+|{{Coins|{{GEP|Amethyst dart|600}}}}
+|{{Coins|{{GEP|Amethyst dart|600}} + {{GEP|Zulrah's scales|3000 * (2 / 3)}}}}
+|{{Coins|{{GEP|Amethyst dart|840}}}}
+|{{Coins|{{GEP|Amethyst dart|840}} + {{GEP|Zulrah's scales|3000 * (2 / 3)}}}}
+|-
+|{{plinkt|Dragon dart}}
+| +35
+|{{Coins|{{GEP|Dragon dart|600}}}}
+|{{Coins|{{GEP|Dragon dart|600}} + {{GEP|Zulrah's scales|3000 * (2 / 3)}}}}
+|{{Coins|{{GEP|Dragon dart|840}}}}
+|{{Coins|{{GEP|Dragon dart|840}} + {{GEP|Zulrah's scales|3000 * (2 / 3)}}}}
+|}
+
+===Scale to dart ratio===
+Average usage of ammunition using the Toxic Blowpipe is described by the formulas below.
+
+{| class="wikitable align-center-1 align-left-2" style="text-align:right"
+! colspan="2"|Device
+! Recovery Rate
+! Scales
+! Darts
+|-
+|
+|None
+|0%
+|<math>Scales = \frac{2}{3} * Darts</math>
+|<math>Darts = \frac{3}{2} * Scales</math>
+|-
+|{{plinkt|Ava's attractor}}
+|60%
+|<math>Scales = \frac{5}{3} * Darts</math>
+|<math>Darts = \frac{3}{5} * Scales</math>
+|-
+|{{plinkt|Ava's accumulator}}
+|72%
+|<math>Scales = \frac{50}{21} * Darts</math>
+|<math>Darts = \frac{21}{50} * Scales</math>
+|-
+|{{plinkt|Ava's assembler}}
+|80%
+|<math>Scales = \frac{10}{3} * Darts</math>
+|<math>Darts = \frac{3}{10} * Scales</math>
+|}
+
+==Ornament kit==
+The blowpipe can be cosmetically enhanced via the [[Trailblazer reloaded blowpipe ornament kit]] to change its appearance into that of the [[blazing blowpipe]]. To apply the kit, the blowpipe must be emptied of scales and darts.
+
+==Products==
+{{Uses material list|Toxic blowpipe|Toxic blowpipe (empty)}}
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Equip staff.wav|desc=Equipping}}
+{{SFXLine|file=Dart attack.wav|desc=Attacking}}
+{{SFXLine|file=Snake hit.wav|desc=Special attack}}
+{{SFXLine|file=Destroy object.wav|desc=Uncharging}}
+{{SFXLine|file=Found gem.wav|desc=Creating blazing blowpipe}}
+{{SFXTableBottom}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Toxic blowpipe}}
+
+==Comparison between other ranged weapons==
+{{Ranged weapons comparison}}
+
+==Concept art==
+<gallery>
+Toxic blowpipe work-in-progress.png
+Toxic blowpipe work-in-progress 2.png
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 5 March 2025
+|update = Game Jam: Charges QoL
+|change = The Toxic blowpipe supports a bank item option for changing charges.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = Creating a toxic blowpipe now requires 78 Fletching, up from 53.
+}}
+{{Subject changes
+|date = 7 July 2021
+|update = Small Changes & Tweaks
+|poll = 
+|change = The weapon's position on female players has been adjusted so that they appear to be equipped properly.
+}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|change = The toxic blowpipe has received the following changes:
+* Ranged Attack bonus decreased from +60 to +30.
+* Ranged Strength bonus decreased from +40 to +20.
+* The special attack now gives a 100% accuracy boost in addition to the 50% damage boost.
+}}
+{{Subject changes
+|date = 7 October 2020
+|update = Blowpipe Ammo Changes and Small Fixes
+|poll = Old School Content Poll 73: The :Joy: of Polls
+|change = *Players can now swap a different type of dart into the toxic blowpipe without having to unload the darts inside first.
+*Zulrah's scales will now automatically be added to the toxic blowpipe when picked up. This only applies if it is the only scale-using item in the player's inventory.
+}}
+{{Subject changes
+|date = 16 November 2017
+|update = Buy 50, Item Changes and QoL
+|poll = Old School Content Poll 57: Quests, Buffs & QoL
+|change = * The toxic blowpipe can now envenom NPCs at a 100% rate if wearing a [[serpentine helm]].
+* The Toxic Blowpipe now displays the exact number of scales while there are no darts loaded inside.
+}}
+{{Subject changes
+|date = 24 August 2017
+|update = Remember username, tooltips, and Wilderness Wars!
+|change = When you pick up darts from the ground, they can now go directly into a blowpipe with matching contents even if the blowpipe is in your inventory rather than equipped.
+}}
+{{Subject changes
+|date = 17 August 2017
+|update = Runes and Ammunition & Log In Screen Competition!
+|change = * The blowpipe will now deal 0 damage when used in Barbarian assault. This change is a result of players abusing an issue which required the ammunition slot to simply contain the type of arrow requested. This was not an intended mechanic of the minigame, and so it has been fixed.
+* The exact number of scales left in your blowpipe will now be shown when you Check it, this is in addition to showing the percentage remaining
+}}
+{{Subject changes
+|date = 3 August 2017
+|update = Inferno slayer task, Tournament worlds, and Poll 56!
+|change = A 1% scale, and a 100 dart remaining warning has been added to the Blowpipe.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = Quality of Life - Top 10 PvM Suggestions
+|change = A toxic blowpipe can now be dismantled for 20,000 Zulrah scales.
+}}
+{{Subject changes
+|date = 21 January 2016
+|update = The Dragon Warhammer
+|change = Uncharging the blowpipe, serpentine helm or toxic staff of the dead will now ensure you have inventory space for the scales and darts if necessary.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|poll = Old School Content Poll 35: The Max Cape
+|change = The special attack of the toxic blowpipe now has a custom animation. The power of the blowpipe special attack is now properly represented with a snake head sent flying, looking to sink those fangs into your opponent.
+}}
+{{Subject changes
+|date = 20 August 2015
+|update = Boss slayer & total worlds
+|change = Uncharging the toxic blowpipe now correctly asks if the player wishes to uncharge the object, rather than destroy the object.
+}}
+{{Subject changes
+|date = 19 March 2015
+|update = Boss Pets, Sets, Chat & More
+|change = Using the blowpipe special attack when your hitpoints are above your base level no longer reduces your hitpoints.
+}}
+{{Subject changes
+|date = 12 January 2015
+|update = Toxic Blowpipe PvP Change
+|poll = 
+|change = The blowpipe's speed on rapid was reduced to be equal to that of a shortbow '''only''' in PvP; player-versus-monster encounters remain unaffected.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+[[File:Toxic blowpipe - dragon darts.gif|thumb|200px|The unique projectile animation when using a toxic blowpipe with dragon darts.]]
+* Unlike other darts, [[dragon darts]] have a unique projectile animation when shot out of a toxic blowpipe.
+* The maximum amount of scales and darts that can be held by the blowpipe, 16,383 each, is equivalent to the maximum value that can be represented by 14 bits. This is because 14 bits were allocated for this part of the data, while the rest were allocated for dart types and room for potential future additions.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1408149310097723395|date=24 June 2021|archiveurl=https://reldo.runescape.wiki/i/99494|archivedate=27 June 2021|quote=14 bits were allocated for that part of its data. The other bits were allocated for remembering the dart types, and any potential expansion that might be wanted for it later - it's always awkward when you want to add another feature later but you used up all 32 bits already.}}
+
+==References==
+{{Reflist}}
+
+{{Zulrah}}
+{{Ranged weapons}}
+[[Category:Weapons with Special attacks]]
+[[Category:Items subject to Grand Exchange item sink]]
+[[Category:Items with charges]]
+[[Category:Blowpipes]]

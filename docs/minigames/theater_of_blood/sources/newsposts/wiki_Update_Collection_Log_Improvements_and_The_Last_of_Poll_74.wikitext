@@ -1,0 +1,118 @@
+{{Update|date=7 April 2021|rev=8 April 2021|link=https://secure.runescape.com/m=news/collection-log-improvements-and-the-last-of-poll-74?oldschool=1|category=game}}
+[[File:Collection_Log_Improvements_and_The_Last_of_Poll_74_newspost.png|right]]
+{{clear}}
+
+__TOC__
+==Issues and Hotfixes (7th April)==
+{| class=wikitable style="text-align:center; width:665px;"
+!Issues Raised
+!Current Progress
+|-
+|'''(11:35 BST)''' Players Collection Log total doesn't display correctly. || '''(11:35 BST)''' The Collection Log Plugin within RuneLite is currently not displaying your total as intended. We would recommend uninstalling it for the meantime, until it has been fixed.
+|-
+|'''(12:00 BST)''' Players searching for any boss items after Tempoross within the Collecton Log, won't see any results. || '''(12:10 BST)''' This will be fixed in the next game update (April 14th).
+|-
+|'''(12:00 BST)''' Players cannot buy S.T.A.S.H. Blueprints from Watson if they have a clue to claim. || '''(12:21 BST)''' This issue has now been fixed.
+|-
+|'''(12:30 BST)''' Purchasing an untradable item from any store closes the store interface (this doesn't stop you from getting the item). || '''(12:50 BST)''' This issue has now been fixed.
+|-
+|'''(12:35 BST)''' Changing the Giant Mole pet to pink is causing issues with players Giant Mole pet insurance. || '''(13:10 BST)''' Probita's Insurance Bureau will now recognise the new pink mole for insurance purposes. Some other issues will be fixed with next week's game update (April 14th).
+|-
+|'''(14:45 BST)''' Players aren't seeing the side panel UI we mentioned in the Collection Log poll.	 || '''(14:55 BST)''' This will be implemented with the release of Combat Achievements.
+|-
+|'''(15:00 BST)''' After the update, players were supposed to retroactively unlock Marks of Grace in their Collection Log equivalent to their obtained amount plus the value of purchased pieces of Graceful. But... If players had any Graceful pieces equipped when logging in, they were not included in the retroactive unlock towards Marks of Grace.	 || '''(15:10 BST)''' One hotfix was deployed to start counting worn Graceful pieces and a second hotfix was deployed to fix the same issue, but this time for the Brimhaven Graceful variant as it wasn't included in the first hotfix.
+
+This hotfix will only work for players that '''HAVEN'T''' logged in between the update and the hotfixes.
+
+There will be a third fix coming in next week's game update (April 14th) to include the Brimhaven Graceful pieces (not the Marks of Grace, but the objects themselves). This will work for all players, even if they log in before the fix will be deployed.
+|-
+|'''(17:00 BST)''' The Shades of Mort'ton section of the Collection Log doesn't turn green to show it has been completed.	||'''(17:00 BST)''' This issue is currently being investigated.
+|}
+''We're back, and we bring with us a rejuvenated Collection Log that will help you keep your stash nice and organised! Plus, more poll changes are rolling in, and we're giving you an opportunity to brush up on your Kourend and Kebos lore just in time for A Kingdom Divided. Read on to see what's in store in the latest update... naked moles and all.''
+
+==Collection Log Improvements==
+The Collection Log now has its very own Search function to help you quickly find your stuff! Get typing to instantly see all the lovely items you've acquired.
+
+[[File:Collection_Log_Improvements_and_The_Last_of_Poll_74_(1).png|centre|600px]]
+
+Plus, the Log has the following new features:
+
+* A new counter shows the total number of unique items obtained (check the top of the Log to feel smug).
+* Added a togglable chat/popup notification when a new item has been added to the collection log.
+* The colour of each section of the Log changes based on its completed status. Nifty!
+* Different boss modes now have separate kill counts on their respective interfaces (DKs, Corrupted Gauntlet, CM CoX).
+* Gnome Restaurant has a delivery count at the top of its section that will start at zero for everyone when the update goes live.
+
+[[File:Collection_Log_Improvements_and_The_Last_of_Poll_74_(2).png|centre|600px]]
+
+Other additional items have also been added to the Log as follows:
+
+* Volcanic Mine Rewards have been added (in their own Volcanic Mine section).
+* Third Age and Gilded items can now be found in the "Rares" tabs for each Clue Scroll.
+* A Brimhaven Agility section has been added to the minigames tab.
+* Pirate Hook has been moved from Underwater Agility to the Brimhaven Agility section.
+* Merfolk Trident has been added to the Misc section.
+* Mark of Grace has moved to the Rooftop Agility section (these will be proactively unlocked if you had any before the update and will account for the amount of marks spent on each Graceful set you have purchased).
+* Third Age pieces now have their own separate tab.
+
+==Poll 74==
+
+Collection Log aside, the last few changes from Poll 74 are also being released with today's update:
+
+* Theatre of Blood has gained an additional reward chest just opposite the Bank booths, that allows you to obtain any loot they forgot to claim after defeating Lady Verzik Vitur herself! You will still need to complete the full raid, and any unique drops that would normally be announced to the rest of the raiding party will still be broadcast, even if you were offline before seeing the chest yourself. Players will not be able to re-enter the Theatre if they have unclaimed rewards from the chest, but there is a discard option (don't worry, there's a warning for this too).
+* Use a mole claw on the Giant Mole pet and it will lose its fur and become pink! Apply a mole skin to grow the fur back.
+* The Abyssal Sire will no longer deal damage with a Miasma attack after it has died.
+* For 500 coins, Watson now offers a blueprint that allows you to build a STASH tracker in your Player Owned House within your Study on the wall chart space. To get building, you will need the blueprints, a Bolt of Cloth and 40 Construction.
+
+==Postbag From The Swamp: Submit Your Questions!==
+
+With the upcoming release of A Kingdom Divided, we’d like to take the opportunity to answer your burning questions about the Kourend and Kebos lore. We’ve dusted off Postie Pete, set him up with a fetching pair of galoshes (not sure how he’ll wear them, mind), and given him the addresses of several notable NPCs – so all that’s left now is for YOU to ask the questions!
+
+
+You may address your questions to any NPC in the Kourend and Kebos regions and post them in this [https://www.reddit.com/r/2007scape/comments/mlh2p4/postbag_from_the_swamp_submit_your_questions/ Reddit Thread] or in our [http://services.runescape.com/m=forum/forums.ws?380,381,709,66210797 Official Forums].
+
+
+Stuck for inspiration? The Old School Wiki has an [[Postbag from the Hedge|archive]] of all the previous issues of Postbag from the Hedge! Ooh, we’re feeling all nostalgic.
+
+[[File:Collection_Log_Improvements_and_The_Last_of_Poll_74_(3).png|centre|600px|''A previous Postbag Letter'']]
+
+==Other News==
+
+Whilst we continue to investigate reports of the Scrying Pool and Portal Nexus not working as intended, "Scry" mode will now reveal how many players are in a specific location.
+
+
+This is a temporary solution and we expect to release a permanent fix in the future that returns it to its full functionality as it was before.
+
+===PvP World Rota===
+
+The PvP world rota has moved to Period A:
+
+* The host for the High Risk PvP world will be W343 (Germany)
+* The host for the Standard PvP world will be W324 (US West)
+* The host for the free-to-play PvP world will be W417 (US East)
+* The members-only LMS world will be W333 (UK)
+* The free-to-play LMS world will be W469 (US East)
+
+As previously stated, the PvP World rota will change weekly, along with every game update.
+
+===Smaller Changes===
+
+* We have reduced the timer in the Tempoross lobby from 60 to 30 seconds.
+* The Bracelet of Clay now works correctly with the Mining Cape and Celestial Ring effects.
+* A stile has been added to the Rellekka mine, allowing multiple people to enter and exit at the same time following completion of the Fremennik Trials.
+* The shades of Mort'ton coffins have been adjusted to prevent graphical issues with shields.
+* Some jagged terrain in the Kharidian Desert, west of the Shantay Pass, has been smoothed out.
+* The Strung Rabbit Foot Necklace now slightly increases the chance of nests containing an egg or ring when emptying a bird house.
+* Some grammar has been corrected in the Herblore level-up messages.
+* The Tome of Water can now appear in the Skill Guide and level-up messages.
+* The imbued Rings of Wealth are no longer prioritised so highly for protection on death, since they downgrade even when protected.
+* The option text for the brightness control in the Settings side-panel now refers to brightness, rather than music volume.
+* The boss and Slayer kill logs no longer output code debugging messages when opened.
+
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums.ws?380,381,708,66210719 official forums], on the [https://www.reddit.com/r/2007scape/comments/mlyqkq/collection_log_improvements_and_the_last_of_poll/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+----
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Gee, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

@@ -1,0 +1,93 @@
+{{Update|date=12 March 2020|link=https://secure.runescape.com/m=news/phosanis-nightmare-and-hiscores?oldschool=1|category=game}}
+[[File:Phosani's Nightmare and HiScores newspost.png|right]]
+{{clear}}
+
+<center>''This week’s update sees updates to Boss HiScores and the completion of Phosani’s Nightmare competition!''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Phosani's Nightmare}}
+
+[[File:Phosani's Nightmare and HiScores (1).png|center|300px]]
+
+
+After a week of intense battles, The Nightmare has retreated from Phosani’s dreams… for now. The grateful Sisterhood will be distributing prizes for those who defeated Phosani's Nightmare in record time.
+
+The winners will be announced tomorrow, on Friday March 13th. Keep an eye on your in-game mailbox and social to see if you've won!
+
+In addition, the following content creators have been given prizes to distribute to their audience as they see fit:
+*[https://twitter.com/SynqShot @SynqShot]
+*[https://twitter.com/OSRS_AColdOne @OSRS_AColdOne]
+*[https://twitter.com/MmorpgCP @MmorpgCP]
+
+Follow them on Twitch or Twitter to find out how to win!
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Nightmare Loot Table}}
+
+[[File:Phosani's Nightmare and HiScores (2).png|center|250px]]
+
+
+The horror isn't over yet! Nightmare fans will be pleased to hear that her loot table has been buffed a little this week.
+
+You'll notice that all normal drops now come in greater quantities, which will increase the income from each fight. There is also a greater chance to receive a unique, and the unique drops are now split across two tables. If you are strong enough to be eligible to receive a unique, you'll also get some bones to indicate how well you've done. Probably it's best if you don't ask who they came from.
+
+The tertiary drops, such as the pet, are now static - unless you're the MVP, in which case you'll have a 5% better chance of getting one.
+
+Finally, the rarity scaling has been removed. Now, a 1% chance of a second unique roll will be added for every extra player after five. For example, with 80 players in the group, there will be a 75% chance of a second unique roll.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Boss HiScores}}
+
+[[File:Phosani's Nightmare and HiScores (3).png|center|250px]]
+
+
+Recently, the Old School RuneScape HiScores have been under immense load, which is causing issues like HiScores failing to update or even open, and extremely long page loading times. This has only been an issue since the introduction of the Boss HiScores, and so we’ve made a small adjustment which we hope will fix the issue.
+
+Previously, when a player who had killcounts but hadn't played since the introduction of Boss HiScores logged out, the system would perform lots of calculations to figure out where they belonged on the HiScore table. From now on, players who fail to reach a minimum killcount value will not be listed on the HiScores, which means that fewer comparisons will be made. This has the dual effect of making HiScores more competitive than ever!
+
+This change should solve the loading issues, although we’ll be monitoring the situation and making further changes as necessary.
+
+
+'''Please note that HiScores may be unavailable for a period of time after the game update to adjust to the changes.'''
+
+{{Horizontal Line}}
+
+{{Headline|22|Pvp Drop Delay}}
+
+[[File:Phosani's Nightmare and HiScores (4).png|center|150px]]
+
+
+We've heard reports of a consistent issue in PvP where unscrupulous players will drop their valuable items to an alt upon being killed, thereby robbing PK'ers of their reward. To combat this issue, a drop delay of 5 seconds has been added during PvP combat in the Wilderness and on PvP and DMM worlds. It will not apply to PvP instances such as Castle Wars.
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+The March edition of the Gielinor Gazette is hot off the press and ready for your perusal. Take a look [https://secure.runescape.com/m=news/gielinor-gazette-march-2020?oldschool=1 here.]
+
+You can now open the latest Gielinor Gazette by clicking the ‘Newspaper’ button on the Varrock Herald in-game. 50 Coins is a small price to pay for all the latest news!
+
+*The Penance Runner Hat will now break upon death, just like the other Barbarian Assault hats. It can also be locked with Trouver Parchment.
+*Fixed an issue where hitsplats were appearing for longer than intended.
+*Fixed a texture bug on the walls of the Zamorakian Base in Castle Wars.
+*Morytanian bookcases are now typo-free.
+*Fixed a bug where players were able to pick up a second hard clue scroll if the clue in question was one of five added in an update last year. 
+*Female characters now hold the Scythe of Vitur correctly.
+*A warning message will now be displayed about 18 seconds before a Divine Potion's timer expires.
+*Gems obtained from the Molch chests can now go into an open Gem Bag if you have one with enough space.
+*The green tint on filled Ogre Bellows is now more obvious.
+*If you're attempting to start a Theatre of Blood wave, but some of your party are still in the previous wave's arena, the warning screen will now make this more explicit. 
+*A missing apostrophe has been added to the skill guide.
+*Pest Control now shows a healing hitsplat when a spinner heals a portal or when a dying portal causes the Void Knight to be healed.
+*Peaches made using the Bones to Peaches spell can now be stored in the Private Raids Storage.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,627,66146602 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''Mods Acorn, Archie, Ash, Banjo, Boko, Bonsai, Bruno, Curse, Deagle, Ed, Errol, Fed, Flippy, Gee, Husky, John C, Kieren, Kristy, Lenny, Lottie, Maylea, MikeD, Nasty, Oasis, Roq, Ry, Steve W, Sween, Tide, Vegard, Weath & West'''<br/>''The Old School Team''

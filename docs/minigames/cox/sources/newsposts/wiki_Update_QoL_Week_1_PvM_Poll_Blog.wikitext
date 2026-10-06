@@ -1,0 +1,77 @@
+{{Update|date=30 January 2018|link=http://services.runescape.com/m=news/qol-week-1-pvm-poll-blog?oldschool=1|category=website}}
+[[File:QoL Week 1- PvM Poll Blog newspost.png|right]]
+{{clear}}
+
+
+{{Headline|25|QoL Month Week 1: PvM}}
+
+{{Horizontal Line}}
+
+'''Changelog'''
+*Removed the question regarding increasing the attack range of the Dragon hunter crossbow.
+*Removed the question regarding the greyed out special attack bar.
+*Added a question proposing a new mini-map orb to display your special attack.
+*Reworded the question regarding certain seed drops to clarify the intention is for herb seeds to appear above less useful ones.
+*Added a question regarding Dagganoth bones appearing on top of Dagganoth hides.
+
+{{Horizontal Line}}
+
+QoL month has arrived! As we mentioned in our previous news post, we're spending the entirety of February dedicated to Quality of Life updates. This week we kick things off with your PvM related suggestions!
+
+For those hoping to see improvements elsewhere, fear not, for the following weeks will be dedicated to Skilling, PvP and Minigames/other.
+
+The schedule for PvM Week is as follows: 
+
+*In-game poll live by 31/01
+*In-game poll closes 05/02
+*Week 2 - Skilling Blog live by 05/02
+*Most* PvM Week content ready for 08/02 *(''some content may be included in the following weeks'')
+
+Make sure you head over to the [http://services.runescape.com/m=forum/forums.ws?322,323,155,65983807 Old School Content Suggestions forum], or Reddit ([https://www.reddit.com/r/2007scape/ /r/2007scape/] and [https://www.reddit.com/r/oldschoolrs/ /r/oldschoolrs/])., to share your suggestions for Week 2 - Skilling!
+
+{{Horizontal Line}}
+
+{{Headline|22|Poll Questions}}<br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should a peek option be added to the Lizardman Canyon, allowing you to check if there are any players currently in that area before entering?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should a peek option be added to the Monkey Madness 2 tunnels, allowing you to check if there are any players currently in that area before entering?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should a peek option be added to the agility shortcut near the Kalphite Queen lair entrance, allowing you to check if there are any players currently in that area before entering?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should it be possible to automatically continue attacking your target after trying to use a special attack when you don't have enough energy to do so?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should there be a new orb added to the bottom-left of the minimap which displays your special attack energy level? This would be for information only, with no options to interact with it. By default, it will appear for all players, but can be disabled alongside all minimap orbs via the existing "Data orbs" option.</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should the rewards from Champions' Challenge be improved by offering an XP lamp that provides 10x the standard XP normally received for each Champion slain? Players that have previously completed any of the challenges will be able to redeem the XP lamp by talking to an NPC.</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should herb seeds appear on top of other less useful seeds?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should Dagannoth bones appear on top of Dagannoth hides?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should the number of Mallignum root planks required to build storage units within the Chambers of Xeric be reduced? The Small unit would require 2 planks, Medium would require 4 planks and the Large unit would require 6 planks.</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should the name of the player who receives a drop from any of the bosses within the Chambers of Xeric be broadcast to the current raid party?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>When forming a party for the Chambers of Xeric, in addition to the current information shown on the interface, should it also display players current Chambers of Xeric kill count?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should a Bronze axe spawn be added to the Ice demon in the Chambers of Xeric?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should the number of Rune dragons assigned as a Slayer task be increased from 15-25 to 30-60 when the "RUUUUUNE" extension perk has been unlocked?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should we add XP drop indicators for those with 200m XP in stats? This will not provide any further experience, but would allow players to see how much experience they would have gained, if they were able to receive more.</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Where there is an existing item retrieval service that requires a payment, such as Torfinn, should it be possible for the money be taken directly from your bank if you do not have it in your inventory?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should Lieve be willing to upgrade your uncharged Tridents of the Seas and Swamp, giving you a new upgraded version that could hold 20k charges in total? She would charge 10 tentacles for this service. The upgraded versions would be tradeable when uncharged.</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should the entrance to the Grotesque Guardians be altered to be more fitting with the environment?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should a kill timer be added to the Grotesque Guardians? Only future kills would be tracked if this passes.</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should Tokkul and Numulite drops be automatically added to your inventory whilst wearing a Ring of wealth?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should a counter be added when burning Chewed bones on a pyre ship? This would only track new bones burnt.</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should the Crystal halberd deal full damage against the Corporeal beast?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should a new right-click option be added to the Dwarf multicannon to empty any cannonballs that are currently loaded into it?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>In order to improve the Chompy bird hunting experience, should a left-click option be added to Swamp gas bubbles, allowing players begin filling Ogre bellows, should there be one in their inventory.</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>In order to improve the Chompy bird hunting experience, should a left-click option be added to Swamp toads, allowing players to fill them with Swamp gas from any filled Ogre bellows in their inventory?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should it be possible to combine a Saradomin's light and Staff of the dead to create the Staff of light? This staff would be visually different, but identical in stats and effects to the Staff of the dead, with the added benefit of being considered a Saradomin item.</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>If the Staff of light is added to the game, should it be able to autocast Saradomin strike?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should we add right-click options to the Occult altar for changing spellbooks?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should the Soulbearer have a left-click option added, which puts all ensouled heads from the inventory into it?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should the pet Dark core, dropped from the Corporeal beast, have a transmog option added, allowing you to turn it into a miniature version of the Corporeal beast?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should it be changed so that the "Spawns" special attack Lizardman shamans use will no longer happen in quick succession?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should it be changed so that the "Knockback" special attack Callisto uses will no longer happen in quick succession?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should it be changed so that the "Teleport" special attack the Chaos Elemental uses will no longer happen in quick succession?</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question'''</center><center>Should the cooldown of Vet'ion's magic attack be increased from 10 seconds to 15?</center></div>
+
+{{Horizontal Line}}
+
+We've seen a lot of interest for further changes to the Chamber of Xeric. Whilst we haven't been able to include all of them in this week's QoL blog, we want to make sure you are aware we have seen these requests and intend on dedicating an entire week to further balancing and tweaks just for this. As soon as we can provide more information on when this will be, we will let you know. For now, please continue to send your feedback to us via the usual channels - we are listening.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,456,65984945 forums].
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Mat K, Maz, Roq, Ry, Stone, Sween, TomH, Weath, West & Wolf'''''<br/>''The Old School Team''

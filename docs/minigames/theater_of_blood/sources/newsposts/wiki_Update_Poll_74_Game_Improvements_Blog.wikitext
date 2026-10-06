@@ -1,0 +1,359 @@
+{{Update|date=15 January 2021|rev=18 January 2021|link=https://secure.runescape.com/m=news/poll-74-game-improvements-blog?oldschool=1|category=future}}
+[[File:Poll 74 Game Improvements Blog newspost.png|right]]
+{{clear}}
+
+{{Headline|22|Poll #74 Game Improvements Blog}}
+
+{{ToC}}
+
+===Changelog===
+Following player feedback since the blog went live, we've made the following changes:
+* Clarified that the 'Time Played' button within the updated 'Character Summary Side-Panel' will only show your time played. Players wanting to know how long it has been since their account was created will need to speak to Hans within Lumbridge.
+* 18/01/2021 - Added detail to the 'Theatre of Blood Chest' section to state it will work the same way as the Chambers of Xeric chest.
+* 18/01/2021 - Added detail to 'Poll Question #12' confirming that these changes would not impact the rate of unique drops from the Thermonuclear Smoke Devil.
+* 18/01/2021 - New poll question added. 'Poll Question #13' offers the Jar of Smoke from the Thermonuclear Smoke Devil. Poll question numbers have been updated as a result.
+* 18/01/2021 - Added detail to the 'Amulet of Blood Fury' section to address feedback regarding the Onyx being used for additional charges.
+* 18/01/2021 - Added detail to confirm that the Long Rope used for the 'Viyeldi Cave Agility Shortcut' is only needed once, remaining in place indefinitely after the shortcut is unlocked.
+* 18/01/2021 - Added detail to clarify that even with the 'Demon Classification' changes, Arclight will not be effective against Porazdir due to its unique mechanics requiring the God spells to be used instead.
+* 18/01/2021 - Increased the proposed Zeal cost for Blighted items from 6 to 10.
+* 18/01/2021 - Removed the previous 'Poll Question #23' offering an update to the Ectoplasmator in preparation for the release of Demonic Ash. We will revisit this again closer to when A Kingdom Divided releases, likely by offering a different item instead.
+* 18/01/2021 - The "Old Key" from the 'Isle of Souls Dungeon' has been renamed to "Dark Key" to avoid confusion with the already existing "Old Key" obtained from the Sisterhood Sanctuary.
+* 18/01/2021 - Added further detail to clarify which NPCs located on 'Soul Wars Island' would be considered for Konar Slayer task assignments.
+* 18/01/2021 - Increased the number of Greater Demons, Fire Giants, Blue Dragons and Iron Dragons that will be available on 'Soul Wars Island'.
+
+==Collection Log Improvements==
+Originally released in December 2018, the Collection Log records nearly every unique drop a player can obtain from various pieces of content in Old School RuneScape. It's a fantastic feature that allows players to work towards goals, see how long they took, track their progress and ultimately brag about completing them!
+
+In this poll, we'll be looking at some of the most requested features that you, the community, have been asking for.
+
+Whilst this blog will primarily focus on the Collection Log, we’re also using this opportunity to poll some other community suggested changes, so make sure you read through them all!
+
+{{News Poll|1|Should the number of total unique items you have obtained be added to the top of the Collection Log?}}
+
+{{News Poll|2|Should the colour of each section within the Collection Log change when they have been fully completed?}}
+
+{{News Poll|3|Should the Collection Log show the kill count for each mode of the content? For example, Challenge Mode Chambers of Xeric, Corrupted Gauntlet and the individual Dagannoth Kings would each show their respective kill counts.}}
+
+{{News Poll|4|Should Gilded and 3rd Age pieces from the Hard, Elite and Master Clue Scroll sections be separated into their own sections so it’s more feasible to complete them? Hard, Elite and Master Mega-rare Clue Scroll sections would be added specifically for these items.}}
+
+
+===Side-Panel Update===
+[[File:Poll 74 Game Improvements Blog (1).png|frame|center|A WIP image of a potential side-panel update. Icons used are placeholders and may change upon release.]]
+
+
+We've been working on updating some of the side-panels accessed in-game, influenced in part by the upcoming Combat Achievements release and heavily inspired by [[:File:Poll 74 Game Improvements Blog (2).png|this fantastic design]] from GentleTractor! The image above showcases how a Character Summary page would look should it be added to the game, with features such as:
+* An overview of your Combat and Total Levels
+* The total amount of XP gained on your character
+* An overview of completed Quests and Achievement Diaries (clicking on these would open the Quest Log and Achievement Diaries page respectively).
+* An overview of your completed Combat Tasks (clicking on this would open the Combat Achievements interface).
+* An overview of how many Collection Log items you have collected (clicking on this would open the Collection Log).
+* A button that can be clicked to show how long you've spent in Gielinor
+
+{{News Poll|5|Should we update the side-panel as shown in the blog, so you can open the Collection Log from it, without needing the book?}}
+
+{{News Poll|6|Should a search function be added to the Collection Log, allowing players to search for specific items or bosses based on the section they're in?}}
+
+{{News Poll|7|Should a tracker be added to the Collection Log showing how many times a player has completed the Gnome Restaurant minigame? If this question passes, only new completions after the update will be tracked.}}
+
+In addition to the above poll questions, we will also be updating the Collection Log to include various items from other activities that are currently missing. Is there something in particular you think should be included? Then let us know by replying to the feedback links at the bottom of this blog!
+
+==Other Game Changes and Improvements==
+===More Accurate Kill Times===
+There are many activities and bosses throughout Old School that show the time you took to complete or defeat them. This currently works by rounding down the time to the nearest second, rather than showing the exact time.
+
+We could add a toggle, allowing players to view their exact completion and kill times based on the game cycle they were completed on. For example, if you were to defeat a boss in 61.2 seconds (102 game cycles) or 61.8 seconds (103 game cycles), they would currently both show as 61 seconds. This change would mean they showed as 61.2 or 61.8 seconds respectively.
+
+By default, this feature would be toggled off and would need to be manually enabled.
+
+{{News Poll|8|Should a toggle be added to in-game completion and kill times to allow them to display the exact time, instead of a time rounded down to the nearest second? This would allow players to judge their times more accurately, based on the game cycle. By default, this option would be toggled off.}}
+
+===Mole Pet Recolour===
+[[File:Poll 74 Game Improvements Blog (3).png|center]]
+
+
+What’s cuter than the Baby Mole pet? A Baby Mole-rat pet of course! This alternate miniature version of the Giant Mole is obtained by using a Mole Claw on the Baby Mole and can be reverted back to the original by using a Mole Skin on the Mole-rat version.
+
+{{News Poll|9|Should a transmog option be added to the Baby Mole pet, allowing players to use a Mole Claw on it to turn it into a Baby Mole-rat? A Mole Skin could be used to revert the transformation.}}
+
+===Theatre of Blood Chest===
+No one enjoys accidentally losing their hard earned loot, but it's easily done if you don't loot your reward chest after putting Lady Verzik Vitur back in her place. Currently, if you disconnect after fully completing a Theatre of Blood run, it's impossible for you to return to the final room to claim your loot from the chests.
+
+We’d like to change that by adding a small chest outside the Theatre of Blood entrance that will allow players to claim any loot they missed out on.
+
+You will still need to complete the full raid, and any unique drops that would normally be announced to the rest of the raiding party will still be broadcast, even if you were offline before seeing the chest yourself.
+
+This chest will work in the same way as the Chambers of Xeric chest does. A new Theatre of Blood raid cannot be entered until the chest is empty and any items within the chest will remain in there should you somehow perish before claiming them.
+
+{{News Poll|10|Should a small chest be added outside the Theatre of Blood entrance, allowing players to claim any loot they missed out on from their previous completion? Should this chest contain an item that is normally broadcast to the raiding party then they will receive the broadcast as if the party member was present at the time.}}
+
+===Corporeal Beast - Jar of Spirits===
+[[File:Poll 74 Game Improvements Blog (4).png|thumb|center|500px|A player submitted image taken from the 2007Scape Reddit showcasing how the Corporeal Beast might look in a Player Owned House.]]
+
+
+There has been significant support for the community suggestion to add the Jar of Spirits to the Corporeal Beast loot table. This jar can be used to showcase your very own Corporeal Beast in your Player Owned House!
+
+Inclusion of the jar would not impact the drop rate of existing unique items and would have a drop rate of 1/1000.
+
+{{News Poll|11|Should the Jar of Spirits be added to the Corporeal Beast loot table? This jar can be used to showcase your very own Corporeal Beast in your Player Owned House. Inclusion of the jar would not impact the drop rate of existing unique items and would have a drop rate of 1/1000.}}
+
+===Thermonuclear Smoke Devil===
+[[File:Poll 74 Game Improvements Blog (5).png|center|300px]]
+
+
+The Thermonuclear Smoke Devil is the boss version of the smoke devil, found within the Smoke Devil Dungeon. You need a minimum of 93 Slayer to kill them and they can only be attacked while on a smoke devil task.
+
+Considering the relatively high requirement to kill them, their loot table is particularly underwhelming. We’d like to address this by reducing the chance of players receiving 'junk' drops such as Tinderboxes, Fire Talismans and Bullseye Lanterns.
+
+{{News Poll|12|Should the junk drops such as Tinderboxes, Fire Talismans and Bullseye Lanterns on the Thermonuclear Smoke Devil's loot table be made rarer, improving the overall average value of the drop? The rate of obtaining unique items will not be impacted by this change.}}
+
+{{News Poll|13|Should the Jar of Smoke be added to the Thermonuclear Smoke Devil loot table? This jar can be used to showcase your very own Thermonuclear Smoke Devil in your Player Owned House. Inclusion of the jar would not impact the drop rate of existing unique items and would have a drop rate of 1/2000.}}
+
+===Bird Houses - Bird Egg Nests Reward===
+Currently the only way to obtain bird egg nests is via Woodcutting or, in the the Kingdom of Miscellania, ordering your subjects to do the Woodcutting for you. But have you ever emptied a bird house and wondered why none of the nests contain eggs, even though the houses are stocked with food and look ever so comfortable?
+
+Well, wonder no more. We’d like to give you the chance to receive bird egg nests from bird houses. To avoid impacting the amount of seed nests you’d receive, we would simply replace some of the empty bird's nests you’d otherwise have extracted.
+
+The current chance of obtaining particular nests from bird houses that aren't seed nests is as follows:
+* 33% for a ring nest
+* 67% for an empty nest
+
+A similar activity that provides nests is Managing Miscellania. The chance of receiving particular nests from there is as follows:
+* 3% for an egg nest
+* 32% for a ring nest
+* 65% for a seed nest
+
+We propose changing it so that you have the following chances to obtain particular nests from bird houses:
+* 3% for an egg nest
+* 32% for a ring nest
+* 65% for an empty nest
+
+{{News Poll|14|Should there be a small chance of receiving bird's egg nests when emptying a full bird house? This change would not impact the amount of seed nests you would otherwise receive.}}
+
+===Amulet of Blood Fury===
+[[File:Poll 74 Game Improvements Blog (6).png|center|100px]]
+
+
+The Amulet of Blood Fury currently holds a maximum of 10,000 charges before the Blood Shard breaks, leaving the player with only the Amulet of Fury. We’d like to propose increasing the maximum amount of charges it can hold to 30,000 by allowing players to use Blood Shards on an existing amulet for 10,000 additional charges.
+
+''Newly created Amulets of Blood Fury would still start with 10,000 charges and the maximum number of charges they can store would be 30,000. If you add a Blood Shard to an amulet that would not provide the full 10,000 charges, a warning message would advise you of the potential wastage.''
+
+We've seen a lot of support for allowing players to use an Onyx to increase the number of charges the Amulet of Blood Fury can store. It's clear there is a demand for finding additional uses for Onyx gems, with plenty of players commenting on their decline in price as a reason for doing so.
+
+The price of an Onyx gem is essentially tied to the cost of buying one with Chaos runes. We feel that introducing the ability to use an Onyx gem to provide Amulet of Blood Fury charges will have little impact on the price of the gem and could ultimately lead to the cost of Blood Shards being tied in the same way, which we would like to avoid.
+
+This is something we would like to continue exploring and welcome any feedback in preparation for a future poll.
+
+{{News Poll|15|Should we increase the maximum number of charges the Amulet of Blood Fury can hold from 10,000 to 30,000? If this question passes, it will be possible to recharge an existing Amulet of Blood Fury by using a Blood Shard on it to replenish up to 10,000 charges. Newly created Amulets of Blood Fury would still start with 10,000 charges.}}
+
+===Dark Flippers===
+[[File:Poll 74 Game Improvements Blog (7).png|center|500px]]
+
+
+We know how much you love getting that perfect fit for dancing around the Grand Exchange, but do you love it as much as our very own Mod Curse?
+
+He went ahead and did the unthinkable by creating the Dark Flippers, a combination of the Dark Claw from Skotizo and Flippers from Mogres. If only he was as passionate about creating equippable Elf ears!
+
+This flippin' great cosmetic addition can be obtained by taking a Dark Claw and Flippers to Patchy, a pirate with a passion for sewing who is located on Mos Le'Harmless.
+
+{{News Poll|16|Should it be possible for Patchy the pirate to combine the Dark Claw from Skotizo and Flippers from Mogres to create the Dark Flippers? The Dark Flippers are a cosmetic alternative to the Flippers and maintain the same functionality as the originals.}}
+
+===Player Owned House STASH Tracker===
+Currently, the only way you're able to check in-game where all STASH unit locations are, and whether you've built and filled them, is by checking the noticeboard located in Watson's house near Hosidius.
+
+We could add the ability to create a STASH unit tracker in Player-Owned Houses. They would be created in the Study as a new option for the Wall Chart, and would require 40 Construction to create. Upon clicking the STASH unit tracker, an interface would open showing you where all STASH unit locations are, and whether you've built and filled them or not.
+
+{{News Poll|17|Should players with level 40 Construction be able to create a STASH unit tracker within their Player-Owned House as a new option for the Wall Chart? Upon clicking the STASH unit tracker, an interface would open showing the player where all STASH unit locations are, and whether they have built and filled them.}}
+
+===Viyeldi Cave Agility Shortcut===
+The Master Clue step within the Viyeldi Caves is infamous for being very time consuming to reach. We’d like to propose speeding it up slightly by adding a shortcut that allows players to scale down the cliff in Viyeldi Caves rather than navigating their way to the bottom. This shortcut would require 91 Agility and a Long Rope from the Darkmeyer General Store to complete.
+
+{{News Poll|18|Should a new shortcut be added to the cliff in Viyeldi Caves, allowing players to scale down the cliff faster than if they were to manually navigate their way down? This shortcut would require 91 Agility and a Long Rope from the Darkmeyer General Store to complete. A Long Rope will only be required once to unlock this shortcut.}}
+
+===Demon Classification===
+In the Arceuus Spellbook rework blog and poll, we offered to change the classification of hellhounds to demons. This question passed, and we've since received multiple requests to do the same for other demon-like creatures.
+
+The following creatures are technically demons by lore, but are not categorised as such:
+* Bloodveld (all variants)
+* Icefiends
+* Waterfiends
+* Pyrefiends (including superiors)
+* Pyrelords (including superiors)
+* Porazdir
+
+This change would flag them as Demons for mechanical purposes, which would cause them to be affected by items like Arclight. ''Porazdir would be classified as a Demon mostly for spells such as "Monster Examine" and to be consistent with the lore. He will retain his special mechanic preventing him from being damaged by anything other than the God spells.''
+
+{{News Poll|19|Should bloodvelds (all variants), icefiends, waterfiends, pyrefiends (including superiors), pyrelords (including superiors) and Porazdir be classified as demons in-game to match the lore surrounding them? If this question passes, items with bonuses towards demons, such as Arclight, will also be effective against these creatures other than Porazdir.}}
+
+===Vesta's Longsword===
+[[File:Poll 74 Game Improvements Blog (8).png|center|200px]]
+
+
+Vesta's Longsword was originally introduced as a reward alongside the Bounty Hunter rework and was an item that could only be used on those worlds against other players within the Wilderness. Since the removal of Bounty Hunter, the Longsword was made a reward from Last Man Standing, so it remained obtainable, but no longer has a use.
+
+Having such a prestigious and nostalgic item remain in-game with no purpose feels like a missed opportunity, and those of you who've obtained the item have expressed the same sentiment. We'd like to address this by allowing the Vesta's Longsword to be used against other players within PvP worlds.
+
+Following the success of our Ultimate Ironman-focused poll questions within the [https://secure.runescape.com/m=news/fishing-skill-boss-tempoross-poll-blog?oldschool=1 Fishing Skill Boss: Tempoross Poll Blog], we feel this is a perfect opportunity for players that engage in PvP on PvP worlds to have their say. As such, only accounts that have racked up some PKs on PvP worlds in the last few months are eligible to vote (kills obtained in the last couple of weeks since we've been discussing this plan won't count): others will be forced to skip.
+
+{{News Poll|20|Should it be possible to use Vesta's Longsword in combat against other players in PvP worlds? The Longsword would lose all bonuses when used against NPCs, effectively turning it into a cosmetic item.}}
+
+===Nightmare of Ashihama===
+[[File:Poll 74 Game Improvements Blog (9).png|center|300px]]
+
+
+The Nightmare of Ashihama is one of the newer bosses in Old School. It has received a host of feedback changes since launch but there are some frustrations with the encounter we’d like to resolve.
+
+
+One particular frustration regards the parasites that are thrown at players. When they burst they will begin healing the Nightmare with a value between one and their maximum amount until they are killed. This randomness adds little value to the encounter in terms of difficulty, but is annoying to deal with.
+
+
+We’d like to make the amount parasites heal the Nightmare a bit more consistent.
+
+{{News Poll|21|Should the parasites mechanic in the Nightmare of Ashihama encounter be changed so the amount they heal is more consistent, rather than rolling a random number between one and their maximum amount until they are killed?}}
+
+===Soul Wars - Blighted Items===
+The Last Man Standing shop includes a variety of exclusive rewards aimed at reducing the cost of supplies and providing some utility for players brave enough to venture into the Wilderness. With the recent release of Soul Wars, we've been asked to add some additional fitting rewards to the store that can be purchased with Zeal. We can also make these items usable within the minigame, if you'd like, though this would be limited to the spell sacks only as food and potions are not allowed through the portal.
+
+This time we're interested in adding Blighted items to the Soul Wars store, for 10 Zeal per item. The current Blighted items that could be added are:
+* Blighted Bind sack (x300)
+* Blighted Snare sack (x150)
+* Blighted Entangle sack (x70)
+* Blighted Teleport spell sack (x50)
+* Blighted Vengeance sack (x50)
+* Blighted Ancient Ice sack (x30)
+* Blighted karambwan (x12)
+* Blighted manta ray (x15)
+* Blighted anglerfish (x15)
+* Blighted Super Restore (4) (x4)
+
+It would not be possible to sell these items back to the store for Zeal.
+
+On a related note, we're currently investigating the possibility of allowing all Blighted items to be used within PvP worlds and we'll have more to share regarding this in the near future!
+
+{{News Poll|22|Should all of the Blighted items available in the Last Man Standing store also be added to the Soul Wars store? Each Blighted item would cost 10 Zeal to purchase. It would not be possible to sell these items back to the store for Zeal.}}
+
+{{News Poll|23|If the Blighted items are added to the Soul Wars Reward Shop, should it also be possible to use the spell sacks within the minigame? It would not be possible to use the Blighted food or potions.}}
+
+<!--===Demonic Ash - Ectoplasmator Effect===
+With the upcoming release of A Kingdom Divided and the Arceuus Spellbook rework, we'll be introducing a new way to train Prayer by allowing players to scatter demonic ashes for Prayer experience. If you missed the information about this update, check out all of the details in this blog.
+
+Nice and early in preparation for the release, we'd like to take a look at the functionality of the Ectoplasmator. We propose that it could scatter demonic ash in a similar way to how the Bonecrusher automatically buries bones.
+
+In order to do this we'd make it so the Ectoplasmator can be charged with soul runes.
+* Each soul rune gives 100 charges.
+* When held in the Inventory, it will automatically scatter any demonic ashes dropped by foes.
+* When ashes are scattered, a charge is used.
+* When ashes are scattered, half of the usual Prayer XP is given.
+
+Existing Ectoplasmator effects would not be changed as a result of this update.
+
+{{News Poll|24|Should the Ectoplasmator be updated in preparation for the upcoming introduction of demonic ashes by allowing it to scatter them similar to how the Bonecrusher automatically buries bones? The Ectoplasmator would need to be charged with soul runes, with each rune giving 100 charges. When held in the Inventory, it will automatically scatter any demonic ashes dropped by foes, using 1 charge per demonic ash scattered. Demonic ashes scattered this way would provide half of the usual Prayer XP.}}-->
+
+==Soul Wars Island==
+Soul Wars brings with it an entire island that is left empty and inaccessible. Mod Ry has spent some time working on a version of the island that is open for players to explore, bringing a whole array of content. From everyday activities such as trees to chop and rocks to mine, right up to new Thieving chests to loot and monsters to slay - he's really thought about it all when designing this new island, and we’re excited to share it with you!
+
+[[File:Poll 74 Game Improvements Blog (10).png|thumb|center|600px|A WIP of Mod Ry's Soul Wars Island update. You can click the image for a larger version!]]
+
+
+Nothing on the island will introduce any new skilling methods for increased experience rates.
+
+===Trees===
+Regular trees are scattered across the island, including the following:
+* 15 Maple trees are found to the south east
+* 6 Yew trees can be found to the west of the Lobby and 4 to the north by the Crumbling Tower
+* 3 Teak trees are found to the north. A number of low level NPCs are nearby
+* 2 Mahogany trees are found by the Teak trees to the north
+
+===Rocks===
+There is one central mine that contains the following rocks:
+* 3 Soft clay
+* 3 Copper
+* 3 Tin
+* 10 Iron
+* 3 Silver
+* 4 Gold
+* 6 Coal
+* 2 Mithril
+
+===Fishing===
+There are 3 Fishing locations along the island's coastline:
+* Shrimp / Anchovies - South
+* Lobster / Swordfish / Tuna - North
+* Shark / Mackerel / Cod / Bass - East
+
+===Hunter===
+There are 3 Hunter locations found on the Island where the following creatures can be found:
+* 6 Crimson swifts
+* 7 Copper longtails
+* 5 Grey chinchompas
+
+===Monsters / NPCs===
+There are a variety of monsters found on the island, which Konar can assign for Slayer tasks:
+* 15 Sand crabs
+* 6 Moss giants
+* 8 Pyrefiends
+* 1 Unicorn
+* 8 Chickens
+* 4 Cows
+
+===Other===
+* An anvil found to the south of the island.
+* A number of flax plants to the north of the island.
+* A water source to the south of the island.
+* A number of impling spawns.
+
+===Buildable Amenities===
+There are a number of broken amenities that can be found on the island, and with the correct levels and supplies, players can rebuild them to use themselves.
+* Buildable pottery wheel that requires 2 Construction, 1 plank, 1 iron bar and 1 soft clay.
+* Buildable Spinning Wheel that requires 5 Construction, 5 planks, 1 ball of wool and 1 iron bar.
+
+===Clue Scrolls===
+We would also add some appropriate Clue Scroll steps to the island.
+
+{{News Poll|24|Should the Isle of Souls be updated so that it is accessible to players and includes a variety of skilling resources and NPCs as described in the blog?}}
+
+===Isle of Souls Dungeon===
+To the East of Soul Wars there's a dungeon entrance that leads to a cave underneath the island. This dungeon would feature the following:
+
+====Monsters====
+As with the surface monsters, these can be given for Konar's Slayer tasks.
+* 4 Skeletons
+* 4 Lesser demons
+* 7 Greater demons (Konar would be able to assign these as a Slayer task)
+* 8 Fire giants (Konar would be able to assign these as a Slayer task)
+* 4 Blue dragons (Konar would be able to assign these as a Slayer task)
+* 3 Baby blue dragons
+* 3 Iron dragon (Konar would be able to assign these as a Slayer task)
+
+====Rocks====
+* 2 Adamantite
+* 1 Runite
+
+====Thieving====
+Towards the end of the dungeon, there is a level 28 Thieving chest that can be looted for 150 Thieving experience and a number of items with an average value of approximately 700gp. This chest has a low chance of rewarding an untradeable Dark Key that can be taken to the Crumbling Tower basement to unlock a more lucrative chest with a better loot table ''(see the Crumbling Tower Basement section below for more information about this chest)''.
+
+{{News Poll|25|If the Isle of Souls is updated to allow players to explore it, should a dungeon including a variety of monsters be added too? If this question passes, Konar would be updated to assign Greater Demons, Fire Giants, Blue Dragons and Iron Dragons within the dungeon.}}
+
+{{News Poll|26|If the Isle of Souls dungeon is added to the game, should the end of the dungeon include 2 Adamantite and 1 Runite rocks to mine? They would be far away from any Bank and would require navigating past various monsters. The rocks would be surrounded by aggressive skeletons with an iron dragon nearby.}}
+
+{{News Poll|27|If the Isle of Souls dungeon is added to the game, should a Thieving chest also be added towards the end of the dungeon that can be looted for 150 Thieving experience and a number of items with an average value of approximately 700gp?}}
+
+===Crumbling Tower===
+The Crumbling Tower is found on a small island to the north across a wooden bridge.
+
+====Monsters====
+* 10 Forgotten souls - New ghosts that act similarly to chaos druids but are slightly stronger and have a marginally improved loot table.
+
+====Basement====
+There is a basement in the Crumbling Tower that is accessed via a trap door on the ground floor. Down in the basement are four chests that are unlocked by using an Dark Key on them. The key is consumed when the chest is looted. These chests have a significantly better loot table than the one found in the dungeon and reward 1.5k XP and a number of items with an average value of approximately 30,000 GP.
+
+{{News Poll|28|If the Isle of Souls is made explorable, should a Crumbling Tower including 10 forgotten souls also be added? These would be new ghostly NPCs similar to chaos druids but slightly stronger and with a marginally improved loot table.}}
+
+{{News Poll|29|If the Crumbling Tower and the dungeon is added to the Isle of Souls, should the tower include a basement with four chests that are unlocked by using an Dark Key on them? The Dark Key would be a potential untradeable reward from a chest within the dungeon. The basement chests would reward 1.5k Thieving experience and a number of items with an average value of approximately 30,000 GP.}}
+
+{{Horizontal Line}}
+
+As always we’d love to hear what you think about Poll #74, so please share your feedback with us via our [http://services.runescape.com/m=forum/forums.ws?380,381,685,66198386 official forums], on the [https://www.reddit.com/r/2007scape/comments/kxw774/poll_74_game_improvements_blog/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Ed, Elena, Errol, Fed, Flippy, Gayns, Gecko, Gee, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

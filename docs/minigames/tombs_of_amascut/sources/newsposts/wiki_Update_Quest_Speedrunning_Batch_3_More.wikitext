@@ -1,0 +1,294 @@
+{{Update|date=7 December 2022|url=https://secure.runescape.com/m=news/quest-speedrunning-batch-3--more?oldschool=1|category=game}}
+{{DISPLAYTITLE:{{NAMESPACE}}:Quest Speedrunning: Batch #3 & More}}
+{{Restricted title|Cannot use # in page titles}}
+[[File:Quest Speedrunning- Batch 3 & More newspost.png|right]]
+{{clear|right}}
+''Set your running shoes to max speed as we race towards more Quest Speedrunning challenges, along with the final changes from Poll 77.''
+
+__TOC__
+==Issues and Hotfixes==
+{| class="wikitable" style="text-align:center; width:665px;"
+!Last Updated
+!Issues Raised
+!Current Progress
+!Status
+|-
+|11:45 - December 7th
+|Players have reported not being able to climb down the ladder from the upper level of Motherload Mine if they logged into that area.
+|You should now be able to climb back down the ladder from Motherload Mine, although it might take a little while the first time.
+|'''HOTFIXED'''
+|}
+
+==Changelog, December 6th==
+{{Collapsed section|18|CLICK TO EXPAND - (Changelog, November 30th)}}
+'''Quest Speedrunning - Batch #3'''
+* A Taste of Hope and Sins of the Father are now available to speedrun!
+* Made changes to the trophy times for Beneath Cursed Sands.
+* Below Ice Mountain and Temple of the Eye have entered into Open Beta.
+* Items dropped due to Inventory overflow are now correctly deleted when starting a fresh speedrun.
+
+'''Poll 77 Changes'''
+* Essence Pouches have been added to the Guardians of the Rift loot table.
+* Cordelia can now repair Pouches.
+* You can now change the default destination on the deep Wilderness lever.
+* The random cycle delay has been removed from a variety of Mining sources.
+
+'''Tombs of Amascut: Combat Achievements'''
+* 'Amascut's Remnant' will now be retroactively completed when opening the Combat Achievements interface for those players who have a Cursed Phalanx.
+* The KC requirement for both 'Tomb Raider' tasks has been reduced to 50.
+* 'Novice Tomb Raider' has been moved to the Hard Tier of Combat Achievements.
+* 'Tomb Raider' has been moved to the Master Tier of Combat Achievements.
+* A number of items have been added to the restricted list for 'But... Damage'.
+* Fail conditions for 'No Skipping Allowed' are now clearer.
+* You'll no longer fail 'I'm In A Rush' after breaking a single boulder or fail 'All Praise Zebak' when losing Prayer Points in any other room.
+* All versions of the Avernic Defender/Ghommal's Hilt combo now have the same placeholder.
+
+'''Other Game Changes'''
+* Fixed an issue causing the chatbox on Mobile to become unusable.
+* We've made it clearer when tablets have been translated in The Garden of Death.
+* The spooky cauldron behind Zaff's shop has been moved slightly.
+* The signposts that open a full-screen display will no longer open on PvP or Deadman worlds.
+* The Imbued Capes of the Gods from Mage Arena II now protect over more items on death.
+* You'll now see the missing animations when Mining a Large Ash Pile.
+
+'''In Case You Missed It'''
+* The Winter Summit is almost here! Join us at 20:00 GMT, December 10th over on Twitch for massive reveals and more!
+
+'''What's Coming Next Week'''
+* This year's Christmas Event!
+* Last Game Update of the year.
+{{Collapsed section end}}
+Read on for more details!
+
+==Quest Speedrunning: Batch #3==
+[[File:Quest Speedrunning- Batch 3 & More (1).png|center|600px]]
+
+
+Get ready to put your pedal to the metal with some red-hot new Quest Speedrunning options!
+
+'''A Taste of Hope''' and '''Sins of The Father''' are coming out of Beta - woohoo! Here’s what you need to know:
+
+{|class=wikitable style="text-align:center;"
+! Quest
+! Requirements
+! Items
+! Trophy Times
+|-
+|A Taste of Hope
+|Darkness of Hallowvale<br>
+Recipe for Disaster<br>
+Monkey Madness I<br>
+The Fremennik Isles<br>
+Shades of Mort'ton<br>
+Ghosts Ahoy<br>
+55 Agility<br>
+50 Mining<br>
+48 Crafting<br>
+40 Herblore<br>
+38 Slayer<br>
+Base 70 combat stats
+|12,000 Coins<br>
+5 Stamina Potions (2 in Bank)<br>
+30 Sharks (20 in Bank)<br>
+4 Super Restore Potions (2 in Bank)<br>
+Enchant Emerald or Jade Tablet<br>
+Emerald<br>
+Ghostspeak Amulet<br>
+Rod of Ivandis<br>
+Dragon Scimitar<br>
+Dragon Defender<br>
+Fighter Torso<br>
+Dragon Platelegs<br>
+Dragon Boots<br>
+Helm of Neitiznot<br>
+Obsidian Cape<br>
+Amulet of Glory<br>
+Berserker Ring (i)<br>
+Rune Gloves
+|Bronze - 47:00<br>
+Silver - 38:00<br>
+Gold - 32:00<br>
+Platinum - 29:00
+|-
+|Sins of The Father
+|A Taste of Hope<br>
+Vampyre Slayer<br>
+Recipe for Disaster<br>
+The Fremennik Exiles<br>
+King's Ransom<br>
+Shades of Mort'ton<br>
+Ghosts Ahoy<br>
+Knight Waves Training Grounds<br>
+70 Woodcutting<br>
+65 Agility<br>
+60 Fletching<br>
+56 Crafting<br>
+50 Slayer<br>
+Base 90 combat stats
+|15,000 Coins<br>
+6 Stamina Potions (3 in Bank)<br>
+30 Sharks (25 in Bank)<br>
+16 Saradomin Brews (12 in Bank)<br>
+8 Super Restore Potions (6 in Bank)<br>
+Superantipoison<br>
+Enchant Ruby or Topaz Tablet<br>
+Ruby<br>
+Ghostspeak Amulet<br>
+Ivandis Flail<br>
+Drakan's Medallion<br>
+Abyssal Whip<br>
+Dragon Defender<br>
+Bandos Chestplate<br>
+Bandos Tassets<br>
+Primordial Boots<br>
+Neitiznot Faceguard<br>
+Fire Cape<br>
+Amulet of Fury<br>
+Berserker Ring (i)<br>
+Barrows Gloves<br>
+50 Adamant Darts (in Bank)
+|Bronze - 78:00<br>
+Silver - 66:00<br>
+Gold - 58:00<br>
+Platinum - 54:00
+|}
+
+And thanks to your feedback, we've slightly tweaked the trophy times for Beneath Cursed Sands!
+
+{|class=wikitable style="text-align:center;"
+!Trophy
+!Old
+!New
+|-
+|Bronze || 52:00 || 45:00
+|-
+|Silver || 40:00 || 36:00
+|-
+|Gold || 32:00 || 30:00
+|-
+|Platinum || 28:00 || 27:00
+|}
+
+We’re also launching Betas for two further quests, '''Below Ice Mountain''' and '''Temple of the Eye''', so you can give us your feedback before they launch in the new year!
+
+You won’t need to jump into any beta worlds this time – you’ll be able to test them from any regular Quest Speedrunning world! Remember, though, that these beta quests won’t give you trophies or set best times.
+
+For those of you that want to know more about the testing phase, here are the current stats:
+
+{|class=wikitable style="text-align:center;"
+! Quest
+! Requirements
+! Items
+! Trophy Times
+|-
+|Below Ice Mountain
+|30 Mining<br>
+30 Agility<br>
+30 Cooking<br>
+Base 25 combat stats<br>
+16 Quest Points (given via miscellaneous quests)
+|500 Coins<br>
+Stamina Potion<br>
+3 Energy Potions<br>
+5 Tuna
+|Bronze - 21:00<br>
+Silver - 18:00<br>
+Gold - 16:00<br>
+Platinum - 15:00
+|-
+|Temple of the Eye
+|Enter the Abyss<br>
+10 Runecraft<br>
+30 Agility<br>
+30 Mining
+|100 Coins<br>
+4 Energy Potions
+|Bronze - 20:00<br>
+Silver - 17:45<br>
+Gold - 16:15<br>
+Platinum - 15:30
+|}
+
+Last up, we’ve fixed the issue that was preventing items dropped due to Inventory overflow from being deleted when starting a new speedrun.
+
+
+Just like the previous newspost, we’d like to give a big shoutout to the speedrunning community for all their help! If you’re looking for more information about where to start or just regular, friendly advice, check out the resources below:
+* [https://discord.com/invite/JcaS8WF RuneScape Speedrunning Discord]
+* [https://discord.gg/m3AaNEWJax Quest Speedrunning Discord]
+* [https://www.speedrun.com/osrs Speedrun.com]
+
+==Poll 77 Changes==
+[[File:Quest Speedrunning- Batch 3 & More (2).png|thumb|center|600px|'''Wiki Note: The original file is too large to be uploaded to the wiki. [https://cdn.runescape.com/assets/img/external/oldschool/2022/newsposts/2022-12-07/Poll77-PouchRepair.webp Click here] to view it.''']]
+
+
+And here we are, at the end of Poll 77! This batch of updates brings the latest Quality of Life poll to a close, but you should know that we are already discussing what's next, so you won’t have to wait too long to vote on Poll 78!
+
+For now though, here's what's changing this week.
+
+Scared of the Abyss? We’ve got you covered – you can now earn Essence Pouches at Guardians of the Rift! This is a moderately harder way to get your Pouches, with a 15/140 chance for one each time you claim a prize from the Rewards Guardian. Note that you’ll be unable to obtain a Pouch you already have, and if you are lucky enough to have them, the loot table rates will not be changed. As a cheeky bonus, each of the Pouches will now give you some free Essence to start you off!
+
+Speaking of Essence Pouches, Cordelia is now able to repair them at Guardians of the Rift. Hand her 25 pearls to unlock the repair option, and she’ll charge just one pearl per repair – a real bargain, if you ask us! Especially considering she doesn’t even repair the Pouches herself and gets the poor Dark Mage to do it for free.
+
+PvPers and Wilderness enthusiasts alike will be happy to know that they can now choose the default destination on the deep Wilderness lever – provided they’ve completed the relevant diary, of course. The option can be found in the Settings menu or on the lever itself. As always, do double-check what you’re clicking before you go around poking innocent lever cosplayers.
+
+Get your Pickaxes at the ready, because we’ve removed the delay after Mining Copper, Tin, Coal, Blurite, Silver, Volcanic Ash, Gem Rocks, Gold, Mithril, Lovakite, Adamantite, Clay, Salts, Runite and Amethyst. Phew, we can take a breath now.
+
+==Tombs of Amascut Combat Achievements==
+Following last week’s update, we’ve made some further changes to the ToA Combat Achievements:
+* 'Amascut's Remnant' will now be retroactively completed when opening the Combat Achievements interface for those players who have a Cursed Phalanx.
+* Huzzah! The kill count requirement to complete 'Novice Tomb Raider' and 'Tomb Raider' has been reduced from 100 to 50.
+* Thanks to your feedback and to keep in line with other new ToA 'cheeves, we've moved 'Novice Tomb Explorer' from the Medium tier to Hard. We've also moved 'Tomb Raider' from Grandmaster to Master.
+* A number of new items have been added to the list of equipment not allowed for the 'But... Damage' task.
+* Bouldering on, not only have we made it a bit clearer when you fail 'No Skipping Allowed', but you'll no longer fail 'I'm In A Rush' after breaking one boulder.
+* You can continue to 'All Praise Zebak' in peace, as you'll no longer fail that task when losing Prayer Points in any other room.
+* Good news for you budding Achievement Hunters, all new versions of the avernic (ghommal's) will share the same placeholder in the bank as the regular avernic defender!
+
+==Other Changes==
+* MOBILE ONLY: fixed an issue causing the chatbox to enter an unusable state.
+* We’ve added correct models for chests in the Garden of Death quest and made it a bit more obvious when you’ve translated a tablet.
+* The spooky cauldron behind Zaff's shop has been shifted a bit so that its click-zone doesn't interfere with Zaff's barrel of staves.
+* The signposts that open a full-screen display will no longer open on PvP or Deadman worlds, as the display could be awkward to dismiss in combat if opened accidentally. In addition to the usual perils of these worlds, it seems players must now cope with the risk of getting lost.
+* The Imbued Capes of The Gods from Mage Arena II now protect over more items on death.
+* Mining a large Ash Pile will now play the correct animations, keeping you moving and grooving exactly as you should be.
+
+==In Case You Missed It==
+Don't miss out on this week's [https://secure.runescape.com/m=news/a=97/winter-summit-livestream-december-10th?oldschool=1 Winter Summit]! Join us on '''Saturday, December 10th''' at '''20:00 GMT / 15:00 EST / 12:00 PT''' on the [https://www.twitch.tv/oldschoolrs Old School RuneScape Twitch channel]. We've got a great show in store, and you won't want to miss out, so cancel any other plans and get the Winter Summit in your diary!
+
+Come on in from the cold and get nice and cosy with your hosts, Mods Ayiza and Kieren. They'll be joined by an array of other Old School J-Mods to give you the very first look at the great content awaiting you in early 2023!
+
+==What's Coming Next Week==
+[[File:Quest Speedrunning- Batch 3 & More (3).png|center|600px]]
+
+
+For our very last Game Update of the year, we're going out with a festive cheer as the latest Christmas event jingles all the way into Old School RuneScape!
+
+An especially merry dwarf from the Dwarven Mines is trying to get access to Santa's famous pub (he heard there's a free bar) but its only open to those who prove themselves in The Festive Games. Can you and your new mate come out of the trials victorious?
+
+Just to let you know, our final update will take place on '''Tuesday, December 13th''' at the usual time of 11:30 GMT. You can find out more in next week's game update newspost!
+
+==Merch==
+Hear ye, hear ye! This is a reminder that the latest recommended Christmas shipping date for those of you outside the UK is December 9th. Make sure you [https://runescape.backstreetmerch.com/ place your orders at the Merch Store] today for the best chance of getting your gifts in time.
+
+[[File:Quest Speedrunning- Batch 3 & More (4).png|center|600px]]
+
+
+Treat yourself to one of these popular lines – or make sure your nearest and dearest know what you want from Santa this year!
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <b><u>de-activated</b></u> with this rota.
+
+The PvP Arena is using ''''Max/Med'''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,855,66268470 official forums], on the [https://www.reddit.com/r/2007scape/comments/zey352/quest_speedrunning_batch_3_more/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Other, Regent, Redfield, Roq, Ry, Sarnie, Shaun, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Steve W, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

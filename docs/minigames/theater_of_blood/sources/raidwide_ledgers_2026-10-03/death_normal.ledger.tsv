@@ -1,0 +1,25 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	raid.enter	PASS	10	001-raid.enter	in tob maiden (normal) at 6452,94,0; boss present (tob_maiden_100 slot 47 at 6426,92); handle 1, started 0, fight 6448,94,0
+2	kit.before	PASS	0		rune_platebody=1 rune_scimitar=1 dragon_dagger=1 shark=5 coins=1000 lobster=3  [frame unchanged]
+3	barrier.click	PASS	2	002-barrier.click	map_flag
+4	barrier.confirm	PASS	2	003-options-p1,004-barrier.confirm	2 page(s): options:options, options:choose:Yes, begin the fight. [frame unchanged]
+5	death.line	PASS	25	005-death.line	You have died. Death count: 1. at room tick 25
+6	death.caged	PASS	1	006-death.cage	tobjail jailed=1 died_in=3 deaths=1 room=1 cleared=0 orbs=30,0,0,0,0 tile=6430,108,0 [frame unchanged]
+7	wipe.line	PASS	2	007-wipe.line	Your party has failed.
+8	wipe.chest_line	PASS	3	008-wipe.outside	A magical chest has retrieved some of your items. You can collect them from it outside of the Theatre of Blood. [frame unchanged]
+9	wipe.raid_over	PASS	1	009-wipe.raid_over	tobstate active=0 handle=0 room=0 mode=0 started=0 cleared=0 boss_uid=0 fight=0,0,0
+10	wipe.woke_at	PASS	0	010-wipe.woke_at	tile 3677,3219 L0 (^tob_outside 0_57_50_29_19, Ver Sinhaza)
+11	wipe.kept	PASS	0	011-wipe.kept	rune_platebody=1 rune_scimitar=1 dragon_dagger=1 shark=0 coins=0 lobster=0 
+12	wipe.service	PASS	0		retrieval_service=11 (^retrieval_tob 11) locked=1 [ok,ok] [frame unchanged]
+13	wipe.hp	PASS	0		10/10 [frame unchanged]
+14	goto.chest	PASS	0	012-goto.chest	at 3658,3215,0 from 3677,3219,0
+15	chest.claim	PASS	1	013-chest.claim	page none->options
+16	chest.pay	PASS	1	014-options-p1,015-options-p2,016-chest.pay	2 page(s): options:options, options:choose:Pay 100000 coins to unl
+17	chest.unlocked	PASS	2	017-chest.unlocked	You've unlocked the contents of the retrieval service.
+18	chest.reclaimed	PASS	0		You reclaim all of your items from the retrieval service. [frame unchanged]
+19	chest.items_back	PASS	0	018-chest.items_back	rune_platebody=1 rune_scimitar=1 dragon_dagger=1 shark=5 coins=1000 lobster=3 
+20	chest.service_cleared	PASS	0		retrieval_service=-1 [frame unchanged]
+21	chest.claim_again	PASS	0	019-chest.claim_again	page none->mesbox (text)
+22	chest.empty	PASS	1	020-chest.empty	1 page(s): mesbox:The chest seems to be empty. I [frame unchanged]
+SUMMARY	22	PASS	51	exit=0	pass=22 fail=0

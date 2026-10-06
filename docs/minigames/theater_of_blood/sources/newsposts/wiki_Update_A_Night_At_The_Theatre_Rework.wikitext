@@ -1,0 +1,159 @@
+{{Update|date=28 July 2021|link=https://secure.runescape.com/m=news/a-night-at-the-theatre-rework?oldschool=1|category=game}}
+[[File:A Night At The Theatre Rework newspost.png|right]]
+{{clear}}
+{{ToC}}
+==Issues and Hotfixes (July 29th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Issues Raised
+!Current Progress
+|-
+|'''(11:55 BST)''' We are receiving reports of the Steam Client not loading properly.
+|'''(12:05 BST)''' [FIXED] The Steam client should now be working as intended.
+|-
+|'''(12:40 BST)''' Following player feedback we've made a small change to A Night at the Theatre.
+|'''(12:40 BST)''' Players who have already completed the Theatre of Blood raid, including Story Mode, will no longer be required to complete the raid again in order to fully finish the quest.
+|-
+|'''(12:48 BST)''' We're seeing reports from players in Phosani's Nightmare about their items being sent to the wrong NPC.
+|'''(10:30 BST, July 29th)''' [FIXED] We have deployed a hotfix to resolve this issue.
+|-
+|'''(13:35 BST)''' Access to the different Wiki options aren't showing.
+|'''(13:35 BST)''' [FIXED] We have deployed a hotfix to resolve this issue.
+|-
+|'''(14:21 BST)''' We're also seeing some bug reports related to issues in Phosani's Nightmare. These include not being able to hit parasites with a Crush Weapon effectively, and Phosani's Nightmare not being able to be woken up after the regular version of the Nightmare has been killed.
+|'''(10:30 BST, July 29th)''' [FIXED] These issues should be resolved after we've released several hotfixes. Thanks for your patience!
+|-
+|'''(15:02 BST)''' Hespori from A Night At The Theatre can be damaged while flowers are active.
+|'''(15:55 BST)''' [FIXED] We have deployed a hotfix to resolve this issue.
+|-
+|'''(15:20 BST)''' In Phosani's Nightmare, it was not possible to one hit parasites with a Crush weapon.
+|'''(10:30 BST, July 29th)''' [FIXED] This should now be resolved.
+|-
+|'''(17:54 BST)''' The Shayzien Protector task is failing if the player gets hit by poison, even for null damage.
+|'''(19:02 BST)''' [FIXED] We've deployed a hotfix to resolve this issue
+|-
+|'''(16:18 BST 29th July)''' Combat Achievements: Players were able to gain progress on KC tasks in Tempoross without participating in the fight. This is unfortunate as Tempoross is scaled up with more players, making it more difficult for other players to achieve progress.
+|'''(16:18 BST, July 29th)''' Players are now required to gain the minimum points for a Reward Permit, in order to gain the KC for Tempoross. This is now consistent with similar bosses, such as Wintertodt.
+|}
+
+''It’s curtain up for a rework of A Night at the Theatre, and this time we hope the performance will earn a hearty round of applause! We’ve also tweaked Combat Achievements and we’d love your feedback on some possible boss task changes. All that and more in this week’s update!''
+
+==A Night At The Theatre==
+It’s fair to say that A Night at the Theatre has been a bit of a poor show. The quest we released didn’t match what was originally polled, and let’s be honest, it wasn’t up to the standards of an Old School escapade. We completely agree with your feedback, and we’ve taken your suggestions on board.
+
+Today we’re launching a reworked version that should deliver a proper Old School questing experience while still providing a satisfying introduction to the Theatre of Blood. With this change, Story Mode has been renamed Entry Mode.
+
+You'll start the quest the same way as before; by speaking to the Mysterious Stranger lurking outside the Theatre. You still have to take on the challenges of said Theatre at some point during the quest, at a difficulty setting of your choosing.
+
+[[File:A Night At The Theatre Rework (1).png|600px|centre]]
+
+If you’ve already played it through, there's a couple of things you should know:
+* Players who completed the previous version of the quest will still need to complete this version but won't need to complete the raid itself again.
+* Players who completed the previous version of the quest will lose the two quest points they gained, but will get them back when they complete the rework.
+* Quest Capes will be lost as normal for players who have not completed every quest.
+* Players who have already used Combat XP Lamps from the previous version will receive the additional lamp upon completion of this version.
+
+With the original version of A Night at the Theatre, you made it clear that you weren't happy about the quest autocompleting as it meant you missed out on the new dialogue. Not only that, but just like with the original version, this reworked quest will be a requirement for the Myreque finale and has elements that will be very important to that quest (most of which were not present in the original version). As such, you'll need to complete this version of A Night at the Theatre even if you completed the original version.
+
+In addition, the quest requirements have changed slightly and there's now an additional XP lamp:
+{{Collapsed section|18|Requirements & Rewards (SPOILER WARNING!) - click to expand}}
+'''Requirements'''
+
+The following quest is required to start A Night at the Theatre:
+* A Taste of Hope
+
+The following levels are recommended:
+* 90 Combat
+
+Upon completion you'll get:
+* 2 x 20,000 XP Combat Lamps
+* 2 Quest Points
+{{Collapsed section end}}
+
+We hope you enjoy this fresh approach to A Night at the Theatre!
+
+==Quest Icon Improvements==
+While we were in reworking mode we thought – hey, why not enhance how quests appear on the world map?
+
+[[File:A Night At The Theatre Rework (2).png|600px|centre]]
+
+Hovering over a quest icon will now show the name and status of the quest (started, not started, completed, members-only).
+
+Additionally, every quest in the list now has a ‘show on map’ right-click option. This will open the world map and move to the quest’s icon, which will also flash so it’s easy to spot! Miniquests have this option too, but because they don’t have icons it will just open the map and show the rough starting area.
+
+==Combat Achievements==
+You’ll only fail the task ‘Squashing The Giant’ if you are damaged by a melee or ranged attack and don't have the appropriate prayer activated. We’ve updated the description to reflect this.
+
+[[File:A Night At The Theatre Rework (3).png|400px|centre]]
+
+The task ‘Prepared for Battle’ has been renamed ‘Shayzien Protector’ and you’ll need to kill a Lizardman Shaman in Molch without being damaged by any of its attacks (except for those pesky purple spawns).
+
+[[File:A Night At The Theatre Rework (4).png|400px|centre]]
+
+You can now use any demonbane weapons on Easy Tier tasks – not just Arclight.
+
+[[File:A Night At The Theatre Rework (5).png|400px|centre]]
+
+Other Changes include:
+* Phosani's Nightmare and Nightmare kill counts are now combined into one big kill count. Or one ''small'' kill count, if you suck at the Nightmare.
+* Corrupted Gauntlet completions count for Regular Gauntlet KC tasks. Similar to how Phosani KC counts towards the Nightmare tasks.
+* ‘Fighting As Intended’ and ‘Fighting As Intended II’ can now be completed on Deadman worlds.
+* Perfect tasks within The Theatre of Blood will no longer fail once the NPC starts it death animation.
+* The mysterious Anim Offhand is no longer for sale at the Grand Exchange. This item was an error, sorry!
+* Typos have been fixed in the ‘Dagannoth Supreme Adept’ and ‘Playing With Lasers’ tasks.
+
+We've been aware of tasks sometimes not completing in the Theatre of Blood and we've attempted a fix and added extra tracking which is something we'll keep montioring with today's update.
+
+===Potential Changes===
+We’ve received a lot of feedback about some of the boss tasks being much higher and more tedious to grind out than the others. We’d love to hear your thoughts on possible changes to these tasks. If you’re keen, we’d like to make alterations in next week's update:
+* Kill Bryophyta 10 times -> 5 times (Medium)
+* Kill Obor 10 times -> 5 times (Medium)
+* Kill Callisto 150 times -> 100 times (Elite)
+* Kill Venenatis 150 times -> 100 times (Elite)
+* Kill Vet'ion 150 times -> 100 times (Elite)
+* Kill Cerberus 250 times -> 150 times (Elite)
+* Kill Cerberus 500 times -> 250 times (Master)
+* Kill Alchemical Hydra 250 times -> 150 times (Elite)
+* Kill Alchemical Hydra 500 times -> 250 times (Master)
+* Kill Corporeal Beast 100 times -> 50 times (Elite)
+* Kill Corporeal Beast 250 times -> 150 times (Master)
+* Kill Zulrah 250 times -> 150 times (Elite)
+* Kill Zulrah 500 times -> 250 times (Master)
+* Defeat the Corrupted Gauntlet 50 times -> 10 times (Elite)
+* Defeat the Corrupted Gauntlet 100 times -> 50 times (Master)
+* Defeat the Corrupted Gauntlet 200 times -> 150 times (Grandmaster)
+* Defeat the Gauntlet 50 times -> 100 times (Master)
+
+==Summer Summit==
+[[File:A Night At The Theatre Rework (6).png|600px|centre]]
+
+On Saturday July 31st we’re going live with Old School’s Summer Summit! This whole lockdown/pandemic thing has got us thinking about how we usually talk about the cool stuff we’re doing. Previously we always went nuts at RuneFest and gave you a year’s worth of content, which was always super exciting – until we’d miss the deadlines we set for ourselves.
+
+This year we’re changing our approach: the Summer Summit will focus on big stuff coming in the next six months. If it goes well, we’ll do the same in another six months’ time, looking at the next half year. Obviously, this second event won’t be called the Summer Summit. Unless we do it in Australia…
+
+Anyway, we reckon this is the best way to keep you updated with a more accurate picture of the adventures to come. We look forward to you joining us on Saturday July 31st on Twitch at 20:00 BST!
+
+To make sure that very first Summer Summit goes as smoothly as possible there will be no Q&A this week as the team prepares for Saturday's steam.
+
+==PvP World Rota==
+The PvP rota has moved to Period A:
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+As we continue to improve the world rota system, we are aware that the Australian LMS world is often the only one available to get a competitive game. So, from next week, LMS competitive worlds will alternate between US-only, and then Australia and UK, alongside the rest of the usual rota changes.
+
+==Other News==
+* There’s now a shadow indicator before Dawn's white orb stun lands, giving you more of a chance to scarper.
+* In the Player Attack Options menu you can now allow clanmates to be attacked via left-click, for those who are that way inclined.
+* Crossing the root by the peekhole near the top of the DKs' ladder will no longer clear any pending damage. We really got to the root of the problem on this one…
+* The Ammonite Crabs are no longer obstructed by their little scuttling siblings.
+* Unferth has finally realised that Bob has been coming home for food a day earlier than he used to, so hopefully the information he gives is now.... purr-fectly accurate.
+
+----
+
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums?380,381,743,66223339 official forums], on the [https://www.reddit.com/r/2007scape/comments/ot6uj4/a_night_at_the_theatre_rework_game_update_july/ 2007Scape Reddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums] or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Grub, Halo, Husky, Jerv, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Skylark, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

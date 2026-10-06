@@ -1,0 +1,198 @@
+{{Update|date=31 May 2023|url=https://secure.runescape.com/m=news/gielinor-gazette---may-2023?oldschool=1|category=community}}
+[[File:Gielinor Gazette - May 2023 newspost.png|right]]
+{{clear}}
+''In this month’s Gielinor Gazette, we’ve got a host project updates and exciting changes to show you!''
+
+
+----
+
+
+Welcome back to the Gielinor Gazette! May has brought some exciting changes to the game, but that hasn’t stopped us from working on a ton of new stuff too!
+
+
+Due to the size of the Gazette with the '''Game Jam''' feature, we've decided to move that piece to it's very own newspost, meaning you got three fantastic newsposts to read all in one day, how exciting! Click the button below to check out the latest Jams!
+
+[[File:Gielinor Gazette - May 2023 (1).png|centre|link=https://osrs.game/Game-Jam-III]]
+
+
+Before we start showing off though, don’t forget that if you have something to submit to our monthly Community Showcase – a Postbag letter, some artwork for our Creation Station, an Achievement you’re especially proud of, or even a Video Highlight – you can send it to us using the form below!
+
+[[File:Gielinor Gazette - May 2023 (1).png|centre|link=https://jagex.eu.qualtrics.com/jfe/form/SV_6KENO6twSHpDB0G]]
+
+
+And for this month’s community showcase, click the link below!
+
+[[File:Gielinor Gazette - May 2023 (2).png|centre|link=https://osrs.game/Community-Showcase-May-2023]]
+
+
+Now then, on to the May Gazette! First up, here’s all the biggest news from this month…
+__TOC__
+==May Highlights==
+<center>
+'''Content Newsposts'''
+
+May 11th: [https://secure.runescape.com/m=news/what-were-working-on---bounty-hunter--desert-treasure-ii?oldschool=1 What We're Working On: Bounty Hunter and Desert Treasure II]
+
+May 25th: [https://secure.runescape.com/m=news/bounty-hunter-feedback?oldschool=1 Bounty Hunter Feedback]
+
+
+'''Game Updates'''
+
+May 3rd: [https://secure.runescape.com/m=news/points-based-combat-achievements?oldschool=1 Points-Based Combat Achievements]
+
+May 10th: [https://secure.runescape.com/m=news/ground-item-indicators-loot-tracking--more?oldschool=1 Ground Item Indicators, Loot Tracking & More]
+
+May 17th: [https://secure.runescape.com/m=news/tithe-farm-updates--more-poll-79-?oldschool=1 Tithe Farm Updates and More Poll 79!]
+
+May 24th: [https://secure.runescape.com/m=news/bounty-hunter-is-back?oldschool=1 Bounty Hunter!]
+
+
+'''Community & Communications'''
+
+May 5th: [https://secure.runescape.com/m=news/adding-a-new-skill-sailing-refinement-survey--stages-summary-?oldschool=1 Adding A New Skill: Sailing Refinement Survey & Stages Summary]
+
+May 16th: [https://secure.runescape.com/m=news/adding-a-new-skill-sailing-navigation-mechanics?oldschool=1 Adding A New Skill: Sailing Navigation Mechanics]
+
+
+'''Livestreams & Transcripts'''
+
+May 3rd: [https://youtu.be/Biu8O7PJkN8 Sailing: Discord Stages Modcast]
+
+May 4th: [https://youtu.be/ZlZSgNs-V6Q JMods Play: Pest Control! - Livestream]
+
+May 11th: [https://youtu.be/NRNec2ptzak Sailing: Discord Stages Modcast II]
+
+May 15th: [https://youtu.be/2ntiKnAUlB8 Sailing Navigation Preview - Livestream]
+
+May 25th: [https://youtu.be/VZMJbQQ02rE The Return of Bounty Hunter! - Livestream]
+
+May 26th: [https://youtu.be/cYCbOQn1NKs What's a Skill? | Sailing Modcast III]
+
+
+'''Videos'''
+
+May 5th: [https://www.youtu.be/V5yQM56I2IY Bounty Huner Returns | Skit]
+
+May 24th: [https://youtu.be/SBsmtxwqe8s Bounty Hunter is Back - Play Now!]
+</center>
+
+==Project Updates==
+===New Skill===
+This month we proved once and for all: we have the technology; we can build Sailing!
+
+You expressed some concerns when we first pitched our new skill. Making boats move? In a non-instanced area? In this economy?
+
+But we believed in our idea, and earlier this month we showed off an early prototype of the tech that will power Sailing. Take a look!
+
+Now, the art and gameplay shown here are not final. There’s so much more to come during refinement, but we hope that this video gives you some idea of just how ambitious we’re prepared to be, and reassures the community that we really can make Sailing happen. We’ll be working with you every step of the way to make Sailing the best skill it can be, and we can’t wait to share more news soon!
+
+Before we move on, we’d just like to remind everyone that Shamanism, the runner-up in the new skill poll, will be considered for refinement once we’ve fully refined the Sailing skill. Obviously we can’t work on both skills at the same time – but nothing’s off the table yet!
+
+===Desert Treasure II - The Fallen Empire===
+Development continues on Desert Treasure II – The Fallen Empire, and things are really starting to take shape!
+
+We recently put our playtesters through their paces against our four new bosses and received some great feedback. We’re putting it into action as we speak!
+
+Meanwhile, we’re preparing a second beta for the Ruinous Powers Prayer Book. We’ve taken all your feedback into account and hope you’ll be pleased with the changes we’ve made!
+
+===Bounty Hunter===
+Everyone’s favourite PvP minigame has finally returned and brought with it plenty of bloody battles. Since launch, we’ve been working to make sure your feedback is addressed, and in tomorrow’s game update you can expect to see the following changes:
+* Increasing the time added back to your 2:00 timer when re-entering the crater after banking from 6 seconds to 15 seconds.
+* Skipping an unskulled target no longer contributes to your 'skip limit'.
+* There's now a Penalty Timer visible in the target interface!
+* Perdu has been added to the Bounty Hunter lobby!
+* Upon spawning into the crater, players will be granted 6s of immunity from being attacked by any rogues.
+* The Esoteric Emblem appears now correctly appears when filtering in the Bounty Hunter store.
+* Blighted supplies are now useable from within the lobby area.
+* The wander range and placement of the Corrupted Warriors have been adjusted to stop them from trying to talk to you whilst you bank.
+
+Wanting to get stuck in but not sure where to start? We've got a handy video guide that will get you up-to-date and ready to enter the battlefield prepared, so be sure to check it out before jumping in!
+
+<center><big><big>[https://www.youtube.com/watch?v=2bLKSApUkZY Build the PERFECT Starter Pure for Bounty Hunter!]</big></big></center>
+
+===Forestry: Way of the Forester===
+Launch day is creeping up on us, and we’re all working hard behind the scenes to bring you this much-anticipated Woodcutting expansion. As a little treat for our favourite players, here’s a look at what we’ve been up to this month!
+
+Firstly, the engine team have been tinkering away to improve our Beta worlds! Although you won’t notice much of a difference, this will allow us to do a lot more exciting stuff behind the scenes. What does this have to do with Forestry, you may ask? Well, on '''June 5th''' you’ll be able to see our improvements for yourself in the Forestry Beta! We’ll have more information about it closer to the date, so keep your eyes peeled!
+
+As for the content itself, we’ve been building up the events and tea brewing, but we’ve also found time to ensure that you can properly chop and chill with the homies. Check it out!
+
+[[File:Gielinor Gazette - May 2023 (3).png|centre|600px]]
+
+===Quality of Life Polls===
+Cast your minds back to the Poll 78 newspost, where we included a survey that asked what changes (if any) you’d like us to make to Tombs of Amascut. Did you have some suggestions? If so, you’re in luck, because that’s what’s coming in our next QoL poll!
+
+We know that Tombs of Amascut is relatively new content, but that’s why it’s even more important to get these QoL changes sorted before we move on to other topics.
+
+Although we can’t use every player suggestion, we’ve spent a lot of time discussing your most requested features, including changes to Akkha’s Orb Phase (the one with the nickname we shall not repeat here…) and balancing the Path of Apmeken.
+
+We’re still deciding whether the Tombs of Amascut changes will be the main focus of Poll 80, or whether we should add some other topics into the mix.
+
+Top of the list, of course, are Blood and Soul Rune Packs and Splash Weapons. We spoke about both these topics in the Poll 79 newspost.
+
+The potential change to Splash Weapons really only impacts the Level 3 Skiller community. It will let them train Slayer more efficiently than the Varrock Museum, at any rate!
+
+To put this into perspective, since the removal of Partner Slayer the time for 10HP accounts to reach 99 Slayer has increased from around 1,200 hours to over 7,000 hours, all of it spent AFK in the Museum. Most of these accounts don’t even have 7,000 EHP, so many of them write Slayer off entirely. If we add Splash Weapons, which are guaranteed to hit 0 every time, this grind would be reduced to just 1,400 hours of relatively engaging, fun gameplay – a better solution for everyone!
+
+Now, onto Rune Packs. These were our proposed solution for the problem of upkeeping charged weapons, but the community didn’t seem keen on this plan. In particular, you were concerned about the already low price of Blood Runes.
+
+In response, we’ve been discussing a few other options, including increasing Rune Pack offerings and making it possible to unlock a reduction in the cost of charged weapons (namely the Scythe of Vitur). Both ideas have their pros and cons, and we’ll discuss them further in an upcoming newspost.
+
+If this is something that goes forward after your input we'd look to offer the Rune Packs in the short term and in the longer term address economic issues of Blood Runes by reducing drop table quantities & adding the Scythe unlock.
+
+In the meantime, please let us know your initial thoughts about both ideas. We’re excited to hear what you think!
+
+===Mobile TLI===
+Unfortunately we had to delay the release of the Mobile TLI newspost we spoke about in last month’s Gazette. To make up for it, we want to at least give you some insight into what you can expect the next time we talk about this project.
+
+You’ll not only get a better preview and a proper explanation of how the new mobile interface works, you’ll also hear exactly ''why'' we made those decisions – and that explanation will be accompanied by actual gameplay footage, so you can see the new interface in action. We’re not just talking about a lovely stroll around Lumbridge, either – we’re talking herb runs, the Corrupted Gauntlet, and loads of other familiar content.
+
+The main reason for the delay is that we’re working very hard behind the scenes to ensure you can get a proper hands-on experience with the new design. We’ll have more to say about it in the upcoming newspost, so stay tuned – and thank you for your patience thus far!
+
+===Jagex Accounts===
+The Jagex Accounts Open Beta is well underway with over 40,000 Jagex Accounts created! Meanwhile, the team is still hard at work exploring new features and making improvements.
+
+For example, we’ve already released two new updates that will make adding characters to your Jagex Account easier than ever!
+
+Firstly, you can now have up to 20 characters on your Jagex Account. That’s double the number of characters you could have before! Time to revisit that abandoned Ultimate Ironman, perhaps?
+
+We've also made it easier to import more characters once you have a Jagex account. The Characters page now suggests characters that share your Jagex account email address and you can import them even if you have forgotten the old password.
+
+Next up, we’re working on a feature that will let you re-order your characters so your favourites are at the top of the list!
+
+If you missed it in our previous newspost, we’ve also recently launched a Feedback Survey, and whether you’ve upgraded to a Jagex Account or not, we wanted to hear from you! Thank you to everyone who participated, your feedback is extremely valuable and will help us to decide future improvements!
+
+If you're looking to upgrade you can click the button below to get started on getting yourself a Jagex Account!
+
+[[File:Gielinor Gazette - May 2023 (1).png|centre|link=https://secure.runescape.com/m=account-creation/transfer_account]]
+
+
+Lastly, we’re putting together a more in-depth overview of our progress so far. The team are also working on putting together a more in-depth overview of our progress so far and a look into the future of what to expect from Jagex Accounts and the Jagex Launcher, so look forward to seeing another update from us in the near future!
+
+==Team Changes==
+Those of you who keep up with the inner workings of the Old School team will likely be aware of our wonderful and talented Content Developers. These are the individuals responsible for designing new features for the game (both homegrown and adapted from fantastic player suggestions) and then implementing said features using our in-house tools and technologies.
+
+Now, while all that makes perfect sense, there is one glaring issue that we’ve been dealing with for a while now. That being the actual job title. Content Developer doesn’t really do a good job of describing the role, nor is it a standardised title you’ll see anywhere else in the game industry. This causes confusion both internally and externally, especially when it comes to recruitment. How are we solving this problem? Quite simply, we’re changing the title.
+
+It’s important to note that this change won’t have any impact on how we do things. The aim is purely to provide more clarity. On the topic of proving more clarity, we’re also using this as an opportunity to better distinguish the already existing areas of expertise and responsibilities within the team by replacing the one generalist title with four distinct design disciplines. Those new disciplines are:
+* '''Game Design''' - A generalist design role with no single specific focus. Game Designers could be responsible for any type of game update. In many ways, you can consider this the ‘default’ design role.
+* '''Narrative Design''' - Responsible for current and future game narrative and how it is used both in and out of the game.
+* '''Systems Design''' - Responsible for the rules and mathematics of underpinning game systems, with a particular focus on game balancing and economy.
+* '''Technical Design''' - Responsible for technical standards and processes as well as core technical scripts. As such, this role acts as a bridge between our design team and our engine team.
+
+From the start of June, all of our Content Developers will be moving over to one of these new titles. As before, there are also distinctions for levels of seniority which aren’t changing as part of this, so expect to see roles covering Junior, Standard, Senior, Lead and Principal. With these changes happening over the coming days, you’ll likely see team members changing their social media bios as a result. Feel free to congratulate them!
+
+==The Future of Narrative==
+Now, the writer of this blog may be a little biased, but one thing that’s become clear over the last 10 years is how important quests and narrative are to the fabric of Old School RuneScape. In the past, we’ve gathered some great feedback about our storylines from the Annual Survey. Now we want to take things one step further with a dedicated Narrative Survey. The feedback we gather will help us determine whether we’re on the right track with our narrative work and help us with our future plans.
+
+We want feedback from as many players as possible, whether you’re a verified lorehound or a serial spacebar smasher. Click the link below to take part!
+
+[[File:Gielinor Gazette - May 2023 (1).png|centre|link=https://jagex.eu.qualtrics.com/jfe/form/SV_38XFT2qYvtslbVk]]
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/comments/13wq77l/game_jam_iii_gielinor_gazette_community_showcase/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Pumpkin, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

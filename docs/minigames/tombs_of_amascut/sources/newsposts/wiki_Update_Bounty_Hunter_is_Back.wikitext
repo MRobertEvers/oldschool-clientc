@@ -1,0 +1,295 @@
+{{Update|date=24 May 2023|url=https://secure.runescape.com/m=news/bounty-hunter-is-back?oldschool=1|category=game}}
+[[File:Bounty Hunter is Back! newspost.png|right]]
+{{clear}}
+''It's time to gear up and go berserk this week, as Old School's most iconic PvP minigame makes its bloody return…''
+__TOC__
+
+'''Game worlds will be unavailable for around 30 minutes following restart while we take a back-up of save data, as is standard for our larger content updates!'''
+
+'''A note from the team:''' Vesta's blighted longsword ''is useable'' within Bounty Hunter, however its death behaviour is currently unchanged. This means that if your ''blighted'' longsword is not protected, it will be lost on death. Earning enough points to buy Vesta's longsword from the rewards shop will give you a variant which always reverts to an inactive state on death, and requires further charging with GP. All that to say: don't risk your Vesta's blighted longsword on release if you're not prepared to lose it.
+
+----
+
+{| class="wikitable" style="text-align:center; width:665px;"
+! Problem Raised
+! Our response
+|-
+|Players report the Pool of Refreshment doesn't restore Special Attack, but that targets are lost when teleporting to their POH to restore Special Attack energy and count as a skip, disrupting gameplay heavily.
+|We've hotfixed the pool inside the Bounty Hunter lobby so that it now ''restores your Special attack energy''. We hope this alleviates issues in the short-term while we consider a more elegant solution in the future, if one is needed!
+|-
+|Players are reporting latency issues due to the number of players engaging in PvP in a relatively small area. Some players in regions like Australia have asked whether we'd be able to add the Bounty Hunter flag to any Aus worlds.
+|We've added the Bounty Hunter flag and enabled Bounty Hunter on the following worlds: 541 (US West), 567 (UK), 569 (AUS).
+|-
+|Players are asking about monetary incentives for the longevity of Bounty Hunter, and asking about the likelihood of us delivering the EP system that we shared a while ago and spoke about in a newspost ~2 weeks ago.
+|We can confirm that we are actively developing an Earning Potential System, and this work has been ongoing since before Bounty Hunter's release, with the aim to launch it within the next couple of weeks.
+|-
+|Skipping too many targets will apply a 30-minute cooldown before you can receive another target. There is no way to tell how long is left on the timer.
+|You can now talk to any of the Corrupted Warrior's within the Bounty Hunter lobby to find out how long is left on the cooldown timer. This is a temporary solution and we hope to share more info with next week's game update.
+|}
+
+{{Collapsed section|18|Changelog - CLICK HERE TO SHOW}}
+'''Bounty Hunter'''
+
+* Added Bounty Hunter to the game, accessed via a portal in the south-east corner of Ferox Enclave.
+* There's more than we can feasibly cover in this changelog, scroll down for further details on various aspects of the minigame!
+
+'''XP Rates & Scaling'''
+
+* XP Modifiers for NPCs stops scaling with HP after 2,000 HP, this should reduce the potency of some training methods at Zebak in particular.
+* The 'Cure Me' spell can now only be cast once per game tick (once every 0.6 seconds).
+
+'''Other Changes'''
+
+* Tortured Gorillas now have a melee animation that actually looks like a melee animation, as opposed to a ranging animation.
+* Loot from the Wilderness bosses is now always dropped in their lairs, rather than wherever the player is at the time of their death.
+* Crystal armour and Enhanced crystal keys are now immune to alchemy spells, similar to the behaviour of other crystal items.
+* Fixed a bug that was preventing players from finding matches in 1v1 Duels at the PvP Arena. We fixed this one towards the end of last week but wanted to include it here to make sure eveybody's in the loop!
+* Following a hotfix last week, logging out in Tithe Farm no longer resets the amount of seeds you have to 100, the number of seeds in your inventory are now preserved (up to a maximum of 10,000) after logging out.
+* While not strictly a gameplay change, it's now possible to add up to 20 characters to your Jagex Account, up from the original 10! Keep an eye out for future improvements down the line as we try to action more of your feedback, including the ability to re-order your Character list on the Jagex Launcher!
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+539 - (US) - PvP World
+548 - (Germany) - High-Risk PvP World
+577 - (US) - Free-to-Play PvP World
+559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Zerk</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Bounty Hunter==
+Bounty Hunter is BACK, baby!
+
+While we’ve been ramping up support for PvP content in recent years, we still regularly see feedback that it’s really hard for fresh faces to dip their toes into Old School’s risk-it-all PvP gameplay. That’s why we’ve designed the new-and-improved Bounty Hunter minigame as the perfect jumping off point, with nothin’ but fun, fast-paced Honour PvP.
+
+By introducing fresh blood into the PvP ecosystem we hope to bolster activity across the board – be it in minigames, DMM, or the Wilderness!
+
+So come on – keep reading to find out how you can get started with Bounty Hunter, and get ready for a summer of PvP fun!
+
+===Getting Started===
+[[File:Bounty Hunter is Back! (1).png|thumb|600px|center|''Click to enlarge and get a full lay of the land for Daimon's Crater'']]
+
+To access Bounty Hunter, you’ll also need to be on a Bounty Hunter world. At launch, these worlds are 318 and 319. Yes, these are the former Target Worlds, which we’re sunsetting for now – but don’t worry, the Emblem Trader in the Revenant Caves is still hanging around to accept your ancient artefacts.
+
+Upon opening your World Map, you’ll notice a mysterious new area north of the Wilderness volcano called Daimon’s Crater. Now, it’d be lovely if you could sail there, but we’re still working on that – so instead, you’ll want to make your way to the Ferox Enclave and hop through the ominous-looking red portal in the southeast corner. Don’t panic – the Castle Wars portal that used to be in this spot has been carefully relocated outside the Old Nite pub.
+
+[[File:Bounty Hunter is Back! (2).png|600px|center]]
+
+Once you’re through the portal, you’ll find yourself in the lobby area, a weirdly charming fort in the centre of Daimon’s Crater. You’ll be spending a lot of time here, so don’t forget to familiarise yourself with the amenities provided!
+
+In the middle, the same portal that brought you to Bounty Hunter will teleport you back to Ferox Enclave. Paths to the north, east, south and west of this portal lead to the exit barriers, which will take you to the minigame itself – make sure you’re ready for a fight before interacting with these!
+
+Around the outside of the lobby, you’ll find two Bank Chests, two Pools of Refreshment, a Coffer, a Loot Chest, and a Poll Booth. That should cover everything you might need between bouts of carnage!
+
+[[File:Bounty Hunter is Back! (3).png|600px|center]]
+
+Of course, the Emblem Trader is also lurking about, ready to give you the skinny on the Daimon’s Crater lore, help you Skull up, and trade for a selection of goodies in the rewards store.
+
+You’ll also find a pair of Corrupted Warriors. Despite their gnarly Dragon armour, they’re actually super chill, and will teach you everything you need to know about Bounty Hunter, including the rules of combat, a list of the Corrupt and Ancient Warrior gear you’ve purchased, and how you can get your hands on those iconic Bounty Hunter hats. Yes, the hats are back! Just so you know, the kill count required to unlock them will be made up of any ''pre-existing'' Bounty Hunter kills you'd racked up, added to any kills you secure in this iteration. For example, if you had 1,000 target kills already, you'd need another 1,500 target kills to unlock the Bounty Hunter Hat (tier 6).
+
+Now that you’re familiar with the Crater, there are a few more admin bits to get through before you’re ready to play Bounty Hunter.
+
+First, you’ll need a combat level of at least 32, and at least 48 hours of play time.
+
+Depending on your Combat level, you'll have to put up a minimum 'deposit' which will be lost on death if you're unskulled. Skulled players will lose a token 10,000 GP from their coffer on death, so make sure you throw a few pennies in before getting started! We've received some feedback that these numbers are likely too low, so let us know your thoughts and we'll remain open to adjusting them as necessary.
+
+{| class="wikitable"
+|-
+! Combat Level !! Minimum Deposit Fee
+|-
+| 32-60 || 30k
+|-
+| 61-88 || 50k
+|-
+| 89-110 || 100k
+|-
+| 111-126 || 150k
+|}
+
+When you’re ready, click on any of the exit barriers and enter Daimon’s Crater. Prepare for bloodshed!
+
+===Daimon's Crater===
+
+[[File:Bounty Hunter is Back! (4).png|600px|center]]
+
+Combat inside Bounty Hunter works a little differently. On release, the following rules will be applied to all combat within the Crater:
+* No teleporting – although you can use the Teleport to Target spell from inside the '''lobby (not the Crater itself!)''' ''if'' you already have a target assigned.
+* No overhead protection Prayers.
+* No binding spell effects, including the freeze from Ice spells - although damage is still applied as normal.
+* No teleblocking.
+
+These restrictions ensure that Honour PvP remains at the heart of Bounty Hunter.
+
+That said, we’ll be keeping a close eye on how these rules play out in practice, especially the one about ‘no teleporting’. We’re already aware of requests for a ‘No Honour’ crater, but it’s not something we plan to introduce at launch.
+
+There are also some other rules designed to make Bounty Hunter more welcoming to new PvP enthusiasts:
+
+* Combat XP is blocked, but you'll still receive 'fake' XP drops so that you're able to figure out when's a good time to prepare a ferocious Granite maul combo.
+* To limit rushing, any player who initiates combat will be blocked from exiting the Crater for 30 seconds, although their target will be allowed to leave.
+* Any untradeables, such as staples like Void knight armour, the Avernic defender or the Inferno cape will revert to a 'broken' state on death if not protected, requiring you to repair them at Perdu and dropping the same repair fee to whoever brought you down.
+* PJ Timer restrictions mirror those of PvP worlds. The only exception is that your Target will ''always'' take priority – so, if you’re engaging in rogue activity and attack someone who isn’t your target, your actual target will be able to interrupt at any point.
+* The default matchmaking range is set to within five combat levels of the player, although you can increase this to 10 or 15 levels by speaking to the Emblem Trader in the lobby.
+* Rogue players (more on this in a moment) will only be able to attack players within five combat levels of their own.
+
+Upon passing through the exit barriers, you’ll spawn in at one of the designated spooky markers around the arena. You’ll then be assigned an appropriate target, whose name, combat level, and rough distance from you will appear on the UI. If you get a look at your target and decide they’re a bit too scary for you, you can skip your target using the green ‘fast forward’ button next to their name. Leaving the Crater for two minutes or logging out will also skip your target. If you need to leave the Crater to restock your supplies and re-enter before the two-minute timer is up, you’ll get a little extra time to compensate.
+
+Skipping three targets within 30 minutes will get you a penalty. This 30-minute window starts when you first skip a target, and the penalty is as follows:
+
+* No Emblem drop or upgrade on your next target kill, coupled with half as many BH Points.
+* Unable to receive a new target for 30 minutes.
+
+Maybe you’re reading this and thinking that matchmaking isn’t for you. Perhaps you’d rather be a ''menace''. You’re in luck! As with previous iterations of Bounty Hunter, you’ll be able to go Rogue, throw the rules out the window, and attack anyone within five combat levels of your own, whether they’re your target or not. Rogue kills will reward you with anything your target wasn’t protecting (the PvP standard) as well as any GP in their Coffer that you're eligible for, but you won’t receive Emblem upgrades of BH Points.
+
+Exit the Crater by clicking one of the four lobby entrances in the centre. You can do this even while you’re in combat. This lets you quickly top up your supplies and have a little splash in the Pool before getting back into the action.
+
+===Points, Emblems and Rewards===
+The reward system in Bounty Hunter is simple. Kill your target, earn two Bounty Hunter (BH) Points.
+
+On top of this, there are extra Points up for grabs at various kill milestones, similar to Slayer tasks:
+
+<center>
+{| class="wikitable" style="text-align:center"
+|-
+! Total Kill Count !! BH Points
+|-
+| Per 10th || 3
+|-
+| Per 50th || 5
+|-
+| Per 100th || 10
+|-
+| Per 500th || 25
+|}
+</center>
+
+You’ll also get an Esoteric Emblem drop on your first target kill. These are a way for players to earn extra points if they can rack up a substantial kill streak without dying. Players can hold '''one''' Emblem at a time, either in their Inventory or the Bank. As with previous iterations of the minigame, your Emblem will level up with each successful target kill, up to the maximum of Tier 10. Be careful though – if you die while holding your Emblem, you’ll have to obtain another one and start over!
+
+Trading in Emblems or killing targets who are risking Emblems of their own, will earn you additional BH Points! The table below shows the ‘trade-in’ value of the Emblems:
+
+<center>
+{| class="wikitable" style="text-align:center"
+! Emblem Tier !! BH Point Value !! Bonus BH Points for Target's Emblem 
+|-
+| 1 || 2 || 1 
+|-
+| 2 || 4 || 2 
+|-
+| 3 || 7 || 4 
+|-
+| 4 || 11 || 6 
+|-
+| 5 || 16 || 8 
+|-
+| 6 || 22 || 10 
+|-
+| 7 || 29 || 12 
+|-
+| 8 || 37 || 14 
+|-
+| 9 || 46 || 16 
+|-
+| 10 || 56 || 18
+|}
+</center>
+
+This system ultimately aims to reward players for securing killstreaks, while also preventing more unscrupulous players from transferring their pre-levelled Emblems to their mates.
+
+Should you lose your Emblem – for whatever reason – you can buy a fresh one from the Emblem Trader for two points, just in case you’d like to start levelling it without ‘wasting’ a new kill.
+
+Any particularly brave Iron players among you will have to purchase tier 1 emblems from the shop, since you won't be able to obtain a fresh emblem from kills (though you'll be able to level them up just like everybody else).
+
+Now you’ve got some points, you can spend them on PRIZES!
+
+[[File:Bounty Hunter is Back! (5).png|600px|center]]
+
+The Emblem Trader has a variety of goodies for sale, including Ancient Warrior gear, weapon imbues, and cosmetics. To learn more about them, have a gander at [https://secure.runescape.com/m=news/a=97/bounty-hunter-rewards-poll-mini-blog?oldschool=1 the Poll Blog], or check out the Ancient Warrior stats using the slides below!
+
+Remember, all of the Ancient Warriors' Equipment (including the Corrupt versions) require charging with GP to be used within the crater, with this fee being lost on death to whoever killed you and you respawning with an inactive version (in other words, unlocking Ancient Warrior kit is effectively permanent, requiring nothing but GP to continue using).
+
+* Ancient Warrior Weapons - 50,000,000 GP
+* Ancient Warrior Armour - 5,000,000 GP per piece
+* Corrupt Ancient Warrior Armour - 1,500,000 GP per piece
+
+<center>
+<gallery captionalign="center" widths="180">
+Bounty Hunter is Back! (6).png
+Bounty Hunter is Back! (7).png
+Bounty Hunter is Back! (8).png
+</gallery>
+''For higher resolution, click on the image to open it separately and zoom in to your heart's content!''
+</center>
+
+In addition to all this lovely stuff, we’ve also included a few extras.
+
+First up are a number of Blighted supplies, which will let you keep topped up on food and potions without breaking the bank. Initially this might serve as a way to make a little extra cash on the side, but we hope that long-term the price of these items will drop significantly. After all, supplies can make up the lion’s share of the wealth risked in PvP, and Blighted items will help alleviate that cost for players who just want to give it a go.
+
+The eagle-eyed among you might also have noticed a Target Teleport Scroll in the screenshot above. As we mentioned earlier, if you’re in the lobby with a target assigned, you’ll be able to teleport to them using the Teleport to Target spell. With that in mind, it made sense to make the Scroll obtainable from the only piece of content it benefits!
+
+Without further ado, that should be all the information you need to get started in Bounty Hunter today. We hope to see Daimon’s Crater absolutely jam-packed with PvP veterans and newbies alike!
+
+We’ll be keeping a close eye on all the usual feedback channels, so feel free to tell us your thoughts!
+
+For those of you wondering what’s next on the PvP content front, we’re hoping to spend some time in the near future making tweaks to existing Wilderness content, and we’d advise you to keep your eyes peeled for a little something-something we’re not quite ready to talk about yet…
+
+In the meantime, though, check out the other changes and fixes from this week’s update!
+
+* Tortured Gorillas now have a melee animation that actually looks like a melee animation, as opposed to a ranging animation.
+* Loot from the Wilderness bosses is now ''always'' dropped in their lairs, rather than wherever the player is at the time of their death.
+* Crystal Armour and Enhanced Crystal Keys are now immune to Alchemy spells, just like other Crystal items.
+* Fixed a bug that prevented players from finding matches in 1v1 Duels at the PvP Arena. We fixed this one towards the end of last week but wanted to include it here to make sure everybody’s in the loop!
+* Logging out in Tithe Farm no longer resets the number of seeds you have to 100. The number of seeds in your Inventory are now preserved (up to a maximum of 10,000) after logging out.
+* While not strictly a gameplay change, it's now possible to add up to 20 characters to your Jagex Account, up from the original 10! Keep an eye out for future improvements down the line as we try to action more of your feedback, including the ability to re-order your Character list on the Jagex Launcher!
+
+==Experience Scaling & Rates==
+Some of you may be aware of a handful of particularly high XP per hour methods at Zebak within the Tombs of Amascut. In particular, large groups and high Raid levels boost Zebak's stats (especially Hitpoints) significantly, resulting in a large XP modifier.
+
+If you've never noticed it before, bosses with higher stats often give more XP per damage dealt than other NPCs. Without going into too much detail, as these stats increase, the XP you earn also increases. Hitpoints impacts this XP modifier disproportionately when compared to other stats, so you'll notice NPCs with high health pools such as Nex, Verzik P3, Bloat and especially Zebak award significantly more XP than is standard.
+
+By scaling up your raid and bringing a large group, players have been able to achieve XP rates north of 1,000,000 XP per hour in several Combat stats, and organised groups are beginning to optimise these methods to the point where they're becoming accessible in a way that we believe damages the game's health long-term.
+
+This week, we're introducing a hard 'cap' on how much XP can scale with Hitpoints. While the immediate intent of this change is to cut down on players in groups at Zebak gaining astronomical XP rates, our reason for introducing a game-wide cap is to prevent similar issues from cropping up in the future, rather than needing to tweak or adjust on a case-by-case basis. While this will have some knock-on effects in slightly reducing the XP you gain passively in other places like the Theatre of Blood or at Nex, we believe this change is worth making sooner rather than later.
+
+In a similar vein (though not directly related to the above), some crafty players have discovered a method to gain some considerably high Magic XP rates via the 'Cure Me' spell in an area of the game where they're able to have venom constantly re-applied to them. With this week's update, we've made a small tweak to 'Cure Me' that should reduce the potency of this training method without disrupting its intended use case too much.
+
+You'll now only be able to cast 'Cure Me' once per game tick (or, once every 0.6 seconds). This means that for any Irons out there chasing Zulrah kills without anti-venoms, you may have to spread out your clicks a little if you're removing venom with this handy Lunar offering - so make sure to keep an eye on your Hitpoints orb to double-check you've reset your venom damage as expected!
+
+==Merch Update==
+Alongside some new PvP-centric cosmetics in-game, why not bring some fearsome fashionscape with you into the real world?
+
+To celebrate the return of Bounty Hunter, we're releasing a refreshed PK Skull range on [https://runescape.backstreetmerch.com/ the merch store]!
+
+[[File:Bounty Hunter is Back! (9).png|600px|center]]
+
+Treat yourself to an embroidered tee or cap as another UK summer approaches, perhaps a distressed skull tee if embroidery's not your thing. If you're somewhere a little cooler this time of year, grab yourself a PK Skull Varsity jacket! If you're not particularly clothes-y (we're pretty sure that's not a word but bear with us), then grab yourself a spooky PK Skull keyring from Angels Scapes. Please try to steer clear of real-world PvP, or you might lose your keys!
+
+==Crack the Clue==
+
+Woox is back with another hint that requires no additional info, so feast your eyes on this handy scroll!
+
+[[File:Bounty Hunter is Back! (10).png|center]]
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+539 - (US) - PvP World
+548 - (Germany) - High-Risk PvP World
+577 - (US) - Free-to-Play PvP World
+559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Zerk</b>' loadouts in Ranked Duels and Tournaments this week.
+
+That's a wrap on this week! We hope you have a blast in Bounty Hunter and remember: don't risk anything you're not willing to lose!
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/comments/13qgy8i/bounty_hunter_is_back/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Pumpkin, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

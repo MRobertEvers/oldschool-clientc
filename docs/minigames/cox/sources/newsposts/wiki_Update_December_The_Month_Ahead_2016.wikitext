@@ -1,0 +1,82 @@
+{{Update|date=1 December 2016|link=http://services.runescape.com/m=news/december---the-month-ahead?oldschool=1|category=website}}{{Parentitle override|{{NAMESPACE}}:December - The Month Ahead|(2016)}}
+[[File:December - The Month Ahead (2016) newspost.png|right]]
+{{clear}}
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">The Month Ahead - December</font></center>
+
+<center>'''Christmas, the Deadman Finale, and a glimpse at Raids! There's a whole host of things to look forward to in December.'''</center>
+[[File:December - The Month Ahead (2016) (1).jpg|center|500px]]
+----
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Raids Development Update</font></center>
+
+<center>'''Work on Raids is approaching the final touches!'''</center>
+
+Bosses are being polished, rooms tweaked and balancing tested as we head towards the launch at the start of January. You've already met some of the bosses like Tekton & Olm, but we've been releasing some details of others, in case you missed it, here is the sinister "Vasa Nistirio", along with a little bit of back story for the deranged ex-priest.
+
+[[File:December - The Month Ahead (2016) (2).png|center|500px]]
+
+Early on in the month we'll be ready for the raids Load Test. This is where we'll need your help in order to ensure everything goes smoothly when Raids launches in early January. As a stress test, players will be able to utilise the new group-finding system and explore some of the environments in which you'll be adventuring come Raids. 
+
+You won't be able to take on the challenges of the dungeons yet, as we're saving that for the full launch.
+
+There's also one more feature of the load test...
+----
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Tournament World</font></center>
+
+<center>'''Sharpen your blades and refrigerate your Ice Barrages, it's PvP time!'''</center>
+
+[[File:December - The Month Ahead (2016) (3).png|center]]
+
+The world used for the load test will also be home to a Tournament World. These highly-anticipated worlds allow players to engage in risk-free PvP. 
+
+With maxed accounts and access to the tournament supply chests, you'll have the ability to handcraft your perfect set up every time, meaning everything comes down to skill.
+
+Whether you've been playing Old School Runescape for a week or a decade, tournament worlds are the perfect way to develop and hone your PvP abilities. Or just cause some carnage in the arena. 
+
+This will only be available for the duration of the load test! So make sure to get your fill before the Tournament World disappears again.
+----
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Deadman Winter Invitational</font></center>
+
+<center>'''One of the most electrifying seasonal events is back.'''</center>
+
+[[File:December - The Month Ahead (2016) (4).png|center|500px]]
+
+Join the hundreds of thousands who have watched the sensation that is Deadman. Live from the ESL Studio, we'll be bringing you the final hour of Season 3. Culminating in a lethal showdown for a grand prize of $10,000! 
+
+Over the course of five days, the top 2,000 players from the recent Deadman Season will build up accounts on a brand new Deadman world.
+
+After five days fog will begin to descend on the world, killing players in its path. Respawning will be disabled, every Deadman will be forced into a small area and, with $10,000 going to the '''last Deadman alive''', they will be forced to fight.
+
+The events of the final hour will be streamed live from the RuneScape Twitch channel on Saturday December 17th. Do not miss out on the action - be sure to watch the mayhem unfold!
+
+We've partnered up with the world's largest esports organization, ESL, to make the Deadman Invitational all it can be. For the first time ever, you can join us in person live at the ESL Studio to witness the mayhem unfold!
+
+[[File:December - The Month Ahead (2016) (5).png|center|280px]]
+
+Get exclusive access to the Old School team, your favourite players, and other passionate Old School RuneScape fans at what promises to be an incredible event. To join us, get your tickets here or just click the image below!
+
+[[File:December - The Month Ahead (2016) (6).png|center|400px|link=https://www.eventbrite.com/e/deadman-tournament-tickets-29433615737]]
+
+Tomorrow the top 2,000 Deadman Seasonal players will be receiving their invites confirming that they have qualified for the Winter Invitational. If you're expecting to be invited, keep an eye on your RuneScape message centre inbox for further details!
+----
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Christmas 2016</font></center>
+
+<center>'''We head to Mount Quidamortem for a festive tale.'''</center>
+
+
+<center>The end of December is all about Christmas. One thing that we can reveal is that you'll be heading to Mount Quidamortem for our festive tale this year! But more on that later.</center>
+[[File:December - The Month Ahead (2016) (7).png|right]]<br/>
+<center>In addition to this, look out for community events as well as your favourite J-Mods and Players spreading some Christmas cheer through use of the holiday spawner! There'll be party hats, santa hats, crackers and more appearing throughout the holiday season.</center>
+[[File:December - The Month Ahead (2016) (8).png|left]]<br/>
+<center>In addition to this, you'll have the chance to earn all the other Christmas rewards from previous years. We'll go into greater detail about this years Christmas event in a later post, but we're very excited.</center><br/>
+<center>Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,350,65856267 forums].</center>
+
+
+<center>'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''</center>

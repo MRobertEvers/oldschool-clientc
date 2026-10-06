@@ -1,0 +1,90 @@
+{{Infobox Item
+|name = Keris partisan of corruption
+|image = [[File:Keris partisan of corruption.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wield, Dismantle, Drop
+|examine = A mystical-feeling polearm imbued with destructive power.
+|value = 300000
+|alchable = No
+|weight = 3.218
+|id = 27287
+}}
+[[File:Keris partisan of corruption detail.png|left|150px]]
+The '''keris partisan of corruption''' is a one-handed spear requiring 80 [[Attack]] to equip. It is made by attaching the [[Eye of the Corruptor]] on the [[keris partisan]], granting it a special attack which can only be used within the [[Tombs of Amascut]] [[raid]]. As with the keris partisan, weapon poisons cannot be applied to the partisan.
+
+The keris partisan of corruption retains the effects of the keris partisan, dealing 33% bonus damage against all [[Kalphite_(attribute)|kalphites and scabarites]], alongside a 1/51 chance of finding a gap in their exoskeleton, dealing triple damage. When this special effect occurs, the chatbox will display the message: {{mes|You slip your weapon through a gap in the creature's chitin, landing a vicious blow.}}
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +58
+|aslash = -2
+|acrush = +57
+|amagic = +2
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = +45
+|rstr = 0
+|mdmg = 0
+|prayer = 3
+|slot = weapon
+|speed = 4
+|attackrange = 1
+|combatstyle = Partisan
+|image = [[File:Keris partisan of corruption equipped male.png|200px]]
+|altimage = [[File:Keris partisan of corruption equipped female.png|200px]]
+}}
+
+{{CombatStyles|Partisan|speed=4|attackrange=1}}
+
+==Special attack==
+[[File:Wrath of Amascut.gif|thumb|250px|A player performing the Keris partisan of corruption 's special attack, ''Wrath of Amascut''.]]
+The keris partisan of corruption has a [[special attacks|special attack]], ''Wrath of Amascut'', which consumes 75% of the player's special attack energy. The special attack, for the next hit, provides a 100% increase to accuracy and a 25% increase to the player's damage.
+
+The target hit by the special attack will also receive 25% increased damage for 10 [[ticks]] (6 seconds); the special attack must be a [[successful hit]] in order for it to take effect. However, players performing the special attack will be unable to attack for 8 ticks (4.8 seconds). As such, it is recommended to have teammates focus on the target hit by the special attack afterwards if possible.
+
+==Creation==
+{{Recipe
+|members = Yes
+|ticks = 0
+|mat1 = Keris partisan
+|mat1cost = 60000
+|mat2 = Eye of the Corruptor
+|mat2cost = no
+|output1 = Keris partisan of corruption
+|output1cost = no
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 March 2024
+|update = Varlamore: Part One
+|change = Players may no longer attach jewels obtained from the [[Tombs of Amascut]] to a wielded keris partisan if they do not have level 80 Attack.
+}}
+{{Subject changes
+|date = 21 September 2022
+|update = Tombs of Amascut Changes & Beta Tweaks
+|change = When players deal a critical hit to kalphites and scabarites with the keris partisan, the chat message was updated from "''You slip your weapon through a chink in the creature's chitin, landing a vicious blow.''" to "''You slip your weapon through a gap in the creature's chitin, landing a vicious blow.''"
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Originally, the keris partisan of corruption did not have a special attack. Rather, the partisan would add a damage-over-time effect to attacked enemies. Players wouldn't be able to stack this effect multiple times onto a single NPC, but would have been able to apply it to multiple NPCs at once.
+
+{{Stab weapons}}
+{{Crush weapons}}
+{{Attribute affinities}}
+{{Tombs of Amascut}}
+
+[[Category:Weapons with Special attacks]]

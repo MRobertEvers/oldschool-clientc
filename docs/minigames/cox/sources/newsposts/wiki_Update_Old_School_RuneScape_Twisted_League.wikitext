@@ -1,0 +1,342 @@
+{{Update|date=2 October 2019|rev=1 November 2019|link=https://secure.runescape.com/m=news/old-school-runescape-twisted-league?oldschool=1|category=community}}
+[[File:Old School RuneScape Twisted League newspost.jpg|right]]
+{{clear}}
+
+<center>''This blog will discuss the first Old School RuneScape League with rewards and poll questions.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Old School RuneScape: Twisted League}}
+
+[[File:Old School RuneScape Twisted League (1).png|center|600px]]
+
+Gather around and prepare yourself for a brand new game mode. After recently announcing [https://secure.runescape.com/m=news/introducing-old-school-runescape-leagues?oldschool=1 Old School RuneScape Leagues], we want to now present to you the very first iteration of that mode: '''Twisted League'''.
+
+In the Twisted League, you'll play an ironman (or ironwoman), locked to the Kourend and Kebos regions. Set out on an all new kind of challenge, thinking outside of the box while you attempt to unlock as many points as possible for relics and rewards. Set yourself apart from the rest, or just try out an exciting new way to play the game you love.
+
+Old School RuneScape Twisted League will last for two months from the initial release date. Everyone participating in the league will start off as a fresh account on a separate game world. To customise your gameplay, you will be given the option to pick a relic from the very start. The more tasks you complete, the more points you get, and the more relics you can unlock.
+
+'''Changelog:'''
+
+* The first set of Relic choices have had their buffs updated slightly
+* A new quest has been unlocked
+* Barbarian Hasta/Fishing training has been auto-completed
+* The XP multiplier on a league world will now be 5 instead of 3
+* Two Kourend and Kebos diary tasks have been auto-completed
+* The Barbarian Rod, Anti-Dragon Shield, and Pestal & Mortar will now appear in shops around Kourend and Kebos
+* Selected shop stocks will restock at an accelerated rate
+* Item drops of specific items have been changed
+
+
+Below is a sneak peek of the the Twisted League specifics. We recommend you expand each section fully.
+
+{{Collapsed section|18|Rules}}
+
+{{Headline|22|Rules}}
+
+[[File:Old School RuneScape Twisted League (2).png|center|100px]]
+
+Old School RuneScape Twisted League will have some unique caveats to ensure the game mode is fair and enjoyable for everyone. Please note that these rules will only apply to the Twisted League itself.
+
+;Kourend and Kebos Locked
+You will be restricted to the Kourend and Kebos regions only. Any successful attempt to escape from Kourend and Kebos will get you teleported back to the respawn point.
+
+*The respawn location is set to Kourend Castle
+*Ports aside from the one that takes you from one end of Kourend and Kebos to the other will not work
+*All teleports will only work if the destination is within Kourend and Kebos
+*The Ancient and Lunar spellbooks will not be accessible
+*All clues obtained will only have steps that can be completed within Kourend and Kebos
+
+
+;Ironman/Ironwoman Mode with Accelerated XP Rates
+You will be set as an ironman or ironwoman upon account creation. This is not changeable.
+
+*No trading will take place between players
+* Selected shops will have increased supplies and accelerated restocking rates to accommodate the number of ironmen and ironwomen players on Kourend and Kebos
+* Shops found on Kourend and Kebos will now contain a Barbarian Rod, Anti-Dragon Shield, and Pestal & Mortar
+* There will be accelerated XP rates of 5x throughout the entire league
+
+
+;Starting Stats
+You will start out with a fresh account with the basic stats, besides the following to allow for the ability to do Barbarian Fishing and train Herblore:
+
+*Herblore: Level 3
+*Agility: Level 15
+
+
+;Quest Unlocks
+In order to be able to obtain and wield certain items or level specific skills you will have the following quests unlocked:
+
+*Druidic Ritual
+*Dragon Slayer
+*Rune Mysteries
+*Eagle's Peak
+
+
+;Slayer Unlocks
+You can start Slayer from level 5 combat by speaking to Konar. She has a new Kourend and Kebos defined task list which includes some new tasks specific to the Twisted League. Her tasks will no longer have Area Restrictions but will still award Brimstone Keys.
+
+
+;Item Drop Changes
+The following item drops have been changed:
+
+* The Kodai Insignia from Chambers of Xeric has been replaced with a Kodai Wand
+* The Hydra Leather from Alchemical Hydra has been replaced with the Ferocious Gloves
+* The Hydra Claw from Alchemical Hydra has been replaced with the Dragon Hunter Lance
+* The Broken Dragon Hasta from the Brimstone Chest has been replaced with a Dragon Hasta
+
+
+;Diary Tasks
+The following Kourend and Kebos diary tasks are automatically completed:
+
+* Travel to the Fairy Ring south of Mount Karuulm
+* Cast Monster Examine on a Troll south of Mount Quidamortem
+
+
+{{Collapsed section end}}
+{{Collapsed section|18|Tasks}}
+
+{{Headline|22|Tasks}}
+
+[[File:Old School RuneScape Twisted League (3).png|center|100px]]
+
+Tasks are a collection of goals and achievements which can be completed in the league. These tasks can be for various activities such as skilling, obtaining drops, killing creatures, completing quests or even playing minigames. Completion of a task will award a number of League Points which can be used to unlock relics and overall rewards. Points received for completing each task will be subject to balancing but will be based on the tier of the task. Tasks will range from Easy to Master tiers where Easy tasks are considered simple and Master tasks are considered to be extremely difficult achievements. Below is a list of some Twisted League tasks you can expect to see:
+
+;Skilling Tasks
+
+*Easy: Steal a golovanova fruit top
+*Medium: Enter the Woodcutting Guild
+*Hard: Cast Resurrect Crops
+*Elite: Check the health of a redwood tree
+*Master: Obtain a skilling pet
+
+
+;PvM Tasks
+
+*Easy: Complete a jelly task
+*Medium: 1 Skotizo kill
+*Hard: Equip a Dragon Warhammer
+*Elite: Complete 250 Chambers of Xeric runs
+*Master: Metamorphise the Olmlet
+
+
+;Other Tasks
+
+*Easy: Complete the Client of Kourend Quest
+*Medium: Complete the In Search of Knowledge miniquest
+*Hard: Plant 100 bologano seeds
+*Elite: Kourend and Kebos Elite Diary Tasks
+*Master: 2277 Total Level
+
+
+{{Collapsed section end}}
+{{Collapsed section|18|Relics}}
+
+{{Headline|22|Relics}}
+
+[[File:Old School RuneScape Twisted League (4).png|center|100px]]
+
+Relics are a leagues specific source of buffs with which you can customise your gameplay experience. Unlocked via League Points, these relics can be boosts in experience, buffs to combat prowess, additional luck on obtaining drops, or even buffs to specific skilling activities. Upon leaving Tutorial Island you will be presented with three relics to choose from without the need for points. This will allow you to choose which strategy you want to use in the league and give you incentive to strive for the next set of relic options. As you unlock more relic options, the buffs become more powerful. Below is a list of the first three Twisted Relics you will get to choose from when entering Kourend and Kebos.
+
+[[File:Old School RuneScape Twisted League (5).png|center|400px]]
+
+;Abyssal Accumulator
+
+* You save 85% of your ammunition and runes.
+
+;Endless Endurance
+
+* Your run energy drain-rate is reduced to 0 and your hitpoints restore 4 times as quickly.
+
+;Dark Altar Devotion
+
+* Bones dropped by creatures are automatically buried and award 4 times the experience. Ensouled heads now drop two at a time. Your prayer drains at 1/2 the rate.
+
+''Note that numbers may be subject to balancing.''
+
+
+{{Collapsed section end}}
+{{Collapsed section|18|Rewards}}
+
+{{Headline|22|Rewards}}
+
+[[File:Old School RuneScape Twisted League (6).png|center|100px]]
+
+Rewards will be tiered to ensure players that do participate are rewarded for the effort they put into the league. These unique rewards will be obtainable by placing in the following tiers:
+
+{|class="wikitable"
+|'''Tier'''
+|'''Threshold'''
+|-
+|Bronze
+|Minimum point threshold
+|-
+|Iron
+|Top 80%
+|-
+|Steel
+|Top 60%
+|-
+|Mithril
+|Top 40%
+|-
+|Adamant
+|Top 20%
+|-
+|Rune
+|Top 5%
+|-
+|Dragon
+|Top 1%
+|}
+
+Rewards gained will fall under two categories: League-to-League and Main Game.
+
+{{Headline|22|League to League Rewards}}
+
+These rewards will not be polled as they only affect the league specific worlds. They will be a way to show off how well you did in the previous league. These rewards will only appear in the league after the Twisted League. Below is a list of league-to-league reward suggestions.
+
+;League-to-League Pets
+
+*Any insured pets gained in the previous league will carry over to the next one.
+*You will still lose your pet if you die with it on a league world but Probita will temporarily set up shop in Kourend and Kebos so you can insure and reclaim your league-to-league pet for free.
+
+
+;League Right Click Icons
+
+*A unique symbol representing the tier you placed in at the end of the previous league will appear when a player right clicks you.
+
+
+;League Rank Worlds
+
+*Mithril, Adamant, and Rune league specific worlds will be accessible based on the tier you ranked in.
+*If you ranked in a higher tier, such as Dragon, you can use all of the rank worlds. Similarly, if you ranked in the Adamant tier, you can access both the Adamant and Mithril rank worlds.
+
+
+;League Armour Sets
+
+*Based on how you placed in the league you will be awarded an armour set that can be used in the next one.
+*This armour set will be a basic starter set of armour and a weapon with varying stats that can assist in the early gameplay of the following league.
+
+
+{{Headline|22|Main Game Rewards}}
+
+Your league points will transfer to the main game as currency to spend in a league reward store. These rewards will be polled as they carry over to the main game. As we want rewards to be accessible to all participants we will determine the cost of these rewards once we can predict how many points players will finish with. All main game rewards will be cosmetic and tradeable unless otherwise stated. The list of rewards to be polled is below:
+
+;Cosmetic Twisted League Outfit
+
+[[File:Old School RuneScape Twisted League (7).png|center|500px]]
+
+*3 tiers of cosmetic outfit with no stats
+*Each tier will cost exponentially more points
+*Tradeable and storable in the PoH
+*Outfit will represent the Twisted League
+
+{{News Poll|1|Should the Twisted League offer cosmetic armour rewards as described in the blog? This will consist of three tiers of cosmetic outfits that represent the league.}}
+
+;Twisted League Themed Banner
+
+[[File:Old School RuneScape Twisted League (8).png|center|500px]]
+
+*Similar to Kourend house banners but themed around the Twisted League
+*Held in the main-hand slot
+*Costs a relatively low amount of points
+
+{{News Poll|2|Should the Twisted League offer a Twisted League-Themed banner reward as described in the blog? These will be similar to the Kourend house banners and be held in the main-hand slot.}}
+
+;Twisted League Slayer Helm Recolour
+
+[[File:Old School RuneScape Twisted League (9).gif|center|300px]]
+
+*Twisted horns which can be used on a Slayer helm to turn it into a Twisted League themed helm
+*Will require 1000 Slayer points to unlock the recolour to be consistent with all the other Slayer helms
+*Twisted horns will be tradeable but the helm, once recoloured, will not
+*Twisted horns can be removed from the helm
+*This will cost a medium amount of points
+
+{{News Poll|3|Should the Twisted League offer a Twisted League Slayer Helm recolour reward as described in the blog? The recolour will require 1000 Slayer points to unlock to be consistent with the other Slayer helm recolours.}}
+
+;Twisted League Home Teleport Animation
+
+[[File:Old School RuneScape Twisted League (10).gif|center|300px]]
+
+*A scroll that changes the home teleport animation to have the player draw a black/green circle on the ground. When teleporting away a Xerician symbol appears under them
+*Scroll will be tradeable but consumed once used
+*This will cost a medium amount of points
+
+{{News Poll|4|Should the Twisted League offer a Twisted League Home Teleport Animation reward as described in the blog? This will be similar to the default home teleport animation but the player will draw a black/green circle on the ground. When teleporting away a Xerician symbol appears under them.}}
+
+;Twisted League Themed PoH Wallkit
+
+[[File:Old School RuneScape Twisted League (11).png|center|500px]]
+
+*A scroll, once taken to an Estate Agent, will unlock the ability to have a league themed PoH
+*Scroll will be tradeable
+*Scroll will be returned when changing PoH wallkit style to something else
+*This will cost a high amount of points
+
+{{News Poll|5|Should the Twisted League offer a Twisted League Themed PoH wallkit reward as described in the blog?}}
+
+;Twisted Ancestral Robes Ornament Kit
+
+[[File:Old School RuneScape Twisted League (12).gif|center|300px]]
+
+*An attachment to the Ancestral Robes which can be used to turn them into a White/Green/Black version
+*Attachment can be removed from the robes
+*Robes with the ornament kit are storable in the PoH separate to the existing Ancestral Robes
+*Ornament kit is tradeable but the recoloured robes are not
+*This will cost a high amount of points
+
+{{News Poll|6|Should the Twisted League offer a Twisted League Ancestral Robes Ornament Kit reward as described in the blog?}}
+
+;Cosmetic Twisted League Trophy
+
+[[File:Old School RuneScape Twisted League (13).png|center|500px]]
+
+*A cosmetic wieldable trophy that represents which tier you placed in
+*Can only be claimed by players who attained the specific tier rank in the league
+*Unlike the other rewards, this will not be tradeable
+*Storable in the PoH
+*Held in the off-hand slot (aside from Dragon, Rune and Adamant which are 2H)
+*Has a unique emote that is accessed by right clicking the trophy
+*Will not cost any points to purchase
+
+{{News Poll|7|Should the Twisted League offer cosmetic Twisted League trophy rewards as described in the blog? This trophy will represent the tier you place in and will be untradeable.}}
+{{Collapsed section end}}
+{{Collapsed section|18|FAQ}}
+
+{{Headline|22|FAQ}}
+
+[[File:Old School RuneScape Twisted League (14).png|center|100px]]
+
+'''Q: I am more of a casual player and can't really dedicate that much time to the league. Can I still get rewards?'''<br/>
+A: We want rewards to be accessible to both the competitive and casual players. That is why alongside hiscores, we have a tiered reward structure that will cater to all types of players.
+
+'''Q: Do I have to start over?'''<br/>
+A: As this is on a new game mode, stats will start off fresh. However, with Twisted League we know the grind at the start can be rather frustrating, which is why we will have accelerated XP rates and an unlockable relic at the very start of your league adventure.
+
+'''Q: Do I need to make a new account to play leagues?'''<br/>
+A: You are more than welcome to use any existing accounts you have created. You will not be able to play both Old School and Twisted League on the same account at the same time.
+
+'''Q: How long will a league last?'''<br/>
+A: Each league will differ on how long it stays open based on the type of league it is and how previous leagues go. The Twisted League itself, however, will last two months from the release date. Stay tuned for the release date announcement!
+
+'''Q: Why are you working on this and not Group Ironman or Account Security?'''<br/>
+A: Leagues is all content work whereas Clans and Group Ironman require some platform work and Account Security falls under an umbrella of different teams such as technical services. We can offer Leagues now, whereas we can't do that with updates that require input from other departments. We know there is an appetite for Group Ironman and Account Security and we are keen to offer you updates when we can.
+
+'''Q: Will this replace Deadman or other Competitive Gaming Updates/Events?'''<br/>
+A: Leagues are not replacing Deadman. We have a new Head of Esports that is currently working on ideas for competitive gaming updates for Old School RuneScape. The moment we know more about that we will let you all know.
+
+'''Q: If I don't compete in this league will I still be able to get the Twisted League rewards in the next league?'''<br/>
+A: You will be able to obtain league rewards from previous leagues using the points you earned. Some of the rewards are also being polled as tradeable so if you don't want to wait until the next league you can always try your luck at buying one. We will not make discontinued rewards with leagues.
+{{Horizontal Line}}
+{{Collapsed section end}}
+
+
+We appreciate the feedback and questions we have received thus far and encourage you to continue discussions with us. Stay tuned in the coming weeks for more information regarding Twisted Leagues and a poll date for the rewards.
+
+{{Horizontal Line}}
+
+Discuss this announcement on our [http://services.runescape.com/m=forum/forums.ws?380,381,599,66121412 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#leagues''' channel.
+
+'''''Mods Acorn, Archie, Ash, Bruno, Curse, Ed, Flippy, Gambit, Gee, Ghost, Husky, John C, Kieren, Lenny, Lottie, Maz, Nasty, Roq, Ry, Sween, Tide, Weath & West'''<br/>The Old School Team''

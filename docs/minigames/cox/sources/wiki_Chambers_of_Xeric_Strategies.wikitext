@@ -1,0 +1,1074 @@
+The Chambers of Xeric is ''[[Old School RuneScape]]''{{'}}s first [[raid]].
+
+== Requirements ==
+* Access to [[Great Kourend]]
+
+==Suggested skills==
+*{{SCP|Hitpoints|80+}} 
+*{{SCP|Attack|80+}} 
+*{{SCP|Strength|80+}} 
+*{{SCP|Defence|70+}}
+*{{SCP|Ranged|80+}}
+*{{SCP|Magic|80+}}
+*{{SCP|Prayer|77+}} for [[Piety]], [[Rigour]], and [[Augury]]
+*{{SCP|Farming|55+}} to farm [[Noxifer]], [[Buchu leaf|Buchu]], and [[Golpar]]
+*{{SCP|Herblore|78+}} to prepare stronger  [[Xeric's aid (+)|Xeric's aids]], [[Revitalisation (+)|Revitalisations]], and [[Prayer enhance (+)|Prayer enhances]]
+**{{SCP|Herblore|90+}} to make your own [[Overload+]] potions
+*{{SCP|Construction|30+}} to build [[Storage unit|Storage units]]
+*{{SCP|Mining|60+}} for increased damage against [[Guardian (Chambers of Xeric)|Guardians]]
+*{{SCP|Woodcutting|60+}} for increased [[Kindling (Chambers of Xeric)|Kindling]] yield and damage against the [[Meat tree]]
+*{{SCP|Thieving|60+}} for an increased chance to open the [[Chest (Chambers of Xeric)|Chest]] for more [[Cavern grubs]]
+
+==Transportation==
+Players can reach [[Mount Quidamortem]] for the first time quickly in a few ways.
+
+* Taking the [[Lovakengj Minecart Network]]
+* Using [[Fairy rings|Fairy ring]] {{fairycode|BLS}} then running north past the [[Mountain troll|Mountain trolls]]
+* Heading west from [[Shayziens' Wall]] through the [[Lizardman Settlement]] and up the mountain.
+* Heading south from the [[Farming Guild]] through the Lizardman Settlement and up the mountain.
+
+Once the player has reached the mountaintop for the first time, they can speak to the [[Mountain Guide]] to unlock a shortcut via the other guide at Shayzien's Wall and next to the southern Fairy ring.
+
+Players who have completed The Chambers of Xeric may receive an [[Ancient tablet]]. When used on a [[Xeric's talisman]], it will permanently unlock the [[Xeric's Honour teleport]] which is the fastest way to reach the mountaintop.
+
+==Overview==
+The Chambers of Xeric is a scalable encounter in that the team's stats and party size upon starting the raid will determine the strength of enemies and quality of resources found inside. [[Captain Rimor]] can be spoken to scale the raid appropriately if no one is above level 115. Each raid consists of three floors; two floors of randomly-generated rooms and the last floor which contains the [[Great Olm]], the final boss of the raid.
+
+There are three layouts that the host can choose from: normal, large or full sized raids. The first two floors consist of seven rooms which consist of the entrance, exit, resource room, one or two scavenger rooms (with a minimum of one large scavenger room for two scavenger rooms) and 2-3 combat/puzzle rooms. In large raids, these two floors will always be filled to the brim with eight rooms, consisting of the entrance, exit, resource room, one scavenger and four puzzle/combat rooms. Large raids, being completely filled out, may occasionally have a duplicate puzzle room; boss rooms will never be duplicated. Additionally, in both of these layouts, the room's layout is generated from one of three variants, listed as type A, B or C. Full raids use the layout provided in [[Chambers of Xeric/Challenge Mode|Challenge mode]].
+
+If the raid layout is not satisfactory for the player, they can reset the layout inside the raid by right-clicking the stairs, select the "reload" option and confirm the selection. This avoids the need to leave the instance, run back to the recruiting board and setting up the party again. On the official client, the entire layout of the raid is automatically provided for the player; on [[RuneLite]], only part of the raid will "load", especially if the raid's starting room begins at the edges of the playable area and will require some guessing.
+
+Combat rooms are considered to be [[Vespula]], [[Tekton]], the [[Muttadile]]s, [[Vasa Nistirio]], [[Vanguard]]s, [[Skeletal Mystic]]s, [[Lizardman shaman (Chambers of Xeric)|Lizardman shamans]] and [[Guardian (Chambers of Xeric)|Guardians]]. Puzzle rooms are considered [[Jewelled Crab|Crabs]], tightrope, [[Ice demon]] and the [[Corrupted scavenger]] (thieving).
+
+The party size when the raid starts determines the amount of enemies present in the '''Mystics''', '''Shamans''' and '''Tightrope''' rooms, along with scavengers. In all rooms, their stats will scale accordingly, so an Olm in a 100-man run will hit much harder than that in a solo encounter. This scaling will not lower if players leave the raid.
+
+[[File:Chambers of Xeric rotations.png|thumb|Rotation in which bosses can be encountered whilst venturing in the chambers. A raid layout can have 3 to 5 of these bosses, going either clockwise or counterclockwise. Puzzles are on a similar rotation, making Ice demon more likely to be paired with Tightrope and Crabs more likely to be paired with Thieving.]]
+
+[[Energy well]]s can be found scattered throughout the raid at three rooms; scavengers, resource and the end of the floor for the first two floors. These pools, when interacted with, will fully restore [[run energy]].
+
+Upon entering the next level, the respawn point will be changed accordingly; dying on the first floor places players back at its beginning, while having entered the second floor will move it to the end of the first floor, and having entered the final floor likewise moves the respawn point to the end of the second floor.
+
+'''Deaths are considered safe for all players (including Hardcore Ironmen players except those part of Group Hardcore Ironmen). All raid-unique items (potions, planks, food) are dropped on death.'''
+
+'''After clearing the Chambers of Xeric, players must empty their personal storage before being able to re-enter. They can do so from the storage unit next to the bank chest in the lobby area or attempt to re-enter the Chambers, in which the interface shows.'''
+
+==Points==
+Points gained from the raid are based on player contribution and actions. They can get points from the following:
+*Attacking monsters, though there are several exceptions:
+**Penultimate phase of the Great Olm; anytime it regains control of its hands, no points are given for any damage dealt to them.
+**Damaging a recovered abyssal portal.
+**When players battle mini-bosses, a "decay" point multiplier is put into effect.
+*Completing puzzle rooms.
+*Making shortcuts in large ruin chambers
+**This consists of either a boulder (Strength), rocks (Mining) or a rotten sapling (Woodcutting). The latter two require a pickaxe and axe respectively. The skill requirement is the average respective level of the team, plus or minus 2, capped at 99.
+
+The points determine the team's potential rewards at the end of the raid when the Great Olm is killed. The more points obtained, the higher the chance of obtaining unique loot. The more players in a raid attempt, the higher the points multiplier will be to compensate for increased difficulty. If members of the team leave, the points multiplier will decrease but the difficulty will remain the same to prevent players from exploiting additional points in smaller groups.
+
+If a player dies in the chambers, they will lose 40% of their score as a penalty. For every 8,675 total points obtained, a 1% chance to obtain a unique loot is given. This chance is capped at 65.7% (570,000 points) - any further points will be sent to roll for a second unique loot. For example, a team which possesses 855,000 points in total has a 65.7% chance to receive a unique loot, and then a 32.85% chance to obtain a second unique loot. Up to six unique rewards can be obtained per raid, assuming that there are enough points to roll for them.
+
+'''Note:''' If a team member dies in the raid with low points, the game will deduct 5% of the team's points to discourage suiciding supplies into the boss rooms for other players.
+
+==Equipment==
+
+<tabber>
+Melee=
+Melee is used throughout the raid; at Olm's left hand, Tekton, the ranged Vanguard, Guardians, and Vasa's crystals. A weapon with the [[Crush]] style is highly recommended for Tekton, and Vasa's [[Glowing crystal]] is highly resistant to everything but [[Stab]] attacks. As such, weapons with multiple styles are very beneficial, such as the [[Dragon hunter lance]], [[Zamorakian hasta]], and [[Dual macuahuitl]]. The importance of hitting defence reducing special attacks at Olm make [[Inquisitor's armour]] very helpful for solo and small teams.
+{{Recommended equipment
+|style = Melee
+|head1 = {{plink|Torva full helm}} / {{plink|Oathplate helm}}
+|head2 = {{plink|Neitiznot faceguard}} / <br>{{plink|Inquisitor's great helm}}{{efn|Aids Elder maul / DWH spec accuracy for Olm and for Tekton when using crush|name=inq}}
+|head3 = {{plink|Serpentine helm}}
+|head4 = {{plink|Blood Moon helm}}
+|head5 = {{plink|Helm of Neitiznot}} / <br>{{plink|Eclipse Moon helm}}{{efn|Can function as hybrid armour, saving inventory space|name=hybrid}} / <br>{{plink|Blue Moon helm}}{{efn|name=hybrid}}
+|neck1 = {{plink|Amulet of rancour}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of blood fury}} / {{plink|Amulet of fury}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|body1 = {{plink|Torva platebody}} / {{plink|Oathplate chest}}
+|body2 = {{plink|Inquisitor's hauberk}}{{efn|name=inq}} / {{plink|Bandos chestplate}}<br>{{plink|Blood Moon chestplate}} / {{plink|Fighter torso}}
+|body3 = {{plink|Eclipse Moon chestplate}}{{efn|name=hybrid}}
+|body4 = {{plink|Blue Moon chestplate}}{{efn|name=hybrid}}
+|legs1 = {{plink|Torva platelegs}} / {{plink|Oathplate legs}}
+|legs2 = {{plink|Inquisitor's plateskirt}}{{efn|name=inq}}
+|legs3 = {{plink|Bandos tassets}} / {{plink|Blood Moon tassets}}
+|legs4 = {{plink|Eclipse Moon tassets}}{{efn|name=hybrid}} / {{plink|Blue Moon tassets}}{{efn|name=hybrid}}
+|weapon1 = {{plink|Scythe of Vitur}}
+|weapon2 = {{plink|Dragon hunter lance}} > {{plink|Soulreaper axe}}{{efn|Bring a stab weapon such as a dragon sword, abyssal dagger, osmumten's fang, or ghrazi rapier for Vasa crystals|name=stab}}
+|weapon3 = {{plink|Ghrazi rapier}} / {{plink|Blade of Saeldor}}<br>{{plink|Dual macuahuitl}}{{efn|Best when utilizing the effect of full [[Blood moon armour]] on low defence targets. Functions as a crush and stab weapon for Tekton and Vasa crystals.|name=macs}}
+|weapon4 = {{plink|Noxious halberd}} / {{plink|Abyssal tentacle}}{{efn|name=stab}}
+|weapon5 = {{plink|Abyssal whip}}{{efn|name=stab}} / {{plink|Zamorakian hasta}}
+|weapon6 = {{plink|Osmumten's fang}}{{efn|Highly dependant on missing all defence draining special attack to remain competitive |name=fang}}
+|shield1 = {{plink|Avernic defender}}
+|shield2 = {{plink|Dragon defender}}
+|ammo1 = See Ranged
+|hands1 = {{plink|Ferocious gloves}}
+|hands2 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Aranea boots}}
+|feet4 = {{plink|Dragon boots}}
+|ring1 = {{plink|Lightbearer}}
+|ring2= {{plink|Ultor ring}}
+|ring3= {{plink|Berserker ring (i)}}
+|ring4= {{plink|Brimstone ring}}
+|special1 = {{plink|Bandos godsword}}{{efn|name=defence}}{{efn|Additional special attacks granted by the [[Lightbearer]] allow the BGS to outperform Elder maul / DWH|name=bgs}} + <br>{{plink|Elder maul}}{{efn|The special attack of this weapon is guaranteed to reduce the defensive stats of [[Tekton]], regardless of whether or not a [[successful hit]] is rolled.|name=defence}} > {{plink|Dragon warhammer}}{{efn|name=defence}}
+|special2 = {{plink|Zamorak godsword}}{{efn|Only used to freeze the big muttadile to prevent healing|name=zgs}} + <br>{{plink|Voidwaker}}{{efn|This is a DPS spec weapon, only used when defence lowering specs are not needed|name=DPS}} > {{plink|Dragon claws}}{{efn|name=DPS}}
+|special3 = {{plink|Bone dagger}}
+|special4 = {{plink|Arclight}}
+}}
+{{notelist}}
+
+|-|
+Ranged=
+Ranged is used throughout the raid at Olm's final phase, Vespula, Vasa, the magic Vanguard, Shamans, Mystics, Muttadiles, and Tightrope. The [[Twisted bow]] scales its accuracy and damage with magic level more inside the raid and is particularly effective on certain bosses. For low defence monsters, the [[Toxic blowpipe]] outperforms most weapons when it can reach and sustain attacks. For higher HP/defence monsters, use your best crossbow with [[Ruby bolt (e)]]'s. The [[Bow of Faerdhinen]] generally does well against any monster due to its high accuracy and reach.
+{{Recommended equipment
+|style = Ranged
+|head1 = {{plink|Masori mask (f)}} / {{plink|Masori mask}}
+|head2 = {{plink|Armadyl helmet}}{{efn|Additional accuracy switches for helmet/offhand/boot slots are incredibly minor timesaves, an extra brew is almost always more useful|name=ranged switch}}
+|head3 = {{plink|Crystal helm}}{{efn|With full [[Crystal armour]] and [[Bow of Faerdhinen]]|name=bowfa}}
+|head4 = {{plink|Eclipse Moon helm}}{{efn|name=ranged switch}}{{efn|Can function as hybrid armour, saving inventory space|name=hybrid}}
+|neck1 = {{plink|Necklace of rupture}}
+|neck2 = {{plink|Necklace of anguish}}
+|neck3 = {{plink|Amulet of fury}}
+|cape1 = {{plink|Dizana's quiver}}
+|cape2 = {{plink|Ava's assembler}}
+|cape3 = {{plink|Ava's accumulator}}
+|body1 = {{plink|Masori body (f)}} / {{plink|Masori body}}
+|body2 = {{plink|Armadyl chestplate}}
+|body3 = {{plink|Crystal body}}{{efn|name=bowfa}} / {{plink|Blessed body|pic=Ancient d'hide body}}
+|body4 = {{plink|Eclipse Moon chestplate}}{{efn|name=hybrid}}
+|body5 = {{plink|Black d'hide body}}
+|legs1 = {{plink|Masori chaps (f)}} / {{plink|Masori chaps}}
+|legs2 = {{plink|Armadyl chainskirt}}
+|legs3 = {{plink|Crystal legs}}{{efn|name=bowfa}}/ {{plink|Blessed chaps|pic=Ancient chaps}}
+|legs4 = {{plink|Eclipse Moon tassets}}{{efn|name=hybrid}}
+|legs5 = {{plink|Black d'hide chaps}}
+|weapon1 = {{plink|Twisted bow}}{{efn|Only used on high mage level monsters; Big Muttadile, Mage vanguard, Deathly Magers, Vasa, Shamans, Vespula, Mystics, Olm Head|name=tbow}} + {{plink|Toxic blowpipe}}{{efn|Only used on low defence monsters; Both Muttadiles, Mage Vanguard, Deathly Rangers, Deathly Magers|name=bp}}
+|weapon2 = {{plink|Dragon hunter crossbow}}{{efn|Only used on high defence monsters; Shamans, Vespula, Vasa, Mystics, Olm Head|name=cbow}} / {{plink|Zaryte crossbow}}{{efn|name=cbow}}
+|weapon3 = {{plink|Bow of Faerdhinen}}{{efn|name=bowfa}}{{efn|name=cbow}}
+|weapon4 = {{plink|Armadyl crossbow}}{{efn|name=cbow}} / {{plink|Dragon crossbow}}{{efn|name=cbow}}
+|weapon5 = {{plink|Rune crossbow}}{{efn|name=cbow}} / {{plink|Eclipse atlatl}}{{efn|name=bp}}{{efn|Only use with the full eclipse set|name=eclipse}}
+|shield1 = {{plink|Twisted buckler}}{{efn|Bring whenever using crossbows, other offhands do not give damage bonus and are not worth bringing|name=crossbow}}
+|shield2 = {{plink|Dragonfire ward}}{{efn|name=crossbow}}
+|shield3 = {{plink|Odium ward}}{{efn|name=crossbow}}
+|ammo1 = {{plink|Seeking dragon arrow}} / {{plink|Ruby dragon bolts (e)}}
+|ammo2 = {{plink|Dragon arrow}} / {{plink|Ruby bolts (e)}}
+|ammo3 = {{plink|Seeking amethyst arrow}}
+|ammo4 = {{plink|Amethyst arrow}} / {{plink|Atlatl dart}}{{efn|name=eclipse}}
+|hands1 = {{plink|Zaryte vambraces}}
+|hands2 = {{plink|Barrows gloves}}{{efn||name=ranged switch}}{{efn|If bringing Ferocious gloves, bank Barrows gloves and range with the Tormented bracelet equipped|name=feros}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Pegasian boots}}{{efn|name=ranged switch}}
+|ring1 = {{plink|Venator ring}} / See Melee
+|special1 = {{plink|Zaryte crossbow}}{{efn|This is a DPS spec weapon, only used when defence lowering specs are not needed|name=DPS}} / See Melee
+|special2 = {{plink|Tonalztics of Ralos}}{{efn|Best in groups}}
+}}
+{{notelist}}
+
+|-|
+Magic=
+Magic is primarily used at Olm's right hand, the melee Vanguard, and Ice demon with fire spells on the standard spellbook. However, due to the scaling of [[Tumeken's shadow]], it can outperform other ranged weapons at Mystics, Vespula portal, and the mage Vanguard.
+{{Recommended equipment
+|style = Magic
+|head1 = {{plink|Ancestral hat}}{{efn|Generally only brought with [[Tumeken's shadow]]|name=magic}}
+|head2 = {{plink|Virtus mask}}{{efn|name=magic}}
+|head3 = {{plink|Ahrim's hood}}{{efn|name=magic}} / {{plink|Blue Moon helm}}{{efn|name=magic}} / <br>{{plink|Bloodbark helm}}{{efn|name=magic}} / {{plink|Dagon'hai hat}}{{efn|name=magic}}
+|head4 = {{plink|Mystic hat}}
+|neck1 = {{plink|Occult necklace}}
+|neck2 = {{plink|Amulet of fury}}
+|cape1 = {{plink|God capes#Imbuing|txt=Imbued god cape|pic=Imbued Saradomin cape}}
+|body1 = {{plink|Ancestral robe top}}
+|body2 = {{plink|Virtus robe top}}
+|body3 = {{plink|Ahrim's robetop}} / {{plink|Blue Moon chestplate}}<br> / {{plink|Bloodbark body}} / {{plink|Dagon'hai robe top}}
+|body4 = {{plink|Mystic robe top}}
+|legs1 = {{plink|Ancestral robe bottom}}
+|legs2 = {{plink|Virtus robe bottom}}
+|legs3 = {{plink|Ahrim's robeskirt}} / {{plink|Blue Moon tassets}}<br> / {{plink|Bloodbark legs}} / {{plink|Dagon'hai robe bottom}}
+|legs4 = {{plink|Mystic robe bottom}}
+|weapon1= {{plink|Tumeken's shadow}}
+|weapon2 = {{plink|Eye of Ayak}}
+|weapon3 = {{plink|Sanguinesti staff}} / {{plink|Dragon hunter wand}}{{efn|Casting earth spells against Olm and fire spells against Vespula's portal and Ice demon. Requires being on the standard spellbook.|name=dhw}}
+|weapon4 = {{plink|Trident of the Swamp}}
+|weapon5 = {{plink|Trident of the Seas}} > {{plink|Warped sceptre}}
+|shield1 = {{plink|Elidinis' ward (f)}} / <br>{{plink|Tome of Earth}}{{efn|Only bring Tome of Earth if using earth spells against olm|name=notspicy}} / {{plink|Tome of Fire}}{{efn|Only bring Tome of Fire if using fire spells against ice demon|name=spicy}}
+|shield2 = {{plink|Arcane spirit shield}} / <br>{{plink|Elidinis' ward}}
+|shield3 = {{plink|Ancient wyvern shield}} / <br>{{plink|Mage's book}} / {{plink|Malediction ward}}
+|shield4 = {{plink|Book of the Dead}}{{Efn|Only brought if using thralls|name=thrallin}} <br>
+|ammo1 = See Ranged
+|hands1 = {{plink|Confliction gauntlets}}
+|hands2 = {{plink|Tormented bracelet}}
+|hands3 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Eternal boots}}{{efn|name=magic}}
+|ring1 = {{plink|Magus ring}}{{efn|name=magic}}
+}}
+{{notelist}}
+</tabber>
+
+===Setups===
+{|
+!Minimum
+!Standard
+!Bowfa
+!DHCB
+!Max
+|-
+|{{Equipment
+|head = Helm of Neitiznot
+|cape = Fire cape
+|neck = Amulet of fury
+|ammo = Ruby dragon bolts (e)
+|weapon = Abyssal tentacle
+|torso = Fighter torso
+|legs = Black d'hide chaps
+|shield = Dragon defender
+|gloves = Barrows gloves
+|boots = Dragon boots
+|ring = Lightbearer
+}}
+|
+{{Equipment
+|head = Blood Moon helm
+|cape = Fire cape
+|neck = Amulet of torture
+|ammo = Ruby dragon bolts (e)
+|weapon = Dragon pickaxe
+|torso = Blood Moon chestplate
+|legs = Blood Moon tassets
+|shield = Dragon defender
+|gloves = Barrows gloves
+|boots = Dragon boots
+|ring = Lightbearer
+}}
+|
+{{Equipment
+|head = Serpentine helm
+|cape = Fire cape
+|neck = Amulet of torture
+|ammo = Rada's blessing 4
+|weapon = Dragon hunter lance
+|torso = Bandos chestplate
+|legs = Crystal legs
+|shield = Dragon defender
+|gloves = Ferocious gloves
+|boots = Dragon boots
+|ring = Lightbearer
+}}
+|{{Equipment
+|head = Neitiznot faceguard
+|cape = Infernal cape
+|neck = Amulet of rancour
+|ammo = Ruby dragon bolts (e)
+|weapon = Dragon hunter lance
+|torso = Bandos chestplate
+|legs = Virtus robe bottom
+|shield = Dragon defender
+|gloves = Ferocious gloves
+|boots = Primordial boots
+|ring = Lightbearer
+}}
+|
+{{Equipment
+|head = Torva full helm
+|cape = Infernal cape
+|neck = Amulet of rancour
+|ammo = Seeking dragon arrow
+|weapon = Dragon pickaxe
+|torso = Torva platebody
+|legs = Torva platelegs
+|shield = Avernic defender
+|gloves = Ferocious gloves
+|boots = Avernic treads (max)
+|ring = Lightbearer
+}}
+|-
+|{{Inventory
+| Dragon crossbow | Ava's accumulator | Trident of the Swamp | occult necklace
+| Black d'hide body | Toxic blowpipe | Mystic robe top | Mystic robe bottom
+| Bandos godsword | Anglerfish | Rune pouch | Imbued Saradomin cape
+| Rune pickaxe | Salve amulet(ei) | Dragon sword | Lockpick
+| Sanfew serum(4) | Saradomin brew(4) | Saradomin brew(4) | Saradomin brew(4)
+| Super restore(4) | Saradomin brew(4) | Saradomin brew(4) | Super combat potion(4)
+| Super restore(4) | Saradomin brew(4) | Saradomin brew(4) | Ranging potion(4)
+|
+}}
+|
+{{Inventory|Dragon crossbow|Ava's assembler|Dragon hunter wand|Occult necklace|Black d'hide body|Necklace of anguish|Bloodbark body|Bloodbark legs|Black d'hide chaps|Twisted buckler|Tormented bracelet|Imbued Saradomin cape|Toxic blowpipe|Dual macuahuitl|Tome of Earth|Anglerfish|Sanfew serum(4)|Saradomin brew(4)|Saradomin brew(4)|Super combat potion(4)|Super restore(4)|Saradomin brew(4)|Saradomin brew(4)|Ranging potion(4)|super restore(4)|Bandos godsword|Salve amulet(ei)|Divine rune pouch
+}}
+|
+{{Inventory|Bow of Faerdhinen|Ava's assembler|Eye of Ayak|occult necklace|Crystal body|Necklace of anguish|Ahrim's robetop|Ahrim's robeskirt|Crystal helm|Toxic blowpipe|Tormented bracelet|Imbued Saradomin cape|Bandos godsword|Anglerfish|Elidinis' ward|Osmumten's fang|Sanfew serum(4)|Saradomin brew(4)|Saradomin brew(4)|Super combat potion(4)|Super restore(4)|Saradomin brew(4)|Saradomin brew(4)|Ranging potion(4)|super restore(4)|Dragon pickaxe|Salve amulet(ei)|Divine rune pouch
+}}
+|{{Inventory
+| Dragon hunter crossbow |Necklace of rupture|Eye of Ayak|Occult necklace
+|Masori body|Masori chaps|Virtus mask|Virtus robe top|Masori mask|Dizana's quiver|Confliction gauntlets|Imbued Saradomin cape
+|Twisted buckler| Toxic blowpipe|Bandos godsword  | Elidinis' ward| Sanfew serum(4) | Saradomin brew(4) |Anglerfish| Super combat potion(4)
+| Super restore(4) | Saradomin brew(4) | Saradomin brew(4) | Ranging potion(4)
+| super restore(4) | Dragon pickaxe | Salve amulet(ei) | Divine rune pouch
+}}
+|{{Inventory
+| Twisted bow | Necklace of rupture | Tumeken's shadow | Occult necklace
+| Masori body (f) | Masori chaps (f) | Ancestral robe top | Ancestral robe bottom
+| Zaryte vambraces | Blessed Dizana's quiver | Confliction gauntlets | Imbued Saradomin cape
+| Masori mask (f)| Toxic blowpipe | Ancestral hat | Voidwaker
+| Saradomin brew(4) | Anglerfish | Sanfew serum(4) | Super combat potion(4)
+| Saradomin brew(4) | Saradomin brew(4) | Super restore(4) | Ranging potion(4)
+| Scythe of Vitur | Bandos godsword | Book of the Dead | Divine rune pouch |
+}}
+|}<span style="display:none"><ref>The Bandos Godsword special attack drains more defence than the Elder maul's special attack after two hits or more have successfully landed.</ref><ref>If a scythe is being used, bring a stab weapon for raids containing Vasa.</ref><ref>Additional items brought to speed up the raid include: Zaryte crossbow + Ruby bolts (e), Voidwaker, Dragon claws, Lockpick, Zgs + Entangle, Fire Surge.</ref></span>
+<references />
+
+Before starting the raid, make sure to check the overall layout. This will determine what the player should bring. If soloing, one stamina potion is highly recommended for Olm.
+
+For example:
+
+*If mystics are in the raid and the player doesn't have [[tumeken's shadow]], bring a [[salve amulet(ei)]]
+*If guardians are in the raid, bring the best [[pickaxe]] possible
+*If Vespula is first, consider bringing an extra prayer potion and prepot mage and health
+*If Vasa is first, may want to overheal with [[Vengeance]] or lower health through self-damaging sources.
+*If Muttadiles are first, prepot melee/magic and ranged and bring a [[zamorak godsword]] (if tree skipping)
+**[[Death Charge]] helps minimise time spent restoring special energy, although not absolutely required. If Muttadiles are later in the raid a [[lightbearer]] may be helpful.
+*If Tekton is first, prepot melee
+*If shamans are in the raid, bring a sanfew serum, prepot range and antipoison if early on
+*If tightrope is first, prepot range or bring phoenix necklaces if tightrope skipping
+*If Vanguards are first, prepot all styles
+*If ice demon is in the raid, [[burning claws]] are highly recommended and can double as a special weapon for other melee rooms.
+** However if the specials fail to deal enough damage or kill the demon it will perform worse than an [[emberlight]].
+*Prepot a stamina for running
+
+A bank chest in the starting room of the raid allows players to configure their layout without needing to leave the raid.
+
+==Combat==
+There are several enemies that can be encountered in a raid which fall under the "combat" category. The [[Great Olm]] is the last boss encountered in the raid.
+
+List of bosses:
+*[[Tekton]]
+*[[Vespula]]
+*[[Vasa Nistirio]]
+*[[Vanguard]]s
+*[[Muttadile]]s
+*[[Great Olm]] (level 1043) 
+
+While not bosses, these are still considered combat encounters:
+*[[Lizardman shaman]]s
+*[[Skeletal mystic]]s
+*[[Guardian (Chambers of Xeric)|Guardian statues]]
+
+When a combat encounter is completed (outside of Olm), a message will appear indicating which player dealt the most damage in the encounter. The potion and seed supplies they drop can be picked up by anyone, including ironman players even if the main damager was not an ironman. The only exception is Tekton's rare [[onyx]] drop.
+
+===Tekton===
+{{Main|Tekton}}
+[[File:Fighting Tekton.png|thumb|right|A group of players fighting Tekton.]]
+
+Tekton has a fairly high [[Defence]] but only uses [[Melee]] attacks. His attacks can deal heavy damage if not protected against, and will hit all players in front of and to his right side. Tekton takes full damage from melee, 20% from magic and is immune to ranged attacks. He is weakest to crush attacks.
+
+Players can avoid all damage from Tekton's attacks by either using the running or flinch-hitting method. The running method involves the player running counter-clockwise whenever Tekton is facing them. This can consume a large amount of run energy, but is beginner friendly. The flinch-hit method requires players to bait Tekton into attacking, but then walking out of range before the attack registers. This method conserves energy, though a mistake will likely result in high damage. Tekton attacks on a three-tick cycle, and it is possible for the animation to not appear while using this method, so a metronome is recommended for tick counting.
+
+After 10-14 attacks or if nobody is in range when he scans, he will return to the anvil. A player who remains under Tekton while he returns to his anvil will take rapid stomp damage. He can still be attacked as he makes his way back to the anvil. For this reason, it is recommended to lure Tekton as far away as possible for additional attacks.
+
+When Tekton goes back to the anvil, he will repair himself, recovering 1.33% of his maximum health every few ticks. While he is at the anvil, he will send two sparks flying for each player in the chamber, which have a 3x3 AoE and will deal 10-20 damage to anyone hit by them. They can be avoided by simply running two spaces away from your current spot when the sparks are flying. After up to five sets of sparks, he will stop repairing himself and enter an enraged state, increasing his melee defensive bonuses and max hit. This will wear off around ~5 or so attacks he makes afterwards.
+
+The first special attack made by a [[dragon warhammer]] or [[elder maul]] will always hit regardless of the player's accuracy bonuses. The [[bandos godsword]] can technically drain more Defence from Tekton, however it is not guaranteed a hit and, assuming at least one player has a dragon warhammer or elder maul, should be used after the first maul lands. In teams the bandos godsword should be used to lower his defence to zero. In the event that multiple hammer or maul specials land on the same tick, the player with the highest PID will land. Even then, missed warhammer/maul and godsword special attacks are not a complete loss; missed warhammer/maul specials drain 5% and godsword specials drain 10 Defence levels from him.
+
+Tekton drops five [[stinkhorn mushroom]]s, two [[overload (+)]] along with a single [[revitalisation (+)]] and [[prayer enhance (+)]] upon death. There is a rare chance for an [[onyx]] to be dropped.
+
+{{Recommended equipment
+| style = Tekton
+| weapon1 = {{plink|Scythe of Vitur}}<ref name=scythe>Crush with inquisitors, otherwise slash with bellator</ref>
+| weapon2 = {{plink|Inquisitor's mace}}
+| weapon3 = {{plink|Osmumten's fang}} <br>/ {{plink|Noxious halberd}}
+| weapon4 = {{plink|Elder maul}}
+| weapon5 = {{plink|Dragon hunter lance}}<br>/ {{plink|Zamorakian hasta}}
+| weapon6 = {{plink|Abyssal tentacle}}
+}}
+<references/>
+
+===Vespula===
+{{Main|Vespula}}
+[[File:Fighting Vespula.png|thumb|A group of players in Vespula's chamber.]]
+[[File:Vespula location.png|window|right|137x137px]]
+In the chamber will be Vespula herself, four [[lux grub]]s and an [[abyssal portal]]. The portal must be destroyed to dispel Vespula and her offspring.
+
+Vespula is in a [[Flying (attribute)|flying]] state and can only be harmed with magic, ranged or halberds. Tendrils will appear to block off the entrance as soon as the fight starts, damaging players if they attempt to leave the room through them. Upon reaching 20% of her health, she will drop to the ground and can be attacked with melee, although as stated above, the portal must be destroyed to end the encounter. Vespula attacks with ranged and can inflict [[poison]] starting at 20 damage.
+
+While flying, Vespula will periodically sting the grubs, causing their health to degrade. Should they lose all their health, they will transform into a [[vespine soldier]], healing both Vespula and the portal while they are alive. They function similarly to Vespula in combat and are also capable of inflicting poison starting at 15 damage. Once they drop to the ground, kill them with melee as they will explode after 20 seconds for moderate damage. The grub will respawn soon after the soldier dies. At the other end of the boss chamber are multiple [[medivaemia root]]s which can be picked for [[medivaemia blossom|blossoms]] used to heal the grubs. The grubs spawn with 125 hitpoints and a blossom will heal them for 30.
+
+The abyssal portal is located deeper in the room and requires weapons with a range of 7 or greater in order to be attacked. It shares the same Defence and Magic levels, although it is slightly more resistant to ranged. The portal will attack players with a green crescent projectile if a player is within range (a reach of 7 tiles) that drains 3 prayer points on hit; if the player has no prayer points, it deals 3 damage instead. [[Tumeken's shadow]], the [[Eldritch Nightmare staff]] and longbows can reach the portal at any setting; any other powered staff and crossbows will require the long range setting to avoid getting hit by the portal.
+
+If the portal is attacked while Vespula is flying, she will become enraged and head straight to the portal area, jabbing wildly with her stinger. This will deal heavy melee damage to anyone standing next to her, while anyone underneath her will take rapid stomp damage of 2-8 damage every tick.
+
+The normal method to clear the room is to have one player feed the grubs while whittling Vespula's health down, then attacking the portal when she is forced into the ground. The more ideal method is the [[Redemption]] method, which is significantly faster, albeit with more damage incurred and requiring 90+ [[Hitpoints]] in order to use it. This method is best combined with a prayer enhance potion, though if none are available, an extra prayer potion should be taken instead. 
+
+This method requires the player to stand on a specific tile two tiles away from Vespula (halberd range). It is important to stand on that row or column, because using any other tile will result in the player getting jabbed by the stinger. After making the attack, quickly run back to the tile and repeat until Redemption activates. Quick prayers of Redemption and Augury/Rigour are recommended, though a more cautious player can simply have Redemption as their only active prayer. The player will take 6-24 damage for every attack they make, though Redemption will null any damage incurred from the method. It is important not to die as this sets back overall damage and will likely cause a reset in solo runs as vespine soldiers will likely hatch and heal the portal by the time the player returns.
+
+{{Recommended equipment
+| style = Vespula
+| weapon1 = {{plink|Tumeken's shadow}}
+| weapon2 = {{plink|Harmonised Nightmare staff}}<ref name=harm>Requires a tome of fire and fire surge to be effective.</ref><ref name=4tick>Requires attacking the portal every 4 ticks to be effective.</ref>
+| weapon3 = {{plink|Sanguinesti staff}}<ref name=4tick/><ref name=long>Set to longrange</ref>
+| weapon4 = {{plink|Twisted bow}}
+| weapon5 = {{plink|Bow of Faerdhinen}}<ref name=4tick/>
+| weapon6 = {{plink|Dragon hunter crossbow}}<ref name=long/>
+}}
+<references/>
+
+Upon destroying the portal, two [[Xeric's aid (+)]] and a single [[Revitalisation (+)]], [[Overload (+)]] and [[Prayer enhance (+)]] is dropped. Unlike the other demi-bosses in the raid, Vespula's potions will not contribute points when consumed, allowing them to be safely consumed without hitting the potion points cap.
+
+===Vasa Nistirio===
+{{Main|Vasa Nistirio}}
+{{Obsolete|need to be updated with the COX QOL updates}}
+[[File:Fighting Vasa Nistirio.png|350px|thumb|A group of players in battle with Vasa Nistirio.]]
+[[File:Vasa.png|window|A map of Vasa's chamber.|133x133px]]
+The fight starts as soon as a player approaches Vasa's pile of rocks. He will animate, immediately summon a fire barrier at the entrance and perform his teleport attack.
+
+Vasa's teleport attack will grab all players in the room and next to the fire, teleporting half next to him and half to the edges of his arena; if one player is in the room, they will always be teleported next to him. Any players teleported to him will be stunned and unable to use prayers until the attack concludes. He will launch projectiles next to him that deals varied damage (accumulated health of teleported players - 5 / number of players next to him). Players not affected by the teleport can run next to Vasa to further weaken the damage towards the stunned players, although they will take damage themselves unless [[Protect from Magic]] is used. This damage can be recoiled with [[Vengeance]], though this will not yield any points. If the player is not using Vengeance and Vasa is the first encounter, they should drain their health with self-damaging items like a [[locator orb]] to 10 health.
+
+Vasa will then activate one of the [[glowing crystal]]s in the corners of the chambers and walk his way over to it. He will also throw boulders at all players within 9 tiles of him, launched at the players' position at the time of the attack. The boulders have a 3x3 AoE and can deal heavy damage; using [[Protect from Missiles]] reduces their accuracy and damage. When he reaches the crystal, he becomes invulnerable to damage and stops attacking as he begins to heal; indicated with green hitsplats. If allowed to fully heal, they will restore his health as purple; if crystal is destroyed before it does, the healing is nulled.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1262826375347666944|date=19 May 2020|archiveurl=https://reldo.runescape.wiki/i/98628|archivedate=1 September 2023|quote=Every 2 ticks, it heals 1% HP and (10% + 1) Defence.}} He will also restore (10% + 1) Defence off the crystal. He will also deal rapid stomp damage to anyone underneath him. When not at full health, it is important to eat to tank the weakened blast damage; failure to do so will likely result in death either from Vasa's boulders or his stomp if he moves towards the player.
+
+The crystals are immune to ranged attacks and take 66% less damage from magic attacks, making melee the only viable option. They are highly resistant to slash and crush, so stabbing weapons are recommended. If the team takes too long in disabling the crystal, Vasa will do so himself and perform his teleport attack upon returning to the centre of the room. If the team disables it in time, Vasa will still return to the centre of the room, but immediately select another crystal to heal off of. The speed in which he drains the crystal will increase for each one disabled to the point that it is generally impossible to disable every third crystal in a sequence if it is not immediately targeted. If Vasa finishes draining the crystal, the drain timer resets.
+
+Vasa is weakest to crush, although he is only slightly more resistant to ranged. It is still recommended to use range to minimise damage taken during the encounter. While Vasa is a fairly easy boss, players without optimal equipment may find themselves using lots of supplies.
+
+Upon death, Vasa drops two [[Xeric's aid (+)]], an [[overload (+)]] and [[twisted (+)]].
+
+{{Recommended equipment
+| style = Crystals
+| weapon1 = {{plink|Ghrazi rapier}}{{efn|Only brought if using a scythe of Vitur or an abyssal tentacle as a mainhand weapon}} <br>/ {{plink|Inquisitor's mace}}{{efn|Set to stab|name=stab}}
+| weapon2 = {{plink|Dual macuahuitl}}{{efn|Best with full [[Blood moon armour]]}}{{efn|name=stab}}<br>/ {{Plink|Noxious halberd}}{{efn|name=stab}}
+| weapon3 = {{plink|Osmumten's fang}}
+| weapon4 = {{plink|Voidwaker}}{{efn|name=stab}} / {{plink|Zamorakian hasta}}
+| weapon5 = {{plink|Dragon hunter lance}}{{efn|name=stab}} > {{plink|Dragon sword}}{{efn|name=stab}}
+}}
+{{Notelist}}
+<references/>
+
+===Vanguards===
+{{Main|Vanguard}}
+The Vanguards consist of three monsters, one melee, one ranged, and one magic. The melee Vanguard has lots of tentacles flailing out, the ranged Vanguard has only a few tentacles flailing out and others holding rocks, and the magic Vanguard has its tentacles retracted. Each Vanguard is weak to the combat style in the [[combat triangle]] that counters its own.
+
+Each Vanguard's attack consists of three hits. The melee Vanguard directs all three hits at its target, the ranged and magic Vanguards launch three projectiles, but only one is aimed directly at their target. The other two are launched elsewhere, though it is possible to be hit by two or even all three. Protection prayers significantly reduce the accuracy and damage of these attacks.
+
+The Vanguards' health must be kept close together. In groups of five or more, the Vanguard with the most health cannot be more than 33% of its maximum hitpoints ahead of the Vanguard with the least health. This increases to 40% in groups of four or fewer. If the difference is close to the threshold, a dark spiral appears around the Vanguard with the most health, while a light spiral appears around the Vanguard with the least health. If the difference goes past the threshold, all three Vanguards will shuffle and fully heal.
+
+The Vanguards will periodically shuffle around the room, moving either clockwise or counterclockwise. They cannot be targeted while shuffling, though attacks made before they started to move will still land. Players in their path will take 3-6 damage every few ticks. The Vanguards will reemerge once all three are in position. If a fatal hit would land on a Vanguard while they are shuffling, it will instead be left at 1 hitpoint.
+
+In solo encounters, players will usually need to chase whichever Vanguard has the most health. Staying around the edges of the room helps avoid drawing attacks from the others, as being attacked by multiple Vanguards at once can deal a lot of damage. In larger teams, players can generally stay in place and switch gear for whichever Vanguard moves to them after each shuffle.
+
+If a player walks under the ranged Vanguard, it won't move while they're stood under it. This can be used to hide if a player accidentally draws aggro of multiple Vanguards at once.
+
+The Vanguards will all drop specific sets of potions on death; each Vanguard drop one of their respective combat potion. The melee Vanguard will also drop two [[Xeric's aid (+)]], the ranged Vanguard will drop one Xeric's aid, two [[Revitalisation (+)]] and the magic Vanguard will drop one Xeric's aid, one Revitalisation and one [[Prayer enhance (+)]]. One of these three will also guarantee an [[Overload (+)]], though the other two also have a chance to drop it. This makes them very useful for no-prep runs, as the player is not likely to consume a large amount of supplies compared to other bosses while gaining vital potions.
+
+{{Recommended equipment
+| style = Melee Vanguard
+| weapon1 = {{plink|Tumeken's shadow}}
+| weapon2 = {{plink|Eye of Ayak}}
+| weapon3 = {{plink|Sanguinesti staff}}
+| weapon4 = {{plink|Trident of the Swamp}}
+}}
+
+{{Recommended equipment
+| style = Range Vanguard
+| weapon1 = {{plink|Scythe of Vitur}}
+| weapon2 = {{plink|Osmumten's fang}}
+| weapon3 = {{plink|Blade of Saeldor}} / {{plink|Ghrazi rapier}}
+| weapon4 = {{plink|Abyssal tentacle}}
+| weapon5 = {{plink|Dragon hunter lance}}
+}}
+
+{{Recommended equipment
+| style = Mage Vanguard
+| weapon1 = {{plink|Toxic blowpipe}}<ref name=bp>With [[Amethyst dart]]s or better.</ref>
+| weapon2 = {{plink|Tumeken's shadow}}
+| weapon3 = {{plink|Bow of Faerdhinen}}<ref name=crystal>Only with a full set of [[Crystal equipment#Crystal armour|crystal armour]].</ref>
+| weapon4 = {{plink|Twisted bow}}<ref name=cm>In [[Chambers of Xeric/Challenge Mode|Challenge Mode]], the twisted bow becomes the best option.</ref>
+}}
+<references/>
+
+<gallery>
+Fighting the Vanguard.png|A trio of players fighting the Vanguards.
+Vanguards.png|360x250px|It is important to remember which Vanguard is which for fighting them.
+Vanguard health difference near threshold.png|A Vanguard warning the player that the health difference between them is too great.
+</gallery>
+
+===Guardians===
+[[File:Chambers of Xeric - Guardian statue.png|thumb|250px|Players attacking the guardian statues.]]
+Two [[Guardian (Chambers of Xeric)|Guardian]] statues are guarding a passageway deeper into the chambers. The statues must be destroyed, as they will shove players away from the passageway if they try to get past them. They can only be harmed through [[pickaxe]]s; all other damage will be reduced to 0, although secondary effects (such as debuffs and healing) will still go through as normal.
+
+A permanent [[iron pickaxe]] spawn can be found next to the guardians for players who had forgotten or did not bring a pickaxe.
+
+{{Recommended equipment
+|style = Guardians
+|weapon1 = {{plink|Crystal pickaxe}}<ref name=crystal>The crystal pickaxe is lighter than the dragon pickaxe, but this is the only way in which it is better</ref>
+|weapon2 = {{plink|Dragon pickaxe}}
+|weapon3 = {{plink|Rune pickaxe}}
+
+}}
+<references/>
+
+The Guardians attack with a cleaving melee attack and can occasionally stomp the ground, making a rock fall from the ceiling, which deals moderate to heavy damage in a 3x3 area on their target's current position when the attack was performed. Due to this stomping attack, it is highly recommended to [[flinch]] them to reduce the amount of damage taken. When flinching, run two tiles away from the Guardian immediately after attacking so that the stomp attack can be completely evaded if it manages to retaliate back, then walk back one tile. This will conserve a significant amount of run energy. [[Protect from Melee]] is optional, but is recommended if on low health to avoid getting killed by it.
+
+While damage against the Guardians is based on the player's Mining level and pickaxe used, the boost from the [[dragon pickaxe]] special attack does not give any significant speed increase. It is better to save special attack energy for other rooms. The guardians are highly resistant towards stab and slash attacks, so set the pickaxe to a crushing option.
+
+Guardians drop 3-5 each of buchu, noxifer and golpar seeds upon being destroyed.
+
+===Lizardman Shamans===
+[[File:Shamans.png|right|129x126px|Lizardman shamans location on the map.]]
+A small room filled with at least two [[lizardman shaman (Chambers of Xeric)|lizardman shaman]]s (dependent on party size, although capped at 4) are in the room, with several spawns blocking the way forward. They share the same mechanics as the shamans outside, although their poison spit is increased and can deal up to 40 damage.
+
+There are several layouts for the shaman room. When nearing a room with lizardman shamans, one or two sets of spirit tendrils will appear to prevent players from safespotting them away from the chamber. The chamber itself does have safespots against the shamans, though players will need to attack the shamans first in order to lure them. It is recommended to use a long-ranged weapon such as a crossbow, ballista or twisted bow; a weapon with a range of 10 can safespot the shamans from afar. Experienced players can use a blowpipe on them, although they will need to be cautious of poison splatters, spawns and their frequent habit of jumping around. As the shamans can inflict poison starting at 12 damage, a [[sanfew serum]] is recommended for this room regardless if safespotting or not in the event that they do manage to hit the player with their standard attacks, as the poison damage will rapidly stack over time if not cured.
+
+The shamans drop 5-10 each of buchu, noxifer and golpar seeds upon death.
+{| class="wikitable"
+|+
+!Raid Scale
+!Number of Shamans
+|-
+|1-4
+|2
+|-
+|5-9
+|3
+|-
+|10-14
+|4
+|-
+|15+
+|5
+|}
+
+===Skeletal Mystics===
+A sacrifical chamber filled with at least three [[Skeletal Mystic]]s (dependent on party size) are in the room, the mages are also blocking the way forward with a powered sigil. The mages attack with both magic and melee; the magic attack is either Fire Blast or [[Vulnerability]], while they punch players with melee. They take the player's overhead prayers and defensive bonuses into account. Protect from Magic reduces the mystics' accuracy and damage by roughly 50%. The mages are equally weak to ranged and crush, but due to their melee attacks and prayer detection, it is recommended they be killed with ranged instead. A [[Salve amulet(ei)]] will help when using ranged or magic. Magic is only feasible when using [[Tumeken's shadow]], and although bonuses of the salve amulet are not multiplied by the staff's passive, a salve(ei) will outperform an occult.
+
+Have one mystic attack the team at a time to lower overall damage, as they are fairly accurate. A good tactic to save some supplies depending on the layout is to get up close to a mystic to prompt it to melee, then corner safespot the mystic wherever possible. This will result in the mystic attempting to melee the player, but will get stuck and drastically reduces the chance of a magic attack. If the mystic is using magic non-stop, it will no longer melee until prompted to do so again.
+
+The mystics drop 5-10 each of buchu, noxifer and golpar seeds upon death. Once the last mystic is killed, three portals will appear throughout the room; one each at the start and end, and a last one in the middle to allow for fast teleportation across the room.
+{| class="wikitable"
+!Raid Scale
+!Number of Mystics
+|-
+|1-2
+|3
+|-
+|3-5
+|4
+|-
+|6-8
+|5
+|-
+|9-11
+|6
+|-
+|12-14
+|7
+|-
+|15-17
+|8
+|-
+|18-20
+|9
+|-
+|21-23
+|10
+|-
+|24-26
+|11
+|-
+|27+
+|12
+|}
+<gallery>
+Chambers of Xeric - skeletal mystics.png|Players fighting the skeletal mystics.
+Mages.png|One of the possible layouts for the mystics room.
+Skeletal Mystic safespot.png|Skeletal mystics being "safespotted" by a player.
+</gallery>
+
+===Muttadiles===
+{{main|Muttadile}}
+
+Upon starting, several noxious tendrils will appear which deal damage to players who try to leave the chamber. There are also two Muttadiles; a small one walking around the chamber, and a second, larger Muttadile lurking in the water. A [[meat tree]] is present in the room, alongside a [[bronze axe]] spawn.
+
+The small muttadile only attacks with both Melee and Ranged, while the larger one uses all three and has a special shock wave attack that can deal massive damage; however, this attack is only used against players in melee range. During the fight with the small muttadile, the larger one will occasionally attack players in the chamber with Magic. Both muttadiles can hit extremely hard; protection prayers block the melee attacks, while only reducing their ranged and magic attacks. However, the pair are extremely notorious for their erratic movement, as they can inexplicably walk towards or away from their target at times.
+
+When the muttadile reaches below 50% of its health, it will go to the meat tree and eat from it, restoring up to 40% of its health in the process. There are two ways to prevent this; chopping the tree down or binding them. The former is slower but safer, while the latter is faster but riskier.
+
+The meat tree is tied to Woodcutting and the player's level will determine how fast the room will be. The tree has a minimum of 100 health and 20% accuracy, with a maximum of 500 health and 78% accuracy at 99 Woodcutting. The player's damage against the tree is not tied to the tier of axe being used, but instead "damage" is dealt by half the player's Woodcutting level with a -7/+3 margin. A player with 98 Woodcutting would deal 42-52 damage for each successful swing. 
+
+Prioritise ranged and magic defence to reduce the chances of either muttadile being able to hit; [[Augury]] or a combination of [[Steel Skin]] and [[Mystic Might]] (depending on what the player possesses) can further increase defence from both. Use [[Protect from Missiles]] whenever the small muttadile is not in melee distance and [[Protect from Melee]] if it is. After damaging the tree, attack the muttadile if it is in range until it reaches 55% of its health before chopping the tree down fully if it hasn't been felled before resuming combat.
+
+Binding the muttadile requires a [[zamorak godsword]]; while an [[Ice Barrage]] would easily catch on the small muttadile, it is far less likely to against the larger one and this would deny the player the use of thralls. The muttadile is rather resistant to slash attacks, so it is possible for it to miss. If the godsword does land, the room becomes significantly faster, as the muttadile can be fully damaged and is likely to die before the bind wears off. Even if it does wear off, the muttadile will only eat one time and will not do so again. If the muttadile is bound and unable to reach the tree for more than 15 seconds, it will give up and no longer attempt to eat from it.
+
+When the small Muttadile dies, the large Muttadile will emerge from the water to attack. The larger muttadile attacks with all three combat styles; it can also perform a "stomp" attack in place of a melee attack that hits 50% higher than its normal melee attacks, indicated with it raising its front legs before slamming back down. When using ranged or magic, it will attack a minimum of three times before potentially swapping to another attack style, however it is not guaranteed to swap, so it is recommended to keep [[Protect from Missiles]], as its ranged attack hits far higher and more accurately than the magic attack. Various "safespots", depending on the layout of the room, can be used to trap the muttadile and prevent it from using its melee and stomp attacks.
+
+While a fairly simply and easy encounter, the muttadiles can consume lots of supplies due to their erratic behaviour and hitting far harder than the other pre-Olm bosses.
+
+The small muttadile drops an [[Overload (+)]], [[Prayer enhance (+)]] and 1-2 [[stinkhorn mushroom]]s upon death. The larger one retains the smaller's drops apart from the mushrooms, which is replaced with a [[Xeric's aid (+)]] and [[Revitalisation (+)]].
+
+{{Recommended equipment
+| style = Baby Muttadile
+| weapon1 = {{plink|Toxic blowpipe}} (with {{plink|Dragon dart}})
+| weapon2 = {{plink|Tumeken's shadow}}
+| weapon3 = {{plink|Toxic blowpipe}} (with {{plink|Amethyst dart}})
+| weapon4 = {{plink|Sanguinesti staff}} / {{plink|Trident of the Swamp}}
+}}
+{{Recommended equipment
+| style = Big Muttadile
+| weapon1 = {{plink|Twisted bow}}
+| weapon2 = {{plink|Toxic blowpipe}} (with {{plink|Dragon dart}} or {{plink|Amethyst dart}})
+| weapon3 = {{plink|Dragon hunter crossbow}} (with {{plink|Ruby dragon bolts (e)}})
+| weapon4 = {{plink|Bow of Faerdhinen}}<ref name=crystal>Only with a full set of [[Crystal equipment#Crystal armour|crystal armour]].</ref>
+}}
+<references/>
+<gallery>
+Fighting Muttadile.png|A group of players fighting with the Muttadiles.
+Muttadiles location.png|One of the possible layouts for the Muttadile room.
+</gallery>
+
+===Great Olm===
+{{main|Great Olm}}
+[[File:Fighting Great Olm.png|thumb|right|A group of players fighting with the Great Olm.]]
+The Great Olm is the last boss in the raid.
+
+In most small teams, each player should have at least one overload, one prayer enhance, 2-3 restores and 6-7 brews. In a solo encounter, a stamina potion is highly recommended; it is possible to clear the encounter without it, but it will result in much more damage being taken. If overloads are not sufficient and extras are not made, the team should share the doses, as Olm is generally expected to be cleared within 10 minutes. Players looking to learn solo methods are advised to limit the amount of gear switches, and to prep at the earliest farming room to be able to bring as many stamina potions as possible. Once at Olm, players can practice learning the solo methods indefinitely, as long as the player makes sure not to kill both hands within ~30 seconds of each other on phase 3. Suiciding supplies into the Olm room is severely ill-advised, as this will hamper overall points.
+
+In a team size of 1-7, Olm has four phases in total, three standard phases and a head phase. For every 8 players in the raid, Olm will gain an additional standard phase, which simply reuses one of the three powers from before. All powers must be expended before they may be used again.
+
+Before starting, ensure that all supplies and equipment have been taken along as the player cannot leave the arena during the fight outside of death.
+
+Olm consists of three NPCs in one; its head and both its left and right arm. The head is the NPC responsible for attacking players and using phase-specific mechanics. Olm only attacks with magic and ranged; the magic attack consists of a dark-green dragonfire projectile, while the ranged attack is a small chunk of crystal. There is a 1/5 chance for Olm to change combat styles after making an attack.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1287733801398009857|date=27 July 2020|archiveurl=https://web.archive.org/web/20200727125925/https://twitter.com/JagexAsh/status/1287733801398009857|archivedate=27 July 2020|quote=[How does Olm decide when to change his attack style?] I'm not that familiar with its code, but it looks to me like the head has a 1/5 chance of switching, each time it performs an attack from the head.}}  These attacks will hit all players that Olm is looking at. The head has 66% damage mitigation from all non-ranged attacks, and will restore any damage to full if attacked outside the final phase. The right hand, commonly referred to as the mage hand, has 66% damage mitigation from all non-mage attacks. The left hand is the NPC responsible for the generic mechanics (and heal in the penultimate phase), has 66% damage mitigation from all non-melee attacks.
+
+Alongside his basic ranged/magic attacks, Olm has the following abilities at its disposal:
+*'''Spheres:''' Olm randomly picks a sphere (red, green or purple) and sends it at the player. If not blocked, the player will be damaged for 50% of their current [[Hitpoints]]. If a [[protection prayer]] was used when the sphere was launched, it is disabled and the player's [[Prayer]] is reduced by 50%. To block the attack, pray accordingly before the sphere hits:
+**'''Red''' (sphere of aggression): [[Protect from Melee]]
+**'''Green''' (sphere of accuracy and dexterity): [[Protect from Missiles]]
+**'''Purple''' (sphere of magical power): [[Protect from Magic]]
+
+Olm also possesses power specific abilities which can replace his spheres or basic attacks. Each phase will only feature one power; Olm will not switch powers during a phase, this is communicated to the player through the chatbox. Ex: "The Great Olm rises with the power of Acid!"
+*'''Acid:'''
+**'''Acid Spray:''' Olm spits out several pools of acid around the chamber. Standing on top of an acid pool deals 3-6 damage per tick and inflicts poison starting at 2 damage.
+**'''Acid Drip:''' Olm covers a player in acid, causing them to generate acid pools under them. Standing still will deal damage and moving will generate more pools. The pools damage are the same as the spray attack.
+*'''Flame:'''
+**'''Draining Fire:''' Olm shoots out a green fireball at a player. This will inflict damage and stat drains 6 times, with each occurrence dealing 5 damage and draining all combat stats by 2. The damage and drain occurs when the player yells "Burn with me!". If the burning player is next to a player that isn't burned when this occurs, they will spread it onto them, causing them to initially yell "I will burn with you.", take a fresh burn and additionally resets the host's burn.
+**'''Fire Wall:''' Olm shoots out two walls of fire at a player to trap them. If the player is on a tile that would be occupied by the fire wall, they will leap out and take up to 10 damage from it. After the walls are placed, the player(s) trapped inside will take 50-65 damage if they don't run out in time or get opened up. To open up the trapped player(s), click on a segment of the wall whilst being able to cast [[water spell]], [[ice spells|ice spell]] or [[humidify]] to douse the flame. This can be done outside or inside the wall.
+***Note that the player may actually leap into the gap between the fire walls, so it is best to avoid getting clipped by the fire at all costs.
+***Water-filled gourd vial(s) can be used to douse the Fire Wall - This is not recommended.
+*'''Crystal:'''
+**'''Falling Crystals:''' Olm lets out a cry, targeting one player with a red aura. The targeted player will proceed to have 11 spiked crystals fall on top of them, dealing 16-20 damage to any player if caught underneath one. These crystals have a 1x1 AoE.
+**'''Crystal Bombs:''' Olm shoots out a crystal bomb (up to three at most; two for smaller groups). The bomb explodes after being deployed for several seconds, covering a radius of four tiles.
+***Being at the rim of the explosion will deal 15 damage, with an additional 15 damage being taken for every tile closer to it. If directly on top of the bomb, the player will take 60 damage.
+The culmination of Olm's basic ranged/magic attacks, spheres and phase-specific abilities will be referred to as "standard attacks".
+
+Throughout all non-head phases, Olm can also use the following abilities below (commonly and henceforth referred to as "special attacks"):
+*'''Crystal Burst:''' Olm throws a crystal seedling under every player in the chamber. A few seconds later, the crystals burst and shove the player to a nearby tile if they are on top of them for heavy damage. The left hand will briefly show a crystal icon when using this attack.
+*'''Lightning:''' Shoots out lightning running north and/or south of the chamber. Getting hit by a bolt of lightning electrocutes the player, disabling their [[overhead prayers]], dealing moderate damage, and binding them for a few seconds. The left hand will briefly show a lightning bolt when using this attack.
+*'''Swap:''' Olm will perform a teleport attack that deals damage the further the player is from the target. The left hand briefly shows a swirl when using this attack. Players must stand on top of each other (or the targeted tile in solo) to avoid taking damage from the attack.
+**In group encounters, up to six players may be targeted for the attack. If there are an odd amount of players (e.g trio or 5-man encounters), the leftover player will not be subjected to the teleport.
+**In solo encounters, Olm will pick a random tile in the arena, up to ten tiles from the player's current position when the attack was used.
+**Damage dealt is based on the targets' location with each other. No damage is incurred if directly on top of each other, 5 if adjacent, 10 if two tiles away. The damage scales the further the targets are and can deal up to 50 damage if as far away as possible.
+
+In order to clear every phase outside of the final one, both of Olm's hands must be incapacitated. During all phases but the penultimate phase, Olm's left hand will clench if it takes a hit equal to or more than 5% of its maximum health within 8 ticks, specifically the eight ticks between null and special. If this occurs, the hand will become invulnerable for roughly 30 seconds. This will also prevent Olm from using its generic special attacks, though power-specific attacks will still be used. This mechanic is removed for the phase once the mage hand is incapacitated, so it is common for teams to take down the mage hand first before focusing on the melee one. 
+
+Olm's attack rotation is as follows:
+
+*empty event
+*standard attack
+*Crystal Burst
+*standard attack
+*empty event
+*standard attack
+*Lightning
+*standard attack
+*empty event
+*standard attack
+*Teleport
+*standard attack
+*Loops from above
+
+Olm's standard attacks also contain a "catch-up" mechanic. If a standard attack was skipped (for instance, due to no players being in his targeted zone), Olm will attempt to "catch up" and use a standard attack on the next attack step in addition to its action for that step. This means that Olm can use a standard attack and a special attack at the same time if the prior step's standard attack was skipped. Olm will only try to catchup an attack from one step prior; skipping multiple attack steps in the rotation will not cascade into catching up multiple standard attacks. Olm will never catchup special attacks (Crystal Burst, Lightning, Teleport, Healing hand); meaning that a well-timed skip by the player can completely prevent these attacks from occurring at all.
+
+====Safespotting====
+[[File:Great Olm safespots.png|thumb|"Safespots" against Olm.]]
+
+Olm's attacks are only used when a target is present in the direction that its head is facing. The head can face left, right and middle, though there are a few unique rules as to how the head will turn, apart from the picture shown above. Olm will always attempt to face the quadrant that contains the most players; if no players are present in that quadrant, it will turn towards the quadrant with the most players and skip an attack in the process. If the right hand is damaged within 4 ticks and Olm does not scan a player, it will always turn its head to the right, and vice-versa for the left. This factors in all damage, such as thralls and burns. Thralls are more important, though in larger teams a player can bring burning claws to try and inflict a burn on the melee hand.
+
+The picture provided shows the spots where Olm's head will be forced to turn, as they are outside of its visual range:
+
+*Spots 1 and 8 will always force the head to turn left when it is facing the middle or right.
+*Spots 4 and 5 will always force the head to turn right when it is facing the middle or left.
+*Spots 2 and 7 will always force the head to turn middle if it is facing the right.
+*Spots 3 and 6 will always force the head to turn middle if it is facing the left.
+
+Methods for fighting Olm solo are often defined by a ratio of how many times the player attacks versus how many times Olm attacks. For example, 4:1 means the player attacks four times and is hit by Olm once in those four attacks before the cycle repeats.
+
+Beginning solo raiders should use the 3:0 and 4:1 method for both hands. The 3:0 method is utilised with a 4-tick weapon, such as a [[powered staff]], hitting Olm three times without getting hit once. If using a [[Tumeken's shadow]], there are three options players can choose from; the simple 2:0, or the more advanced 12:0 and 8:1 options (7:0 can replace 12:0 with 1 tick loss per cycle). The 12:0 and 8:1 options require switching attack styles to long-range at set times in the player's attack pattern, but avoids tick loss from not attacking, as it is not possible to do 3:0 with it without getting hit by Olm. Olm's positioning will also determine which of these two options can be used; if Olm appears to the west, 12:0 can be used, while Olm appearing in the east means only 8:1 can be used. This is a result of how NPC's "true-tile" is based on the south-west corner of their model.
+
+The 4:1 method also involves a 4-tick melee weapon, such as a [[dragon hunter lance]] and allows the player to hit Olm four times while Olm only attacks once. There are many approaches to enter the 4:1 cycle. 
+
+One common method is for the player to ensure that Olm's next attack is not a special attack (Crystal Burst, Lightning, Teleport, Healing hand) and it is facing left, as Olm requires two standard attacks before using any of them. Force Olm's head to the middle, then run back and attack the left hand, which will prompt it to turn left. The player will be given around 14 or so ticks to make attacks before Olm will attack, allowing for three more hits with a four tick weapon. The 4:1 method, when used correctly, will prevent Olm from using a special attack and the player will only face standard attacks. Other advanced methods are possible, though are also complex and should not be attempted for beginners.
+
+If using a five-tick weapon (primarily the [[scythe of Vitur]]), this will drop to a 3:1 due to the scythe's slower attack speed, but even then, the scythe usually outperforms the dragon hunter lance even when accounting for its bonuses. Other advanced options can be used to counter the loss of ticks from running and waiting, but should not be used until the player has sufficient experience.
+
+====Phases====
+When forced into the next phase, Olm will retreat back underground and shake the cavern. Crystals will fall from above, with shadows indicating where they will fall. One crystal will always target a player in the room, but it can be easily avoided. The crystals have a 3x3 AoE on the tile they fall on, dealing 20-25 damage if directly under one and 12-16 if next to one when it hits the floor. After 7-8 of these targeting crystals have fallen, he will appear on the other side and start using a new power.
+
+During the penultimate phase, Olm's head will begin to glow with a green aura. It will use all powers during this phase, and its left hand gains the ability to heal from incoming damage, indicated with an infinity symbol. This is used two attacks after the teleport attack, and will last for two of Olm's attacks before it is lifted. In this phase, '''both hands''' must be taken down at once. Once a hand is incapacitated, a bar will appear where it once was; if given the chance to fill (roughly 30 seconds), Olm will recover the use of said hand, which returns with full health, and no additional points are awarded from damaging the hand again. Due to this, it is recommended to leave both hands around 75 hitpoints before taking them down. Once both hands reach this threshold, immediately disable the melee hand, as its healing mechanic will waste valuable seconds and can potentially result in the mage hand resetting. Olm's max hit will slightly increase during this phase.
+
+In the last phase, Olm will give it its all in a final stand, and like the penultimate phase, its max hit is increased slightly again. Olm will retain its usage of all power-unique abilities and prayer orbs, but the forced teleport, lightning strikes and crystal burst are removed. The head's healing is also lifted, allowing it to be harmed and defeated to end the encounter. During this phase, crystals will constantly fall from above, with one of these targeting a random player in the chamber. As the unique mechanic for the phase, Olm will spit out two blue projectiles onto two random tiles, which must be stood on within 6 seconds of the attack being used or it will drain a portion of the player's current health from all unprotected players. This can deal up to 18 damage per player, and Olm will heal for five times the amount of this damage.
+
+Once the head is defeated, it will collapse back into the chasm it came out of, and the exit crystal will shatter, allowing players to claim their rewards and leave the raid.
+
+{{Recommended equipment
+|style = Great Olm Left Claw (Melee / 50 Defence)
+|weapon1={{plink|Scythe of Vitur}}
+|weapon2={{plink|Dragon hunter lance}} / {{plink|Soulreaper axe}}
+|weapon3={{plink|Ghrazi rapier}} / {{plink|Dual macuahuitl}}{{efn|With full [[Blood moon armour]]. Better on lower defence}}
+|weapon4={{plink|Abyssal tentacle}} / {{plink|Noxious halberd}}
+|weapon5={{plink|Abyssal whip}} / {{plink|Zamorakian hasta}}
+}}
+{{Notelist}}
+{{Recommended equipment
+| style = Great Olm Right Claw (Magic)
+| weapon1 = {{plink|Tumeken's shadow}} / {{plink|Eye of Ayak}}{{efn|Notably shorter attack range may not be usable from the far sides of the arena}}
+| weapon2 = {{plink|Dragon hunter wand}}{{Efn|Using [[Earth Surge]] with [[Tome of Earth]]; Requires being on the [[Standard spellbook]].}}
+| weapon3 = {{plink|Sanguinesti staff}}
+| weapon4 = {{plink|Trident of the Swamp}}
+| weapon5 = {{plink|Trident of the Seas}}
+}}
+{{Notelist}}
+{{Recommended equipment
+|style = Great Olm Head (Ranged)
+|weapon1={{plink|Twisted bow}}
+|weapon2={{plink|Dragon hunter crossbow}}
+|weapon3={{plink|Toxic blowpipe}}{{Efn|Better with [[Masori armour]] and [[Dragon dart]]s.}}{{efn|Notably shorter attack range may not be usable from the far sides of the arena|name=short}} / {{plink|Bow of Faerdhinen}}{{Efn|Only with a full set of [[Crystal equipment#Crystal armour|crystal armour]].}}
+|weapon4={{plink|Dragon crossbow}}
+|weapon5={{plink|Rune crossbow}} / {{plink|Eclipse atlatl}}{{efn|name=short}}
+}}
+{{Notelist}}
+
+==Puzzles==
+There are several rooms that are considered "puzzle" rooms which put more emphasis on skills rather than combat, although two of these puzzle rooms also require combat.
+
+List of puzzle rooms:
+
+*[[Jewelled Crab]]s
+*[[Tightrope (Chambers of Xeric)|Tightrope]] ([[Agility]])
+*[[Corrupted scavenger]] ([[Thieving]])
+*[[Ice demon]] ([[Woodcutting]] & [[Firemaking]])
+
+===Crab puzzle===
+[[File:Chambers of Xeric - Crab puzzle.png|thumb|Typical layout of a crab puzzle room.]]
+[[File:Crabs.png|right|86x86px|The crabs puzzle location on the map.]]
+In this chamber are several [[Jewelled Crab]]s which cannot be killed by conventional combat. A carved sculpture nearby will continually emit glowing orbs with one present at any given time, with a new orb appearing as soon as the previous one disappears. If the player intercepts the orb, it explodes and deals damage scaled to their current health. The crabs are aggressive but have a low aggression range, attacking with fairly accurate melee; as such, use [[Protect from Melee]] to avoid unnecessary damage, and try to stay within three tiles of the crab so it doesn't lose interest.
+
+The goal is to turn the four coloured crystals in the chamber white. The crystals on the crabs can be attacked to change colour; red for melee, blue for magic, and green for ranged. The white orb emitted from the carving must be reflected off the crabs in the room to hit the crystals, which turns into the appropiate colour when it hits the crab. The crab will retain the colour for roughly five seconds. A coloured orb cannot make contact with a crab of a different colour - if this happens, the orb disappears.
+
+Players with -63 or higher magic attack bonus will not splash on the crabs. There is also no attack delay when attacking a crab, though the player will automatically stop attacking after the first hit if not clicked on again.
+
+The crabs can be stunned with either a [[hammer]] (which can be found within the room) or a blunt weapon (e.g [[elder maul]], [[dragon warhammer]], [[abyssal bludgeon]], [[torag's hammers]]) in order to hold them in place. Stunning the crab will temporarily make it red and also retains aggression.
+
+The duration of the stun is dependent on the size of the party.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1235164787119738880|date=4 March 2020|archiveurl=https://reldo.runescape.wiki/i/99812|archivedate=5 August 2023|quote=1 player: 50-60 ticks; 2-3 players: 30-40 ticks; 4-5 players: 20-30 ticks; 6+ playerss: 10-20 ticks}}
+
+{| class="wikitable align-center-1"
+|-
+!Party size
+!Stun duration
+|-
+|Solo
+|50 to 60 ticks
+|-
+|2 – 3
+|30 to 40 ticks
+|-
+|4 – 5
+|20 to 30 ticks
+|-
+|6+
+|10 to 20 ticks
+|}
+
+All layouts require the use of three crabs to clear the room. The more players in a raid, the more crabs will be present in the room. Luring these away are required since they are likely to run into an orb if not checked.
+
+{|class="wikitable"
+|-
+!Crystal
+!Orb Colour
+!Style
+|-
+|Black
+|{{Colour|#ffffff|White}}
+|None
+|-
+|{{Colour|#ffff00|Yellow}}
+|{{Colour|#0000ff|Blue}}
+|Mage
+|-
+|{{Colour|#00ffff|Cyan (Blue)}}
+|{{Colour|#ff0000|Red}}
+|Melee
+|-
+|{{Colour|#ff00ff|Magenta (Purple)}}
+|{{Colour|#00ff00|Green}}
+|Range
+|}
+{{clear}}
+
+===Ice demon===
+[[File:Chambers of Xeric - Ice demon.png|thumb|A group of players face the ice demon.]]
+An [[ice demon]] is blocking the way further into the cavern. It cannot be attacked immediately due to the cold protecting it and must be warmed up to force it out of its spot. There are four [[brazier (Chambers of Xeric)|braziers]] surrounding the demon and up to four unattackable [[icefiend]]s (one for each player) that will try to extinguish any flames set by the team. The icefiends do not move from their spot, so they can only focus on the brazier in front of it.
+
+The room will contain a permanent item spawn of a [[tinderbox]] and [[bronze axe]].
+
+Multiple [[sapling (Chambers of Xeric)|sapling]]s are nearby which can be cut for [[Kindling (Chambers of Xeric)|kindlings]]. The saplings in this room are usually more durable and will often yield nearly full or full inventories before being felled, with higher [[Woodcutting]] levels providing more kindling on average for each successful chop. In a solo encounter, 54 kindling is enough to force the demon out. Kindling is a stackable item, capped at 28 per stack and thus only three inventory spaces are needed; one for the axe, another for the tinderbox and the last for kindling. In larger teams, additional kindling is required to account for the icefiends' attacks with minor coordination which usually consists of lighting the fires on the same or near tick.
+
+Once thawed, the icefiends die and the demon moves out of its spot, becoming attackable. It uses AoE attacks; a snowball and Ice Burst. The demon will check the target's current overhead prayer to determine what attack to use. If [[Protect from Magic]] is used, it will only focus on Ice Burst, while if [[Protect from Missiles]] is used, it will simply throw snowballs instead. Both attacks have a 3x3 AoE and can deal high damage if struck. It is recommended to keep Protect from Missiles active to only ensure the snowball attack. While it's possible to dodge both attacks, the Ice Burst projectile travels significantly faster, is harder to spot and additionally has a chance to freeze the player.
+
+The ice demon has very high Defence with high defence values, although it is susceptible to stab, slash and magic. Unlike most monsters, the demon's Magic defence is tied to its Defence level. Additionally, any damage that is dealt which isn't [[Demonbane weapons|demonbane]] or [[fire spells]] will deal 67% less damage. Demonbane deals 15% more damage, while fire spells deal 150% more damage. If the player doesn't have a demonbane weapon, they should try to weaken it with an elder maul or bandos godsword's special attack. If these miss, players should range the demon unless they have Tumeken's shadow. A demonbane swap is recommended since it kills the demon much faster compared to other weapons.
+
+Upon clearing the room, players will be awarded with a batch of endarkened juice, stinkhorn mushrooms and cicely.
+
+===Thieving===
+[[File:Chambers of Xeric - chests room.png|thumb|Players search for cavern grubs within the chests.]]
+[[File:Creature Keeper.png|right|106x106px|The Thieving puzzle location on the map.]]
+A [[corrupted scavenger]] blocks the path and must be fed [[cavern grubs]] until it becomes full and tired. Cavern grubs can be found by opening many of the [[chest (Chambers of Xeric)|chests]] located in the room. The scavenger's hunger level can be tracked with the bar above its head.
+
+The player will usually get one grub, although it's possible to get more, which scales on the player's Thieving level.{{CiteTwitter|author=JagexAsh|url=https://twitter.com/JagexAsh/status/1337827124917448704|date=12 December 2020|archiveurl=https://reldo.runescape.wiki/i/101249|archivedate=17 December 2020|quote=It's randomised, but levels 50, 75 and 100 would increase the max by +1.}} Chests will always guarantee grubs upon being opened. These chests automatically lock themselves shortly after being opened. While a chest can be opened with bare hands, having a [[lockpick]] or [[hair clip]] significantly reduces opening time. There are no lockpicks provided in the room, so either open the chests by hand, or kill scavengers for a lockpick.
+
+One of these chests always contains a one-time loot of [[psykk bat (6)|psykk bat]]s; one bat per person in the raid when the chest is opened, with a minimum of 5 and a maximum of 25.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1494305447360221184|date=7 February 2022|archiveurl=https://reldo.runescape.wiki/i/108594|archivedate=9 April 2022}}
+Three chests contain poison which is released when opened, dealing 1-3 damage to anyone next to the chest. This does not inflict poison on the player (nor will poison immunity prevent it). The poison chests will automatically lock themselves so take note of which ones have poison to avoid opening them.
+
+Some layouts will contain one or two circular formations of four chests which can all be opened one after the other without needing to run. These spots are most ideal for players needing to regenerate run energy. If this formation isn't there (or they have a poison/bat chest), simply open other chests on walking speed.
+
+It is recommended to deposit grubs into the [[trough (Chambers of Xeric)|trough]] upon reaching ~10-15 grubs, as this speeds up the raid slightly as to not wait for the scavenger to finish eating, even if it means needing to get one more grub due to the scavenger's hunger filling up.
+
+Upon clearing the room, players will be awarded with a batch of endarkened juice, stinkhorn mushrooms and cicely.
+
+===Tightrope===
+Groups of 2-4 [[deathly ranger]]s and [[deathly mage|mage]]s stand on a platform with a [[tightrope (Chambers of Xeric)|tightrope]] running in between. On the other side of the rope is a [[keystone crystal]] that must be grabbed to dispel the [[shimmering barrier]] leading deeper into the caves. The enemies can hit through prayer, but their damage and accuracy is reduced. Crossing the rope requires [[Agility]]; the level requirement is between 80% and 100% of the average agility level of the team, scaled randomly.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1343849584532074498|date=29 December 2020|archiveurl=https://reldo.runescape.wiki/i/106316|archivedate=9 April 2022}}
+
+While they are tolerant to players, if any player attempts to cross the tightrope while they are not engaged in combat, they will immediately focus on them to protect the crystal. The player will take all damage in one tick after crossing the rope, which will usually result in massive damage or instant death. However, it is still possible to bypass the hits with proper timing and is frequently used by experienced players increase points per hour by clearing the raid faster.
+
+If killing the enemies off, the mages should be dealt with first, due to their lower max hit. When dealing with rangers in a group, one player should aggro the selected target before hiding behind an obstacle. This prevents the ranger from attacking as much. The "tank" should take a hit every three to four blowpipe hits to ensure that the ranger does not change aggro to an attacker. In a solo encounter, enemies can be "safespotted" by using a weapon with a range of 8 or greater (to ensure as much distance as possible), then running away until they are no longer rendered on the map. Once this occurs, the enemies will lose aggression. While slower, it does ensure that supplies are not touched, as the rangers can deal considerable damage.
+
+When the keystone is used on the barrier, any surviving enemies will be automatically killed.
+
+<gallery>
+Chambers of Xeric - keystone room.png|The tightrope must be crossed to obtain the keystone.
+Deathly Room.png|right|100x100px|One of the randomly generated tightrope rooms.
+Chambers of Xeric Tightrope (layout 1) safespot.png|"Safespots" against the enemies in the room. "1" is the tile that safespots the rangers, while "2" safespots the mages. These spots work in all variations of this layout.
+Chambers of Xeric Tightrope (layout 2) safespot.png|"Safespots" against the enemies in the room. "1" is the tile that safespots the mages, while "2" safespots the rangers. These spots work in all variations of this layout.
+</gallery>
+
+==Resources==
+The Chambers of Xeric have various resources which can be used in the raid, and at least two resource rooms in every raid. Each has at least one [[Gourd tree]], a geyser, one farming patch consisting of two herb patches, nearby tools that contain a [[rake]], [[spade]] and [[seed dibber]], and chest storage.
+
+The gourd tree can be picked indefinitely for [[Empty gourd vial]]s, which serve as the chamber's variant of [[vial]]s and are used for making potions. They can be filled by using them on the geyser.
+
+Seeds can be obtained from the demi-boss rooms (guardians, mystics, shamans) or by raking the weeds at the end of the first and second floor or start of the second floor.
+
+The other materials required can be obtained from killing [[scavenger beast]]s, or occasionally as drops from the demi-bosses.
+
+===Farming===
+Seeds can be obtained from several bosses, such as the [[Skeletal mystic]]s, [[Lizardmen shaman]]s, and [[Guardian (Chambers of Xeric)|Guardian statues]]. They can also be found by raking [[weeds (Chambers of Xeric)|weeds]] in the top and lower floors (the last area in those floors and the first area in the lower floor).
+
+There are two farming plots in each resource room for players to grow herbs. Due to the magic of the chambers, herbs grow faster and are fully grown in 30 seconds.
+{|class="wikitable"
+!colspan="2"|Seed
+!Level
+!Planting XP
+!Harvest XP
+|-
+|{{plinkt|Golpar seed}}
+|{{SCP|Farming|27}}
+|4
+|10
+|-
+|{{plinkt|Buchu seed}}
+|{{SCP|Farming|39}}
+|6
+|15
+|-
+|{{plinkt|Noxifer seed}}
+|{{SCP|Farming|55}}
+|12
+|30
+|}
+
+===Herblore===
+Potions can be dropped in small amounts by the bosses, though this is typically not relied on to obtain them. [[Scavenger beast|Scavenger beasts]] drop Herblore secondaries.
+
+There are three types of potions a player can make:
+*Golpar (combat potions)
+*Buchu (recovery potions)
+*Noxifer (overload-type potions)
+
+To create potions in the chambers, a gourd must be collected from the nearby gourd tree, then filled with water from the nearby water spout, or with [[Humidify]]. Gourds can be picked en masse with the "Pick-lots" option. Gourds automatically break upon drinking the last dose of the potion.
+
+'''Note:''' If the player lacks the Herblore level required for the tier of Overload being made, higher-tier combat potions are automatically downgraded to create the highest tier available.
+
+{|class="wikitable" style="text-align:center;"
+!colspan="2"|Potion
+!Herb
+!Second ingredient
+!Weak(-)
+!Standard
+!Strong(+)
+!Effect
+|-
+|{{plinkt|Elder potion|txt=Elder}}
+|{{plink|Golpar}}
+|{{plink|Stinkhorn mushroom}}
+|{{SCP|Herblore|47}}<br/>6.5 XP
+|{{SCP|Herblore|59}}<br/>10 XP
+|{{SCP|Herblore|70}}<br/>13 XP
+|Increases [[Attack]], [[Strength]], and [[Defence]] levels.
+|-
+|{{plinkt|Twisted potion|txt=Twisted}}
+|{{plink|Golpar}}
+|{{plink|Cicely}}
+|{{SCP|Herblore|47}}<br/>6.5 XP
+|{{SCP|Herblore|59}}<br/>10 XP
+|{{SCP|Herblore|70}}<br/>13 XP
+|Increases your [[Ranged]] level.
+|-
+|{{plinkt|Kodai potion|txt=Kodai}}
+|{{plink|Golpar}}
+|{{plink|Endarkened juice}}
+|{{SCP|Herblore|47}}<br/>6.5 XP
+|{{SCP|Herblore|59}}<br/>10 XP
+|{{SCP|Herblore|70}}<br/>13 XP
+|Increases your [[Magic]] level.
+|-
+|{{plinkt|Revitalisation potion|pic=Revitalisation potion (4)|txt=Revitalisation}}
+|{{plink|Buchu leaf}}
+|{{plink|Stinkhorn mushroom}}
+|{{SCP|Herblore|52}}<br/>13.5 XP
+|{{SCP|Herblore|65}}<br/>20 XP
+|{{SCP|Herblore|78}}<br/>26.5 XP
+|Restores your [[stats]] and [[Prayer]].
+|-
+|{{plinkt|Prayer enhance|pic=Prayer enhance (4)}}
+|{{plink|Buchu leaf}}
+|{{plink|Cicely}}
+|{{SCP|Herblore|52}}<br/>13.5 XP
+|{{SCP|Herblore|65}}<br/>20 XP
+|{{SCP|Herblore|78}}<br/>26.5 XP
+|Regenerates [[prayer points]] over time.
+|-
+|{{plinkt|Xeric's aid|pic=Xeric's aid (4)}}
+|{{plink|Buchu leaf}}
+|{{plink|Endarkened juice}}
+|{{SCP|Herblore|52}}<br/>13.5 XP
+|{{SCP|Herblore|65}}<br/>20 XP
+|{{SCP|Herblore|78}}<br/>26.5 XP
+|Works as a [[Saradomin brew]].
+|-
+|{{plinkt|Antipoison potion|txt=Antipoison}}
+|{{plink|Noxifer}}
+|{{plink|Cicely}}
+|{{SCP|Herblore|60}}<br/>13.5 XP
+|{{SCP|Herblore|75}}<br/>20 XP
+|{{SCP|Herblore|90}}<br/>26.5 XP
+|Cures [[poison]] and provides immunity to it; duration depends on potion tier.
+|-
+|{{plinkt|Overload (Chambers of Xeric)|pic=Overload (4) (Chambers of Xeric)|txt=Overload}}
+|{{plink|Noxifer}}
+|{{plink|Elder potion|txt=Elder}}, {{plink|Twisted potion|txt=Twisted}}, and {{plink|Kodai potion|txt=Kodai}} of the same tier
+|{{SCP|Herblore|60}}<br/>33.5 XP
+|{{SCP|Herblore|75}}<br/>50 XP
+|{{SCP|Herblore|90}}<br/>66.5 XP
+|Damages the player for 50 hitpoints and boosts all of the player's combat stats. The boost is reapplied every 15 seconds for 5 minutes. When the effect ends, the player is healed for 50 hitpoints.
+|}
+
+Standard potions have the effects of their super variants outside the Chambers (e.g. the standard Overload is exactly the same as the one in [[Nightmare Zone]]).
+
+The [[Antipoison potion|antipoison]] provides poison immunity for 90 seconds, six minutes, or nine minutes for the weak, standard, and strong versions respectively.
+
+The [[Overload (Chambers of Xeric)|overload]] boosts combat stats by 4 + 10%, 5 + 13%, or 6 + 16% for the weak, standard, and strong versions respectively.
+
+===Storage Units===
+[[File:Medium storage unit built.png|thumb|100px|A storage unit.]]
+Storage units are built from [[mallignum root plank]]s, obtained as drops from scavengers. A [[hammer]] is required in building storage units, with the [[dragon warhammer]]/[[elder maul]] being a suitable substitute.
+
+By default, [[tiny storage unit]]s are already provided where they will store 25 of the player's personal items. Outside items such as saradomin brews will stack if they are all of the same item, but raid items (e.g overloads) will not regardless if they are the same or not. The shared inventory allows players to store items used in the raid, such as the tools, seeds, herbs, Herblore secondaries, and potions. The personal inventory is much like the shared inventory, but it can also hold the player's belongings, such as weapons and armour. The player can also put in raid-unique items in there if desired. In addition to this, once a storage unit is built anywhere in the Chambers, they will appear in all potential hotspots where they may be found.
+
+Storage units can be found at the end of each floor, in addition to appearing in resource rooms, the corrupted scavenger, and ice demon chambers.
+
+While higher levelled storage units can be built immediately, they still require the materials to build the previous tiers. So in order to build a large storage unit instantly, you need 6 planks (4 for the first two storage units, then 2 for the remaining upgrade).
+
+{|class="wikitable" style="text-align:center;"
+!colspan="2"|Storage units
+!{{SCP|Construction}} level
+!Planks required
+!Experience
+!Capacity
+!Capacity<br/>(personal)
+|-
+|{{plinkt|Small storage unit|pic=Small storage unit icon}}
+|30
+|2
+|150
+|250
+|30
+|-
+|{{plinkt|Medium storage unit|pic=Medium storage unit icon}}
+|60
+|4
+|150
+|500
+|60
+|-
+|{{plinkt|Large storage unit|pic=Large storage unit icon}}
+|90
+|6
+|150
+|1,000
+|90
+|-
+|{{plinkt|Massive storage unit|pic=Massive storage unit icon}}
+|99
+|8
+|150
+|1,500
+|120
+|}
+
+===Resources obtained within the raid===
+With experience, it is possible to exclusively rely on resources dropped by monsters within the Chambers of Xeric, shortening raids by avoiding time spent preparing potions.
+
+{| class="wikitable" style="text-align:center;"
+|+ Dropped resources (Solo scale)
+|-
+! Monster !! {{plinkp|Overload (+)(4)}} !! {{plinkp|Prayer enhance (+)(4)}} !! {{plinkp|Xeric's aid (+)(4)}} !! {{plinkp|Revitalisation (+)(4)}} !! {{plinkp|Twisted (+)(4)}} !! {{plinkp|Elder (+)(4)}} !! {{plinkp|Kodai (+)(4)}} !! {{plinkp|Endarkened juice}} !! {{plinkp|Stinkhorn mushroom}} !! {{plinkp|Cicely}} !! {{plinkp|Buchu seed|txt=Seeds}}
+|-
+| [[Tekton]] ||2||1|| ||1|| || ||  || ||5|| ||
+|-
+| [[Vespula]] ||1||1||2||1|| || || || || || ||
+|-
+| [[Vasa Nistirio]] ||1|| ||2|| ||2|| || ||5|| || ||
+|-
+| [[Vanguard]]s ||1-3||1||4|| 2||1||1||1|| || || ||
+|-
+| [[Muttadile]]s ||2||2||1||1||2|| || || || || ||
+|-
+| [[Lizardman shaman (Chambers of Xeric)|Lizardman shaman]]s || || || || || || || || || || ||5
+|-
+| [[Skeletal Mystic]]s || || || || || || || || || || ||5
+|-
+| [[Guardian (Chambers of Xeric)|Guardian statue]]s || || || || || || || || || || ||3
+|-
+| [[Ice demon]] || || || || || || || ||7||7||5||
+|-
+| [[Corrupted scavenger|Thieving]] || || || || || || || ||5||5||4||
+|-
+|}
+
+==Plugins==
+*The '''CoX Vanguards''' plugin is useful for figuring out the health of the Vanguards for all encounters, showing their health percentages in groups and how much damage can be done before safely soloing them.
+**Additionally, the player can toggle their colors to tell which Vanguard is which, along with showing the wander range of the melee Vanguard.
+*'''CoX Thieving''' can allow the player to more easily pinpoint the chests containing bats/poison.
+*'''Chambers of Xeric''' can be used to show layout of the raid (although not as efficient as the official client, since it is unable to map unknowns), points gained during the raid and more easily identify ideal and less than ideal rooms in a small/large layout.
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+[[Category:Strategies]]

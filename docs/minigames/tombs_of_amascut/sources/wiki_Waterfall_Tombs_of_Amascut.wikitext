@@ -1,0 +1,32 @@
+{{Infobox Scenery
+|version1 = Normal
+|version2 = Dry
+|name1 = Waterfall
+|name2 = Waterfall (dry)
+|image1 = [[File:Waterfall (Tombs of Amascut).png|250x250px]]
+|image2 = [[File:Waterfall (dry) (Tombs of Amascut).png|250x250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Tombs of Amascut]]
+|options = Fill
+|examine1 = A surprising flow of clear water.
+|examine2 = No water is running.
+|map = {{Map|x:3926,y:5250|x:3926,y:5306|x:3940,y:5250|x:3940,y:5306|mapID=-1|mtype=pin}}
+|id1 = 45398
+|id2 = 45399
+}}
+'''Waterfalls''' can be found within the Path of Crondis in the [[Tombs of Amascut]]. It is used to fill [[Water container (Tombs of Amascut)|water containers]]. Players must avoid the obstacles in order to minimise water spilling out of the container.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 September 2022
+|update = Tombs of Amascut: Ornament Kits & More!
+|change = The time in which it takes for waterfalls to replenish has been reduced slightly in all scales.
+}}
+{{Subject changes footer}}
+
+
+{{Tombs of Amascut}}

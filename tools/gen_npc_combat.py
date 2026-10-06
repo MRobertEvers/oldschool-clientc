@@ -135,6 +135,20 @@ FP_LIVE = {"6", "7", "8"}
 # defend to the layers that have a name to go on.
 A4_ASSIGNS_DEFEND = False
 
+# a4 classifies a sequence by `forcedpriority` precisely because its name states
+# no action — but "no attack/death/defend word" is not "no role". A name that
+# says the creature is appearing, vanishing, lying down or standing about is a
+# role, and it is never the swing. Eight Theatre of Blood families shipped with
+# one of these as `attack_anim` (RIG_AUDIT.md L2-L8, raid seam11): the Matomenos
+# `elemental_spawn`, both tornadoes' `tob_shadow_projectile_spawn`, the
+# Athanatos `tob_spider_tank_spawn` (its emerge), Bloat's 33-tick down
+# `tob_bloat_sleep`, and the death bat's only seq, its readyanim. Each was the
+# "rig's only forcedpriority 6-8 seq", because each rig holds nothing else.
+A4_NOT_AN_ATTACK = {
+    "spawn", "despawn", "emerge", "appear", "vanish", "sleep", "ready", "idle",
+    "stand", "walk", "death", "dying", "dead", "transform",
+}
+
 ACTION_WORDS = {
     "walk", "run", "idle", "stand", "ready", "attack", "block", "death", "die",
     "dead", "spawn", "hit", "hurt", "cast", "shoot", "bow", "melee", "range",
@@ -778,6 +792,7 @@ def decide(npc_id, gameval, rig_seqs, mega, words, feats, readyanim,
     # Below here the name gate is gone, so the rig has to carry the whole claim.
     # On a pile it carries nothing.
     if mega:
+        drop_own_stance(out, readyanim, rejected)
         for slot in ANIM_KEYS:
             out.setdefault(slot, (None, "a5", "rig is shared (%d seqs); only a name could tell"
                                   % len(rig_seqs)))
@@ -829,13 +844,46 @@ def decide(npc_id, gameval, rig_seqs, mega, words, feats, readyanim,
         live = [c for c in rig_seqs
                 if feats.get(c[1], {}).get("forcedpriority") in FP_LIVE]
         if len(live) == 1:
-            out["attack_anim"] = (live[0][1], "a4", "rig's only forcedpriority=6 seq")
+            role = set(live[0][1].lower().split("_")) & A4_NOT_AN_ATTACK
+            fp = feats[live[0][1]]["forcedpriority"]
+            if role:
+                # Still the only candidate, so nothing else may answer: the slot
+                # stays empty (a5) and the refusal is written down.
+                rejected["attack_anim"].append(
+                    "a4 refused %s (rig's only forcedpriority=%s seq, but its name "
+                    "states a %s, not a swing)" % (live[0][1], fp, "/".join(sorted(role))))
+            else:
+                out["attack_anim"] = (live[0][1], "a4",
+                                      "rig's only forcedpriority=%s seq" % fp)
     if A4_ASSIGNS_DEFEND and "defend_anim" not in out:
         pass  # deliberately unreachable; see the constant's note
 
+    drop_own_stance(out, readyanim, rejected)
     for slot in ANIM_KEYS:
         out.setdefault(slot, (None, "a5", "nothing on its rig names or implies one"))
     return finish(out, rejected)
+
+
+def drop_own_stance(out, readyanim, rejected):
+    """An inferred action that IS the npc's own readyanim is not an action.
+
+    The record binds its readyanim as the pose it stands in, so that sequence
+    cannot also be how it swings or dies. Verzik's death bat (rig 1809) holds one
+    sequence, `verzik_phase3_death_b`, which is its readyanim; a2 took it as "the
+    rig's only death seq" and a4 as "the rig's only forcedpriority=6 seq", so the
+    bat was ledgered to swing and die by standing still (RIG_AUDIT.md L8). Only
+    the inference layers are gated: an a0 row is another server's statement.
+    """
+    if not readyanim:
+        return
+    for slot in ANIM_KEYS:
+        if slot not in out:
+            continue
+        value, layer, _why = out[slot]
+        if value == readyanim and not layer.startswith("a0"):
+            del out[slot]
+            rejected[slot].append("%s refused %s (it is this npc's own readyanim)"
+                                  % (layer, value))
 
 
 def finish(out, rejected):

@@ -1,0 +1,611 @@
+{{Update|date=3 February 2021|rev=8 February 2021|link=https://secure.runescape.com/m=news/equipment-rebalancing-updated?oldschool=1|category=dev blog}}
+[[File:Equipment Rebalancing Updated newspost.png|right]]
+{{Clear|right}}
+{{ToC}}
+
+==Equipment Rebalancing Updated==
+We'd like to thank you for all of the feedback since first releasing the Equipment Rebalancing proposal on January 21st. There was a lot of it! We've collated some of the notable bits in the table below. We've also edited the blog with any content changes.
+
+We're confident that the changes in this blog, and previous iterations, have reached the right balance between reacting to addressable feedback and staying true to our reasons for this update. '''That means the changes will be made live in this week's game update on 10th February.''' We'll be closely monitoring the impact of the changes as well as your ongoing feedback. We'll be well-placed to react quickly, and will communicate any required changes in advance.
+
+{{Collapsed section|18|08/02/2021 Player Feedback and Our Changes <i>(click here to see more)</i>}}
+{| class="wikitable" style="width:650px; text-align:center;"
+!Your Feedback
+!Our Actions
+|-
+|You wanted Blessed Dragonhide to retain the stats it has in-game, making it a suitable cost-effective upgrade from the proposed Black Dragonhide.
+|We will exclude Blessed Dragonhide variants from the Equipment Rebalancing changes.
+|-
+|You felt that even with the increased Ranged defence added to Dinh’s Bulwark, it would not be strong enough to defend against others in PvP situations.
+|We will make the following changes to Dinh's Bulwark:
+
+* Reducing the negative Magic Defence from -25 to -10
+* Continue with the 25% reduction to Melee Defence bonuses
+* Increase Ranged Defence by 10% from what is currently offered in-game
+|-
+|You don’t want Personal Bests kill times to be reset, given many of them are achieved without using items that are being changed as part of the Equipment Rebalancing proposal.
+|We will not reset any Personal Best kill times. With the release of Combat Achievements, we’ll allow players to freely reset any Personal Best times of their choosing.
+|-
+|Mid-level players are concerned over how impactful the changes to the Toxic Blowpipe will be to them compared to maxed players.
+|We will provide more information on how these changes impact certain bosses with lower gear setups and Ranged level. See below this table for more.
+|-
+|You are concerned that many existing activities in-game will be made unnecessarily longer where the changed Toxic Blowpipe is still considered the best-in-slot option.
+|After the Equipment Rebalancing changes are live and we’ve allowed time for the dust to settle, if it’s clear that new suitable methods have not developed, we may make balancing changes to existing NPC’s where necessary.
+
+We are already aware of some NPC’s that may require some stat adjustments as a result of these changes, such as:
+* Lizardman Shamans
+* Vasa Nistirio within the Chambers of Xeric
+
+''Note: The above list is to provide examples of areas of the game that might have been made harder than we'd have liked. We would like to wait to see if suitable alternative methods and metas develop before potentially updating the stats of various NPC's, and we acknowledge that some areas could be fine-tuned post the Equipment Rebalancing changes going live.''
+|-
+|You feel like we ignored a lot of the feedback that was given as a result of the beta tests worlds we opened.
+|We used your feedback from the beta to help shape our recent changes to Black/Blessed Dragonhide and the Dinh’s Bulwark. We didn’t feel like the feedback received regarding the Toxic Blowpipe provided further adjustments that were suitable and assisted in resolving the problems we're trying to solve.
+|-
+|You'd like to know more about our plans for introducing new rewards from upcoming content that could help to fill the gaps we've managed to create with the Equipment Rebalancing changes.
+|Without any RuneFest we haven't communicated any major surprises and we know you're eager to learn more about the new challenges and equipment that the future holds. We aren't ready to share any designs yet, but we're working on an announcement that will reveal all later this Summer. We hope to have more to share regarding this Summer announcement in the next Gazette.
+|}
+
+;Lizardman Shamans
+The following DPS comparisons are based on the following:
+
+{| class="wikitable" style="width:650px; text-align:center;"
+!Setup 1
+!Setup 2
+|-
+|Slayer Helmet (i)<br>
+Amulet of Fury<br>
+Ava’s Accumulator<br>
+Full Shayzien (5) armour<br>
+Archers Ring (i)
+
+85 Ranged<br>
+Eagle Eye Prayer always active
+|Slayer Helmet (i)<br>
+Necklace of Anguish<br>
+Ava’s Assembler<br>
+Full Shayzien (5) armour<br>
+Archers Ring (i)
+
+90 Ranged<br>
+Eagle Eye Prayer always active
+|}
+
+
+[[File:Equipment Rebalancing Updated (30).png|center|650px]]
+
+
+[[File:Equipment Rebalancing Updated (31).png|center|650px]]
+
+
+[[File:Equipment Rebalancing Updated (32).png|center|650px]]
+
+
+The Setup 1 comparisons show that against Lizardman Shamans:
+* Using Adamant darts with the proposed Toxic Blowpipe will provide ~30.51% less raw DPS output compared to the in-game Toxic Blowpipe
+* Using Rune darts with the proposed Toxic Blowpipe reduces the loss in raw DPS output to ~12.41%
+* No other Ranged weapons provide the same level of DPS as the Toxic Blowpipe
+
+
+[[File:Equipment Rebalancing Updated (33).png|center|650px]]
+
+
+The Setup 2 comparisons show that against Lizardman Shamans:
+* Using Adamant darts with the proposed Toxic Blowpipe will provide ~20.78% less raw DPS output compared to the in-game Toxic Blowpipe
+* Using Rune darts with the proposed Toxic Blowpipe reduces the loss in raw DPS output to ~10.36%
+* No other Ranged weapons provide the same level of DPS as the Toxic Blowpipe
+
+While Lizardman Shamans have lower Defence, the Shayzien Armour (5) that you wear whilst fighting them has low Ranged accuracy, so the changes to the Toxic Blowpipe have a much higher impact against them. We’re considering adding some Ranged accuracy or increased damage against Lizardmen to the armour to help compensate for this, though using Rune Darts with the Toxic Blowpipe will drastically help reduce the impact of the changes.
+
+;Vorkath
+The following DPS comparisons are based on the following:
+
+{| class="wikitable" style="width:650px; text-align:center;"
+!Setup 1
+!Setup 2
+|-
+|Slayer Helmet (i)<br>
+Amulet of Fury<br>
+Ava’s Accumulator<br>
+Karil's Leathertop<br>
+Karil's Leatherskirt<br>
+Archers Ring (i)
+
+85 Ranged<br>
+Eagle Eye Prayer always active
+|Elite Void Knight Armour<br>
+Salve Amulet (ei)<br>
+Ava’s Accumulator<br>
+Archers Ring (i)
+
+90 Ranged<br>
+Eagle Eye Prayer always active
+|}
+
+
+[[File:Equipment Rebalancing Updated (34).png|center|650px]]
+
+
+[[File:Equipment Rebalancing Updated (35).png|center|650px]]
+
+
+[[File:Equipment Rebalancing Updated (36).png|center|650px]]
+
+
+[[File:Equipment Rebalancing Updated (37).png|center|650px]]
+
+
+The Setup 1 comparisons show that against Vorkath:
+* Using Adamant darts with the proposed Toxic Blowpipe will provide ~31.26% less raw DPS output compared to the in-game Toxic Blowpipe
+* Using Rune darts with the proposed Toxic Blowpipe reduces the loss in raw DPS output to ~12.85%
+* Using a Dragon Crossbow with Adamant Ruby bolts provides ~11.92% less raw DPS output compared to the in-game Toxic Blowpipe
+* Using a Dragon Crossbow with Adamant Ruby bolts will provide ~14% more raw DPS output than the Proposed Toxic Blowpipe
+
+
+[[File:Equipment Rebalancing Updated (38).png|center|650px]]
+
+
+[[File:Equipment Rebalancing Updated (39).png|center|650px]]
+
+
+The Setup 2 comparisons show that against Vorkath:
+* Using Adamant darts with the proposed Toxic Blowpipe will provide ~39.43% less raw DPS output compared to the in-game Toxic Blowpipe
+* Using Rune darts with the proposed Toxic Blowpipe reduces the loss in raw DPS output to ~25.28%
+* Using a Dragon Crossbow with Adamant Ruby bolts provides ~6.76% less raw DPS output compared to the in-game Toxic Blowpipe
+* Using a Dragon Crossbow with Adamant Ruby bolts will provide ~23.43% more raw DPS output than the Proposed Toxic Blowpipe
+
+Our intention is for the Blowpipe to remain a very powerful weapon against low Defence creatures, but to limit its power against higher Defence creatures.
+
+Vorkath is a high Defence creature, so we’d expect for the raw DPS output of the Toxic Blowpipe to be much lower after the Equipment Rebalancing changes. Unlike Lizardman Shamans, there are other viable options available to players other than the Toxic Blowpipe. We'd suggest players consider using a Crossbow instead of the Toxic Blowpipe against Vorkath.
+
+By focusing more a monster's Defence, these changes leave us in a much better position to balance future content around Ranged damage. As you can see from the above examples, certain pieces of content will be impacted more than others. After the Equipment Rebalancing changes are live and we’ve allowed time for the dust to settle, if it’s clear that new suitable methods have not developed, we may make balancing changes to existing NPC’s where necessary.
+
+We are already aware of some NPC’s that may require some stat adjustments as a result of these changes, such as:
+* Lizardman Shamans
+* Vasa Nistirio within the Chambers of Xeric
+
+''Note: The above list is to provide examples of areas of the game that might have been made harder than we'd have liked. We would like to wait to see if suitable alternative methods and metas develop from the changes before potentially updating the stats of various NPC's, and we acknowledge that some areas could be fine-tuned post nerf.''
+{{Collapsed section end}}
+----
+
+With the recent beta worlds coming to an end and the conversations still ongoing, we'd like to update you on our plans for Equipment Rebalancing.
+
+Whether it's tackling growing concerns over powercreep, general balancing alterations or improving consistency, we need to make some changes that will benefit the game's long-term health. If you haven't seen the previous updates, you can check them out here:
+
+[https://secure.runescape.com/m=news/equipment-rebalancing?oldschool=1 Equipment Rebalancing - Original Blog]<br>
+[https://secure.runescape.com/m=news/equipment-rebalancing-changes?oldschool=1 Equipment Rebalancing - Specific Changes Blog]
+
+This blog will cover all the changes we now intend to make, having incorporated as much of your feedback as possible. Any further changes will be added to this blog, and will be highlighted in a changelog.
+
+{{Collapsed section|18|<i>Quick summary of the main changes included in this post from 03/02/2021:</i>}}
+* Messaging added around Tier rebalancing impacting pures
+* <s>Blessed Dragonhide changed to retain the current Magic and Ranged defence stats offered in-game. The Melee defence stats have been reduced at the same rate of Black Dragonhide.</s> Updated on 08/02/2021, see top of post for more info.
+* <s>Dinh's Bulwark Ranged defence increased to 200. Previously proposed stat reductions remain.</s> Updated on 08/02/2021, see top of post for more info.
+* Toxic Blowpipe changes match what we allowed players to test in the Beta.
+* Information added to say why we're not looking to fill the gap left behind following the blowpipe changes just yet.
+* Information added to say why we're not buffing Crystal Armour or the Crystal Bow just yet.
+* Confirmation that we're going ahead with changing the Dragon Warhammer to require Strength instead of Attack, alongside other Warhammer changes.
+* Inclusion of the Dragon Spear with the attack rate increase of other spears.
+* Basilisk Knights to have their special attack removed, their stats remain as they are, and Basilisk Sentinels will have their special attack changed so auto-retaliate doesn't break it.
+* Information regarding how we're handling Personal Bests following these changes (resetting for all and storing historic times).
+{{Collapsed section end}}
+
+==Shed No Tiers==
+Some of the most powerful weapons in Old School have requirements much lower than their perceived or actual strength. This has left little room for new weapons to be introduced without causing powercreep, and many players feel confused about how strong some items actually are.
+
+We don't have many options when it comes to equipment 'tiers' in Old School, so we need to adjust the requirements of certain items to better match their stats. This helps expose gaps for us to add new items in the future.
+
+We are aware that these changes will negatively impact certain accounts and builds more than others - particularly stat limited builds for both PvP and PvM. We already discussed some alternative options that would allow these builds to continue in their current form, whilst still trying to achieve the results we're aiming for.
+
+But all things considered, the original proposal remained the most rounded and effective, and offered the most clarity in terms of tier rebalancing.
+
+We know this isn't an ideal solution for everyone, and we're genuinely sympathetic to the players who will be impacted. We hope that, in the short-term, you will find creative ways to adjust to a new meta whilst we wait to take advantage of the numerous reward opportunities that will be created as a result.
+
+<div class="center">
+'''Ghrazi Rapier'''
+
+[[File:Equipment Rebalancing Updated (1).png|center|100px]]
+
+Current requirements: 75 Attack<br>
+Proposed requirements: 80 Attack
+
+'''Blade of Saeldor'''
+
+[[File:Equipment Rebalancing Updated (2).png|center|100px]]
+
+Current requirements: 75 Attack<br>
+Proposed requirements: 80 Attack
+
+'''Inquisitor’s Mace'''
+
+[[File:Equipment Rebalancing Updated (3).png|center|100px]]
+
+Current requirements: 75 Attack<br>
+Proposed requirements: 80 Attack
+
+'''Trident of the Swamp'''
+
+[[File:Equipment Rebalancing Updated (4).png|center|100px]]
+
+Current requirements: 75 Magic<br>
+Proposed requirements: 78 Magic
+
+'''Sanguinesti Staff'''
+
+[[File:Equipment Rebalancing Updated (5).png|center|100px]]
+
+Current requirements: 75 Magic<br>
+Proposed requirements: 82 Magic
+
+'''Kodai Wand'''
+
+[[File:Equipment Rebalancing Updated (6).png|center|100px]]
+
+Current requirements: 75 Magic<br>
+Proposed requirements: 80 Magic
+
+'''Nightmare Staff (base)'''
+
+[[File:Equipment Rebalancing Updated (7).png|center|100px]]
+
+Current requirements: 65 Magic<br>
+Proposed requirements: 72 Magic
+
+'''Nightmare Staff (with any orb attached)'''
+
+[[File:Equipment Rebalancing Updated (8).png|center|100px]]
+
+Current requirements: 75 Magic<br>
+Proposed requirements: 82 Magic
+
+'''Dragon Hunter Crossbow'''
+
+[[File:Equipment Rebalancing Updated (9).png|center|100px]]
+
+Current requirements: 65 Ranged<br>
+Proposed requirements: 70 Ranged
+
+'''Dragon Hunter Lance'''
+
+[[File:Equipment Rebalancing Updated (10).png|center|100px]]
+
+Current requirements: 70 Attack<br>
+Proposed requirements: 78 Attack
+
+'''Scythe of Vitur'''
+
+[[File:Equipment Rebalancing Updated (11).png|center|100px]]
+
+Current requirements: 75 Attack and 75 Strength<br>
+Proposed requirements: 85 Attack and 85 Strength
+</div>
+
+==Nerfing the Nerf-able==
+Requirements aside, there are some items that are simply too powerful to remain as they are. Whether the problems concern PvP or PvM, the issues vary per item, so we'll cover each one individually:
+
+===Twisted Bow===
+Generally we're happy with where the Twisted Bow sits. It's much simpler for us to balance around the Twisted Bow because of its unique effect - the higher the target's Magic level or Magic accuracy, the higher the Twisted Bow's accuracy and damage becomes.
+
+If we want to introduce a new boss that is not susceptible to the Twisted Bow, it's simply a case of us ensuring it has a lower Magic level or reduced Magic accuracy stats. Changing this has zero impact on any other Ranged weapons, as they all roll based on the target's Defence level or Ranged defence stat.
+
+So, these are relatively minor changes designed to better reflect the item's strength and remove the Prayer bonus, which doesn't really fit considering it's not a godly item.
+
+Current requirements: 75 Ranged<br>
+Proposed requirements: 85 Ranged
+
+Current Prayer bonus: +4<br>
+Proposed Prayer bonus: +0
+
+<div class="center">Left image showing current stats, right image showing proposed stats </div>
+[[File:Equipment Rebalancing Updated (12).png|center]]
+
+===Dragonhide Armour===
+For a long time, Dragonhide armour has been notoriously powerful for an incredibly low cost. It offers high Defence bonuses, especially against Magic Attacks, with negligible negative stats to offset this. The armour generally goes against the Combat triangle and doesn't follow the same stat distribution as similar Ranged armours, and the imbalance is further emphasised in PvP.
+
+We'd like to address this by lowering the overall Defence bonuses of Dragonhide, with a focus on Melee Defence.
+
+''These changes would apply to all tiers of Dragonhide armour, but we'll use Black Dragonhide specifically for this example.''
+
+<div class="center">Current Stats</div>
+[[File:Equipment Rebalancing Updated (13).png|center]]
+
+<div class="center">Proposed Stats</div>
+[[File:Equipment Rebalancing Updated (14).png|center]]
+
+As the issue with Dragonhide is most prevalent in PvP, focusing the changes on its Melee Defence will encourage players to try different armour pieces - all while having a much lower impact on players focusing on PvM encounters. This naturally balances the Combat triangle, as typically higher Melee Defence items are susceptible to Magic Attacks.
+
+===Blessed Dragonhide Armour===
+With both Crystal and Karil's armour base stats remaining as they are, they naturally become a more expensive alternative to help fill the gap left by the changes to the standard and much cheaper Dragonhide armours.
+
+As Blessed Dragonhide armour is locked behind the completion of Treasure Trails, the pieces typically hold a much higher cost than their craftable counterparts. We know there is a lot of support within the community to leave Blessed Dragonhide out of the rebalancing changes, so we're going to do exactly that.
+
+Blessed Dragonhide armour '''will not be changed''' as part of the Equipment Rebalancing changes. All God variations of the armour will retain the same stats as they have in-game currently.
+
+===Dinh's Bulwark===
+Dinh's Bulwark has incredibly high Defence bonuses with zero negative effects to offset them, completely going against the Combat triangle. Whilst it has some uses in PvM, its design means these are very limited and not necessarily a reflection of its stats. There just aren't currently many reasons for you to be a Gielinorian shield wall!
+
+The main issue with the shield is in PvP, where it negates a large portion of the risk associated by venturing into the Wilderness. Even though it is primarily a defensive item and a big shield should most definitely have high defensive capabilities, we feel the Dinh's Bulwark is just too strong to currently be considered balanced within PvP.
+
+We'd therefore like to make the following changes to emphasise the Bulkwark's effectiveness as a Ranged Defence item instead:
+* Adding -10 Magic Defence
+* Reduce Melee Defence bonuses by 25%
+* Increase Ranged Defence by 10%
+
+<div class="center">Left image showing current stats, right image showing proposed stats </div>
+[[File:Equipment Rebalancing Updated (17).png|center]] 
+
+===Toxic Blowpipe===
+It's no secret that the Toxic Blowpipe is strong - it's one of the reasons why it gets used by almost every player in any situation where Ranged damage is preferable (and even at times when it's not, as it still outperforms some of the most expensive items). Having a single strong item for a number of activities is generally fine but, put simply, the Blowpipe is just too powerful. There is little reason to use any other weapon if Ranged attacks are an option.
+
+Adding to this lack of variety, it's also difficult for us to effectively balance around its strength. Its high attack speed means it benefits hugely from additional Ranged strength and accuracy, both of which are already high due to the Blowpipe's strong base stats.
+
+This leaves us little room for adding new Ranged items with strength and accuracy. We've tried and failed on multiple occasions.
+
+In its current form, the Blowpipe's also far too cheap to purchase and maintain to justify how powerful it is. Using Bronze darts can output a higher DPS than some of the most expensive gear setups available. That is a problem we need to solve.
+
+Taking all of that into account, we've made some changes that we feel leave the Toxic Blowpipe in a much healthier position. Our intention remains for the Blowpipe to remain a very powerful weapon against low Defence creatures, but to limit its power against higher Defence creatures:
+* '''We add 100% increased accuracy to the special attack.''' ''This accuracy bonus would work the same way similar accuracy boosting specials attacks do, such as the 'Warstrike' from the Bandos Godsword.''
+* Adamant Darts Ranged strength is increased from 8 to 10
+* Rune Darts Ranged strength is increased from 14 to 20
+* Dragon Darts Ranged strength is increased from 20 to 28
+
+The above changes reduce the impact of the Blowpipe nerf, yet remain in line with our original intentions, properly enforcing where the weapon will be used as well as creating a bigger gap between dart tiers.
+
+As such, we'll also increase the Ranged level required to equip it, in line with the other tier rebalancing we've done.
+
+Current requirements: 75 Ranged<br>
+Proposed requirements: 78 Ranged
+
+<div class="center">Left image showing current stats, right image showing proposed stats </div>
+[[File:Equipment Rebalancing Updated (18).png|center]]
+
+The below tables highlight the difference between the In-Game and Proposed stats for Darts and the Toxic Blowpipe:
+
+[[File:Equipment Rebalancing Updated (19).png|center]]
+
+
+[[File:Equipment Rebalancing Updated (20).png|center]]
+
+As you can see, there is still a clear difference between the new and old versions, even when slightly nerfing the most expensive darts. This is intentional - we're not simply making it more expensive to upkeep, as that is only part of the problem.
+
+So how much will these changes impact you in-game? The answer varies based on what type of monster you're killing. We've put together some examples that highlight the difference.
+
+''Note: the below calculations are done based on the user wearing either the maximum Ranged bonuses available or full Elite Void Knight armour. They do not necessarily reflect the specific gear choices you'd make in these situations, and are used purely to highlight the differences.''
+
+[[File:Equipment Rebalancing Updated (21).png|thumb|center|600px|''You can click the image for a larger version.'']]
+
+* The difference in raw DPS output is much smaller when facing low Defence creatures where accuracy is not as important.
+* The Blowpipe outperforms the Armadyl Crossbow even when using Adamant darts against low Defence creatures.
+* Using higher tier darts (Rune/Dragon) closes the gap in DPS significantly in comparison to cheaper darts (Adamant and below).
+* Conversely, the difference in raw DPS output is much bigger when facing high Defence creatures where accuracy is more important.
+
+===Lizardman Shamans===
+The following DPS comparisons are based on the following:
+
+{| class="wikitable" style="width:650px; text-align:center;"
+!Setup 1
+!Setup 2
+|-
+|Slayer Helmet (i)<br>
+Amulet of Fury<br>
+Ava’s Accumulator<br>
+Full Shayzien (5) armour<br>
+Archers Ring (i)
+
+85 Ranged<br>
+Eagle Eye Prayer always active
+|Slayer Helmet (i)<br>
+Necklace of Anguish<br>
+Ava’s Assembler<br>
+Full Shayzien (5) armour<br>
+Archers Ring (i)
+
+90 Ranged<br>
+Eagle Eye Prayer always active
+|}
+
+
+[[File:Equipment Rebalancing Updated (30).png|center|650px]]
+
+
+[[File:Equipment Rebalancing Updated (31).png|center|650px]]
+
+
+[[File:Equipment Rebalancing Updated (32).png|center|650px]]
+
+
+The Setup 1 comparisons show that against Lizardman Shamans:
+* Using Adamant darts with the proposed Toxic Blowpipe will provide ~30.51% less raw DPS output compared to the in-game Toxic Blowpipe
+* Using Rune darts with the proposed Toxic Blowpipe reduces the loss in raw DPS output to ~12.41%
+* No other Ranged weapons provide the same level of DPS as the Toxic Blowpipe
+
+
+[[File:Equipment Rebalancing Updated (33).png|center|650px]]
+
+
+The Setup 2 comparisons show that against Lizardman Shamans:
+* Using Adamant darts with the proposed Toxic Blowpipe will provide ~20.78% less raw DPS output compared to the in-game Toxic Blowpipe
+* Using Rune darts with the proposed Toxic Blowpipe reduces the loss in raw DPS output to ~10.36%
+* No other Ranged weapons provide the same level of DPS as the Toxic Blowpipe
+
+While Lizardman Shamans have lower Defence, the Shayzien Armour (5) that you wear whilst fighting them has low Ranged accuracy, so the changes to the Toxic Blowpipe have a much higher impact against them. We’re considering adding some Ranged accuracy or increased damage against Lizardmen to the armour to help compensate for this, though using Rune Darts with the Toxic Blowpipe will drastically help reduce the impact of the changes.
+
+===Vorkath===
+The following DPS comparisons are based on the following:
+
+{| class="wikitable" style="width:650px; text-align:center;"
+!Setup 1
+!Setup 2
+|-
+|Slayer Helmet (i)<br>
+Amulet of Fury<br>
+Ava’s Accumulator<br>
+Karil's Leathertop<br>
+Karil's Leatherskirt<br>
+Archers Ring (i)
+
+85 Ranged<br>
+Eagle Eye Prayer always active
+|Elite Void Knight Armour<br>
+Salve Amulet (ei)<br>
+Ava’s Accumulator<br>
+Archers Ring (i)
+
+90 Ranged<br>
+Eagle Eye Prayer always active
+|}
+
+
+[[File:Equipment Rebalancing Updated (34).png|center|650px]]
+
+
+[[File:Equipment Rebalancing Updated (35).png|center|650px]]
+
+
+[[File:Equipment Rebalancing Updated (36).png|center|650px]]
+
+
+[[File:Equipment Rebalancing Updated (37).png|center|650px]]
+
+
+The Setup 1 comparisons show that against Vorkath:
+* Using Adamant darts with the proposed Toxic Blowpipe will provide ~31.26% less raw DPS output compared to the in-game Toxic Blowpipe
+* Using Rune darts with the proposed Toxic Blowpipe reduces the loss in raw DPS output to ~12.85%
+* Using a Dragon Crossbow with Adamant Ruby bolts provides ~11.92% less raw DPS output compared to the in-game Toxic Blowpipe
+* Using a Dragon Crossbow with Adamant Ruby bolts will provide ~14% more raw DPS output than the Proposed Toxic Blowpipe
+
+
+[[File:Equipment Rebalancing Updated (38).png|center|650px]]
+
+
+[[File:Equipment Rebalancing Updated (39).png|center|650px]]
+
+
+The Setup 2 comparisons show that against Vorkath:
+* Using Adamant darts with the proposed Toxic Blowpipe will provide ~39.43% less raw DPS output compared to the in-game Toxic Blowpipe
+* Using Rune darts with the proposed Toxic Blowpipe reduces the loss in raw DPS output to ~25.28%
+* Using a Dragon Crossbow with Adamant Ruby bolts provides ~6.76% less raw DPS output compared to the in-game Toxic Blowpipe
+* Using a Dragon Crossbow with Adamant Ruby bolts will provide ~23.43% more raw DPS output than the Proposed Toxic Blowpipe
+
+Our intention is for the Blowpipe to remain a very powerful weapon against low Defence creatures, but to limit its power against higher Defence creatures.
+
+Vorkath is a high Defence creature, so we’d expect for the raw DPS output of the Toxic Blowpipe to be much lower after the Equipment Rebalancing changes. Unlike Lizardman Shamans, there are other viable options available to players other than the Toxic Blowpipe. For example, players might want to consider using a Crossbow instead of the Toxic Blowpipe against Vorkath.
+
+[[File:Equipment Rebalancing Updated (22).png|thumb|center|600px|''You can click the image for a larger version.'']]
+
+By focusing more a monster's Defence, these changes leave us in a much better position to balance future content around Ranged damage. As you can see from the above examples, certain pieces of content will be impacted more than others. After the Equipment Rebalancing changes are live and we’ve allowed time for the dust to settle, if it’s clear that new suitable methods have not developed, we may make balancing changes to existing NPC’s where necessary.
+
+We are already aware of some NPC’s that may require some stat adjustments as a result of these changes, such as:
+* Lizardman Shamans
+* Vasa Nistirio within the Chambers of Xeric
+
+''Note: The above list is to provide examples of areas of the game that might have been made harder than we'd have liked. We would like to wait to see if suitable alternative methods and metas develop from the changes before potentially updating the stats of various NPC's, and we acknowledge that some areas could be fine-tuned post nerf.''
+
+We are not currently looking to implement an upgrade item or replacement weapon for the current Blowpipe as it is currently in-game, but we are extremely grateful for the many wonderful suggestions we've received. Maybe you'll see your suggestion appearing in future content pitches!
+
+With the increased emphasis on higher tier darts to achieve maximum DPS output, we expect demand for them to increase accordingly. We'll be actively monitoring their availability and are already looking into suitable drop tables (both existing and new) where these dart tips could be included. We'll share more information on this when we've gathered some data once the changes have rolled out - we want to avoid rushing into anything that could have a negative impact on their already well established economy.
+
+==Buffing the Bad==
+===Dragonbone Necklace & Bonecrusher Necklace===
+Considering their requirements, the Dragonbone Necklace and Bonecrusher Necklace are very weak items. While they have some uses in super niche situations, on multiple occasions you've asked us to buff them.
+
+We'd look to make the following changes:
+* Reduce Prayer requirement from 80 to 70.
+* Remove the delay before the special effect activates.
+* Increase their base stats similar to those offered by an Amulet of Glory, with fewer Defence and Strength bonuses.
+
+<div class="center">Current Stats</div>
+[[File:Equipment Rebalancing Updated (23).png|center]]
+
+<div class="center">Proposed Stats</div>
+[[File:Equipment Rebalancing Updated (24).png|center]]
+
+===Crystal Armour & Crystal Bow===
+Even after the Toxic Blowpipe changes, Crystal Armour and the Crystal Bow are still stuck with fairly underwhelming performance in relation to their high requirements and maintenance cost. Currently, Crystal Armours have a special set effect where each piece will give a 3% damage boost and 6% accuracy bonus to the Crystal Bow. If all pieces are worn, the player receives a 15% damage boost and 30% accuracy bonus.
+
+We'd like to make the following changes:
+* Increase the damage bonus with a Crystal Bow when wearing a full set of Crystal Armour from 15% to 20%
+
+This change does not fill the gap left behind after the Toxic Blowpipe changes, but as mentioned earlier, we're not looking to fill that gap right now. There may well be further improvements made to the Crystal Armour set and Crystal Bow, but it's more likely to come from new content released in the future rather than part of this Equipment Rebalancing. This change is to help establish the Crystal Armour and Bow set as a slightly more viable option than it is currently for higher Defence creatures where Ranged damage is relevant.
+
+==Additional Changes==
+There is a huge variety of armour and weaponry available to us, yet every armour-clad champion wandering Gielinor in search of adventure looks practically the same! This section focuses on improving the diversity of kit available, giving more purpose to lower-level gear in particular.
+
+===Warhammmers===
+Warhammers are slower and weaker than Longswords, and are completely outclassed by Battleaxes - even though they share the same Attack speed.
+
+We'd like to propose the following for '''Bronze to Rune Warhammers''':
+* Change the requirements to equip them from Attack levels to Strength instead.
+* Increase the Strength bonus they offer so it is only slightly lower than their Battleaxe counterparts.
+
+For consistency, we would also change the equip requirements for the Dragon Warhammer from 60 Attack to 60 Strength - a welcome move for the 1 Attack pure community. We're really excited to see the new creative methods you develop as a result of this change! The stats of the hammer will remain untouched.
+
+<div class="center">Left image showing current stats, right image showing proposed stats</div>
+[[File:Equipment Rebalancing Updated (25).png|center]]
+
+
+This change means using a Warhammer would provide more accuracy than a Battleaxe, potentially making it a good option if the increased Strength bonus from a Battleaxe wouldn't give you a max hit, or if crush Attack bonus is favoured.
+
+===Maces, Spears and Hastae===
+These weapons have similar bonuses to their Scimitar counterparts, but their lower Attack speed makes them significantly worse to use.
+
+We'd like to propose the following for '''Bronze to Rune Maces, Spears and Hastae''':
+* Change the Attack speed from 5 game cycles to 4 game cycles, matching that of the Scimitars.
+
+In addition to this, we'd also:
+* Change the Attack speed of the Dragon Mace to 4 game cycles instead of 5.
+* Change the Attack speed of the Dragon Spear to 4 game cycles instead of 5.
+
+===Metal Armour===
+'Lighter' armour like Chainbodies, Med Helms and Square Shields are completely outclassed by their counterparts - Platebodies, Full Helms and Kiteshields. They are meant to be a more viable choice for those wanting additional Defence without reducing your Ranged accuracy.
+
+These 'heavier' armour pieces go against the Combat triangle and provide too small a negative Ranged Attack bonus to justify using anything else.
+
+We'd like to propose the following:
+* Increase the negative Ranged Attack bonus by 50% for all Platebodies, Full Helms, Kiteshields, Platelegs and Plateskirts.
+* Remove the negative Ranged Attack bonus for all Med Helms and Square Shields. ''This includes the Dragon Sq Shield.''
+
+<div class="center">Current Stats of Rune Full Helm, Platebody, Platelegs and Kiteshield</div>
+[[File:Equipment Rebalancing Updated (26).png|center]]
+
+<div class="center">Proposed Stats of Rune Full Helm, Platebody, Platelegs and Kiteshield</div>
+[[File:Equipment Rebalancing Updated (27).png|center]]
+
+<div class="center">Current Stats of Rune Med Helm and Sq Shield</div>
+[[File:Equipment Rebalancing Updated (28).png|center]]
+
+<div class="center">Proposed Stats of Rune Med Helm and Sq Shield</div>
+[[File:Equipment Rebalancing Updated (29).png|center]]
+
+===Basilisk Knights===
+If you saw our original Equipment Rebalancing blog, you'll know that we initially planned to adjust the stats of the Neitiznot Faceguard to better reflect difficulty of the content it comes from. However, we decided against this, meaning the Faceguard will remain as it currently is.
+
+We'd still like to take this opportunity to revisit the Basilisk Knights, though. We're only looking to make a minor change at the moment:
+* We'll remove the special attack from Basilisk Knights.
+* We'll update the special attack of the Basilisk Sentinels so it can no longer be broken with auto-retaliate.
+* We'll keep the stats of Basilisk Knights and Sentinels as they are currently in-game.
+
+There is potential for us to introduce a higher tier and more difficult variation of the Basilisk Knights, and your feedback suggests that it would be a welcome addition. But this will not be included as part of the Equipment Rebalancing work.
+
+===Personal Bests===
+In our initial proposal we did not touch on how we'd approach already obtained Personal Bests for boss kill times. We previously discussed resetting all Personal Best kills times but your feedback suggests this was the wrong approach, so we have decided the best option going forward is:
+
+* We will not reset any Personal Best kill times.
+* With the release of Combat Achievements, we’ll allow players to freely reset any Personal Best times of their choosing.
+
+Personal Best times aside, we'd also like to touch on the upcoming Combat Achievements update.
+
+In the Combat Achievements poll blog, we said some speed task completions will carry over and count towards task completions.
+
+Given the nature of the Equipment Rebalancing proposals, we feel it's only fair that we don't carry over any speed completions aside from those earned within encounters where your gear doesn't matter (such as the Gauntlet). So all speed tasks, outside of the Gauntlet, will need to be obtained again to be completed.
+
+-----
+
+Talking about the Equipment Rebalancing changes hasn't been easy for any of us. It's a decision we haven't taken lightly, but it's one that feels absolutely necessary to preserve the longevity of Old School. The feedback you've provided has helped us shape the proposal you're seeing today and we're thankful for those of you that have contributed in discussions surrounding the changes.
+
+We hope you'll continue working with us to find the best outcome for the game going forward, and we'll remain hell-bent on working closely with you to finalise any changes we make before they go live in-game, even when they're not polled.
+
+As always, we'd love to hear what you think about the proposed Equipment Rebalancing changes, so please share your feedback with us via our [http://services.runescape.com/m=forum/forums.ws?380,381,693,66202444 official forums], on the [https://old.reddit.com/r/2007scape/comments/lfh156/equipment_rebalancing_updated_again/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Ed, Elena, Errol, Fed, Flippy, Gayns, Gecko, Gee, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

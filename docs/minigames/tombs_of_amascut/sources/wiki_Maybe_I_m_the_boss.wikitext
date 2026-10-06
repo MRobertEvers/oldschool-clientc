@@ -1,0 +1,205 @@
+{{Infobox Combat Achievement
+|name = Maybe I'm the boss.
+|image = [[File:Tombs of Amascut - fighting Tumeken's Warden.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete a Tombs of Amascut raid with every single boss invocation activated and without anyone dying.
+|tier = Grandmaster
+|monster = Tombs of Amascut: Expert Mode
+|type = Mechanical
+|id = 448
+|leagueRegion = Desert
+}}
+'''Maybe I'm the boss.''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete a [[Tombs of Amascut]] raid with every single boss invocation activated and without anyone dying.
+
+==Strategy==
+All boss invocations must be activated to attempt this achievement. This includes invocations that are commonly considered annoying such as '''Medic!''', '''Keep Back''', and '''Double Trouble'''. Having all the invocations active will result in a raid level of 310. It is recommended to attempt this task in a group encounter, as Akkha's and Kephri's mechanics are easier to handle in a group. However, decently skilled player shouldn't have much trouble completing this in a solo encounter either.
+
+[[Akkha]] is the largest threat in this achievement, as '''Double Trouble''' will result in Akkha using two special attacks at once. This is particularly problematic if this rolls into memory and orbs, as the orbs will not expire before the memory quadrants below path level 4. Akkha's other invocations are less of a threat, but by attempting in a group, players may instead get memory and detonation, which is far easier to handle. Player should also be familiar with how to deal with '''Keep Back''' invocation before attempting this task, especially if attempting solo.
+
+Fighting [[Kephri]] will also be slower since the player has to kill the scarabs that spawn in each charge interlude and have to handle the occasional [[Scarab Swarm (Tombs of Amascut)|scarab swarm]] that appears outside of charging phases. By doing this in a group encounter, '''Medic!''' is less of an issue.
+
+[[Zebak]] and [[Ba-Ba]] are less of a hassle with all of their invocations toggled on, although care should be taken with '''Upset Stomach''', '''Boulderdash''' and '''Mind the Gap'''.
+
+The other invocations do not need to be toggled, thus allowing the [[Helpful Spirit]] to provide full supplies to the player, and all path levels to stay at zero. A normal run (Ba-Ba/Zebak into Kephri) is beneficial for the extra supplies for Akkha in the event of mistakes, as the Wardens should not use too much in most circumstances.
+
+{| class="wikitable sortable sticky-header align-center-1" style="text-align:left;"
+! colspan="2" class="unsortable" style="width: 15%" | Invocation
+! class="unsortable" style="width: 70%" | Details
+! style="width: 7%" | Raid lvl modifier
+! class="unsortable" style="width: 8%" | Category
+|-
+|[[File:Kephri icon.png|link=]]
+|Lively Larvae
+|The number of dark brown eggs launched during Kephri's Mass Incubation attack will increase from 2 to 4.
+| +5
+|Kephri
+|-
+|[[File:Kephri icon.png|link=]]
+|More Overlords
+|An additional scarab is summoned during Kephri's shield healing phases. The first summons a [[Soldier Scarab]], while the second summons a [[Spitting Scarab]].
+| +15
+|Kephri
+|-
+|[[File:Kephri icon.png|link=]]
+|Blowing Mud
+|The number of players targeted by Kephri's Dung Strike attack is increased to two.
+
+This invocation has no effect in solo encounters.
+| +10
+|Kephri
+|-
+|[[File:Kephri icon.png|link=]]
+|Medic!
+|Kephri will summon [[Scarab Swarm (Tombs of Amascut)|scarab swarms]] outside her shield healing phases.
+| +15
+|Kephri
+|-
+|[[File:Kephri icon.png|link=]]
+|Aerial Assault
+|Kephri's auto-attack will do more damage, and its attack range will increase from a single tile to a 3x3 area.
+
+This invocation also applies to [[Kephri's Phantom]] during the third phase of the fight with [[Elidinis' Warden]].
+| +10
+|Kephri
+|-
+|[[File:Zebak icon.png|link=]]
+|Not Just a Head
+|
+* Zebak will occasionally cast a form of [[Blood Blitz]] on all players. This attack will always hit regardless of defensive bonuses, unless [[Protect from Magic]] is active; if damage is inflicted, Zebak will slightly heal.
+* He will also summon [[Blood Cloud]]s that rapidly sap the player's health if next to one.
+| +15
+|Zebak
+|-
+|[[File:Zebak icon.png|link=]]
+|Arterial Spray
+|Zebak's blood magic will have increased range and healing.
+
+Not Just a Head must be active in order to activate this invocation.
+| +10
+|Zebak
+|-
+|[[File:Zebak icon.png|link=]]
+|Blood Thinners
+|Three [[Blood Cloud]]s are summoned instead of one.
+
+Not Just a Head must be active in order to activate this invocation.
+| +5
+|Zebak
+|-
+|[[File:Zebak icon.png|link=]]
+|Upset Stomach
+|Zebak's acid pools will have increased spread, and jugs will only wash away a 3x3 area instead of 5x5.
+| +15
+|Zebak
+|-
+|[[File:Akkha icon.png|link=]]
+|Double Trouble
+|Akkha will perform two special attacks at once.
+| +20
+|Akkha
+|-
+|[[File:Akkha icon.png|link=]]
+|Keep Back
+|Akkha's ranged and magic attacks will also deal melee damage to anyone next to him.
+| +10
+|Akkha
+|-
+|[[File:Akkha icon.png|link=]]
+|Stay Vigilant
+|Akkha will randomly switch between attack styles and protection prayers, rather than at set intervals.
+
+This invocation also applies to [[Akkha's Phantom]] during the third phase of the fight with [[Elidinis' Warden]].
+| +15
+|Akkha
+|-
+|[[File:Akkha icon.png|link=]]
+|Feeling Special?
+|
+* Akkha's Detonate attack will trigger in more directions. This is not applied in solo encounters.
+* The Memory Blast attack will only provide two [[ticks]] for players to move between safe quadrants.
+* The Trailing Orbs attack spawns an additional orb two tiles in front of the player.
+| +20
+|Akkha
+|-
+|[[File:Ba-Ba icon.png|link=]]
+|Mind the Gap!
+|When Ba-Ba knocks back the player to the bottom of the room at 66% and 33% health, players will fall into the pit and die, unless they stand at the northern/southern sides of the room.
+| +10
+|Ba-Ba
+|-
+|[[File:Ba-Ba icon.png|link=]]
+|Gotta Have Faith
+|Energy blasts from open sarcophagi in Ba-Ba's room will deal additional damage based on the player's remaining [[prayer points]].
+| +10
+|Ba-Ba
+|-
+|[[File:Ba-Ba icon.png|link=]]
+|Jungle Japes
+|Ba-Ba's [[baboon]]s will drop a [[banana peel]] on the floor on death. If stepped on, players take a small amount of damage and is stunned for 3 seconds.
+| +5
+|Ba-Ba
+|-
+|[[File:Ba-Ba icon.png|link=]]
+|Shaking Things Up
+|The shockwave from Ba-Ba's slam attack will damage a wider area.
+| +10
+|Ba-Ba
+|-
+|[[File:Ba-Ba icon.png|link=]]
+|Boulderdash
+|Ba-Ba's rolling boulders will spawn slightly faster.
+| +10
+|Ba-Ba
+|-
+|[[File:Tumeken's Warden icon.png|link=]]
+|Ancient Haste
+|During the first phase of the Wardens' fight, the Wardens will charge at a faster rate.
+| +10
+|The Wardens
+|-
+|[[File:Tumeken's Warden icon.png|link=]]
+|Acceleration
+|During the second phase of the Wardens' fight, the Warden attacks faster while the obelisk charges faster.
+| +10
+|The Wardens
+|-
+|[[File:Tumeken's Warden icon.png|link=]]
+|Penetration
+|During the second phase of the Wardens' fight, the obelisk will deal more damage to successful attacks and also temporarily disable overhead prayers.
+| +10
+|The Wardens
+|-
+|[[File:Tumeken's Warden icon.png|link=]]
+|Overclocked
+|During the final phase of the Wardens' fight, the slam attack is performed 1 [[tick]] faster.
+| +10
+|The Wardens
+|-
+|[[File:Tumeken's Warden icon.png|link=]]
+|Overclocked 2
+|During the final phase of the Wardens' fight, the slam attack is performed 2 [[tick]]s faster.
+
+''Overclocked must be active in order to activate this invocation.''
+| +10
+|The Wardens
+|-
+|[[File:Tumeken's Warden icon.png|link=]]
+|Insanity
+|During the final phase of the Wardens' fight, the following are applied:
+* The slam attack is performed 3 [[tick]]s faster.
+* There is less time to reverse the [[Energy Siphon]]s.
+* The slam attack resumes based on where the Warden left off prior to launching Energy Siphons rather than resetting positions.
+* Red lightning strikes faster
+* Each row of floor tiles are removed at a faster pace.
+
+''Overclocked 2 must be active in order to activate this invocation.''
+| +50
+|The Wardens
+|}
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

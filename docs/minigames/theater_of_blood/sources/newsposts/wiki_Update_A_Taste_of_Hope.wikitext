@@ -1,0 +1,82 @@
+{{Update|date=24 May 2018|link=http://services.runescape.com/m=news/a-taste-of-hope?oldschool=1|category=game}}
+[[File:A Taste of Hope newspost.png|right]]
+{{clear}}
+
+<center>''This week's update sees the release of '''A Taste of Hope''', the next quest in the Myreque line. We've made a change to Chambers of Xeric: Challenge Mode based on your feedback. And you can win a gaming laptop!''</center>
+
+
+{{Horizontal Line}}
+
+{{Headline|25|A Taste Of Hope}}
+
+For many years, the Myreque have fought back against the reign of the Drakans. To many, they act as a glimmer of hope in an otherwise miserable existence. In recent times, the Myreque have been beset by disaster, with numerous members meeting a gruesome end at the hands of Vanstrom Klause, the brutal henchman of the Drakans. However, while the Myreque may be in their darkest hour, hope still remains. Thanks to a recent discovery in the laboratories deep beneath Meiyerditch, the Myreque may have finally found a way to take the fight to the vampyres. They will do just that in the latest installment in the Myreque questline, A Taste of Hope.
+
+[[File:A Taste of Hope (1).png|center]]
+
+A Taste of Hope is a new '''Experienced''' level quest available to players who have completed Darkness of Hallowvale. Players who manage to complete this quest will be rewarded with the following:
+
+*1 Quest Point.
+*A Tome of Experience (this grants 2500 XP in any three skills of 35 or above).
+*A new unlimited teleport that takes players directly to the Theatre of Blood.
+*A new weapon for killing vampyres.
+
+{{Horizontal Line}}
+
+Today's update has also seen a new area added to the [http://cdn.runescape.com/assets/img/external/oldschool/web/osrs_world_map_may22_2018.png world map]. ''Isn't it satisfying to see fewer black squares?''
+
+You can get to the new area by walking from Port Phasmatys, taking a boat from nearby the Ectofuntus, or walking through Meiyerditch (provided you've completed Darkness of Hallowvale).
+
+The new areas contain locations to hunt Swamp lizards, cut Yew trees, and there are new Swamp crabs for you to fight. One of the most notable additions to the map is the town of Slepe which contains a host of new characters and lore to immerse yourselves in.
+
+Finally, we'd like to extend a special thank you to '''Mod Surma from the audio team''' for the two music tracks he has provided for today's update.
+
+{{Horizontal Line}}
+
+{{Headline|25|Theatre of Blood: Rewards}}
+
+Shortly after today's update we'll be launching a new in-game poll. It's your chance to have your say on the final appearance of the Justiciar armour design.
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #1'''</center><center>Which of the two shortlisted designs shall we use for the Justiciar armour design when the Theatre of Blood launches? The highest voted option will win and be added to the game.</center></div><br/>[[File:A Taste of Hope (2).png|center|500px]]
+
+
+When we first [http://services.runescape.com/m=news/dev-blog-theatre-of-blood?oldschool=1 polled the Theatre of Blood], '''Poll Question #16''' regarding the Sinhaza shroud was worded in such a way which seemed to suggest players would receive the cape after their first raid completion. We wanted to make it clear that the intention was to only give a cape upon completing the Theatre at least 100 times, which is when the current Chambers of Xeric: Challenge Mode cape is issued.
+
+{{Horizontal Line}}
+
+{{Headline|25|In Other News}}
+
+'''Chambers of Xeric: Challenge Mode:''' following your feedback, Tekton's defence will scale less harshly for challenge raids consisting of smaller numbers of players, and even less for solo players. This should allow you to spec far more reliably thus removing some of the frustration. This may affect raid times overall, so we will be keeping an eye on things and possibly tweaking target times in future weeks.
+
+It's been one week since Challenge Mode was released. As a reminder we'll be updating the [https://www.runescape.com/oldschool/chambers-leaderboard Challenge Mode Leaderboards] with the best times with each week's update.
+
+At 2pm BST tomorrow we'll be inviting another 12,000 players to the Android Always On beta for Old School Mobile. Visit the [https://services.runescape.com/m=news/osrs-mobile-android-always-on---more-invites?oldschool=1 Android Always On - More Invites article] to learn more.
+
+It is with heavy hearts that yesterday we announced that RuneScape Classic would be closing. Visit the [http://services.runescape.com/m=news/runescape-classic-farewell?oldschool=1 RuneScape Classic: Farewell] article to learn more.
+
+The Deadman Summer Finals are drawing nearer. Yesterday we distributed a Deadman survey and announced more information for the Deadman Summer Finals and Autumn Season. Visit the [http://services.runescape.com/m=news/deadman-survey-summer-finals-and-autumn-season?oldschool=1 Deadman: Survey, Summer Finals, and Autumn Season] article to learn more.
+
+{{Horizontal Line}}
+
+{{Headline|25|Win A Gaming Laptop!}}
+
+Do not leave your screens this Summer.
+
+How would you like the chance to play Old School RuneScape and tackle the Theatre of Blood on a brand-new '''Razer Blade Pro gaming laptop'''?
+
+All you have to do is head over to our [https://woobox.com/cjt9u4 Facebook competition page] and enter your details for a chance to win. It's as simple as that! You don't even need a Facebook account to enter.
+
+If you'd like a greater chance of winning, just get your friends to enter as well. Every time you do, you get an additional 2 entries!
+
+Finally - make sure get the best deal for this summer in RuneScape with the [https://payments.jagex.com/#/store/oldschool/summerspecial Summer Special packages] – grab 3 months' membership for the price of 2, or enjoy our new package, with 6 months' membership for the price of 5.
+
+Please check out our [http://services.runescape.com/m=forum/forums.ws?42,43,997,66013921 FAQs] and [http://services.runescape.com/m=forum/forums.ws?42,43,216,65795503 Competition T&Cs] before you enter.
+
+Good luck!
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,486,66014385 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lenny, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''
+
+''The Old School Team''

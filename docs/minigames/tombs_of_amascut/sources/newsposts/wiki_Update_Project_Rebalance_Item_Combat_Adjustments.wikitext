@@ -1,0 +1,427 @@
+{{Update|date=16 April 2024|rev=24 April 2024|url=https://secure.runescape.com/m=news/project-rebalance---item--combat-adjustments?oldschool=1|category=devblog}}
+[[File:Project Rebalance - Item & Combat Adjustments newspost.png|right]]
+{{clear}}
+__TOC__
+''Our third Project Rebalance blog focuses on item adjustments and other combat changes.''
+
+==Blog Update: Wednesday, April 24th==
+We're back with another blog update for this segment of Project Rebalance. If you want to see what's changing then scroll down a little further, but while we're here we wanted to take a brief moment to say a few words!
+
+To be blunt, we know Project Rebalance has been a lot. We've had three different sections across three massive blogs, numerous blog updates, multiple betas - there's a bunch going on. As the weeks have gone on, we've seen a number of comments to the tune of "they're doing too much at once" or "I wish they'd slow down", and while we appreciate where those are coming from we also want to explain just why there's so much happening.
+
+Put simply, Old School is a slow burn, both in-game and in the gaming industry. We've been around for over 11 years at this point, which is even longer than the time from RuneScape 2's release and the 2007 backup that all of Old School is built on top of. All that to say - we're not a competitive game, we're not looking to put out a balancing patch every week or two weeks and have all of you at home wondering whether you'll wake up every Wednesday and have to change your loadouts for the tenth time this year.
+
+It's rare for us to rebalance stuff for exactly this reason, and it means that every time we do elect to make changes, we try to capture more at once so that there's one dose of re-adjusting and then things get left to settle. Of course, there might be the occasional kink to iron out or feedback tweaks to make as the dust clears and more players interact with a rebalanced landscape, but we feel it's preferable to changing a couple of things every week and winding up in a constant loop of minor tweaks.
+
+Given how scarce these kinds of updates are, we want to reiterate that we only look to make them when we feel they stand to benefit the game in a broad sense, both now and in the years to come. 2021's infamous Toxic Blowpipe nerf is an example of this, since we feel Ranged is by-and-large in a healthy place at the moment, but the 'old' Blowpipe with today's gear upgrades would be an absolute monster.
+
+Part of what that rebalance accomplished was ultimately paving the way for Masori armour, Dizana's Quiver, and even the Venator Ring - meaningful upgrades for people to chase that offer Ranged Strength which would have been much harder to make healthy for Ranged as a whole with the affordable & reasonably obtainable Toxic Blowpipe dominating the meta. Similarly, it made room for the Crystal Armour and Bow of Faerdhinen, slotting in alongside other Ranged weaponry to give players more options and allowed us to keep introducing meaningful upgrades without utterly trivialising older content.
+
+In this case those benefits are things like improving the variety offered by various Skilling methods, redistributing offensive stats to spread Magic progression more widely, give players more options to tackle NPCs with Elemental weaknesses and open up new reward space for Magic & Ranged without just creeping upwards, among other things.
+
+Throughout all of these changes, something that we've aimed to keep consistent is that even if you just carry on doing exactly what you're doing right now, you shouldn't be significantly worse off for it in the overwhelming majority of scenarios. Still want to use your Abyssal whip at Gargoyles? Your task might take an extra couple of minutes but that's all good! You'd rather click Shooting Stars while you work from home than try Volcanic Mine? Sure thing - it's going to be just as good as it is right now, but that improved variety is waiting for you if you want to take a look!
+
+We're grateful for everybody who's taken time to leave us feedback so far, whether in ramble videos, YouTube comments, Reddit posts and replies, Twitter comments - everything helps us inform tweaks or adjustments. We're hoping this is our final update for this set of changes before getting to a stage where we can launch them and adjust as needed in case new feedback appears.
+
+Let's take a look at our last set of updates:
+
+===Voidwaker Special Attack===
+We're opting to shelve our proposed adjustments to the Voidwaker's Special Attack.
+
+Across your feedback it didn't really feel as though any of you were on-board with this adjustment without a clear sense of exactly what it would enable down the line. When we reach the point of looking to release another 'SpecDPS' weapon - which could well be a long time away - we may revisit elements of this conversation and provide a clearer sense of exactly why we feel its current design is limiting for us, but we're not looking to make any changes to the Voidwaker for the time being.
+
+===Magic Damage Redistribution===
+Last week's updates proposal was a step (pun intended) in the right direction for the most part, but one particular inclusion stood out above the rest: the Eternal boots.
+
+The primary criticism levied against them was that bringing a Boots switch isn't particularly commonplace in a lot content, so requiring an extra switch to get back to the same damage numbers as before was offputting for a number of endgame players. In particular, this feedback mostly related to the idea of bringing a 9-way switch, meaning 9 items' worth of Magic gear to switch to. In case you're unfamiliar, the reason this is a tough pill to swallow is that many players switch 'horizontally' and zigzag their cursor between two rows to switch a maximum of 8 gear pieces, so adding a ninth piece moves this to three rows and harms the feel of switching like this.
+
+In the other camp are players who want to see Eternals given some degree of use. While all of the Cerberus-associated boot upgrades are extremely minor compared to their 'base' boot, Eternals are arguably the least substantial of all since they only offer accuracy in a style which is almost exclusively used in scenarios where it's already incredibly accurate.
+
+So we've got a delicate line to walk between not having these best-in-slot boots feel like they're not even worth taking up a slot in your bank, and not wanting them to feel hard-required or encourage an uncomfortable style of switching that runs against years of muscle memory. 
+
+We'd like to propose the following:
+
+* Eternal Boots: Magic Damage to 1% (down from 2% in our previous proposal).
+* Occult Necklace: Magic Damage to 5% (up from 4% in our previous proposal).
+In terms of where exactly this leaves us, it varies based on a lot of factors. For end-game Shadow setups, you'll gain a small bit of damage in 'max Mage' setups with Eternals and the Magus, but will likely still lose out on a max hit if you're not willing to bring Eternals for the time being. For effectively everybody not using Tumeken's Shadow, you'll be better-off than you currently are regardless of whether or not you're using Eternal Boots.
+
+This does mean that in the future, upgrading a single % of Magic damage will get you back to (or beyond) where you were at before if you're a Shadow user but that in the short-term for 'Mage-heavy' encounters like Tombs of Amascut, it might be worth considering camping Eternal Boots over Primordial Boots.
+
+We appreciate that it's a difficult balance here, but ultimately don't want to wind up in a scenario where we don't feel like we can ever put Magic Damage on boots because of concerns about the number of switches. While this is the case from of offset of our newest proposal, the addition of effectively any Magic Damage upgrade in any other slot will let you get back to camping Primordials without a care in the world. 
+
+While it's not 100% ideal for some of you reading, we believe this is likely the best compromise we'll be able to reach with the conflicting wants of various players while still delivering on our goal of redistributing Magic Damage to spread Magic progression and gear upgrades feel more meaningful for the majority of players progressing their accounts, whether those upgrades are obtained through economic progression or by unlocking them for themselves.
+
+===Nightmare Drop Rates===
+First things first: we're walking back the proposal for dupe protection. While we said it wasn't something we'd look to roll out everywhere, many of you raised concerns that it doesn't feel all that 'Old School' and were worried that it set a dangerous precedent. On top of this, it didn't exactly 'solve' all of the issues with Nightmare/Phosani's Nightmare when it comes to Orbs or just enjoyability for Mains and Irons alike looking for a reason to grind the boss.
+
+Once again we've got a delicate line to walk here between wanting to make these bosses feel worth engaging with and not wanting to undermine the monumental grind of those who've 'completed' this content already.
+
+After your last round of feedback, we took a step back and started thinking more on the lines of 'if we were making the Nightmare from scratch today, what would we set rates at?' and trying to marry it up with the previous point around undermining the achievements of those who've gone before. We know this last point might not matter to some of you reading, but we're not saying it from a position of gatekeeping or the oft-cited 'we had to suffer and so should you'. Old School's all about the grind, the journey and the flex, which is something we try to keep in mind always.
+
+That said, even Main accounts don't frequent these bosses. It's not uncommon to see a wholly unrestricted player say that they love the encounter design of Phosani's Nightmare but they don't tend to engage with it because the time required to see anything worthwhile would be better spent elsewhere. We're proposing further improving drop rates for these uniques and keen to see where things shake out for Phosani's Nightmare.
+
+Note that all of the same % buffs apply to the regular Nightmare too, so the chance of any specific orb being buffed by 46.67% would go from 1/1,800 to 1/960, we're choosing to focus on Phosani's here since we feel it's the more frequently engaged with of the two variants.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Item
+! Live-game rates
+! Initially proposed rates
+! Updated proposed rates
+! % buff compared to live
+|-
+| Specific Inquisitor Piece
+| 1/1,000
+| 1/800
+| 1/700
+| 30%
+|-
+| Any Inquisitor Piece
+| 1/333
+| 1/267
+| 1/233
+| 30%
+|-
+| Specific Orb
+| 1/3,000
+| 1/2,400
+| 1/1,600
+| 46.67%
+|-
+| Any Orb
+| 1/1,000
+| 1/800
+| 1/533
+| 46.67%
+|-
+| Inquisitor's Mace
+| 1/2,000
+| 1/1,600
+| 1/1,250
+| 37.50%
+|-
+| Nightmare Staff
+| 1/667
+| 1/533
+| 1/533
+| 20%
+|-
+| Any Unique
+| ~1/167
+| ~1/133
+| ~1/118
+| ~29.3%
+|}
+
+Assuming 6.5 kills per hour, this takes the average number of hours per unique down from ~26 hours to ~18 hours, and sees a bigger proportional buff to the rate of obtaining the valuable orbs compared to other items, since their drop rate is almost doubled under this proposal.
+
+We feel these numbers are in a better spot than our previous proposal to toe that line between having some items in-line with their power (particularly the Harmonised Orb, who stands to get better over time as Elemental Weaknesses come into play) while maintaining some of the 'flex' status associated with these items for Irons, without overly undermining the time that some have spent grinding these out already. It's worth noting that we're not touching the pet or jar rates, so if you're competing against other Collection Loggers then you'll still be rate-limited by those two drops moreso than any others!
+
+It's a really tricky balance and we know that we're not likely to knock it out of the park for everybody at the same time. For the time being, if it incentivises more of you to consider giving the Nightmare or Phosani's Nightmare a go or perhaps put its higher up your list for your next end-game grind then we think it's a step in the right direction, and can always re-evaluate further down the line.
+That's all we've got for this update. We're in a position now where we feel we're achieving the majority of our core aims with Project Rebalance and feel comfortable with an upcoming launch to follow up with feedback tweaks like any other update. We know that there are more things you'd like to see added in or touched upon, but for now we want to focus in on what we've got and making any necessary tweaks rather than stretching ourselves too thin and coming back with a new blog each week where we add 'just one or two' extra things.
+
+We're immensely appreciative for all of the time you've spent discussing everything we've shared and we're excited (if not a little terrified) to see that discussion turned up to 11 once we get into the realm of post-release tweaks. Let us know what you think about today's updated blog in all of the usual places!
+
+==Blog Update: Thursday, April 18th==
+{{Collapsed section|18|Click to expand for our previous blog update!}}
+To say this set of changes sparked a lot of discussion would be putting it lightly... Let's not waste any time and take a look at some frequent feedback points and some changes to our proposal!
+
+===Magic Damage Redistribution===
+* '''Feedback:''' Magic setups outside of high-end, end-game gear were hit disproportionately hard by the nerf to the Occult Necklace.
+Additionally, there were concerns expressed about balance between brackets in PvP with how much power Limited Defence builds were losing compared to others.
+
+We've rejigged some numbers and added more equipment into the mix. Our hope here is that power levels for many players should stay around or slightly above where they were at previously, but that it's made up of more diverse sources and encourages meaningful upgrades across slots at various points in a player's journey.
+
+
+* +1% to the Occult Necklace, bringing it up to a total of 5%.
+* +1% to Ahrim's pieces
+* +1% to Elder Chaos Druid pieces
+* +1% to Blue Moon pieces
+* +1% to Bloodbark hat/body/legs
+* Ancestral pieces nerfed by 1% each (now 3% each, up from 2% in the live game, down from 4% in our initial proposal)
+* +1% to Eternal Boots
+* +2% to Mystic Might
+* +1% to Mystic Lore
+* +2% to Mage's Book
+* +2% to Malediction Ward
+* +2% to Ancient Wyvern Shield
+* +3% to Arcane Spirit Shield
+* +0.5% to Seers' ring and Seers' ring (i)
+* +2.5% to Elite Void Mage set, totalling 5% (up from 2.5%)
+
+We'd also like to clarify that Virtus Robes would have a +15% boost to Ancient Magicks, up from +12%. This boost is made up of two stats, its base Magic Damage and an 'added' Magic Damage for Ancients, so increasing its base Magic Damage by 3% will increase its Ancient Magicks boost by the same amount.
+
+Here's a handy summary image of everything that's had its Magic Damage% '''increased''' as part of the proposal.
+
+[[File:Project Rebalance - Item & Combat Adjustments (2).png|600px|center]]
+
+For some 'at a glance' examples of some pieces of gear and how they stack up:
+
+* Mystic Might + Eternal Boots + Mage's Book + Ahrim's + Occult = +3% compared to live-game
+* Augury + Eternal Boots + Ancestral + Occult = +3% compared to live-game
+** Note: Tumeken's Shadow only gains +1% over live-game, since it loses 3% from gear (after having its passive effect applied) and gains 4% from Augury (which isn't boosted by its passive effect)
+* Mystic Might + Elder Chaos Robes + Mage's Book + Occult = +1% compared to live-game
+
+Now on to something a little less magical, but still exciting!
+
+===Minimum Hit Changes===
+* '''Feedback:''' Reducing max hits across the game to introduce minimum hit improvements for new players doesn't feel great. Also, Dragon Claws and the Scythe of Vitur were worse-off with this proposal due to how they handle rounding.
+
+We're adjusting our proposal for minimum hits.
+
+Instead, any damage roll that would be a 0 will be 'clamped' up to a 1. Max hits would be left unchanged from what they are in the live game.
+
+This achieves our early-game goals of making Combat feel better, but doesn't lead to a significant or noticeable game-wide DPS increase in high-end setups.
+
+For example, if your max hit is a 3, your damage distribution would be: 1, 1, 2, 3 (rather than 0, 1, 2, 3). This is a slight buff to DPS in the very early stages of the game, but is much less impactful as max hits increase, so we steer clear of end-game concerns.
+
+Note that you'll still be able to miss, so you'll still see the occasional 0, especially against high-Defence NPCs or in the very early stages of the game.
+
+===Nightmare Loot Table===
+===Inquisitor's Mace/Armour===
+* '''Feedback:''' The Inquisitor's Mace buff being dependent on a full set doesn't help its utility on Slayer tasks, including boss tasks like Cerberus or the Grotesque Guardians.
+
+We're updating our proposal for this, similar to what we've done in the past for Crystal armour and its passive effects.
+
+Instead of relying on the full set, each piece of Inquisitor's armour will provide +2.5% damage and accuracy when used in conjunction with the Inquisitor's Mace, meaning you can still benefit from this buff while on-task.
+
+===Elder Maul Special Attack===
+* '''Feedback:''' The Elder Maul's Special Attack accuracy is still pretty low and not much better than the Dragon Warhammer's.
+
+We'd like to give an extra +25% Accuracy to the Special Attack of the Elder Maul.
+
+===Path of Apmeken===
+* '''Feedback:''' Some players wanted clarity on how Baboon Shamans, Volatile Baboons and Cursed Baboons would be impacted by the Path of Apmeken changes.
+
+The likes of Baboon Shamans, Volatile Baboons and Cursed Baboons are treated as regular NPCs with no style-specific max hit weakness.
+
+Though some of you jumped into the beta and tried this one out, we'd like to clarify that the HP for these NPCs no longer scales with Raid level, freeing you up to zoom to your heart's content.
+
+We're still on the lookout for more feedback and expect to revisit or add more to this feedback table as time goes on! 
+
+That's all for the time being. We're not planning to update Beta Worlds with these changes since the majority of them are 'at a glance number-based', but would be able to if it's felt absolutely necessary. Please keep sharing your thoughts with us, we're extremely grateful for all of the discussion we've seen so far!
+{{Collapsed section end}}
+
+==Project Rebalance: Combat and Item Changes==
+Anxiously eyeballing your Bank? Wondering what changes Project Rebalance will bring to ''your'' favourite bits of gear? Well, wonder no longer, because here’s the blog you’ve been waiting for! Today we’re talking buffs, debuffs, and other changes to various bits of combat gear – and just to round things out, we’ve also got some more combat changes for you.
+
+Before we move on, just like the last Project Rebalance blog, this one coincides with an Open Beta that you can take part in by jumping into any of the beta worlds. These worlds feature all of the changes from the NPC Defence changes blogs ''and'' all of the changes from today's blog too - so jump in and take a look!
+
+[[File:Project Rebalance - Item & Combat Adjustments (1).png|thumb|600px|center|''Here's a handy summary of everything we're touching on here. Note that some things in the 'Adjusted' category are effectively buffs, but might be subject to opinion in some instances!'']]
+
+===Item Adjustments===
+Before we get started, please note that the Tomes of Fire and Water will be adjusted as per [https://secure.runescape.com/m=news/a=13/project-rebalance---npc-defence-changes?oldschool=1 our] [https://secure.runescape.com/m=news/a=13/project-rebalance---npc-defence-changes?oldschool=1 ''previous''] [https://secure.runescape.com/m=news/a=13/project-rebalance---npc-defence-changes?oldschool=1 Project Rebalance blog], so we won’t be rehashing those changes here.
+
+First, we’ll look at perhaps the most anticipated – or dreaded – set of changes, focused primarily on Magic gear progression.
+
+===Magic Gear and the Occult Necklace===
+The Occult Necklace does an ''astronomical ''amount of lifting for Magic’s damage output – and to make a long story short, we think an item this powerful should set you back more than a mere 800,000 GP.
+
+For example, let’s assume two players both have 99 Magic and fancy a bit of Barrows. Player A equips an Occult Necklace for 800,000 GP and calls it a day. Player B equips the Ancestral set, a Magus Ring, Eternal Boots (gotta rock that FashionScape) ''and ''turns on Augury, which sets them back a whopping 454 ''million ''GP. Now, who do you think kills the melee Barrows Brothers fastest?
+
+If you answered Player A, you’re correct – and we hope you understand why this situation seems more than a little unfair.  It’s time to break the Occult Necklace’s stranglehold on Magic’s gear progression!
+
+There are already too many Occult Necklaces out there for us to reasonably make them less common. Making them harder to get will just punish Iron players who have to climb all the way to 93 Slayer for this all-important unlock.
+
+In addition, the Occult Necklace is ''so ''powerful that other gear upgrades become less exciting by comparison.
+
+We plan to kill two birds with one stone by redistributing the Occult Necklace’s stats around other Magic gear, note that unless explicitly stated, buffs to robes apply only to the helmet, body and leg slot:
+
+* Occult Necklace: Magic damage reduced from 10% to 5%.
+* Ancestral Robes set pieces: Magic damage per piece increased from 2% to 3%.
+* Virtus Robes set pieces: Magic damage per piece increased from 1% to 2%.
+* Infinity Robes set pieces: Magic damage per piece increased from 0 to 1%.
+* Dagon'hai Robes set pieces: Magic damage per piece increased from 0 to 1%. This also applies to Ornamented versions.
+* 3rd Age Mage Armour pieces: Magic damage per piece increased from 0 to 1%.
+* Ahrim's Robes set pieces: Magic damage per piece increased from 0 to 1%.
+* Blue Moon Armour pieces: Magic damage per piece increased from 0 to 1%.
+* Elder Chaos Druid Robes set pieces: Magic damage per piece increased from 0 to 1%.
+* Bloodbark Armour pieces: Magic damage per piece increased from 0 to 1%.
+* Augury: Magic damage while active increased from 0 to 4%.
+** '''Note''': Tumeken's Shadow doesn't multiply accuracy or damage bonuses gained from Prayers, so this would remain a 4% increase rather than 12% when using the Shadow.
+* Mystic Might: Magic damage while active increased from 0 to 2%.
+* Mystic Lore: Magic damage while active increased from 0 to 1%.
+* Eternal Boots: Magic damage increased from 0 to 1%.
+* Mage's Book: Magic damage increased from 0 to 2%.
+* Ancient Wyvern Shield: Magic damage increased from 0 to 2%.
+* Malediction Ward: Magic damage increased from 0 to 2%.
+* Arcane Spirit Shield: Magic damage increased from 0 to 3%.
+* Seers' Ring and Seers' Ring (i): Magic damage increased from 0 to 0.5%
+* Elite Void Mage Set bonus: Magic damage increased from 2.5% to 5%.
+
+[[File:Project Rebalance - Item & Combat Adjustments (2).png|thumb|600px|center|''This image shows off everything that's having its Magic Damage% '''increased''' to redistribute what we're taking off of the Occult Necklace.'']]
+
+These changes bring the Necklace’s power a little more in line with its obtainability, so that players can feel themselves getting stronger as they unlock other gear. Additionally, Augury now has greater offensive power, increasing the value of the Arcane Prayer Scroll.
+
+We also see new utility for robe sets which are currently best suited for accounts with Defence limitations. We want to see Ahrim’s Robes sit in a unique, tankier ‘battlemage’ niche, with Defence that outshines other options in exchange for slightly less offensive potential. In some scenarios, you don’t even gain Max Hit from equipping more offensive sets, so these higher defences are effectively ''free.''
+
+For players with near best-in-slot setups, these changes buff Magic and bring other weapons closer to Tumeken’s Shadow.
+
+Now, this approach still has its issues. Magic has traditionally struggled to keep up with the other corners of the Combat Triangle in PvP, and these changes make it even weaker – especially for 1 Defence accounts. We think we could resolve these issues with a ‘Blighted’ necklace slot, and a little more damage on the Elder Chaos Druid Robes, but we’d like to hear your feedback first.
+
+Speaking of, we’d also like to hear about other bits of gear that deserve a little boost. We can even work in increments of 0.5%, if it helps.
+
+We’re committed to bringing the Occult Necklace down a notch, but remember that it will still remain the best-in-slot necklace offering for any Magic setup, and will likely remain affordable. That’s a good deal, as far as rebalances go!
+
+===The Soulreaper Axe===
+Moving swiftly on to this hard-hitting Slash weapon, capable of dishing out some ''serious ''damage... if you’re willing to go through the frustrating process of bringing out its true potential.
+
+We don’t plan to increase the Soulreaper’s damage directly. Here’s what we’ll be doing instead:  
+
+* Stacks will no longer be lost instantly upon switching weapon.
+* Stacks will start decrementing after 20 ticks (12s) without attacking, up from 10 ticks (6s).
+* When stacks naturally degrade, they'll heal you for the damage you took while building those stacks up.
+
+Effectively, we’re making stacks easier to maintain and removing the overly-punishing stack drain when switching weapons. This does ''indirectly ''buff the Soulreaper’s damage output – but it also means you’ll no longer run out of stacks while waiting during intermission phases in some boss fights, such as Verzik’s transition between phases 2 and 3.
+
+We’ve seen more suggestions regarding the Soulreaper Axe, but right now our focus is on improving its usability and ensuring it doesn’t lose power every time you switch gear.  
+
+===The Elder Maul===
+This thunderous Crush weapon is a mega-rare drop from Chambers of Xeric, but its PvM use-cases are few and far between – barring a brief moment in the sun when you all discovered the ‘1:0’ method for taking down the Great Olm’s melee hand.
+
+It’s hard to bring a slow, hard-hitting weapon in line with other mainhand options, because our combat system rewards speed. 5-tick weapons like the Scythe of Vitur and the Twisted Bow do a fantastic job, but an even slower ''6-tick ''weapon requires a max hit that would level half of Varrock.
+
+What makes the Elder Maul great is that feeling of bringing this behemoth weapon down on an opponent and softening them up for future blows while they’re still reeling from the impact. Initially, we thought about shaving off a little Defence for each swing, but struggled to get it to a place where it wasn’t either totally broken or outperformed by the Dragon Warhammer.
+
+Instead, we’re giving it a Special Attack worth 50% of Special Attack Energy, which hits with +25% increased Accuracy and reduces your target’s Defence by 35% on a successful hit.
+
+This makes it a better Defence reduction option than the Dragon Warhammer, and also frees up an Inventory slot for scenarios where you’d otherwise use two-handed weapons. For example, if you'd only be using the Scythe of Vitur and a Dragon Warhammer in a raid, you'll be able to skip out on an Avernic Defender and bring something else in that extra slot.
+
+Given the prevalence of Defence reduction in many end-game encounters, we feel this should give you more reason to bring the Elder Maul out of the Bank every once in a while. Do let us know if you think it could use a little something more!
+
+===Inquisitor Armour and the Inquisitor's Mace===
+The Inquisitor Armour set and Mace are a Crush-focused set dropped by the Nightmare and Phosani's Nightmare. Each piece of the armour set boosts your damage and accuracy by 0.5% when equipped, with an additional 1% for the full set, totalling a +2.5% increase in both damage and accuracy.
+
+You generally see people using this set with the Scythe of Vitur against enemies weak to Crush, trading off low Defence for hefty damage output. But where’s the Mace?
+
+While the Mace is a strong weapon, it’s staggeringly expensive at more than 275 million GP, and its damage output simply doesn’t make up for the cost.
+
+You’ll hear later about how we plan to adjust the Nightmare’s drop rates to make her uniques more obtainable, but for now, here’s how we’re giving the Mace some extra juice:
+
+* While using the Inquisitor's Mace, Inquisitor's Armour pieces provide a +2.5% bonus to Accuracy and Damage. In a full set ''with ''the Mace, the total bonuses increase from the current +2.5% to +7.5% total damage and accuracy.
+
+This change should make the Mace feel like a worthwhile stepping stone between the Abyssal Bludgeon and the Scythe of Vitur, adding more utility to a rarely seen set.
+
+===The Ancient Godsword===
+This Zarosian spin on the classic melee weapon is designed from the ground-up for PvP – although it does see use in PvM, especially against Slash-weak monsters where long trips are preferred. It’s all about outlasting your opponent, while still packing a punch.
+
+Its Special Attack, ‘Blood Sacrifice’, increases your Max Hit by 10% and, upon a successful hit, marks your target. If they don’t move at least 5 tiles away after 8 ticks (4.8s), they’ll take 25 Magic damage, and you’ll heal for the same amount of HP.
+
+If your PvP opponent is frozen and you hit them for even a measly 1 damage, you’ll ultimately wind up with a 50 HP differential. The damage isn’t mitigated by Protect from Melee ''or ''Magic, so there’s actually very little your opponent can do about it. Is that... fun?
+
+To even the odds, we want to reduce the healing provided in PvP without reducing the Godsword’s already limited utility in PvM scenarios:
+
+* Healing from successful Blood Sacrifice now heals for 15% of the target's maximum HP, up to a 25 HP cap.
+
+This still leads to a 40 HP differential in PvP, but stops fights stretching out without counterplay, even when your opponent is playing perfectly.
+
+The Ancient Godsword is basically unchanged in PvM, except in the rare case of fighting low-HP targets – and it isn’t ''really ''designed for such encounters anyway.
+
+Again, we’d really like to hear your feedback about this change – we’re not committed to it, and if The Ancient Godsword’s role in today’s meta has changed, we’re more than willing to leave it alone!
+
+===Other Combat-Adjacent Changes===
+The rest of the changes focus on other aspects of PvM combat... such as drop rates!
+
+===The Dragon Warhammer===
+Dragon Warhammer mentioned, all Irons to battle stations! 
+
+This quintessential grind item is a staple for those taking their first foray into PvM. Unfortunately, it’s not that common. Lizardman Shamans aren’t hard to kill, so the whole hours-long adventure can also be quite boring – which is why we’re making the following change:
+
+* Boost the Dragon Warhammer's drop rate from 1/5,000 to 1/3,000.
+
+This is effectively an 80% increased drop rate (since a 100% increased drop rate would be 1/2,500, half of the original value), which we feel is better suited to a mid-game upgrade required to chase more challenging uniques.
+
+Now, we don’t ''often ''adjust drop rates, and we don’t plan to make it a habit – but for the Warhammer and a few other persistent offenders, we’re making an exception. Speaking of which...
+
+===The Nightmare and Phosani's Nightmare===
+These bosses are tough, and their uniques do the heavy lifting in terms of rewards. However, these uniques are ''so ''rare that players don’t feel either variant of this beastly boss is worth their time... or their supplies.
+
+To add to the issue, the Nightmare’s uniques are mostly niche or underpowered, which doesn’t exactly justify their rarity. We’ve already spoken about making changes to the Inquisitor’s Mace, and we feel adjusting the drop rates for uniques will provide the other half of the equation.
+
+Here’s the specifics:
+
+* The Nightmare: Inquisitor pieces + Nightmare Staff loot table has a 1/90 chance to roll, improved from 1/120.
+* The Nightmare: Orb loot table has a 1/450 chance to roll, improved from 1/600.
+* Phosani's Nightmare: Inquisitor pieces + Nightmare Staff loot table has a 1/150 chance to roll, improved from 1/200.
+* Phosani's Nightmare: Orb loot table has a 1/720 chance to roll, improved from 1/960.
+
+In short, all Nightmare uniques are being made 50% more common.
+
+We’re conscious that this change may affect the GE value of these items, although some may actually receive a boost due to other Project Rebalance changes. We feel that these changes are important enough to go ahead regardless. However, if you’ve got thoughts about either of the drop rate changes we’ve spoken about today, we’d love to hear them!
+
+===Minimum Hit adjustments===
+For those of you not in the know, Old School’s combat works a bit like Dungeons and Dragons. You roll once to ‘hit’, and then roll again to see how much damage you do. In the current system, it’s possible to hit, and ''then ''roll 0 damage.
+
+This is especially punishing early in the game where players have a lower max hit overall. If a low-level player can only hit 1 damage, there’s a 50/50 chance that they’ll deal 0 damage instead! Even in late game, when players are significantly more powerful, the potential to roll 0 is always looming – and anyone who’s ever whiffed a Dragon Warhammer Special Attack knows exactly how frustrating it can be!
+
+Previously, we proposed that any successful hit should guarantee at least 1 damage, but we still feel there are further changes required.
+
+The thing is, increasing either the minimum or maximum hit by x will increase the ''average ''hit by x/2. We’re actually increasing the damage output of every single weapon in the game, and this change would be disproportionately impactful for multi-hit weapons like the Scythe of Vitur.
+
+As a result, our changes are focused on improving the feel of early combat and improving the ‘readability’ of Combat in late-game scenarios:
+
+* On-hit, damage rolls of a 0 are 'clamped' up to a 1.
+
+This means that DPS isn't significantly changed aside from the extremely early stages of the game, which should feel much better.
+
+We’re also conscious that some account builds may be disproportionately impacted by this change. In response, we’re looking to introduce items especially for these players which will let them continue on as they always have.
+
+===Early-game Combat Prayers===
+In other early-game news, we’ll be making changes to Thick Skin, Burst of Strength, Clarity of Thought, Sharp Eye, and Mystic Will. They may look like the names you came up with for the band you always wanted to start in high school, but they’re actually the first tier of Prayers players unlock. We’ll forgive you for being unfamiliar with them, because currently they’re not strong enough to feel worth using – and (much like your high school band), they don’t stay active for very long.
+
+Here are our plans:
+
+* Reduce the drain rate of Thick Skin, Burst of Strength, Clarity of Thought, Sharp Eye and Mystic Will from 5 points per minute to 1 point per minute.
+* Adjust Sharp Eye and Burst of Strength to boost your Ranged and Strength levels by +1 respectively if they're lower than 20.
+
+The drain rate change should be self-explanatory. At the levels players will realistically use these Prayers, they don’t have enough Prayer Points to get good use out of them, and this change will fix that.
+
+The second change ensures that these damage-boosting Prayers will actually boost some damage in some instances. For context, Old School’s systems almost always round down. So, for a 5% Strength increase to actually work, you need a Strength level of at least 20. By that point in the game, players are often past the point where they’d turn to these basic Prayers for a boost. Adding just 1 flat level for levels below 20 gives these Prayers utility at their recommended level and serves to demonstrate how useful Prayers will be later on, since it might be the difference that gives you an added max hit early-on.
+
+===Autocast Delay===
+We already spoke about this change when you asked us about it following the [https://secure.runescape.com/m=news/a=97/project-rebalance---npc-defence-changes?oldschool=1 NPC Defence Changes Blog], so it shouldn’t catch anyone off-guard.
+
+Essentially, when selecting the Autocast option on a staff and then clicking an NPC, there’s a 1-tick delay before your first attack actually fires. This makes it feel a bit clunky, and also reduces your damage in scenarios where you’re reducing and restoring your Magic level or switching into a Magic setup.
+
+Now that we’re introducing Elemental Weaknesses, we want spell-based Magic to feel nice and smooth, so we’re removing this delay.
+
+===Theatre of Blood: Verzik Phase Two===
+Solo Theatre of Blood enjoyers have expressed frustration at the disparity between how Verzik’s mechanics are handled in Normal and Hard Mode. We’re fixing that!
+
+* If only one player is left alive during Verzik’s second phase, only one Nylocas Matomenos (also known as ‘red crabs’ despite ''clearly'' being ticks) will spawn.
+
+This change isn’t just for solo players – should your team meet an untimely end during phase one, you should now be able to clutch it out!
+
+===Tombs of Amascut: Path of Apmeken and Ba-Ba===
+There’s no escaping the dreaded monkey room! Thankfully, your prayers to the Menaphite pantheon have been answered:
+
+* Increase hitpoints for all style-based enemies inside the Path of Apmeken.
+** These enemies will now ''always ''take maximum damage when attacked with the opposing combat style.
+
+Assuming you’re in a solo raid, this is how the HP values and Max Hits will shake out:
+
+* Baboon Brawler: 25 HP and 30 HP. Always max hit by Magic.
+* Baboon Thrower: 30 HP and 35 HP. Always max hit by Melee.
+* Baboon Mage: 20 HP and 25 HP. Always max hit by Ranged.
+
+Note that there are stronger and weaker variants of all these NPCs (indicated by the two HP values in the list above), and the HP totals will scale with group size and Raid Level.
+
+At the end of the Path of Apmeken awaits Ba-Ba and her ''extremely ''potent Melee attack. Since we’re here, we may as well take a swing at it:  
+
+* Ba-Ba now only hits for 25% of damage through Protect from Melee, down from 33%. This reduces the damage by around 24%.
+
+This ''should'' prevent players losing so much DPS to red-X, although those looking to save supplies will find it isn’t removed entirely.
+
+And ''that'' is that!
+
+As always, we’re excited to hear your thoughts and feedback regarding everything we’ve discussed today. We’re making these changes to relieve the most common frustrations you’ve told us about, and we believe they’ll massively improve progression and safeguard Old School’s future. A huge thank you, again, to everyone who’s provided feedback so far. No doubt we’ll be back soon to discuss it further!
+
+See you soon!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

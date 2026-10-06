@@ -97,10 +97,19 @@ app_host_request(
             *req->u.get_cross_position.out_y = app->cross.y;
         return 1;
     case UITREE_HOST_GET_MINIMENU_VISIBLE:
-        return app->interact.minimenu.visible ? 1 : 0;
+        return app->frame_view->minimenu->visible ? 1 : 0;
     case UITREE_HOST_GET_MINIMENU_STATE:
         assert(req->u.get_minimenu_state.out);
-        *req->u.get_minimenu_state.out = &app->interact.minimenu;
+        *req->u.get_minimenu_state.out = app->frame_view->minimenu;
+        /* The runner camera split: the view that is not being drawn has a
+         * menu too; the emit draws it tinted (owner decision 3). */
+        if( req->u.get_minimenu_state.out_other )
+            *req->u.get_minimenu_state.out_other =
+                app->view_split.attached
+                    ? app->views[app->frame_view == &app->views[APP_VIEW_RUNNER] ? APP_VIEW_PLAYER_CLIENT
+                                                                                  : APP_VIEW_RUNNER]
+                          .minimenu
+                    : NULL;
         return 1;
     case UITREE_HOST_GET_HOVERTEXT_STATE:
         assert(req->u.get_hovertext_state.out);
@@ -116,7 +125,7 @@ app_host_request(
     /* Compass/minimap rotation, in the 0..2047 units the rotated sprite blit
      * takes. Normalized because ToriDraw_Sin/Cos assert that range. */
     case UITREE_HOST_GET_CAMERA_YAW:
-        return ToriDraw_NormalizeAngle(app->world_camera.yaw);
+        return ToriDraw_NormalizeAngle(app->frame_view->world_camera.yaw);
     /* Minimap: the baked world map plus the camera's pivot inside it. The
      * widget box is fixed, so the map scrolls by moving this source anchor. */
     case UITREE_HOST_GET_MINIMAP_STATE:
@@ -127,8 +136,10 @@ app_host_request(
          * deck-local — pan by their position pushed out through the hull,
          * the same frame the dots and their centre use. */
         struct WorldEntity_Player* local_player = app_local_player(app);
-        int anchor_x = local_player ? (int)local_player->draw_position.x : app->world_camera_pos.x;
-        int anchor_z = local_player ? (int)local_player->draw_position.z : app->world_camera_pos.z;
+        int anchor_x =
+            local_player ? (int)local_player->draw_position.x : app->frame_view->world_camera_pos.x;
+        int anchor_z =
+            local_player ? (int)local_player->draw_position.z : app->frame_view->world_camera_pos.z;
         if( local_player )
             app_wev_actor_root_fine(app, &local_player->view_placement, &anchor_x, &anchor_z);
         if( app->world_map_scene_id <= 0 || !app->world || !app->world->minimap )

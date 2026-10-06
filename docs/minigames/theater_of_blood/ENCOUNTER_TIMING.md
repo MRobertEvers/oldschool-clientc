@@ -1070,7 +1070,7 @@ New tasks raised by this pass, continuing the plan's numbering:
 | M26 | All | Does a step-back **click** on tick `T−1` complete in time, or must the click be on `T−2`? Decides whether the guides' "one tick before" means the click or the move. |
 | M27 | Xarpus | Confirm the turn and the spit share a tick (this document's reading) rather than the turn leading by 1–4 ticks. Watch orientation and projectile-spawn ticks side by side. |
 | M28 | Verzik | Do the P2/P3 scan windows use the tank's tile at end-of-`T−1`, or their tile at the *start* of `T` before movement? Equivalent in practice, different to implement. |
-| M29 | Sotetseg | Death-ball projectile flight time, and which animation frame the tick-eat window opens on. |
+| M29 | Sotetseg | Death-ball projectile flight time, and which animation frame the tick-eat window opens on. **Flight closed 2026-10-02: 16 ticks after the death-ball attack event, any distance (blert 5 of 5; Jagex 2018); the cue is still open.** See the plan's section 16. |
 | M30 | Maiden | Blood-splat projectile flight time as a function of distance. |
 | M31 | Xarpus | Does the spit cadence vary with party size? The community trainer exposes a `Players` setting that changes attack frequency and notes that `Players = 1` "is more accurate for 5-ticking". |
 

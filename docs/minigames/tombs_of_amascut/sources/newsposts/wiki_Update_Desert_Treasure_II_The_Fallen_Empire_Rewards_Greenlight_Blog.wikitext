@@ -1,0 +1,249 @@
+{{Update|date=14 February 2023|rev=17 February 2023|url=https://secure.runescape.com/m=news/desert-treasure-ii---the-fallen-empire-rewards-greenlight-blog?oldschool=1|category=dev blog}}
+[[File:Desert Treasure II - The Fallen Empire- Rewards Greenlight Blog newspost.png|right]]
+{{clear}}
+''Take a first peek at the rewards from Desert Treasure II - The Fallen Empire!
+__TOC__
+
+==Initial Feedback & Clarifications==
+{| class="wikitable" style="text-align:center; width:665px;"
+!Last Updated
+!Feedback Shared
+!Our response
+|-
+|14:45 GMT - February 14th
+|We've seen players asking about whether Virtus would be stronger than Ancestral.
+|We'd like to reiterate that we're aiming for rewards ''below'' Raid-level. In the case of Virtus, we imagine it would excel and likely out-perform Ancestral in places where Ancient Magicks have use.
+
+In content where you're using powered staves like Tumeken's Shadow or the Trident of the Swamp, we'd expect Ancestral to remain on top. The goal is for Virtus to feel like a choice worth making in some situations, rather than an outright upgrade!
+|-
+|14:45 GMT - February 14th	
+|Some players would like more clarity on exactly what's meant by 'Freeze Penetration' and have concerns that being able to freeze NPCs more readily might trivialise parts of the game.
+|We understand these concerns and that the initial blog is perhaps a little vague. We'd like to give a quick '''example'''!
+
+Let's say you're using a weapon sporting '''20% Freeze Penetration''' and you'd like to try your hand at freezing an NPC like Akkha, who is currently immune to being frozen. First off, you'll roll Magic accuracy entirely as normal (you still need to be able to hit your target to catch a freeze). Assuming you hit, you'll be able to freeze Akkha, but the freeze will only last 20% of its full duration.
+
+In this case, a spell like Ice Barrage ordinarily freezes the target for 32 ticks. 20% of this would be 6.4 ticks, which Old School rounds down to 6. Meaning that you'd now be able to freeze Akkha, but for a duration of 6 ticks (3.6s).
+
+We hope this brief example clears up a little of the confusion about how a stat like this might work and if you have any further questions, make sure to let us know!
+|}
+
+==Feedback Changes - February 17th==
+It's nearly time for this set of poll questions to go live and for you to have your say on some of the rewards from Desert Treasure II - The Fallen Empire.
+
+With that in mind, we wanted to take a moment to reflect on some of the feedback we've seen from all of you since the blog's initial release and to make a few tweaks and clarifications. Starting with...
+
+===Virtus Robes===
+These recognisable robes certainly evoked some strong feelings and discussions from many of you. When these magical garms first made their way to RuneScape, they sat on the throne of Magic gear as the absolute best-in-slot offering.
+
+We said at the start of the blog that we wanted these rewards to sit below Raid-level offerings, such as Ancestral, since they're more reliably obtainable from repeatable, post-quest bosses than they are from Raids.
+
+All that to say, it feels like Virtus robes at present aren't easy to 'place' alongside other Magic equipment for many of you.
+
+Some of you feel that these robes likely aren't worth the Inventory slots they'd require with the current power and utility of Ancient Magicks, and that it's difficult to understand where you'd use them short of us heavily powercreeping Ancient Magicks. Others have asked for us to just make them the new best-in-slot robes that 'sink' Ancestral similar to how Torva interacts with Bandos. This option doesn't really align with the power level that we're targeting, and 'sinking' Ancestral feels like a tough pill to swallow when we compare the time taken to obtain Ancestral robes compared to armour like Bandos (for Torva) or Armadyl (for Masori).
+
+What many of you feel makes sense is for these robes to slot in somewhere between Ahrim's and Ancestral, to bridge that gap and potentially offer a middle-ground approach for armour that gives Magic Damage on top of Magic Accuracy. We feel this makes sense on paper, but is difficult to deliver on in practice. Each piece of Ancestral gives an additional 2% Magic Damage, totaling 6% alongside a combined Magic Accuracy of 69. Ahrim's Hood, Robetop and Robeskirt provide no Magic Damage, but provide 58 Magic Accuracy.
+
+The wiggle room between Ahrim's robes and Ancestral robes isn't likely to feel impactful or worthwhile for players. 11 Magic Accuracy and 6% Magic Damage just isn't a lot of 'space' for Virtus to fill unless we're looking at a weapon like Tumeken's Shadow (where these numbers are tripled), but if the aim is to fill in the gap below best-in-slot gear, it doesn't make much sense to make something that only feels truly impactful if you're using the most powerful Magic weapon in the game.
+
+To help us better understand the role you'd like Virtus to play (or whether you'd like to see Virtus at all), we'd like to instead move away from yes/no greenlight questions and instead ask some advisory questions to better guide the design. We'll use these advisory questions alongside your suggestions to put together something a little more concrete and surface the result in a future blog. This should help us figure out if we're barking up the wrong tree or not.
+
+===Best-in-slot Rings===
+You seemed pretty on-board with the idea of some relatively 'simple' rings, stat-sticks for your fingers. Despite that, it looks as though some of you would be more on-board with this particular proposal if the Fremennik Rings were somehow involved in the assembly process.
+
+We're not opposed to the idea ourselves, so we've added an extra question to the poll to let you tell us whether or not you want this offering to involve the Fremennik rings, or whether you'd like them to stand alone and leave the Fremennik rings as more readily available, budget options.
+
+This style of 'upgrade' themed reward does keep in line with recent offerings like Torva, Masori or Elidinis' Ward and does have some economic benefits for many of you, namely in helping maintain the value of the Fremennik Rings and keeping Dagannoth Kings relevant. That said, we'd be keen to better understand the situations you think suit this sort of design vs. items just being better and more valuable than their forebears, since we've also seen some concerns expressed about 'upgradescape'. If you've got any thoughts on where you think these approaches fit best then we'd love to hear from you!
+
+===Freeze and Poison Penetration===
+This one - Freeze Penetration in particular - seemed to confuse some of you initially, so we clarified the same day the newspost went live. Following this, some players expressed concerns that because of the nature of freezing, balancing a stat like Freeze Penetration might flip-flop between 'not worth using' to 'trivialising an encounter'.
+
+The whole point of these initial greenlight blogs and polls is for us to perhaps get a little more 'out there' with suggestions and see if something really sticks. We imagine that there are certain bosses/encounters/mechanics that might give rise to cases where a short freeze duration could be particularly impactful, but we're also open to getting back to the drawing board to find other ways to spice up Ice spells.
+
+Poison seems to be something that you're interested in exploring further, so we've decided to split the question into two and poll Poison Penetration and Freeze Penetration separately.
+
+It's worth noting that we're still open to suggestions on other ways to make the Ancient Sceptre upgrades feel impactful - even if you were to greenlight adding Poison and/or Freeze Penetration, we could reserve them for rewards at a later date that you think make more sense and find other ways to beef up the Ice and Smoke elements.
+
+===1-tick Flicking===
+We didn't anticipate this to be as explosive a point as it wound up being, but wanted to take a second to clarify our reasoning for the potential to 'block' 1-tick flicking for the Ruinous Powers.
+
+Primarily, 1-tick flicking, when performed well, massively circumvents Prayer drain. When designing a new Prayer Book, being able to use Prayer drain as a relevant resource for balancing alters the scope for how powerful we're able to make the Ruinous Powers and affords us some flexibility in design.
+
+That being said, it's important to point out that we want this to make sense and not just feel like an inorganic 'block' for players who are looking to put in extra effort to conserve resources. Ultimately we just want to see whether or not we can make Prayer drain feel more relevant. This could mean Ruinous Powers that ramp up over time, overheads, or damage-boosting Prayers that drain extra Prayer when blocking - or any number of other things!
+
+We're grateful to all of you for sharing your feedback on the matter and it's been really interesting seeing where different groups of players sit on the matter. Ultimately, if we see suggestions that help us arrive at a design where Prayer Points feel important, it may well be the case that 1-tick flicking can remain an option. We like the additional skill expression and effort vs. reward that 1-tick flicking affords players and will endeavour to keep this going in some form.
+
+===Community Submissions===
+You've been submitting loads of designs for the Ruinous Powers and the community-designed slot!
+
+We've not got anything to update you on in particular, and just wanted to remind you to keep on posting either on the 2007scape subreddit or on Twitter using the hashtag #DT2CommunityDesign. We'll be making copious notes and using common themes or entire designs that we really love to come back with some super cool proposals in the near future.
+
+With all that out of the way, make sure to cast your eyes over some of the updated poll questions around Virtus Robes and refresh your memories before casting your votes. We're excited to see what all of you think about these potential reward options!
+
+----
+
+The sands of the Kharidian Desert are stirring once again. Strange happenings and even stranger visitors have appeared along the desert's Eastern shore, near a recently uncovered Ancient Vault.
+
+[[File:Desert Treasure II - The Fallen Empire- Rewards Greenlight Blog (1).jpg|centre|600px|thumb|''What exactly is this vault hiding anyway?'']]
+
+While some secrets lie buried deep, others have been scattered to the winds. Four remnants of a forgotten, fallen empire, untouched and undiscovered for lifetimes.
+
+Duke Sucellus. Vardorvis. The Leviathan. The Whisperer.
+
+Are you prepared to uncover the mysteries… of what these bosses are going to drop?
+
+Well, we hope so, because that’s what this blog is all about! Today we’re asking you to give the greenlight to a handful of exciting new offerings that will drop from the four fearsome bosses of Desert Treasure II – The Fallen Empire.
+
+Without giving too much away, it’s no secret that '''four''' repeatable bosses, each with their own unique drops, is a first for questing in Old School. While the designs aren’t finished yet, we expect the bosses to have a wide difficulty range – some sit at the level of accessibility you might expect from enemies like Vorkath, while others are shaping up to be the toughest post-quest encounters we’ve ever made.
+
+This range of difficulty means we’re aiming for the rewards to sit just below Raid-level, while still packing a punch.
+
+In accordance with our new polling process, if the top-level concepts below pass the poll, we’ll move to Community Consultation, before giving you the chance to get your hands on them in a beta and lock them in for good.
+
+==Virtus Robes==
+We already let the cat out of the bag on this one at [https://www.youtube.com/watch?v=L8IgYD1ZGFU the Winter Summit] – and those of you with better memories might remember when we originally proposed these magical robes as a reward from Nex [https://secure.runescape.com/m=news/a=97/nex-rewards-?oldschool=1 back in October 2021]. It’s well past time to take these Ancient Magick-boosting robes off the shelf, and where better to obtain them than the sequel to the quest that granted you Ancient Magick in the first place?
+
+But we’re getting ahead of ourselves. For those of you who don’t remember, Virtus Robes are a powerful, high-level Magic armour set that boost the powers of the Ancient elements – Blood, Ice, Shadow and Smoke. Of course, it also comes with some hefty Magic Damage bonuses.
+
+[[File:Desert Treasure II - The Fallen Empire- Rewards Greenlight Blog (2).jpg|centre|300px|thumb|''Here's some concept art of what Virtus robes could look like, more in keeping with our Old School stylings!'']]
+
+At this stage we just want to know whether you agree that they’d make a great reward. We’re not proposing any specifics yet, although we do plan to make adjustments to the older proposal based the feedback you send us.
+
+With all that in mind, here's our first poll question!
+
+{{News Poll|textalign=left|qtext=Question 1: Would you like us to explore Virtus Robes as a reward from the four bosses unlocked by completing Desert Treasure II - The Fallen Empire, to be locked in at a later date?|2=<nowiki/>
+* Yes
+* No
+* Skip}}
+{{News Poll|textalign=left|qtext=Question 2: If we were to offer Virtus Robes, would you like them to focus on offering bonuses to Ancient Magicks?|2=<nowiki/>
+* Yes
+* No
+* Skip}}
+
+==Ancient Sceptre Upgrades==
+Ah, the Ancient Sceptre. It feels like only a couple of weeks ago we were paying Eblis a visit after securing our 1 in 50 Ancient Icon drop from the <s>grumbler</s> Phantom Muspah.
+
+And if it weren’t for you meddling [https://www.reddit.com/r/2007scape/comments/10g01c7/a_collection_of_ancient_scepter_models_added_with/ data miners], we’d have really surprised you all with the announcement that we actually have ''more'' plans for this iconic weapon, and we want to share them with you today!
+
+In keeping with the ‘Desert Treasure’ theme, we’d like each of the bosses to drop an untradeable gem (likely as a ‘pity drop’ in the style of Vorkath’s Head) corresponding with their respective Ancient elements. These gems could be combined with the Ancient Sceptre to buff the chosen element.
+
+[[File:Desert Treasure II - The Fallen Empire- Rewards Greenlight Blog (3).jpg|centre|600px|thumb|''You've already found some models, we might as well show off the concept... :('']]
+
+But this goes beyond ‘freeze more good’ – we’ve got some really creative ways to buff these elements in a way that’ll really shake up the meta. In particular, we want to focus on Ice and Smoke.
+
+A whole bunch of monsters are immune to poison and freezing. We want to propose Freeze and Poison Penetration as new offensive stat options. This would let us offer buffs for these gems – and other items – that will let you freeze and poison enemies you’ve never been able to before, opening up new room for experimentation in combat. Sounds good? Then smash that ‘yes’ button!
+
+
+{{News Poll|textalign=left|qtext=Question 3: Would you like us to offer the Blood, Ice, Smoke and Shadow gems from the four bosses unlocked by completing Desert Treasure II - The Fallen Empire, to be locked in at a later date?
+
+Each gem could be combined with the Ancient Sceptre to provide unique buffs to its respective Ancient element.|2=<nowiki/>
+* Yes
+* No
+* Skip}}
+{{News Poll|textalign=left|qtext=Question 4: Would you like us to explore Freeze Penetration and Poison Penetration as potential new offensive stat options?
+
+This means we could offer gems that would allow you to freeze and/or poison NPCs that were previously immune using Ice and Smoke magic.|2=<nowiki/>
+* Yes
+* No
+* Skip}}
+
+==New Rings==
+Alright, enough spooky Ancient stuff – let’s see some bling! Next on the docket are four rings to rule them all…
+
+The Fremennik rings have been best-in-slot for their respective niches since 2005, although the Berserker Ring is the standout. It’s time to level up on the jewellery front, and while we’re not dead-set on the fine details, we’d like to explore a set of rings that will take the Fremennik rings’ crown.
+
+To clarify, these rings would target the following niches:
+
+* Best-in-slot Melee Strength
+* Ranged Accuracy and Ranged Strength
+* Magic Accuracy and Magic Damage
+* Slash Bonus and Melee Strength
+
+And the best news? These new rings are going to be super-powerful right out of the box, so you won’t need to spend extra time in Nightmare Zone, Soul Wars, or the PvP Arena to imbue them.
+
+We want to know whether you’re happy with our plan to give these rings simple stat boosts that will elevate them to best-in-slot, or whether you’d like them to have more niche applications. The choice is yours, so make it wisely!
+
+{{News Poll|textalign=left|qtext=Question 5: Would you like us to offer four new best-in-slot rings from the four bosses unlocked by completing Desert Treasure II - The Fallen Empire, to be locked in at a later date?|2=<nowiki/>
+* Yes
+* No
+* Skip}}
+{{News Poll|textalign=left|qtext=Question 6: If Question 5 passes, how would you like these rings to function?
+
+The highest voted option will be what we base our fleshed-out design off of.|2=<nowiki/>
+* Simple stat increases that make them the new set of best-in-slot rings
+* Unique effects that place the rings into specific niches
+* Skip}}
+
+==The Ruinous Powers==
+This one’s a doozy – Old School’s first ever set of new Prayers. The ability to wield some of the power that put the Fallen Empire on the map – like, the ''whole map –'' will soon be yours.
+
+You’ve already given these phenomenal abilities the greenlight, but we haven’t said a whole lot about them since. We think this is the perfect time to move onto the Community Consultation phase and take a look at some of your ideas. We’ve seen a handful of fantastic suggestions for one-off Prayers and even entire Prayer Books, but we want more!
+
+Go ahead and share your ideas for Prayers – or, again, entire Prayer Books – that fit the ‘Ruinous Powers’ theme on social media, and we’ll keep an eye out for our favourites.
+
+You can feel free to go wild here, but here’s what we’re especially keen to hear your thoughts on.
+
+First up, we want to reiterate that we’re not aiming for a carbon copy of RuneScape’s Ancient Curses, which were added in the Temple of Senntisten quest in 2009. Of course we’ll be taking a ''little'' inspiration from our forebears, but we want the Ruinous Powers to stand on their own. Most importantly, we want them to feel like a trade-off rather than an upgrade. So, if you’re about to suggest a new Prayer, take some time to think about what the player might have to give up to reap their rewards.
+
+One of the most obvious trade-offs we could make is the power of defensive Prayers like Protect from Melee, Ranged, and Magic. What if they reduced damage by 90%, instead of 100%, but granted additional offensive power or some other utility? The possibilities are limitless!
+
+In the spirit of trade-offs, we also want to propose that players should '''not''' be able to [[Prayer#1-tick_prayer_flicking|‘1-tick flick’]] the Ruinous Powers to sustain them indefinitely. You'd still be able to 'lazy flick' to conserve your Prayer points, and flick between overhead Prayers if needed, exactly as many of you are used to doing already.
+
+We’re raising this now because the ability to indefinitely sustain these new Prayers locks us out of some really ''interesting'' proposals – we want the freedom to create powerful Prayers safe in the knowledge that there’s a resource cost for using them. Bear this in mind when tinkering with your ideas!
+
+While we imagine most of you hear ‘The Ruinous Powers’ and think ‘aha, that’s a Combat thing!’, we’d also love to hear suggestions for more skilling-focussed Prayers. They might offer some quality of life, buff your skills, or interact with them in new and exciting ways, for the low-low cost of Prayer Points.
+
+This is something we know might be a bit out of the box, so just to test the waters, here’s an advisory poll:
+
+{{News Poll|textalign=left|qtext=Question 7 (Advisory): Which of the following would you prefer to see the Ruinous Powers Prayers focus on?|2=<nowiki/>
+* Exclusively Combat
+* Mostly Combat with some minor Skilling perks
+* Balance of Combat and Skilling}}
+
+We’ll be making use of this question, your suggestions, and our own ideas (what? We can’t let you have all the fun!) to put together a set of Ruinous Powers that you can ''really'' get excited about.
+
+In the near future, you can expect a blog from us that details a fully-fleshed out design, and a beta for you to try out these Prayers for yourself. If you’re happy with what we’ve offered, we’ll lock ‘em in with a poll, alongside the other boss rewards outlined in this blog!
+
+Fine clothes, rare gems, beautiful jewellery, even a good book - they're all lovely gifts to be sure. Although, we can't help but think that nothing makes a better Valentine's Day present than a brand-new item designed by '''YOU''', the Old School RuneScape community…
+
+==Community-designed Reward==
+We want to give ''you'' the chance to let your creativity run wild and come up with a reward befitting the sequel to an iconic quest.
+
+Come up with a design, share it on social, and we’ll round up our favourites! It’s that simple!
+
+There are very few rules here, so let the creative juices flow! The ''one'' rule we have is that we want you to make something ''interesting''. For example, if you’re designing a weapon, don’t get bogged down in stats, level requirements, ammo types, and all that – tell us why your proposal is the coolest! What does it do? What does it look like? What design space does it fill?
+
+For obvious reasons, we’re also keeping a close eye out for rewards that can easily be split into four parts and then combined – but don’t let that put you off creating whatever your heart desires!
+
+If you’re still stuck for inspiration, check out this example of a top-level overview we dug out of the archives:
+
+'''Example: Bleed Polearm'''
+* Long-range melee weapon, with the +1 range that Halberds offer.
+* Relatively strong tier-75 with a 4-tick Attack Speed.
+* Each successful NPC hit rolls a 1 in 20 chance to cause the NPC to bleed.
+* Bleed added as a debuff (similar to poison) that can be applied to NPCs.
+
+There you have a weapon in a nutshell – and if you want to dive into specifics a bit more, it might look like this:
+
+* Bleed deals 20% of the initial damage, every 3 ticks, for 5 iterations.
+** For example, hit a 30, NPC starts to bleed, bleed effect deals 6 damage every 3 ticks, for 5 iterations, resulting in a total of 30 bleed damage over 15 ticks.
+* Some NPCs will be immune to bleed in cases where it doesn't make sense.
+** For example, Chaos Elemental cannot bleed, because the Chaos Elemental is basically just a big cloud.
+* Add a 'Bleed Resistance' value to NPCs, with most defaulting to 0% resistance.
+** This could be adjusted case-by-case or kept in mind for future NPCs.
+* If an NPC moves while bleeding, bonus damage is dealt equal to the current bleed damage.
+
+This is ''more'' than enough for us to understand the core of a proposal so we can weigh up whether it’s something that excites players. Don’t worry if you’re not able to put together a 20-slide presentation with custom artwork and visuals – or even if you can’t find the right font. We love seeing our community share their brilliant ideas with one another, so ultimately, we just want to see you create something that’ll blow our socks off.
+
+If you're wondering where some of the best places to share your designs are, we'd recommend using either the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit] or using the hashtag #DT2CommunityDesign on Twitter!
+
+There you have it – a first look at the post-quest rewards for Desert Treasure II – The Fallen Empire. We’re looking forward to your feedback, and we’re ''especially'' excited to see your suggestions for the Community-Designed Reward and the Ruinous Powers.
+
+Let us know what you think and remember: don't eat ancient sand...
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Chilly, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Shaun, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Steve W, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

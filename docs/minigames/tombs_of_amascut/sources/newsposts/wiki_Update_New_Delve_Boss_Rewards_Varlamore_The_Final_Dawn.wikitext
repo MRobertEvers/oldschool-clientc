@@ -1,0 +1,240 @@
+{{Update|date=11 March 2025|rev=28 March 2025|url=https://secure.runescape.com/m=news/new-delve-boss-rewards---varlamore-the-final-dawn?oldschool=1|category=devblog}}
+[[File:New Delve Boss Rewards - Varlamore- The Final Dawn newspost.jpg|right]]
+{{clear}}
+__TOC__
+==Blog Update - Friday, March 28th==
+We're back with a final Delve boss reward blog update ahead of polling. While we're sure you're eager (or dreading) to hear what we're changing, we'd like to take a moment to reflect on how things have gone so far.
+
+To say that nailing these rewards has been a challenge would be the understatement of the year, and it's only March! We've learned a lot from our handling and your feedback on all of the back and forth we've had on these rewards and have a few key takeaways for areas we'll do better in:
+
+
+* Find better ways of discussing difficulty/target audiences for content that properly set expectations. In earlier stages, it wasn't clear to you exactly what ''kind'' of content this was and who it was positioned for, leading to confusing conversations around a cape reward that could have been avoided if we'd come out of the gate with more clarity.
+* Improve our 'screening' internally for potential rewards, so that we're sure anything we propose is something we're ultimately comfortable seeing in the game. We saw a suggestion for the Demonic Digger, thought it was cool and ran with it, but could have spent more time interrogating how our proposal would interact with the ways players train Farming, whether or not the resultant play patterns would be fun or lead to an increased sense of 'dailyscape', and how it could impact the economy surrounding Farming, Herblore and by extension PvM.
+* Be more proactive at tackling balancing blockades sooner rather than later. These discussions have made it clear that Tumeken's Shadow has Magic in a vice grip, which has loomed over any resultant conversations about Magic reward space and made it difficult for all of us to focus in on the rewards proposed.
+
+Specific changes are incoming imminently, but before you scroll down we'd like to thank you for all of the candid and open feedback, apologise for the sheer volume of blogs on the subject, and more than anything we'd like to reassure you that the Doom of Mokhaiotl is shaping up to be ''seriously'' cool. Polls for the rewards open next week on Monday, March 31st, and we're excited to see another tough new encounter with some powerful unique rewards come into Old School and push you to your limits!
+
+With all that said, let's talk specifics!
+
+===Confliction Gauntlets===
+Remember the thing we just said about Tumeken's Shadow looming over every conversation? Before we talk about the Gauntlets, let's talk about the Shadow!
+
+There's no shying away from it, there are fundamental issues with Tumeken's Shadow that effectively dictate what we can and can't do for any and all discussions around Magic rewards. We don't like having our hands tied on this, and it's clear that you don't either. Unfortunately, we don't believe that we'll be able to make adjustments to a prestigious, valuable weapon like the Shadow and stick the landing on any changes alongside all of the other work that we're doing on Varlamore. We are however, willing to make a commitment to you, so get ready to screenshot this and make sure to hold us accountable, gather in Falador, grab those multicannons etc. if we don't follow through.
+
+We will make adjustments to Tumeken's Shadow before we discuss any future best-in-slot Magic reward space. We can't make any firm commitments on timing here, but we cannot and will not put ourselves and all of you as players/voters in this same position again, so it's something we'll absolutely tackle before proposing any future upgrades that might benefit the Shadow.
+
+That being said, our 'bandaid fix' for the Confliction Gauntlets was a tad divisive. In the short term, we're not going to be able to avoid a bandaid fix, but we do this in the knowledge that said bandaids can be pulled off whenever changes to Tumeken's Shadow are implemented. Some players pointed out that restricting the Gauntlets' effect to atacks within the next 4 ticks meant that Standard spells or Ancient Magicks wouldn't be able to benefit from them. This wasn't an oversight, we had some concerns around use-cases like freezes in PvP, blood spell healing in content where it's typically too inaccurate to be worth using, or potentially having to curtail Elemental Weaknesses to account for additional accuracy.
+
+We're not dead-set on any of these being overly problematic, so we'll be adjusting the Confliction Gauntlets' passive effect to remove the 4-tick restriction and instead benefit one-handed weapons only. We'll be monitoring these use-cases closely should they come into the game and require toning down in some areas.
+
+[[File:New Delve Boss Rewards - Varlamore- The Final Dawn (1).png|thumb|400px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-24/GauntletsFinal.png here]''!'']]
+
+That's all we've got on the Gauntlets, just a small passive change and a commitment to fixing Tumeken's Shadow in the future!
+
+===Demon Spade===
+Pun intended, but we've dug ourselves quite the hole here.
+
+To be blunt, we believe the Demon Spade as initially proposed was too strong and that knocking its power down was the right call. We appreciate that the notion of 'preserving skills' or conversations around whether increases to XP rates matter or not is a hot topic with loads of people on both sides of the fence, but ultimately it's our responsibility to steward the game's long-term health, meaning we take this sort of feedback seriously whenever it crops up and evaluate it based on its merits. 
+
+The flipside to this is that the version of the Spade we ''are'' comfortable releasing doesn't feel right for this level of content, which is feedback we agree with. As it stands, the Demon Spade sits in an odd spot where we feel it does have a use, but would have to be very common to make sense coming from this tier of content and thus be passively obtained en masse by players farming the more valuable uniques, ultimately making a negligible impact in the profitability of Osto-Ayak.
+
+With all this in mind, we're making the difficult decision to remove the Demon Spade from the Delve boss reward offerings.
+
+It's never fun shelving content, but we'd like to make it clear that we understand the want for ''something cool'' that benefits Farming, a skill which hasn't seen any particularly impactful unique upgrades since the Bottomless Compost Bucket. We've seen suggestions to attach similar rewards to quests, diaries or other content, and we believe that we will see something offering similar functionality to the Demon Spade in the future from a more befitting piece of content.
+
+We believe the Eye of Ayak, Confliction Gauntlets, Avernic Treads and consumable Tears make for a tight and impactful set of rewards which should remain in high demand and give seasoned gamers an incentive to risk it all at deeper Delve levels, so we'll be heading to the polls with these for now.
+
+Thank you so much for bearing with us throughout this rollercoaster of a rewards poll, while it hasn't been an easy ride, all of the back and forth, specific feedback, long-term game discussions etc. really highlight the community engagement that makes Old School so special and we're eternally grateful to have such a passionate playerbase working with us to make the best content that we can.
+
+Remember, polls open on Monday, March 31st, we'll see you there!
+
+==Blog Update - Monday, March 24th==
+We're here to fill you in on some of the tweaks we've made to the new Delve Boss unique rewards we pitched earlier in the month. 
+
+Thank you for all of your feedback, discussions and input on these new rewards! We think these have gone down much better than older iterations, so we reckon that with just a couple of tweaks we'll be onto a winner. 
+
+This blog details a handful of small changes to address some common concerns, and will include all of the upcoming poll questions so that you're in the loop and ready to vote!
+===Avernic Treads===
+We're not making any changes here - we've run the numbers and believe that what we have is the most balanced option when looking at how these fresh kicks would interact with other items. In our previous blog, we accidentally stated that they would drop with the original stats when we pitched the Treads with our first iteration of rewards, but this was incorrect. To keep the base Treads balanced while also making sure that upgrading with Primordial, Pegasian or Eternal boots feels impactful, we're keeping the Melee Strength at 4. We're sorry for causing some confusion! We also think the Avernic Treads will pair nicely with the upcoming Oathplate Armour, coming with [https://secure.runescape.com/m=news/a=97/yama---master-of-pacts?oldschool=1 Yama], if it passes the poll of course. 
+
+{{News Poll|1|Should we add the Avernic Treads, a pair of upgradeable boots, to the Delve Boss rewards table as described in the blog? These boots will drop in a form that can be immediately worn, with the ability to upgrade them using the Cerberus Boots, one at a time, with each upgrade boosting the boots' stats. You'll also need a number of the new consumable item, Dragon Tears found in the Delve Boss' drop table. The base boots are tradeable, but become untradeable once the upgrade process has started.}}
+
+
+===Eye of Ayak===
+There's just a couple of small tweaks for this one.
+
+Firstly, we've seen concerns around the Eye's range of 6. To clarify, the staff does also have a longrange mode of 8, that perhaps wasn't clear enough in our original blog. With these stats, the Eye will perform as expected for all activities we designed it for, such as the Nylocas room at the Theatre of Blood. 
+
+We have also lowered the Special Attack cost to 50% energy, giving you a bit more oomph when facing down your enemy! 
+
+Finally, we wanted to clarify a couple of points that we saw come up in discussions:
+
+* The Special Attack won't drain an NPC past 0 Magic Defence, and NPCs won't regenerate that drain.
+* As the Eye is classed as a powered weapon like the Trident, it won't be usable in PvP.
+
+We've updated the stat image to make these changes clear for you:
+
+[[File:New Delve Boss Rewards - Varlamore- The Final Dawn (2).png|thumb|400px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-24/eye%20of%20ayak.jpg here]''!'']]
+
+{{News Poll|2|Should we add the Eye of Ayak, a one-handed magic weapon to the Delve Boss rewards table, as described in the blog? The Eye of Ayak will have an Attack speed of 3, and a Special Attack that drains an opponent's Magic Defence. You can charge this staff using Demon Tears, Runes, or passively from the Delve Boss encounter if it's in your inventory This will be a tradeable item when uncharged.}}
+
+
+===Confliction Gauntlets===
+'''Note: The information in this section is outdated, please check out the blog update from Friday, March 28th at the top of the blog for more information on the Confliction Gauntlets.'''
+
+When it comes to the Gauntlets, we hear your concerns regarding the Shadow. This reward, and project as a whole, doesn't have the scope to address specific Shadow issues, so what we have opted to do is make a tweak to the description of the passive. 
+
+[[File:New Delve Boss Rewards - Varlamore- The Final Dawn (3).png|thumb|400px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-24/confliction%20gaunlets.jpg here]''!'']]
+
+The Confliction Gauntlets' passive now reads:
+
+When a Magic attack misses, your next Magic attack within 4 ticks rolls accuracy twice. This means that you have 4 ticks to use the effect, with no down period between uses making you miss effects on other items. It's worth noting that this has to be against the same target and using the same spell or magic weapon. The same effect applies for a PvP target.
+
+{{News Poll|3|Should we add the Confliction Gauntlets, an upgrade to the Tormented Bracelet to the Delve Boss rewards, as described in the blog? The Confliction Gauntlets provide you with an extra 2% Magic Damage and bonus Magic Accuracy. As a passive, when you miss a Magic attack with the Gauntlets equipped, your next Magic attack of the same type (same weapon or spell), against the same enemy, will roll Accuracy twice within a 4-tick period. The Gauntlets will be tradeable once crafted.}}
+
+
+===Demon Spade===
+'''Note: We've made the tough decision to shelve this reward for now. Please check out the blog update at the top of the blog from Friday, March 28th for more information.'''
+
+In our previous blog, we pitched a wildcard reward in the form of the 'Demonic digger', which we're renaming the Demon Spade. We originally pitched this as being able to process Farming harvesting actions instantly, however following both your feedback and another review pass, its clear that this may not be the healthiest direction for the Farming skill long-term. We have concerns that this may disrupt the skill's balance by making certain crops such as Snape grass and watermelons more efficient for XP than trees, effectively killing tree runs and causing big changes to the Farming economy.
+
+As a result of this, we'll be changing from instant harvesting to double harvesting speed. This still offers a big upgrade over the regular spade, without feeling too 'Leagues-y' or disrupting long-standing gameplay of the skill.
+
+Here's some clarity on a couple of points we saw from your feedback:
+
+* This item will be useful for Farming-based harvesting actions that require a spade, including:
+** Herbs, Hops and Allotments
+** Clearing dead plants and tree roots
+** Using the patch at CoX
+* It will be main-hand equippable, so those of you wanting to add it to your fashionscape are in luck!
+
+{{News Poll|4|Should we add the Demonic Spade, a tradeable spade upgrade,to the Delve Boss rewards as described in the blog? The Demonic Spade is crafted by combining a spade, Demon Tears and an untradeable Burrowing Appendage found in the Delve Boss rewards table. This item will be useful for Farming-based harvesting actions that require a spade, including Herbs and Allotments, tree roots and the patch at CoX.}}
+
+That's all we have for now! Let us know what you think ahead of the upcoming poll!
+
+We're back with a fresh set of reward proposals for our upcoming Delve Boss, The Doom of Mokhaiotl!
+
+Thanks for being patient with us while we whipped up a new set of rewards and did a bit more work on the Avernic Treads. You told us that the original rewards were not strong or interesting enough, so we’ve built our new designs with this in mind.
+
+If you need a refresher on the Delve mechanics or anything else about The Doom, check out the [https://secure.runescape.com/m=news/a=97/varlamore-the-final-dawn---overview?oldschool=1 RuneFest Summit Blog].
+
+In addition to the four rewards we’re pitching today, we’re still planning to include content-specific rewards like a teleport item and a pet. For now though, we want to focus on the rewards you’ll be voting on!
+
+==Avernic Treads==
+We’ll start with something familiar. As we mentioned before, we’ve iterated on our original design instead of replacing it entirely.
+
+[[File:New Delve Boss Rewards - Varlamore- The Final Dawn (4).png|220px|center]]
+ [[File:New Delve Boss Rewards - Varlamore- The Final Dawn (5).png|thumb|220px|center|''If you can’t see the images above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-11/avernic_treads_base.jpg here]'' and ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-11/avernic_treads_maxed.jpg here]''!'']]
+
+These boots will now drop in a form that can be '''immediately worn''', with the '''ability to upgrade''' them by using the Cerberus Boots, one at a time.
+
+Avernic Treads drop with the original stats, except for a small increase in Ranged Strength. This means the Treads will be '''Best in Slot '''as soon as they drop. Combining them with the Cerberus Boots will give them further buffs.
+
+The following benefits will be gained by combining the Avernic Treads, each Boot, and a number of Demon Tears:
+
+* Primordial boots: +2 Melee strength
+* Pegasian boots: +1 Ranged strength
+* Eternal boots: +1% Magic damage
+
+This design means that there is no longer an outright requirement to have Pegasian Boots for the Treads to become useful, which should help to alleviate economic pressure on Ranger Boots.
+
+Requirements (both base and upgraded versions):
+
+* 80 Strength
+* 80 Defence
+* 80 Ranged
+* 80 Magic
+
+The Avernic Treads exist in two forms:
+
+* '''Tradable'''with the base stats.
+* '''Untradable''' once the upgrade process has started.
+** Boots can be reverted to their component parts, minus the Demon Tears.
+
+While we wanted to offer three different aesthetic options for these boots, the new design proposal complicates the work required to do that, so we will be proceeding with just one, still very stylish, option:
+
+[[File:New Delve Boss Rewards - Varlamore- The Final Dawn (6).png|thumb|500px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-11/Avernic_Treads.jpg here]''!'']]
+
+==Demon Tears==
+So what are these Demon Tears you’ll be using to upgrade your Treads?
+
+This new resource drop is '''tradeable''' and consumable, and we intend them to be common enough that using them to create other rewards won’t be too much of a grind. All our reward proposals require some number of them, although we haven’t settled on the exact amounts.
+
+While in most cases the Demon Tears will be used to craft upgrades, you’ll see that the Eye of Ayak (below) uses them as charges, too. We’re aware that ‘ChargeScape’ is a contentious topic, but we feel like recent charge systems have struck a great balance – and the way you’ll charge the Eye of Ayak is one such example.
+
+==The Eye of Ayak==
+[[File:New Delve Boss Rewards - Varlamore- The Final Dawn (7).png|thumb|400px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-11/Eye_of_Ayak.jpg here]''!'']]
+
+This one-handed Magic weapon will speed up your grind towards Tumeken’s Shadow and give you power and utility beyond it. The Shadow is currently good across the entire game, but its slow attack speed means it’s not ''always ''the right tool for the job.
+
+The Eye, however, will zap enemies at shorter intervals, with a rapid 3-Tick Attack Speed. With damage somewhere between the Sanguinesti Staff and Tumeken’s Shadow, it will optimise your performance against low-HP opponents like the Nylocas.
+
+Once you’ve obtained your Shadow, the Eye will continue to offer utility with its Magic-rending Special Attack.
+
+The Special Attack is slower (5-Tick) but has increased Max Hit. You’ll want it, too, because every point of damage will drain your opponent’s Magic Defence. Yes, we mean Magic Defence – so your Twisted Bow will hit just as hard.
+
+You can charge this staff using Demon Tears ''or'' Runes. It’ll also charge passively if you have one in your Inventory when defeating The Doom of Mokhaiotl. Uncharging the staff will give you whatever you put in, and Demon Tears are prioritised for consumption over Runes.
+
+Duplicate unique drops from The Doom can be broken down into Demon Tears if desired. 
+
+The Eye of Ayak will be '''tradeable when uncharged'''.
+
+[[File:New Delve Boss Rewards - Varlamore- The Final Dawn (8).png|thumb|400px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-11/eye_of_ayak_stats.jpg here]''!'']]
+
+'''Special Attack:''' Consumes 100% energy. Has doubled Accuracy, with a 30% higher Max Hit and drains Magic Defence equal to damage dealt.
+
+'''Cost per attack:''' 2 Death Runes, 1 Chaos Rune '''OR''' 1 Demon Tear
+
+Requirements:
+
+* 83 Magic
+
+==Confliction Gauntlets==
+[[File:New Delve Boss Rewards - Varlamore- The Final Dawn (9).png|thumb|400px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-11/confliction_gauntlets_stats.jpg here]''!'']]
+
+This magical glove is an upgrade to the Tormented Bracelet and provides you with an extra 2% Magic Damage and bonus Magic Accuracy.
+
+You can craft the Gauntlets using a Mokhaiotl Cloth (an '''untradeable drop''' from the Doom of Mokhaiotl) on a Tormented Bracelet, in a similar fashion to the Rancour Amulet. You'll need Demon Tears as well as 83 Crafting and 70 Smithing to craft the Confliction Gauntlets, but these stats are boostable.
+
+When crafted, the Confliction Gauntlets will be '''tradeable'''.
+
+But that's not all. This item comes with an interesting new passive effect!
+
+When you miss a Magic attack with the Gauntlets equipped, your next Magic attack of the same type (same weapon or spell), against the same enemy, will roll Accuracy twice. This means that if you're already hitting all of the time (looking at you, Shadow) you won't be benefiting much, but if your Accuracy is more middling you'll see some great returns.
+
+Requirements
+
+* 90 Hitpoints
+[[File:New Delve Boss Rewards - Varlamore- The Final Dawn (10).png|thumb|400px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-11/Confliction_Gauntlets.jpg here]''!'']]
+
+==Demonic Digger==
+[[File:New Delve Boss Rewards - Varlamore- The Final Dawn (11).png|thumb|250px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-11/Demonic_Digger.jpg here]''!'']]
+
+Thanks to [https://www.reddit.com/r/2007scape/comments/1iesdjh/hear_me_out_make_the_meme_a_reality/ Fray_27] on Reddit for this one! 
+
+We really enjoyed the idea of a new spade with a demonic twist, and what better place for it to come from than a burrowing boss? 
+
+Osto Ayak has the chance to drop a 'Burrowing Appendage', one of the little spiked tips from the bottom of his shield. This can be used with a small number of Demon Tears and a Spade to produce the Demonic Digger. This is a one-time Demonic Tears cost, not a charge.
+
+The Burrowing Appendage drop would be '''untradeable'''. Once crafted, the Demonic Digger would be '''tradeable'''.
+
+When used for harvesting Farming crops, any spade actions are processed instantly.
+
+Requirements:
+
+* 65 Crafting to assemble
+* 65 Farming to use
+
+That’s the (very) lowdown on our updated Delve Boss rewards! We’re still welcoming your feedback on everything we’ve shared today, so if you have a moment, do fill out the survey by clicking the button below.
+
+[[File:New Delve Boss Rewards - Varlamore- The Final Dawn (12).png|thumb|200px|center|''If you can’t see the button above, click ''[https://jagex.questionpro.eu/Varlamore-Delve-Rewards here]''!''|link=https://jagex.questionpro.eu/Varlamore-Delve-Rewards]]
+
+Alternatively, you can share your thoughts on [http://discord.gg/OSRS Discord], [https://www.reddit.com/r/2007scape/ Reddit] and [https://x.com/OldSchoolRS X].
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Rach, Redfield, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

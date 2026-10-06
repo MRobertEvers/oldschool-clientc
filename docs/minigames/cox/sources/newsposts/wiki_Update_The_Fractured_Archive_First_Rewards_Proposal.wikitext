@@ -1,0 +1,258 @@
+{{Update|date=16 June 2026|url=https://secure.runescape.com/m=news/the-fractured-archive---first-rewards-proposal?oldschool=1|category=future|rev=07 July 2026}}
+[[File:The Fractured Archive - First Rewards Proposal newspost.png|right]]
+__TOC__{{clear}}
+==Blog Update - July 7th==
+We're back from Chicago! While you've been exploring Vampyrium beneath a crimson moon, we've been chatting about The Fractured Archive beneath the sweltering sun, so let's get stuck in and talk rewards once more!
+
+To kick things off, we were over the moon with the initial reception and think we have a solid foundation to build from, so we're optimistic that polling on a rewards offering can begin sooner rather than later to ensure a suite of uniques that you'll be happy to see in your name. This blog covers some thoughts and clarifications on the proposals we shared initially alongside a handful of brand new additions, so we'll start by covering the things you're already familiar with.
+
+==Rondache==
+Out of everything we shared, this one likely had the most questions about how exactly it would work in a way that makes sense, so we'd like to go over some of the most frequently asked questions that we saw!
+{| class="wikitable" style="text-align: center;"
+|-
+! Question
+! Answer
+|-
+| How will the Shield Bash work with weapons that have a special attack?
+| Our intent here is to release something that feels easy and fluid to use, so we'll make any improvements necessary to ensure that we're not releasing something that feels clunky like the Dragonfire Shield. We've got a couple of options that we're exploring at the moment, including:
+
+* Splitting the Special Attack orb
+* Adding a context-based second Special Attack bar or Special Attack orb when the Rondache is equipped
+
+Ultimately we want to make sure that the Rondache feels easy and intuitive to use, as opposed to the current functionality of something like the Dragonfire Shield. Whichever tech we end up developing here to make this useable could be readily retrofitted to the Dragonfire Shield in future too!
+|-
+| How does Flat Armour work with Magic or typeless damage?
+| Flat armour currently doesn't interact with typeless or Magic damage.
+
+For typeless damage, we're cautious about adding mitigation here since it serves as a way to introduce damaging mechanics that rely solely on movement or specific interactions rather than overheads or gear.
+
+For Magic damage, we're keen to keep Flat Armour specific to Melee/Ranged since it serves as a useful balancing lever for NPCs to help Magic shine. That said, we know there are use-cases here for chip-heavy NPCs who switch styles and utilise Magic frequently (e.g. Olm or Verzik) and can see the appeal.
+
+We think it makes sense for a magical shield to be mitigating Magic damage so will make this the case, but we'll need to make some novel attribute like Magic Resistance on top of Flat Armour - time to panic buy Mercury's Treads!
+|-
+| Can I use Shield Bash and a Granite Maul special attack instantaneously after each other?
+| As it stands, yes! If this sounds like it might be overly strong in PvP then it's possible for us to have these share a cooldown or add a short delay between using back-to-back instant attacks.
+|-
+| How is Shield Bash's accuracy rolled?
+| We could have been clearer in the initial blog here, so to explain:
+
+Shield Bash rolls on Crush Accuracy, not including bonuses from your equipped weapon, against your target's Crush Defence.
+
+Shield Bash gains +6 accuracy per stack, meaning that at 20 stacks you'd be rolling with +120 Crush Accuracy on top of any bonuses from armour or jewellery.
+|}
+
+Beyond specific UX questions, we saw a lot of chatter around the offensive statline of the Rondache and some arguments that it was stepping too close to the Avernic Defender offensively, which lead to some concern that Theatre of Blood's reward offering would be considerably devalued - particularly when coupled with the Breaker absorbing all of the Scythe of Vitur's Crush use-cases. We think this is a fair point and would like to address it, but we're not dead-set on a specific approach. Some ideas that we're currently floating are:
+
+* Bump the Rondache's Strength bonus down, consider increasing the damage of Shield Bash so that it leans more heavily into what makes it unique.
+* Remove all Strength bonus from the Rondache and 'attach' the Avernic defender, perhaps by breaking it down into avernic studs, to bring the Strength bonus back to +8. This means that even if the Rondache is eating into the Avernic's use-cases, it shouldn't have an overtly detrimental effect on how worthwhile the drop is. We're not the biggest fans of using Raid rewards as attachments, but this one feels like it makes more sense 'in world' than most.
+
+The Rondache seemed to go down quite well on the whole, with some discussion around the relatively limited number of places where you use 1-handed weapons. We agree that there are a limited number of use-cases here, but think that's a problem that goes beyond the Rondache, since the easiest way to make more of those use-cases is to add more smaller enemies where the Scythe doesn't shine, but will likely be obliterated by the Soulreaper Axe instead. In general we feel like you want to use cool 2-handed weapons and fight larger bosses and NPCs, but we think there are avenues with -bane weaponry to make things like this shine, since the likes of demonbane and dragonbane tend to be 1-handed options.
+
+==Ascension Crossbows==
+Of all the rewards we shared, these were the ones we most expected you to see and go 'that's cool, ship it' and they seemed to go down the smoothest of everything!
+
+The most prevalent discussion point here was around the limited number of bolt effects that we proposed in our initial offering, since we said that we'd limit Ascension bolts to only 'regular', diamond and onyx. We think the sensible thing to do right now is to stick by this decision rather than opening up a whole other can of worms by rebalancing bolt effects across the board, and feel that the approach that we're taking of 'less now, add more later' means these are sufficiently future-proof for a rework of bolt effects down the line (which is something that we're keen on doing). This option also means we could make asymmetric bolt effects which might behave a little differently from their standard counterparts, if it felt appropriate, which might open up more cool reward space in future!
+
+While we're talking about bolts, there was a lot of discussion around upkeep for these and the availability of the Ascension Shards required to make the bolts themselves, since we also said they'd likely be required to charge the Breaker. Our hope here is that we just provide enough so that you never feel like you're having to slog through a massive grind for an hour of crossbow usage, similar to obtaining more than enough Vials of Blood for a lot of Scythe-usage if you go on-rate for one. We think we've had a much better track record with charged items and their respective resources in recent years and hope this should be no different. Additionally, we'd like to add an AFK-style way to obtain these similar to Ancient Essence or Demon Tears, ideally as something you can do in your downtime in the lobby area without hefty inventory requirements - meaning you can stock up while you're waiting for your squad to come back from a break.
+
+One quick final point here is regarding questions around whether the crossbows' 2-tick attack speed would be reduced to 3-tick in PvP, similar to the Toxic Blowpipe. In this case we think the answer has to be yes, they still pack a hefty punch in PvP but would be utterly broken if they retained their normal speed. We think since there's some precedent here already that we'd rather just live with the inconsistency to ensure the Ascension crossbows remain powerful, simple-to-understand and easy-to-use in the wider game!
+
+==TzHaar-Ket Breaker==
+Considering this being the raid's megarare and the thing we were most scared of, we felt like this weapon's fantasy sat really well with you and we think that with some small tweaking that we can get it into a really solid position!
+
+The elephant in the room here is that our initial proposal had the Breaker in too solid a position, as we saw calcs (which is short for calculator or calculation) coming through that resulted in the Breaker beating the Scythe against bosses you'd typically use Slash against, which isn't our intent at all. As such, we're toning down the damage re-rolling mechanic to put the Breaker into a place where it still excels in its Crush niche but doesn't outperform the Scythe against Slash-weak bosses. We'd been discussing this idea internally and then saw it suggested by a number of smart players out in the community, so think this should strike the right balance:
+
+* Damage no longer re-rolls for every defence value higher than Crush.
+** Instead, damage will roll once by default, then an additional two time for every Melee defence value higher than Crush.
+** This means that on an NPC who is weakest to Crush, you'll roll damage five times.
+* The damage bonus scaling with NPC size has been reduced from 25/50% to 20/40%.
+
+This makes the Breaker much easier to understand and balance around, since the previous iteration meant that NPCs with decent Ranged defence effectively guaranteed a minimum of four damage rolls for free, before factoring in anything else. This also means that for content where the defence stat priority looks like Slash &gt; Crush &gt; Stab, the Scythe should confidently outperform the Breaker.
+
+Just like the Rondache, we had some useability questions that we'd like to address:
+{| class="wikitable" style="text-align: center;"
+|-
+! Question
+! Answer
+|-
+| Is the Breaker's range 3 tiles?
+| No, and we should have been clearer on this initially.
+
+The Breaker's range is 1 tile, but if you're in range to attack then you'll hit targets that are two tiles behind the first. In this sense, it's more akin to the Scythe than it is the Noxious Halberd, for example.
+
+This means that you'll drag into melee range correctly when using the Breaker, rather than winding up a distance away.
+|-
+| How does the Breaker interact with multiple targets?
+| The Breaker can hit up to 3 targets at once, with no damage bonus applied.
+
+It will only hit multiple targets if there isn't a 3x3 or larger enemy present. These targets could be stacked in a line of three, all on the same tile, or any other configuration so long as they're along the same line as your initial target.
+|}
+
+Beyond the gameplay implications, we saw a lot of chatter around the theming here. We spoke about this in a handful of replies, but to reiterate: the Fractured Archive is a collection of Guthix's most-prized artefacts from a variety of factions and cultures across Gielinor. The lorehounds among you might know that the TzHaar were inhabitants of Gielinor before Guthix's arrival, which may shed some doubt on whether or not the Breaker was made to be used by the TzHaar or to be used against the TzHaar - that's something for you to ascertain once you dive deeper into the archives.
+
+On top of that, we saw some discussion around how the thrust attack was 'crushing' enemies. We lost a note from the concept art that we'd took together that made clear that the Breaker's chain is no normal chain - instead, new links are forged as the chain is thrust forward, using molten magic to slam the Breaker through tissue, hide, rock, or whatever else stands in your way. Once your opponent's been suitably obliterated, the same magic used to forge new links will retract the chain, meaning you can save your energy for flexing your newfound megarare rather than tiring yourself out by swinging it around the whole time.
+
+==Hybrid Armour==
+Saving the spiciest for last, let's chat about the most contentious part of our initial proposal. We went into our first outing expecting that this would be the most divisive, for all of the reasons that you pointed out.
+
+Currently, The Fractured Archive is billed as Old School's toughest raid yet, which is a title that we really hope it lives up to. With that in mind, many players argued that endgame players already sporting BiS armour had no reason to use this in any established metas, unless more 'mage tank' methods sprung up for low effort, high output boss killing, which isn't something we're looking to introduce on a whim (though we have no issue with it in the Inferno, so please don't put off chasing that cape - get stuck in!)
+
+On the flipside, others argued that it's pretty close to the likes of Oathplate and Virtus offensively, while also sporting an incredible defensive statline and some Prayer bonus to boot, meaning players without BiS gear already would likely try to grab this set and absorb a huge chunk of Melee and Magic gear progression.
+
+As it stands, this armour set feels like it's not good enough for players at the top-end while also being too good for players still progressing on their gear journey. To make this set healthy, we'd likely need to tone it down a little more, which would further weaken its position for endgame players (who should remain the target audience for The Fractured Archive). For these reasons, we're opting to not move forward with the Hybrid Armour from The Fractured Archive, but will instead explore future sources where we could tone this down and offer it from content that makes sense for armour at an appropriate tower level. We saw a lot of love for the visuals here and would love to find a way to introduce them in future - whether that's as its own armour set or as a cosmetic override remains to be seen!
+
+Naturally this leaves us in a position where we've only got three tradeable rewards on offer, so we have some more space to fill! We saw a lot of discourse around the volume of rewards on offer and how six felt like too few, but our hope here is to release with a set of uniques where everything feels desirable and there are ideally no drops that feel like a dud - we'd rather ship with 5 rewards that you're excited to see than 3 rewards that you're excited to see and 4 rewards that make you roll your eyes.
+
+So, what are we filling that space with? Take a look!
+
+==New Proposal - The Gatekeeper's Cane, Magic DPS Spec Weapon==
+Brimming with Infernal energy, the Gatekeeper's Cane is a damage-focused Special Attack option for Magic, with a twist!
+
+Magic as a style historically lacks any impactful 'DPS Specs', the Volatile Nightmare Staff enjoys some niche usage in PvP but lacks the accuracy to really shine in PvM settings. Instead, the majority of useable Magic Special Attacks focus on stat reduction to increase your overall DPS.
+
+To fill this gap, we set out to make something that can compete with Dragon Claws or the Zaryte Crossbow, with a handful of BiS use-cases, some use-cases where it outcompetes one but not the other, and a little extra flair. We settled on the Gatekeeper's Cane, a new powered staff, here's how it works:
+
+* Stat-wise the Gatekeeper's Cane is identical to the Eye of Ayak (including its 3-tick attack rate), but has a lower base max hit of 18 (compared to the Eye's 21).
+* In effect this means +30 Magic Accuracy and some flavourful Defence bonuses, with no inherent Magic Damage %.
+* Its Special Attack costs 50% Energy to fire off a hit with 100% increased accuracy and 50% increased damage.
+* If the initial hit connects and deals damage, you'll be imbued with energy from Infernus itself, gaining a powerful buff.
+* While buffed, your next three attacks with the Gatekeeper's Cane also have 100% increased accuracy, 50% increased damage and a faster attack rate, hitting every two ticks.
+
+In effect, the 'DPS' portion of this Special Attack isn't in a single hard-hitting attack, but in empowering yourself with demonic energy to dish out rapid-fire hits afterwards. What makes this particularly interesting is that because the damage is dealt by buffing you rather than just hitting an enemy, you can spread this damage across targets rather than needing to put all of your eggs in one basket.
+
+The Gatekeeper's Cane should shine vs. enemies where Dragon Claws' accuracy falls short or their Hitpoints are too low to let the Zaryte Crossbow shine, some examples of places where the Cane would be outright BiS include - Kalphite Queen, all God Wars generals, Dagannoth Rex, Zulrah's Magma phase, Whisperer, Olm's right-hand, and a handful more. It's also really easy for us to make this Special Attack shine if we feel it's falling too far out of favour since it's simple to balance around! Even in places where the Cane doesn't win out over both of these options, there are plenty where it'll be your next-best option, and we're sure you'll find cool ways to utilise the ability to spread the damage across multiple targets.
+
+Let us know what you make of this one, we're excited to see whether or not changing the way that Spec damage is delivered might make for an item that feels as fun to use as it is powerful!
+
+==New Proposal - Zeal, Piety upgrade==
+For years we've heard calls for Turmoil to make its way to Old School. If you're new around here, Turmoil is a high-level Ancient Curse focused on boosting your Melee stats and draining your opponents that was added to RuneScape in 2009.
+
+Digging into these requests throughout the years paints a more accurate picture of a desire for something that isn't exactly Turmoil, but more focused on an unlockable upgrade to Piety. While Magic and Ranged require raid rewards to reach their fullest potential, your best option for Melee comes from a quest that's completed very early into the average character's life-cycle.
+
+In the interest of adding some objective BiS upgrades to a raid that's targeting players at the top end, we'd like to propose Zeal. Zeal is a Piety overwrite (similar to Deadeye and Mystic Vigour overwriting Eagle Eye and Mystic Might) requiring level 84 Prayer to unlock, to increase your Strength by 28%, Attack by 25% and Defence by 25%. Since we're overwriting Piety here, Zeal would sport the same drain rate - meaning it's just an objective upgrade with no drawback or trade-off, lovely!
+
+This is a straight-up upgrade to Melee, and it is a hefty one for a Prayer that you'll have at all times. In effect, this grants some extra accuracy and an additional 6 Strength levels for players with 99 Strength using potions, making it a must-have. Since this is going a level beyond existing Prayer tiers, we're not expecting to make this the most common of the rewards so seeing the necessary unlock item should be pretty exciting! We're not set on an implementation yet, but we're hoping to do something a little cooler than just reading a piece of paper in the bank, since unlocking Rigour and Augury feels pretty unceremonious for how significant they are as upgrades.
+
+We appreciate that this isn't exactly the flashiest reward of all time, but think it makes sense for The Fractured Archive to be offering at least something that you'll want with you always, similar to unlocking Rigour/Augury or obtaining other ubiquitously strong items like the Lightbearer, and we can't imagine that this upgrade is one you'd like to leave at home!
+
+That's a wrap on our blog update! We apologise for the delay, but will be able to turn around subsequent updates at a much quicker pace if they're necessary. We think we've got a solid foundation and hope that we'll be able to start polling sooner rather than later!
+
+==Initial Blog - June 16th==
+'''A quick disclaimer before we start!''' While we know this blog is going to spark a lot of discussion (and we'll be reading all of it), we won't be back with a blog update within the week (or likely even next week) due to a number of key team members jetting off to Chicago for the Deadman: All Stars Season 3 finale (which you can tune into live over on [https://twitch.tv/oldschoolrs our Twitch channel] at 18:00 BST on Saturday, June 20th! Additionally, we're still mulling over CoX-related conversations following [https://secure.runescape.com/m=news/summer-sweep-up-2026?oldschool=1 our most recent Summer Sweep-Up blog] - it's likely to take a conservative approach with a small buff for now and a revisit in the future, but we'll confirm our position on these in the future. For now we'd like the focus to stay on an entirely different raid's rewards, so why don't we get stuck in?!
+
+In March, we shared a [https://secure.runescape.com/m=news/the-fractured-archive---rewards-primer?oldschool=1 'Rewards Primer' blog] detailing our thoughts on what a set of Raid rewards 'should' look like and diving into some of the unique challenges we're facing with putting together a proposal for Old School's fourth raid: The Fractured Archive.
+
+As intended, that blog kicked up a bunch of conversation and spawned a whole host of suggestions covering a wide range of potential avenues to explore. We've tried our best to parse everything that we've seen so far and have put together an initial reward proposal which we hope will serve as a strong 'jumping off point' which we can build off of and iterate on.
+
+There's loads more that we could say about rationale and reasoning, but we know that you read the word 'proposal' in the title and are likely already scrolling to get to the good stuff, so let's get straight into the detail!
+
+Keep an eye out throughout for infographics showing off the proposed rewards, made by the fabulous community artist: [https://x.com/Huntosrs Hunt!]
+
+==Untradeable - The Fractured Archive Teleport==
+Fed up of running out of Guthixian Temple Teleport Scrolls? Why not get your hands on an ancient convenience item to provide unlimited teleports back to the Fractured Archive, similar to the Ancient Tablet used to upgrade Xeric's Talisman for easy access to the Chambers of Xeric. Archivists used these to get back in a pinch, and since there don't seem to be any Archivists around any more it would be a real shame to see this handy pickup go to waste.
+
+==Untradeable - Elemental Fragments==
+While these aren't the most game-changing account unlocks you'll ever obtain, you'll absolutely want to get your hands on these Elemental motes, since consuming one for each of the elements will increase the max hit of all of that element's spell by 2. Similar to the Jewels for your Keris Partisan inside Tombs of Amascut, we expect these to be pretty common with some 'pity RNG' mechanics at play to make sure you can check them off your to-do list in a reasonable timeframe.
+
+Consume a tear that Guthix shed in remembrance of an element so that you can use that element to better exploit enemies' weaknesses and dish out more damage - we're sure that it's probably what Guthix would have wanted...
+
+Now that untradeables are out of the way, let's get to the ''good'' stuff!
+
+==Shelved: Tradeable - Hybrid Armour Set==
+{{Collapsed section|18|As stated in our blog update, we've opted to now move forwards with this reward. You can click here to expand and see the initial proposal if you'd like!}}
+
+In our primer blog, we spoke about leaning towards an Elemental Weakness-focused armour set. This didn't seem to take flight among the community, but we did see a lot of conversation around armour sets that serve multiple combat styles, so set out to explore what a so-called 'Hybrid' set might look like coming from a raid.
+[[File:The Fractured Archive - First Rewards Proposal (1).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/HuntHybrid.png here]!'']]
+
+Naturally, a set that's aiming to serve two Combat styles can't be best-in-slot in either of them, but needs to be a compelling enough option that even players with max gear might opt for the increased inventory space that comes with solving two styles with one set, while players not yet sporting absolute max will be pleased to obtain a piece. The set that we're proposing is a Melee/Magic hybrid set, effectively mitigating the biggest downside of style-specific sets for Melee or Magic. There are no set effects or fancy passives, just solid numbers, so let's take a look at the stats and then contextualise them for those of you who haven't memorised every stat bonus in the game.
+[[File:The Fractured Archive - First Rewards Proposal (2).png|220px|center]]
+
+[[File:The Fractured Archive - First Rewards Proposal (3).png|220px|center]]
+
+[[File:The Fractured Archive - First Rewards Proposal (4).png|thumb|220px|center|''If you can’t see the images above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/HybridHelm.png here] for the helm, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/HybridBody.png here] for the body, or [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/HybridLegs.png here] for the legs!'']]
+
+To give some context to those numbers, here are the highlights:
+
+* Melee accuracy bonuses. More than Bandos (which sports none) but less than style-specific options like Oathplate or Inquisitor. Notably, this is the first armour set sporting a Stab accuracy bonus of any kind.
+* Additionally, Magic accuracy bonuses. These are a ''smidge'' below Ancestral Robes, so should remain very competitive at most content where you're using Magic.
+* No negative Defence bonuses. Defensively the set is slightly worse than Bandos against Melee & Ranged, but boasts +28 Magic Defence. This Magic Defence is lower than that of Ancestral Robes, but the other defences here more than make up for it.
+* A whopping +16 Prayer bonus, barely shy of Proselyte's +18. This is noticeably lower than the +24 Prayer bonus offered by the Sunfire Fanatic armour, but in conjunction with the other stats here it's definitely nice to have!
+* More Melee Strength than Bandos and Oathplate, but the full set is 5 Melee Strength less than Torva's, meaning you'd ''always'' gain a max hit with Melee in Torva, maybe even two max hits in some setups.
+* Magic Damage in line with Virtus, but less than Ancestral. This means that if your max hit with no armour on is 34 or above, you'd always gain an additional max hit with the Ancestral set over this set.
+
+For those of you already sporting best-in-slot gear for both styles, this set might not be the ''most'' valuable pickup of all times, but the Stab bonuses coupled with Prayer bonus and positive Magic defence might give it use-cases beyond other Melee sets in some instances. For players looking for a solid all-rounder set (excluding Ranged) and getting to grips with raiding in general, we think this could be a really desirable unlock and well worth the space in the bank - no more bringing Void to learn the Theatre of Blood and wondering why all you've done is slam Saradomin Brews!
+
+This set's obviously unlike anything else we've made so we're really keen to hear what you make of it - sets like this could open up space for hybrid weaponry that benefit from multiple bonuses, or give us more options to flesh out other hybrid offerings like Magic/Ranged and Ranged/Melee sets, so it would be wonderful to work these into something that matches your expectations.
+
+{{Collapsed section end}}
+==Tradeable - Rondache (it's a type of shield)==
+Keeping on the 'unlike anything else we've made' track, we've got a brand new shield.
+
+We saw loads of you asking for useable shields or interesting off-hands, since it's something we rarely see these days past your initial Defender unlocks. The difficult thing about making shields ''cool'' is that in Old School, offence tends to be the best defence - our damage formula means that you're still likely to get hit extremely frequently in endgame content, and the easiest way to stop getting hit is to simply kill the thing that's hitting you. We don't think any single gear upgrade is likely to change this paradigm, but we did set out to see whether or not we could make a shield that had clear use-cases and felt ''cool'' to use, here's what we've cooked up:
+[[File:The Fractured Archive - First Rewards Proposal (5).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/HuntRondache.png here]!'']]
+
+Let's break it down!
+[[File:The Fractured Archive - First Rewards Proposal (6).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/Rondache.png here]!'']]
+
+* +2 Flat armour. This comes into effect after you've attacked while the Rondache is equipped (to prevent tedious shield-swapping methods), and reduces all incoming Melee/Ranged damage by 2. In essence, this is ''perfect'' for mitigating chip damage and pesky, unavoidable small instances of damage that stack up to become a real nuisance, which might make it a nice pickup for various Combat Achievements, The Great Olm, Melee Inferno, Araxxor, and loads of other places.
+* On top of that, the damage mitigated by the flat armour charges the Rondache, up to 20. This means 20 damage mitigated by flat armour nets you a fully charged Rondache.
+* This charge can be expended as a special attack to perform a ''Shield Bash. Shield Bash'' fires off instantly, similar to a Granite Maul Special Attack, and deals more damage based on the number of charges consumed.
+** As an example, 16 charges would give Shield Bash 16 +16% damage, totalling 18 (since Old School always rounds down). 20 charges would deal 20 + 20% damage, totalling 24. The percentage here serves as an incentive to stack charges up to full, or hold them until you can finish off your target.
+* After ''Shield Bash'' is used, there's a short cooldown before you can gain more charges, but the Flat Armour will still be in effect. This aims to prevent weird use-cases built around spamming ''Shield Bash'' rather than having it supplement your chosen style.
+* In terms of raw defensive stats, it's not the most impressive off-hand. There's a little anti-synergy between wanting to mitigate damage for Shield Bash versus not getting hit at all, but the Rondache offers better defensive stats than an Avernic Defender, including a lot of Ranged Defence.
+* Offensively, the Rondache's Strength bonus equals the Avernic Defender, with some slight negative bonuses for Ranged and Magic. This means it's still pretty useable with any Combat style, but is ''best'' suited for Melee.
+
+This one's really exciting to us, a strong anti-chip damage option with a rapid-fire in-built Special Attack sounds like a superb starting point for a shield that makes sense in Old School in 2026, so let us know what you think.
+
+==Tradeable - Dual-Crossbows==
+What's better than one crossbow? Two crossbows. One crossbow in each hand, firing off bolts every two ticks - the ultimate run and gun playstyle for anybody who longs for a return to Diablo 3's Demon Hunter fantasy.
+
+Naturally, the thought of blasting enchanted ruby bolts into your foes at twice the usual speed is a scary one, so these rapidfire crossbows do come with some caveats.
+[[File:The Fractured Archive - First Rewards Proposal (7).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/HuntCbows.png here]!'']]
+[[File:The Fractured Archive - First Rewards Proposal (8).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/Crossbows.png here]!'']]
+
+In essence, while we think this approach to crossbows is cool beyond compare, we've spent so much time crunching numbers only to conclude that these cannot be balanced around existing bolts and their respective effects. Instead, the Ascension Crossbows will only be able to fire Ascension Bolts, which will be readily obtainable by chiselling down Ascension Shards from The Fractured Archive.
+[[File:The Fractured Archive - First Rewards Proposal (9).png|220px|center]]
+
+[[File:The Fractured Archive - First Rewards Proposal (10).png|thumb|220px|center|''If you can’t see the images above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/Bolts.png here for regular bolts] or [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/GemBolts.png here for gem-tipped bolts]!'']]
+
+You'll notice that for the time being, we're keeping the number of enchanted Ascension Bolt variants limited. This makes it considerably easier for us and you to understand the power of the Ascension Crossbows and actually calculate their damage, while also allowing us the time to observe them out in the wild before talking through additions like Ruby-tipped Ascension Bolts. Onyx-tipped bolts are obviously a luxury but we thought they'd be a fun inclusion and are already relatively balanced around their scarcity, while Diamond-tipped bolts are an absolute staple and will see the Ascension Crossbows doing serious damage to tanky targets.
+
+We expect these to be a raid-tier replacement to the Toxic Blowpipe (especially versus tankier targets or targets who are weak to Heavy Ranged), with plenty of room to grow and develop over time if we opt to add new variants of the Ascension Bolts.
+
+The Ascension Crossbows are bound to be spicy, so we'll leave them with you for now and move on to the final piece of our proposal, the one you've been waiting for.
+
+==Tradeable - The TzHaar-Ket Breaker==
+Our earlier blog heavily suggested we were leaning towards a Crush-focused megarare which you seemed to be expecting and on-board with, though a good number of you felt it was a little 'safe' or predictable. We do agree that it's a fairly 'safe' option but also think that it makes sense and is easy to add enticing use-cases with new content additions, similar to the Scythe of Vitur gaining a litany of use-cases over the last couple of years!
+
+Shortly afterwards, talented community artist HuntOSRS dropped a suggestion that ''really'' seemed to resonate, so there's a great chance you've seen this concept on Hunt's [https://x.com/Huntosrs/status/2033157229516362172 X/Twitter post] or [https://www.reddit.com/r/2007scape/comments/1ruceiu/the_fractured_chain/ Reddit post]. Historically, suggestions or concepts that go down well across multiple platforms tend to prove pretty popular, so we're opting to adapt this wonderful suggestion and see if it's something you can get behind. Introducing the TzHaar-Ket Breaker: a powerful Crush weapon imbued with magicks beyond your comprehension, but was it made to serve or to break the TzHaar...?
+[[File:The Fractured Archive - First Rewards Proposal (11).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/HuntBreaker.png here]! Note that the damage-scaling in this image is outdated, and is now 100%, 120% and 140% as size increases.'']]
+
+That looks like an awful lot, so let's try to put things as simply as possible.
+
+* Hits big targets harder (similar to the Scythe of Vitur), since its chain extends an additional two tiles.
+* Is especially potent on targets who are weakest to Crush, since it will roll damage several times and pick the highest hit.
+* Alternatively, the extending chain can hit several small targets in a line.
+* Against small targets, you can opt for the 'Smash' style to lose the benefits above but gain a hard-hitting, 3-tick weapon, which will sport some niche additional use-cases - we're looking at you, Nylocas...
+
+For those of you curious on the specifics, here's what we're currently working with:
+
+[[File:The Fractured Archive - First Rewards Proposal (12).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-13-69-secret/Breaker.png here]!'']]
+
+* Hitting the same target multiple times will mean hits deal 20% more damage per additional tile hit. This means hitting a 3x3 target will result in a hit that rolls up to 140% damage, a 2x2 up to 120% damage, and a 1x1 up to 100% damage.
+* Similar to the Scythe of Vitur, the TzHaar-Ket Breaker can hit up to 3 targets in a single attack. Whether these targets are in a line or stacked on the same tile is up to you!
+* Damage is rolled multiple times. Effectively, the breaker rolls two damage 'dice' for every Melee Defence (Stab, Slash) higher than Crush on an NPC. This means that an NPC who is weakest to Crush, you'll be rolling damage five times and picking the highest result.
+
+A lot of the most popular suggestions that we saw for Melee weaponry centered around AoE or multiple tiles coming into play, so we're hopeful that this is a great starting point for a megarare that fills that Crush space but is a little more exciting than just 'big bonk'.
+
+Just like our other Melee megarare, the Scythe of Vitur, you'll need to charge the TzHaar-Ket Breaker using some kind of resource (we're not decided on which one yet, so just panic buy random things if you're looking to invest) and Ascension Shards, which you'll be able to obtain from the raid itself, much like Vials of Blood.
+
+There's not a whole lot more for us to say, so we'll leave you with all of the important details and sign off. We're not expecting our first outing with these rewards to be an absolute bullseye (though it would be a nice surprise!) but we think you should have plenty to go off of and discuss to help us all work to put together the best proposal possible, so let us know what you make of everything that we've shared today!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the official [https://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Default, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Lotus, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume.'''
+
+''The Old School Team.''

@@ -1,0 +1,375 @@
+{{Update|date=1 September 2022|link=https://secure.runescape.com/m=news/gielinor-gazette---august-2022?oldschool=1|category=community}}
+[[File:Gielinor Gazette - August 2022 newspost.png|right]]
+{{Clear}}
+
+We’re having a tomb-tastic August with the release of Tombs of Amascut! In other news, we’ll be discussing the Wilderness Boss Rework, an update to the proposed Mobile UI changes, and some rather cryptic notes…
+
+Let’s jump in!
+__TOC__
+==Project Status Update==
+===Released Content===
+====Tombs of Amascut====
+It's finally here! Old School's third raid, [https://secure.runescape.com/m=news/tombs-of-amascut?oldschool=1 Tombs of Amascut] has launched, and what a launch it was. We’ve seen incredible triumphs and some truly ‘F’ inducing defeats. It’s been great watching you enjoy such a highly-anticipated chunk of content, especially since we tried a few new things: mechanics, accessibility options, and a more narrative-driven raiding experience.
+
+This week’s [https://secure.runescape.com/m=news/a=97/tombs-of-amascut-balancing--bugfixes?oldschool=1 update] has already brought a slew of feedback changes, but we’re not stopping there! The team will continue to discuss your feedback over the coming weeks, making any changes we feel are necessary.
+
+We’re also still deciding how you lot are going to earn the Ornament Kits for Ava’s Assembler, Elidinis’ Ward, the Max Cape and Osmumten’s Fang, something we hope to share in early September. Not long to go now!
+
+As for the World Firsts, we’re happy to announce that both winning teams have been verified by our Anti-Cheating Team, so a massive congratulations to the following players:
+
+'''World First - Tombs of Amascut Normal Mode'''
+* 54n Kappa
+* Animeme
+* HardeSnikkel
+* Kanao
+* OBLV Poenari
+* OBLV YUMMI
+* Rovint
+
+'''World First - Tombs of Amascut Expert Mode'''
+* OBLV Jraze
+
+All the winners will automatically receive 12 months of Membership, which we’ll confirm via your Player Inbox.
+
+For those of you who tagged a friend when the trailer for Tombs dropped a few weeks ago, don't think we forgot about you! We'll also be selecting one pair per platform to also receive 12 months of Membership, so keep an eye on your associated inboxes for a message from either the Official Old School pages or Mod Sarnie.
+
+Lastly, our most recent livestream focused on the countdown to ToA. If you missed it, you can catch up with the video below:
+
+<center><big><big>'''[https://youtube.com/watch?v=NZ1u78HGb7k Are you ready for Tombs of Amascut? (Pre-release Stream)]'''</big></big></center>
+
+====Activity Adviser====
+The Activity Adviser is live, in-game, and currently being tested by a lucky handful of players to see what kind of impact it has.
+
+The testing phase is nearly over now, so depending on the results, it could go live any time in the next few weeks! We’ll have more information in September, so keep an eye out for further details soon.
+
+====Leadership Livestream====
+We recently had another Leadership Livestream, featuring Mods Markos, Kieren and Ayiza. They discussed lots of different topics ranging from the future of the game, account security and even the current Old School Team. If you missed it, you can catch up via the video below.
+
+We plan to have more consistent Leadership Livestreams happen throughout the year so that you can hear about the bigger, top-level updates as well as our content and feature pieces.
+
+<center><big><big>'''[https://youtube.com/watch?v=HPRsYQX5Avk Leadership Livestream Q&A with Mods Markos, Ayiza, Kieren | OSRS Q&A August 18th]'''</big></big></center>
+
+===Upcoming Content===
+====Wilderness Boss Rework====
+It’s HAPPENING! Those of you who have read our [https://secure.runescape.com/m=news/wilderness-boss-rework-design-blog?oldschool=1 Design Blog] will already know that the long-awaited Wilderness Boss Rework is finally coming to the game.
+
+For those who missed it, here’s the TL;DR: Callisto, Venenatis and Vet’ion are being reworked to deliver a proper multi-combat group boss experience, with exciting mechanics, the ability to keep topped up between kills in case of PvP, and epic rewards that make fighting these big ol’ beasties a risk worth taking.
+
+Each of the three bosses now has their own lair within a big scary cave, filled with winding passages where you can chase – or escape from – your fellow players.
+
+If multi-combat isn’t your thing, alternative, single-way versions of the bosses will also be made available – but they’re not completely risk free! Prepare for potential attacks with switches, freezes, and plenty of supplies on hand, at the cost of reduced drop rates and GP per hour.
+
+We plan to deliver this update later this year, and we’ll update you on our progress through September. For now though, here’s a little teaser for you all:
+
+[[File:Gielinor Gazette - August 2022 (1).png|centre|600px]]
+
+====Quest Speedrunning====
+True to form, Quest Speedrunning is coming up fast! The team have been working to ensure that the launch has just enough content for everyone to dip their toes into the exciting world of speedrunning, while leaving room to grow and add new quests over the five months after launch.
+
+Mod Light recently released a blog explain everything you need to know about this thrilling new mode, which you can catch up on [https://secure.runescape.com/m=news/quest-speedrunning-blog?oldschool=1 here]!
+
+====Updated Mobile UI & New Client Features====
+The [https://secure.runescape.com/m=news/updated-proposed-mobile-ui-changes?oldschool=1 Mobile UI Blog] has been updated to address your feedback.
+
+As we mentioned in the blog, this is a key project because it means we’ll be able to deliver even more client features to your mobile device. We’re ready to proceed with the work and we estimate that it’ll be ready just in time for another new client feature – the highly anticipated Loot Tools!
+
+====2022 and Beyond====
+Last Gazette, we teased that we are at a critical stage of determining the direction for the rest of the year and onward into 2023. This is nearly complete, the final decisions are being made and we are super excited about what we already have agreed to work on. Whilst we could say more about some content, we want to ensure we are confident in delivering our commited projects before we reveal all.
+
+We've also got another Game Jam coming up in November, so you can look forward to more ideas coming from that. Please stay tuned for more updates regarding the rest of the year in the near future.
+
+==Tombs of Amascut: Invocations Puzzles==
+<center>''by Mod Sarnie''</center>
+
+Hey there, ‘scapers! Hope all’s going well and your grinds are plentiful! For those of you who aren’t aware, one of my favourite things (apart from a nice sarnie of course) is puzzles. Whether solving or creating them, I just love a good, cryptic brainteaser.
+
+Recently, we put together a series of puzzles for Tombs of Amascut to give you all a glimpse at some of the Invocations you can now see for yourself in the raid. You know, those really weird tweets you saw a couple of weeks ago?
+
+[[File:Gielinor Gazette - August 2022 (2).png|centre|600px]]
+
+We thought it might be neat to explain each of the puzzles for those of you who missed the opportunity to solve them before the raid. After all, there are sure to be plenty more treasure hunts to come!
+
+The most important thing to me is that teasers like these require players to work for them in some capacity – it’s way more fun to discover something yourself than have it handed to you. That said, the biggest thing for my first set of puzzles, back in Leagues III’s Relic Hunt, was accessibility. We needed the main areas of discovery and exploration to be something that everyone could access, and they had to be safe, too. The last thing I or the company would want is to have people accidentally start downloading random files from shady websites!
+
+So that’s why we hit upon the idea of newsposts as a way of delivering these puzzles – they’re accessible to everyone, and familiar to Old School players.
+
+The first round of puzzles was a fun experiment, something we’d never really tried before. I was surprised by how many people got involved! It was an extremely joyous feeling, seeing the theories and methods being thrown around to solve the original set… even if some steps were a bit cheesy...
+
+All our learnings from the Relic Hunt went into creating these puzzles and making them extra challenging… and extra fun!
+
+So, that brings us to the Invocation puzzles. Before we dive in, it’s important to note that a lot of the puzzles involve common encoding or decoding techniques. Again, that’s something anyone can learn, or solve using the help of code-solving websites and Wikipedia.
+
+{{Collapsed section|18|Puzzle #1 - W҉h҉a҉t҉ ҉d҉o҉e҉s҉ ҉i҉t҉ ҉m҉e҉a҉n҉.҉.҉.҉ - CLICK TO EXPAND}}
+[[File:Gielinor Gazette - August 2022 (3).png|centre|600px]]
+
+I’ll admit, this first puzzle had a small mistake on it. Nothing that affected the solution, but it would’ve made it a lot cleaner!
+
+If you’re unfamiliar, the above image is Morse Code. Decoding it should reveal the Latin for Beneath Cursed Sands, but the ‘Sands’ part decodes to English! My bad.
+
+So, if you head to the Beneath Cursed Sands launch post, you’ll see a few random letters sprinkled throughout with links leading to pages like:
+
+* https://osrs.game/XIX
+* https://osrs.game/XVI
+* https://osrs.game/XVIII
+
+Players familiar with our socials know that this is our official shortened link (osrs.game), but clicking the links takes you to the Old School homepage, because officially those URLs don’t exist. What now then?
+
+Well, each URL contains a roman numeral. Take the numerical value of each (for example XIX = 19) in the order the links appear in the post and you’ll get the sequence: '''1916189142061518920'''. Plug that into the shortened URL, and you’ll be whisked away to… Monkey Madness II?
+
+Again, nothing looks out of the ordinary, but take a closer look and you’ll notice all the ‘ba’ particles in the newspost have been bolded and capitalised, and clicking one of them will take you to the Everything You Need to Know newspost. I wonder which monkey with ‘Ba’ in her name also appears in this blog?
+
+Click the image of Ba-Ba, and you’ll get your first Invocation reveal.
+
+You’ll notice that newsposts and shortened URLs are a common theme in these puzzles. That’s something we wanted to get people familiar with straight away.
+{{Collapsed section end}}
+{{Collapsed section|18|Puzzle #2 - f̷̵̫̞̉͢i̵͓͙̱͚̎͟n̷̶̯͉̊̽̐ͦ͘d̸̡̩͍̔ͥ͜y̯̤͑́́̓́ȍ̸̢̢̮͚̐̚û̶͙̽̿͆̈r̶̷̲͍̭͐̾̀͟ẅ̷̷̢̟͇͈̒ă̶̸̝ͦ͊̿͋͞y̯̤͑́́̓́t̴͕͖͓̀h̶̯̰̝̻̿̓͢r̶̷̲͍̭͐̾̀͟ȍ̸̢̢̮͚̐̚û̶͙̽̿͆̈g̴̶̛̮̣͙͠h̶̯̰̝̻̿̓͢t̴͕͖͓̀h̶̯̰̝̻̿̓͢ę̷̵̧̖̫̗̆̊m̶̷ͪ̽͡ă̶̸̝ͦ͊̿͋͞z͕͓̼̼̽̃͘ę̷̵̧̖̫̗̆̊t̼͈̮̯͚̘̤̄̄͠y͇̪̫̗̤͚̒͟w̸͉͉̬̎͂ơ̹̥̎͛͗d̹̜̼̝̝ͯ͟ - CLICK TO EXPAND}}
+[[File:Gielinor Gazette - August 2022 (4).png|centre|600px]]
+
+A maze with no real middle, and a Trout… what could this mean? The trick is that neither of these eye-catching elements will help you initially, but something else will.
+
+Hidden on top of the maze, in the white space, is a barely-visible message reading ‘9th Birthday’. Drawing on your previous puzzling experience, you’ll know right away that this message is telling you to go check out the 9th Birthday newspost, where you’ll find another Trout.
+
+Click that fish and you’ll find your first puzzle piece:
+
+[[File:Gielinor Gazette - August 2022 (5).png|centre|150px]]
+
+Off to find more Trouts, then! Looking through desert newsposts, including Tombs of Amascut ones, nets you seven more. Click ‘em, put the puzzle pieces together, and you’ll be left with an image that reads ‘OVERLY DRAINING’, with two holes.
+
+Overlay this image with the maze from the original post and you’ll highlight parts of the maze that give you two five-number sequences: '''25343''' and '''52445'''.
+
+Now, remember what I said about code solving? A handy tip for solving any puzzle or ARG (Augmented Reality Game) is to check common ciphers like Shift Ciphers and Binary against the mysterious numbers you’ve got. In this case, the cipher we’re looking for is called Vigenere.
+
+The Vigenere method uses a key to convert a string of characters into something else. Find the key and the associated text, and you can translate it to find the answer to your puzzle. In this case, though, I didn’t want you to decode something… I wanted you to encode it. Use a Vigenere cipher with 0123456789 and the key to the numbers we found (2534352445) and you can convert OVERLYDRAINING to '''FP7KDS5K4CECF0''', the URL where you’ll find the Invocation reveal!
+{{Collapsed section end}}
+{{Collapsed section|18|Puzzle #3 - 01110010 01100101 01101101 01101111 01110110 01100101 00100000 01110100 01101000 01100101 00100000 01101111 01100011 01110100 01101111 01110100 01101000 01101111 01110010 01110000 01100101 00100000 - CLICK TO EXPAND}}
+[[File:Gielinor Gazette - August 2022 (1).png|centre|600px]]
+
+This puzzle was tweeted with three grape emojis. We’ll put those aside for now, because it’s BINARY TIME!
+
+The image text translates to:
+
+<center>''Journey back to where you are rewarded, with silver and magic, to survive the scorching sun''</center>
+
+Some more text, ‘remove the octothorp’ gives you your next steps. Head back to the Beneath Cursed Sands newspost, and you’ll see a new image appear:
+
+[[File:Gielinor Gazette - August 2022 (6).gif|centre|250px]]
+
+The 2x3 sections of dots reference Braille, but translating it gives you two strings of characters that make no sense… and they’ll continue to make no sense, because this is a red herring.
+
+If you instead look at the middle six dots, you’ll see they spell out ‘DEHYDRATION’ – the name of your next Invocation!
+
+But that’s not all. The dots that spell out each letter of ‘DEHYDRATION’ actually have a numerical code which references each dot’s position:
+
+[[File:Gielinor Gazette - August 2022 (7).png|centre|200px]]
+
+Use that as a base and spell out each letter with the number sequence, and you’ll have a third URL, and a third Invocation under your belt.
+{{Collapsed section end}}
+{{Collapsed section|18|Puzzle #4 - ꁲꋪꏹꂖꁏꌈꌚꌈꇃꇃꏹꏹꂡꀤꋊꁍ? - CLICK TO EXPAND}}
+[[File:Gielinor Gazette - August 2022 (8).png|centre|400px]]
+
+There’s nothing hidden in the post text of this puzzle – instead, the numbers in the Curry are key. They’re actually the total poll votes and results of the Warding Poll from July 2019.
+
+Head to the post, and you’ll be greeted with a 3-4 digit code – such as 818. That tells you the month (August) and the year (2018) of your next stop on the newspost trail! Follow it, and you’ll ultimately wind up at Halloween 2017.
+
+Now put all those numbers together (you did save them, right?) including the month and year of the Warding newspost, and you’ll get a code which translates to: ‘I AM THE BEGINNING OF THE END’.
+
+That’s my way of telling you to look at the beginning of each newspost. Like, right at the beginning. Like, the first letter.
+
+Put together, those letters spell ‘<b>WALKTHEPATH</b>’, which is your final URL for this puzzle.
+{{Collapsed section end}}
+{{Collapsed section|18|Puzzle #5 - ᔕᗝᒪᒪIᑕI丅ᗩ丅ᑌᑎᗪIɊᑌᗴ - CLICK TO EXPAND}}
+[[File:Gielinor Gazette - August 2022 (9).png|centre|400px]]
+
+Those of you who’ve taken on Old School’s most hardcore challenge will instantly understand the first step of this puzzle. Rearrange the 3x3 squares to get the Hardcore Ironman symbol, and then head to the Hardcore Ironman newspost.
+
+Clicking the header of that newspost will take you to your next clue, a string of letters. If you look closely, you’ll see that the letters of the alphabet go in sequence with the 1st, 2nd and 3rd characters in the sequence - barring one U, which was supposed to be a V. Sorry folks!
+
+Use a shift cipher on the position of each group of three letters (for example, SVO = 1, TWP = 2) spells out ‘Run’.
+
+Enter Hardcore+Run as the URL, and you’ll get… another puzzle! What, you think we’d make it easy?
+
+On this page, you’ll see coloured dots. Connect the matching ones and it spells out ‘<b>MMCMXCIX</b>’. In Roman numerals, that’s 3999. Add it to an URL, and you’ve got the second-to-last Invocation.
+{{Collapsed section end}}
+{{Collapsed section|18|Puzzle #6 - Where is it? - CLICK TO EXPAND}}
+
+Second-to-last? Yes, there was a cheeky hidden Invocation which I thought we’d let you all find on your own. Remember the grapes from the third puzzle? Well, if you hadn’t noticed, the last five puzzles all had some kind of food item involved.
+
+* Puzzle #1 - Cake in the Background of the post
+* Puzzle #2 - Trout that help you find the pieces
+* Puzzle #3 - Grape Emojis in the post.
+* Puzzle #4 - Curry with the numbers in.
+* Puzzle #5 - A Lizardkicker hidden in the bottom right.
+
+Put them in order of their appearance and you’ll get one final puzzle! Using methods you should, by now, be familiar with, and the numerical code for AMASCUT, you’ll find the final Invocation.
+{{Collapsed section end}}
+Wasn’t that a wild ride? Hopefully, you now have some insight into the wonderful world of puzzle solving, and the creative process that goes into creating each one. We do thoroughly enjoy setting these puzzles, and we don’t intend to stop any time soon… so keep an eye out!
+
+If you enjoyed this, I highly recommend the [https://discord.gg/2AVnN5xKGB Runestone Hunters Discord], a place for like-minded ‘scapers who love a good puzzle or two. Since the Leagues III Runestones first appeared, I’ve watched it slowly grow from a handful of intrigued puzzle enthusiasts to a collective of fantastic individuals ready to help people with both puzzles and Old School in general. They’ve even got their own clan now!
+
+I’ve learned a lot from them myself, and that’s definitely going to help with future puzzle events. We just want to say a massive thank you to everyone who participated, as it genuinely makes us smile watching you all solve our puzzles!
+
+One final note. The Medal winners weren’t the only ones to receive a strange, coded message recently… I can’t say what was left at the office, but we have our instructions and I don’t want to think what might happen if we don’t follow them. The only thing I’m allowed to say is that it won’t all be for nothing.
+
+Thanks so much for reading, and have a wonderful rest of your day!
+
+==Postbag From the Hedge==
+''Hello everyone! I’m afraid I haven’t done much postie-ing this time. Last month, I was asked to deliver a letter to Maisa in the desert, and then… actually I don’t remember what happened next! All I know is that last week I woke up in the scariest pyramid I’ve ever seen, and got out of there sharpish!''
+
+''Enough about my adventures though – let’s take a look at this month’s post!''
+
+''Hang on a minute... what's this letter here? That definitely wasn't there a minute ago. What does it say...?''
+
+{{Letter|'''On 16 Ire of Phyrrys, a challenge. Your services will be required soon.'''}}
+
+''How mysterious! If that's your letter - or if you have any idea who might have sent it - you can contact me via the usual channels. Or just come and say hello!''
+
+''I have a funny feeling we'll be hearing more from this puzzling post-sender soon... until then, let's have a look at your letters!''
+
+{{Letter|Dear [[Dagannoth Rex]],
+
+Every time we meet you vehemently refuse to step foot in the water, no matter how many magic spells my friends and I pelt you with. Is it because you're afraid of water? It seems pretty silly that one of the kings of WATERbirth island would be afraid of getting wet.
+
+Or maybe you just like the tingly sensation of Slayer Dart?
+
+Yours truly, DarkfireX34}}
+
+Dear DarkfireX34,
+
+I’m not scared of the water! Who told you that?! Was it Prime? He’s always bullying me…
+
+Anyway, I never see you and your horrible mates swimming around in there. If you’re so brave, why don’t you take a dip? See how you like it?
+
+That’s what I thought.
+
+
+See you (and your puny Slayer Darts) soon,
+
+Dagannoth Rex
+
+----
+{{Letter|Dear [[K'ril Tsutsaroth]],
+
+After a long day of '''YARRRRRRR!''' ing my Prayer Points away, what does a great and powerful demon like yourself do to unwind? Surely you can’t be that angry all the time, what do you do to rekindle all that rage?
+
+Strength through Chaos,
+
+LuitenantDan
+
+PS: What brand of toothpaste do you use to keep those pearly whites pearly and white?
+
+PPS: Who’d you commission your dual blades from? I could use a new sword.}}
+
+Greetings, mortal!
+
+Hmm, that’s a tough question. After millennia trapped in this frozen dungeon, I’ve developed quite a few hobbies. Curling, snowboarding, flaying my enemies, ice sculpture… you’d be amazed how much there is to do around here. When all else fails, a good bit of primal screaming always restores our morale. Here, you have a go:
+
+YARRRRRRRRR!
+
+
+May chaos rend your foes asunder,
+
+K’ril
+
+P.S. The only paste I use is the stuff that used to be my enemies!
+
+P.P.S. I get them delivered from the pits of infernus. They do next day delivery!
+
+----
+{{Letter|To [[Ignisia]], Grand Master of the Order of the Sacred Flame,
+
+Good day Ignisia,
+
+It has been a while since I last paid a visit to the Pyromancers. The last time I was there, I... just wanted to check on the cute little toad at your camp. Definitely '''did not''' pour anything on the Doors of Dinh.
+
+Regardless, I have a couple of '''burning''' questions I would like to ask you.
+
+- In order to serve the Order, you had to pass something called the Trials of Fire. Could you tell me more about these trials?<br>
+- Would it be possible for a mortal such as myself to undertake the Trials, to prove myself to the Order?<br>
+- How did you become Grand Master of the Order?<br>
+- Have you heard of a hot young man (pun not intended, he seems to light fires every moment of every waking hour, and his hands are stained with ash) by the name of Ignatius Vulcan? I was surprised to learn '''he''' was the master of Firemaking, when you seem to be a much better fit for the role!
+
+I hope you can answer at least some of my questions!
+
+Sincerely, u/YoshiFan12 , fellow master of Firemaking
+
+P.S. - What do rejuvenation potions taste like? I would have had a sip myself during my time subduing the Wintertodt, but the well-being of the other pyromancers was more important.}}
+
+Greetings, YoshiFan12,
+
+That’s a rather specific thing to deny, isn’t it? I’m starting to think you did do something to the Doors! But that would be ridiculous.
+
+I can’t tell you much about the Trials of Fire. We keep the details hidden from non-initiates, and in any case, it’s been centuries since I underwent them myself! Although if you’re interested, you’d be very welcome to apply! I was a mortal myself when I first joined, and we have lots of mortal recruits… although they don’t tend to last very long.
+
+Those were dark days for our Order… and for all of Kourend. Our previous Grand Master was my mentor. A brave woman, indeed. One terrible day, she was summoned to a meeting with Xeric. She never returned. I have no doubt that she was loyal to our Order until the last. There was some turmoil – not everyone shared my dedication to the cause – but in the end, I was elected by unanimous vote. Normally Grand Master is a lifetime position, but after the Ascent of Arceuus, my role was made permanent.
+
+Ignatius… Vulcan? That does sound like a name a pyromancer might take. But it doesn’t ring a bell. Recruits fail the Trials all the time – normally due to a lack of true magical talent. Others simply can’t handle the pressure. Perhaps this Ignatius person is one of those? He’s certainly welcome to try again, if he’s truly a master of the art.
+
+As for Rejuvenation Potions – they’re certainly not to my taste. Bruma Herb sets off my allergies. Ironic, isn’t it?
+
+Anyway, please don’t drink them. They’re strictly for Pyromancers.
+
+
+May the sacred flame guide you,
+
+Ignisia
+
+----
+{{Letter|Greetings [[Alec Kincade|Alec]],
+
+As a member of the Myths' Guild, I continue to seek out myths and tales to fill the Library of Knowledge. As such, I am looking for possible leads on one of the most elusive animals in Gielinor.
+
+As the headmaster of the guild, surely there is some information you know of about the mythical horse, whose traces of its existence have been strewn about the world and yet has no known confirmed sightings. Its also been referred to as a hornless unicorn, though I'm confident that is just a rare genetic mutation among unicorns, which are a totally different species than a horse.
+
+My best lead, [[Hajedy]] and [[Vigroy]], claim to offer cart rides between Brimhaven and Shilo Village in Karamja via horse, and yet I was not able to witness these horses in action.
+
+Additionally, Diango sells a children's toy called toy horseys. I can only assume that the nonsensical word "neigh" that I hear children shout while playing with them is some fanciful reference to the mystical sounds these creatures must make. However, the word may just be the product of the over-active imagination of children.
+
+If you have anything additional leads, I'd love to hear about them in pursuit of expanding the Library of Knowledge!
+
+Thanks in advance, Spineweilder}}
+
+Dear Spineweilder,
+
+Horses, eh? Most would call you a loon for believing in such fairy tales. Here at the Myths’ Guild, though, fairy tales are our business! You’d be surprised at how often even the wildest stories hide a kernel of truth.
+
+Your instincts are strong. We have ourselves dispatched agents to the Karamjan Jungle to keep an eye on Mr Hajedy’s… activities, but we are yet to witness these ‘horses’ for ourselves. We can only assume it must be some sort of marketing tactic… although that doesn’t explain how the carts actually move.
+
+It’s true that the traditional depiction of horses looks a bit like a unicorn, but our research suggests the resemblance is purely superficial. You’ve already noted the lack of horns, and the ancient texts we’ve studied suggest that horses could be ridden in order to cross great distances – more like a camel, if anything. Let’s hope they’re less bad-tempered!
+
+Freya has an interesting theory on the subject. She claims to have seen evidence that horses once roamed the wilds of Acheron. If that’s true, these creatures may be far more dangerous than your average ungulate. Perhaps it’s best we leave them well alone…
+
+
+Yours,
+
+Alec Kincade
+
+Guildmaster of the Myths’ Guild
+
+==Player Showcase Gallery==
+We're back with another batch of your biggest and best pieces of creative work! Everyone featured in the Gazette will receive three months of free membership as thanks for their superb efforts, so keep an eye on the linked social accounts Inbox for more details on how to grab your reward!
+
+If you want to be featured in the next Gazette then make sure to submit your creations through our Player Showcase Gallery Form and state what Gazette you’d like it to feature in. We look forward to seeing more of your incredible talents!
+
+{| class="wikitable" style="text-align:center;margin:auto;"
+|[[File:Gielinor Gazette - August 2022 (10).jpg|195x150px|centre]]
+|[[File:Gielinor Gazette - August 2022 (11).jpg|195x150px|centre]]
+|[[File:Gielinor Gazette - August 2022 (12).png|195x150px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/wvz0km/are_you_ready_for_tombs_of_amascut/ u/W83official]
+|[https://www.reddit.com/r/2007scape/comments/wsse1q/bud_lite_bloat_2_in_my_series_theater_of_brunch/ u/JAMIEN0TAMY]
+|[https://www.reddit.com/r/2007scape/comments/ws6gos/decided_to_recreate_my_friend_and_i_farming_hill/ u/adobeproduct]
+|-
+|[[File:Gielinor Gazette - August 2022 (13).jpg|195x150px|centre]]
+|[[File:Gielinor Gazette - August 2022 (14).png|195x150px|centre]]
+|[[File:Gielinor Gazette - August 2022 (15).jpg|195x150px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/wtn8ry/10k_any_takers/ u/elakudark]
+|[https://www.reddit.com/r/2007scape/comments/ws1yxu/my_next_dnd_campaign_is_going_to_be_a_lot_of_fun/ u/Jkelley714]
+|[https://www.reddit.com/r/2007scape/comments/wq9jxv/our_cats_geared_for_toa/ Cats Ready For ToA]
+|}
+
+----
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team''

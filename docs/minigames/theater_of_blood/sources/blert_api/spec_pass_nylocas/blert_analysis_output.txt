@@ -1,0 +1,62 @@
+### an_blert.py
+natural explosion spawn->despawn event (small/big) {False: {52: 183}, True: {55: 15}}
+killed: first hp==0 update -> despawn (big False/True) {False: {2: 2040, 1: 711}, True: {7: 517, 6: 242}}
+### an_blert2.py
+style-change counts per nylo {0: 2144, 2: 549, 3: 154, 1: 37}
+flicker hold (1st style change -> 2nd) {2: 703}
+split spawn tick - parent despawn tick {0: 602}
+splits per parent {2: 600, 1: 2}
+splits of NATURALLY exploded bigs (parent life>=54): count of splits {2: 15}
+### an_blert3.py
+FIRST style change (flicker) ticks after spawn {('south', False): {5: 154}, ('east', False): {5: 126}, ('west', False): {5: 154}, ('west', True): {5: 98}, ('south', True): {5: 97}, ('east', True): {5: 111}}
+aggro swap ticks after spawn {('west', False): {10: 90}, ('east', False): {10: 59, 22: 2}, ('west', True): {10: 55, 22: 1}, ('east', True): {9: 59, 10: 10}, ('south', False): {11: 21}, ('south', True): {11: 38}}
+### an_blert_boss2.py
+m11 raids 14 files 14
+  attack gaps [(3, 2), (4, 131), (5, 33), (6, 55), (7, 29), (8, 1)]
+  first attack - first form [(1, 8), (4, 6)]
+  switch intervals [(9, 14), (10, 111)] repeats 0 first interval [(9, 14)]
+  attacks per window [(2, 125)] offsets [((2, 6), 71), ((3, 7), 37), ((1, 5), 7), ((4, 8), 7), ((2, 8), 1), ((1, 6), 1), ((2, 7), 1)]
+m10 raids 1 files 1
+  attack gaps [(3, 2), (4, 12)]
+  first attack - first form [(1, 1)]
+  switch intervals [(14, 1), (15, 3)] repeats 0 first interval [(14, 1)]
+  attacks per window [(3, 1), (4, 3)] offsets [((2, 6, 10, 14), 2), ((1, 5, 9, 13), 1), ((3, 7, 11), 1)]
+m12 raids 4 files 4
+  attack gaps [(4, 31), (5, 7), (6, 10), (7, 10)]
+  first attack - first form [(1, 4)]
+  switch intervals [(9, 4), (10, 25)] repeats 0 first interval [(9, 4)]
+  attacks per window [(2, 29)] offsets [((2, 6), 14), ((3, 7), 11), ((1, 5), 4)]
+### an_blert_hard.py
+wave gaps by wave (hard) {9: {12: 4}, 10: {16: 4}, 19: {12: 4}, 20: {16: 4}, 29: {4: 3, 12: 1}, 30: {16: 4}, 5: {16: 4}, 12: {8: 4}}
+prince spawn tiles {(3294, 4247): 22, (3293, 4246): 1, (3295, 4248): 1}
+prince spawn wave tags {None: 24}
+prince switch intervals [(9, 8), (10, 18)]
+prince attack gaps [(3, 2), (4, 28), (5, 1), (6, 10), (7, 2), (8, 3), (9, 4)]
+prince attacks per window [(1, 5), (2, 21)] [((3, 7), 6), ((2, 6), 6), ((4, 8), 4), ((6,), 2), ((5, 9), 2)]
+prince spawn->death [(70, 91), (162, 186), (254, 314), (70, 102), (170, 184), (262, 317), (73, 105), (165, 178), (257, 311), (71, 85), (163, 175), (251, 309)]
+### split offset pairs (split xy - parent despawn xy), per parent
+[(((0, 0), (1, 1)), 620), (((1, 0), (2, 1)), 57), (((0, 0), (0, 1)), 50), (((-1, 0), (0, 1)), 26), (((1, 0), (1, 1)), 19)] parents 772
+### tools/verify_tob_timings.py over the 14 Regular streams
+raids per room: maiden=0  bloat=0  nylocas=14  sotetseg=0  xarpus=0  verzik=0
+ok       nylo stall table measured 30 waves checked, 0 under table constant no gap below its stall 
+ok       nylo wave cycle  measured 0 off-cycle gaps       constant 4          every wave-to-wave gap is a multiple of the cycle
+0 mismatch(es)
+### stall events (type 121): live nylos at a stall, and roomCap by wave tag
+m11 raids 14 stall alive pre-20 [(12, 17), (13, 10), (14, 4), (15, 2)] post-20 [(24, 9), (25, 19), (26, 14), (27, 12), (28, 6), (29, 3)] cap at wave 1/19/20/21 [[12], [12], [24], [24]]
+m12 raids 4 stall alive pre-20 [(16, 1), (17, 1)] post-20 [(24, 1), (25, 4), (26, 4), (30, 2)] cap at wave 1/19/20/21 [[15], [15], [24], [24]]
+### Vasilias landing tile (npc 8354 / 10807 NPC_SPAWN xCoord,yCoord)
+{(8354, 3294, 4247): 14, (10807, 3294, 4247): 4}
+### an_blert_prince.py (restated 2026-10-02): hitpoints at a Prinkipas' end, kill or self-destruct
+raid 54f2c13f prince 1 spawn 68: hp 0 at +17, death event +23, hp at +52 0, last hp 0
+raid 54f2c13f prince 2 spawn 160: hp 0 at +20, death event +26, hp at +52 0, last hp 0
+raid 54f2c13f prince 3 spawn 252: hp 0 at +57, death event +62, hp at +52 25, last hp 0
+raid bb09269c prince 1 spawn 68: hp 0 at +28, death event +34, hp at +52 0, last hp 0
+raid bb09269c prince 2 spawn 168: hp 0 at +10, death event +16, hp at +52 0, last hp 0
+raid bb09269c prince 3 spawn 260: hp 0 at +52, death event +57, hp at +52 0, last hp 0
+raid e011cdd1 prince 1 spawn 71: hp 0 at +28, death event +34, hp at +52 0, last hp 0
+raid e011cdd1 prince 2 spawn 163: hp 0 at +9, death event +15, hp at +52 0, last hp 0
+raid e011cdd1 prince 3 spawn 255: hp 0 at +51, death event +56, hp at +52 0, last hp 0
+raid e48be92c prince 1 spawn 69: hp 0 at +9, death event +16, hp at +52 0, last hp 0
+raid e48be92c prince 2 spawn 161: hp 0 at +9, death event +14, hp at +52 0, last hp 0
+raid e48be92c prince 3 spawn 249: hp 0 at +55, death event +60, hp at +52 9, last hp 0
+princes 12, death event with hp 0 first 12, ended with hitpoints left 0, alive with hp > 0 past +52 2

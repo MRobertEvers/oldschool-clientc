@@ -1,0 +1,246 @@
+{{Update|date=22 March 2023|url=https://secure.runescape.com/m=news/quest-speedrunnings-final-batch?oldschool=1|category=game}}
+[[File:Quest Speedrunning's Final Batch newspost.png|right]]
+{{clear}}
+__TOC__
+'''Update: 15:30 GMT, March 22nd''': We've temporarily made a hotfix that disables the automatic purging of permanently banned or muted accounts from players' ignore list. We'll re-activate this feature in the near future, but need extra time to correct some bugs with the feature that arose after launch. Apologies for the inconvenience, we'll let you know when the auto-purge is back and working as-intended!
+
+Attention speedy ‘Scapers: the final batch of Quest Speedrunning updates is here!
+
+This week's update is smaller than most, so we wanted to take a moment to let you know that the team are working away behind the scenes. Next week you'll be able to get your hands on some upcoming Bounty Hunter rewards in beta worlds. When the Bounty Hunter rewards beta wraps up, you'll get the chance to experiment with some Desert Treasure II - The Fallen Empire rewards in another beta. If you're not feeling beta (sorry...) after reading that, perhaps the promise of three New Skill pitches in the very near future is something to look forward to!
+
+With all that said, let's take a look at exactly what's changing in Gielinor this week.
+
+==Changelog - March 22nd==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Quest Speedrunning - Final Batch'''
+* Black Knights' Fortress and Dragon Slayer II have been fully added to Quest Speedrunning Worlds.
+* A Diamond time has been added to all quests in Quest Speedrunning. This doesn't give points but instead awards you a Diamond Trophy item for your main save. This is only equippable if you've completed the Diamond time for every available quest.
+
+'''Other Changes'''
+* Party leaders in Tombs of Amascut can now promote other members of the party while the group is forming in the lobby.
+* Two new options have been added to the Settings menu's Chat section, allowing players to have permanently banned and permanently muted accounts removed from their Ignore lists. This check runs once per day.
+* It's no longer possible to redeem a Bond in the last three minutes before a server reboot.
+* Improved the wander range of brown bears, rogues and bandits within the Wilderness.
+* Changed the Desert Protection bonuses of various items.
+* Damage in Wintertodt will now visibly interrupt Fletching animations.
+* The grey, teal, yellow, purple and red boots are no longer members-only items, for consistency with the gloves from the same Canifis shop. Bring on your best fashionscape!
+* The Cemetery Teleport spell no longer pops up its Wilderness warning when clicked unless you're actually able to cast the spell, so misclicks will be less disruptive.
+* When using a gold bar on a furnace, you will no longer need to confirm you want to craft a Gold Tiara if the only mould you have on you is a tiara mould.
+* A typo has been corrected in the Curse of the Empty Lord miniquest journal.
+* A graphical issue with the 10th Birthday Balloons has now been fixed.
+
+'''Golden Gnomes'''
+* Don't forget, we're hosting the 12th Annual Golden Gnomes on Twitch at 17:00, Friday March 24th!
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+The PvP Arena is using '<b>Zerker'</b> loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+==Quest Speedrunning Final Batch==
+Dragon Slayer II and Black Knights' Fortress are now out of Beta and ready for you on Quest Speedrunning Worlds!
+
+That will be the last of our [https://secure.runescape.com/m=news/quest-speedrunning-blog?oldschool=1 promised Quest Speedrunning updates], but don’t worry, we'll still be adding more in the future, just at less regular intervals.
+
+Quest Speedrunning Worlds allow you to replay some of Old School's most iconic quests with the aim of completing them as quickly as possible. You're given stats and any items required for each quest and will earn points depending on how quickly you finish. As you might expect, faster times (such as Platinum or Diamond times) reward more points, which can be exchanged for main-game cosmetics such as the Adventurer's outfit or Speedy teleport Scroll - just visit Eliza in Varrock Square to claim your fast fashionscape!
+
+If you're looking for some handy resources to help get you started, we'd recommend checking out the [[Quest Speedrunning|OSRS Wiki page]] (where you can even find speedrun guides for each of the quests) or [https://discord.gg/m3AaNEWJax the Quest Speedrunning Discord].
+
+Here's everything you need to know about this final batch:
+
+{| class="wikitable" style="text-align:center"
+|'''Black Knights' Fortress'''
+|'''Stats'''
+* 30 Agility
+* Base 10 combat stats
+
+'''Miscellaneous'''
+* 12 Quest Points (given via miscellaneous quests)
+|'''Items Provided'''
+* 300 Coins
+* 3 Energy potions
+* 5 Tuna
+|'''Trophy Times'''
+* Bronze - 8:30
+* Silver - 7:00
+* Gold - 6:00
+* Platinum - 5:30
+* Diamond - 5:00
+|-
+|'''Dragon Slayer II'''
+|'''Quests Completed'''
+* Legends' Quest
+* Dream Mentor
+* A Tail of Two Cats
+* Animal Magnetism
+* Ghosts Ahoy
+* Bone Voyage
+* Client of Kourend
+* Recipe for Disaster
+* The Fremennik Exiles
+* King's Ransom
+* Knight Waves Training Grounds
+* Barbarian Firemaking Training
+
+'''Stats'''
+* 70 Smithing
+* 68 Mining
+* 62 Crafting
+* 80 Agility
+* 70 Thieving
+* 50 Construction
+* Base 95 combat stats
+
+'''Miscellaneous'''
+* 200 Quest Points (given via miscellaneous quests)
+* A POH in Yanille
+|'''Items Provided'''
+* 50,000 Coins
+* 3 Stamina potions
+* 5 Sharks
+* 4 Saradomin brews
+* 2 Super restore potions
+* 15 Teleport to house tablets
+* Anti-venom+
+* Catspeak Amulet(e)
+* Ghostspeak Amulet
+* Seal of Passage
+* Lunar Staff
+* Abyssal Whip
+* Dragon Defender
+* Bandos Chestplate
+* Bandos Tassets
+* Primordial Boots
+* Neitiznot Faceguard
+* Fire Cape
+* Amulet of Fury
+* Berserker Ring (i)
+* Barrows Gloves
+* 500 Ruby Bolts
+
+'''Items in Bank'''
+* 500 Runite Bolts
+* 100 Diamond Bolts
+* Dragon Hunter Crossbow
+* Armadyl Chainskirt
+* Armadyl Chestplate
+* Armadyl Helmet
+* Archers Ring (i)
+* Ava's Accumulator
+* Salve Amulet (ei)
+* Anti-Dragon Shield
+* Sarachnis Cudgel
+* Dragonstone
+* 16 Super restore potions
+* 24 Saradomin brews
+* 35 Sharks
+* 9 Stamina potions
+|'''Trophy Times'''
+* Bronze - 140:00
+* Silver - 110:00
+* Gold - 90:00
+* Platinum - 80:00
+* Diamond - 70:00
+|}
+
+As an extra twist, we've added Diamond Times to all the current quests available on QSR Worlds. These don't offer any additional points but achieving all of the Diamond times on every available quest will snag you an exclusive Diamond Trophy for your main account.
+
+[[File:Quest Speedrunning's Final Batch (1).png|thumb|centre|400px|''A hefty prize for the fastest runners among you. It looks pretty heavy - hopefully you've been working on those arms alongside your speedrun cardio!'']]
+
+
+This item can be equipped, so you can really flex how fast of a spacebar speedster you truly are. In the manner of Quest Cape, Music Cape and other similar items, when new content is released you'll need to achieve any new Diamond Times in order to equip the item. Good luck!
+
+Finally, we've introduced some techniques to prevent players getting a headstart on speedruns by performing actions before the quest begins. Namely, ashes and hunter traps can no longer be obtained by lighting a fire or placing a hunter trap before starting your run - meaning you'll have to route them into your run instead!
+
+==Other Changes==
+We've changed the Desert Protection bonuses of a variety of items:
+
+{| class="wikitable" style="text-align:center"
+!Item || Protection before change || Protection after change || Protection in seconds
+|-
+|Circlet of Water || 10 || 20 || +12s
+|-
+|Slave shirt || 0 || 10 || +6s
+|-
+|Slave robe || 0 || 10 || +6s
+|-
+|Slave boots || 0 || 5 || +3s
+|-
+|Kharidian headpiece || 0 || 20 || +12s
+|-
+|Desert disguise || 0 || 20 || +12s
+|-
+|Robe of Elidinis || 0 || 20 || +12s
+|-
+|Robe of Elidinis || 0 || 20 || +12s
+|-
+|Fez || 0 || 20 || +12s
+|-
+|Desert top || 10 || 20 || +12s
+|-
+|Menaphite purple top || 0 || 20 || +12s
+|-
+|Menaphite purple robe || 0 || 20 || +12s
+|-
+|Menaphite purple kilt || 0 || 20 || +12s
+|-
+|Menaphite red top || 0 || 20 || +12s
+|-
+|Menaphite red robe || 0 || 20 || +12s
+|-
+|Menaphite red kilt || 0 || 20 || +12s
+|}
+
+Two new options have been added to the Settings menu's Chat section, allowing players to have permanently banned and permanently muted accounts removed from their Ignore lists.
+
+The option for removing banned accounts is enabled by default, whereas the option for removing muted accounts is disabled by default. The check runs quietly once per day, rather than checking continually, so as to avoid excessive load on the chat system.
+
+We've also got a few smaller changes to finish:
+* Party leaders in Tombs of Amascut can now promote other members of the party while the group is forming in the lobby.
+* It's no longer possible to redeem a Bond in the last three minutes before a server reboot.
+* We've improved the wander range of brown bears, rogues and bandits within the Wilderness. This should make it easier to use your Dwarf multicannon and/or Ice barrage for some of your Wilderness Slayer tasks.
+* Damage in Wintertodt will now visibly interrupt Fletching animations.
+* The grey, teal, yellow, purple and red boots are no longer members-only items, for consistency with the gloves from the same Canifis shop. Bring on your best fashionscape!
+* The Cemetery Teleport spell no longer pops up its Wilderness warning when clicked unless you're actually able to cast the spell, so misclicks will be less disruptive.
+* When using a gold bar on a furnace, you will no longer need to confirm you want to craft a Gold Tiara if the only mould you have on you is a tiara mould.
+* A typo has been corrected in the Curse of the Empty Lord miniquest journal.
+* A graphical issue with the 10th Birthday Balloons has now been fixed.
+
+==Golden Gnomes==
+[[File:Quest Speedrunning's Final Batch (2).png|centre|600px]]
+
+We're only a couple of days away from the 12th Annual Golden Gnomes, and thousands of you have voted for your favourite video makers, streamers, artists and cosplayers, out of the [https://secure.runescape.com/m=news/the-12th-annual-golden-gnome-award-finalists-vote-now-?oldschool=1 talented finalists].
+
+So, who did you pick? Join us for a spectacular livestream extravaganza over on [https://twitch.tv/oldschoolrs Twitch] at '''17:00 GMT, Friday March 24th!'''
+
+==Crack the Clue Hints==
+This week's hint from Woox is for the clue obtained from a ghost.
+
+[[File:Quest Speedrunning's Final Batch (3).png|centre|600px]]
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,859,66273795 official forums], on the [https://www.reddit.com/r/2007scape/comments/11yf1k8/quest_speedrunnings_final_batch_reward_betas_soon/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

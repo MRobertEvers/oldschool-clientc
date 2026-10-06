@@ -1,0 +1,271 @@
+{{Update|date=22 February 2023|link=https://secure.runescape.com/m=news/qa-summary-160223?oldschool=1|category=community}}
+[[File:Q&A Summary 16-2-2023 newspost.png|right]]
+{{clear}}
+This week's livestream focused on the Desert Treasure 2 rewards blog, as well as some general Q&A! Topics included:
+* [[#Question #1|Birthday Event Q&A with Mod Other]]
+* [[#Question #3_2|DK Rings as upgrade materials]]
+* [[#Question #8|Plans for the new Prayer book]]
+* [[#Question #18|The future of player suggestions]]
+
+Thanks to Mod Goblin (Community Manager), Mod Roq (Upload Manager), Mod Other (Junior Content Developer) and Mod Halo (Content Developer) for their insights!
+
+DISCLAIMER: Livestreams are a glimpse into the ongoing creative process at Jagex. JMods are speaking off-the-cuff and their comments are not intended to be read in the same way as prepared updates from the company. Please keep this in mind when discussing the Q&A!
+
+Missed the live stream? Check out the transcript below!
+__TOC__
+==Birthday Event Q&A==
+===Question #1===
+{{Cquote2|What was it like designing your first project?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=340s Youtube Time Stamp]
+
+* '''Mod Other:''' In some ways, it’s been absolutely terrifying! That’s 10 years of stuff, and I’ve had to work out how I’m going to do my due diligence in honouring that we’ve had 10 years of Old School, whilst making something that manages to feel fresh at the same time. There’s been a fine line to walk, but hopefully, when people are in and playing the event, they’re going to really think back to where they started.
+* '''Mod Other:''' That was a big thing for me - I wanted to look at where we should start, and what we should do, to bring that to the event as the heart of it. Developing my first actual project has been a real joy in all. I’m surrounded by people who have done dozens - if not hundreds - of projects at this point, so I always feel like I’m in safe hands.
+
+===Question #2===
+{{Cquote2|Have you encountered any fun bugs yet?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=447s Youtube Time Stamp]
+
+* '''Mod Other:''' I’m struggling to think of any. I tended to have a lot of the bugs beaten out of everything quite rapidly! As of yet, I don’t think I’ve managed to break the game - which I’m quite proud of! I do look forward to running into fun bugs rather than anything game-breaking, however.
+
+===Question #3===
+{{Cquote2|How hard was it to try and capture the essence of ten years of OSRS in a limited-timed birthday event?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=498s Youtube Time Stamp]
+
+* '''Mod Other:''' There was quite significant pressure up front to come up with a design that could fit the space that we had. It’s been 10 years, and there’s a lot that needs to be in there. Things did get cut because there’s only so much we can do in a two-week lifespan event.
+* '''Mod Other:''' With the reward space; we’ve got Jad Slippers, a Jad plushie, a stray dog plushie and the Gnome Child backpack. There’s so much there to honour some really iconic parts of Old School.
+* '''Mod Other:''' That was it for me; that was us saying “what is iconic? What do I want to be highlighting and drawing the players’ attention to?”. Hopefully, I’ve achieved that.
+* '''Mod Roq:''' The bit I’m most excited to see the reactions on is the Falador room. People asked for us to update it every year and we haven’t, so that’s on us. This is as perfect a time as any. It’s cool - especially having been around for so long - to see a lot of these projects go from just an idea into release and being revered as some of them are.
+* '''Mod Roq:''' It’s really awesome to see that it’s not just a history of my game - it’s part of my working history as well.
+* '''Mod Halo:''' From playtesting internally, I’ve done the event a few times now, and it’s so good to see the story that Mod Other has chosen, as well as all the characters. It feels so nostalgic, and that’s something you definitely need for birthday events.
+
+===Question #4===
+{{Cquote2|Any teasers you can share about the theme for the event?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=647s Youtube Time Stamp]
+
+* '''Mod Other:''' There’s not a huge amount that I feel I could tease. Expect it to be an immense amount of nostalgia bait, combined with a little bit of campy, lighthearted spoofery. I think that’s the best way I can tease the event without just revealing the entire plot of it!
+
+==DT2 and General Q&A==
+===Question #1===
+{{Cquote2|Is Virtus designed in a way not to devalue Ancestral, unlike BIS mage? Will the Ancestral be broken down to make the upgraded Virtus? If that’s the case, what will happen with the Twisted Ancestral Kits?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=723s Youtube Time Stamp]
+
+* '''Mod Halo:''' As it stands, Virtus is currently designed to not be better than Ancestral. It’s meant to sit between Ahrim’s and Ancestral. After some feedback when the blog went out, maybe we need to go back to the drawing board; rethink the design a bit and see if players even want Virtus.
+* '''Mod Halo:''' We can see if they’d prefer another weapon as an alternate if a mage set that’s in between Ancestral and Ahrim’s doesn’t appeal to them. Maybe we’ll go in another direction. It does have the niche effect of being way better with Ancient Magicks, but maybe that’s too niche.
+* '''Mod Goblin:''' For some context - the greenlight Poll is meant to go live tomorrow. We’ll probably have some updates in the blog based on conversations that we’ve had about your feedback around Virtus and maybe a little bit of an identity crisis.
+* '''Mod Goblin:''' There’s a lack of wiggle room between Ahrim’s and Ancestral because mage accuracy doesn’t matter. There are only 11 points of accuracy between, and Ancestral gives about 6% mage damage in general, so there’s not much room there - you might not even get a max hit. Mage damage in general is dominated by the occult, which is around 600k and gives 10% mage damage; it makes it difficult to find that middle room.
+* '''Mod Goblin:''' We’ve got some thoughts that we’ll outline in our blog tomorrow, and we might take a bit of a different approach to questions around Virtus, so keep an eye out for that. I’m not going to go into all of them right now because we have a whole bunch of other stuff to go through, but it’s been really interesting reading all of your discussions about it. There’s a lot of food for thought that we’ve had within the team.
+
+===Question #2===
+{{Cquote2|Mod Roq, are there any interesting or unique polls, past or future, that you really wish would make their way into the game?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=874s Youtube Time Stamp]
+
+* '''Mod Roq:''' From a personal perspective, what I want to do is try at some point to get a QoL Poll themed around minigames in particular. I think there are quite a few tweaks that we could make to various parts; Tithe Farm could be a bit more interesting and actually give you rewards based on your time there, rather than having to spend an hour before you get one point.
+* '''Mod Roq:''' Overall, with the amount of suggestions that the team goes through to read and quantify, there are so many different cool suggestions that people have that we would like to get out. I’d like to be able to grow my fungi, which has been put towards a couple of Polls in the past, but because of the amount of effort it would take to make that, versus the amount of reward it would give, it gets culled pretty early on, which is understandable. It’s not a big ideal - it’s purely an Ironman thing.
+* '''Mod Roq:''' I want to really start digging into QoL this year - given how last year we spent so long on a singular QoL Poll - and just deliver a lot more of the little things that improve the gameplay that everyone does on a day-to-day basis.
+* '''Mod Other:''' I struggle to think of things in the past that I would really love to throw in on Polls. I would love to do a series of skilling overhaul Polls, to be honest. I think there is a lot of room within skills, we could just Poll a whole bunch of ideas and get some feedback on that.
+* '''Mod Other:''' I know we’ve got the new skill coming, but sometimes it does feel like we have neglected the older skills. Perhaps it’s a hot take, but for future Polls, I’d like to see people demanding skilling stuff.
+* '''Mod Goblin:''' I don’t think it’s a hot take; Forestry is looking at Woodcutting through that lens and is aware that some skills could be modernised in a way that doesn’t massively take away from their nostalgic elements.
+
+===Question #3===
+{{Cquote2|Are you guys looking into the possibility to use the old DK rings as an ingredient to the new BiS ring upgrades?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=874s Youtube Time Stamp]
+
+* '''Mod Halo:''' I think this is a viable option for these rings. It provides a good way to sink the current rings and also make them not dead content. There are a few ways we could go about it - there have been a few cool suggestions that I’ve read; ripping off the icon of the old rings like the hammer on the berserker ring - I had no idea it was actually a hammer until I looked at it close enough - to put it on the new ring to give it some of its stats.
+* '''Mod Halo:''' Maybe not all the stats, but instead takes half of the berserker ring’s strength bonus. There are definitely different things we could do with the old DK rings and the new ones.
+* '''Mod Goblin:''' In tomorrow’s blog update, we have a section where we’ll discuss this. Following feedback, we’ll probably go ahead with the idea of finding some way to upgrade the old DK rings. I’ve got purely personal and biased opinions about upgrade scape or whether or not DKs' rings would be dead content - they kind of already are, bar the berserker ring, but I don’t want people to flame me.
+* '''Mod Goblin:''' I think it’s cool, and it seems like players would like to see it. It does have similar economic benefits, so keep an eye out for the blog tomorrow where we’ll probably commit to doing it, just because it seems that people want it. It’s nice for that kind of upgrade and progression - it’s nice for a player’s progression journey.
+* '''Mod Roq:''' If they’re not going to flame you, they might flame me - I have a similar opinion on that, and I think we’re going a little bit too much down the road of upgrade scape. I don’t think there is an issue with certain things being relatively unused anymore. We have plenty of things that are, and if we were to introduce these new rings, it would depend on how bosses feel, their difficulty, and the requirements to get there.
+* '''Mod Roq:''' I think given the ease that DKs have and how they can be killed, they are a valid stepping stone to having a ring and then moving towards a new ring afterwards given how relatively early they are considered in account progression these days. I would like to skew us away from this mentality of “it has to be used to make this to keep value with everything”.
+* '''Mod Roq:''' Ultimately, DKs has a bunch of other things that are pretty useful as well. As soon as you get the Elite Diary done, you can go camp them for noted bones to give you a lot of XP towards your prayer. There are other uses.
+* '''Mod Roq:''' I’d be genuinely curious to get a bit more gauging and player information as you whether the upgrade tree is the preferred way, as opposed to sprinkling in the fact that some things will ultimately become less valuable or - as people would say - more dead than others. That’s a natural progression. It’s a 10-year-old game; it’s going to happen. You can’t protect everything with every single update.
+
+===Question #4===
+{{Cquote2|Can you clarify the Freeze and Poison Penetration and whether each stat would extend to the player?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=1332s Youtube Time Stamp]
+
+* '''Mod Halo:''' I assume that last bit is for PvP. In a nutshell, it basically means that you could potentially freeze or poison an NPC or boss that you couldn’t have previously. Poisoning could be extra DPS for a boss that was previously poison-immune. You could freeze a boss that you couldn’t freeze before.
+* '''Mod Halo:''' In Grotesque Guardians, you could maybe freeze the melee guy so you can avoid the melee attacks. That sort of thing. It makes for some really interesting gameplay. Obviously, the poison is just more DPS. I’m unsure if this would apply to players. Maybe players want that, but I’m not sure how it would work.
+* '''Mod Goblin:''' I don’t really understand how it would apply to players - you can already freeze and poison players. The example that we gave in the newspost was that if you have 20% Freeze Penetration for Ice Barrage, which is a 32-tick freeze if you hit, so you still have to roll mage accuracy, and this would freeze for 20% of that time. Because Old School rounds down, 20% of 32 is 6.4, so you’d get a 6-tick freeze.
+* '''Mod Goblin:''' I think some people thought that this wasn’t too impactful. We’ve spoken a little bit more about that in the changes to the blog that we’ll probably put out tomorrow. It was interesting to see what peoples’ thoughts were, and part of these earlier greenlight Polls mean that we can talk about things that are maybe a little more out there, and if people don’t like it, that’s fine.
+* '''Mod Goblin:''' We can try stuff that’s a little bit different and see how people feel about it, rather than what happened before where we’d work on something and see if players liked it - they’d say no, and it was a waste of time.
+
+===Question #5===
+{{Cquote2|What is your opinion on making some big item grinds less dependent on RNG by dividing the item into smaller pieces like the Venator bow?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=1470s Youtube Time Stamp]
+
+* '''Mod Other:''' I think that there are elements that are huge positives to breaking up the grind into smaller bits because in many ways you save some frustration in going a year dry to get them, in getting the drop by getting all the smaller bits. You don’t necessarily make it easier per se either because you’ve still got to get every single piece.
+* '''Mod Other:''' I think for something like the Venator Bow, it does make sense. Large weapons, hype items and armours should probably drop in parts - that’s my opinion on it, but I think that smaller, high-rarity items like rings shouldn’t be dropping in parts, even if they’re ultra rare drops. It does lead to it being more rewarding - I think we made the right choice with the Venator Bow, and I hope we can continue that design going forward!
+* '''Mod Roq:''' I’m going to say that I’m pretty much completely the opposite. In my opinion, I think the way that the RNG system works of old, and having that grind is - for me - a core part of what Old School, what RuneScape is. I’m generally against the whole thing of having something guaranteed after x amount of kills, or things that get easier the more kills you do. I find that’s not my thing. I’m very old-fashioned in that sense when it comes to this game, so if it’s a 1/3000 and you don’t get it in 20,000 then such is life.
+* '''Mod Halo:''' To play devil’s advocate, I’d like a bit of both - I think it’s getting the right balance of what sort of weapon is it. The Venator Bow isn’t the best-in-slot item. It’s a fairly niche use item, whereas say the Shadow was dropped in parts; I feel the dopamine hit would be so different if you got parts of the Shadow compared to the one big Shadow drop. It works for the Venator Bow because it’s not the big BiS drop at the end. It’s a little drip-fed dopamine hit.
+* '''Mod Goblin:''' I went more than four times over for my first warhammer and it sucked, but the elation of getting it was nearly unparalleled. It felt better than both of my T-Bows on my Ironman. Me personally, I think that some of the stuff like the pity-drop Vorkath head is kind of chill, and I’m a bit more indifferent towards things like the Venator Bow, but I think there’s a place for all of them.
+* '''Mod Goblin:''' There was a Reddit thread earlier today that Kieren replied to with some interesting thoughts from a big design brain perspective. If you stumble across that post, go check it out - Kieren has some cool thoughts!
+<!-- https://www.reddit.com/r/2007scape/comments/113mkj1/hot_take_getting_drops_that_are_addons_or_14/j8r7yfx/ -->
+===Question #6===
+{{Cquote2|With the upcoming change to the Abyssal Dagger special attack, was removing the damage reduction considered to make it better than the Dragon Dagger’s special attack?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=1700s Youtube Time Stamp]
+
+* '''Mod Roq:''' I believe it was, however - because I believe that this was a near-miss question that we repolled - I think that with the near-miss, we wanted to repoll exactly what was polled, otherwise it kind of defeats a little bit of what the sense was.
+* '''Mod Roq:''' Basically, a further change to it wouldn’t absolutely be off the table. I think there is space for the Abyssal Dagger to go into, for sure, but not as part of what the intentions were with the last Poll that we did.
+
+===Question #7===
+{{Cquote2|Does the Magic Secateurs update apply to Herbiboar, too? And if not, could it be?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=1762s Youtube Time Stamp]
+
+* '''Mod Roq:''' I've checked and it does in fact work whilst in the inventory.
+
+===Question #8===
+{{Cquote2|What is the general design philosophy the team is using when coming up with new prayer ideas for the new prayer book? What sort of direction/feel do you all want the new pray book to bring to the game?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=1817s Youtube Time Stamp]
+
+* '''Mod Halo:''' I think one core part of our design philosophy is basically not making the original prayer book obsolete. That’s a big one. We see the issues with the current prayer book; I think overall players only use about eight of them - some are just not used at all.
+* '''Mod Halo:''' This is something that we want to solve with this prayer book; we want to make each prayer feel like it has good use in a part of the game, and not one that’s just never used. I think a good direction we could go in is - I think we mentioned it in the blog - having a good tradeoff for this prayer book as opposed to the normal prayer book. There were a few examples in the blog as well.
+* '''Mod Halo:''' Maybe there’s a prayer that protects 100% melee but you take 80% more damage, so if you miss a prayer-flick, you’re going to take a lot more damage. I think that’s a good direction we could go in as it kind of fits into the whole thing of how ruinous powers feel.
+* '''Mod Halo:''' There was some feedback yesterday, and a lot of players want them to be combat-focused, which makes sense. It definitely makes combat more interesting if we focus more on combat, but we could also do some skilling ones as well. Even if it’s just a couple, I think that’d be a good direction.
+* '''Mod Goblin:''' I thought the skilling prayer one was kind of interesting because a lot of people said it didn’t really feel thematic - they are called the ‘ruinous powers’. The whole thing is that the Zarosian empire back in the day covered most of the map, and they weren’t just warmongers; they were architects, scientists, researchers etc. I think it makes some thematic sense for some stuff that makes skilling a little bit more interesting, even though I think the overall theming is combat.
+* '''Mod Goblin:''' We’ve seen so much cool stuff from player suggestions; there are a lot of people talking about low-life stuff, recoil effects and thorn-style things. A lot of people have talked about run energy or tribrid prayers for people that are maybe not as good at offensive switches but want to get something without having to switch while they’re learning.
+* '''Mod Goblin:''' I think that there’s a lot that we could do, and we’ve seen so many suggestions, but it’s cool to see that there are common threads coming out of them. It makes it a little bit easier to zero in on what’s important to players and maybe supplement that with some of the weird, goofy gimmicky stuff in between to add some flavour to the book. I’m excited to see where we wind up.
+
+===Question #9===
+{{Cquote2|How are the prayers meant to be unlocked? As a reward from completing the quest? As drops from bosses? A combination of the two?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=2020s Youtube Time Stamp]
+
+* '''Mod Halo:''' As a baseline, you’ll get the book as a whole from the quest, though I’m unsure at the moment how it will be activated. It will probably be similar to changing spellbooks with an altar of some kind.
+* '''Mod Halo:''' I think a quick win or a good way to get the high-level prayers would be from the bosses, similar to the arcane and dex scrolls in raids. It would make sense to lock those prayers behind bosses, but if players don’t want that, we’ll have to figure that one out. It would basically be a combination; the majority will be unlocked with the quest, and more will be unlocked with content from the quest.
+* '''Mod Goblin:''' We’ll have a dedicated blog to the Ruinous Powers in two-ish weeks from now - I think that’s when I’m meant to finish it, so fingers crossed.
+* '''Mod Roq:''' I think we suffered a little bit when we did it in Chambers. I remember when we released Chambers of Xeric we had the prayers, and they were at least 10 times rarer than they currently are. When we launched them, there were hundreds upon thousands of complaints of “oh my god, these are too rare”. Look at it now - we’ve got hundreds of thousands of complaints that “these are too common”. You have to be very careful in this aspect.
+* '''Mod Roq:''' There should be a good mixture of some coming from the quest and some to be unlocked in certain ways. I really like the idea of having some prayers locked behind some of the bosses, whether that’s in terms of drops or getting a kill count, or interacting with the content to say that you’ve consumed the essence of the being that you’re killing to gain more power.
+* '''Mod Roq:''' All in all, what I’d love is an upgrade to the POH prayer altar. We could put in something to give the prayer room a little bit of a pizazz feel in order to be able to switch prayer books on a much lower down op so people can still train their prayer - kind of like what we have with the cursed altar.
+* '''Mod Goblin:''' Mod Other, I know you’ve been playing on three accounts at once - how would you feel about unlocking new prayers on all three of them?
+* '''Mod Other:''' I wouldn’t mind! I’m not a huge fan of just getting a couple of scrolls in Chambers of Xeric. I’m a big fan of Roq’s idea of a kill count so that it’s not RNG and it’s relevant to the prayer that you’ve unlocked. If we’re not putting skilling prayers in, then let’s include them in another way - if we’re going to lock them, let’s have a skilling way to unlock them.
+* '''Mod Other:''' If we’re putting in PvM or PvP prayers, let’s have combat-focused ways to unlock them. Making them relevant gives them a lot more flavour as well. Most of the time you’ll only think about the uses, but there’s an enjoyment in unlocking things, and I think that is improved when you’re unlocking it in a way that really feels right.
+* '''Mod Goblin:''' It just feels good to get stuff, and permanent unlocks always feel good. Whether you’re an Iron or a Main, unlocking something like Rigour and watching ranged become absolutely insane, as you know, it’s not a feeling that’s easily beaten.
+
+===Question #10===
+{{Cquote2|How are the prayers meant to be unlocked? As a reward from completing the quest? As drops from bosses? A combination of the two?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=2280s Youtube Time Stamp]
+
+* '''Mod Halo:''' We have come up with some internally; some that players have already suggested to us, which is nice to see. I know Mod Bruno has been working hard on it as well. I’m hoping we can get a nice mix of our own ideas internally, with the community’s ideas and some hybrid ones.
+* '''Mod Halo:''' At the end of the day, the players are going to want to have their say on whether they want to use them or not, so getting a lot of the community’s input would be really good with this. There’s a hashtag to use on Twitter to submit designs too.
+* '''Mod Goblin:''' #DT2CommunityDesign
+* '''Mod Halo:''' Using that, send your ideas that way, or @ me on Twitter. I hope as a team we can get a mix of the two.
+* '''Mod Goblin:''' It’s been quite validating to see some of our early ideas also be things that come up quite a lot in player suggestions; things like recoil and run energy. It’s been good to see that we’re not wildly off base.
+
+===Question #11===
+{{Cquote2|Any thoughts on making any of the post-quest boss variants available to be killed as a group? Appreciate that some mechanics may become trivial in a group setting.}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=2385s Youtube Time Stamp]
+
+* '''Mod Halo:''' As a team, we’ve discussed this; it has come up before. We haven’t really come to a decision yet - we’re still ironing out the boss designs and we don’t want to feel like we have to shove a group mechanic into the bosses. We want them to feel really good on a solo and maybe expand on that. It’s something that has come up, and we haven’t really decided on it.
+* '''Mod Halo:''' Even if it’s something like duo against one of the bosses, that might be an option. I don’t think it’s high on the priority list for now, but it is in the back of our minds for sure.
+* '''Mod Other:''' I’m not opposed to the idea. I think it’s exciting to consider having traditionally solo bosses be something that could become group content, but I do agree with Halo in that quest bosses really should be designed around being a bespoke, solo experience more than something that is set up so that we can easily say “bring a friend to farm this boss!”. That should certainly be a lower priority, but more group bosses in general, throw them in!
+* '''Mod Roq:''' I’m a mixture of how everyone feels. My favourite bosses are ones like Corp where you can chill out with your mates in a group environment as opposed to how you solo Corp. For quests, I feel that they have to be solo-able, but there’s nothing to say that in post-DT2 we couldn’t have a gauntlet where you’re running all the bosses as a group to create a cool, funky way to be able to incorporate things. Both have got places in the game, so we could do either, really.
+* '''Mod Goblin:''' It would be interesting to find a formula that works because it’s quite cool that quests now have introduced elements of PvM, but questing is so solo-tailored in Old School, whereas in other MMOs like WoW and Lost Ark you can party up and progress at the same time.
+* '''Mod Goblin:''' In Old School, quests are a solely solo experience, so maybe it would be cool to think about ways we can still deliver good solo experiences and still make them groupable afterwards because it’s an MMO at the end of the day. It’s more fun to do stuff with friends than solo for some people. It would be nice to get better at affording players that option.
+
+===Question #12===
+{{Cquote2|Any plans to fix the healer poison mechanics at Barbarian Assault in the near future?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=2578s Youtube Time Stamp]
+
+* '''Mod Roq:''' We do know that there are still issues with the content. I believe the issue specifically plaguing at the moment with the healers is more related to an engine change that we’ve made. Engine changes do unfortunately take a little bit longer for us to get out than content changes do, but rest assured we are still working on it and we’re looking to get it out as soon as we possibly can.
+* '''Mod Goblin:''' It’s due a fix and we’re aware of it, but it’s not a content-side fix. Whenever we get an engine change, hopefully, it should be fixed.
+
+===Question #13===
+{{Cquote2|Will the resources dropped from the new repeatable bosses be as abundant as Phantom Muspah? Following the release of Secrets of the North and the drop rate changes, it seems that there is a lot of incentive to fight the boss purely for the resources and not as much for the unique items.}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=2645s Youtube Time Stamp]
+
+* '''Mod Halo:''' That’s a good question! Drop tables are fun. With all these new bosses, we’ve obviously shown some of the reward designs. There are quite a lot of them if you think about it - if each boss drops a prayer scroll, a piece of the mage armour and the weapon pieces as well. That’s already four uniques per boss, including the Rings as well.
+* '''Mod Halo:''' I feel that’s all going to fill the drop table quite a bit. I think that as a team, we’re still sort of gauging drop tables as a whole, and we probably should do a better job of it with these bosses. I’m hoping that we can do a lot of iteration on it and hopefully nail it for launch. That’s a big aim for us.
+* '''Mod Goblin:''' I think that there’s enough going on that we could end up with a Nightmare-esque table without it feeling too bad, but again, the more we take different approaches, the better we get at figuring out what works for certain content. It’s optimistic, but I think there are enough good uniques that I don’t imagine it would wind up looking the same as Muspah to be honest - I could be wrong - but I don’t get that sense from the team.
+
+===Question #14===
+{{Cquote2|Will there be a defence req to complete DT2? If not, are you envisioning many def reqs for the Ruinous Powers?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=2745s Youtube Time Stamp]
+
+* '''Mod Halo:''' I don’t think so.
+
+===Question #15===
+{{Cquote2|Would it be possible to reorder 200m ranks on the Account Build HiScores based on the ranks on the normal HiScores, this way people are ranked in the order they achieved 200m?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=2771s Youtube Time Stamp]
+
+* '''Mod Roq:''' Our HiScores are unique - that’s the word I would use to describe them. They’re also not handled and modified by the development team; they’re more handled by the platform team, who deals with things like web, etc.
+* '''Mod Roq:''' We have heard the calls to want this change, but unfortunately, it’s going to take us a little bit of investigation into what we can do and when we’ll have the time to do it because ultimately the new HiScores we’ve entered work like every other HiScores do. They’re not necessarily great at being able to take massive modifications at the moment, which is why we never got HiScores for the Speed Run times to count from the fastest to the slowest times.
+* '''Mod Roq:''' It’s not as easy as I wish it was, so unfortunately until further notice, they will have to remain as they are.
+* '''Mod Goblin:''' We’re aware of it. I’ve seen someone mentioning the Singles Wildly bosses - Artio, Calvar’ion and Spindel on HiScores. I think that is coming, so keep an eye on it.
+
+===Question #16===
+{{Cquote2|Are there plans to make at least one of the 4 bosses really difficult? People may struggle a bit on DS2's final boss, or SOTE's, but I'm talking about SOTF-level boss difficulty here. This is a new Prayer Book so we should be made to really work for it!}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=2874s Youtube Time Stamp]
+
+* '''Mod Halo:''' As a team, we want these bosses to be hard, but not have one that’s harder than the others. We’d like for them to be equally hard, but maybe harder in different ways; mechanical ways where maybe one fight is harder with movement while another is hard with prayer-flicking, gear management and that sort of thing.
+* '''Mod Halo:''' A guide would be that each of the bosses is probably going to be at the level of Galvek, if not harder, but this could all change. It might not oneshot you like Galvek does, but it might do.
+* '''Mod Goblin:''' I think with there being four bosses that have different identities, there are things that people are going to be better at, and things that people are going to be worse at, so I think naturally there are probably some that you’ll struggle with more even though you were a perfectly well-rounded player, or maybe then you’ll find all of them equal.
+* '''Mod Other:''' I fully support a quest boss that you can’t just walk in with a generic setup and clear first try. Introduce elements to it to make it harder; make it something worth learning. Muspah for example, I cleared that in the quest with the worst setup I probably could have brought for it, because I just walked in blind.
+* '''Mod Other:''' I thought that was a lot of fun, and I probably shouldn’t have ended up clearing it the way I did. There was a lot to learn about it, to then go back post-quest, and I think we can bring that learning forwards to the quest itself. It doesn’t necessarily have to be through making bosses into a giant stat stick with a huge amount of health that punishes mistakes.
+* '''Mod Other:''' There’s a lot of room if we say “yeah, let’s make harder bosses”. There’s a lot of room to do interesting things with that.
+
+===Question #17===
+{{Cquote2|Why is Dragon Scale Dust still unbuyable from NMZ for Ironmen?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=3072s Youtube Time Stamp]
+
+* '''Mod Roq:''' Because you should go and pick it up off the floor.
+* '''Mod Roq:''' I do believe that we should perhaps have a way to do it, but Nightmare Zone would not be where it comes from, and I wouldn’t do it in a way that’s easy like “use knife on blue dragonhide”.
+* '''Mod Roq:''' I’d like to see an engaging way of getting it, but if we go near Nightmare Zone again for anything, I hope it would be to delete it.
+* '''Mod Goblin:''' I’ll say that with nightshade in Poll 78, we made it a bit easier to harvest and pointed out that it wasn’t particularly fun to just hop around and pick it up off the floor. I think we have something in the Player Suggestion Sheet for next Monday to maybe discuss again the idea of maybe scraping some scales off blue dragonhide - maybe it’s something that scales with crafting quite intensely so there’s a chance you just get none.
+* '''Mod Goblin:''' There’s a concern that depending on a fixed value, you’d just tie their value entirely to blue dragonhide, which is tied to alchs, and that’s not very interesting either. We’re aware that blue dragon scales aren’t fun to pick up, nor is that kind of gameplay particularly fun anyway, but maybe we can come up with something a bit more exciting. On the flip side, Nightmare Zone also isn’t particularly fun.
+
+===Question #18===
+{{Cquote2|What can we expect when it comes to player suggestions for the future?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=3180s Youtube Time Stamp]
+
+* '''Mod Roq:''' The main thing that we're going to be looking at for Poll 79 is the reworking of the Combat Achievements into a points-based system. Alongside that, we would like to take a look at things that we haven't necessarily done anything with recently; we'd like to take a look a little bit towards things like raids, etc. 
+* '''Mod Roq:''' Basically what happens is, we pick a theme for a Poll that fits in and around our schedule that either we haven't done for a while or we are about to do, so it can supplement the content that's coming.
+* '''Mod Roq:''' We literally go through dozens of suggestions from players every week that the team find and like, and decide whether it goes into our backlog or not. I'm hoping this year that we can deliver many more types of player suggestions and quality-of-life updates than we'd have done previously.
+* '''Mod Other:''' There‘s a lot that goes on in the player suggestion meetings, to be honest. In recent weeks a lot has just gone by me, unfortunately, so I can't talk a huge amount about the suggestions.
+* '''Mod Halo:''' There are some really cool suggestions are coming up that are just game-changing. I'm not going to spoil what they are!
+* '''Mod Goblin:''' Some of them range from ‘really exciting’ to something that I put on today - because we made the change recently to be able to get multiple Neitiznot and Dwarven Helms, I saw some people asking for the same treatment to be given to Lunar Rings and Beacon Rings, which I imagine we'll probably do. So I don't mind leaking that we'll talk about it. If we don't do it, then you know, I've let you guys down; I didn’t fight hard enough. I'm sure it's not that deep.
+* '''Mod Roq:''' The main thing I want people to realise is that the player suggestions meetings we have every week are for things that are related to much smaller pieces of content. This is because they're mainly built for the quality-of-life team so we can try and deliver a lot of that throughout the year. 
+* '''Mod Roq:''' We know that there are absolutely massive, amazing suggestions that come from players across varying media, but the week-to-week stuff discusses things where we can go “Okay, this is something that's relatively high impact but relatively low work, when can we get it and when can we put it out into a Poll?”.
+
+===Question #19===
+{{Cquote2|What are your thoughts on repolling Amylase Packs or Marks of Grace to Hallowed Sepulchre?}}
+
+[https://www.youtube.com/watch?v=G7dijSIfG3Y&t=3408s Youtube Time Stamp]
+
+* '''Mod Roq:''' Sepulchre is good enough already, so no, I don't think it needs it whatsoever. Sepulchre does a lot of things well already; it's mainly player interaction and gives you a fun way of training Agility. If you want amylase, go run laps, or we’ll find another cool way of doing it. Ultimately, if we would make amylase come from other areas, then rooftops are absolutely dead. Whether that's fine or not isn't necessarily up to me to decide, but amylase from Sepulchre, for me, is a definite no.
+* '''Mod Goblin:''' I'm biased because I just hate rooftops! I think the Brimhaven Agility dungeon is more interesting. I'd like to see it come from more places, but maybe not Sepulchre.
+* '''Mod Roq:''' I'd go for Brimhaven over Sepulchre every day. I just don't think Sepulchre needs anything more added to it to make it even better than it already is.
+* '''Mod Halo:''' Personally, there might be a good balance that we could achieve in that maybe from Sepulchre it's not optimal by any means to get amylase - you're just getting them passively, whereas rooftops, it's super optimal to get them. That might be a nice balance.
+* '''Mod Goblin:''' Mod Other, give a really controversial take - just say the most insane thing imaginable, even if it’s not your opinion!
+* '''Mod Other:''' Give a high-rarity, single drop of one amylase crystal occasionally in Sepulchre, and completely overhaul rooftops, such that they're more like running through Meiyerditch for all those quests. Nice complex, hard-to-follow routes!
+* '''Mod Roq:''' It's an odd one; I honestly get the request, and as much as I don't like it, if we could do it another way to kind of keep rooftops in a position where it is - like Halo said - but find another engaging way that isn't necessarily Sepulchre in order to get them, then I think we should go for that route instead.
+* '''Mod Goblin:''' Just to clarify, I literally deliberately asked Mod Other for the most insane take - if you're reading the transcript, please don’t just flame her all over the internet!
+
+==Player Creations of the Week==
+<gallery mode="packed" heights="200" style="text-align:center">
+Q&A Summary 16-2-2023 (1).png|''u/plebofexile''
+Q&A Summary 16-2-2023 (2).png|''u/witchcraftyyt''
+Q&A Summary 16-2-2023 (3).png|''u/moongifter''
+Q&A Summary 16-2-2023 (4).png|''u/daapeepsheep''
+Q&A Summary 16-2-2023 (5).png|''u/aggressive-recipe-19''
+</gallery>

@@ -269,6 +269,214 @@ def artefact_dir(name):
     return os.path.join(REPO_ROOT, "build", "quest_gate", name)
 
 
+# THE PARTY RUN (raid seam17 party_run_and_verbs; run.py run_party). N client
+# processes play one world, each in its own session directory under the run's
+# build/quest_gate/<id>/p<n>/ (ledger.tsv, shots/, ticklog.tsv, heartbeat,
+# client.log); run.py writes <id>/party.tsv naming them. The gate grades ONE
+# ledger, the UNION, which party_union writes at <id>/ledger.tsv with every
+# shot at <id>/shots/:
+#   * the leader's (p1) rows keep their own names -- the leader holds the
+#     world and its one tick log, so its spec.* rows are the ones
+#     raid_coverage.py grades, unchanged;
+#   * a member's row is renamed `p<n>:<step>` and its shots `p<n>-<shot>`, so
+#     every row carries its raider (`p2:spec.maiden.cadence`);
+#   * a raider whose session left no ledger is a FAIL row `p<n>:run.no_ledger`;
+#   * the SUMMARY counts the union, with the leader's ticks and exit.
+# A run without party.tsv is never touched.
+PARTY_MARKER = "party.tsv"
+PARTY_STEP_RE = re.compile(r"^p\d+:")
+
+
+def party_seats(directory):
+    """[(n, account, session_dir)] from <directory>/party.tsv, or None when the
+    run is not a party run."""
+    assert directory
+    marker = os.path.join(directory, PARTY_MARKER)
+    if not os.path.isfile(marker):
+        return None
+    seats = []
+    with open(marker, "r", encoding="utf-8") as handle:
+        for line in handle:
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) < 3 or not fields[0].startswith("p"):
+                continue
+            seats.append((int(fields[0][1:]), fields[1], os.path.join(directory, fields[2])))
+    assert seats, "%s names no raider" % marker
+    return seats
+
+
+# THE LOCK STEP ROW (raid seam21 party_determinism_gate). Under
+# TORIRS_EMBED_PARTY_TRACE=1 (run.py sets it for every party run) the leader
+# AND every member print one line per world-tick boundary into their own
+# client.log, in one format (src/platform/net_transport_embed.c):
+#     net: party: boundary <k> -> tick <t> digest <8 hex>
+# The digest is ToriRSServer_EmbedWorldDigest (FNV-1a over the tick, then
+# pid/x/z/level/hitpoints of every active player in pid order, then the npc
+# count), computed by the leader and carried to each member in its TICK.
+# party_lockstep compares every member's trace with the leader's, line for
+# line: the same boundaries, each with the same tick and digest. The union
+# ledger carries the answer as its `party.lockstep` row, FAIL naming the first
+# boundary (and tick) that differs; run.py fails the run on it. No tolerance:
+# a member with fewer boundaries than the leader (it stalled, exited early or
+# never joined) is a FAIL too, naming the first boundary it is missing.
+#
+# THE LEADER'S TRACE IS THE REFERENCE, AND IT ENDS THE COMPARISON (raid
+# seam22, party_death_and_member_readers). A member's trace must be complete
+# up to the leader's last boundary and equal to it line for line there;
+# anything a member logged after it is not compared (a member's boundary line
+# needs the leader's TICK, so there is none in practice, and since seam22 a
+# member whose leader is gone stops at its next boundary:
+# net_transport_embed.c party_member_lost). A member who DIED is not short: its
+# script runs on caged (raid.lua, "seam22: a dead raider in step") and its
+# trace reaches the leader's end like anyone's; the PASS detail names the
+# members whose ledger carries a `player.died` row.
+PARTY_TRACE_RE = re.compile(r"(?m)^net: party: boundary (\d+) -> tick (-?\d+) digest ([0-9a-f]{8})\s*$")
+PARTY_LOCKSTEP_STEP = "party.lockstep"
+
+
+def party_trace(session):
+    """[(boundary, tick, digest)] from <session>/client.log, in log order, or
+    None when there is no client.log."""
+    assert session
+    path = os.path.join(session, "client.log")
+    if not os.path.isfile(path):
+        return None
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        text = handle.read()
+    return [(int(k), int(t), d) for k, t, d in PARTY_TRACE_RE.findall(text)]
+
+
+def party_lockstep(directory):
+    """("PASS"|"FAIL", detail) for a party run's boundary traces (see the
+    banner above), or None when `directory` is not a party run."""
+    seats = party_seats(directory)
+    if seats is None:
+        return None
+    traces = {}
+    for seat, account, session in seats:
+        trace = party_trace(session)
+        if not trace:
+            return "FAIL", ("p%d (%s): no `net: party: boundary` line in %s -- the run was not "
+                            "traced (TORIRS_EMBED_PARTY_TRACE=1) or the raider never reached a "
+                            "boundary" % (seat, account, os.path.join(session, "client.log")))
+        traces[seat] = trace
+    leader = traces[seats[0][0]]
+    for seat, account, session in seats[1:]:
+        mine = traces[seat]
+        for position in range(min(len(mine), len(leader))):
+            if mine[position] != leader[position]:
+                k, t, d = mine[position]
+                lk, lt, ld = leader[position]
+                return "FAIL", ("first difference at boundary %d (tick %d): p%d has boundary %d -> "
+                                "tick %d digest %s, the leader p1 boundary %d -> tick %d digest %s"
+                                % (lk, lt, seat, k, t, d, lk, lt, ld))
+        if len(mine) < len(leader):
+            k, t, d = leader[len(mine)]
+            return "FAIL", ("first difference at boundary %d (tick %d): p%d stops after %d "
+                            "boundaries, p1 ran %d and p%d ran %d -- a member's trace must reach "
+                            "the leader's last boundary"
+                            % (k, t, seat, len(mine), len(leader), seat, len(mine)))
+    first, last = leader[0], leader[-1]
+    beyond = ["p%d +%d" % (seat, len(traces[seat]) - len(leader)) for seat, _a, _p in seats[1:]
+              if len(traces[seat]) > len(leader)]
+    dead = [seat for seat, _a, session in seats[1:] if party_member_died(session)]
+    return "PASS", ("%s: %d boundaries each, %d -> tick %d .. %d -> tick %d, the same tick and "
+                    "digest on every raider at every boundary (last digest %s)%s%s"
+                    % (" ".join("p%d" % s for s, _a, _p in seats), len(leader), first[0], first[1],
+                       last[0], last[1], last[2],
+                       ("; compared to the leader's last boundary, not past it (%s)" % ", ".join(beyond))
+                       if beyond else "",
+                       ("; %s died and stayed in step to the leader's end"
+                        % ", ".join("p%d" % s for s in dead)) if dead else ""))
+
+
+def party_member_died(session):
+    """True when a raider's own ledger carries a `player.died` row (raid
+    seam22: a member's death is a row, not the end of its run)."""
+    assert session
+    path = os.path.join(session, "ledger.tsv")
+    if not os.path.isfile(path):
+        return False
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            fields = line.split("\t")
+            if len(fields) > 2 and fields[1] == "player.died":
+                return True
+    return False
+
+
+def party_union(directory):
+    """Write the union ledger and shots of a party run (see PARTY_MARKER).
+    Returns the number of raiders, or 0 when `directory` is not a party run."""
+    import shutil
+    seats = party_seats(directory)
+    if seats is None:
+        return 0
+    lines = ["quest-ledger-v1", "index\tstep\tverdict\tticks\tshots\tdetail"]
+    shots_dir = os.path.join(directory, "shots")
+    if os.path.isdir(shots_dir):
+        shutil.rmtree(shots_dir)
+    os.makedirs(shots_dir)
+    counts = {"PASS": 0, "FAIL": 0, "BLOCKED": 0}
+    index = 0
+    leader_ticks = "0"
+    leader_exit = "exit=none"
+    for seat, account, session in seats:
+        prefix = "" if seat == 1 else "p%d:" % seat
+        shot_prefix = "" if seat == 1 else "p%d-" % seat
+        rows, summary = ledger.read(os.path.join(session, "ledger.tsv"))
+        if rows is None:
+            index += 1
+            counts["FAIL"] += 1
+            lines.append("%d\t%srun.no_ledger\tFAIL\t0\t\traider p%d (%s) left no ledger at %s"
+                         % (index, "p%d:" % seat, seat, account, os.path.join(session, "ledger.tsv")))
+            continue
+        if seat == 1 and summary is not None:
+            leader_ticks = summary[3] if len(summary) > 3 else "0"
+            leader_exit = summary[4] if len(summary) > 4 else "exit=none"
+        for row in rows:
+            index += 1
+            names = ledger.shot_names(row)
+            if row["verdict"] in counts:
+                counts[row["verdict"]] += 1
+            lines.append("\t".join([str(index), prefix + row["step"], row["verdict"], row["ticks"],
+                                    ",".join(shot_prefix + n for n in names), row["detail"]]))
+        if summary is None:
+            index += 1
+            counts["FAIL"] += 1
+            lines.append("%d\t%srun.no_summary\tFAIL\t0\t\traider p%d (%s): its ledger has no "
+                         "SUMMARY row" % (index, "p%d:" % seat, seat, account))
+        own_shots = os.path.join(session, "shots")
+        if os.path.isdir(own_shots):
+            for entry in sorted(os.listdir(own_shots)):
+                if not entry.endswith(".png"):
+                    continue
+                target = os.path.join(shots_dir, shot_prefix + entry)
+                try:
+                    os.link(os.path.join(own_shots, entry), target)
+                except OSError:
+                    shutil.copy2(os.path.join(own_shots, entry), target)
+    # The lock step row (PARTY_TRACE_RE's banner): one per party run, after
+    # every raider's rows, counted like any other.
+    lock_verdict, lock_detail = party_lockstep(directory)
+    index += 1
+    counts[lock_verdict] += 1
+    lines.append("%d\t%s\t%s\t0\t\t%s" % (index, PARTY_LOCKSTEP_STEP, lock_verdict,
+                                          lock_detail.replace("\t", " ")))
+    verdict = "PASS" if counts["FAIL"] == 0 else "FAIL"
+    summary = "SUMMARY\t%d\t%s\t%s\t%s\tpass=%d fail=%d" % (
+        index, verdict, leader_ticks, leader_exit, counts["PASS"], counts["FAIL"])
+    if counts["BLOCKED"]:
+        summary += " blocked=%d" % counts["BLOCKED"]
+    lines.append(summary)
+    with open(os.path.join(directory, "ledger.tsv"), "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+    leader_ticklog = os.path.join(seats[0][2], "ticklog.tsv")
+    if os.path.isfile(leader_ticklog):
+        shutil.copy2(leader_ticklog, os.path.join(directory, "ticklog.tsv"))
+    return len(seats)
+
+
 def parse_summary_counts(summary):
     """("pass=<n> fail=<m>[ blocked=<k>]" -> (n, m, k_or_None), or
     (None, None, None) if it cannot be read -- treated as its own
@@ -819,7 +1027,9 @@ def minimum_shape_findings(name, rows, shots_dir):
             png_count, min_shots, "BLOCKED" if trailing_blocked else "green"))
 
     for row in rows:
-        step = row["step"]
+        # A party member's row is `p<n>:<step>` (PARTY_MARKER); its source
+        # line names the bare step.
+        step = PARTY_STEP_RE.sub("", row["step"])
         if step not in shooting_rows and _REPEAT_SUFFIX_RE.sub("", step) not in shooting_rows:
             continue
         if row["shots"]:
@@ -833,7 +1043,7 @@ def minimum_shape_findings(name, rows, shots_dir):
         findings.append("step %r is written with t.exec/t.check, which always "
                          "shoots, but has no shot recorded and no %s in its "
                          "detail -- an empty shots column there means the "
-                         "capture itself failed" % (step, UNCHANGED_MARKER))
+                         "capture itself failed" % (row["step"], UNCHANGED_MARKER))
 
     return findings
 
@@ -867,6 +1077,10 @@ def check_quest(name, allow_blocked):
     findings = []
     blocked = []
     directory = artefact_dir(name)
+    # A party run is graded on the union of its raiders' ledgers, rebuilt here
+    # from their own session directories (PARTY_MARKER).
+    if os.path.isdir(directory):
+        party_union(directory)
     ledger_path = os.path.join(directory, "ledger.tsv")
     shots_dir = os.path.join(directory, "shots")
     rows, summary = ledger.read(ledger_path)
@@ -945,18 +1159,27 @@ def check_quest(name, allow_blocked):
     if os.path.isdir(shots_dir):
         logout_shots = logout_row_shots(rows)
         by_digest = {}
+        # A party run's union holds every raider's shots: "never changed" is a
+        # question about ONE client's sequence, so the digests are grouped per
+        # raider (`p<n>-` prefix; the leader's have none). Two raiders standing
+        # side by side can photograph the same dialogue page.
+        party = party_seats(directory) is not None
         for entry in sorted(os.listdir(shots_dir)):
             if not entry.endswith(".png"):
                 continue
             path = os.path.join(shots_dir, entry)
-            by_digest.setdefault(md5_of(path), []).append(entry)
+            raider = ""
+            if party:
+                prefix = re.match(r"^p\d+-", entry)
+                raider = prefix.group(0) if prefix else ""
+            by_digest.setdefault((raider, md5_of(path)), []).append(entry)
             matched = matches_boot_fingerprint(path)
             if matched == "title_screen" and entry[:-len(".png")] in logout_shots:
                 matched = None
             if matched:
                 findings.append("shot %r matches the %s fingerprint -- this run never "
                                  "actually got past boot/login" % (entry, matched))
-        for digest, names in sorted(by_digest.items()):
+        for (_raider, digest), names in sorted(by_digest.items()):
             if len(names) > 1:
                 findings.append("%d shots share one MD5 (%s), a screenshot that never "
                                  "changed: %s" % (len(names), digest, ", ".join(names)))

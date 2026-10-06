@@ -1,0 +1,300 @@
+{{Update|date=14 June 2023|url=https://secure.runescape.com/m=news/ruinous-powers-beta-v2?oldschool=1|category=game}}
+[[File:Ruinous Powers Beta v2 newspost.png|right]]
+{{clear}}
+''This week you’ve got the chance to further beta test the Desert Treasure II rewards, plus Bounty Hunter tweaks and some of the fruits of April’s Game Jam…''
+
+__TOC__
+----
+{{Collapsed section|18|Changelog June 14th - CLICK HERE TO SHOW}}
+'''Desert Treasure II - The Fallen Empire, Rewards Beta 2'''
+* Adjusted the Ruinous Powers (see the blog for more info).
+* Removed bonus effects from Virtus robes.
+* Adjusted elemental bonus effects for Ancient sceptre upgrades.
+* Increased Strength bonus for Soulreaper axe.
+* Adjusted 3PC guidelines to allow Prayer reordering plugins.
+
+'''Bounty Hunter Tweaks'''
+* Added a chance for players to obtain Ancient Statuettes when opening Bounty crates
+* Increased the quantity of Blighted supplies received when opening a Bounty crate.
+* Added an in-game confirmation message to make our stance on boosting clear.
+* Overhauled the emblem system to make obtaining Tier 10s feel less punishing.
+* Adjusted the stats of various Ancient Warrior equipment.
+
+'''Game Jam April 2023'''
+* Grand Exchange Buy offers can now pull coins directly from your bank.
+* Added a 'Random' button on the in-game Music tab.
+* Added an improved World Switcher Configuration menu and filtering system.
+
+Other Changes
+* Re-added the Varrock hair salon (oops).
+* An in-game message is now displayed to clarify when Abyssal Lanterns grant an extra rune during Runecrafting. It can be blocked by the spammy message filter.
+* Fixed an issue where players could gain temporary invisibility while stationary via the Leagues III home teleport animation.
+* Some grammar has been corrected in the Combat Achievements menu.
+* The Banker outside Nex's chamber now stands still, for your convenience.
+* Venenatis and Spindel now have a 1/5 chance of dropping a Strange Fruit to help you top up on Energy, or perhaps to cure your poison in a pinch.
+* You can now slash through webs as long as you have a suitably slashy weapon in your inventory- you won’t need to equip one beforehand.
+* Wearing Bunny Legs while wielding a Love Crossbow no longer looks quite so, er, dubious.
+* Free-to-play players will now be able to sell Members' items on the Grand Exchange, in case they're trying to scrape together enough for another bond!
+{{Collapsed section end}}
+
+==Ruinous Powers Beta v2==
+[[File:Ruinous Powers Beta v2 (1).png|centre|600px]]
+
+
+Wanna beta test an updated set of Ruinous Powers? We’d love to hear your thoughts on these destructive Desert Treasure II rewards! Tournament worlds are open once more, so dive in and let us know what you think.
+
+'''Note: the tournament worlds for this beta won't be accessible straight after today's game update. We'll be waiting until the regular game worlds are running without issue before bringing up the tournament worlds.'''
+
+The previous Ruinous Powers beta ended early due to the sheer volume of feedback, coupled with a busy schedule for the team, so we thought we’d offer another beta when we were ready to address feedback - that’s today, folks!
+
+Before we get into the adjustments we’ve made to these powerful prayers, a note about how you’ll acquire them: some can be unlocked as boss drops, Annihilate and Vaporise will require the existing Arcane and Dexterous Prayer Scrolls, and others are given at the end of the quest.
+
+In terms of improvements, there were a handful of key issues for us to focus on:
+* Deflect Prayers' guaranteed chip damage was clearly a non-starter.
+Initially we'd considered an increase to the reflected damage, but this wouldn't have gone any way towards cutting down on chip damage when using the Ruinous Powers. For this reason, we decided to switch to Dampen prayers, which grant 100% damage reduction against the corresponding style, but will increase your damage taken by 10%. This means getting your prayers wrong or getting hit off-prayer will punish you more than on the standard Prayer Book, and you'll take slightly more chip damage in places where it already occurs - but won't introduce chip damage into places that don't already have any. It's worth remembering that Old School always rounds down, so if an NPC would hit you for a 19, you'd take an extra 1 damage.
+
+
+* The risk component outweighed the reward for many players.
+The changes to overheads go some way to addressing this, but there are specific prayers and other aspects we've tweaked for better balance.
+
+'''Vindication''' gave you extra damage for triggering its effect at low Hitpoints, which seemed novel on paper - but a lot of players (especially among skilled PvMers) felt that it encouraged unhealthy play patterns by incentivising people to repeatedly force themselves to low HP and proc Vindication to achieve competitive DPS. Plus, while Vindication was effectively an aggressive spin on Redemption, it had such a low heal amount to be unuseable in places where Redemption normally does the job, such as Vespula's room in the Chambers of Xeric. Our solution? Make Vindication function exactly like Redemption.
+
+'''Rebuke''' was our attempt to make Vengeance more appealing, since it's fallen out of favour compared to other Thralls in the Arceuus Spellbook. However, asking players to sacrifice a protection prayer and take additional damage on top made this a pretty unappealing option for many. So, we're going to try removing this bonus damage component and replacing the passive recoil effect with a boost to any active recoil effects like Vengeance or Rings of Recoil. This should make it more rewarding to use in cases where you might risk a juiced-up Vengeance to shave a few seconds off your PB!
+
+The lack of '''Protect item''' was intended to add some extra monetary risk in PvP scenarios, since usually players looking to increase their power in PvP are opting in to increased risked wealth. Many of you felt that the reduced defensive bonuses offered by the Ruinous Powers were risky enough on their own and that the lack of Protect Item would put them off of using them in PvP, or would just encourage them to bring cheaper gear instead (thus reducing weapon variety in PvP). With all that in mind, coupled with the decreased strength bonuses offered by the pinnacle offensive prayers, we've decided we’d better enable Protect Item on the Ruinous Powers - simple!
+
+
+* Fumus', Glacies' and Cruor's Vow didn't feel fun to use or give players much room for decision-making.
+The Vows were a later addition to the Ruinous Powers than most, and we've given them a little more thought this time around.
+
+'''Glacies' Vow''' effectively functioned as a passive <2% DPS increase while active, with the added side effect of giving some extra RNG to KO potential in PvP, through what are essentially added max hits (more on that in just a bit). With Vaporise making the Ruinous Powers the book of choice for Magic users, we decided to rework this as a reliable means of reducing your target's Magic level, and give you a little extra oomph over time. We're aware this one might need toning down in PvP or adjusting outright, so let us know your thoughts on its updated form.
+
+'''Cruor's Vow''' gave a 10% chance to heal 10% of the damage you dealt, which is a fancy way of saying '1% lifesteal while active'. Lifesteal, life leech or sustain effects in general are notoriously difficult to strike the right balance with. Too much and you risk something being completely overpowered (we don't want to name names, but we're talking about Soul Split), too little and you risk something just not being worth using at all. We tried to err on the side of caution and opted for a value that was 'too little' in this case, and as a result it didn't feel particularly engaging to use. To fix the problem, we’ve instead made Cruor's Vow function similarly to the Keris Partisan of the Sun, where you'll trade Prayer points for Hitpoints if you kill NPCs with this prayer active.
+
+To say '''Fumus' Vow''' wasn't working quite as we intended is an understatement. While we're sure many of you chasing a Twisted Bow would love to kill every enemy in the tightrope room within 10 ticks, it's probably not for the best! We've touched Fumus' Vow up to be a little simpler, and effectively boost your damage with poison weapons, by dealing a poison hitsplat instantly whenever you would apply poison of a higher severity than what's already affecting an NPC.
+
+
+* Some players shared concerns about max hit creep, particularly in PvP scenarios.
+We're not looking to dive too deep right now into how different types of power increases impact PvP and PvM differently, or how aiming for consistency in all scenarios between both PvM and PvP can make it difficult at times to move both of these areas forward healthily. That being said, there were valid concerns raised by players surrounding extra max hits in PvP and the increase in KO potential.
+
+We elected to knock the Strength and Ranged Strength boosts on Decimate and Annihilate down a peg and adjust Accuracy to compensate. The hope is that the Ruinous Powers still provide the damage potential many of you liked, but arrive at that DPS increase by a more sensible route.
+
+Ok, here's a compact list of everything that's changed since last time, so you have all the info you need in one place!
+
+===Ruinous Powers Beta 2.0 Changelist===
+* Overhead protection prayers have been changed from Deflect prayers to Dampen prayers.
+** Dampen prayers grant 100% damage reduction against the corresponding style, but increase your damage taken by 10%.
+* Annihilate and Decimate have had their Ranged strength and Strength bonuses reduced from +30% to +27%.
+* Annihilate and Decimate have had their Ranged and Melee accuracy bonuses increased from +20% to +25%..
+* Gambit has been reworked into a 4th pinnacle offensive prayer called Intensify.
+** Intensify increases your accuracy with all combat styles by 40% when activated, but cannot be used at the same time as any of the other pinnacle offensive prayers (Annihilate, Decimate and Vaporise).
+* Prayer level requirements for each of the pinnacle offensive prayers have been increased to better reflect their power.
+* Glacies' Vow has been reworked and will now reduce your target's Magic level by 10% of damage dealt, up to a maximum of 15% Magic level reduction.
+* Cruor's Vow has been reworked and will now consume 3 Prayer points to heal 3 Hitpoints when killing an NPC.
+* Fumus' Vow has been reworked. While active, applying poison to an NPC will cause the first poison damage tick to apply instantly.
+** This means if the poison you're applying has a higher poison severity than whatever poison is currently affecting an enemy, you'll see extra hitsplats. In simpler terms, turn this on for a little extra oomph when using any poison weapons.
+* Vindication has been reworked to trigger at 10% of your Hitpoints and restore them by 25% of your Prayer level, the same as Redemption.
+* Rebuke has been reworked and will no longer increase your damage taken or grant passive recoil damage, but amplify the damage that other recoil effects grant by 50%.
+* Protect Item has been added to the Ruinous Powers.
+* Prayer point drain rates are lower across the board.
+
+Beyond the Ruinous Powers themselves, there's one more piece of feedback we'd like to address.
+
+
+===Prayer Re-Ordering and Third-party Clients===
+We had feedback from the initial beta that the new prayers were difficult to get to grips with due to muscle memory. We've changed our guidelines on third party clients to address this.
+
+Back in March, we added Prayer Filtering to Old School, following an 85% 'Yes' vote in Poll 78. Many of you feel our implementation didn't quite meet expectations, and have suggested improvements. We plan to revisit Prayer Filtering in future, but in the meantime we’re granting third-party clients such as RuneLite our blessing to re-enable this functionality.
+
+The best way to play RuneLite and keep your account secure is by using the Jagex Launcher, which can be [https://www.jagex.com/en-GB/launcher found here].
+
+[[File:Ruinous Powers Beta v2 (2).mp4|frame|centre|''Here's an early WIP we were sent of the returning Prayer reordering plugin - thanks to Adam and the RuneLite team for getting Prayer Reordering back up and running on short notice!'']]
+
+
+We hope this helps in the upcoming beta, freeing up more of your brain to get a feel for the balance of the prayers themselves rather than wondering whether or not you're using the correct offensive prayers at all...
+
+===Additional Reward Tweaks===
+Beyond the Ruinous Powers, we've made a couple of rewards changes that you'll be able to experiment with in the beta.
+* Virtus Robes no longer provide additional effects to Ancient elements. Many players felt that the Ancient Sceptre upgrades and Virtus Robes shared a little too much, and in some cases would combine in unhealthy ways (such as repeatedly draining Magic levels in PvP interactions when using Shadow spells). '''Note: the Magic Damage for Ancient spells is unchanged, and remains at 12% for the full set.'''
+* In a similar vein, we've adjusted the 'bonus effects' of the various Ancient Sceptre upgrades
+** Blood - Blood magic can now overheal you by 10% of your Hitpoints
+** Ice - Ice spells gain 10% accuracy on unfrozen, freezable targets.
+** Shadow - Shadow spells also drain Strength and Defence in addition to the target's Attack level.
+** Smoke - Smoke spells reduce healing received by 20% for 10 ticks (6 seconds) on-hit if the target is poisoned.
+* The Soulreaper Axe’s Strength bonus has been increased from +115 to +121.
+* The Soulreaper Axe's stacking buffs now take 10 ticks (6 seconds) of not attacking before they start to decrease.
+
+Have fun in the beta and make sure to let us know what you think of the changes!
+
+==Bounty Hunter==
+[[File:Ruinous Powers Beta v2 (3).png|centre|600px]]
+
+
+Isn’t it great to have Bounty Hunter back? It's still an absolute joy to see so many of you whacking each other around in Daimon's Crater. And we've got some more tweaks on the horizon to keep things spicy…
+
+===Earning Potential Additions===
+Last week, we added an Earning Potential system to the Crater, to add a little extra profit incentive, and help newer PKers recoup some losses. While our heart was in the right place, this fell a little flat for many of you.
+
+To address this, we’ve added the Ancient Statuettes that can be found on the Revenant drop table as RNG-drops from Bounty Crates. While the aim here is to boost the profit incentive a little, we're also hoping it captures some of the excitement that rare drops bring to other areas of Old School. Will you get a token 500k? Will you be struggling under the weight of 16,000,000 GP? Or will you even see an Emblem at all?
+
+Additionally, we've increased the quantity of Blighted supplies you'll receive when opening a Bounty Crate, which should help you stay topped up for future fights and hopefully increase the supply of Blighted items overall, in the hopes of making PvP a little more affordable when you're starting out.
+
+Finally, if you'd like to figure out what your EP value is between fights, just ask one of the Corrupted Warriors in the lobby area! They might look like fearsome fighters, but they're also monstrous mathematicians with mind-boggling memories.
+
+We're still keeping a close eye on all things EP and are keen to make sure we're striking the right balance between incentivising genuine players while ensuring Bounty Hunter remains healthy for the game as a whole.
+
+===First-time Entry Dialogue===
+In a ''slightly'' related vein, we've added a new dialogue pop-up for the first time you try entering the Crater after today's update. A corrupted warrior will stop you briefly and remind you that there are some rules inside the Crater.
+
+Those who oversee Daimon's Crater won't be happy with you if you're found to be selling your soul to other players! You’ll be asked to acknowledge that you've read and understood the Crater's terms of engagement before getting stuck in. After that, you’re good to go.
+
+===Esoteric Emblem Tweaks===
+A couple of weeks ago, we included a section in a newspost for the '[https://secure.runescape.com/m=news/a=97/bounty-hunter-changes--forestry-beta?oldschool=1 Future of Bounty Hunter]' where we discussed a handful of proposed changes - one of those being the aforementioned EP system, which shipped last week. Within the section, we discussed a slight rework of the way you level Emblems and earn Bounty Hunter points, which went down a treat with many of you. Those changes ship today! Until now, you needed to score nine target kills in a row to secure a Tier 10 Emblem. Although you ''could'' hand them in sooner, it’s not always easy to step back from a winning streak – and losing it all at the last hurdle didn’t feel great. With today's game update, we'll be making the following changes to Esoteric Emblems inside Bounty Hunter:
+* Killing your target will reward 2 BH points and level your Emblem up by a tier. This behaviour is unchanged.
+* Kill milestones at 10, 50, 100 and 500 kill increments will also remain as they are.
+* Killing a target with an Emblem of their own '''no longer rewards additional bonus points'''. Meaning if you kill a target who had a Tier 9 Emblem, you won't receive any extra points.
+* Dying with an Emblem will reduce its tier by 1, rather than deleting it outright. This means that dying with a Tier 9 Emblem will downgrade it to a Tier 8 Emblem. If you have a Tier 1 Emblem, however, you '''will''' lose it – there’s nothing to downgrade it to!
+
+We hope these changes can help some of you let loose, rather than feeling like you have to fight tooth and nail to keep your Hitpoints maxed-out at all times in order to protect your streak.
+
+===Ancient Warrior Gear Tweaks===
+We’re also delivering a set of tweaks to Vesta's, Statius's and Zuriel's armour sets this week. We spoke about these in a recent newspost, in a section titled '[https://secure.runescape.com/m=news/a=97/bounty-hunter-changes--forestry-beta?oldschool=1 The Future of Bounty Hunter]', but to save you a click we've listed the changes again here!
+
+'''Note: any changes to bonuses apply to both the 'standard' and 'corrupt' versions of these armours unless otherwise specified.'''
+
+Vesta's Chainbody
+* Stab and Slash bonuses increased from +9 to +14.
+* Crush bonus reduced from +9 to +4.
+
+Vesta's Plateskirt
+* Stab and Slash bonuses increased from +7 to +10.
+* Crush bonus reduced from +7 to +3.
+
+Statius's Full Helm
+* Stab and Slash bonuses reduced from +3 to +1.
+* Crush bonus increased from +5 to +6.
+
+Statius's Platebody
+* Stab and Slash bonuses reduced from +5 to +2.
+* Crush bonus increased from +7 to +14.
+* Prayer bonus increased from +1 to +3. This change does not apply to Corrupt Statius's Platebody.
+
+Statius's Platelegs
+* Stab and Slash bonuses reduced from +3 to +1.
+* Crush bonus increased from +5 to +10.
+* Prayer bonus increased from +1 to +3. This change does not apply to Corrupt Statius's Platelegs.
+
+Zuriel's Hood
+* Magic Damage increased from 0% to 1%.
+
+Zuriel's Robe Top
+* Magic Damage increased from 0% to 3%.
+
+Zuriel's Robe Bottom
+* Magic Damage increased from 0% to 2%.
+
+Vesta's Spear
+* Special Attack has been tweaked to do the following:
+** Performs an initial hit that deals up to 100% of your max hit. After 2 ticks (1.2 seconds), performs a second hit dealing between 25-75% of the initial hit's damage.
+** Initial hit grants 8 ticks (4.8 seconds) of immunity against Melee damage.
+
+That's a wrap on this week's Bounty Hunter changes, keep an eye out next week for some tweaks to the Emblem system that we first proposed a couple of weeks ago. In the meantime: happy hunting!
+
+==Pride 2023==
+In case you missed it, last week saw Pride return to Old School! If you're looking to help some hopeless romantics in the search for love this summer (or just to unlock some fierce fashionscape), then head to the Blue Moon Inn in Varrock and be prepared to pen some pleasing poetry.
+
+We'd like to say a huge thank you to everybody who attended last week's in-game Pride March on Thursday too. Seeing thousands of ‘Scapers across four worlds join in a celebration of love, support and acceptance was heartwarming beyond words for all of us. You can check out the VOD for the march by [https://youtu.be/8MK4u8JYKS0?t=1576 clicking here] or enjoy a taste of it with this rainbow-tastic screenshot from the OSRS Wiki team:
+
+[[File:Ruinous Powers Beta v2 (4).png|centre|600px]]
+
+
+We're also happy to report that Suzie and Emma are back from their holiday and it's business as usual for their hairdressing salon in Varrock, so if you've been putting off a fresh trim - there's no time like the present!
+
+Whoever you are, there's a place for you in Gielinor. Happy Pride!
+
+==Game Jam - April 2023==
+A couple of months ago, we held our third Old School Game Jam. We're still looking for the right window to livestream what the team worked on, but you can find a top-level overview of a lot of the projects in this newspost.
+
+While some projects focus more on big design ideas, these Game Jams are also a great way to work on smaller changes that keep . With that in mind, we've got a couple of projects from April's Game Jam that we're launching this week!
+
+===Random Music Mode===
+Is there anything better than getting into the groove of a really relaxing activity, accompanied by the perfect playlist?
+
+We've added a brand new 'Random' button to the Music tab in-game so you can shuffle to your heart's content. There's no skip button though, in classic Old School fashion: your listening pleasure is in the hands of RNG.
+
+To make space, we've moved the 'Loop' button from the Music tab to the Settings menu.
+
+===World Switcher Filters and Search===
+Today's update sees a lot of extra functionality added to the in-game World Switcher menu (the one that you access via the Logout panel).
+
+[[File:Ruinous Powers Beta v2 (5).png|centre|300px]]
+
+
+You'll notice a neat cog at the top left of the World Switcher interface, which will open up a Configuration menu when clicked.
+
+[[File:Ruinous Powers Beta v2 (6).png|frame|centre|''You might also notice some arrows on the US flags. While we're not looking to redesign the stars and stripes, we thought it'd be beneficial for players to easily tell which of these worlds are US West and which are US East. If you're still brushing up on your cardinal directions, US West worlds are indicated by an arrow pointing left, and US East worlds are indicated by an arrow pointing right.'']]
+
+
+The Configuration menu shows the world list as it appears in the World Switcher panel, but provides 5 buttons at the top to help you customise your World list.
+
+[[File:Ruinous Powers Beta v2 (7).png|centre]]
+
+
+From left-to-right, these buttons are:
+* Filter by Membership status - this allows worlds to be hidden depending on whether or not they're F2P or P2P worlds.
+* Filter by country - worlds can be hidden depending on where they're being hosted, so you could filter out any worlds where you'd experience less-than-desirable ping!
+* Filter by mode - filter out Beta Worlds, Speedrunning Worlds, PvP Worlds or Deadman Worlds if you're not interested in any of those modes at the moment.
+* Search - this lets you filter your displayed worlds' themes based on the text you input. For example, searching for 'wint' would allow you to see dedicated Wintertodt worlds.
+* Reset - this removes any and all filters currently on effect.
+
+If any of these filters are selected, the button will change from grey to red:
+
+Any of the changes you make in this Configuration menu will be applied to the World Switcher panel in real-time, and will persist after the Configuration menu is closed, or even through logouts. Please note that the filter text is stored on your device rather than being part of your saved game profile, so it can't follow you from one device to another.
+
+If you're trying to hop worlds via the Configuration menu itself, any of the usual 'confirmation' messages for switching worlds (for example, when hopping to a PvP world) will be displayed within the Configuration menu itself, rather than as a chat pop-up (with High Risk PvP worlds being an exception, because they give you a two part warning).
+
+===Grand Exchange Tweaks===
+Are you sick of having to withdraw coins from the Bank just to make offers on the Grand Exchange? After all, the Banker is ''right there'' - why won't they just take my money?!
+
+Well, this week's game update sees a revolution in Banker/Clerk relationships. From today, any Buy offers on the Grand Exchange will be able to pull coins directly from your Bank! If you have coins in your Inventory, they'll be used first to make up the GP you're using to buy an item, but coins in your Bank will be automatically used to make up the difference if you come up short.
+
+That being said, make sure to be careful with the quantities that you're buying; you'd probably rather not dump your entire cashstack into a bulk quantity of a single item because you weren't paying attention...
+
+==Mobile TLI==
+We previously mentioned that we wanted to run a beta for the Mobile TLI Rework, and had planned to discuss it in more detail with you all this month! Unfortunately, following the issues we faced regarding the Forestry beta earlier this month, we will be unable to run the Mobile TLI beta this month as we had envisioned. We remain committed to running a beta so you can provide feedback for the team and look forward to sharing more information with you soon!
+
+==Other Changes==
+As per usual, we're wrapping up with a list of all of this week's smaller changes. Feast your eyes on some miscellaneous bullet points!
+* An in-game message is now displayed to clarify when Abyssal Lanterns grant an extra rune during Runecrafting. It can be blocked by the spammy message filter.
+* Fixed an issue where players could gain temporary invisibility while stationary via the Leagues III home teleport animation.
+* Some grammar has been corrected in the Combat Achievements menu.
+* The Banker outside Nex's chamber now stands still, for your convenience.
+* Venenatis and Spindel now have a 1/5 chance of dropping a Strange Fruit to help you top up on Energy, or perhaps to cure your poison in a pinch.
+* You can now slash through webs as long as you have a suitably slashy weapon in your inventory- you won’t need to equip one beforehand.
+* Wearing Bunny Legs while wielding a Love Crossbow no longer looks quite so, er, dubious.
+* Free-to-play players will now be able to sell Members' items on the Grand Exchange, in case you're trying to scrape together enough for another bond!
+* Received reports that the Strange Old Man at the Barrows in Morytania has been acting even stranger than usual...
+
+==Crack the Clue==
+Woox is back with what might prove to be the final hint for Crack the Clue 3! Good luck!
+
+[[File:Ruinous Powers Beta v2 (8).png|centre]]
+
+==PvP Rota==
+The PvP rota has moved to '''Period B''':
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using ''''Zerk'''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,816,66254986 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Pumpkin, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

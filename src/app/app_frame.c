@@ -10,6 +10,79 @@
 #include "app/app_internal.h"
 #include "perf_audit.h"
 
+#ifdef TORIRS_EMBED_SERVER
+/* The party's frame audit and the one reader of TORIRS_LOGIC_CYCLES_PER_FRAME
+ * (raid seam21, "Lockstep, pinned"): the frame loop is the only place that
+ * knows a frame happened and how many cycles it paid. */
+#include "torirsserver/torirs_server_embed.h"
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
+
+/*
+ * TORIRS_LOGIC_CYCLES_PER_FRAME=k (headless only; raid seam21). A bounded
+ * headless frame (TORIRS_MAX_FRAMES) pays k 20 ms logic cycles in a row instead
+ * of one, and the embed transport's clock moves k x 20 ms per poll, so a 600 ms
+ * server tick is still 30 client cycles -- every clientscript clock, animation
+ * and timer sees the same 50 Hz -- while the frame loop (net poll, Lua driver
+ * step, plugin pump, bookkeeping) runs 30/k times per tick instead of 30. k
+ * must divide 30. 1 is the default and changes nothing. A shot taken at k > 1
+ * is of the frame's last cycle.
+ */
+static int
+app_logic_cycles_per_frame(void)
+{
+#ifdef TORIRS_EMBED_SERVER
+    return ToriRSServer_EmbedLogicCyclesPerFrame();
+#else
+    static int cached;
+
+    if( cached == 0 )
+    {
+        char const* env = getenv("TORIRS_LOGIC_CYCLES_PER_FRAME");
+        int k = env && env[0] ? atoi(env) : 1;
+
+        if( k < 1 || k > 30 || 30 % k != 0 )
+        {
+            fprintf(stderr, "app: TORIRS_LOGIC_CYCLES_PER_FRAME=%s must divide 30\n",
+                    env ? env : "");
+            abort();
+        }
+        cached = k;
+    }
+    return cached;
+#endif
+}
+
+/* Cycles a k > 1 frame was charged and did not run (the settle fence stopped
+ * it part way), paid by the next frame that reaches the logic step. Always 0 at
+ * k = 1, where the fence can only stop after the frame's one cycle. One App
+ * per process: file scope is the frame loop's. */
+static int s_cycles_owed;
+
+/* The ms clock a frame hands its timers. At k > 1 a frame is k x 20 ms of
+ * game time, so the frame clock (content_test.c's virtual clock steps 20 ms a
+ * frame) is stretched by k about its first reading, the same way the embed
+ * transport stretches its own (net_transport_embed.c embed_clock_step). k = 1
+ * returns `now_ms` untouched. */
+static uint64_t
+app_frame_clock(uint64_t now_ms)
+{
+    static int origin_set;
+    static uint64_t origin;
+    int const k = app_logic_cycles_per_frame();
+
+    if( k == 1 )
+        return now_ms;
+    if( !origin_set )
+    {
+        origin_set = 1;
+        origin = now_ms;
+    }
+    return now_ms >= origin ? origin + (now_ms - origin) * (uint64_t)k : now_ms;
+}
+
 /* Private to this unit, declared up front so definition order is free. */
 static void
 app_frame_latch_note(
@@ -111,6 +184,13 @@ App_ChromePointerOwned(
  * translation unit, the statics and the definition order are unchanged.
  */
 
+static void
+app_drain_command(
+    struct App* app,
+    struct ToriRS_CmdHeader const* header_in,
+    uint8_t const* payload,
+    struct LibToriRS_Input* input);
+
 void
 App_DrainCommands(
     struct App* app,
@@ -124,10 +204,43 @@ App_DrainCommands(
     assert(bus);
     assert(input);
 
+    /* The runner camera split (struct App_ViewSplit): this bus is the
+     * PHYSICAL one -- the window's events and the TORIRS_SIM_* pushes -- and
+     * the driver has its own, drained after it. One branch while detached. */
+    if( app->view_split.attached )
+    {
+        app_view_split_drain_begin(app, input);
+        while( CmdBus_Pop(bus, &header, payload) )
+        {
+            if( App_ViewSplitPhysicalCommand(app, &header, payload, input) )
+                continue;
+            app_drain_command(app, &header, payload, input);
+        }
+        while( CmdBus_Pop(app->view_split.runner_bus, &header, payload) )
+        {
+            app_view_split_note_runner_command(app, &header, payload);
+            app_drain_command(app, &header, payload, input);
+        }
+        app_view_split_drain_end(app);
+        return;
+    }
     while( CmdBus_Pop(bus, &header, payload) )
+        app_drain_command(app, &header, payload, input);
+}
+
+/* One command off a bus: input into `input`, everything else dispatched. */
+static void
+app_drain_command(
+    struct App* app,
+    struct ToriRS_CmdHeader const* header_in,
+    uint8_t const* payload,
+    struct LibToriRS_Input* input)
+{
+    struct ToriRS_CmdHeader header = *header_in;
+
     {
         if( ToriRS_Input_ApplyCmd(input, &header, payload) )
-            continue;
+            return;
 
         switch( header.type )
         {
@@ -551,6 +664,12 @@ App_RunOnce(
     assert(app);
     assert(input);
 
+#ifdef TORIRS_EMBED_SERVER
+    /* Exactly one frame per transport poll while a party link is up. */
+    ToriRSServer_EmbedPartyAuditFrame();
+#endif
+    now_ms = app_frame_clock(now_ms);
+
     /* The shell keeps this input frame intact when settlement returns before
      * interaction. Mark it consumed only after the stable-tree gate below; a
      * post-interaction async yield must not replay the same click. */
@@ -757,13 +876,34 @@ App_RunOnce(
          * the wall clock this exists to leave. The movers are handed exactly
          * that one tick for the same reason.
          */
+        /*
+         * TORIRS_LOGIC_CYCLES_PER_FRAME=k makes that k cycles in a row (see
+         * app_logic_cycles_per_frame), plus any a fence held back last frame.
+         * It is a headless knob: without TORIRS_MAX_FRAMES the accumulator
+         * pays whatever the wall clock says, and k would mean nothing.
+         */
+        int const cycles_per_frame = app_logic_cycles_per_frame();
+
         if( g_torirs_max_frames > 0 )
         {
-            ticks = 1;
+            ticks = cycles_per_frame + s_cycles_owed;
+            s_cycles_owed = 0;
             app->cycle_accum_ms = 0.0;
-            app->logic_frame_ms = APP_LOGIC_TICK_MS;
+            app->logic_frame_ms = (uint64_t)ticks * APP_LOGIC_TICK_MS;
+        }
+        else if( cycles_per_frame != 1 )
+        {
+            fprintf(stderr, "app: TORIRS_LOGIC_CYCLES_PER_FRAME=%d needs TORIRS_MAX_FRAMES "
+                            "(it is a headless knob)\n",
+                    cycles_per_frame);
+            abort();
         }
         int const ticks_paid = ticks;
+#ifdef TORIRS_EMBED_SERVER
+        /* A party client's frame pays exactly k cycles (a fence's carry is
+         * last frame's, not this one's); the accumulator's 0..N is refused. */
+        ToriRSServer_EmbedPartyAuditCycles(g_torirs_max_frames > 0 ? cycles_per_frame : ticks);
+#endif
 
         /*
          * The touch marker, advanced ONCE per rendered frame by the time that
@@ -793,10 +933,13 @@ App_RunOnce(
 
         /* The chosen minimenu row's afterimage: the same clock as the marker,
          * for the same reason -- it exists to be looked at. */
-        if( UIMinimenu_AfterimageActive(&app->interact.minimenu) )
+        for( int view = 0; view < app->view_split.view_count; view++ )
         {
-            UIMinimenu_AfterimageTick(&app->interact.minimenu, (int)app->logic_frame_ms);
-            app->need_redraw = 1;
+            if( UIMinimenu_AfterimageActive(app->views[view].minimenu) )
+            {
+                UIMinimenu_AfterimageTick(app->views[view].minimenu, (int)app->logic_frame_ms);
+                app->need_redraw = 1;
+            }
         }
 
         if( ticks > 0 )
@@ -842,7 +985,15 @@ App_RunOnce(
              * that stopped at the fence silently swallows simulation time and
              * the world falls behind the clock it is supposed to keep. */
             if( ticks < ticks_paid )
-                app->cycle_accum_ms += (double)(ticks_paid - ticks) * (double)APP_LOGIC_TICK_MS;
+            {
+                if( g_torirs_max_frames > 0 )
+                    /* The accumulator is emptied every frame on this path:
+                     * owe the cycles to the next frame instead. */
+                    s_cycles_owed = ticks_paid - ticks;
+                else
+                    app->cycle_accum_ms +=
+                        (double)(ticks_paid - ticks) * (double)APP_LOGIC_TICK_MS;
+            }
         }
         else
         {
@@ -942,9 +1093,20 @@ App_RunOnce(
     /* A popup retained from the previous frame must not keep native rows live
      * after that reconciliation suppressed or rebuilt their component. */
     app_minimenu_close_if_stale(app);
+    if( app->view_split.attached )
+    {
+        app->frame_view = &app->views[APP_VIEW_PLAYER_CLIENT];
+        app_minimenu_close_if_stale(app);
+        app->frame_view = &app->views[APP_VIEW_RUNNER];
+    }
     app_frame_latch_note(app, NULL);
 
     app->input_frame_consumed = 1;
+    /* The runner camera split: a frame whose game input is the watcher's
+     * (Interact on, or the plugin chrome) is handled through the
+     * PlayerClient view -- its pickset, its menu -- until the camera keys. */
+    if( app->view_split.physical_frame )
+        App_ViewSplitBindPlayerClient(app, 1);
 
     /* Per-frame interaction: returns intents; the app applies event context
      * and dispatches each hook through the game layer. */
@@ -1059,22 +1221,33 @@ App_RunOnce(
      * tile of the last tap for as long as the client runs, and the world pick
      * keeps re-answering it every frame.
      */
-    app->pointer_absent = input->mouse_pointer_absent;
-    app->world_mouse_in_viewport =
-        !app->pointer_absent && app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y);
-    app->world_mouse_x = input->curr.mouse_x;
-    app->world_mouse_y = input->curr.mouse_y;
-    if( !app->world_mouse_in_viewport )
+    if( app->view_split.attached )
     {
-        app->world_hover_tile_x = -1;
-        app->world_hover_tile_z = -1;
-        app->world_hover_view = 0;
-        World_PickSetReset(&app->world_pickset);
+        /* Each view latches ITS pointer: the runner's from its own events,
+         * the watcher's from the physical ones; hover text follows whichever
+         * moved last. */
+        app_view_split_latch_pointers(app);
     }
+    else
+    {
+        app->frame_view->pointer_absent = input->mouse_pointer_absent;
+        app->frame_view->world_mouse_in_viewport =
+            !app->frame_view->pointer_absent &&
+            app_world_mouse_gate(app, input->curr.mouse_x, input->curr.mouse_y);
+        app->frame_view->world_mouse_x = input->curr.mouse_x;
+        app->frame_view->world_mouse_y = input->curr.mouse_y;
+        if( !app->frame_view->world_mouse_in_viewport )
+        {
+            app->frame_view->world_hover_tile_x = -1;
+            app->frame_view->world_hover_tile_z = -1;
+            app->frame_view->world_hover_view = 0;
+            World_PickSetReset(&app->frame_view->world_pickset);
+        }
 
-    /* Mouseover text before any click handling: the reference recomputes it
-     * every cycle from the same menu the click paths build. */
-    app_hover_text_update(app, input->curr.mouse_x, input->curr.mouse_y);
+        /* Mouseover text before any click handling: the reference recomputes it
+         * every cycle from the same menu the click paths build. */
+        app_hover_text_update(app, input->curr.mouse_x, input->curr.mouse_y);
+    }
 
     /*
      * A chat filter button, if nothing above took the click.
@@ -1102,18 +1275,18 @@ App_RunOnce(
          * popup's geometry. Only where the pointer is a finger -- a mouse has
          * the hover it watched turn yellow, and the reference shows nothing. */
         if( app->touch_ui )
-            UIMinimenu_AfterimageShow(&app->interact.minimenu, out.minimenu_select);
+            UIMinimenu_AfterimageShow(app->frame_view->minimenu, out.minimenu_select);
         if( app_minimenu_use_option(
                 app, out.minimenu_select, input->curr.mouse_x, input->curr.mouse_y) )
             ran_cs2 = 1;
     }
     if( out.right_click )
     {
-        /* The menu ctx reads app->world_pickset — the set the last rendered
+        /* The menu ctx reads app->frame_view->world_pickset — the set the last rendered
          * frame hittested at the hover point (v1-style pickset-during-draw). */
         int click_in_world = app_world_mouse_gate(app, out.right_click_x, out.right_click_y);
         if( !click_in_world || !app_world_drawable(app) )
-            World_PickSetReset(&app->world_pickset);
+            World_PickSetReset(&app->frame_view->world_pickset);
         app_minimenu_open(app, out.right_click_x, out.right_click_y, click_in_world);
     }
 
@@ -1229,7 +1402,7 @@ App_RunOnce(
         int default_idx;
 
         UIMinimenu_Reset(&scratch);
-        scratch.font_id = app->interact.minimenu.font_id;
+        scratch.font_id = app->frame_view->minimenu->font_id;
         app_sailing_menu_context(app, &mctx, out.clicked_x, out.clicked_y);
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
         app_minimenu_stamp_node_identities(app, &scratch);
@@ -1265,11 +1438,11 @@ App_RunOnce(
         if( default_idx >= 0 )
         {
             /* Steal the row set: use_option consumes interact.minimenu. */
-            struct UIMinimenu saved = app->interact.minimenu;
-            app->interact.minimenu = scratch;
+            struct UIMinimenu saved = *app->frame_view->minimenu;
+            *app->frame_view->minimenu = scratch;
             if( app_minimenu_use_option(app, default_idx, out.clicked_x, out.clicked_y) )
                 ran_cs2 = 1;
-            app->interact.minimenu = saved;
+            *app->frame_view->minimenu = saved;
 
             /* Drop the legacy click intent so the hook does not run twice;
              * hover/wheel/hold intents pass through untouched. Clicks carry
@@ -1317,7 +1490,7 @@ App_RunOnce(
                 ? app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y)
                 : -1,
             app_world_drawable(app),
-            app->world_pickset.count);
+            app->frame_view->world_pickset.count);
     if( app->inv_drag.component_id < 0 && out.left_click_miss && !out.minimenu_closed &&
         out.minimenu_select < 0 &&
         app_world_mouse_gate(app, out.left_click_miss_x, out.left_click_miss_y) &&
@@ -1338,7 +1511,7 @@ App_RunOnce(
             .npc_attack_option = app->npc_attack_option,
             .attack_option_model = app->features->attack_option_model,
             .world = app->world,
-            .world_pickset = &app->world_pickset,
+            .world_pickset = &app->frame_view->world_pickset,
             .click_in_world = true,
             /* Honour an armed "Use"/spell selection so a left-click on a world
              * target casts/uses (the TGT and USEHELD_ON rows) instead of
@@ -1357,7 +1530,7 @@ App_RunOnce(
         int default_idx;
 
         UIMinimenu_Reset(&scratch);
-        scratch.font_id = app->interact.minimenu.font_id;
+        scratch.font_id = app->frame_view->minimenu->font_id;
         app_minimenu_ctx_ground_fallback(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         app_sailing_menu_context(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
@@ -1366,12 +1539,12 @@ App_RunOnce(
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         if( default_idx >= 0 )
         {
-            struct UIMinimenu saved = app->interact.minimenu;
-            app->interact.minimenu = scratch;
+            struct UIMinimenu saved = *app->frame_view->minimenu;
+            *app->frame_view->minimenu = scratch;
             if( app_minimenu_use_option(
                     app, default_idx, out.left_click_miss_x, out.left_click_miss_y) )
                 ran_cs2 = 1;
-            app->interact.minimenu = saved;
+            *app->frame_view->minimenu = saved;
         }
         else if( app->objsel.active || app->targetsel.active )
         {
@@ -1991,10 +2164,25 @@ App_RunOnce(
 
     /* Every one of these reads the same key queue the login form just drained;
      * none of them has anything to act on before a world exists. */
+    if( app->view_split.menu_bound_to_player_client )
+        App_ViewSplitBindPlayerClient(app, 0);
     if( !title_captures_keys )
     {
-        app_world_camera_keys(app, input, &out);
-        app_world_camera_mouse(app, input, &out);
+        if( app->view_split.attached )
+        {
+            /* The camera keys, middle button and wheel are the WATCHER's:
+             * they steer the PlayerClient view from the physical events
+             * alone. The runner turns its camera through its verbs. */
+            app->frame_view = &app->views[APP_VIEW_PLAYER_CLIENT];
+            app_world_camera_keys(app, &app->view_split.physical_input, &out);
+            app_world_camera_mouse(app, &app->view_split.physical_input, &out);
+            app->frame_view = &app->views[APP_VIEW_RUNNER];
+        }
+        else
+        {
+            app_world_camera_keys(app, input, &out);
+            app_world_camera_mouse(app, input, &out);
+        }
         /* Before the debug world hotkeys: a configured binding claims its key
          * so the same press cannot also spawn something. */
         app_ui_hotkeys(app, input);
@@ -2114,6 +2302,10 @@ App_RunOnce(
 
     if( app->need_redraw )
     {
+        /* The emit walk builds what is PRESENTED: its overlays, compass,
+         * minimap and menu read the presented view (the watcher's while a
+         * script is attached; the only view otherwise). */
+        app->frame_view = App_PresentedView(app);
         /* Mounts/bakes bump tree->generation; server texts that landed while
          * the target interface was unmounted re-apply onto the fresh nodes
          * (reference: IF_SETTEXT persists on IfType.list). */
@@ -2188,6 +2380,12 @@ App_RunOnce(
         { uint64_t const pa_w0 = PerfAudit_Now(); App_PluginLayoutTick(app);
       PA_ADD(layout_tick_ns, PerfAudit_Now() - pa_w0); }
         app_minimenu_close_if_stale(app);
+        if( app->view_split.attached )
+        {
+            app->frame_view = App_RunnerView(app);
+            app_minimenu_close_if_stale(app);
+            app->frame_view = App_PresentedView(app);
+        }
         /* Publication invariant: an emit list is a frame commit, not a view of
          * whatever intermediate state the cooperative schedulers reached. */
         assert(App_FrameSettled(app));
@@ -2543,6 +2741,7 @@ App_RunOnce(
             app->need_redraw = 1;
         else
             app->need_redraw = 0;
+        app->frame_view = App_RunnerView(app);
         return 1;
     }
     return 0;

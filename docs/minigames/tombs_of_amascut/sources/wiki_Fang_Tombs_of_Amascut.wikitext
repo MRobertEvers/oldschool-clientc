@@ -1,0 +1,28 @@
+{{Confuse|Osmumten's fang}}
+{{Infobox Item
+|name = Fang
+|image = [[File:Fang (Tombs of Amascut).png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = Fallen out during battle.
+|value = 10
+|alchable = No
+|weight = 0.600
+|id = 27219
+}}
+[[File:Fang (Tombs of Amascut) detail.png|left|130px]]
+The '''fang''' is an item that is dropped by [[Zebak]] in the [[Tombs of Amascut]], in which the player receives one if they dealt the most damage to him.
+
+It is buried on the island with a [[spade]] in the middle of the [[River Elid]] (where players acquired the [[Lily of the Elid]] during [[Beneath Cursed Sands]]) after having spoken to the [[Bank Camel]], as part of obtaining the [[Ancient key (Tombs of Amascut)|ancient key]] from them. Doing so requires having completed the [[miniquest]] [[Into the Tombs]].
+
+==Item sources==
+{{Drop sources|Fang (Tombs of Amascut)}}
+
+{{Tombs of Amascut}}

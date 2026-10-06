@@ -1,0 +1,109 @@
+{{Update|date=2 May 2019|link=https://secure.runescape.com/m=news/automated-plank-make-and-in-game-clock?oldschool=1|category=game}}
+[[File:Automated Plank Make and In Game Clock newspost.png|right]]
+{{clear}}
+
+<center>''This week sees the release of automation for the Plank Make spell, an in-game clock, and other quality of life changes.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Quality of Life Changes}}
+
+'''Changelog'''
+*The in-game clock that was released in this update has been removed in order to fix a bug regarding pre-fixing a 0 in front of a time less than 10 minutes past the hour. This will be re-released in the next game update on '''16th of May 2019'''.
+
+The changes below are from the most recent poll aimed at improving existing content.
+
+'''Automated Plank Make'''
+
+Plank-make is now automated when cast. Each automatic cast will occur approximately 2 ticks slower than a manual cast.
+
+[[File:Automated Plank Make and In Game Clock (1).gif|center|600px]]
+
+
+'''Perdu'''
+
+Perdu will now take payments directly from your bank if you try to buy your items back and have no coins in your inventory.
+
+[[File:Automated Plank Make and In Game Clock (3).png|center|120px]]
+
+
+'''Mage Training Arena Coins'''
+
+When logging out or leaving the Alchemy room in the Mage Training Arena, if you leave with coins in your inventory, those coins will be automatically deposited into the coin collector and you will be awarded the usual amount of points, magic xp and coins.
+
+[[File:Automated Plank Make and In Game Clock (4).png|center|120px]]
+
+
+'''Barrows Chest Ammo'''
+
+If you have runes in a Rune pouch or Bolt racks in your ammo slot, any runes or Bolt racks looted from Barrows chests will be added there automatically.
+
+[[File:Automated Plank Make and In Game Clock (5).png|center|120px]]
+
+
+'''Aluft Gianne Jr'''
+
+Gianne jnr. now has right-click options to acquire easy or hard gnome cooking tasks.
+
+[[File:Automated Plank Make and In Game Clock (6).png|center|120px]]
+
+{{Horizontal Line}}
+
+{{Headline|22|The Ourania Altar}}
+
+
+[[File:Automated Plank Make and In Game Clock (7).png|center|400px]]
+
+
+Players may no longer trade in the Ourania Cave. This means boosted Runecraft XP rates are no longer accessible here through having other players fetch essence. This change has been made so that attainable XP rates (up to ~ 180k xp/hr) no longer drastically exceed what was [http://services.runescape.com/m=forum/forums.ws?380,381,327,65834508 originally polled].
+
+We don't intend to make similar changes to other Runecraft altars. The Ourania Altar is being treated as a separate case as it was specifically polled at the rates shown below.
+
+[[File:Automated Plank Make and In Game Clock (8).png|center|450px]]
+
+
+We are aware there are other skilling methods that provide xp rates above what is polled. Each will be considered on a case by case basis and addressed in the coming weeks.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Theatre of Blood Fixes and Improvements}}
+
+
+[[File:Automated Plank Make and In Game Clock (9).png|center|175px]]
+
+
+*The Pestilent bloat within the Theatre of Blood should now fall down in the correct position.
+*One of the Nylocas was incorrectly changing into a smaller Nylocas as it walked towards the centre of the room. This should no longer happen.
+*Verzik should now correctly move at the correct times during attack animations, to prevent her from appearing in the wrong location.
+*Xarpus' exhumed phase was needlessly long and not very challenging so it's now shorter and scaled better for smaller team sizes. Each absorption is now more powerful to keep it balanced.
+*In Verzik's third phase she sometimes appeared to target a player who had died, causing odd pathing. This should now be resolved. Please let us know if this still happens.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+
+We've been making progress on numerous changes to existing content that you requested in the 'Revisiting Older Content' Poll. We'll also have blog out in the coming days about PvP updates from the recent focus group sessions. With all that going on in addition to recent bank holidays, we'd like to take a week away from the regular update process as it takes a lot of the team's time. We therefore '''won't release an update on Thursday 9th May'''. Updates will continue from Thursday 16th, hopefully including the seed vault improvements you suggested, along with other feedback work.
+
+The Summer Deadman season has ended and the top players will be invited to the tournament. As such, the DMM Seasonal worlds have been removed.
+
+The world rota is switching to Period A, with the Bounty world on W318, the High Risk PvP world on W343 and the F2P PvP world on W417. Normally, during Period A, the standard PvP world would be W324. However, as an experiment, we're trying it on W322 to see if it serves players better in that location. We'll be keeping an eye on traffic there, and if it seems to work better, we can keep this in future.
+
+*The music tab now preserves its scroll position when you teleport.
+*Willow branches have been added to the list of farming produce that leprechauns can turn into banknotes.
+*A message now appears when seeds are added to a Bird house, making it easier to see when this has been done. The spam-filter option can be used to hide this message.
+*The Master Clue challenge for teleporting to a spirit tree you'd planted yourself now works more reliably.
+*Loot tracking from NPCs has been improved. This will help inform future loot table balancing changes.
+*The variety of low tier weapons and equipment has been increased within the Beginner Clue loot table.
+*The rarity of the Elegant kit from Easy Clues has been corrected.
+*The usability of the cocktail mixing interface has been improved. Players can now select the cocktail to see its ingredients then select the confirmation button to create the cocktail mixer.
+*The end of the tracking segment during the Ascent of Arceuus quest now correctly checks that the player has done the required tracking.
+*The Agility shortcut directly north of the Dense essence mine in the Arceuus region of Zeah has been modified to be 1 obstacle.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,570,66098381,0,344418895 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''''Mods Acorn, Archie, Ash, Bruno, Curse, Ed, Gambit, Ghost, Gee, Husky, Kieren, John C, Lenny, Lottie, Mat K, Maz, Nasty, Roq, Ry, Sween, Tide, Weath, West & Wolf'''''<br/>''The Old School Team''

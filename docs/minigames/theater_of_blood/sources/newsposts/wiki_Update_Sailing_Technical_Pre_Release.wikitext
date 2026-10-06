@@ -1,0 +1,286 @@
+{{Update|date=05 November 2025|rev=7 November 2025|url=https://secure.runescape.com/m=news/sailing-technical-pre-release?oldschool=1|category=game}}
+[[File:Sailing Technical Pre-Release newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+| The PvP Rota is still the same as last week.
+| We'll continue with adjusting the PvP Rota next week, and it will be Period A. Apologies for the inconvenience.
+|-
+| We’re aware that some players are experiencing a crash error when attempting to launch the game. Restarting your client may resolve this in the meantime. Thanks for your patience.
+| Resolved.
+|-
+| Some clue steps could not be completed if they required a Sailing step. Any players affected prior to the fix will need to drop their existing clues or save them until launch. We apologise for any inconvenience caused here and thank you for your patience.
+| Hotfixed.
+|-
+| We are aware of fires appearing in the water at Tempoross.
+| Hotfixed.
+|-
+| The Boss fight in the Quest Swan Song cannot be completed.
+| Hotfixed.
+|-
+| Armadyl and Dragon Hunter crossbows are currently auto-special attacking against players
+| Hotfixed.
+|-
+| You may experience some lag on certain game worlds today. If the game is slow to respond to your clicks, please try switching to another world while the team investigates.
+| Resolved.
+|-
+| Some Agility shortcuts and water-based transportation methods are sending players out of bounds or to unintended locations.
+| Hotfixed.
+|-
+| Farming patches can appear as unweedable for some players. If you've been affected, USE your rake on the patch and this will resolve the issue in the meantime.
+| Hotfixed.
+|-
+| Only 2 walls are currently available be repaired in the Quest Swan Song instead of the expected 5.
+| Hotfixed.
+|-
+| The Eye of Ayak attack range is currently longer than intended when using the longrange style.
+| Hotfixed.
+|-
+| Due to a bug with Bill Teach’s boat causing players to go out of bounds, any players marked as present on the first floor of Mos Le’Harmless will be teleported back to Bill’s boat on login to resolve the issue. This may also affect any players who were upstairs in buildings on the island at this time. Apologies for any inconvenience caused.
+| Hotfixed.
+|-
+| Two-dose potions can’t currently be decanted as expected.
+| Hotfixed.
+|-
+| The bridge near the Ape Atoll Agility Course can’t currently be crossed, even with a ninja monkey greegree equipped.
+| Hotfixed.
+|-
+| Fish Chunks in active GE offers aren’t converting correctly to Fish Offcuts, causing them to disappear when claimed or cancelled. Any lost Fish Chunks have now been converted to Fish Offcuts and returned to affected players.
+| Hotfixed.
+|-
+| Players are unable to pick up Fine Fish Offcuts from the floor.
+| Hotfixed.
+|-
+| Butlers in the PoH are charging Mahogany prices for all planks up to mahogany, where lower tiered planks should cost less.
+| Hotfixed.
+|-
+| The Karamja Easy Diary task to travel to Musa Point currently cannot be completed.
+| Hotfixed.
+|-
+| Goldsmith Gauntlets not giving the correct XP when superheating.
+| Hotfixed.
+|-
+| Hunting creatures with Box Traps on Grid Master worlds should now give the correct amount of XP.
+| Hotfixed.
+|}
+
+----
+
+''We’re charting new waters this week as Sailing content docks in Gielinor ahead of launch day!''
+
+==Changelog - November 5th==
+{{Collapsed section|18|Click Here To Show}}
+'''Sailing Technical Pre-Release'''
+
+* Added Sailing content to the live game ahead of the skill’s full launch on November 19th at 10:00 UTC.
+* You’ll spot Sailing NPCs, quests, and interfaces around Gielinor, but none of them can be interacted with just yet.
+
+'''Z-buffer Graphical Fixes'''
+
+* Fixed an issue where the entrance tunnels to the Piscatoris Fishing Colony were invisible.
+* The trapdoor in While Guthix Sleeps is now visible, and the flickering dungeon floor has been fixed.
+* Shadows now appear correctly for Verzik, her pet, and all her projectiles.
+* The stairs to the Treasure Room in the Theatre of Blood now display correctly after defeating Verzik.
+* The rug in the Darkness of Hallowvale quest is now visible once more.
+* Fixed an issue where ground attack effects in the Huey encounter were flickering or not displaying properly.
+* Fixed visual issues during Perilous Moons, where Blood Moon pools and Eclipse Moon highlights appeared incorrectly.
+
+'''Other Changes'''
+
+* The Halloween event has now concluded, and all decorations have been removed. Any Players who earned rewards can reclaim them from Diango as usual.
+* The Smithing Skill Guide now correctly lists Blurite bars as requiring level 13 to smelt.
+* Some grammar has been corrected in messages about personal best times in the Tombs of Amascut.
+* Some grammar has been corrected in messages about broken Torva items.
+* The buff bar now updates when ammo is equipped directly to your worn items from the ground.
+* Some incorrect login tips about poison cures have been removed.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period B'''
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Sailing Technical Pre-Release==
+In case you've been living under a particularly large rock recently, Old School's first-ever new skill, Sailing, launches on <u>[https://secure.runescape.com/m=news/sailing-launches-on-november-19th?oldschool=1 November 19th at 10:00 UTC]</u>!
+
+Before launch day arrives, we’re battening down the hatches and making sure everything’s shipshape behind the scenes. This week’s update marks the Sailing Technical Pre-Release - where we’re hoisting most of the Sailing content into the game, but it’ll remain locked and unplayable until launch.
+
+This pre-release is a crucial step in preparing for one of the biggest updates Old School has ever seen. With so many new systems, assets, and code changes introduced by Sailing, we need to ensure everything integrates cleanly with the live game environment. This allows us to monitor how the game performs under real conditions, identify any last-minute issues, and keep everything stable ahead of launch day.
+
+So while you’ll start seeing some new faces, icons, and quest names around Gielinor and the wider internet, you won’t be able to train the skill or set sail just yet - think of it as loading the ship before departure. Feel free to let us know which things you spot that you're most excited for. We can't wait to see your posts about all the new additions coming to the game soon!
+
+As this is one of the largest technical updates we’ve ever deployed, we recommend steering clear of high-risk activities (like Hardcore Ironman antics or dangerous PvM) right after the update, just while we monitor for any unexpected issues.
+
+====Here’s what you might notice in-game:====
+* Sailing NPCs or interfaces: Interacting with some of these will inform you that Sailing is available from November 19th.
+* Quest, Music, and Max Capes are unaffected; you’ll still be able to wear them until Sailing's full release.
+* Sailing quests (like Pandemonium and Current Affairs) appear in your quest list, but are greyed out and marked as 'coming soon'.
+* The Sailing skill guide and quest journals are visible, but only show that the content will unlock on November 19th.
+* Sailing XP cannot be earned or granted by any means. So no sneaking in any XP lamps or Tears of Guthix!
+* Sea creatures, boats, and shipwrights can be seen but not used - attempting to interact will simply give you some flavour dialogue.
+* Sailing-related Slayer tasks, collection log entries, and music tracks will be visible, but remain locked until launch.
+* Fish chunks from Aerial fishing being converted to "Fish offcuts" (the same ones you get from Barbarian fishing).
+** Please note, they still behave exactly the same.
+
+Essentially, everything is in place, but the ship’s still moored for final checks!
+
+====A few things to note:====
+* You may notice a few items (like steel chains) appearing in the Smithing skill guide. These currently have limited use, but will be used for future Sailing content - so don’t worry if you spot them a tad early!
+* Certain Sailing-related items may also be visible in-game, but not yet craftable - this is entirely intentional, so don't worry.
+
+====The Shores Ahead====
+* Today: Sailing Technical Pre-Release update (Sailing content added but locked).
+* From today until November 18th: Technical monitoring and stability checks.
+* November 19th (10:00 UTC): Sailing launches for all players!
+** 7:15am UTC - System update timer goes live.
+** 8:00am UTC - Game worlds go offline briefly for the update.
+** 8:00 - 8:15am UTC - Worlds come back online, players can log in as normal, but won’t be able to start Sailing yet.
+** 8:15am - 10:00am UTC - We'll be running some final checks on the live worlds. Players can continue playing on them, but Sailing will remain locked until our checks are complete.
+** 10:00am UTC - Depending on those checks, we'll unlock Sailing for all members without rebooting the worlds, so you'll be able to start your new adventure directly!
+
+Please note that once game worlds come back online, the update will have been deployed, despite not being accessible to players yet. As a result of this, the max cape and its perks will no longer be usable, and everyone will officially have Level 1 Sailing, which will be reflected on the HiScores right away (upon logout). You won't be able to start the Pandemonium quest that unlocks the skill until Sailing we make Sailing accessible, hopefully around 10.00am UTC.
+
+We'll keep you updated via our usual channels to see whether any of your existing if we need extra time for our final checks.
+
+If you’re already feeling the sea breeze and want to get ahead of the waves, check out our blog 'How to Prepare for Sailing', where we cover everything you’ll need to set sail like a pro on launch day!
+
+==Z-buffer Graphical Fixes==
+Last week, we rolled out a major visual upgrade to Old School’s rendering system, introducing true 3D depth calculations (known as Z-buffering). In simple terms, this means surfaces now display in the correct order, making the world feel a little more grounded - literally!
+
+Of course, when you overhaul something as fundamental as how the game sees depth, a few things are bound to need a little tinkering aftercare here and there. You might’ve noticed the odd flickering floor, floating object, or shadow behaving badly. While the majority of these issues haven't been game-breaking, we know they can be quite distracting, and we want you to know the team’s been working hard to clean things up as fast as they can.
+
+You’ll see additional visual improvements rolling out gradually over the coming days and weeks as we continue to monitor your feedback and polish the new depth system. Some of these fixes may arrive between our regular Wednesday game updates, as they’re deployed through ongoing engine and client updates - so don’t worry if things subtly improve without a formal patch note!
+
+Here’s what we’ve addressed in this week's update:
+
+* Fixed an issue where the entrance tunnels to the Piscatoris Fishing Colony were invisible.
+* The trapdoor in While Guthix Sleeps is now visible, and the flickering dungeon floor has been fixed.
+* Shadows now appear correctly for Verzik, her pet, and all her projectiles.
+* The stairs to the Treasure Room in the Theatre of Blood now display correctly after defeating Verzik.
+* The rug in the Darkness of Hallowvale quest is now visible once more.
+* Fixed an issue where ground attack effects in the Huey encounter were flickering or not displaying properly.
+* Fixed visual issues during Perilous Moons, where Blood Moon pools and Eclipse Moon highlights appeared incorrectly.
+
+You can keep track of known issues and updates in the official OSRS Discord’s #zbuffer-known-issues channel. If you spot anything unexpected, please let us know via the usual channels. Your feedback’s been hugely helpful in tracking these down so far, so please keep the reports coming!
+
+==Competition: In-game Christmas Jumper Design==
+[[File:Sailing Technical Pre-Release (1).png|thumb|400px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-11-05/jump.jpg here]''!]]
+
+Spooktober is officially behind us, which means it's now socially acceptable to be hyped for the Christmas season! On that note, we're kicking things off with a competition for a community designed reward from this year's upcoming Christmas Event: What would your dream OSRS Christmas Jumper look like in-game? Grab the jumper template <u>[https://osrs.game/Christmas-Jumper-Template here]</u> and design one that fits the Old School art style!
+
+====How to Enter?====
+We'll be sharing the competition posts TODAY on our official <u>[https://discord.gg/OSRS Discord]</u>, <u>[https://x.com/OldSchoolRS X]</u> and <u>[https://www.reddit.com/r/2007scape/ Reddit]</u> - so keep an eye on our socials! You can enter the competition via any of these platforms.
+
+* [https://discord.com/channels/324132423636090880/1435268441908056245 #christmas-jumper Discord channel]
+* [https://www.reddit.com/r/2007scape/comments/1op0xob/ingame_christmas_jumper_design_competition/ Reddit thread]
+* [https://x.com/OldSchoolRS/status/1986041054244552874 X (Twitter) thread]
+
+When they're live, submit your design under the thread of your chosen social platform to enter.
+
+====Competition Dates/Times:====
+* Starts: 12:00pm UTC, November 5th 2025
+* Ends: 12:00pm UTC, November 12th 2025
+
+====Rewards:====
+* We'll be adding a Christmas Jumper inspired by the winning design as an in-game reward from the Christmas 2025 Event.
+* 5 months of OSRS membership
+
+Check out the T&Cs <u>[https://osrs.game/Design-a-Christmas-Jumper-Competition here]</u> for more info.
+
+==Merch==
+Play Against OSRS NPCs on Chess.com!
+
+[[File:Sailing Technical Pre-Release (2).jpg|thumb|500px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-11-05/chess.jpg here]''!]]
+
+Old School RuneScape has teamed up with <u>[http://chess.com/ Chess.com]</u> to bring you limited-time playable Chess bots, available from November 3rd to November 30th!
+
+On Chess.com, you'll be able to face off against five of your favourite OSRS NPCs in a test of strategy and wit at varying difficulty levels, ranging from beginner to grandmaster level!
+
+Featuring iconic NPCs such as: The Wise Old Man, Sliske, Bob the cat, Vannaka and the goblin duo, Bentnoze and Wartface. Enjoy lore-filled dialogue written and reviewed by Jmods with each move you make.
+
+Whether you're a beginner or an expert, jump in and play now: <u>[https://go.chess.com/jagex https://go.chess.com/jagex]</u>
+
+==Other Changes==
+* The Halloween event has now concluded, and all decorations have been removed. Any Players who earned rewards can reclaim them from Diango as usual.
+* The Smithing Skill Guide now correctly lists Blurite bars as requiring level 13 to smelt.
+* Some grammar has been corrected in messages about personal best times in the Tombs of Amascut.
+* Some grammar has been corrected in messages about broken Torva items.
+* The buff bar now updates when ammo is equipped directly to your worn items from the ground.
+* Some incorrect login tips about poison cures have been removed.
+
+==Annual Survey Prize Raffle Winners==
+A massive thank you to everyone who took the time to complete the <u>[https://secure.runescape.com/m=news/2025-annual-survey?oldschool=1 2025 Annual Survey]</u>! 
+
+Your feedback helps shape the future of Old School, and we really appreciate you sharing your thoughts with us.
+
+As promised, we’ve randomly selected 50 players to each receive a $50 gift voucher as a thank you for taking part. The vouchers should be with you within the next week!
+
+Congratulations to:
+
+''Nisecle, ComradeSkye, Ze Rogue, Helders, Juicej0nes, DoMathic, charz297, IlIatt, kolizeum9, Iamthemoons, CactusHarold, Strous, Mhyst89, xDandaros, Fostil, TheFordium, Ironmonkey, ALegendOfRTK, Filthy lron, Panther482, Abenir, azearon, BloodVeld99, Maximus Rebo, SirJohnn, wart hog, Suavity, KhalonoOSRS, Dog Nooxy, TJGooner, Rippin0, Pottatz, TheBluSpirit, SeniorPigu3, IronJuiice, IMA_Mudslide, bwilts, agnes0ld, Bussymonstur, AvocadoLad, BadManDaan, GIM BigDad, Yak God, Full Goon, 0akesy, Kyremvile, Myzzari, gow2, Mr Cath, and UK Drew!''
+
+Thanks again to everyone who shared their views this year. Your input really does make a difference.
+
+==Community Event==
+===Into the Pit with Mods Manked & Rach===
+[[File:Sailing Technical Pre-Release (3).png|thumb|500px|center|''If you can't see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-29/fp.jpg here]''!]]
+
+Think you’ve got what it takes to be the last one standing?
+
+We’re heating things up with a community Fight Pits Showdown. It’s time to show the TzHaar what last man standing really means.
+
+====When?====
+* Friday, 07 November 2025, 15:30 GMT.
+
+====Where?====
+* The Official OSRS Discord - Streamed on a Stage for anyone who can’t join but wants to watch the action.
+* World 520, TzHaar Fight Pit
+
+====What?====
+* Round 1: warm-up round - a chance to practice and get a feel for the action.
+* Rounds 2-4: The official competition rounds.
+* The last player standing at the end of each official round will walk away with '''3 OSRS Bonds'''.
+* T&Cs<u>[https://osrs.game/Fight-Pits-Comp &nbsp;here]</u>.
+
+Team up, betray your mates, or go hide in a corner all game with nothing but full Justi, a Dinny B, and a dream! Just make sure you embrace the carnage - because there can only be one champion at the end.
+
+See you in the Pit, and don’t forget your phoenix necklace. You’re going to need it...
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1oozdy1/sailing_technical_prerelease/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [http://osrs.wiki Old School Wiki].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blighted, Blossom, Boko, Bruno, Chilly, Criminal, Curse, Daizong, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

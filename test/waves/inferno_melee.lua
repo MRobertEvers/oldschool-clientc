@@ -134,7 +134,7 @@ local function eat_if_low(t, below)
     return false
 end
 local function pray_if_low(t)
-    local _, _, pts = t.prayer.points()
+    local _, pts, _ = t.prayer.points()
     if pts and pts.level and pts.level < 25 then t.player.drink("prayer_potion") return true end
     return false
 end
@@ -437,7 +437,7 @@ local function flick_series(t, count, late, shots, tag)
             last = A
             local press = late and (A + 1) or A
             local rec = { swing = A, flick = press, hp = hp(t) }
-            local _, _, pts = t.prayer.points()
+            local _, pts, _ = t.prayer.points()
             t.ticklog.mark(string.format("%s A%d hp%d pp%s", tag, A, rec.hp, tostring(pts and pts.level)))
             local k = #out + 1
             if shots and shots[k] then

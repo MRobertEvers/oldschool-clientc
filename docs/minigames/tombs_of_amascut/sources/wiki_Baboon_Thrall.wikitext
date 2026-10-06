@@ -1,0 +1,51 @@
+{{Infobox Monster
+|name = Baboon Thrall
+|image = [[File:Baboon Thrall.png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 52
+|size = 1
+|examine = An undead baboon thrall.
+|xpbonus = 
+|max hit = 5
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Crush]]
+|attack speed = 4
+|hitpoints = 2
+|scaledhp = Yes
+|att = 40
+|str = 40
+|def = 12
+|mage = 40
+|range = 40
+|attbns = 20
+|strbns = 0
+|amagic = 20
+|mbns = 0
+|arange = 20
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 11718
+}}
+'''Baboon Thralls''' are a monster encountered in the Path of Apmeken within the [[Tombs of Amascut]]. They are summoned by [[Baboon Shaman]]s.
+
+They share a similar prayer drain mechanic as the shamans, draining some prayer based on a percentage of what the hit dealt, including successful hits that would otherwise be blocked by prayer.
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Ba-Ba's baboons concept art.png|Concept art of Ba-Ba's baboons by [[Mod Jerv]].
+</gallery>
+
+{{Tombs of Amascut}}

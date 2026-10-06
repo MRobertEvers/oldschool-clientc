@@ -1,0 +1,282 @@
+{{Update|date=7 September 2022|link=https://secure.runescape.com/m=news/tombs-of-amascut-qa-summary-05092022?oldschool=1|category=community}}
+[[File:Tombs of Amascut Q&A Summary 05-09-2022 newspost.png|right]]
+{{clear}}
+This week's live stream featured a Q&A with the Old School leadership team. Topics included:
+* [[#Question_#1_2|The release of Tombs of Amascut]]
+* [[#Question #7|Addressing server stability]]
+* [[#Question #11|Drop rates in ToA]]
+* [[#Question #18|Learning from CoX and ToB to make ToA]]
+
+Thanks to Mod Light (Community Manager), Mod Arcane (Senior Content Developer), Mod Halo (Senior QA Analyst) and Mod Kieren (Associate Design Director) for their insight!
+
+'''DISCLAIMER:''' Livestreams are a glimpse into the ongoing creative process at Jagex. JMods are speaking off-the-cuff and their comments are not intended to be read in the same way as prepared updates from the company. Please keep this in mind when discussing the Q&A!
+
+Missed the livestream? Check out the full transcript below!
+
+__TOC__
+==New Mod Questions==
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=170s Youtube Time Stamp]
+
+===Question #1===
+{{Cquote2|Firstly, tell us about yourself! Who are you, and what do you do?}}
+
+* '''Mod Halo:''' Hey, I’m Mod Halo. I’m a Senior QA on the Old School team. I test all the things, and I’ve been at Jagex for just over three years now. Two years of that has been on Old School, so I’m finally making my stream debut - and I’ve been working more recently on the Tombs of Amascut raid!
+
+===Question #2===
+{{Cquote2|What is your experience with OSRS?}}
+
+* '''Mod Halo:''' I played Old School since release. I played a bit on and off, quit a few times - but you never really quit Old School; you just take long breaks! My main account is an Ironman account, but I’ve been playing on a Group Ironman account more recently.
+* '''Mod Halo:''' It’s quite funny that I test RuneScape all day in my day job, then I go home and play some more RuneScape. It’s great!
+
+===Question #3===
+{{Cquote2|What's your most favourite thing about the game? And what's your least favourite thing about the game?}}
+
+* '''Mod Halo:''' One of the big things I love about the game is the community and the players - how passionate they are! For something more game-related, I’d say the different Game Modes we have and how players can play the game differently. Ironman Mode, Group Ironman more recently, even Leagues. Making people think differently about how to play the game. That stuff I absolutely love.
+* '''Mod Halo:''' My least favourite isn’t much. If I had to say, it would be the mid-level to low-level guidance for players on what to do. The game is huge, so things like, “What’s my next goal? Should I go for Slayer? Should I go for Fire Cape? Should I go for Quest Cape?”. All that is very open and not really clear for players.
+* '''Mod Halo:''' We’ve got the Activity Advisor coming out, which should hopefully solve that, but I think that’s my biggest gripe with the game.
+
+===Question #4===
+{{Cquote2|I hear you might be moving away from QA soon?}}
+
+* '''Mod Halo:''' I will! Really exciting news; towards the end of this month, I will be going on a different path from QA. I will be joining the Content Dev team, which is super exciting. I’m just so excited about it, especially with the projects coming up at the end of the year and starting next year.
+
+===Question #5===
+{{Cquote2|Lastly, Did you come across any bugs that you caught before ToA’s release?}}
+
+* '''Mod Halo:''' There are a few funny ones. I chatted to Mod Curse because we worked quite closely on this. Because it’s such a large project, there are bound to be a few funny ones. So I’ll go through a list I’ve written - some are pretty funny!
+* '''Mod Halo:''' So the first one is one that people might have seen on my Twitter, or Elena’s Twitter, which is the mini-Akkha. Akkha got resized to be tiny, which made it arguably one of the hardest mechanics in the game because you couldn’t click on him.
+* '''Mod Halo:''' The next bug, ironically, is also a bug. With Kephri’s slam attack, which she does when making a special attack, she would just do that for the entire fight. She’d just be bobbing up and down the entire thing - that was great!
+* '''Mod Halo:''' The last one is quite a weird one. In Akkha’s boss room, there’s an invocation that puts orbs in front and behind you. If you go to the edge of the arena, since it’s a circle, if you go to the edge and you try to put an orb in a place that isn’t part of the map, since there’s nothing down there in the shadow area, it would default to an NPC, and that NPC was the Tool Leprechaun! So now and then, you’d see a Tool Leprechaun appear at the edge of Akkha’s arena.
+* '''Mod Halo:''' I’ll never forget the day that Curse sent a screenshot of it in our chat, and we said, “that’s not real!”. But it was, and it was hilarious.
+
+==ToA General Questions==
+===Question #1===
+{{Cquote2|How has the release been for everyone so far?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=550s Youtube Time Stamp]
+
+* '''Mod Halo:''' I think the release has been really good. There’s been a few bumps in the road recently, but overall it’s just been such a fantastic experience. The launch especially, because lots of us came into the office, and it’s been a long time since we’ve seen everyone together. We’ve got the TVs on and streams of people completing the raid. It was just awesome.
+* '''Mod Kieren:''' Oh, what a launch! It’s been incredible. Genuinely, it was an amazing day for us internally as well. We had our little celebrations on Zoom, and we also did a little get-together in the office. It’s been fantastic. We had the CEO come in to congratulate us and everything! That was great.
+* '''Mod Kieren:''' For the launch, watching it live with a group of us in the office, we had TV screens up watching it. The reception has blown all of us away of how loved the raid was right from the start! We wanted it to be accessible with the entry mode aspect, but we also wanted to let people put it to the limit with invocations.
+* '''Mod Kieren:''' I’m really happy with how invocations have been received too. I was talking about it week after week on this Q&A stream about how incredible the art and animations are. The death animation for the final boss is insane! It’s incredible.
+* '''Mod Kieren:''' I remember working on Verzik for Theatre of Blood and being blown away that she turned into a bat and flew up into the sky. That was pretty cool. This is another level! People don’t like how long it is because they failed the time challenge, and I think we’re tweaking that.
+* '''Mod Kieren:''' Incredible raid, incredible reception. As Halo says, there’s been a few bumps in the road and a few kinks we’re working out, but overall I’m over the moon with how this has gone. It’s a testament to everyone who’s worked on the project.
+* '''Mod Light:''' If you like the art, we’re planning an art-dedicated stream sometime this week if all goes well. Hopefully, you’ll find out more about the art of ToA in that dedicated stream.
+* '''Mod Arcane:''' I think the release went well. I’ve been working on it for almost a year now, and when you’ve been staring at the same project day in, day out, you start to go a little bit insane and think, “I don’t know if this is actually good. It’s kind of cool but will it actually live up? Will it be fun after the first completion?”.
+* '''Mod Arcane:''' The success has been outstanding, and there’s a lot of reassurance there that people seem to enjoy it. People seem to still enjoy it even after 100 clears, which is what I was really worried about. It’s gone really well.
+* '''Mod Arcane:''' I know the first week, I was stalking every stream I could, trying to fix all the bugs and fix any balance issues. We had a huge patch last week; there was loads of feedback about bugs to fix and things too hard that needed to be changed. There were certain phases and mechanics that people were just skipping, and I think the biggest offender there was Wardens P2. You didn’t need to coordinate at all; you could just skip that entire phase. Four Twisted Bow hits, and the boss goes down.
+* '''Mod Arcane:''' There was a certain pride in me as a developer, thinking, “they’re just skipping the entire boss; it’s boring”. I was looking to fix that because I wanted people to engage in the content, but there are also balance reasons. This was supposed to be the supply sink in the raid, and people just skipped the supply sinks.
+* '''Mod Arcane:''' I also thought from a balance perspective; it did need to be a little harder. We can see what happened there. We double-down on changes, triple-down on changes, and whilst all the individual ones looked okay, we released a massive patch that made the raid significantly harder - much harder than we had anticipated.
+* '''Mod Arcane:''' Friday last week was stressful, trying to get a hotfix together that addressed all these changes and then QA them properly because we didn’t want to rush them out before a weekend and break the raid right before the weekend, as well as communicating the entire process to you.
+* '''Mod Arcane:''' There was this whole sentiment of, “oh, you’re just basing it around a couple of Twitch streamers and content creators saying it’s too easy, " which wasn’t the case at all. There were so many facets of feedback coming in. We were taking it all in, looking at data and playing it ourselves. We really wanted to get rid of that stigma in a comprehensive, communicative blog, which I think went down well on Friday, and I think the rates are really nice now.
+
+===Question #2===
+{{Cquote2|Are you happy with the outcome now?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=866s Youtube Time Stamp]
+
+* '''Mod Arcane:''' For the most part, I’m pleased with where the raids are currently playing at. There are still a few bugs and things to fix that would be nice QoL, such as a Quick Entry on all the doors, barriers and crystals, just to smooth out that experience. We’ve still got a couple of weeks scheduled where we can tidy things up.
+* '''Mod Arcane:''' We don’t want it to be where we just delegate all these fixes to months or years in the future; we want to get the raid into a good spot. Things will turn up over time, but all of the significant issues like the Quick Pass - which I think is a legitimate thing where there’s dialogue box after dialogue box when you’re trying to go as fast as possible. You want to get rid of all those annoyances.
+* '''Mod Arcane:''' This week is also a bit of an invocation balance pass. We didn’t do that last week, but we wanted just to review all of the invocations, change a couple of values and make some higher or lower. For any of the specific invocations that were badly balanced, we want to change them up since some aren’t really doing anything at all, and some are doing way too much.
+* '''Mod Arcane:''' An excellent example of that is path levelling. Path levelling seems a big mechanic of the raid that everyone is skipping. We tried to emphasise that by rewarding a bunch of raid levels, but people are just opting out.
+* '''Mod Arcane:''' We’re looking at a couple of things in terms of the stats that is added for levelling.  We’re also looking at some mechanics that maybe shouldn’t level up and just be static. Hopefully, this will make that more of an enticing tradeoff where you’re getting a good amount of raid level and loot potential versus the difficulty increase. So we’ll see how that feels.
+* '''Mod Light:''' More information will be in this week’s news post. Just a reminder about the game update this week. It’s on Thursday to allow us some time to test all the changes that we’ve made.
+
+===Question #3===
+{{Cquote2|We’ve passed 1.5 million completions of ToA. Did you think the uptake would be this massive?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=997s Youtube Time Stamp]
+
+* '''Mod Kieren:''' No, is the short answer! I didn’t expect it to hit one and a half million completions already. We hit one million super fast. It’s mind-blowing. It’s been so long since we released a raid, so I think that’s also a factor. There’s a lot of hype and pent-up demand from four years of not adding raids, but it’s also a testament to how well this appeals across entry mode through to expert. It did remarkably well and let some players raid who’d never been able to raid before.
+* '''Mod Kieren:''' I didn’t expect it to be this popular! Behind the scenes, we’ve got a lot more data, and it’s been fascinating. I know that Arcane, you’ve been reviewing our different data dashboards. It’s fascinating to see the different size groups that players are doing it with, the completion times, the number of completions, the success rates of raids and which drops are coming into the game. It’s fascinating to look at, and it’s also helping us make some of our tweaks and decisions.
+* '''Mod Light:''' Are you noticing a new demographic of players trying raids since we tried this new system?
+* '''Mod Kieren:''' From a data side, I don’t think that we’ve gotten quite that deep yet. But looking at the stats of who’s playing it and the combat levels of those people playing it, it certainly feels that way. Many players have dabbled a little bit with Chambers and Theatre of Blood but haven’t really gotten into raiding, and now this is turning into a place where they can go, “Okay, I can get to grips with raiding”. Maybe the next step is to try out Theatre of Blood and get into the other raid content that the game has.
+
+===Question #4===
+{{Cquote2|Raids 4 when?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=1128s Youtube Time Stamp]
+
+* '''Mod Arcane:''' I need a break!
+* '''Mod Kieren:''' We’ll wait four years and then add an Expert Plus mode.
+* '''Mod Kieren:''' In all seriousness, in terms of an honest answer, I know “Raids 4 when” is a bit of a joke. Players love raids, they got pumped for ToA, and it felt like we’d waited a long time. I think we should not wait over four years between two raids, but I feel that adding new PvM content and new boss stuff is the most expensive dev time.
+* '''Mod Kieren:''' In the time we do a raid, we could probably add three or four unique boss updates. That’s the tradeoff. I think it’s a balance, and I wouldn’t say we’re going to put all our dev resources into raids and do Raids 4 next year. Let’s strike a balance and do a bit of both.
+* '''Mod Halo:''' As you touched on earlier, Kieren, the art cost alongside the content cost is huge. All the rooms are just amazing, and getting them where they are today took so long and so much work. And if we want that for the next raid, we’d probably go bigger and better, so it’s even more expensive.
+* '''Mod Kieren:''' Suffice it to say, I don’t expect it to be four years, but I honestly don’t have an answer right now. But with how well it’s going, that helps to make us feel confident in committing so much dev time to one update.
+
+===Question #5===
+{{Cquote2|We’ve seen a lot of questions about Ornament Kits. When can players expect to see the Ornament Kits for Ava’s, Osmumten’s Fang and the Ward of Elidinis?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=1270s Youtube Time Stamp]
+
+* '''Mod Arcane:''' We’re releasing this on Thursday! We’ll be releasing all the Ornament Kits and pet transmogs this week.
+
+
+[[File:Tombs of Amascut Q&A Summary 05-09-2022 (1).png|center|600px]]
+
+===Question #6===
+{{Cquote2|How about pet transmogs?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=1319s Youtube Time Stamp]
+
+* '''Mod Halo:''' All I’ll say is that they come in this Thursday, and you don’t get them as you would at ToB and Chambers.
+* '''Mod Arcane:''' It’s not RNG.
+
+===Question #7===
+{{Cquote2|What is being done to address widespread reports of inconsistent server stability/lag after Tombs of Amascut?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=1376s Youtube Time Stamp]
+
+* '''Mod Kieren:''' This has been something that’s dominated my agenda for the last couple of weeks. Suffice it to say that this is not the start of these issues. We’ve been monitoring server issues, paying attention, making little tweaks, and adding better profiling tools over the last year.
+* '''Mod Kieren:''' Firstly, you’ve got a lot of our players - more so than ever - all playing Tombs of Amascut. This, hopefully, is fairly apparent, but the code and the amount of effort to process you fighting an abyssal demon is far less than processing the amount of effort for everyone to be doing Tombs of Amascut.
+* '''Mod Kieren:''' We hope - at least in the short term - that the demand on the servers will go down a little bit. That doesn’t mean it’s okay; we must also make improvements. I’d like to emphasise that we have a pretty clear idea of the problems, and there are a few. One is input lag - the time between pressing “I want to walk here” and acting on your screen. That is due to increased processing times on the server. The average length for a game tick is longer when you’ve got less of a window to respond quickly.
+* '''Mod Kieren:''' Another problem is inconsistent tick duration. You might have seen these kinds of posts pop up on Reddit, where players are using plugins on RuneLite that rate the cycle quality. One game cycle takes 400 milliseconds, and the next one takes 200 milliseconds. You experience that as inconsistent tick duration, meaning your rhythm, prayer flicking - or whatever you’re doing - is ruined.
+* '''Mod Kieren:''' Occasionally we also get spikes where the game might hang, where you experience it as, “oh god, everything’s frozen.”. That’s an entirely different type of problem. These three things act in different ways, and each needs its own kind of solution to help with this.
+* '''Mod Kieren:''' We’re aware that if we’re going to add more things like Tombs of Amascut, more content that is more expensive and ambitious, we do need to make things better. We’re looking at solutions in a few different areas and directions we can take. One is simply optimising expensive scripts, making them more efficient, and there are quite a few that we’ve identified that can be made better. Some of those have already been implemented, and some of those we’re still working on, all of which should help a little bit.
+* '''Mod Kieren:''' We can do some smart features - something called NPC dominancy, which means that if nobody is near the Lizardmen in the Shayzien - Lizardmen area, make it, so they don’t run any code. Why do they need to sit there and fight the other soldiers if there’s nobody nearby to see it? Nobody is there to appreciate it, so let’s not waste server processing time on that. This NPC dominancy feature will allow us to make a bunch of NPCs automatically stop when no one is nearby. We do bits of that but could do more.
+* '''Mod Kieren:''' Another area is improving server hardware. This is a mid-term thing, but some of our server hardware is quite old. We will ultimately move all of our worlds onto new server hardware, which will help a little.
+* '''Mod Kieren:''' One of the issues is that most of this game runs on a single thread. The best CPUs in 2022 aren’t exactly a huge leap better than they were ten years ago on that level, which leads me to the other area - more ambitious architectural rewrites to how the game processes. There might be elements we can multithread, and there might be elements we can be smart with regarding how we process.
+* '''Mod Kieren:''' Various ideas are floating about, but they take a lot longer to spend some time investigating, thoroughly researching and designing. There’s a mixture of quicker wins that can alleviate the problem, mid-term things like hardware, and then longer-term things like assessing how the game is written.
+* '''Mod Kieren:''' It shouldn’t be surprising that it’s single-threaded when the game was written as a browser game back in the early 2000s. Changing something like that is very fundamental, and there are a lot of things that might be affected. There’s a lot to think deeply about, to work out how we can change it and improve it without leading to unwanted behaviour changes in the game.
+* '''Mod Kieren:''' Another suggestion that comes up quite a lot right now is to change some of the Free-to-Play worlds to members or just simply get more. That might help a little bit, but we would need to add a significant amount of worlds. The world is struggling at 400-500 players right now, so to make a meaningful difference, you could probably get up to double the number of game worlds, which also has many ramifications. It’s painting over the cracks, so we don’t want to focus on that solution.
+* '''Mod Kieren:''' To summarise, we are confident that we know the full reasons and the scope of the problem. We have several different directions from which we can address it. None of these independently are silver bullet solutions, so it will be iteration after iteration to alleviate over the coming months. Hopefully, we get there and get to a much better place. Hopefully, you’ll also see it improve over the more immediate weeks.
+* '''Mod Kieren:''' Credit to the team for all the research they’ve done on it and for helping me understand the issue!
+
+===Question #8===
+{{Cquote2|What is the point of making logouts count as a death in ToA?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=1797s Youtube Time Stamp]
+
+* '''Mod Arcane:''' Deaths in ToA work the same as they do in ToB, like logouts in ToB, etc. The point was to prove that you’ve done the mechanics correctly, which is more and more relevant for Hardcore Ironmen. You don’t want any method of being able to cheese mechanics just by logging out mid-combat to avoid deaths or avoid mechanics, and this is the foolproof way of doing that.
+* '''Mod Arcane:''' There were some side effects to this. ToB, for the most part, was never really soloed, so logging out there didn’t make as much sense as other mechanics, while ToA was heavily soloed. So people are seeing this a lot more since other people in your raid would mean, “oh, if you log out and you’re solo, the raid dies, and you’re charged 500k”. But on ToB, you could just log back in and rejoin your party as long as they didn’t move on without you. So we’re seeing this a lot more.
+* '''Mod Arcane:''' We did make a change pretty quickly after launch, where if you don’t have a single invocation on for wiping, meaning you effectively have infinite wipes. If you log out solo or in a group, it won’t charge you. So if you’re an Ultimate Ironman or have very inconsistent internet behaviour, maybe don’t turn on any of those invocations.
+* '''Mod Arcane:''' Theoretically, we could revisit this entire solution, but it’s a foolproof solution for Hardcore Ironmans and deaths, and we didn’t want a way of just avoiding these mechanics. It would have to have a serious rethink if we were going to change this, so it wasn’t just abusable by regular players.
+* '''Mod Arcane:''' That’s kind of the point. It’s copied from ToB because it worked for ToB. Because ToA is soloable, it doesn’t transfer over perfectly.
+
+===Question #9===
+{{Cquote2|Are you currently working on giving players the ability to make presets for invocations? If so, when can players expect them?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=1924s Youtube Time Stamp]
+
+* '''Mod Halo:''' Luckily we have the wonderful Mod Husky working on this for us. It should be with players in the coming weeks, I hope. We want to make it as good as it can be. I’ve seen something on RuneLite; there’s a plugin that players could use in the meantime that has presets similar to the Leagues presets. It’s in the works and coming soon.
+
+===Question #10===
+{{Cquote2|Is it more profitable to do ToA solo than in a group?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=1978s Youtube Time Stamp]
+
+* '''Mod Arcane:''' With ToA, we were cautious with group sizes, where we wanted 1-8 players to be equally viable for the most part. We didn’t want it to be like ToB, where technically, the smaller group size is better, but after a certain point, it stopped scaling, like Duo’s, etc.
+* '''Mod Arcane:''' Generally, people try and run Trios, but four-man is a bit more comfortable. Five-man was a little bit chaotic and worse GP per hour. So the only group sizes that anyone did ToB in were 3-4-man, which isn’t great. We wanted it to be that if everyone wants to come along, you just chuck them into your party, and you’re perfectly happy with that if they’re not decreasing your GP per hour.
+* '''Mod Arcane:''' If no one else was online, it felt like there was a purpose to doing that content solo if you were waiting for your group to get online. So we very carefully made this so that all sizes are viable.
+* '''Mod Arcane:''' In terms of drops, it’s very linear in that regard. If you add an extra person, it effectively doubles your drop chance to a certain extent. What isn’t linear, however, is the kills per hour. That might work from an individual raid point of view, but your raids should get proportionally faster with each additional person you add to your group.
+* '''Mod Arcane:''' Assuming the maths holds - and people aren’t dying - the more people you add, the better your GP per hour, but it’s all pretty tight. You’ll not get double the GP in an eight-man versus a six-man, and it should just be at a point where every group size feels perfectly viable.
+* '''Mod Arcane:''' Solos are slightly worse by design to incentivise group play. Not because we want solos to feel bad but because it is group content at the end of the day, solos are just proportionally slower than other scales.
+* '''Mod Arcane:''' I know that Kephri is a little awkward to do as a solo - you can’t kill all the little scarabs whilst doing everything, so she heals up. Akkha, for example, there are some mechanics where it doesn’t scale up just as well. I remember thinking about every single boss room and which mechanics would speed up in groups - with Akkha, there are fewer memory attacks in a group, and you can’t attack the boss during a memory attack.
+* '''Mod Arcane:''' There are many more memory attacks in solo, which is just DPS loss, so adding extra people should make it pretty quick. But it’s all minor - we’re talking around 5%~.
+
+===Question #11===
+{{Cquote2|Are you going to release the drop rates for ToA?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=2142s Youtube Time Stamp]
+
+* '''Mod Arcane:''' There is no timescale - personally, if it were up to me, I would never release drop rates because I think they ruin the mystique of the gameplay. I think it’s more fun not to know exactly how long it will take to do anything because then you can’t complain as much.
+* '''Mod Arcane:''' Most people complain about being dry instead of just playing the content, having fun and getting drops when you do, but I know I’m not in the majority. I think that theory falls apart when you put crowdsourcing into effect. With the Wiki and everything else that everyone has been doing, collating information, they’re going to get a good idea pretty quickly.
+* '''Mod Arcane:''' In some sense, that can be worse, having misinformation with crowdsourcing data versus official data. Not saying that the data anyone is creating is bad, but sometimes it can misrepresent certain things.
+* '''Mod Arcane:''' I think we will release it in some capacity in the near future. I don’t think we will hold onto it for two years or anything like that. But we’ll let the raids settle, let the meta settle and fix any bugs; anything we want to work on over the next couple of weeks. Then we’ll look into getting some numbers out there.
+
+===Question #12===
+{{Cquote2|Shadow is awesome outside of ToA but average inside the raid. At the moment, I think it’s an improvement for 1/3 of Akkha, P1 Warden, and half of P2 Warden. Was there any intention for it to be used as much as Twisted Bow in CoX, and Scythe in ToB, or was it meant for outside of ToA?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=2235s Youtube Time Stamp]
+
+* '''Mod Arcane:''' I’d be curious about Kieren’s knowledge of the Twisted Bow since you were around for CoX and ToB. What was the intention back then?
+* '''Mod Kieren:''' Twisted Bow launched more powerful than it is. Then we nerfed it outside of Chambers of Xeric only. Suppose you remember the way that the magic-level caps got changed. We intentionally left it as good as it was in Chambers since that was where it came from.
+* '''Mod Kieren:''' Before we launched, there weren’t any preconceptions about it needing to be good in Chambers or not needing it to be good in Chambers. We developed Chambers to be good on its own without overthinking where Twisted Bow would sit and let it happen naturally, and it wasn’t intentional.
+* '''Mod Kieren:''' Scythe was a little bit more intentional. With Verzik, we wanted Scythe to be a good weapon for that fight. Again, it wasn’t necessarily a leading principle we had with the Scythe design, and it would have been equally fine if we had designed something else.
+* '''Mod Arcane:''' We want Shadow to be good, and Shadow is good in ToA; it’s just not as good as the Tbow is at CoX. I think many bosses would need to be designed differently for Shadow to work. Ba-Ba, for example, wouldn’t work as well if it was a purely ranged boss. It was designed around being a melee-orientated encounter.
+* '''Mod Arcane:''' It could be better than it is - maybe this is something we can look at - but I don’t think it’s in a bad place right now. It’s still an incredibly powerful weapon, especially outside of ToA, and it’s really good in ToA. It’s just not got a single boss you can camp the entire time.
+* '''Mod Halo:''' Many people are using Tbow as their back, for instance, whereas they might want to use the Shadow. I agree with Arcane’s sentiment on that one.
+
+===Question #13===
+{{Cquote2|I’d love it if logging out paused the raid instead of completely resetting it. Sometimes it’s hard to get it all done in one sitting, and I would love to be able to do it one path at a time. What do you think about this?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=2398s Youtube Time Stamp]
+
+* '''Mod Arcane:''' It wasn’t designed to be done. It’s just a lot to make this work. It works in Inferno and Fight Caves, but it’s very self-contained. It’s not easy to do, but it’s technically possible.
+* '''Mod Kieren:''' It’s a legitimate feature request. If you’re doing a raid solo and you need to go to the toilet mid-raid, I know it’s only 30 minutes, but you’d rather be able to log out and log back in and carry on the same way you can in Fight Caves and Inferno. I don’t think it’s unreasonable.
+* '''Mod Arcane:''' This would probably be solved if the logout timer wasn’t five minutes. I know some plugins can extend it, but if you could AFK for 20 minutes, it’s probably quite reasonable to answer the door, go to the toilet or finish cooking something.
+
+===Question #14===
+{{Cquote2|Many players did not realise the upgraded Ward of Elidinis would not be tradeable, why was this made untradeable?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=2522s Youtube Time Stamp]
+
+* '''Mod Arcane:''' It was initially tradeable. Then players asked for it to be untradeable, and it got a bunch of traction on a lot of different media. The consensus was that not every item should be obtainable from anyone with any stats.
+* '''Mod Arcane:''' It’s quite a nice upgrade for an item to push you to get 90 Smithing or 90 Prayer. I agree with the sentiment; pushing players to level their stats is nice, and I don’t think we have much of that in our game, so this is a really good change.
+* '''Mod Arcane:''' We made that change, and we communicated it. People seemed to be okay with it; obviously, not everyone saw it, and now they’re saying, “now I can’t equip my Ward”. We did make a change last week to make it so you can boost the levels. Now you don’t need 90s; you can boost to 90 - Prayer boosts are very generous. You can boost quite a lot; I don’t think it’s unreasonable.
+* '''Mod Arcane:''' I think it hurts specific PvP builds more than anyone else. If you’re making a bunch of PvP accounts, it’s understandable that they don’t want to level up their Prayer to a certain level or Smithing to a certain level. Just don’t use the item at the end of the day. It’s a really powerful item that’s locked behind requirements. It’s not like every item should be accessible to every account.
+* '''Mod Arcane:''' I think a really interesting part of this is seeing the effect it has on the economy. Not many people will have the requirements, which means that not many want to buy the item, lowering the price. It’s not necessarily an awful thing; it’s just interesting.
+
+===Question #15===
+{{Cquote2|Does dying affect chances for purple drops?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=2651s Youtube Time Stamp]
+
+* '''Mod Halo:''' It does. It does for your group as well, but more for the player that died. This is for uniques and normal loot.
+* '''Mod Arcane:''' Yeah, it’s similar to Chambers of Xeric in that regard, where if you die, you’ll lose some points and technically reduces the overall loot potential of the party, but proportionally only affects you.
+* '''Mod Arcane:''' They’ll have a higher chance of getting the unique if you die, but overall the party’s chance of seeing a unique is lower. So you shouldn’t be upset if your teammate dies and you’re an Ironman because the chances are still roughly the same. Dying does affect your personal chances of getting the unique by quite a margin.
+
+===Question #16===
+{{Cquote2|Would it be possible to save invocation setups?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=2707s Youtube Time Stamp]
+
+* '''Mod Halo:''' I’m guessing this is similar to the preset question. If so, soonTM.
+
+===Question #17===
+{{Cquote2|Would it be possible in future to have an option to remove unnecessary dialogue to speed up our runs?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=2721s Youtube Time Stamp]
+
+* '''Mod Arcane:''' That’s coming out this week. Every crystal, every nexus door and every path barrier will have a quick answer option which will start the room apart from the nexus ones; the party leader still needs to be the one that uses the quick answer and skips the dialogue. You need to wait on your party leader.
+* '''Mod Arcane:''' For the most part, that will remove a lot of dialogue, and RuneLite will most likely have a menu entry-swapper for it to be default left-click.
+
+===Question #18===
+{{Cquote2|What did you learn from Chambers of Xeric and Theatre of Blood that you used for the design of Tombs of Amascut?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=2765s Youtube Time Stamp]
+
+* '''Mod Arcane:''' The biggest one was just wanting some sort of linear scaling difficulty. We didn’t want to release a raid that only catered to the high-end. We tried to include many more players and not just get the low-level players in. It’s very intimidating if you think back to trying to learn ToB. You want to try and join a group, and they’re saying 50KC wreck or Scythe wreck, and you ask, “how do I get my 50KCs?”. You have to learn with other learners.
+* '''Mod Arcane:''' That can be a fun experience, but it’s very slow and very painful. It’s just very unapproachable for many people, so we wanted to have something that’s hard and gets more difficult - and we still want people to feel that challenge - but we don’t want it to be forced upon you, and we want it to be more gradual.
+* '''Mod Arcane:''' That’s where invocations came from. We want to have a lot of optional difficulties, and we want to reward people for that difficulty. That’s the system we ended up with, and we wanted the ability to learn content to be a bit nicer, and that’s why wipes are optional, so you can go in with infinite wipes and just die to a boss over and over again.
+* '''Mod Arcane:''' I think I talked about it ages ago about how difficulty by nature isn’t inaccessible. The systems that let you learn the content makes something accessible, and I used the example of Elden Ring doing that well.
+* '''Mod Arcane:''' Elden Ring is a very accessible game because you can walk straight back in every time you die, and it’s like you’re restarting completely. You’ve got all your potions and stats, and you can go back in and kill the boss again. It’s a challenging game, sure, but it’s very accessible, and people like the learning process of, “oh, I died. I’ve got to dodge left this time”.
+* '''Mod Arcane:''' That’s what I wanted to approach here: it isn’t just spending 20 minutes making a group into 25 minutes getting to Verzik and making one mistake at P2 Verzik, die and then sit in that purgatory and have to do it all again. It’s such a slog.
+* '''Mod Arcane:''' So we ended up with invocations, and I think it’s done a really good job. People are still pushing up high invocations, and the Ornament Kits and pet transmogs will push people to put on more invocations. The loot is very rewarding, with high invocations and raid levels. But even on the lower end, if people just want a chill raid, they can just turn a bunch of them off. They’ll get less loot but can have a bit more of a relaxing time. And I think that’s good.
+* '''Mod Kieren:''' Wipe mechanics was the biggest thing I took away from ToB. It made it much more punishing and inaccessible to players because it made learning hard. We went into ToA and said, “we’ve got to learn from that. We won’t succeed unless we learn from that”. We can’t afford to spend 12 months if it’s going to be super hard to get into for players. We wanted to get that right, and I feel we’ve nailed it!
+* '''Mod Kieren:''' I feel like we’ve made it possible for players to learn. As well as this, one of the more challenging things for ToB was getting a group, and you couldn’t try it out solo. At least with this raid, you can go in solo, and you can learn. Even if you want to play in groups, you can go in solo and experience some of the bosses yourself - get to grips with it and even try out some of the other invocations for yourself, and then join a team!
+* '''Mod Kieren:''' It removes the barriers. We didn’t not want to offer a raid that had difficulty, and we tried to remove the barriers that stopped you from getting to that raid with difficulty. I feel like we’ve done that well.
+* '''Mod Kieren:''' At the same time, the other thing I’d say from the other raids is that I want each raid to be different! What’s the point of us adding a copy-paste raid and doing ToB2 where it’s the same format, you fight one boss after another, and the final boss with the same wipe mechanics and everything?
+* '''Mod Kieren:''' I want each raid to feel unique. Chambers of Xeric feels very different from Theatre of Blood and Tombs of Amascut. But I realise that there are a lot of elements of each of those raids that people like.
+* '''Mod Kieren:''' Chambers of Xeric is the most different, for sure. To some degree, it’s super accessible because there’s no wipe system, and you can just brute force Olm at the end of any raid. You can die 100 times, but you will still beat that raid if you keep going. In that sense, it’s accessible compared to this, but I think ToA does better at helping you learn so you can do it competently rather than 100 deaths.
+* '''Mod Halo:''' I distinctly remember a big, big sheet we were looking at where we were trying to figure out the difficulty for ToA. I remember putting each raid level should be on this graph, and since release, I think we’ve hit the mark on that with the difficulty and accessibility, as Arcane and Kieren mentioned.
+* '''Mod Halo:''' I’ve got friends who’ve never even raided before, and they’ve picked up the raid after not even stepping foot in Chambers or ToB, which is crazy!
+
+===Question #19===
+{{Cquote2|What mechanics are you the happiest with across the whole raid?}}
+
+[https://www.youtube.com/watch?v=95t7YVRRkGo&t=3196s Youtube Time Stamp]
+
+* '''Mod Halo:''' We touched on it in a previous question, but what I’m happiest with personally is probably the invocation system and how it panned out. I can’t speak for Arcane, but a big worry for me pre-release was, “ah, players are going to do level 600 in the first week and then we’re going to have to add a whole load of invocations and rebalance”. I think we hit the mark on that.
+* '''Mod Halo:''' Alongside that, all the boss mechanics. We playtested them internally and figured out these little strategies we’re now seeing players pick up. It’s pretty cool that the internal brainstorming we did is also what players think, which helped with the balancing! Happy with most mechanics, to be honest.
+* '''Mod Kieren:''' If I want to be super specific, the final phase of the Wardens is probably my favourite part of the whole raid. If I could pick one mechanic, it would be the tiles and how you’ve got to constantly focus on the opposition from side to side to middle. That feels awesome, and it looks awesome.
+* '''Mod Kieren:''' We had different ideas in the original version that we had before the playtest - I’m not sure how much we’ve even talked about how this has changed through the player-testing experience. The playtesters gave excellent feedback throughout the whole raid. We were able to tweak and develop mechanics further into what it is today, which we are all proud of.
+* '''Mod Kieren:''' The original version was a bit more chaotic and memory-focused, where the boss would indicate the next four tile locations, and you had to move. That had its pros, but it had its downsides as well. Where we landed, with the spirit of the idea still there, I think is fantastic.
+* '''Mod Kieren:''' On a much higher level, invocations are awesome. It’s an exciting way to approach difficulty. But I say this: we’re only two weeks after launch. I’m interested in where invocations will be in six months, in a year? How are people going to play with the system at that point? Are the strategies going to shift, or will they settle with, “this is the meta everybody uses, this is the setup”?
+* '''Mod Kieren:''' Maybe that’s fine, but I think that’s where we’ll get a sense of if invocations have worked to the maximum of what we thought they would. Based on preferences, I’d love to see some flexibility and different options in how people are setting up even a year from now.
+* '''Mod Arcane:''' I’m going to go for something small. Before the ToA launch, a big Reddit meme said, “oh, they’re just going to add a bunch of Jad mechanics. What is a Jad mechanic? Is Zulrah a Jad mechanic? Is Jad a Jad mechanic?”. That was a meme for about a week just talking about Jad attacks.
+* '''Mod Arcane:''' In essence, it’s just a different way of making players swap their Prayer. There’s one where you fire a projectile, and the damage has already been calculated as soon as it’s fired. So it doesn’t matter if you change your Prayer, or it could be that you have until the projectile hits to pray, or maybe it reacts to the boss’ animation. Perhaps it’s done as a pattern. You can make the player do the same thing in many different ways, but the player interacts slightly differently.
+* '''Mod Arcane:''' I remember with Zebak, he used to fire at all the players, and I had a random idea of, “what if he fired one ball, and that ball turned into multiple balls?” and then we implemented it! It felt so good that he just fires the jug in the air, and it explodes and rains down on you.
+* '''Mod Arcane:''' But it’s the same as everything else. It’s the same as the boss doing the animation, and you pray to what it is. It’s not different, but it just feels good. I enjoyed messing around with that. It wasn’t revolutionary, but we separated an extra step out of it and suddenly felt good and different.
+* '''Mod Light:''' My favourite mechanic is the camel in the lobby. That’s my favourite part of the raid. Not exactly a mechanic, but it’s my favourite part!
+* '''Mod Kieren:''' The other thing I’ll say is the interface for the invocations. It’s wonderful, and the way the icons light up is great!

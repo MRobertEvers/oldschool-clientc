@@ -1,0 +1,89 @@
+{{Infobox Item
+|version1 = Partially charged
+|version2 = Charged
+|name1 = Saradomin's blessed sword
+|name2 = Sara's blessed sword (full)
+|image = [[File:Saradomin's blessed sword.png]]
+|release = [[9 October]] [[2014]]
+|update = New Bounty Hunter Rewards
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wield, Check, Revert
+|wornoptions = Check
+|destroy = This will destroy your sword immediately. Only Saradomin's Tear will be returned.
+|examine = The blade of an Icyene, blessed with a tear from Saradomin himself.
+|value = 289850
+|weight = 3.000
+|id1 = 12809
+|id2 = 12808
+}}
+[[File:Saradomin's blessed sword detail.png|left|150px]]
+'''Saradomin's blessed sword''' is a degradable [[two-handed sword]] which requires 75 [[Attack]] to wield. It is created by combining [[Saradomin's tear]] with the [[Saradomin sword]]. The blessed sword has +18 Slash and +6 Strength more than the normal variant.
+
+If the sword is '''not''' protected upon death, it will fully degrade into [[Saradomin's tear]]. However, if it is protected on death, it will remain in its regular state as Saradomin's blessed sword.
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Partially charged
+|version2 = Charged
+|astab = 0
+|aslash = +100
+|acrush = +60
+|amagic = 0
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = +88
+|rstr = 0
+|mdmg = 0
+|prayer = +2
+|slot = 2h
+|speed = 4
+|attackrange = 1
+|combatstyle = 2h Sword
+|image = [[File:Saradomin's blessed sword equipped.png|100px]]
+|altimage = [[File:Saradomin's blessed sword equipped female.png|105px]]
+}}
+
+{{CombatStyles|2h Sword|speed=4|attackrange=1}}
+
+==Special attack==
+[[File:Saradomin's Blessed Lightning.gif|thumb|200px|A player performing the Saradomin's blessed sword's special attack, ''Saradomin's Lightning''.]]
+Saradomin's blessed sword has a [[special attacks|special attack]], ''Saradomin's Lightning'', which deals a [[Magic]]-based attack ([[Magical melee]]) that increases the player's max hit by 25%, consuming 65% of the player's special attack energy.
+
+The special attack rolls against the opponent's Magic defence.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1461036149733011456|date=17 November 2021|archiveurl=https://reldo.runescape.wiki/i/109795|archivedate=24 December 2022|quote=(...) The blessed Saradomin sword's hit counts as *melee*, though it rolls against the target's magical defence.}} Under perfect conditions, the special attack can hit up to 72. Despite being Magic-based, it will still inflict damage on [[Cyclops]] in the [[Warriors' Guild]] and soldiers inside the [[Shayzien]] [[combat ring (shayzien)|combat ring]].
+
+==Creation==
+{{Recipe
+|members = Yes
+|ticks = 
+|mat1 = Saradomin sword
+|mat2 = Saradomin's tear
+|output1 = Saradomin's blessed sword
+|output1cost = No
+}}
+
+==Degradation==
+Saradomin's blessed sword degrades as it is used. After 10,000 hits with the weapon (400 minutes of continuous combat), it will degrade and consume the Saradomin sword, leaving the player with Saradomin's tear. The tear will be left equipped in the weapon slot, though it doesn't appear in the player's hands and cannot be used to attack with.
+
+When using the items on each other there will be a warning message that states ''A blessed Saradomin sword is untradeable, with an Attack requirement of 75. After 10,000 hits, the sword crumbles to dust, and you get the Tear back.'' Each hit costs {{Coins|{{GEP|Saradomin sword}} * 0.0001}}, costing {{Coins|{{GEP|Saradomin sword}} * 0.15}} per hour of constant use.
+
+Using the Revert option immediately consumes the Saradomin sword and returns the Tear.
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Saradomin's blessed sword}}
+
+==References==
+{{Reflist}}
+
+{{Slash weapons}}
+{{God Wars Dungeon}}
+[[Category:Weapons with Special attacks]]
+[[Category:Walk animation modifiers]]

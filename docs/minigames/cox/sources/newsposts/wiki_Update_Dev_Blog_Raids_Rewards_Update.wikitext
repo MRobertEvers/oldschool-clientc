@@ -1,0 +1,85 @@
+{{Update|date=1 November 2016|link=http://services.runescape.com/m=news/dev-blog-raids-rewards-update?oldschool=1|category=website}}
+[[File:Dev Blog- Raids Rewards Update newspost.png|right]]
+{{clear}}
+We've made some changes to last week's raids rewards developer blog based on feedback from the community.
+
+Head over to the forums and give the [http://services.runescape.com/m=forum/forums.ws?380,381,341,65847234 updated raids rewards developer blog] a read.
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''
+
+
+
+----
+
+
+
+
+{{Headline|25|Dev Blog: Raids Rewards Update}}
+
+
+'''Following feedback on last week's raids rewards developer blog, we've made some changes to what is on offer in preparation for the poll this Thursday.'''
+
+'''Read the [http://services.runescape.com/m=forum/forums.ws?380,381,339,65846170 full developer blog].'''
+
+{{ToC}}
+==Twisted Bow Change==
+We've made a change to the way that the Twisted Bow's buff is applied. Rather than having both accuracy and damage scale at all points, the accuracy and damage now scale independently of each other.
+
+The damage curve remains the same, with a new, less generous curve applied for accuracy.
+
+[[File:Dev Blog- Raids Rewards Update (1).png|center]]
+
+===What impact will this have?===
+This change reduces the overall damage per second of the Twisted Bow, leaving it above the blowpipe against monsters with high magic levels.
+
+This is a more comfortable position for the bow, '''lowering''' the overall damage output but ensuring that it is still the '''best available option''' against the appropriate opponents.
+
+==Dinh's Bulwark Changes==
+The Dinh's Bulwark was well received by the community, with a lot of excitement surrounding the introduction of some potential new strategies for PvM. However, there was one concern for us to address and some further clarification needed on some details.
+
+===Dinh's Bulwark in PvP===
+The primary concern we saw was how effective the Bulwark would be in player-vs-player combat. A 20% reduction on all incoming damage is a game-changer for PvP, and it isn't something we'd like to see.
+
+To address this, the 20% damage reduction effect of Dinh's Bulwark will '''not work in PvP combat'''. The block option will simply act as a standard defensive attack style.
+
+The shield will still be an incredibly strong shield for tanking, but it won't provide such an extreme advantage for players who are trying to survive in the wilderness.
+
+===Clarification of the Delay===
+
+To prevent the advantages of each style being used at the same time, there is a short delay when switching from block to pummel during which you cannot attack. This will also apply when switching from the bulwark to other weapons.
+
+The goal with this delay is to prevent the shield being used in conjunction with other weapons to both tank effectively and deal a lot of damage. The length of this delay will be '''8 ticks''', which is slightly more time than a slow hitting boss might take to attack.
+
+===Can you use spells with Dinh's Bulwark equipped?===
+No. It will not be possible to cast offensive spells with the Dinh's Bulwark equipped.
+
+==Elder Platelegs Fix==
+The the previous blog mistakenly stated the Elder Platelegs had -5 Ranged defence. This was supposed to be +95, and has now been updated.
+
+[[File:Dev Blog- Raids Rewards Update (2).png|center]]
+
+==Dragon & Infernal Harpoon==
+The Dragon & Infernal Harpoon have now been added to the list of potential rewards from raids.
+
+The Dragon Harpoon is an equippable tool used for fishing. When used for fishing, the Dragon Harpoon increases the likelihood of catching fish by 20%.
+
+[[File:Dev Blog- Raids Rewards Update (3).png|center]]
+
+The Dragon Harpoon requires level 60 Attack to equip and level 75 Fishing to use. It can be used from the inventory and does not need to be equipped.
+
+===Infernal Harpoon===
+The Infernal Harpoon can be created by combining a Smouldering Stone and a Dragon Harpoon. It is very similar to both the Infernal Pickaxe and Axe in nature.
+
+Whilst Fishing, the Infernal Harpoon has a 1/3 chance of consuming a fish when caught. You will receive a small amount of cooking experience for the fish which was consumed, with the experience gained being dependent on the type of fish.
+
+After consuming 5,000 fish, the Infernal Harpoon becomes uncharged. It can continue to be used as a Dragon Harpoon in this state, or it can be recharged. To recharge the Infernal Harpoon, use a Smouldering Stone or Dragon Harpoon on it. This will give it another 5,000 charges.
+
+
+----
+
+
+Overall, the response to the latest proposed Raids Rewards has been positive and we are excited to see what comes of the poll later this week.
+
+If you have further feedback, please let us know! We're eager to make changes if it'll make the community happier with the rewards on offer.
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''

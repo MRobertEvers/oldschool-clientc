@@ -1,0 +1,15 @@
+# maiden_av_pass_2026-10-03.txt -- the Maiden presentation pass's reading of the cached Blert maiden streams
+# (build/spec_state/matthew-mbp-m4-raid-b1-spec-tob/blert_maiden_raw, 26 files; no network). Event types: 7 npc spawn, 8 npc update,
+# 9 npc death, 10 npc attack, 101 maidenBloodSplats. 13 of the 26 files carry no npc events and are skipped.
+
+== body form ids in order of first appearance, per mode (rooms)
+10 hard [10822, 10823, 10824, 10825, 10826, 10827]
+3 normal [8360, 8361, 8362, 8363, 8364, 8365]
+
+== ticks the dying_a form id is held (first dying_b id tick minus first dying_a id tick)
+('hard', 4) 10
+('normal', 4) 3
+
+== every npc id seen per mode
+hard [10822, 10823, 10824, 10825, 10826, 10827, 10828, 10829]
+normal [8360, 8361, 8362, 8363, 8364, 8365, 8366, 8367]

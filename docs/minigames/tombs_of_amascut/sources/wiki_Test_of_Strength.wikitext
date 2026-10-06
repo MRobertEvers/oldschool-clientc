@@ -1,0 +1,40 @@
+{{Infobox Music
+|name = Test of Strength
+|number = 727
+|file = [[File:Test of Strength.ogg]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|hint = This track unlocks in the Tombs of Amascut.
+|quest = No
+|instruments = Standard Drum Kit, Power Drum Kit, Electric Piano 1, Celesta, Brass Section, Sitar, FX 5 (brightness), Shamisen, String Ensemble 1, Acoustic Grand Piano, Bright Acoustic Piano, Choir Ohhs, Tubular Bells, Distortion Guitar, Banjo
+|duration = 07:12
+|tempo = 110 BPM
+|signature = 6/4
+|album = ''[[RuneScape-_Tombs Of Amascut|RuneScape: Tombs Of Amascut]]''
+|composer = Julian Surma
+|map = 
+|cacheid = 732
+|sortname = Test of Strength
+|unlockdetail = Unlocked in the Path of Het within the [[Tombs of Amascut]].
+}}
+'''Test of Strength''' is a [[music]] track that is unlocked in the Path of Het within the [[Tombs of Amascut]].
+
+==Versions==
+{{Music changes header}}
+{{Music changes
+|version=2
+|date=24 August 2022
+|file=[[File:Test of Strength (8-bit).ogg]]
+}}
+{{Music changes
+|version=2
+|date=9 April 2025
+|change= [[Audio#16-bit_music|16-bit Music Update]]
+|file=[[File:Test of Strength.ogg]]
+}}
+{{Music changes footer}}
+{{Tombs of Amascut}}
+{{Music}}
+[[Category:Old School-exclusive music]]

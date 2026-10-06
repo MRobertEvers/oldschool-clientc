@@ -1,0 +1,26 @@
+{{Stub}}
+{{Infobox Beta
+|name = Nex Rewards Beta
+|image = [[File:Tombs of Amascut & Nex Rewards Beta newspost.png]]
+|open = [[20 October]] [[2021]]
+|end = [[27 October]] [[2021]]
+|update = Tombs of Amascut & Nex Rewards Beta
+|removalupdate = None
+}}
+The beta worlds were once again opened to test the new equipment coming along the fifth boss of the [[God Wars Dungeon]]: [[Nex]].
+* [[Virtus robes]]
+** [[Virtus mask]]
+** [[Virtus robe top]]
+** [[Virtus robe legs]]
+* [[Ancient ceremonial robes]]
+** [[Ancient ceremonial mask (beta)|Ancient ceremonial mask]]
+** [[Ancient ceremonial top (beta)|Ancient ceremonial top]]
+** [[Ancient ceremonial legs (beta)|Ancient ceremonial legs]]
+** [[Ancient ceremonial gloves (beta)|Ancient ceremonial gloves]]
+** [[Ancient ceremonial boots (beta)|Ancient ceremonial boots]]
+* [[Ancient godsword (beta)|Ancient godsword]]
+* [[Nihil shard]]
+* [[Zaryte bow]]
+* [[Zaryte vambraces (beta)|Zaryte vambraces]]
+
+Alongside this, as the Tombs of Amascut rewards were refined since the last beta, they were also added to the pool of equipment to be tested.

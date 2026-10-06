@@ -1,0 +1,166 @@
+{{Infobox Item
+|name = Purging staff
+|image = [[File:Purging staff.png]]
+|release = [[10 July]] [[2024]]
+|update = While Guthix Sleeps
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wield, Revert, Drop
+|examine = Fire and lightning sizzle in the brazier.
+|value = 800000
+|weight = 2.721
+|id = 29594
+|leagueRegion = Misthalin
+}}
+[[File:Purging staff detail.png|left|150px]]
+The '''purging staff''' is a one-handed magic [[demonbane weapon]] requiring level 77 [[Magic]] and 50 [[Attack]] to wield. It is made by using a [[tormented synapse]] on an anvil with a [[battlestaff]], [[iron bar]], and a [[hammer]] in the inventory. This requires level 74 [[Crafting]]{{Boostable|Yes}}, level 55 [[Smithing]]{{Boostable|No}}, and having read [[Duradel's notes]] after completion of [[While Guthix Sleeps]].
+
+The purging staff can [[autocast]] offensive [[Arceuus spells|Arceuus]] or [[standard spellbook|Standard]] spellbook spells, and its +37 magic attack and +25 magic defence bonuses are the highest of any weapon in the game, surpassing even the [[Kodai wand]] and [[Tumeken's shadow]]. In addition, the staff possesses a [[special attack]] as well as [[passive effect]]s that makes it ideal for [[demonbane spells]].
+
+The process to create the purging staff can be reversed via the 'Revert' option, returning only the tormented synapse as a result. A [[player killer]] will receive the synapse from their opponent if it is not one of their protected items.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +10
+|aslash = -5
+|acrush = +83
+|amagic = +37
+|arange = 0
+|dstab = +1
+|dslash = +1
+|dcrush = 0
+|dmagic = +25
+|drange = 0
+|str = +62
+|rstr = 0
+|mdmg = +10
+|prayer = 0
+|slot = weapon
+|speed = 5
+|attackrange = staff
+|combatstyle = Staff
+|image = [[File:Purging staff equipped male.png|150px]]
+|altimage = [[File:Purging staff equipped female.png|150px]]
+}}
+{{CombatStyles|Staff|speed=5|attackrange=staff}}
+{{Autocasting|standard=yes|arceuus=yes|ancient=no}}
+
+==Passive effects==
+The staff has a passive effect which doubles the base accuracy bonus of [[demonbane spells]] from 20% to 40%. If under the effects of the [[Mark of Darkness]] spell, the staff further doubles the accuracy and damage bonus, giving an 80% accuracy and 50% damage bonus. With the staff's base magic damage bonus of 10%, this makes it one of the best weapons to use against [[Demon (attribute)|demonic]] creatures.
+
+Additionally, the staff also multiplies the duration of the [[Mark of Darkness]] spell by five times. Switching weapons afterward will not reduce the duration back to normal, nor will it remove the Mark of Darkness.
+
+==Special attack==
+[[File:Scatter ashes.gif|thumb|300px|A player performing the purging staff's special attack, ''Scatter ashes'', with [[Dark Demonbane]].]]
+[[File:Yama - dealing with void flares.mp4|thumb|300px|''Scatter ashes'' as it is used against [[Yama]], where the reduced attack delay helps eliminate [[Void flare]]s.]]
+The purging staff has a [[special attack]], ''Scatter ashes'', which drains 25% of the player's special attack energy and requires being on the [[Arceuus spellbook]].
+
+''Scatter ashes'' uses the best [[demonbane spell]] the player can cast; if the demonic creature targeted dies from ''Scatter ashes'', the special attack energy used is refunded, and the player's next attack can be used three ticks earlier.
+
+In practice, using ''Scatter ashes'' to kill a target will effectively change the player's attack speed from 5 down to 3. This is because the 3 tick reduction is processed too late for the player to attack 2 ticks later. ''Scatter ashes'' is truly reducing attack delay by 3 though - this can be shown by using ''Scatter ashes'' and then eating a piece of food, which will increase attack delay by 3. In this case, the player will be able to attack again after 5 ticks, instead of the expected 3+3=6 ticks later.
+
+==Creation==
+Below the required level, a message will appear stating ''"You attempt to attach the synapse to the staff, but burn yourself in the process. You'll need a Crafting level of 74 to craft a purging staff."'' This will deal 4 damage to the player, but cannot kill them; attempting to make the staff without the Crafting level and having less than 6 hitpoints will prompt the character to state ''"I'm not sure I want to try that when I'm this injured."''
+
+The first purging staff created on an [[account]] grants 730 Crafting experience, whilst subsequent ones grant 73 experience afterwards.
+
+===First time===
+{{Recipe
+|skill1 = Crafting
+|skill1lvl = 74
+|skill1boostable = Yes
+|skill1exp = 730
+|skill2 = Smithing
+|skill2lvl = 55
+|skill2boostable = No
+|skill2exp = 13
+|notes = Have read {{plink|Duradel's notes}}
+|ticks = 7
+|members = Yes
+|tools = Hammer
+|facilities = Anvil
+|mat1 = Tormented synapse
+|mat2 = Iron bar
+|mat3 = Battlestaff
+|output1 = Purging staff
+|output1subtxt = first time
+}}
+
+===Subsequent times===
+{{Recipe
+|skill1 = Crafting
+|skill1lvl = 74
+|skill1boostable = Yes
+|skill1exp = 73
+|skill2 = Smithing
+|skill2lvl = 55
+|skill2boostable = No
+|skill2exp = 13
+|notes = Have read {{plink|Duradel's notes}}
+|ticks = 7
+|members = Yes
+|tools = Hammer
+|facilities = Anvil
+|mat1 = Tormented synapse
+|mat2 = Iron bar
+|mat3 = Battlestaff
+|output1 = Purging staff
+|output1subtxt = subsequent times
+}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Purging staff}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+Tormented demon weapon concept art.png|Concept arts for the weapons created from items dropped by tormented demons, by [[Mod Grub]].
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 March 2025
+|update = Permanent Deadman: World 345 Improvements
+|change = The Crafting experience gained for creating the first purging staff on an account was increased from 73 to 730.<!-- 😂😂😂👌🔥🔥🔥-->
+}}
+{{Subject changes
+|date = 26 February 2025
+|update = Game Jam: POH Improvements
+|type = hotfix
+|change = The Crafting experience gained for creating purging staves was decreased from 730 to 73.<!-- 😂😂😂👌🔥🔥🔥-->
+}}
+{{Subject changes
+|date = 26 February 2025
+|update = Game Jam: POH Improvements
+|change = The staff's creation process can now be reversed, returning only the tormented synapse back.
+}}
+{{Subject changes
+|date = 24 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Tweaks
+|change = This item now increases the duration of [[Mark of Darkness]] by 5 times.
+}}
+{{Subject changes
+|date = 17 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Updates
+|change = The item's [[value]] has been increased from 21,000 to 800,000.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* The purging staff was initially proposed as the "ignited staff", but was renamed sometime during development.{{CiteNews|url=https://secure.runescape.com/m=news/while-guthix-sleeps---rewards?oldschool=1|title=While Guthix Sleeps - Rewards|newsdate=24 May 2024|quote=With 74 Crafting, you’ll be able to synthesise the Ignited Staff from a Tormented Synapse! As is typical for Magic weapons, it works a little differently from its Ranged and Melee siblings.}}
+* When equipped, it will completely dislocate the player's hand from the rest of their arm, leaving a rather wide empty gap between.
+
+==References==
+{{reflist}}
+
+{{Tormented Demons}}
+{{Magic weapons}}
+{{Attribute_affinities}}
+[[Category:Weapons with Special attacks]]

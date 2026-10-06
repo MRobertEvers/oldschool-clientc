@@ -1,0 +1,201 @@
+{{Update|date=7 June 2018|link=http://services.runescape.com/m=news/the-theatre-of-blood?oldschool=1|category=game}}
+[[File:The Theatre of Blood newspost.png|right]]
+{{clear}}
+{{Headline|25|The Theatre of Blood}}
+
+{{Horizontal Line}}
+
+<center>'''''"The Theatre of Blood was created with one thing in mind, Lady Verzik's entertainment. She commanded her followers to create this challenge, in the hopes of watching many a willing citizen of Meiyerditch or travelling warrior perish"''''' Do you have what it takes to defeat the Theatre of Blood? Are you the hero the Myreque need?</center>
+
+[[File:The Theatre of Blood (1).jpg|center|700px]]
+<br/>
+<center>''It's showtime.''</center>
+
+{{Horizontal Line}}
+
+Towards the east of Gielinor, located within the Sanguinesti region, is Ver Sinhaza. Once the home of Queen Efaritay, it is now ruled over by Verzik Vitur, head of the Vitur family and one of the few true-born vampyres on Gielinor. For millennia, Lady Verzik has commanded an army of vampyres whom she has not only used to do her biddings, but also provide her with on-demand entertainment. It didn't take long before this became tiresome, and so she instructed her followers to create a gauntlet filled with some of the strongest warriors, creations and creatures. This is what we call today the Theatre of Blood.
+
+[[File:The Theatre of Blood (2).png|center|700px]]<br/>[[File:The Theatre of Blood (3).png|center|700px]]
+
+The citizens of Meiyerditch often go to the Theatre to fight against the various experiments and abominations contained within, providing entertainment for the vampyres. To encourage them to do this, the vampyres promise them freedom if they survive. It's '''down to you''' to complete all its challenges and emerge as the victor.
+
+{{Horizontal Line}}
+{{Headline|25|The Basics}}
+
+The Theatre of Blood is a linear progression raid challenge located in the Sanguinesti region, east of Meiyerditch, that emphasises on the need for teamwork. The Theatre can be accessed via a boat north of Port Phasmatys for a fee of 10,000 coins. Alternatively, you can walk there, but it's quite the journey and not something we'd recommend.
+
+If you've completed A Taste of Hope, you can use Drakan's medallion to teleport directly to the Theatre.
+
+[[File:The Theatre of Blood (4).png|center|700px]]
+
+There is no skilling involved within the Theatre, and all rooms are generated in the same order each time you enter. Throughout the raid, you'll have a few opportunities to receive a small amount of loot and supplies, but your success will heavily depend upon the equipment and supplies you take with you, alongside how well you can work together as a group.
+
+The maximum group size allowed to enter the Theatre is 5, and has been balanced for group sizes of 3-5 players. There are multiple challenge rooms that contain difficult to defeat monsters, bosses and creations, that eventually lead up to a final epic boss challenge like nothing ever seen in Old School RuneScape.
+
+[[File:The Theatre of Blood (5).png|center|700px]]
+
+To help you muster your forces, you can use the recruitment board to form your own party, advertise it to others and manage its members.
+
+[[File:The Theatre of Blood (6).png|center|700px]]<br/>[[File:The Theatre of Blood (7).png|center|700px]]
+
+The board allows you to browse the list of available parties, see who's in them and what their stats are, and Apply to join. The leader of the party can choose to Accept or Reject you; rejection blocks you from re-applying unless the party leader clicks their 'Unblock' button or blocks too many more players.
+
+[[File:The Theatre of Blood (8).png|center]]
+
+The Theatre of Blood has a unique wiping system. Dying in a challenge room means you as an individual must sit out the rest of that room whilst your team carries on - ''this state is known as '''Purgatory'''''. Once the room has been completed, you will leave Purgatory and will be able to re-join your group for the rest of the raid. If a 'full wipe' occurs, for example the whole team dies, '''the raid is failed completely''' and you must restart from the beginning. A failed raid is not considered safe and any lost items will go into the gravestone system, like that of Torfinn's, with a gold fee of 100k required to retrieve them.
+
+Whilst a single death during a challenge room doesn't end the raid, '''any death within the Theatre of Blood''' will cause a Hardcore Ironman to lose their status, reverting them to a regular Ironman, even if the player is redeemed from Purgatory at the end of the wave.
+
+The number of deaths incurred will reduce the quality and quantity of your loot, including your chances of obtaining a unique reward, an Elite clue scroll and the pet. These rewards will only be awarded after killing Lady Verzik, the final boss of the raid. In order to maximise your potential loot, you'd be wise to ensure '''all party members''' are participating.
+
+You'll find that once you're within the Theatre, '''normal teleports will not work'''. In order to escape the clutches of Lady Verzik and her many creations, you'll need to purchase a ''rather unique teleportation'' device from the Mysterious Stranger who can be found lurking outside of the Theatre's entrance.
+
+Logging out whilst in an encounter will be treated as a death, including the loss of HCIM status, so be sure to only start an encounter you intend to finish. Upon logging back in, the game will attempt to put you back with your party. If it successfully realigns you with your party, you will be placed into Purgatory as though you'd died in the fight, and you'll stay there until your other party-members finish that encounter. If the game cannot find your party to realign you on login, such as because the party disbanded or moved on in your absence, you will undergo a full death with item loss as though the party had failed; this is so that players cannot log out to avoid the fate of their party.
+
+Logging out whilst outside of an encounter, such as in the Theatre's corridors outside the combat areas, will be considered safe. Upon logging back in, the game will attempt to put you back with your party to let you carry on the raid; if it is unable to find your party, you will be returned safely to the lobby outside the Theatre.
+
+{{Horizontal Line}}
+{{Headline|25|Spectating}}
+
+The Theatre entrance offers an option for spectating other parties, for those of you not already in a party. Players may name a player who they'd like to observe (including players who are spectators themselves) or may select "Recent Party" which will show them a party that formed recently.
+
+[[File:The Theatre of Blood (9).png|center]]
+
+These options are also available from Abigaila, a Morytanian refugee who hangs out at the Grand Exchange and lives in Lumbridge (renting the upstairs of the general store). She also serves to explain Morytania and the Theatre to players who are unfamiliar with the lore.
+
+In order to spectate, a player must be free from poison or disease, have an empty inventory and nothing equipped.
+
+Spectators are placed in a sort of viewing gallery built into the scenery, and will be teleported from room to room as the party advances through the waves.
+
+''Those of you not wishing to see the chat of spectators whilst battling through the Theatre may find it beneficial to change your Public Chat settings to filter it out.''
+
+{{Horizontal Line}}
+{{Headline|25|The Rewards}}
+
+With something as challenging and exciting as the Theatre of Blood, you can be sure that you'll be rewarded well.
+
+{{Headline|20|Vials of Blood & New Potions}}
+
+The vampyres have long believed that there is great power in blood. A belief that has only increased with their recent experiments with Haemalchemy. These vials contain modified blood that enhances the power of potions and can be used to charge new weapons found from within the Theatre of Blood.
+
+'''Bastion potion:''' This single potion boosts both Ranged and Defence levels by the same amounts that using a Ranging potion and Super defence potion would. Mixing this potion requires 80 Herblore and the following ingredients: Vial of blood, Cadantine & Wine of Zamorak. Completing the full potion grants 155 Herblore experience.
+
+'''Battlemage potion:''' This single potion boosts both Magic and Defence levels by the same amounts that using a Magic potion and Super defence potion would. Mixing this potion requires 80 Herblore and the following ingredients: Vial of blood, Cadantine & Potato cactus. Completing the full potion grants 155 Herblore experience.
+
+{{Headline|20|Avernic Defender}}
+
+During the Second Age, Avernic weaponry was common amongst the forces of the Empty Lord. These weapons, crafted by Avernic smiths in the liquid fires of Infernus, were some of the most powerful around.
+
+Today, Avernic weapons are incredibly rare, the secrets behind their creation having long since been lost. Lady Verzik's Avernic Defender is one of the few to still remain and is a relic from her time in the service of the Empty Lord.
+
+The Avernic defender is an upgraded version of the Dragon defender, requiring 70 Attack and 70 Defence to equip. Due to its age, the full defender has been destroyed, leaving behind only the hilt. To create the Avernic defender, you must combine the Avernic hilt with a Dragon defender. The Avernic hilt is tradeable, but once combined with a Dragon defender the Avernic defender is untradeable. You can dismantle the Avernic defender to retrieve the Dragon defender that was used, but the Avernic hilt is destroyed in the process.
+
+If a player dies below level 20 Wilderness with the Avernic defender, it will revert to a broken Avernic defender, which can be repaired for 1,000,000 coins by using the item on Perdu. The player that gets the kill would be awarded 1,000,000 from the defender, in addition to the normal loot their opponent would drop. Deaths above level 20 Wilderness will be treated the same as any other untradeable item, meaning the person wearing it will not get a broken Avernic defender back - it will be lost.
+
+<center>[[File:The Theatre of Blood (10).png]][[File:The Theatre of Blood (11).png|250px]]</center>
+
+{{Headline|20|Sanguinesti Staff}}
+
+One of the more recent additions to Lady Verzik's collection, the Sanguinesti staff is a powerful weapon that was crafted by Lord Lowerniel Drakan himself. The staff was given to Lady Verzik by Lord Lowerniel Drakan as a reward for assisting him in their fights against the Seven Priestly Warriors.
+
+The Sanguinesti staff is a new tradeable Magic weapon requiring 75 Magic to wield. It is identical in terms of stats to that of the Trident of the swamp, but can hit 1 damage higher. It has the added effect of a 1/6 chance to heal you for 50% of the damage dealt when attacking an NPC. It is charged with Blood runes and uses 3 runes per cast. The staff does not degrade.
+
+To charge the staff, you will need to fill a Vyre well found within the lobby area of the Theatre with Vials of blood and Blood runes. Once done, the staff can then be dipped into the well to consume the number of charges you require, so long as there is a suitable amount of Vials of blood and Blood runes available in the well.
+
+[[File:The Theatre of Blood (12).png|center]]
+
+{{Headline|20|Ghrazi Rapier}}
+
+Of all Vampyriums tribes, none were more vicious than the Ghrazi. These vampyres took pride in their combat abilities and would regularly bait their prey into battle so that they could test their prowess.
+
+The rapier in Lady Verzik's vault was once wielded by a fearsome Ghrazi warlord. It was given to her by her father who came to possess it after the warlord challenged him to a battle, one that he did not survive to tell the tale.
+
+The Ghrazi rapier is a new tradeable stab weapon that requires 75 Attack to wield. It is not charged and does not degrade. The attack speed of the rapier is the same as the Abyssal tentacle.
+
+[[File:The Theatre of Blood (13).png|center]]
+
+{{Headline|20|Justiciar Armour}}
+
+The Justiciars were elite warriors in Saradomin's army during the God Wars. Unlike the rest of his forces, the Justiciars operated alone, often working as assassins and saboteurs. Selected from a variety of races, they were all chosen by Saradomin himself who granted them great power.
+
+When the vampyres invaded Hallowvale, some of the last remaining Justiciars fell in battle. The Justiciar armour found in Lady Verzik's vault was taken from one of these fallen warriors.
+
+The Justiciar armour is a brand-new set of tradeable tank orientated gear requiring 75 defence to equip. Each individual piece of armour offers defensive stats slightly higher than that of Torag the Corrupted's equipment, with the addition of some Prayer bonus.
+
+When the full set of Justiciar armour is equipped, all incoming damage taken is reduced by x/3000, where 'x' is your equipment's defence bonus. This is based on the style of attack being used against you. For example, if an enemy was using a Crush style attack and you had a defensive bonus total of 450 against Crush then 450/3000 = 15% damage reduction. This effect '''does not apply in PvP combat'''.
+
+When wearing the full Justiciar armour alongside items with similar effects, such as the Elysian spirit shield which has a 70% chance of reducing the damage the player receives by 25%, the damage reduction effect will apply after the Elysian spirit shield's effect. For example, if a player wearing was to be hit for a 40 damage Crush attack whilst wearing the full Justiciar armour with +450 Crush defence and an Elysian spirit shield, and the Elysian spirit shield's effect was activated, the damage would initially be reduced to 30 (25% of 40 is 30). The Justiciar armour would then provide a further 15% damage reduction (as the attack is a Crush attack, and in this example the total Crush defence is +450, then 450/3000 = 15% damage reduction), meaning the original 40 hit would be reduced to 25.
+
+The Justiciar armour does not degrade and it does not require charging.
+
+[[File:The Theatre of Blood (14).png|center|700px]]
+[[File:The Theatre of Blood (15).png|center|160px]]
+
+{{Headline|20|Scythe of Vitur}}
+
+Of all of Lady Verzik's possessions, one of the most valuable is the Scythe of Vitur. This legendary weapon was once wielded by the founder of House Vitur, a vampyre now worshipped as a god.
+
+The Scythe of vitur is a hard hitting, tradeable 2-handed weapon. It has no special attack but can hit up to three enemies once in a 1x3 arc in front of the player. Similar to the special attacks of the Dragon and Crystal halberd, each swing can also hit large creatures up to three times in the same attack. The scythe can only hit a maximum of three NPCs and can only hit a maximum of three times. The first hit deals 100% damage, the 2nd deals 50% and the 3rd deals 25%. Each attack, regardless of which enemy is your primary target, is rolled independently based on your attack bonuses versus the NPCs defence bonuses.
+
+The scythe requires 75 Attack and 75 Strength to wield and has two variants, and uncharged and charged version. The uncharged version has relatively low stats, but once charged, gains additional bonuses. Charging the scythe costs 1/100th of a Vial of blood and 3 Blood runes, meaning 100 charges would cost a full Vial of blood and 300 Blood runes.
+
+To charge the scythe, you will need to fill a Vyre well found within the lobby area of the Theatre with Vials of blood and Blood runes. Once done, the scythe can then be dipped into the well to consume the number of charges you require, so long as there is a suitable amount of Vials of blood and Blood runes available in the well.
+
+[[File:The Theatre of Blood (16).png|center]]
+
+{{Headline|20|Sinhaza Shroud}}
+
+In the courtyard outside the Theatre of Blood, a mysterious figure watches. No one knows why he is there, but he takes a great interest in any who would enter the Theatre. Anyone who manages to survive the Theatre may find that this figure has a strange gift for them, a shroud of unknown origin.
+
+The Sinhaza shroud is an entirely cosmetic cape that you receive after completing the Theatre of Blood 100 times. It is possible to change the appearance of the cape after completing the Theatre of Blood and additional 500, 1000, 1500 and 2000 times respectively.
+
+''When the Sinhaza shroud was initially pitched, it was worded in such a way that you would assume to get a basic cape for completing the Theatre once, and then upgrade it after completing the Theatre of Blood 100, 500, 1000, 1500 and 2000 times respectively. After implementing a similar cape for the Chamber of Xeric: Challenge Mode, we opted to adopt the same method for the Sinhaza shroud. As such, the first cape will now be unlocked at 100 completions as we had originally intended. Apologies for the confusion!''
+
+[[File:The Theatre of Blood (17).png|center|700px]]
+
+{{Horizontal Line}}
+{{Headline|25|Login Screen Competition}}
+
+In our [https://services.runescape.com/m=news/theatre-of-blood-progress-update?oldschool=1 Theatre of Blood: Progress Update blog], we announced the details for a login screen competition. After putting a shortlist of 4 entries to the in-game poll booths for you all to vote on, we have a winner!
+
+[[File:The Theatre of Blood (18).png|center|700px]]
+
+A huge congratulations to RSN "A Scrub" for this fantastic entry. We hope you enjoy your 12 months membership alongside an exclusive Old School goodie bag and seeing the login screen every time you load the game!
+
+{{Horizontal Line}}
+{{Headline|25|In Other News}}
+
+The following improvements have been made following feedback from A Taste of Hope: 
+
+- Players may now force a vyrewatch to show interest in them to get to the mines faster. This includes the vyrewatch guarding the bank at the Theatre.<br/>
+- Agility interactions across Meiyerditch are now left-click rather than right-click.<br/>
+- There is no longer a confirmation when depositing ore in the mine cart in the Daeyalt mine.<br/>
+- Players may now left-click the mine cart in the Daeyalt mine to deposit ore as well as just using it.<br/>
+- Made it easier to click the sickle button in the Myreque base.<br/>
+- When entering the Myreque hideout, the interactions are now left-clicks.<br/>
+- Made Garth's dialogue more obvious that his story is a quest start.
+
+*Trader Sven had a few too many Bloody bracers and was seeing double! We've removed the additional Trader Sven in the Meiyerditch area.
+*The Music Track "Clan wars" had been corrected to use the correct instruments on the track.
+*A bug that was found with the special attack of halberds has been addressed. Before, the special attack would only hit the NPC you're attacking and stacks of NPCs on the tile to the left and right of that NPC. Now, the special attack will include other NPCs on the tile that your target is, as well as NPCs to the left and the right. ''This change also applies to PvP.''
+*The in-game world-hopper no longer allows you to try hopping to a F2P world while standing in a members-only area.
+*The World Map search feature now works more reliably in the map's fullscreen mode.
+*Slayer Masters will no longer typically assign vampyres to players with combat levels below 45; previously the level being checked was 35. However, players are already able to ask Slayer Masters to stop checking their combat level at all, so the task is still accessible to players of all levels.
+*The two imbued Salve amulet versions are now protected over more items on death, reflecting the time and trouble required to re-imbue them.
+*If you choose to hop worlds inside the Chambers of Xeric, you will now be asked if you really want to hop worlds, even if you had previously chosen to disable such warnings. This also applies to the Theatre of Blood.
+*The seed stall now has a separate stock used for Iron players.
+*The [https://www.runescape.com/oldschool/chambers-leaderboard Chambers of Xeric: Challenge Mode Leaderboard] has been updated to reflect last week's times.
+
+{{Horizontal Line}}
+
+The Theatre of Blood is sure to be full of surprises and we can't wait for you to experience it! Get involved on Twitter using '''#TheatreOfBlood''' and support your favourite content creators over on [https://www.twitch.tv/directory/game/RuneScape Twitch].
+
+[[File:The Theatre of Blood (19).png|center|250px|link=https://www.twitch.tv/directory/game/RuneScape]]
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,488,66017812 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+''We'd like to give an extended thank you to '''Mods Ian and Surma''', who created over a hundred new sound effects for this project alongside 13 new music tracks.''
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lenny, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

@@ -1,0 +1,201 @@
+{{External|rs|dw=Salve Amulet}}
+{{Infobox Item
+|name = Salve amulet
+|image = [[File:Salve amulet.png]]
+|release = [[21 December]] [[2004]]
+|update = The Haunted Mine
+|members = Yes
+|quest = [[Haunted Mine]]
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wear, Drop
+|examine = Increases the wearer's strength and accuracy by 15%{{Sic|actually 1/6th}} when fighting the undead.
+|value = 1
+|weight = 0.007
+|id = 4081
+}}
+[[File:Salve amulet detail.png|left|150px]]
+The '''salve amulet''' is an offensive amulet that is made upon completion of the [[Haunted Mine]] quest, granting a 16.67%{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1171387277655846913|date=10 September 2019|archiveurl=https://reldo.runescape.wiki/i/97380|archivedate=26 April 2020|quote=It's 1/6, so 16% is closer.}} increase in the wearer's [[Attack]] and [[Strength]] when fighting [[Undead (attribute)|undead monsters]].
+
+The amulet is made by using a [[chisel]] on the [[crystal outcrop]] at the bottom level of the [[Abandoned Mine]], then using the acquired [[salve shard]] on a [[ball of wool]]; the [[String Jewellery]] spell will also work.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = 0
+|dstab = +3
+|dslash = +3
+|dcrush = +3
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = +3
+|slot = neck
+|image = [[File:Salve amulet equipped.png|110px]]
+|altimage = [[File:Salve amulet equipped female.png|110px]]
+}}
+
+==Creation==
+Players can quickly access the [[crystal outcrop]]s by climbing over the mine cart and then crawling down the eastern cart tunnel to the [[Abandoned Mine]]; after entering, players can crawl-through the other cart tunnel adjacent to them to reach the outcrops. If the player does not have 15 [[Agility]], the mine can be accessed by simply running around to the western cart tunnels, and entering the northern one. Remember to bring a [[Chisel|chisel.]]
+<tabber>
+|-| Stringing=
+{{Recipe
+|skill1 = Crafting
+|skill1lvl = 1
+|skill1exp = 0
+|members = Yes
+|ticks = 2
+|mat1 = Salve shard
+|mat1cost = no
+|mat2 = Ball of wool
+|output1 = Salve amulet
+|output1cost=no
+}}
+|-| String Jewellery=
+{{Recipe
+|ticks = 3
+|members = Yes
+|notes = {{SCP|Quest}} Completion of [[Lunar Diplomacy]]
+|tools = String Jewellery
+|skill1 = Magic
+|skill1lvl = 80
+|skill1boostable = Yes
+|skill1exp = 83
+|skill2 = Crafting
+|skill2lvl = 1
+|skill2boostable = 
+|skill2exp = 4
+|mat1 = Salve shard
+|mat2 = Water rune
+|mat2quantity = 5
+|mat3 = Earth rune
+|mat3quantity = 10
+|mat4 = Astral rune
+|mat4quantity = 2
+|output1 = Salve amulet
+|output1subtxt = String Jewellery
+}}
+</tabber>
+
+==Effects and upgrades==
+:''For a list of monsters affected by the salve amulet, [[Undead (attribute)|see here]].''
+The salve amulet's bonuses against the undead '''do not''' stack with the [[black mask]] and [[Slayer helmet|slayer helmet's]] 16.67% attack and strength bonuses; wearing both will only apply the bonuses of the salve amulet. However, the bonuses of [[Void Knight equipment]] '''do''' stack. Additionally, the amulet's effects apply to all targets when using multi-hitting melee weapons in a [[multicombat area]], such as the [[Scythe of Vitur]] and the [[special attack]] of the [[dragon 2h sword]].
+
+The salve amulet can also be upgraded through enchanting and imbuing it:
+* Enchanting the amulet increases the amulet's undead bonus from 16.67% to 20%. This requires using [[Tarn's diary]], acquired as part of the [[Lair of Tarn Razorlor]] miniquest.
+* Imbuing the amulet extends the undead bonus to ranged (16.67%) and magic attacks (15%). This requires using either 800,000 [[Nightmare Zone]] [[Nightmare Zone#Rewards|points]] (halved upon completing the [[Combat Achievements/Hard|hard combat achievements]]), 320 [[Soul Wars]] [[Zeal Tokens]], or by using a [[scroll of imbuing]] on the amulet.
+** Amulets imbued through the latter two methods do '''not''' count for completing the [[Ardougne Diary]] task.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1355871771208134657|date=31 January 2021|archiveurl=https://reldo.runescape.wiki/i/107617|archivedate=5 February 2021|quote=No, the Soul Wars version is a different item from the NMZ item, and it doesn't do a task check.}} Furthermore, amulets imbued at one location cannot be refunded at a different location.
+
+===Comparison===
+{| class="wikitable"
+! colspan="2" rowspan="2" |Items
+! colspan="2" |Melee
+! colspan="2" |Ranged
+! colspan="2" |Magic
+|-
+!Accuracy
+!Damage
+!Accuracy
+!Damage
+!Accuracy
+!Damage
+|-
+|{{plinkt|Salve amulet}}
+|16.67%
+|16.67%
+|0%
+|0%
+|0%
+|0%
+|-
+|{{plinkt|Salve amulet (e)}}
+|20%
+|20%
+|0%
+|0%
+|0%
+|0%
+|-
+|{{plinkt|Salve amulet(i)}}
+|16.67%
+|16.67%
+|16.67%
+|16.67%
+|15%
+|15%
+|-
+|{{plinkt|Salve amulet(ei)}}
+|20%
+|20%
+|20%
+|20%
+|20%
+|20%
+|}
+
+==Products==
+{{Uses material list|Salve amulet}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Salve amulet}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 January 2023
+|update = Secrets of the North & More!
+|change = The salve amulet's combat bonuses now apply to [[Ghost (Soul Wars)|ghosts]] within [[Soul Wars]].
+}}
+{{Subject changes
+|date = 28 September 2022
+|update = Tombs of Amascut & Group Ironman Changes
+|change = Salve Amulets now have a Make-All dialogue for stringing them, as other amulets do.
+}}
+{{Subject changes
+|date = 8 August 2019
+|update = Smithing and Silver Crafting Interfaces
+|poll =
+|change = Some brown patches near the salve shard around the amulet's inventory icon have been removed.
+}}
+{{Subject changes
+|date = 20 September 2018
+|update = Deadman Experience Cap Increase and Quality of Life Changes
+|change = All Salve amulets in your inventory, up to the amount you choose, can be instantly enchanted.
+}}
+{{Subject changes
+|date = 1 May 2014
+|update = Spirit trees, clues & more!
+|change = The Salve amulet and its enchanted version can now be imbued at Nightmare zone for 800,000 points.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Salve amulet (v1) detail.png|center|300x150px]]
+|[[File:Salve amulet detail.png|center|300x150px]]
+|-
+|[[File:Salve amulet v1.png|center]]
+|[[File:Salve amulet.png|center]]
+|-
+|21 December 2004 –<br/>8 August 2019
+|8 August 2019 –<br/>present
+|}
+
+==Trivia==
+* Contrary to the item's examine text, its strength and attack are increased by 16.67% rather than 15%.
+
+==References==
+{{Reflist}}
+
+{{Haunted Mine}}
+{{Amulets}}
+{{Attribute_affinities}}
+{{Prayer items}}
+{{Lair of Tarn Razorlor}}

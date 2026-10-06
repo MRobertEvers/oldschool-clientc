@@ -1,0 +1,252 @@
+[
+  {
+    "id": 1,
+    "name": "SPELLBOOK_SWAP",
+    "animationIds": [
+      6299
+    ],
+    "graphics": [
+      {
+        "id": 1062,
+        "durationTicks": 10,
+        "maxFrame": 15
+      }
+    ],
+    "stallTicks": 3
+  },
+  {
+    "id": 2,
+    "name": "HUMIDIFY",
+    "animationIds": [
+      6294
+    ],
+    "graphics": [
+      {
+        "id": 1061,
+        "durationTicks": 10,
+        "maxFrame": 20
+      }
+    ],
+    "stallTicks": 3
+  },
+  {
+    "id": 3,
+    "name": "HUNTER_KIT",
+    "animationIds": [
+      6303
+    ],
+    "graphics": [
+      {
+        "id": 1074,
+        "durationTicks": 7,
+        "maxFrame": 7
+      }
+    ],
+    "stallTicks": 2
+  },
+  {
+    "id": 4,
+    "name": "NPC_CONTACT",
+    "animationIds": [
+      4413,
+      11904
+    ],
+    "graphics": [
+      {
+        "id": 728,
+        "durationTicks": 8,
+        "maxFrame": 20
+      },
+      {
+        "id": 3055,
+        "durationTicks": 7,
+        "maxFrame": 34
+      }
+    ],
+    "stallTicks": 7
+  },
+  {
+    "id": 5,
+    "name": "VENGEANCE",
+    "animationIds": [
+      8316
+    ],
+    "graphics": [
+      {
+        "id": 726,
+        "durationTicks": 4,
+        "maxFrame": 12
+      },
+      {
+        "id": 2605,
+        "durationTicks": 6,
+        "maxFrame": 40
+      }
+    ],
+    "stallTicks": 0
+  },
+  {
+    "id": 6,
+    "name": "VENGEANCE_OTHER",
+    "animationIds": [
+      4411
+    ],
+    "targetGraphics": [
+      {
+        "id": 725,
+        "durationTicks": 4,
+        "maxFrame": 12
+      }
+    ],
+    "stallTicks": 0
+  },
+  {
+    "id": 7,
+    "name": "HEAL_OTHER",
+    "animationIds": [
+      4411
+    ],
+    "targetGraphics": [
+      {
+        "id": 736,
+        "durationTicks": 8,
+        "maxFrame": 11
+      }
+    ],
+    "stallTicks": 0
+  },
+  {
+    "id": 8,
+    "name": "DEATH_CHARGE",
+    "animationIds": [],
+    "graphics": [
+      {
+        "id": 3288,
+        "durationTicks": 4,
+        "maxFrame": 22
+      }
+    ],
+    "stallTicks": 0
+  },
+  {
+    "id": 9,
+    "name": "LESSER_CORRUPTION",
+    "animationIds": [],
+    "graphics": [
+      {
+        "id": 1877,
+        "durationTicks": 4,
+        "maxFrame": 4
+      }
+    ],
+    "stallTicks": 0
+  },
+  {
+    "id": 10,
+    "name": "GREATER_CORRUPTION",
+    "animationIds": [],
+    "graphics": [
+      {
+        "id": 1878,
+        "durationTicks": 4,
+        "maxFrame": 4
+      }
+    ],
+    "stallTicks": 0
+  },
+  {
+    "id": 11,
+    "name": "SHADOW_VEIL",
+    "animationIds": [
+      8979
+    ],
+    "graphics": [
+      {
+        "id": 1881,
+        "durationTicks": 3,
+        "maxFrame": 13
+      }
+    ],
+    "stallTicks": 0
+  },
+  {
+    "id": 12,
+    "name": "VILE_VIGOUR",
+    "animationIds": [
+      8978
+    ],
+    "graphics": [
+      {
+        "id": 1876,
+        "durationTicks": 4,
+        "maxFrame": 10
+      }
+    ],
+    "stallTicks": 0
+  },
+  {
+    "id": 13,
+    "name": "WARD_OF_ARCEUUS",
+    "animationIds": [],
+    "graphics": [
+      {
+        "id": 1851,
+        "durationTicks": 6,
+        "maxFrame": 11
+      }
+    ],
+    "stallTicks": 0
+  },
+  {
+    "id": 14,
+    "name": "MARK_OF_DARKNESS",
+    "animationIds": [],
+    "graphics": [
+      {
+        "id": 1852,
+        "durationTicks": 4,
+        "maxFrame": 10
+      }
+    ],
+    "stallTicks": 0
+  },
+  {
+    "id": 15,
+    "name": "RESURRECT_GREATER_GHOST",
+    "animationIds": [],
+    "graphics": [
+      {
+        "id": 1873,
+        "durationTicks": 5,
+        "maxFrame": 10
+      }
+    ],
+    "stallTicks": 0
+  },
+  {
+    "id": 16,
+    "name": "RESURRECT_GREATER_SKELETON",
+    "animationIds": [],
+    "graphics": [
+      {
+        "id": 1874,
+        "durationTicks": 5,
+        "maxFrame": 10
+      }
+    ],
+    "stallTicks": 0
+  },
+  {
+    "id": 17,
+    "name": "RESURRECT_GREATER_ZOMBIE",
+    "animationIds": [],
+    "graphics": [
+      {
+        "id": 1875,
+        "durationTicks": 5,
+        "maxFrame": 10
+      }
+    ],
+    "stallTicks": 0
+  }
+]

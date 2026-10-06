@@ -1,0 +1,77 @@
+{{Infobox Monster
+|version1 = Normal
+|version2 = Challenge Mode
+|name = Abyssal portal
+|image = [[File:Abyssal portal.png|255px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[17 May]] [[2018]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size = 4
+|examine = A portal has opened into the Abyss!
+|attributes = xerician
+|xpbonus = 0
+|max hit = 0
+|aggressive = Yes
+|poisonous = No
+|attack style = None
+|attack speed = 2
+|hitpoints1 = 250
+|hitpoints2 = 370
+|scaledhp = Yes
+|att = 1
+|str = 1
+|def1 = 176
+|def2 = 264
+|mage1 = 176
+|mage2 = 264
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 60
+|dlight = 140
+|dstandard = 140
+|dheavy = 110
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|id = 7533
+}}
+The '''abyssal portal''' is a portal that leads deep into the [[Abyss]], and was created by [[Xeric]]. While admiring the other world, [[Vespula]] flew through the portal and attacked Xeric's crew, who fled the scene. Vespula now controls the area and tends to her offspring while protecting the portal.
+
+The portal must be destroyed in order to dispel Vespula and her offspring to proceed further into the caves. However, attacking the portal when Vespula is flying will cause her to enrage, attacking nearby players; she will stop flying once she reaches 23% of her Hitpoints, making it safer to attack the portal. If any of her [[lux grub]]s grow into [[vespine soldier]]s, Vespula and the abyssal portal will both regain hitpoints while they are alive. If under attack the abyssal portal will drain the prayer points of players standing in range by three points every two ticks; if prayer points are already depleted, then three damage will be applied instead. This is indicated with a faint green projectile, though players using the [[Redemption]] method should not be hit by this attack.
+
+The portal is [[Attack range|seven tiles]] away from the accessible area, though a weapon with an 8-tile range is highly recommended, as otherwise players will be hit by Vespula's melee if she is enraged. Notably, crossbows other than [[Armadyl crossbow|Armadyl]] or [[Zaryte crossbow|Zaryte]] and one-handed powered staves require longrange attack style to use reliably with the Redemption method. The portal is weaker to [[Magic]] despite its high Magic level, making it ideal to use [[Tumeken's shadow]] or a [[harmonised Nightmare staff]]; otherwise, ranged is preferable.
+
+The abyssal portal regenerates its stats at a rate of 1 per 45 ticks, faster than the standard rate of 1 per 100 ticks.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1524701424460628080|date=9 July 2026|quote=Stone guardians - 8 Muttadiles - 15 Vasa Nistirio - 10 Vasa's crystal - 9 Tekton - 15 LizardShamans - 20 Skeletal mystics - 25 Jewelled Crabs - 1 Vespula - 10 Vespula's portal - 45 Vespula's grubs - 10000 (i.e. never) Vespine soldier (flying) - 16 Vespine soldier (walking) - 10000 Otherwise default should be 100, as for outside CoX.|ctxquote=Hi@JagexAsh would you per chance be able to say the regen time (in ticks) for mobs in chambers?}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = 
+* The Abyssal portal now has 50% elemental weakness to [[fire spell]]s.
+* The Abyssal portal's heavy [[Ranged]] defence has been lowered from 140 to 110.
+}}
+{{Subject changes
+|date = 7 April 2017
+|update = Easter 2017 Holiday Event
+|change = The Abyssal portal now gives more reward points per unit damage dealt to it. It also spawns some potions on the ground when it is destroyed.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}

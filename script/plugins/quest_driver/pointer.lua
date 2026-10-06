@@ -1074,15 +1074,10 @@ function QD.drive._frame(target, index, deadline, settle)
     if yaw == nil then
         return "not_visible", "target shares the player's tile"
     end
-    local camera_result = api_drive.camera(yaw, pose.pitch, pose.zoom)
-    if camera_result ~= "ok" then
-        return camera_result, "camera"
-    end
-    if settle then
-        local result, pos = QD.drive._await_settled(target, deadline,
-            "frame.settle" .. tostring(index))
-        return result, pos
-    end
+    -- Through the one camera call (QD.drive.camera_aim): a test run writes
+    -- the pose and waits `deadline` for the projection, exactly as before;
+    -- a watched client turns until the target projects.
+    --
     -- SEAM private_vc_rat_projects_to_a_fixed_point (b63-seam1): A NAMED NPC
     -- COPY IS PRESSED AT ITS OWN POSE'S PIXEL.  The level below resolves in
     -- the pump that wrote the camera (EDGE + LEVEL, seam17 above), so the
@@ -1104,11 +1099,14 @@ function QD.drive._frame(target, index, deadline, settle)
     -- already takes -- and every other target keeps the unsettled read the
     -- suite was measured on (seam17's three reasons; attack and cast name
     -- their copy too, but do not set it).
+    -- The skip is the snap's (a test run's pose write); a watched client's
+    -- turn polls the projection on its own clock and keeps it unskipped.
     local fresh = target.kind == "npc" and target.reach_fresh == true
-        and target.reach_element ~= nil
+        and target.reach_element ~= nil and not QD.drive._camera_watched()
     local polls = 0
-    QD.await({
-        level = function()
+    local camera_result = QD.drive.camera_aim({ yaw = yaw, pitch = pose.pitch, zoom = pose.zoom,
+        purpose = "press",
+        projects = function()
             polls = polls + 1
             if fresh and polls <= 2 then
                 return false
@@ -1116,8 +1114,16 @@ function QD.drive._frame(target, index, deadline, settle)
             local r = api_drive.screen_position(target.kind, target.id)
             return r == "ok"
         end,
-        note = "frame.pose" .. tostring(index),
-    }, deadline)
+        snap_await = (not settle) and deadline or nil,
+        note = "frame.pose" .. tostring(index) })
+    if camera_result ~= "ok" then
+        return camera_result, "camera"
+    end
+    if settle then
+        local result, pos = QD.drive._await_settled(target, deadline,
+            "frame.settle" .. tostring(index))
+        return result, pos
+    end
     return api_drive.screen_position(target.kind, target.id)
 end
 
@@ -1938,8 +1944,197 @@ function QD.drive.op(target, option)
     return api_drive.world_op(target.kind, target.id, slot)
 end
 
+-- THE ONE CAMERA CALL (raid seam25 watched_camera_and_shots).  Owner,
+-- 2026-10-05: "Only the watched client should turn the camera, headless can
+-- just snap, but make sure they both work and that the tests don't rely on
+-- the snapping behavior - that should be handled by the code in a single
+-- call."  QD.drive.camera_aim is that call: the ONLY caller of the two
+-- camera writers (api_drive.camera, the snap, and api_drive.camera_turn_toward,
+-- the turn), and the only place that reads which one this client gets.
+--
+--   want = { yaw, pitch, zoom,              -- the pose asked for
+--            purpose = "press" | "pose" | "photograph",
+--            projects = function() -> bool, -- "press": the target is on
+--                                           -- screen (the thing asked for)
+--            snap_await = ticks,            -- the snap's settle wait for
+--                                           -- `projects` (today's numbers)
+--            note = string }
+--   -> result, detail  (detail.mode "snap" | "turn" | "refused")
+--
+-- A TEST RUN SNAPS: the pose is written at once (DrivePointer_Camera) and,
+-- when `projects` and `snap_await` are given, the same await the callers made
+-- before this call existed -- the same writes in the same frames, so every
+-- headless ledger is byte-identical.
+--
+-- A WATCHED CLIENT (api_drive.status().on_demand, the Scripts tab) TURNS:
+-- once a frame it asks api_drive.camera_turn_toward to hold the arrow keys a
+-- person would hold (and roll the wheel a notch at a time) toward the pose,
+-- the shortest way round, and it stops as soon as `projects` answers true --
+-- it need not reach the pose.  "pose" stops when the pose is reached, then
+-- writes the last few units exactly (a test asked for THAT pose: a zoom the
+-- wheel's band cannot reach, or a pointer off the world, would otherwise
+-- leave it short).  "photograph" never moves a watched camera (63ea41d39).
+-- The deadline is the call's own per mode (QD.drive._camera_turn_ticks for a
+-- turn); a turn the client will not make (a cutscene or an unlocked camera
+-- owns the angles, no bus) or one that runs out of time falls back to the
+-- snap, so a watched run reaches the same verdicts.  Every way out of a turn
+-- lets go of the keys.  The driver never turns back afterwards.
+QD.drive._camera_turn_ticks = 12
+-- Polls a turn keeps going after the pose arrived with the target still off
+-- screen (the coast after the release can carry it on).
+QD.drive._camera_turn_arrived_polls = 6
+QD.drive._camera_turn_stats = { aims = 0, snaps = 0, turns = 0, turned_polls = 0,
+    longest_turn_polls = 0, presses_waited = 0, fallbacks = 0, finish_writes = 0,
+    photographs_refused = 0 }
+-- Bumped by every turn that held a key for at least one poll: a fast press
+-- that re-aimed counts its own deadline from the poll the turn ended on
+-- (QD.drive._quick_aim).
+QD.drive._camera_turn_serial = 0
+
+-- `_camera_turn_forced` is the conformance stanza's and a scratch proof's
+-- way to drive the TURN path in a headless test run (the mode is otherwise
+-- the client's, never a test's); no kept test sets it.
+QD.drive._camera_turn_forced = false
+
+function QD.drive._camera_watched()
+    if QD.drive._camera_turn_forced then
+        return true
+    end
+    if api_drive.status == nil then
+        return false
+    end
+    local status_result, status = api_drive.status()
+    if type(status_result) == "table" then
+        status = status_result
+    end
+    if not (type(status) == "table" and status.on_demand) then
+        return false
+    end
+    -- The runner camera split: when the script has a view of its OWN, nobody
+    -- sees its camera (the watcher's view is presented), so a turn would be
+    -- a cost with no eyes on it; the runner snaps like a test run and the
+    -- watcher's camera never moves either way. "Watched" is on_demand with
+    -- NO view of its own (a lane that cannot carry one).
+    if api_drive.view_status ~= nil then
+        local view_result, view = api_drive.view_status()
+        if view_result == "ok" and type(view) == "table" and view.attached then
+            return false
+        end
+    end
+    return true
+end
+
+local function camera_aim_snap(want, stats)
+    stats.snaps = stats.snaps + 1
+    local result, detail = api_drive.camera(want.yaw, want.pitch, want.zoom)
+    if result ~= "ok" then
+        return result, { mode = "snap", why = detail }
+    end
+    if want.projects ~= nil and want.snap_await ~= nil then
+        QD.await({ level = want.projects, note = want.note }, want.snap_await)
+    end
+    return result, { mode = "snap" }
+end
+
+function QD.drive.camera_aim(want)
+    assert(type(want) == "table")
+    assert(want.yaw ~= nil)
+    assert(want.pitch ~= nil)
+    assert(want.zoom ~= nil)
+    local stats = QD.drive._camera_turn_stats
+    stats.aims = stats.aims + 1
+    if not QD.drive._camera_watched() then
+        return camera_aim_snap(want, stats)
+    end
+    if want.purpose == "photograph" then
+        stats.photographs_refused = stats.photographs_refused + 1
+        return "refused", { mode = "refused",
+            why = "a watched client never moves the camera for a photograph" }
+    end
+    if api_drive.camera_turn_toward == nil then
+        return camera_aim_snap(want, stats)
+    end
+    local polls, arrived_polls, held_polls = 0, 0, 0
+    local met, arrived, turn_result = false, false, nil
+    -- A target that already projects when the turn starts is a caller asking
+    -- for THIS pose's view of it (the press ladders' next pose after a
+    -- covered press, _quick_alt_pose): turn to the pose, do not stop on the
+    -- projection it already had.
+    local new_view = false
+    -- No pcall in the driver's sandbox: a script that ends inside this await
+    -- (a Stop, an error) leaves the arrows to PluginDrivePointer_RegisterLua,
+    -- which lets go of them when the watched client reloads the driver.
+    QD.await({
+        level = function()
+            polls = polls + 1
+            if want.projects ~= nil and not new_view and want.projects() then
+                if polls > 1 then
+                    met = true
+                    return true
+                end
+                new_view = true
+            end
+            local result, state = api_drive.camera_turn_toward(want.yaw, want.pitch, want.zoom)
+            if result ~= "ok" then
+                turn_result = result
+                return true
+            end
+            if state.arrived then
+                arrived = true
+                if want.projects == nil or new_view then
+                    met = true
+                    return true
+                end
+                arrived_polls = arrived_polls + 1
+                return arrived_polls > QD.drive._camera_turn_arrived_polls
+            end
+            held_polls = held_polls + 1
+            return false
+        end,
+        note = "camera.turn " .. tostring(want.note or want.purpose),
+    }, QD.drive._camera_turn_ticks)
+    api_drive.camera_turn_release()
+    if held_polls > 0 then
+        QD.drive._camera_turn_serial = QD.drive._camera_turn_serial + 1
+        stats.turns = stats.turns + 1
+        stats.turned_polls = stats.turned_polls + held_polls
+        if held_polls > stats.longest_turn_polls then
+            stats.longest_turn_polls = held_polls
+        end
+        if want.purpose == "press" then
+            stats.presses_waited = stats.presses_waited + 1
+        end
+    end
+    if turn_result ~= nil or (not met and not arrived) then
+        -- The client would not turn (turn_result) or the turn ran out of
+        -- time: the snap, so the run goes on to the same verdict.
+        stats.fallbacks = stats.fallbacks + 1
+        local result, detail = camera_aim_snap(want, stats)
+        detail.mode = "turn->snap"
+        detail.why = tostring(turn_result or "turn deadline")
+        detail.polls = polls
+        return result, detail
+    end
+    if want.purpose == "pose" then
+        local pose_result, live = api_drive.camera_pose()
+        if pose_result == "ok" and type(live) == "table"
+            and (live.yaw ~= (want.yaw % 2048) or live.pitch ~= want.pitch
+                or live.zoom ~= want.zoom) then
+            stats.finish_writes = stats.finish_writes + 1
+            api_drive.camera(want.yaw, want.pitch, want.zoom)
+        end
+    end
+    return "ok", { mode = "turn", polls = polls, held = held_polls, met = met,
+        new_view = new_view }
+end
+
+-- A test's own camera verb: a POSE (t.drive.camera(yaw, pitch, zoom)),
+-- through the one call -- a snap in a test run, a turn to the pose in a
+-- watched client.  Answers what api_drive.camera answered.
 function QD.drive.camera(yaw, pitch, zoom)
-    return api_drive.camera(yaw, pitch, zoom)
+    local result, detail = QD.drive.camera_aim({ yaw = yaw, pitch = pitch, zoom = zoom,
+        purpose = "pose", note = "drive.camera" })
+    return result, detail.why
 end
 
 -- The live follow-camera pose: ("ok", {yaw, pitch, zoom, owned}), or
@@ -2111,6 +2306,16 @@ function QD.drive._shot_plan()
     if api_drive.camera_pose == nil then
         return nil, nil, "no camera_pose verb in this binary"
     end
+    -- A WATCHED client (TORIRS_DRIVE_ON_DEMAND=1, the Scripts tab) re-aims for
+    -- a photograph only through the script's OWN view (the runner camera
+    -- split: the aim and the picture are the runner's, the watcher's camera
+    -- never moves). Where no view of its own is attached -- a lane that
+    -- cannot carry one -- the one-frame aim would be a flicker to the person
+    -- watching (owner, 2026-10-05), so the shot is the live pose's own
+    -- picture. A test run's status has no `on_demand`.
+    if QD.drive._camera_watched() then
+        return nil, nil, "a watched client with no view of its own photographs the live pose"
+    end
     local pose_result, live = api_drive.camera_pose()
     if pose_result ~= "ok" then
         return nil, nil, "camera_pose " .. tostring(pose_result)
@@ -2190,6 +2395,10 @@ end
 -- tile and the server ticks the walk took, so the row says where the player
 -- stands, not only that a wait was met.
 function QD.player.walk_to(x, z, ticks)
+    -- SEAM-TOGETHER (raid seam27): inside t.together, press and do not wait.
+    if QD._together ~= nil then
+        return QD._together_move(x, z, "walk")
+    end
     local start_tick = api_drive.tick()
     local start_result, start = QD.world.tile()
     -- The deadline is the DISTANCE plus slack, not a flat 20.  One tile per
@@ -2370,6 +2579,10 @@ end
 -- An adjacent tile only (chebyshev 1); anything else is `refused` -- a walk
 -- is walk_to's job and has no single resolve tick.
 function QD.player.step_tick(x, z, ticks)
+    -- SEAM-TOGETHER (raid seam27): inside t.together, press and do not wait.
+    if QD._together ~= nil then
+        return QD._together_move(x, z, "step")
+    end
     if api_drive.server_tick == nil or api_drive.ticklog == nil then
         return "unsupported", "step_tick: this binary has no api_drive.server_tick/ticklog (rebuild)"
     end
@@ -4209,10 +4422,17 @@ end
 -- A numbered held op (OPHELD1..5).  `op` 0 is Examine, which is answered
 -- client-side; a negative op is the "Use" arming and is use_on's, not this
 -- verb's.
-function QD.player.inv_op(item, op)
+function QD.player.inv_op(item, op, opts)
     op = op or 1
     if op < 0 then
         return "unsupported", "inv_op: a negative op is use_on's arming half"
+    end
+    -- SEAM-FIGHT-SPEED (raid seam14): `opts.quick = true` is one click and
+    -- the next read, not this verb's settle (the banner at the end of file).
+    -- SEAM-TOGETHER (raid seam27): inside t.together every held press is quick.
+    if QD.player._quick_opts(opts, "inv_op") or QD._together ~= nil then
+        local quick_result, quick_detail = QD.player._inv_quick(item, op, "inv_op")
+        return quick_result, quick_detail
     end
     -- What was on the floor before the press, so a stack the press itself
     -- put there can be named (QD.player._inv_stray_drop, seam pass 19).
@@ -4415,7 +4635,13 @@ end
 -- cannot tell equipping from dropping, and `[opheld2,_] ~equip` refuses an
 -- item that has no worn slot -- which must read as `refused`, with the
 -- server's own sentence, not as success.
-function QD.player.equip(item)
+function QD.player.equip(item, opts)
+    -- SEAM-FIGHT-SPEED (raid seam14): `opts.quick = true` is one press and
+    -- the worn slot on the next read (QD.player._equip_quick, end of file).
+    -- SEAM-TOGETHER (raid seam27): inside t.together every equip is quick.
+    if QD.player._quick_opts(opts, "equip") or QD._together ~= nil then
+        return QD.player._equip_quick(item)
+    end
     local obj_result, obj_id = api_drive.symbol("obj", item)
     if obj_result ~= "ok" then
         return obj_result, item
@@ -6586,7 +6812,8 @@ function QD.drive._face_named_npc(target, deadline)
         pitch = pose.pitch
         zoom = pose.zoom
     end
-    if api_drive.camera(yaw, pitch, zoom) ~= "ok" then
+    if QD.drive.camera_aim({ yaw = yaw, pitch = pitch, zoom = zoom, purpose = "pose",
+        note = "face named npc" }) ~= "ok" then
         return nil
     end
     local polls = 0
@@ -8494,9 +8721,20 @@ end
 -- the camera as it stands.  `held` is what a line hunt already learnt: true
 -- (it found the pixel), false (no pixel it could reach holds the copy, so a
 -- press would only open a menu without it), nil (nothing probed yet).
+-- A fast press that needed a TURN (a watched client) counts its
+-- _quick_ticks from the poll the turn ended on, not from before it; a snap
+-- takes no time, so a test run's deadline is the one it always had.
+function QD.drive._quick_rebase(until_tick, turn_serial)
+    if QD.drive._camera_turn_serial ~= turn_serial then
+        return api_drive.tick() + QD.drive._quick_ticks - 1
+    end
+    return until_tick
+end
+
 function QD.drive._quick_aim(target, until_tick, pose_index)
     local how
     local pos_result, pos
+    local turn_serial = QD.drive._camera_turn_serial
     if pose_index ~= nil then
         pos_result, pos = QD.drive._frame(target, pose_index, 1)
         how = "pose " .. tostring(pose_index)
@@ -8516,6 +8754,7 @@ function QD.drive._quick_aim(target, until_tick, pose_index)
             how = "pose 1 (off frame at the caller's camera)"
         end
     end
+    until_tick = QD.drive._quick_rebase(until_tick, turn_serial)
     if pos_result ~= "ok" or type(pos) ~= "table" then
         return nil, pos_result, how .. " framed nothing (" .. tostring(pos_result) .. ")"
     end
@@ -8702,12 +8941,16 @@ function QD.drive._press_quick(target, option, before_retry)
             local alt = QD.drive._quick_alt_pose(target)
             account[#account + 1] = "re-aim: " .. tostring(why) .. "; camera nudge to pose "
                 .. tostring(alt)
+            local turn_serial = QD.drive._camera_turn_serial
             pos, how, held = QD.drive._quick_aim(target, until_tick, alt)
+            until_tick = QD.drive._quick_rebase(until_tick, turn_serial)
         end
     else
         local alt = QD.drive._quick_alt_pose(target)
         account[#account + 1] = "re-aim: camera nudge to pose " .. tostring(alt)
+        local turn_serial = QD.drive._camera_turn_serial
         pos, how, held = QD.drive._quick_aim(target, until_tick, alt)
+        until_tick = QD.drive._quick_rebase(until_tick, turn_serial)
     end
     if before_retry then
         local arm_result, arm_detail = before_retry()
@@ -8751,4 +8994,667 @@ function QD.drive._press_quick(target, option, before_retry)
         tail = tail .. "; the menus offered this op on no other copy"
     end
     return result, tostring(detail), tail, presses, offered
+end
+
+-- ==========================================================================
+-- SEAM fight_speed_inventory_presses (raid seam14, 2026-10-04) -- A HELD
+-- PRESS AT FIGHT SPEED.  Everything below this banner is this seam's; above
+-- it, two call sites only, each marked SEAM-FIGHT-SPEED: the opts.quick
+-- dispatch at the top of QD.player.inv_op and of QD.player.equip.
+--
+-- WHAT WAS WRONG.  A human eats, drinks or swaps a weapon with one click and
+-- the server acts on it the next tick.  The quest verbs wait for the world
+-- to go quiet after the click instead, and in a fight it never does:
+--   inv_op  = _settle_after_click (<= 10) + QD.settle (<= 30, "the frame is
+--             settled", which a moving wave never is) + _inv_quiet (three
+--             equal backpack reads) + QD.await's trailing msg.await("", 5);
+--             3 ticks a press in a calm Lumbridge (build/quest_gate/
+--             fsip_probe1: `eat shark ok 5->8 (3)`, `drink combat ok 8->11
+--             (3)`), up to 17 in the Nylocas room (seam13, s13_dev_nylo5);
+--   equip   = 1 tick when the press lands, but a press refused because the
+--             backpack cell was not live yet is retried through QD.await
+--             (one tick, then up to five more waiting for a chat line), and a
+--             press the server dropped is re-pressed only after four.
+-- tob_nylocas's own account (build/quest_gate/tob_nylocas): `ticks spent
+-- equip 83 eat 167` for 54 eats and drinks.  Every Entry room test measured
+-- its damage taken at that handicap.
+--
+-- THE FAST PRESS.  The same click on the same backpack cell
+-- (api_drive.inv_op -> app_plugin_inv_op -> the minimenu dispatcher a real
+-- click reaches; never a server op), then ONE wait on the chunk's own await
+-- -- never QD.await, whose ok carries a five-tick chat wait -- for the press's
+-- own effect on the next read: the pressed cell no longer holding what it
+-- held (the shark eaten, the dose drunk, the weapon gone from the backpack)
+-- or the worn total of the item risen.  Bounded by QUICK_PRESS_TICKS, so it
+-- returns the tick the effect is readable: one tick after the click lands.
+-- A refusal from the dispatcher (the cell not displayed yet) re-presses the
+-- tab and waits FRAMES, not ticks, at most QUICK_PRESS_ATTEMPTS times; the
+-- refusal is DRIVE_REFUSED-before-dispatch (the banner above _inv_press), so
+-- a re-press can never double-send.  No re-press after a press that left:
+-- a press the server ignored (the eat delay, a level requirement) answers
+-- `timeout` naming what the cell still holds and the last chat line, and the
+-- caller decides, as a player would, whether to click again.
+-- ==========================================================================
+QD.player.QUICK_PRESS_TICKS = 2
+QD.player.QUICK_PRESS_ATTEMPTS = 3
+QD.player.QUICK_PAINT_FRAMES = 3
+
+-- opts.quick, decided one way for inv_op and equip (combat.lua's
+-- QD._combat_quick is the attack verbs'; this has no ticks argument to read).
+function QD.player._quick_opts(opts, verb)
+    if opts == nil then
+        return false
+    end
+    assert(type(opts) == "table", verb .. ": opts is not a table")
+    if opts.quick == nil then
+        return false
+    end
+    assert(type(opts.quick) == "boolean", verb .. ": opts.quick must be true or false")
+    return opts.quick
+end
+
+-- The server's own tick (srv->tick), or the client clock on a binary without
+-- api_drive.server_tick: every detail below states which ticks it counted.
+function QD.player._quick_now()
+    local result, tick = QD.tick()
+    if result == "ok" then
+        return tick
+    end
+    return api_drive.tick()
+end
+
+function QD.player._quick_frames(frames, note)
+    -- SEAM-TOGETHER (raid seam27): a block counts the frames it waited.
+    if QD._together ~= nil then
+        QD._together.frames = QD._together.frames + frames
+    end
+    local seen = 0
+    return await({
+        level = function()
+            seen = seen + 1
+            return seen > frames
+        end,
+        note = note,
+    }, 1)
+end
+
+-- The press, fast: (result, cell, where, refusal).  _inv_press's shape.
+function QD.player._inv_press_quick(item, op)
+    local tab_result, tab_detail = QD.player._show_backpack()
+    local refusal = nil
+    local attempt = 0
+    while true do
+        local cell_result, cell = QD.player._inv_cell(item)
+        if cell_result ~= "ok" then
+            return cell_result, nil, cell, refusal
+        end
+        attempt = attempt + 1
+        local result, why = api_drive.inv_op(
+            cell.component_id, cell.slot, cell.obj_id, cell.count, op)
+        local where = item .. " slot " .. tostring(cell.slot) .. " op " .. tostring(op)
+        if tab_result ~= "ok" then
+            where = where .. " (tab " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. ")"
+        end
+        if attempt > 1 then
+            where = where .. " [pressed on attempt " .. tostring(attempt)
+                .. "; the first answered '" .. tostring(refusal) .. "']"
+        end
+        if result ~= "refused" then
+            return result, cell, where, why
+        end
+        refusal = why
+        if attempt >= QD.player.QUICK_PRESS_ATTEMPTS then
+            return "refused", cell, where, refusal
+        end
+        tab_result, tab_detail = QD.player._show_backpack()
+        QD.player._quick_frames(QD.player.QUICK_PAINT_FRAMES,
+            "quick press: the backpack cell is not live yet (" .. tostring(refusal) .. ")")
+    end
+end
+
+function QD.player._quick_obj_text(obj_id, count)
+    if obj_id == nil or obj_id < 0 then
+        return "(empty)"
+    end
+    local name_result, name = api_drive.symbol_name("obj", obj_id)
+    local text = name_result == "ok" and name or ("obj " .. tostring(obj_id))
+    if count ~= nil and count ~= 1 then
+        text = text .. " x" .. tostring(count)
+    end
+    return text
+end
+
+function QD.player._quick_hp()
+    local result, stat = QD.skill.read("hitpoints")
+    if result == "ok" and type(stat) == "table" then
+        return stat.level
+    end
+    return nil
+end
+
+-- ONE fast held press and its effect: (result, detail, landed).  `landed` is
+-- a table { cell =, now_text =, worn_text =, tick =, pressed = } on ok.
+-- `label` names the verb in the detail.
+function QD.player._inv_quick(item, op, label)
+    -- SEAM-TOGETHER (raid seam27): inside t.together, press and do not wait.
+    if QD._together ~= nil then
+        return QD._together_held(item, op, label)
+    end
+    local worn_edge = QD.player._inv_worn_edge(item)
+    local serial_result, serial_before = api_drive.message_serial()
+    local pressed = QD.player._quick_now()
+    local result, cell, where, refusal = QD.player._inv_press_quick(item, op)
+    if cell == nil then
+        return result, label .. ": " .. tostring(where)
+    end
+    if result ~= "ok" then
+        return result, label .. " " .. where .. " -- " .. tostring(refusal)
+    end
+    local container_result, container_id = QD._inv_container()
+    assert(container_result == "ok", "the backpack container resolved for the press and not after it")
+    local landed = nil
+    local awaited = await({
+        level = function()
+            local slot_result, slot = api_drive.inv_slot(container_id, cell.slot)
+            local changed = slot_result == "ok"
+                and (slot.obj_id ~= cell.obj_id or slot.count ~= cell.count)
+            local worn_text = worn_edge ~= nil and worn_edge() or nil
+            if not changed and worn_text == nil then
+                return false
+            end
+            landed = {
+                cell = cell,
+                now_text = slot_result == "ok" and QD.player._quick_obj_text(slot.obj_id, slot.count) or "?",
+                worn_text = worn_text,
+                tick = QD.player._quick_now(),
+                pressed = pressed,
+            }
+            return true
+        end,
+        note = label .. " " .. item .. " (quick press)",
+    }, QD.player.QUICK_PRESS_TICKS)
+    if QD.player._death_fence ~= nil and QD.player._death_fence("a quick held press") then
+        return "refused", QD.player._death_text(QD._death)
+    end
+    local before_text = QD.player._quick_obj_text(cell.obj_id, cell.count)
+    if awaited ~= "ok" or landed == nil then
+        local line = ""
+        if serial_result == "ok" then
+            local list_result, list = api_drive.messages()
+            if list_result == "ok" and type(list) == "table" then
+                for i = 1, #list do
+                    if list[i].serial > serial_before then
+                        line = tostring(list[i].text)
+                        break
+                    end
+                end
+            end
+        end
+        local now = QD.player._quick_now()
+        return "timeout", label .. " " .. where .. ": pressed on tick " .. tostring(pressed)
+            .. ", slot still " .. before_text .. " on tick " .. tostring(now) .. " ("
+            .. tostring(now - pressed) .. " tick(s)) -- "
+            .. (line ~= "" and ("the server said '" .. line .. "'") or "no new chat line")
+            .. "; not re-pressed (a fast press is one click)"
+    end
+    local text = label .. " " .. where .. ": " .. before_text .. " -> " .. landed.now_text
+    if landed.worn_text ~= nil then
+        text = text .. " [" .. landed.worn_text .. "]"
+    end
+    text = text .. ", read on tick " .. tostring(landed.tick) .. " (pressed on "
+        .. tostring(pressed) .. ", +" .. tostring(landed.tick - pressed) .. ")"
+    return "ok", text, landed
+end
+
+-- `item` for eat/drink may be one symbol or a list (a potion's doses, most
+-- doses last or first as the caller orders them): the first one held.
+function QD.player._quick_first_held(item, verb)
+    if type(item) == "string" then
+        return item
+    end
+    assert(type(item) == "table" and #item > 0, verb .. ": item is neither a symbol nor a list of symbols")
+    for i = 1, #item do
+        local count_result, count = QD.inv.count(item[i])
+        if count_result == "ok" and (count or 0) > 0 then
+            return item[i]
+        end
+    end
+    return nil
+end
+
+-- t.player.eat(item, opts) / t.player.drink(item, opts) -> ok timeout refused
+-- not_found.  ALWAYS the fast press (there is no slow shape to keep): op
+-- `opts.op` or 1 (every food's Eat, every potion's Drink in the cache).
+-- ok = the pressed cell changed on the next read (the food gone, the dose one
+-- lower); the detail carries hitpoints before -> after as READ, which in a
+-- fight includes whatever hit landed on the same tick.
+function QD.player._consume(verb, item, opts)
+    if opts ~= nil then
+        assert(type(opts) == "table", verb .. ": opts is not a table")
+        assert(opts.op == nil or type(opts.op) == "number", verb .. ": opts.op is not a number")
+    end
+    local op = (opts and opts.op) or 1
+    local held = QD.player._quick_first_held(item, verb)
+    if held == nil and QD._together ~= nil then
+        -- SEAM-TOGETHER (raid seam27): named in the block's detail, never dropped.
+        return QD._together_refuse(verb .. " " .. table.concat(item, "/"), "none of them is in the backpack")
+    end
+    if held == nil then
+        return "not_found", verb .. ": none of " .. table.concat(item, ", ") .. " is in the backpack"
+    end
+    local hp_before = QD.player._quick_hp()
+    local result, detail = QD.player._inv_quick(held, op, verb)
+    if result ~= "ok" then
+        return result, detail
+    end
+    return "ok", detail .. "; hitpoints " .. tostring(hp_before) .. " -> " .. tostring(QD.player._quick_hp())
+end
+
+function QD.player.eat(item, opts)
+    return QD.player._consume("eat", item, opts)
+end
+
+-- t.player.drink's item-list shape; the verb itself is combat.lua's
+-- dispatcher (QD.player.drink), which also answers a supply family.
+function QD.player._drink_items(item, opts)
+    return QD.player._consume("drink", item, opts)
+end
+
+-- equip(item, { quick = true }): one press, ok when the worn total of the
+-- item rose on the next read; `refused` when the press left and the server
+-- said why in a line (a level requirement), `timeout` otherwise.
+function QD.player._equip_quick(item)
+    local result, detail, landed = QD.player._inv_quick(item, 2, "equip")
+    if result == "ok" and (landed == nil or landed.worn_text == nil) then
+        -- The cell changed but nothing went on: read the worn edge once more
+        -- (the worn update can be a frame behind the backpack's), then name it.
+        local worn_result, worn_cell = QD.player._worn_cell(item)
+        if worn_result ~= "ok" then
+            return "refused", detail .. " -- the backpack changed but " .. item .. " is not worn"
+        end
+        return "ok", detail .. " [worn " .. tostring(worn_cell.symbol) .. "]"
+    end
+    if result == "timeout" and string.find(detail, "the server said", 1, true) then
+        return "refused", detail
+    end
+    return result, detail
+end
+
+-- ==========================================================================
+-- SEAM several_inputs_one_tick (raid seam27, 2026-10-05) -- SEVERAL INPUTS
+-- IN ONE SERVER TICK.  Everything below this banner is this seam's; above
+-- it, only the call sites marked SEAM-TOGETHER: the top of
+-- QD.player._inv_quick, QD.player._consume's miss, QD.player._quick_frames'
+-- frame count, the quick dispatch of QD.player.inv_op and QD.player.equip,
+-- QD.player.step_tick, QD.player.walk_to; and prayer.lua's QD.prayer.set.
+--
+-- WHAT WAS WRONG.  Every fast verb pressed and then waited for its own
+-- effect, which is readable one tick later, so N presses cost N ticks: a
+-- two-prayer switch, a bow and its arrows took four (tob_verzik.lua
+-- :1139-1143).  A player lands all of that in one tick.
+--
+-- THE SOURCES.  OSRS runs one tick as client input -> npcs -> players
+-- (ENCOUNTER_TIMING.md 1.1, the wiki's Tick manipulation after Mod Ash), and
+-- the input phase runs every packet the client sent since the last tick, in
+-- the order sent.  LostCity's engine bounds it: NetworkPlayer.decodeIn
+-- (Engine-TS src/engine/entity/NetworkPlayer.ts:55-74) reads packets while
+-- fewer than ClientGameProtCategory.USER_EVENT.limit = 5 user events
+-- (ClientGameProtCategory.ts:6; IfButton, OpHeld, InvButton, MoveClick are
+-- all USER_EVENT) have succeeded this tick; what is left waits in the buffer
+-- for the next tick (never dropped).  Food: "The 3 tick Eat delay"; "Potions
+-- do not incur the standard 3 tick ... delay"; "consuming a marlin, Saradomin
+-- brew, and halibut - in that order - allows 60 hitpoints to be healed at
+-- once" (wiki Food/Fast foods, Combo eating).  OSRS's own per-tick cap is in
+-- no source quoted here (DRIVER_NOTES row); the block's cap is
+-- QD.TOGETHER_MAX_INPUTS below, chosen to hold a full gear switch.
+--
+-- OUR SERVER.  ToriRSServer_SessionPump (torirs_server_session.c:1066)
+-- dispatches each packet the moment it arrives, between world ticks, and
+-- phase_clients_in (torirs_server_world.c:15081) is empty: every press made
+-- between ticks T-1 and T is in force for tick T, in the order sent, with NO
+-- per-tick cap.  Same order as the source; the missing cap is the one
+-- difference (DRIVER_NOTES row, not fixed here: the dispatch is not in the
+-- two mock239 files and a buffered intake is an engine change).
+--
+-- THE FORM.  t.together(function() ... end) -> result, detail.  Inside the
+-- body every hooked verb PRESSES and returns ("pending", what it pressed)
+-- without waiting: t.player.eat / drink, t.player.equip (always the quick
+-- press inside a block), t.player.inv_op (the same), t.prayer.set,
+-- t.player.step_tick, t.player.walk_to.  The block then waits for EVERY
+-- effect together (bounded by QD.TOGETHER_CONFIRM_TICKS) and answers ONE detail naming
+-- each input, the server tick it was pressed on and the tick it was
+-- confirmed on:
+--   ok       every input pressed on one tick and confirmed;
+--   split    every input confirmed, but the tick rolled over between the
+--            first press and the last (the detail names which inputs went
+--            on the later tick) -- nothing is re-pressed;
+--   refused  an input never left (the cell not live, a duplicate press of
+--            one cell or prayer, a second movement, over the cap) or the
+--            server said why (a prayer level) -- named;
+--   timeout  an input left and its effect never showed -- named.
+-- A tab change inside the block (inventory -> prayer -> inventory) is a
+-- press, as a person makes it: it costs FRAMES (QUICK_PAINT_FRAMES on a
+-- not-yet-live cell; the prayer button's paint wait), never a tick, and the
+-- detail counts the frames the block waited.  Write the block grouped by tab
+-- (prayers together, held items together) and movement last.
+--
+-- Do NOT call t.exec / t.check inside the body (each would write a row for
+-- a "pending" answer), and no slow verb (attack, talk, click_loc): it waits,
+-- the tick rolls over, and the block answers `split` naming it.
+-- ==========================================================================
+-- Ten: a six-piece gear switch, two prayers, a food and a step.  LostCity's
+-- engine takes five user events a tick and leaves the rest for the next; no
+-- quoted source states OSRS's number, so a block that wants more than the
+-- source's five is told so in its detail (`over LostCity's five`), and one
+-- that wants more than ten is refused at the eleventh press.
+QD.TOGETHER_MAX_INPUTS = 10
+QD.TOGETHER_SOURCE_CAP = 5
+-- The effects are readable one tick after the presses (seam14's quick press:
+-- `read on tick T+1`); the second tick is the room for a press made late in
+-- its tick.  An effect not seen by then is `timeout`, never waited for.
+QD.TOGETHER_CONFIRM_TICKS = 2
+QD._together = nil
+
+function QD._together_input(label)
+    local block = QD._together
+    local input = { label = label, index = #block.inputs + 1 }
+    block.inputs[input.index] = input
+    return input
+end
+
+-- An input that never left: recorded, named, and answered `refused`.
+function QD._together_refuse(label, why)
+    local input = QD._together_input(label)
+    input.refused = why
+    return "refused", "together input " .. input.index .. " " .. label .. " refused: " .. why
+end
+
+function QD._together_full(label)
+    local block = QD._together
+    if block.sent >= QD.TOGETHER_MAX_INPUTS then
+        return true, QD._together_refuse(label, "over the block's cap of "
+            .. QD.TOGETHER_MAX_INPUTS .. " inputs (not sent)")
+    end
+    return false
+end
+
+function QD._together_sent(input, pressed)
+    local block = QD._together
+    block.sent = block.sent + 1
+    input.pressed = pressed
+    if block.first_pressed == nil then
+        block.first_pressed = pressed
+    end
+    block.last_pressed = pressed
+    return "pending", "together input " .. input.index .. " " .. input.label
+        .. " pressed on tick " .. tostring(pressed)
+end
+
+-- A held press (eat, drink, equip, inv_op) inside a block.
+function QD._together_held(item, op, label)
+    local block = QD._together
+    local name = label .. " " .. item
+    local full, full_result, full_detail = QD._together_full(name)
+    if full then
+        return full_result, full_detail
+    end
+    local cell_result, cell = QD.player._inv_cell(item)
+    if cell_result ~= "ok" then
+        return QD._together_refuse(name, tostring(cell))
+    end
+    local owner = block.cells[cell.slot]
+    if owner ~= nil then
+        return QD._together_refuse(name, "backpack slot " .. cell.slot .. " was already pressed by input "
+            .. owner .. " of this block; the client shows the cell unchanged until the next tick, so a "
+            .. "second press would press the same cell twice")
+    end
+    local worn_edge = QD.player._inv_worn_edge(item)
+    local result, pressed_cell, where, refusal = QD.player._inv_press_quick(item, op)
+    if result ~= "ok" then
+        return QD._together_refuse(name, tostring(where) .. " -- " .. tostring(refusal))
+    end
+    local container_result, container_id = QD._inv_container()
+    assert(container_result == "ok", "the backpack container resolved for the press and not after it")
+    local input = QD._together_input(name)
+    block.cells[pressed_cell.slot] = input.index
+    local before_text = QD.player._quick_obj_text(pressed_cell.obj_id, pressed_cell.count)
+    input.confirm = function()
+        local slot_result, slot = api_drive.inv_slot(container_id, pressed_cell.slot)
+        local changed = slot_result == "ok"
+            and (slot.obj_id ~= pressed_cell.obj_id or slot.count ~= pressed_cell.count)
+        local worn_text = worn_edge ~= nil and worn_edge() or nil
+        -- An equip is confirmed by the WORN total rising, not by the cell
+        -- emptying: a press the server answered by dropping the item would
+        -- empty the cell too.
+        if label == "equip" then
+            if worn_text == nil then
+                return false
+            end
+        elseif not changed then
+            return false
+        end
+        local now_text = slot_result == "ok" and QD.player._quick_obj_text(slot.obj_id, slot.count) or "?"
+        return true, where .. ": " .. before_text .. " -> " .. now_text
+            .. (worn_text ~= nil and (" [" .. worn_text .. "]") or "")
+    end
+    return QD._together_sent(input, QD.player._quick_now())
+end
+
+-- A prayer toggle inside a block (prayer.lua's QD.prayer.set hands it here
+-- with the entry already resolved and the varbit already read).
+function QD._together_prayer(entry, want, word, before)
+    local block = QD._together
+    local name = "prayer " .. entry[1] .. " " .. word
+    if block.prayers[entry[1]] ~= nil then
+        return QD._together_refuse(name, "input " .. block.prayers[entry[1]]
+            .. " of this block already pressed " .. entry[1] .. "; a second press toggles it back")
+    end
+    if before == want then
+        local input = QD._together_input(name)
+        block.prayers[entry[1]] = input.index
+        input.already = true
+        input.confirm = function()
+            return true, entry[3] .. " already " .. tostring(want) .. " -- no press made"
+        end
+        return "pending", "together input " .. input.index .. " " .. name .. ": already " .. word .. ", no press"
+    end
+    local full, full_result, full_detail = QD._together_full(name)
+    if full then
+        return full_result, full_detail
+    end
+    local tab_result, tab_detail = QD.ui.tab("prayer")
+    if tab_result ~= "ok" then
+        return QD._together_refuse(name, "the prayer tab did not open: " .. tostring(tab_detail))
+    end
+    local component = nil
+    local looks = 0
+    local shown = await({
+        level = function()
+            looks = looks + 1
+            local result, id = api_drive.component(entry[2])
+            if result ~= "ok" then
+                return false
+            end
+            component = id
+            local presented_result, presented = api_drive.widget_presented(id)
+            return presented_result == "ok" and presented == true
+        end,
+        note = "together: " .. entry[2] .. " displayed",
+    }, QD.prayer.PAINT_TICKS)
+    if looks > 1 then
+        block.frames = block.frames + looks - 1
+    end
+    if shown ~= "ok" or component == nil then
+        return QD._together_refuse(name, entry[2] .. " was not displayed after the prayer tab opened ("
+            .. tostring(shown) .. ")")
+    end
+    local serial_result, since = api_drive.message_serial()
+    assert(serial_result == "ok", "together: the chat serial is unreadable")
+    local click_result, click_detail = api_drive.if_click(component, 1)
+    if click_result ~= "ok" then
+        return QD._together_refuse(name, "the press on " .. entry[2] .. " answered "
+            .. tostring(click_result) .. " " .. tostring(click_detail))
+    end
+    local input = QD._together_input(name)
+    block.prayers[entry[1]] = input.index
+    input.confirm = function()
+        local result, value = QD.prayer._varbit(entry)
+        if result == "ok" and value == want then
+            return true, entry[3] .. " " .. tostring(before) .. " -> " .. tostring(value)
+        end
+        local refusal = QD.prayer._refusal_since(since)
+        if refusal then
+            return false, nil, "the server said '" .. tostring(refusal) .. "'"
+        end
+        return false
+    end
+    return QD._together_sent(input, QD.player._quick_now())
+end
+
+-- A movement click inside a block: `kind` "step" (step_tick: confirmed when
+-- the player stands on x,z) or "walk" (walk_to: confirmed when the first step
+-- of the route is taken -- the rest of a walk is not this tick's).  One per
+-- block: the source keeps only the last movement of a tick, so a second is
+-- refused rather than sent to overwrite the first.
+function QD._together_move(x, z, kind)
+    local block = QD._together
+    local name = kind .. " " .. x .. "," .. z
+    if block.moved ~= nil then
+        return QD._together_refuse(name, "input " .. block.moved .. " of this block is already a movement; "
+            .. "only a tick's last movement counts, so a block takes one")
+    end
+    local full, full_result, full_detail = QD._together_full(name)
+    if full then
+        return full_result, full_detail
+    end
+    local here_result, here = QD.world.tile()
+    if here_result ~= "ok" or here == nil then
+        return QD._together_refuse(name, "no player tile")
+    end
+    if kind == "step" and QD.player._tile_distance(here.x, here.z, x, z) ~= 1 then
+        return QD._together_refuse(name, "step_tick takes an adjacent tile (" .. here.x .. "," .. here.z
+            .. " -> " .. x .. "," .. z .. ")")
+    end
+    local move_result = api_drive.move_to(x, z)
+    if move_result ~= "ok" then
+        return QD._together_refuse(name, "move_to answered " .. tostring(move_result))
+    end
+    local input = QD._together_input(name)
+    block.moved = input.index
+    input.confirm = function()
+        local now_result, now = QD.world.tile()
+        if now_result ~= "ok" or now == nil then
+            return false
+        end
+        local landed = (kind == "step" and now.x == x and now.z == z)
+            or (kind == "walk" and (now.x ~= here.x or now.z ~= here.z))
+        if not landed then
+            return false
+        end
+        return true, "tile " .. here.x .. "," .. here.z .. " -> " .. now.x .. "," .. now.z
+    end
+    return QD._together_sent(input, QD.player._quick_now())
+end
+
+-- t.together(body) -> ok | split | refused | timeout, detail.  The banner
+-- above says what each answer means.
+function QD.together(body)
+    assert(type(body) == "function", "t.together: the body must be a function")
+    assert(QD._together == nil, "t.together: a block inside a block")
+    local block = {
+        inputs = {},
+        sent = 0,
+        cells = {},
+        prayers = {},
+        moved = nil,
+        frames = 0,
+        opened = QD.player._quick_now(),
+        first_pressed = nil,
+        last_pressed = nil,
+    }
+    QD._together = block
+    body()
+    QD._together = nil
+    if #block.inputs == 0 then
+        return "refused", "t.together: the body pressed nothing (no eat, drink, equip, inv_op, prayer.set, "
+            .. "step_tick or walk_to ran inside it)"
+    end
+    local function sweep()
+        local all = true
+        for i = 1, #block.inputs do
+            local input = block.inputs[i]
+            if input.refused == nil and input.confirmed == nil then
+                local done, text, refusal = input.confirm()
+                if done then
+                    input.confirmed = QD.player._quick_now()
+                    input.text = text
+                elseif refusal ~= nil then
+                    input.refused = refusal
+                else
+                    all = false
+                end
+            end
+        end
+        return all
+    end
+    if not sweep() then
+        await({ level = sweep, note = "t.together: confirm " .. #block.inputs .. " input(s)" },
+            QD.TOGETHER_CONFIRM_TICKS)
+    end
+    if QD.player._death_fence ~= nil and QD.player._death_fence("a together block") then
+        return "refused", QD.player._death_text(QD._death)
+    end
+    local parts = {}
+    local refused, unconfirmed, late = {}, {}, {}
+    local last_confirmed = nil
+    for i = 1, #block.inputs do
+        local input = block.inputs[i]
+        local text = "[" .. i .. "] " .. input.label
+        if input.refused ~= nil then
+            refused[#refused + 1] = tostring(i)
+            text = text .. ": REFUSED " .. input.refused
+        elseif input.confirmed == nil then
+            unconfirmed[#unconfirmed + 1] = tostring(i)
+            text = text .. ": pressed " .. tostring(input.pressed) .. ", NOT confirmed by tick "
+                .. tostring(QD.player._quick_now())
+        else
+            if input.pressed ~= nil then
+                text = text .. ": pressed " .. input.pressed .. ", confirmed " .. input.confirmed
+                    .. " (+" .. (input.confirmed - input.pressed) .. ") " .. tostring(input.text)
+                if input.pressed ~= block.first_pressed then
+                    late[#late + 1] = tostring(i)
+                end
+            else
+                text = text .. ": " .. tostring(input.text)
+            end
+            if last_confirmed == nil or input.confirmed > last_confirmed then
+                last_confirmed = input.confirmed
+            end
+        end
+        parts[#parts + 1] = text
+    end
+    local head = "together: " .. block.sent .. " input(s) sent, opened on tick " .. tostring(block.opened)
+        .. ", pressed on " .. tostring(block.first_pressed)
+        .. (block.last_pressed ~= block.first_pressed and (".." .. tostring(block.last_pressed)) or "")
+        .. ", " .. block.frames .. " frame(s) waited inside the block"
+    if block.first_pressed ~= nil and last_confirmed ~= nil then
+        head = head .. "; first press -> last confirmation " .. (last_confirmed - block.first_pressed) .. " tick(s)"
+    end
+    if block.sent > QD.TOGETHER_SOURCE_CAP then
+        head = head .. "; " .. block.sent .. " is over LostCity's " .. QD.TOGETHER_SOURCE_CAP
+            .. " user events a tick (our server has no cap)"
+    end
+    local detail = head .. " -- " .. table.concat(parts, "; ")
+    if #refused > 0 then
+        return "refused", detail .. " -- input(s) " .. table.concat(refused, ", ") .. " did not take"
+    end
+    if #unconfirmed > 0 then
+        return "timeout", detail .. " -- input(s) " .. table.concat(unconfirmed, ", ")
+            .. " left and never showed an effect"
+    end
+    if #late > 0 then
+        return "split", detail .. " -- the tick rolled over before input(s) " .. table.concat(late, ", ")
+            .. " were pressed"
+    end
+    return "ok", detail
 end

@@ -1,0 +1,34 @@
+{{Infobox NPC
+|name = Corrupted scavenger
+|image = [[File:Corrupted scavenger.png|140px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|race = [[Scavenger]]
+|location = [[Chambers of Xeric]]
+|examine = Imprisonment has reduced it to a feral creature of pure instinct.
+|map = No
+|id = 7602,7603
+|leagueRegion = Kourend
+}}
+The '''corrupted scavenger''' is a type of [[scavenger]] found in the [[creature keeper]] room within the [[Chambers of Xeric]]. It is blocking the path, and needs to be removed from its spot by feeding it until it is full. The amount of players in the raid will determine how many [[cavern grubs]] are needed to make it full.
+
+Based on the [[Creature keeper's journal]], this scavenger was captured by the creature keeper, who domesticated it. The creature keeper locked [[Chest (Chambers of Xeric)|chests]] full of cavern grubs so it would be unable to get them itself. Looking for opponents for his scavenger, the creature keeper found some lizardmen in the cave but was attacked and poisoned by them. The scavenger was unaware that the creature keeper had died from the lizardman bite and patiently waits for its food.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 31 January 2019
+|update = Chambers of Xeric, Kebos, and Collection Log Changes
+|change = 
+*Depositing grubs now gives five times more points.
+*The Thieving level restriction was removed.
+*The scavenger will now eat faster.
+*The time before the scavenger starts to regenerate hunger has been increased from 30 to 60 seconds.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}

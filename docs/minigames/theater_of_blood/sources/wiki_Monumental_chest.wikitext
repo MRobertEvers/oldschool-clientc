@@ -1,0 +1,153 @@
+{{redirect|ToB chest|the supply chest|Chest (Theatre of Blood)}}
+{{Infobox Scenery
+|version1 = Closed (teammate's)
+|version2 = Closed (player's)
+|version3 = Closed (teammate's unique)
+|version4 = Closed (player's unique)
+|version5 = Opened (regular)
+|version6 = Opened (unique)
+|name = Monumental chest
+|image1 = [[File:Monumental chest (teammate's, closed).png|280px]]
+|image2 = [[File:Monumental chest (player's, closed).png|280px]]
+|image3 = [[File:Monumental chest (teammate's unique, closed).png|280px]]
+|image4 = [[File:Monumental chest (player's unique, closed).png|280px]]
+|image5 = [[File:Monumental chest (regular, opened).png|280px]]
+|image6 = [[File:Monumental chest (unique, opened).png|280px]]
+|release1 = [[7 June]] [[2018]]
+|release2 = [[7 June]] [[2018]]
+|release3 = [[7 June]] [[2018]]
+|release4 = [[7 June]] [[2018]]
+|release5 = [[7 June]] [[2018]]
+|release6 = [[3 June]] [[2021]]
+|update1 = The Theatre of Blood
+|update2 = The Theatre of Blood
+|update3 = The Theatre of Blood
+|update4 = The Theatre of Blood
+|update5 = The Theatre of Blood
+|update6 = Theatre of Blood: New Modes
+|members = Yes
+|quest = No
+|location = [[Theatre of Blood]]
+|options1 = Open
+|options2 = Open
+|options3 = Open
+|options4 = Open
+|options5 = Search
+|options6 = Search
+|examine1 = A chest worthy of the riches inside.
+|examine2 = A chest worthy of the riches inside.
+|examine3 = This one seems to shine brighter than the others!
+|examine4 = This one seems to shine brighter than the others!
+|examine5 = A chest worthy of the riches inside.
+|examine6 = A chest worthy of the magnificent riches inside.
+|map = {{Map|x:3233,y:4330|x:3226,y:4327|x:3226,y:4323|x:3240,y:4327|x:3240,y:4323|plane=0|mapID=-1|mtype=pin}}
+|dropversion = Normal Mode,Hard Mode
+|id1 = 32990
+|id2 = 32992
+|id3 = 32991
+|id4 = 32993
+|id5 = 32994
+|id6 = 41746
+|leagueRegion = Morytania
+}}
+[[File:Theatre of Blood monumental chest.gif|thumb|left|180px|An arrow denoting the player's monumental chest.]]
+'''Monumental chests''' are large treasure chests found inside [[Verzik Vitur]]'s treasure vault, which is accessed after defeating her in the [[Theatre of Blood]]. They can be searched for the player's rewards; an arrow above the chest indicates the specific chest for the player to search.
+
+If a unique reward is obtained, a purple aura will emit from the chest along with an arrow design embedded on the chest. If no unique reward is found, players obtain up to three different common rewards instead depending on their performance.
+
+If the rewards are not claimed at the chest, they may be claimed by a chest right outside the bank in Ver Sinhaza. If they are not claimed otherwise, they will be lost upon logging out.
+
+==Loot table==
+{{DropLogProject|kills=65505|type=Theatre of Blood completions}}
+
+The average Theatre of Blood deathless 4-player completion is worth about {{Coins|{{#expr:({{Average drop value|mob=Monumental chest|raw=y}} + ({{Average drop value|mob=Monumental chest#Normal Mode|raw=y}} / 9.1)) / 4}}}} per person.
+
+All non-[[stackable items]] obtained are in the form of [[bank note]]s, unless it is a unique reward. If the player obtains a unique reward, it will replace all common rewards. If not, the common reward table is rolled three times, possibly granting the same reward multiple times.
+
+To calculate the expected loot based on a player's specific scenario, please refer to the [[Calculator:Theatre of Blood loot|rewards calculator]].
+
+===Pre-roll===
+''Without any deaths, there is a 1/9.1 (~11%) chance of a unique reward across the team; dying will decrease this chance. The drop rate is the same regardless of the number of players completing the raid. The item is allocated to one player, with the weighting based on deaths and damage dealt to each boss. The MVP is the most likely to receive the item.''{{CiteTwitter|author=Mod Kieren|url=https://twitter.com/JagexKieren/status/1145376451446751232|date=30 June 2019|archiveurl=https://reldo.runescape.wiki/i/99292|archivedate=3 January 2020}}
+
+''For Hard Mode, the unique chance is increased to 1/7.7 (~13%), with the weighting for the avernic defender hilt reduced in order to make the other uniques more common.{{CiteTwitter|author=Mod Arcane|url=https://twitter.com/JagexArcane/status/1485992982906085376|date=25 January 2022|archiveurl=https://reldo.runescape.wiki/i/98998|archivedate=25 January 2022|quote=}} Entry Mode does not grant pre-rolls for uniques.''
+
+''Once the game has chosen whether to give a unique item, an item is chosen from the table below with the following probabilities.''
+
+====Normal mode====
+{{DropsTableHead|dropversion=Normal Mode}}
+{{DropsLineReward|name=Cabbage|quantity=1|rarity=Always|raritynotes={{refn|group=d|name=deadweight|Only obtained if a player ends the raid with 0 individual contribution points.}}}}
+{{DropsLineReward|name=Message (Theatre of Blood)|quantity=1|rarity=Always|raritynotes={{refn|group=d|name=deadweight}}|gemw=No}}
+{{DropsLineReward|name=Avernic defender hilt|quantity=1|rarity=8/19}}
+{{DropsLineReward|name=Ghrazi rapier|quantity=1|rarity=2/19}}
+{{DropsLineReward|name=Sanguinesti staff (uncharged)|quantity=1|rarity=2/19}}
+{{DropsLineReward|name=Justiciar faceguard|quantity=1|rarity=2/19}}
+{{DropsLineReward|name=Justiciar chestguard|quantity=1|rarity=2/19}}
+{{DropsLineReward|name=Justiciar legguards|quantity=1|rarity=2/19}}
+{{DropsLineReward|name=Scythe of Vitur (uncharged)|quantity=1|rarity=1/19}}
+{{DropsTableBottom}}
+
+====Hard mode====
+{{DropsTableHead|dropversion=Hard Mode}}
+{{DropsLineReward|name=Cabbage|quantity=1|rarity=Always|raritynotes={{refn|group=d|name=deadweight|Only obtained if a player ends the raid with 0 individual contribution points.}}}}
+{{DropsLineReward|name=Message (Theatre of Blood)|quantity=1|rarity=Always|raritynotes={{refn|group=d|name=deadweight}}|gemw=No}}
+{{DropsLineReward|name=Avernic defender hilt|quantity=1|rarity=7/18}}
+{{DropsLineReward|name=Ghrazi rapier|quantity=1|rarity=2/18}}
+{{DropsLineReward|name=Sanguinesti staff (uncharged)|quantity=1|rarity=2/18}}
+{{DropsLineReward|name=Justiciar faceguard|quantity=1|rarity=2/18}}
+{{DropsLineReward|name=Justiciar chestguard|quantity=1|rarity=2/18}}
+{{DropsLineReward|name=Justiciar legguards|quantity=1|rarity=2/18}}
+{{DropsLineReward|name=Scythe of Vitur (uncharged)|quantity=1|rarity=1/18}}
+{{DropsTableBottom}}
+
+===Common rewards===
+''For Entry Mode, players will receive 80% less loot than normal. For Hard Mode, players will receive 15% more loot, with an additional 15% if the raid is completed within the target time. Deaths will reduce the quantity of common rewards for all players.''
+
+{{DropsTableHead|leagueRegion=Morytania}}
+{{DropsLineReward|name=Vial of blood|quantity=45-60 (noted)|rarity=2/30|rolls=3}}
+{{DropsLineReward|name=Death rune|quantity=500-600|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Blood rune|quantity=500-600|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Swamp tar|quantity=500-600|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Coal|quantity=500-600 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Gold ore|quantity=300-360 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Molten glass|quantity=200-240 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Adamantite ore|quantity=130-156 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Runite ore|quantity=60-72 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Wine of Zamorak|quantity=50-60 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Potato cactus|quantity=50-60 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Grimy cadantine|quantity=50-60 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Grimy avantoe|quantity=40-48 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Grimy toadflax|quantity=37-44 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Grimy kwuarm|quantity=36-43 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Grimy irit leaf|quantity=34-40 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Grimy ranarr weed|quantity=30-36 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Grimy snapdragon|quantity=27-32 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Grimy lantadyme|quantity=26-31 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Grimy dwarf weed|quantity=24-28 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Grimy torstol|quantity=20-24 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Battlestaff|quantity=15-18 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Rune battleaxe|quantity=4 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Rune platebody|quantity=4 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Rune chainbody|quantity=4 (noted)|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Palm tree seed|quantity=3|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Yew seed|quantity=3|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Magic seed|quantity=3|rarity=1/30|rolls=3}}
+{{DropsLineReward|name=Mahogany seed|quantity=10-12|rarity=1/30|rolls=3}}
+{{DropsTableBottom}}
+
+===Tertiary rewards===
+{{DropsTableHead|leagueRegion=Morytania}}
+{{DropsLineClue|type=elite|rarity=1/25|altrarity=3.5/25|altraritydash=yes|raritynotes={{refn|group=d|name=tertiary|Drop rate scales down based on the individual's performance during the raid.}}{{refn|group=d|The elite clue scroll rarity for Entry, Normal, and Hard Mode is 1/25, 3/25, and 3.5/25, respectively.}}}}
+{{DropsLineReward|name=Holy ornament kit|quantity=1|rarity=1/100|raritynotes={{refn|group=d|name=tertiary|Drop rate scales down based on the individual's performance during the raid.}}{{refn|group=d|name=hardmode}}}}
+{{DropsLineReward|name=Sanguine ornament kit|quantity=1|rarity=1/150|raritynotes={{refn|group=d|name=tertiary|Drop rate scales down based on the individual's performance during the raid.}}{{refn|group=d|name=hardmode}}}}
+{{DropsLineReward|name=Sanguine dust|quantity=1|rarity=1/275|raritynotes={{refn|group=d|name=tertiary|Drop rate scales down based on the individual's performance during the raid.}}{{refn|group=d|name=hardmode|Only obtainable in Hard Mode.}}}}
+{{DropsLineReward|name=Lil' Zik|quantity=1|rarity=1/650|altrarity=1/500|raritynotes={{refn|group=d|name=tertiary}}{{refn|group=d|The base rate for Lil' Zik is 1/650 in Normal Mode and 1/500 in Hard Mode.{{CiteTwitter|url=https://twitter.com/JagexKieren/status/1145476707174031361|author=Mod Kieren|date=1 July 2019|archiveurl=https://reldo.runescape.wiki/i/107163|archivedate=22 June 2020}}}}}}
+{{DropsTableBottom}}
+
+==Rewards calculator==
+{{Calculator:Theatre of Blood loot}}
+
+==References==
+{{reflist}}
+
+{{Chests}}
+{{Theatre of Blood}}

@@ -1,0 +1,412 @@
+{{Update|date=29 November 2023|url=https://secure.runescape.com/m=news/chambers-of-xeric-changes?oldschool=1|category=game}}
+[[File:Chambers of Xeric Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+“CoX chAnGes WhEn?” CoX changes… now!
+
+'''Reminder''': Game Updates are now accompanied by a 30 minute downtime period to ensure we can take an up-to-date backup. Game Worlds will be offline at 11:30 GMT and should be back online at 12:00 GMT.
+
+==Changelog November 29th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+
+'''Chambers of Xeric'''
+* General
+** Added a new 'Reload' option to the lobby staircase, allowing the raid leader to generate a new layout and boot anyone in the current instance.
+** Added a new Scaling option to the Recruitment Board Party interface, allowing the raid leader to increase the raid's difficulty without requiring additional players.
+** Placed Energy Pools throughout the raid.
+** Various '''unnoted''' consumable items (namely common food and potions) will now appear to other players when dropped.
+** Sped up the growth times of Buchu, Golpar and Noxifer plants.
+* Scavengers
+** Since Scavengers roll multiple drops, it's possible to get multiple sets of the components above.
+** Tweaked drops so that whenever ''any ''potion secondary would be dropped, Scavengers now drop 3-11 Stinkhorn mushroom, 3-6 Cicely and 5-14 Endarkened Juice.
+** Scavengers now only roll two drops at a time.
+** Sped up both the Mining and Woodcutting shortcuts, which now provide points comparable with the Boulder shortcut.
+** Mallignum Root Planks are now stackable.
+* Tekton
+** The first Dragon Warhammer Special attack against Tekton is now guaranteed to hit.
+** Tekton no longer resets his Defence when healing at the anvil.
+* Crabs
+** Players can no longer 'splash' on crabs if their Magic bonus is higher than -64.
+** Attacks no longer have any delay after hitting a crab. If your attack changes the crab's colour, you won't automatically re-attack.
+* Ice Demon
+** Kindling is now stackable, up to a cap of 28.
+** Lighting braziers and burning Kindling now provide more points.
+** Now drops Stinkhorn Mushroom, Endarkened Juice and Cicely to each player when defeated.
+** Reduced the ice demon's Magic defence from 60 to 40.
+* Vanguards
+** Standardised drops. Overload drop mechanics remain unchanged.
+** Melee Vanguard now drops 2 Xeric's Aid and an Elder Potion.
+** Ranged Vanguard now drops 1 Xeric's Aid, 2 Revitalisation and a Twisted Potion.
+** Magic Vanguard now drops 1 Xeric's Aid, 1 Prayer Enhance and a Kodai Potion.
+* Thieving
+** Increased the chance to successfully steal from chests.
+** Grubs are stackable up to a cap of 28.
+** Successful chest openings now guarantee a minimum of one Grub.
+** Slightly increased points per Grub.
+** Players now receive Stinkhorn Mushroom, Endarkened Juice and Cicely upon completion.
+* Vespula
+** Increased lux grubs' HP from 100 to 125.
+** Medivaemia Blossoms now heal lux grubs for 35 HP, up from 20.
+** Reduced the Ranged and Melee strength of Vespula and vespine soldiers.
+** Reduced Abyssal portal healing for vespine soldiers.
+** Vespula now drops a guaranteed Overload(+).
+* Vasa Nistirio
+** Reduced Vasa’s Ranged defence.
+** Vasa will now only heal if a crystal isn't destroyed in time.
+** Vasa now drops a guaranteed Overload(+).
+* Mystics
+** A handy set of portals will now appear after all Mystics are defeated, allowing for easier traversal across the room.
+* Muttadiles
+** Adjusted the damage formula for Dimitri the Meat Tree: (Woodcutting level / 2) - 2, plus or minus 5.
+** Both muttadiles will attempt to heal at the Meat Tree when reduced below 50% HP (up from 40%).
+** Both muttadiles can now be damaged while frozen, even if they were trying to move towards the Meat Tree.
+** Reduced the max hits of both muttadiles.
+** Big muttadile will now only swap between Magic and Ranged attacks after using the same style three times, not counting Melee attacks.
+* Great Olm
+** Olm's portal swap special now spawns a portal within 10 tiles of players in a solo encounter.
+** Olm's healing pool attack now has a 'cooldown' of 10 attacks.
+
+'''Leagues IV Week 2 Tweaks'''
+* Removed the Soul Wars XP cap on Leagues worlds.
+* Continued to prevent players from receiving inaccessible Clue Scroll steps.
+* Opened the Leagues Rewards shop on main game worlds.
+* Removed the penalty applied to Marks of Grace when a player is 20 Agility levels above a course's requirement, on Leagues worlds only.
+* Adjusted Guardian behaviour at Kree'arra so that it attacks with Magic rather than Ranged.
+* Increased the explosion radius of Undying Retribution's explosion radius by 1 tile. The description has been adjusted accordingly.
+* Players can now correctly complete killcount tasks for Normal Chambers of Xeric in cases where they had obtained CM Chambers of Xeric killcount before finishing a Normal raid.
+* Fixed a display error where some unlocked destinations on the Fairy Ring interfaces were crossed out despite being accessible.
+* On Leagues worlds, dying to revenants no longer drops some Inventory items to the ground instead of your gravestone.
+* The Rune Pouch and Divine Rune Pouch are no longer deleted upon death in the Wilderness region.
+* Players can no longer obtain both a Rune Pouch and Divine Rune Pouch simultaneously. Sorry sorcerers!
+* Fixed a bug where the Guardian was causing Demonic Gorillas to lose aggression towards players.
+* Fixed a bug where harvesting from Fruit Tree or Bush patches with a full Inventory and Farmer's Fortune would crash the game.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+{{Collapsed section end}}
+
+As you can see from the Patch Notes, this week brings an army of Chambers of Xeric changes! These highly-anticipated QoL tweaks aim to improve the balance between different raid rooms and reduce the need to scout for the perfect layout.
+
+''Juuuust ''before we get started, we want to reiterate that we don’t currently have plans to implement custom layouts. The whole point of today’s changes is to make ''any ''layout balanced, so we don’t feel that this feature is needed. That said, we will be keeping an eye on your feedback following today’s update and adjusting our plans if custom layouts is something the community is still interested in. 
+
+==Chambers of Xeric==
+===General Changes===
+Phew! All that running back and forth to the Recruitment Board can get pretty tiring, huh? Our first change aims to give your tired legs a rest, with the new ‘Reload’ option. As a Raid Leader, simply right-click the stairs in the Lobby area, select ‘Reload’, and you’ll generate a fresh new layout without any fuss.
+
+Note that anyone in the Raid who ''isn’t ''the leader will be booted when you do this, so be sure to give your companions plenty of warning! Since the Chambers of Xeric are instanced, you’ll also lose any items on the ground inside the Raid. So if you're somehow able to drop something on the ground in the lobby, then be careful (and let us know how you managed it)!
+
+[[File:Chambers of Xeric Changes (1).webm|600px|center]]
+<center>''Here's some rapid raid reloading action!''</center>
+
+Raid Leaders will also notice a new UI option which allows you to scale up the difficulty of the Raid by adding invisible players. Spooky!
+
+[[File:Chambers of Xeric Changes (2).webm|600px|center]]
+<center>''Hm... Okay, and are these alts in the room with us now?''</center>
+
+With your shiny new layout and your imaginary friends in place, it’s time to gear up! As of today, you ''might ''be able to free up some Inventory slots by bringing fewer Stamina Potions, since we’ve peppered Energy Pools throughout the Raid to keep you topped up as you progress.
+
+[[File:Chambers of Xeric Changes (3).webm|600px|center]]
+<center>''Mmm! Mystery yellow juice!''</center>
+
+Squad's ready, you're geared up, you're feeling good about saving one whole Stamina potion, you've started the raid...
+
+"Guys I forgot Antipoison," moans the only non-Iron in your group. Don’t panic. Our next change means that ''most ''common food and potions will now appear for all account types when dropped within the Raid. Drop away!
+
+Note that this doesn’t apply to noted consumables, so Ultimate Iron players are still safe to do whatever they spend all their time doing while you wait for them to prep.
+
+On the topic of prep, we’ve sped up growth times for Buchu, Golpar and Noxifer plants throughout the Raid. You’ll spend less time waiting for them to grow, and more time wondering what on Gielinor the UIM is ''doing ''over there.
+
+===Scavenger Beasts===
+Even no-prep Raid enjoyers had to start somewhere, and that somewhere probably included rolling the dice on scavs.
+
+These helpful enemies drop everything you need to support yourselves during the Raid, from Planks to Lockpicks. Most importantly, they drop potion secondaries.
+
+It could get pretty frustrating when you just needed one more sprig of Cicely to finish your prep but kept getting Endarkened Juice instead. As of today, though, scavengers are guaranteed to drop ''all ''the following items:
+
+* 5-14 Endarkened Juice
+* 3-11 Stinkhorn Mushroom
+* 3-6 Cicely
+
+Scavs already have a chance to roll multiple secondary drops – this change just makes it more likely that you’ll find the ingredients you need. Additionally, scavs will now only roll two drops upon death, which should keep the floor clear enough for you to pick out whatever bits you need.
+
+<center>
+[[File:Chambers of Xeric Changes (4).webm|600px|center]]
+
+''You might have to squint to see it in this one, but pay close attention and you'll see that the floor is absolutely littered with multiple secondary drops.''
+</center>
+
+While you’re chasing potion secondaries, you might happen across a Mallignum Root Plank or two. As of today’s update, you can feel free to pick ‘em up, because they’re now ''stackable!''
+
+Our final scav change isn’t to the beasties themselves, but to the rooms they’re in. The so-called ‘shortcuts’ for Mining and Woodcutting currently take so long to get through that it’s faster to run around, so we’ve sped them up and made them award more points, to boot.
+
+[[File:Chambers of Xeric Changes (5).webm|600px|center]]
+
+
+[[File:Chambers of Xeric Changes (6).webm|600px|center]]
+
+===Tekton===
+To say that Tekton is a little bit tanky is the understatement of the decade. This mad lad’s incredible defences let him shrug off just about any attack, even when you’re using maximum Crush bonus gear to take advantage of his one weakness. That’s great for Tekton, but much less great for players having to land a Dragon Warhammer special before they can reduce Tekton’s ludicrous Defence and actually start dealing damage. Worse, Tekton’s oversized anvil lets him heal up, remove your hard-earned Defence debuff, ''and ''give himself even ''more ''Defence when he returns to the fight!
+
+~8,200 of you voted on how best to tackle Tekton. Here’s the results of the poll:
+
+* Prevent Tekton's Defence from resetting when he's at the anvil: 2,939
+* Guaranteed hit for the first Dragon Warhammer special attack used on Tekton: 2,872
+* Elder Maul hits reduce Tekton's Defence by 5% of its current value: 1,786
+* Reduced Crush defence during his enraged form: 578
+* Other: 2 (You tried your best!)
+
+Your preferences were clear, so we went with ''both ''the top two options. As of today, the first Dragon Warhammer special against Tekton is guaranteed to hit, and he’s no longer able to regain his Defence using his anvil.
+
+We still want to show the Elder Maul some love, so keep an eye out for the tweaks we’re planning for Project Rebalance in a few months.
+
+Oh, and if you’re one of the two people who voted ‘Other’, we salute you for breaking the mold!
+
+[[File:Chambers of Xeric Changes (7).webm|600px|center]]
+<center>''In theory we could have hit this special attack even against unchanged Tekton, so you'll have to take our word for it, but it really works!''</center>
+
+The next time somebody asks you whether you've had any luck catching those Dragon Warhammer specs, you can confidently respond that you're ''guaranteed ''one, actually!
+
+===Jewelled Crabs===
+The changes to these crystallised critters are relatively minor but should give you a little more control over their room.
+
+First, players will no longer be able to splash on crabs if their Magic bonus is -64 or lower. This should free you from the mess of splashing, failing to change the colour, everyone in your group running off, and having to set up all the crabs again just to change one crystal.  
+
+To make this deal even sweeter, we’re also removing the Attack Delay from hitting jewelled crabs. After hitting a crab, you’ll be able to hit again on the very next tick, allowing players to quickly pull crabs together or correct mistakes if you happen to hit one with the wrong style. Additionally, to prevent players wasting all their ammo and charges, if your attack changes the crab’s colour you won’t continue to attack that crab automatically – although you can click on it again if you like.
+
+===Ice Demon===
+Stop right there, talented raider! We see you hovering over that fancy new 'Reload' button because Ice Demon's appeared in your layout. Take a breath and reconsider, because we've got a couple of changes to this frozen monstrosity that you should know about first!
+
+What if we told you that you no longer had to deal with depositing your whole Inventory and rearranging everything just to chop Kindling because we've made it stackable up to a cap of 28? We hope that sounds good, because that’s exactly what we’ve done!
+
+When it comes to actually using your kindling, you’ll notice that lighting braziers now provides 32 points, up from 24, and burning a single kindling now awards 36 points, up from 26. This should bring this room’s point rewards in line with the others, considering the low intensity of this encounter.
+
+In addition, when your party defeats the Ice Demon, everyone involved will now receive potion secondaries! They’re awarded as follows:
+
+* Stinkhorn mushroom: (2 * # of players) + 5
+* Endarkened juice: (2 * # of players) + 5
+* Cicely: (# of players) + 4
+
+Those of you employing Fire Surge’s ''explosive ''power against the Ice Demon can feel smug about bringing the right tool for the job! We’ve reduced its Magic defence from 60 to 40, so it’s definitely worth kitting yourself out in some Magic gear.
+
+In case you hadn’t clocked on, this blog is loosely following the journey through Challenge Mode. Normally, we’d encounter Lizardman Shamans next – but they’re unchanged, so let’s skip straight to the Vanguards!
+
+===Vanguards===
+Everyone’s favourite rock… bug… things… the Vanguards! A while ago now, we changed their loot mechanics so that players were guaranteed an Overload (+) for clearing the room.
+
+Outside of Overloads, however, their drops have a degree of variance that can make or break a Raid for No Prep learners. Today, we’re standardising the potion rewards to make them more predictable ''and ''throwing in a free Prayer Enhance - because you’re our favourites. &lt;3
+
+Here’s what the drops look like now:
+
+* Melee Vanguard: 2 Xeric's Aid, 1 Elder
+* Ranged Vanguard: 1 Xeric's Aid, 2 Revitalisation, 1 Twisted
+* Magic Vanguard: 1 Xeric's Aid, 1 Prayer Enhance, 1 Kodai
+
+You’ll still receive that guaranteed Overload (+) – so now all that’s left is to figure out which Vanguard is which, beg your friend with the Twisted Bow to stop dealing damage, and – oh, oops, the Vanguards have reset. Let’s just move on, shall we?
+
+===Thieving===
+Your grubby little hands are about to get grubbier than ever!
+
+Fun fact: before today’s update, if you entered the Thieving room at 99 Thieving with a Lockpick, your success rate to open the chest was actually below 70%, and you’d only have a 50% chance to receive Grubs. Hmm. Actually, that’s not a fun fact at all, which is why we’re making the following changes.
+
+First up is success chance, which has improved for ''all ''players and now better rewards those who’ve levelled their Thieving – it’s a ''Thieving Room, ''after all!  
+
+{| class="wikitable" style="text-align: center;"
+|-
+!Scenario
+!Previous Success Rate
+!New Success Rate
+|-
+|Level 1 Thieving, No Lockpick
+|35.3%
+|39.2%
+|-
+|Level 1 Thieving, Lockpick
+|49%
+|60.7%
+|-
+|Level 99 Thieving, No Lockpick
+|49%
+|60.7%
+|-
+|Level 99 Thieving, Lockpick
+|68.6%
+|82.3%
+|}
+You’ll also be guaranteed a Grub when opening a chest – as long as there’s a Grub in there, and not bats or poison gas. In addition, each Grub you pop in the trough is now worth 115 points, up from 100. To top it all off, when you complete the room, you’ll be rewarded with – you guessed it! – some potion secondaries.
+
+* Stinkhorn mushroom: (2 * # of players) + 3
+* Endarkened juice: (2 * # of players) + 3
+* Cicely: (# of players) + 2
+
+Now all those extra Grubs start to add up quick, lucky for you we've made them stackable (up to a cap of 28) so you can spend more time thieving and less time managing your inventory while your teammates hog all the points!
+
+We’ll be keeping a close eye on this room after today’s update, since despite its inconsistency it was in a good place when it came to points vs the amount of time taken to complete it. We want to make sure these changes haven’t made it a little ''too ''good!
+
+===Vespula===
+Way back when we published the first blog about these changes, we made a little joke about how rarely anyone defeats Vespula by the ‘intended’ means, instead opting for the riskier Redemption method. Today, we’re making some changes which should make Vespula feasible even ''without ''Redemption.
+
+To understand Vespula, you have to know what she does when left to her own devices. Have you ever noticed all those gross, oversized grubs with HP bars hanging around her room? Turns out they harbour vespine soldiers, which crawl out of their undulating bodies whenever Vespula reduces an unfortunate grub’s HP to 0. These soldiers pack a mean punch, healing up both Vespula ''and ''the Abyssal Portal.
+
+[[File:Chambers of Xeric Changes (8).webm|600px|center]]
+<center>''Turns out you can actually shoot that big annoying bug in the room and not just that spooky portal, neat!''</center>
+
+You’re ''supposed ''to tackle this room by reducing Vespula’s HP, then dealing damage to the portal before she gets airborne again. At the same time, you’ll want to prevent more soldiers from spawning by healing the lux grubs using Medivaemia Blossoms. It’s not quite as simple as clicking between the portal and a ‘safe’ tile while continually praying Redemption, but we promise, it’s not as tricky as you think.  
+
+In fact, it’s about to be even less tricky, because we’ve made some changes to make this room feel a little less daunting:
+
+* Lux grubs' HP has been increased from 100 to 125. This gives you more time to heal them before the vespine soldiers break out and start dealing damage.
+* Medivaemia Blossoms now heal lux grubs for 35 HP, up from 20. This lets you easily keep control of the grubs as long as you're picking up those Blossoms!
+* Both Vespula ''and ''her Vespine soldiers have had their Ranged and Melee strength slightly reduced, which means you’ll take less damage!
+* Vespine soldiers now heal the Abyssal Portal at a reduced rate. This allows you more time to fix your mistakes if you've let one slip through the cracks at any point.
+
+Not ready to give up Redemption just yet? Great news – these changes also make it a more viable method for players who couldn’t reliably pull it off beforehand. It’s still the fastest way to tackle Vespula, so if you haven’t tried it yet, now’s a great time to try it out!
+
+One more treat! After defeating Vespula, you’re now ''guaranteed ''to receive an Overload (+) as a drop!
+
+We hope these changes will take Vespula from one of the most-avoided rooms to a firm favourite. If you’re a chronic wasp skipper, we really recommend giving this room a try – it’s quick, the supplies are great, and after today’s changes, we reckon it’ll be easier to learn than ever.
+
+Nothing's changing about Tightrope or Guardians, so we'll move straight to everybody's favourite brick wall...
+
+===Vasa Nistirio===
+Vasa can be a bit of a roadblock for some players. His Ranged defence was never tweaked following the 2021 Toxic Blowpipe changes, which means he still feels like a damage sponge for players with weaker gear. Combined with the healing crystals in his room, we have an encounter that feels more frustrating than fun for players with suboptimal loadouts.
+
+Our first step to tear down that brick wall is to reduce Vasa’s Ranged defence from 60 to 40. This should make things a bit less frustrating for Blowpipe users, without eating into the strength of the Twisted Bow.
+
+Next, we’re changing Vasa’s healing mechanic. As of today, when Vasa approaches a crystal, it’ll start charging – indicated by a gloopy Hitsplat. If you break the crystal before it’s charged, all the healing will be discarded. If you ''fail ''to break the crystal, Vasa will heal for just as much as before – so be quick on the gear switches and bring the right tools for the job!
+
+[[File:Chambers of Xeric Changes (9).webm|600px|center]]
+<center>''Pay attention to the blue 'arrow' hitsplats indicating that Vasa is storing healing, and the purple healing hitsplat when the crystal isn't destroyed in time!''</center>
+
+[[File:Chambers of Xeric Changes (10).webm|600px|center]]
+<center>''In this clip, notice how Vasa's health doesn't regenerate once the crystal is destroyed, handy!''</center>
+
+For your efforts, you’ll be rewarded with an Overload (+) Potion. Nice!
+
+===Skeletal Mystics===
+We'll keep this one short and sweet, unlike the layout for the Mystics' lair – which has proved to be quite the pain point! This mazelike room can drain your Energy ''and ''your patience!
+
+To alleviate this issue, we’ve placed some helpful (and very cool-looking) portals throughout the room, which will let you navigate from one end to the other, or from the middle of the room to either the start ''or ''the end - assuming all of the Mystics have been defeated.
+
+[[File:Chambers of Xeric Changes (11).webm|600px|center]]
+<center>''Honestly this change is pretty small, but we thought this clip was too cool not to include - look how quickly this raider gets their dropped brew back!''</center>
+
+Nice and simple! Now, let’s use our mystic maze mobility to zoom over to the last thing standing between you and the Great Olm himself.
+
+===Muttadiles===
+They’re big, mean, and not-so-lean: the muttadiles!
+
+These kind-of-dog, kind-of-croc creatures hit ''extremely ''hard, and have a tendency to drain your remaining brews to 0, especially in Challenge Mode raids. Today, we’re presenting a suite of tweaks to make them more consistent – starting with Dimitri, the Meat Tree. (''Editor’s Note: Yes, that’s canon now. Sorry!)''
+
+Currently, the chopping damage formula is responsible for most of the inconsistency in this room – and while a little randomness is fun, it’s much ''less ''fun when you’re being chomped on by muttadiles the entire time. The damage formula now works like so: (Woodcutting level / 2) - 2, plus or minus 5.
+
+For example, at 99 Woodcutting: 99 divided by 2 gives 49, since we always round down. Subtract 2 to get 47. Your damage for chopping will then roll anywhere from 42 to 52. Simple!
+
+[[File:Chambers of Xeric Changes (12).webm|600px|center]]
+<center>''The player in this instance has 87 Woodcutting, so damage can roll anywhere from 36 to 46. We know it's only two hits, but the consistent hitsplats literally don't stop comin'!''</center>
+
+Some players don’t chop ol’ Dimitri at all, preferring to freeze the muttadiles right as they head in for some healing. This feels a little ''weird ''at times, because all your damage is nullified even though the muttadile is just standing there, menacingly. The following tweaks should make freezing more viable:  
+
+* Both muttadiles will start moving towards the tree when at 50% HP or below, up from 40%.
+* Players are able to deal damage to muttadiles even if they are frozen while attempting to reach the tree.
+
+[[File:Chambers of Xeric Changes (13).webm|600px|center]]
+<center>''For our last clip of the video, here's a Muttadile getting frozen in place by a well-prepared raider - it could even be you!''</center>
+
+Whichever approach you choose, you should find that the muttadiles are more consistent now. We’re also adjusting their offensive capabilities to better reward players for skilled combat:
+
+* Both muttadiles have had their max hits reduced slightly.
+* Big muttadile will only swap from Magic to Ranged attacks (or vice versa) after using the same style 3 times in a row, not counting Melee attacks.
+
+We’ve been doing a ''lot ''of testing on these guys, and we think they’re much more fun now. There’s something extremely satisfying about timing that perfect ZGS special attack and finally taking revenge for all the Brews you've lost over the years.
+
+===Great Olm===
+We’ve made it! Time to face Olm himself.
+
+This fight is a properly climactic moment, whether you’re teaming up with friends or heading into Olm’s lair alone. As epic as this fight is, we have a couple of changes which address some common points of frustration:
+
+* Olm's portal swap special now spawns a portal within 10 tiles of players in a solo encounter.
+* Olm's Healing pool attack now has a 'cooldown' of 10 attacks.
+
+That’s… it! If it ain’t broke, don’t fix it – and Olm is certainly not in need of fixing! This also marks the end of our Chambers of Xeric changes… for now. Of course, we’re always eager to hear your feedback, and we are open to making further tweaks if needed in future. Feel free to share your thoughts in all the usual places!
+
+For now though, let’s see what they’re up to in the League…
+
+==Leagues IV - Post-Release Week 2==
+Leagues IV: Trailblazer Reloaded is live and kicking! We’re two weeks in, so there’s still plenty of time to jump in and join in the fun.
+
+If that doesn’t convince you, check out this video by Hanannie, who worked with a bunch of other creators to bring you all the stats from Leagues IV’s first week – including an ''exclusive ''interview with a living legend! Watch the video below or click [https://www.youtube.com/watch?v=ElvEdI4uBDk here ] to see it on YouTube.
+
+<center>{{Youtube|ElvEdI4uBDk}}</center>
+
+As for this week’s changes, our first item of business is the Soul Wars XP cap, which has been removed on Leagues worlds. In an ideal world we’d see people training combat all over Gielinor, but we must admit the allure of the minigame is ''very ''powerful. With that in mind, we’re removing the cap, so players can get their training done and start exploring other islands!
+
+It's finally time for you to spend your hard-earned League points once again, because we've re-enabled the Leagues Rewards shop in the main game! Head on over to the Leagues Assistant in the Lumbridge Castle courtyard to pick up some fiery and fierce Trailblazer Reloaded cosmetics and animation overrides!
+
+We’ve also continued to eliminate inaccessible Clue steps. A list of affected Clues – including the ones we fixed last week – can be found in[https://secure.runescape.com/m=news/a=97/leagues-iv---post-launch?oldschool=1  last week’s newspost]. Huge thanks to everyone who let us know about the outliers!
+
+Next up, Undying Retribution’s explosion radius has been increased by one whole tile – and the Relic’s description has been updated accordingly. This increased radius should make it a little easier to hit an NPC's south-west tile, and the new description should give you a clearer sense of what you're unlocking.
+
+Lastly, we’ve made the following minor changes:
+
+* Removed the penalty applied to Marks of Grace when a player is 20 Agility levels above a course's requirement on Leagues worlds.
+* Adjusted Guardian behaviour at Kree'arra so that it attacks with Magic rather than Ranged.
+* Players can now correctly complete killcount tasks for Normal Chambers of Xeric in cases where they had obtained CM Chambers of Xeric killcount before finishing a Normal raid.
+* Fixed a display error where some unlocked destinations on the Fairy Ring interfaces were crossed out despite being accessible.
+* On Leagues worlds, dying to revenants no longer drops certain Inventory items to the ground instead of your gravestone.
+* The Rune Pouch and Divine Rune Pouch are no longer deleted upon death in the Wilderness region.
+* Players can no longer obtain both a Rune Pouch and Divine Rune Pouch simultaneously. Sorry, sorcerers!
+* Fixed a bug where the Guardian was causing Demonic Gorillas to lose aggression towards players.
+* Fixed a bug where harvesting from Fruit Tree or Bush patches with a full Inventory and Farmer's Fortune would crash the game.
+
+==Merch Update: Black Friday Deals and New Lines!==
+Black Friday might be over, but the deals are still going! Be sure to check our [https://runescape.backstreetmerch.com/policies/shipping-policy last shipping dates] to make sure Santa’s got his orders in.
+
+[[File:Chambers of Xeric Changes (14).png|600px|center]]
+Spend £50/$64/E58 and get a free Black Matte Max Cape Keyring (it glows in the dark!)
+
+[[File:Chambers of Xeric Changes (15).png|600px|center]]
+Check out the new lines from Angels Scapes! An adorable Christmas Gnome Child, a not-so-adorable DDS, and a sort-of adorable Baby Santa Mole Pin. We also have a ''new ''version of the popular Twisted Bow Keyring!
+
+[[File:Chambers of Xeric Changes (16).png|600px|center]]
+Can’t make up your mind? Get the ‘Scaper in your life one of our Holiday Bundles, packed with our most popular lines at excellent value.  
+
+Don’t forget – you can celebrate the new League with a special commemorative pin – available for a limited time only!
+
+For full details, [https://runescape.backstreetmerch.com/ check out the store! ]
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '''Zerker''' loadouts in Ranked Duels and Tournaments this week.
+
+You've made it all the way to the end, well done! We can't wait to see all of your feedback from today's update. Now go have fun in the Chambers of Xeric, and in Leagues, or maybe inside the Chambers of Xeric ''in ''Leagues - the possibilities are endless! As long as they’re Chambers of Xeric or Leagues. Have fun!
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Blossom, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

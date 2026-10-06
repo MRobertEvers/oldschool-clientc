@@ -1,0 +1,41 @@
+{{Otheruses|def=no}}
+{{Infobox NPC
+|version1 = Tumeken
+|version2 = Elidinis
+|name = Core
+|image1 = [[File:Core (Tumeken's Warden).png|200px]]
+|image2 = [[File:Core (Elidinis' Warden).png|200px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|race = Automaton core
+|location = [[Tombs of Amascut]]
+|options = Attack
+|examine = The heart of an ancient automaton.
+|map = No
+|id1 = 11770
+|id2 = 11771
+|leagueRegion = Desert
+}}
+The '''core''' acts as the power source of [[Tumeken's Warden]] and [[Elidinis' Warden]]. During the second phase of the fight, players must attack the Warden that successfully powered up until it is damaged enough (the yellow bar above them being full) to force its core to eject out of its body.
+[[File:Tombs of Amascut - attacking Warden core.png|thumb|left|300px|The player unleashes a barrage of special attacks on the Warden's core.]]
+
+Once the core is ejected, players must damage it as the core is essentially the Warden's health; damage dealt to the core deals five times the damage towards the Warden, so a hit of 55 would deal 275 damage. Players will always deal their max hit when using melee against the Warden's core.
+
+The core will be attackable for a set duration depending on the Warden's health at the time it was ejected, as shown in the table below. After that time passes, the Warden will insert the core back in and the player will have to damage the Warden once more. Upon the core's destruction, the Warden's body will collapse and restore the other Warden, beginning the final phase of the fight.
+{| class="wikitable"
+|+
+!Warden HP
+!Core Exposure 
+|-
+|100%-80%
+|21 ticks (12.6s)
+|-
+|79.9%-60%
+|29 ticks (17.4s)
+|-
+|59.9%-0%
+|37 ticks (22.2s)
+|}
+
+{{Tombs of Amascut}}

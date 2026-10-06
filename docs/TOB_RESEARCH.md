@@ -412,6 +412,16 @@ recording can produce; treat 34 as the floor.)
 
 ---
 
+### Bloat spec pass, 2026-10-02 (`encounters/bloat.tsv`)
+
+Per-tick Bloat streams for 90 Regular and 45 Hard rooms (`sources/blert_api/bloat_rooms.csv`, `bloat_stats.txt`, reduced by `analyze_bloat.py`; fetch ledger in `SOURCES.md`) add what the aggregates could not say:
+
+* **Timing, exact over the whole sample:** stomp at down+29 (137 of 137 Regular, 94 of 94 Hard), anim end and rise at down+33 (123 / 85), **first step at down+33** (111 / 81), drop to splat 3 (990 / 1 752). The cache agrees: `tob_bloat_sleep` is 990 client cycles = 33.000 ticks and its shout sound sits at 29.6.
+* **The turn is a roll, and it is not rare.** After the cooldown (32 Regular, 16 Hard; the minimum spacing between reversals is exactly that) a reversal happens on 6.7 % (129 of 1 927 eligible walking ticks) of ticks Regular and 17.1 % (211 of 1 234) Hard. The lockout reads as a minimum of 5 between a reversal step and the next down. The plan's 1-in-64 came from reading the 1.6 % tail past 47 as a bound on the roll; it is not one. *Restated 2026-10-02 (seam2):* 6.7 % / 17.1 % are turns over eligible non-turn ticks (odds); as a per-walking-tick hazard the same streams read 129 of 2 214 = 5.8 % (1 in 17) Regular and 211 of 1 520 = 13.9 % (1 in 7) Hard (`bloat_stats.txt` lines 38-39), which is what `bloat.turn_rate` / `_hard` now state.
+* **Falling flesh:** the first drop of a Normal walk lands ON the rise tick (87 of 111), the cadence is 6 at 40 % health and above and 4 below with the boundary in (39.60, 40.23], the Normal gate is health below 90 % (never a first drop above 89.89 %), and Hard drops through every down on a continuous 4 / 6 clock. 220 tiles are ever hit (the 256-tile fight area minus the 36 tank tiles).
+* **Speed:** every step above 60 % is one tile (5 994 of 5 994); 4 239 two-tile steps, the highest at 59.72 %.
+* **Entry:** Blert holds no Entry Bloat recording at all (mode 10 listings empty). Entry hitpoints are stated by Jagex (Update:Theatre of Blood: Entry Mode Improvements, 14 March 2023): +90 / +80 / +70 / +60 % for the 2nd..5th player, stacking - x1, 1.9, 2.7, 3.4, 4.0. That makes the wiki infobox's 1 280 the **5-player** figure, which corrects the M19 reading above ("4 x the cache unit = the 4-player value").
+
 ## M18 — Verzik: the Athanatos spawn rule. **CLOSED — floor + roll, with a gate**
 
 > After every third lightning ball, there is a **25 % chance** of the nylocas being
@@ -1984,6 +1994,42 @@ than a claim. M4's "slight excess of balanced north/south splits" is below the s
 resolution and is treated as uniform, as the finding recommends.
 
 ---
+
+## Maiden spec pass (2 October 2026) — table, new recordings, and what our server does
+
+Product: [`encounters/maiden.tsv`](minigames/theater_of_blood/encounters/maiden.tsv) (82 rows, graded; `python3 tools/raid_gate/spec_check.py` prints ok). Sources in the order of
+`RAID_ORCHESTRATOR.md` section 3: newsposts, the cache (`sources/cache_maiden_seq_npc.txt`, new: seq lengths summed from `all.seq`, per-mode stat4 from `all.npc`),
+blert (13 new Maiden event streams, fetched today: Hard scales 1-5, Regular scales 3-5; `sources/blert_api/maiden_modes_*.csv` and `maiden_spec_pass_2026-10-02.txt`),
+plugin code, the wiki, guides and transcripts. No frame count was possible (see `SOURCES.md`). Our side was measured with the raid seam: scratch driver scripts, god mode,
+`t.ticklog` (about 20 runs, one 2000-tick and one 8185-tick idle Normal room, see the notebook under `build/spec_state/*-spec-tob/`).
+
+**New first-party text.** Entry Mode Improvements (1 Mar 2023): Entry foe hitpoints are x1 / +90 % / +80 % / +70 % / +60 % for 1-5 players, stacking, so **x1, 1.9, 2.7, 3.4, 4.0**
+of the cache unit (Maiden 500, 950, 1350, 1700, 2000). This overturns the M19 reading in this log ("per player x party size", "the Wiki's 2000 is the 4-player value"):
+the Wiki's 2000 is the five-player figure and the linear rule is the pre-March-2023 one. Eating in the Bank (9 Jan 2020): a Matomenos freeze reaches 100 % at +140, a team
+that avoids every splat halves the blood spawn chance, at most 8 blood spawns. Deadman Summer Finals (21 Jun 2018): three players 75 %, four 87.5 % of the hitpoints.
+
+**New recorder figures.**
+- Hard cadence is not free-running once crabs leak: period 10 / 9 / 9 / 8 / 8 / ? / 7 / 6 / 6 for 0-8 leaked crabs, i.e. `10 - ceil(c/2)` (13 Hard rooms, 174 gaps at c = 0, 40 of 41 at c = 1-2, 29 of 29 at 3-4, 14 of 15 at 6, 14 of 14 at 7-8).
+- Hard crab count is 10 at 2-5 players and **7 solo**; the Wiki's "all eight" is wrong and so is a flat 10.
+- Blood roll: Regular 130 of 419 (0.310, CI 0.266-0.355), Hard 50 of 188; cooldown never violated (944 recorded attacks).
+- Her id changes only at or under 70 / 50 / 30 % (39 of 39) and her hitpoints never rise on that tick.
+- Pools are aimed at each player's tile at the end of T-1 (72 pools on a T-1 tile only, 3 on a T tile only, 76 on both).
+- A blood spawn moves one tile on 33.7 % of ticks (1043 of 3096) and never two. *Restated 2026-10-02 (seam2):* read as runs, a free blood spawn steps every tick (no still run of 1-4 ticks; the 33.7 % averages in freezes, the dying room and stuck slugs, `maiden_spec_pass_2026-10-02.txt` lines 34-37), which is what `maiden.blood_spawn_step` now states. Hard trails never despawn (262 of 609 runs open at the room's end, against 34 of 442 in Regular).
+- The two extra splats go to the player furthest from her hitbox in 16 of 21 multi-player throws (northernmost 11 of 21; a Hard video's "most northern person" is not it).
+
+**Our server, measured, against those figures (content bugs, not fixed here).**
+1. Entry hitpoints use party size as the multiplier (solo is right, 2-5 players are 500 x n instead of 950 / 1350 / 1700 / 2000). Same for the Entry crab (16 x n) and every other Entry boss.
+2. `npc_changetype` to the 70 / 50 / 30 body resets her hitpoints to the new record's 3500 base minus the damage taken: a solo Normal room goes 1444 -> 2319 at the 70 % transmog (+875), a solo Entry room 275 -> 3275 (+3000). The clamp in `~tob_maiden_heal_found` then holds her at the scaled maximum only after the jump.
+3. Hard period steps one per leak to a floor of 5 (2 leaks -> 8, 4 -> 6, 6 -> 5); the recordings say 9, 8, 7.
+4. A solo Hard room spawns 10 crabs (recordings: 7).
+5. A player standing on a splat is hit every second tick (hits on 29, 31, 33 ... in every run), not every tick: `~tob_watch_room` runs on a 2-tick queue.
+6. A blood spawn moves on 77 % of ticks (44,137 moves in 57,029 slug-ticks), not a third.
+7. The blood spawn halving when everyone avoids the splats (Jagex) is absent from `~tob_maiden_pool_roll` (read from the script, not run). *Restated 2026-10-03:* `maiden.blood_spawn_dodged_cap` was spec 1 at tol exact, which failed a solo Entry room that saw 0 spawns over 8 dodged throws; the wiki's "a maximum of one" is a cap, so the row is now the largest spawn count of any fully dodged throw at tol range (a ceiling of 1), and our server's 61 dodged throws peak at 1 (raid_loop/SEAM_LEDGER.md:202).
+8. Entry blood spawns spawn with 90 hitpoints (cache unit 10; `~tob_maiden_pool_roll` ignores the mode).
+9. Death: `^tob_maiden_death_a_ticks` is 2 (cache 3), so the two animations are cut to 6 ticks where the cache and a plugin say 7 (read from the constant, not run). *Restated 2026-10-03 (seam4):* the 3 + 4 cache ticks are the two animations' lengths and AdvancedRaidTracker adds its 7 to the tick it sees `maiden_death_a` (K+1); the recordings hold the first death form 4 ticks in 13 of 13 rooms and despawn her 8 ticks after it, 9 after the killing blow in the 3 rooms that record her at 0 hitpoints and 8 in the 10 where the killing hit shows on the dying_a tick (`maiden_spec_pass_2026-10-02.txt` lines 39-55), which is what `maiden.death_a_len` (4) and `maiden.death_total` (8-9) now state and what our server does (8093 K+1, 8094 K+5, free K+9).
+Open, not bugs: the Hard focus bonus (25 here, "double" from one narrator, M120), the blackstorm flight (M122), Entry offsets (M121), trail damage (Wiki 5-13 / 2-5, ours 10 + 2c).
+
+Reproduce: `python3 sources/blert_api/maiden_modes_extract.py <raw>` and `maiden_spec_analyses.py <raw>`; the raw streams are fetched by `sources/blert_api/fetch_blert_maiden.py` (3 s per request).
 
 ## Applied to the tree — Sotetseg
 

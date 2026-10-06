@@ -1,0 +1,85 @@
+{{Update|date=7 July 2021|link=https://secure.runescape.com/m=news/small-changes--tweaks?oldschool=1|category=game}}
+[[File:Small Changes & Tweaks newspost.png|right]]
+{{clear}}
+{{ToC}}
+
+==Issues and Hotfixes (July 7th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Issues Raised
+!Current Progress
+|-
+|'''(11:50 BST)''' We've received reports of some issues with Phosani's Nightmare:
+* Phosani's does not appear to wake up after first kill.
+* Thralls do not appear to attack anything inside Phosani's Nightmare.
+* No Sleepwalkers during final Phosani phase.
+|'''(13:25 BST)''' [FIXED] These issued have been resolved with the recent reboot.
+|}
+
+''We’re keeping it short and sweet this week with a cosy wee update packed of small changes to improve your day-to-day Gielinorian globe-trotting. We'll also give you a look at some of the content coming in July!''
+
+==What's New==
+Ok, let’s get into this week’s update.
+
+[[File:Small Changes & Tweaks (1).png|600px|centre]]
+
+===Phosani's Nightmare===
+* Personal Best now uses the precise timing setting properly.
+* Rifts will no longer spawn under Spores.
+* Phosani's loot drops will disappear after three hours as normal, rather than vanishing after two minutes.
+* The HP Bar should display correctly within both The Nightmare and Phosani's Nightmare.
+
+We've also implemented various hotfixes since the launch last week. You can find the full list of fixes at the top of [https://secure.runescape.com/m=news/phosanis-nightmare?oldschool=1 last week's newspost].
+
+===Equipment Rebalance===
+* On the Set Bonus window, the Crystal Armour will now display the effect of each individual piece equipped, instead of requiring the full set to show you that much-needed info.
+* The Recipe Log for the Singing Bowl has been updated to include the Enhanced Crystal Weapon Seeds.
+
+===PvP World Rota===
+The PvP rota has moved to Period B:
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-play PvP World
+* 580 - (US) - LMS Competitive
+
+===Extras===
+* Updated the following NPC's to preserve your attacks between type changes:
+** All Tekton Forms
+** All Maiden of Sugadinti Forms
+** All Chambers of Xeric Crystal Crab Forms
+** Wyrms (Including superior)
+** Vet'ion
+** Vespula
+
+* Slightly altered the healing values for Corporeal Beast to disincentivise purely special attacking the boss down, but still open up the method of killing the boss legitimately.
+* Many weapons have had their positions fixed on female characters so that they appear to be held correctly when equipped. En garde! Etc...
+* Workbenches in the Elemental Workshop have been updated to include left-click options. The bookcase at the quest start location has also been updated to give both items at once.
+* The Player Owned House farming tools in the workshop have been 'rebalanced' and now appear to respect the laws of gravity.
+* Hespori immunity now ends as soon as the last healer plant dies.
+* XP drops no longer overlap the Theatre of Blood Party Formation interface.
+* We’ve fixed the Fishing Trawler interface dodger.
+* The Ape Atoll glider button has been upgraded.
+* It's now a bit clearer visually whether bird nests are empty or contain seeds.
+* Imerominia's dialogue about the history of Kourend has had some incorrect numbers adjusted.
+* A grammatical error has been fixed in the description of some Kourend scenery.
+* A spelling error has been corrected in the menagerie of Player Owned Houses.
+* The coloured crystals of the Elf clans now restock faster in the shop, now that they have more uses.
+
+==Upcoming Content==
+[[File:Small Changes & Tweaks (2).png|600px|centre]]
+
+'''July 14th''': We're bringing you a bunch of Slayer-related changes that passed in Poll 75, including improvements to Zulrah, Hydra, Grotesque Guardians and more!
+
+'''July 21st''': It's time for the long-awaited Combat Achievements update! Step up to the plate as you face off against some of the toughest foes across Gielinor. Plus, we'll be making some changes to The Gauntlet.
+
+'''July 28th''': The Night At The Theatre quest's rework arrives with the final update of the month. This change will bring a more thematic approach to the quest, and you give you some deeper backstory around the Theatre and some of its mysterious participants.
+
+===Summer Summit===
+With the pandemic scuppering recent RuneFest plans, we’ve committed to offering more regular insights into upcoming content right here. You may remember us mentioning the upcoming Summer Summit – a collection of announcements and information regarding upcoming content? Even though we're not ready to give the exact date yet, it will be coming '''this month''', so make sure to keep an eye on our livestreams and socials for updates.
+
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums?380,381,737,66221354 official forums], on the [https://www.reddit.com/r/2007scape/comments/offusn/small_changes_tweaks_weekly_game_update_070721/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+----
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Grub, Halo, Husky, Jerv, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Skylark, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

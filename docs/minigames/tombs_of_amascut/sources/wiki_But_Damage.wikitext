@@ -1,0 +1,108 @@
+{{Infobox Combat Achievement
+|name = But... Damage
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut without anyone in your party wearing or holding any equipment at tier 75 or above.
+|tier = Master
+|monster = Tombs of Amascut: Expert Mode
+|type = Restriction
+|id = 427
+|leagueRegion = Desert
+}}
+'''But... Damage''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete a [[Tombs of Amascut]] raid without using any tier 75 or higher equipment, at level 300 or above.
+
+==Strategy==
+As tier 75 or higher equipment cannot be used, players will be unable to use most reasonable weapons and equipment that would make the raid faster. The second-best alternatives to use in lieu of them would be the gear setup below.
+
+If crystal armour is outside of your ability/price, [[hunters' sunlight crossbow]], an [[odium ward]] and [[moonlight antler bolts]] are good alternatives to the crystal bow as the high attack speed can compensate for some of the accuracy and strength loss. [[Thralls]] are allowed. [[Burning claws|Burning Claws]] and [[Belle's folly|Belle's Folly]] are eligible and can be brought in as a spec weapon and stab weapon respectively.
+
+Unlike the tier 65 [[Keris partisan]], the [[Keris partisan of the sun]], [[Keris partisan of breaching]], [[Keris partisan of amascut]] and [[Keris partisan of corruption]] cannot be brought into the raid as they require 80 [[Attack]]. 
+
+Below is an example equipment and inventory that can be used to complete this task. Quantities and ratios of supplies needed is very dependant on how experienced a player is with the Tombs of Amascut raid. Example inventory might not apply to everyone, and players should make adjustments based on their own skills.
+
+{{Equipment
+|align = 
+|head = Neitiznot faceguard
+|cape = Infernal cape
+|neck = Amulet of blood fury
+|ammo = Ruby dragon bolts (e)
+|weapon = Zamorakian hasta
+|torso = Bandos chestplate
+|legs = Bandos tassets
+|shield = Avernic defender
+|gloves = Barrows gloves
+|boots = Aranea boots
+|ring = Lightbearer
+}}
+{{Inventory
+|align = 
+|1 = Crystal helm
+|2 = Armadyl crossbow
+|3 = Ahrim's robetop
+|4 = Accursed sceptre
+|5 = Crystal body
+|6 = Ava's assembler
+|7 = Ahrim's robeskirt
+|8 = Occult necklace
+|9 = Crystal bow
+|10 = Crystal legs
+|11 = Dragon dagger
+|12 = Book of the Dead
+|13 = Divine rune pouch
+|14 = Bone dagger
+|15 = Keris partisan
+|16 = Super restore(4)
+|17 = Saradomin brew(4)
+|18 = Saradomin brew(4)
+|19 = Super restore(4)
+|20 = Super restore(4)
+|21 = Saradomin brew(4)
+|22 = Saradomin brew(4)
+|23 = Super restore(4)
+|24 = Super restore(4)
+|25 = Saradomin brew(4)
+|26 = Sanfew serum(4)
+|27 = Super combat potion(4)
+|28 = Ranging potion(4)
+}}
+{{Rune pouch
+|align =
+|1 = Fire rune
+|2 = Blood rune
+|3 = Cosmic rune
+}}
+{{clear}}
+
+
+Despite being equipment that is tier 75 or higher, the following items may currently be used without failing the task:
+* [[Holy ghrazi rapier]]
+* [[Holy sanguinesti staff]]
+* [[Holy Scythe of Vitur|Holy]] and [[Sanguine Scythe of Vitur]]
+* [[Ancient sceptre]] with quartz attached
+* [[Desert treasure 2 rings]]
+* [[Max_cape#Variants|Max cape variants]] of [[Dizana's quiver]]
+* [[Amulet of rancour (s)]]
+* [[Echo Virtus robes]]
+
+Lastly, dying does not disqualify the player for the task; as long as one teammate survives and completes the raid, the task is completed for all participants.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 December 2022
+|update = Christmas Event 2022
+|change = A bug in which items tier 75 and higher could be used for the task has been fixed.
+}}
+{{Subject changes
+|date = 7 December 2022
+|update = Quest Speedrunning: Batch 3 & More
+|change = More items have been added to the list of equipment that cannot be used for the task.
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

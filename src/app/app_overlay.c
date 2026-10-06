@@ -1340,11 +1340,11 @@ app_overlay_build_hover_footprint(struct App* app)
          * know what kind of entity it found beyond where to read the id.
          */
         struct World_Picked const* hit = NULL;
-        for( int i = 0; i < app->world_pickset.count && !hit; i++ )
+        for( int i = 0; i < app->frame_view->world_pickset.count && !hit; i++ )
         {
-            enum World_PickType const type = app->world_pickset.items[i].type;
+            enum World_PickType const type = app->frame_view->world_pickset.items[i].type;
             if( type == WORLD_PICK_SCENERY || type == WORLD_PICK_NPC )
-                hit = &app->world_pickset.items[i];
+                hit = &app->frame_view->world_pickset.items[i];
         }
         if( !hit )
             return;
@@ -1517,3 +1517,702 @@ app_overlay_build_editor_selection(struct App* app)
     }
 }
 
+
+/* ------------------------------------------------------------------------
+ * THE WATCHER'S AIDS (docs/minigames/raid_loop/CAMERA_TRIAGE_seam2.md,
+ * watch_debug_aids). While a script's view is attached (struct
+ * App_ViewSplit), the presented frame is the watcher's picture through the
+ * PlayerClient view, and three things say what the runner is doing in it:
+ *
+ *   - the BADGE, "Runner has control" or a warning-coloured "You can
+ *     interact" (the Interact switch, App_ViewSplit.interact), top-centre of
+ *     the world viewport on the CANVAS list, so it sits over every interface
+ *     at every window size and on every lane (the canvas list is the plugin
+ *     overlay surface; the client never wrote to it before this);
+ *   - the GHOST CURSOR at the runner's pointer (App_ViewSplit.runner_x/y,
+ *     screen space, which the two views share), a red click cross on it while
+ *     a runner button is held or just after a runner press, and a label with
+ *     what the runner's own pick holds (views[APP_VIEW_RUNNER].world_pickset),
+ *     also on the canvas;
+ *   - the PRESS OUTLINE: when the runner presses a menu row on the world, the
+ *     npc, loc, obj or player that row names -- or the tile, for Walk here --
+ *     is outlined in the WATCHER's projection for APP_WATCH_PRESS_MARK_MS on
+ *     the world list, beside the hover outline. The runner's pixel means
+ *     nothing in the watcher's picture; the thing it pressed does.
+ *
+ * Nothing here runs with one view: every entry point's first test is
+ * `view_split.attached`, which is 0 headless and in a client with no script
+ * attached. Nothing here runs for the runner's own frames either: the marks
+ * are drawn only while frame_view is the PlayerClient view, so a script's
+ * photograph (app_capture_runner_render, which walks the emit through the
+ * runner's view) carries none of them.
+ *
+ * State lives in this unit, not on struct App: it is presentation-only, it
+ * is reset at every attach, and nothing outside this file reads it.
+ * ------------------------------------------------------------------------ */
+
+#define APP_WATCH_PRESS_MARK_MS 1500
+#define APP_WATCH_CLICK_CROSS_MS 400
+#define APP_WATCH_MENU_ROWS_MAX 48
+#define APP_WATCH_LABEL_LEN 96
+
+#define APP_WATCH_COLOR_PRESS 0xFF00FFFFu   /* cyan: the hover outline is yellow */
+#define APP_WATCH_COLOR_GHOST 0xFF00FFFFu
+#define APP_WATCH_COLOR_GHOST_SHADOW 0xFF000000u
+#define APP_WATCH_COLOR_CLICK_CROSS 0xFFFF2020u
+#define APP_WATCH_COLOR_BADGE_TEXT_OFF 0xFFFFFFFFu
+#define APP_WATCH_COLOR_BADGE_FILL_OFF 0xFF202428u
+#define APP_WATCH_COLOR_BADGE_TEXT_ON 0xFF000000u
+#define APP_WATCH_COLOR_BADGE_FILL_ON 0xFFFF981Fu /* the game's own orange text colour */
+#define APP_WATCH_COLOR_BADGE_EDGE_ON 0xFFFFFF00u
+
+/** One row of the runner's menu while it was open: the band of screen y a
+ *  press on it lands in, and what the row names. */
+struct App_WatchMenuRow
+{
+    int y_top;
+    int y_bottom;
+    struct UIMinimenuPick pick;
+    char text[APP_WATCH_LABEL_LEN];
+};
+
+struct App_WatchState
+{
+    uint64_t attaches_seen;
+    /* The runner menu as last seen open. */
+    int menu_x;
+    int menu_width;
+    int menu_row_count;
+    struct App_WatchMenuRow menu_rows[APP_WATCH_MENU_ROWS_MAX];
+    /* The click cross as last seen (a new one is a press). */
+    int cross_x;
+    int cross_y;
+    int cross_mode;
+    int cross_cycle;
+    /* The runner's buttons as last seen (a rise is a press). */
+    int runner_buttons;
+    uint64_t click_cross_until_ms;
+    int click_cross_x;
+    int click_cross_y;
+    /* The press mark. */
+    int press_active;
+    uint64_t press_until_ms;
+    struct UIMinimenuPick press_pick;
+    char press_text[APP_WATCH_LABEL_LEN];
+    uint64_t presses;
+    int press_items_last; /* world items the outline pushed, last build */
+    /* The ghost label, recomputed only when the runner's first pick moves. */
+    int label_element_id;
+    int label_type;
+    int label_count;
+    char ghost_label[APP_WATCH_LABEL_LEN];
+    /* The canvas list's length before the watch items (the photograph cut),
+     *  and how many walks through the runner's view were cut (the proof). */
+    int canvas_base;
+    uint64_t canvas_cuts;
+    /* The badge as last placed, for the trace. */
+    int badge_x;
+    int badge_y;
+    int badge_w;
+    /* TORIRS_WATCH_TRACE (proofs): resolved once per process. */
+    int trace_resolved;
+    FILE* trace;
+};
+
+static struct App_WatchState g_watch_state;
+
+static int
+app_watch_presented(struct App* app)
+{
+    return app->frame_view == &app->views[APP_VIEW_PLAYER_CLIENT];
+}
+
+/* Strip <col=..> tags and @yel@ colour codes, so a menu row reads as words
+ * in a label. */
+static void
+app_watch_plain_text(
+    char* out,
+    int out_size,
+    char const* text)
+{
+    int n = 0;
+    int in_tag = 0;
+
+    assert(out);
+    assert(out_size > 0);
+    assert(text);
+    for( int i = 0; text[i] && n < out_size - 1; i++ )
+    {
+        if( !in_tag && text[i] == '@' && text[i + 1] && text[i + 2] && text[i + 3] && text[i + 4] == '@' )
+        {
+            i += 4;
+            continue;
+        }
+        if( text[i] == '<' )
+        {
+            in_tag = 1;
+            continue;
+        }
+        if( in_tag )
+        {
+            if( text[i] == '>' )
+                in_tag = 0;
+            continue;
+        }
+        out[n++] = text[i];
+    }
+    out[n] = '\0';
+}
+
+/* Per-attach reset: a new run starts with no remembered menu, cross or mark. */
+static void
+app_watch_sync_attach(struct App* app)
+{
+    struct App_WatchState* state = &g_watch_state;
+
+    if( state->attaches_seen == app->view_split.attaches )
+        return;
+    state->attaches_seen = app->view_split.attaches;
+    state->menu_row_count = 0;
+    state->cross_x = app->cross.x;
+    state->cross_y = app->cross.y;
+    state->cross_mode = (int)app->cross.mode;
+    state->cross_cycle = app->cross.cycle;
+    state->runner_buttons = app->view_split.runner_buttons_held;
+    state->click_cross_until_ms = 0;
+    state->press_active = 0;
+    state->press_items_last = 0;
+    state->label_element_id = -2;
+    state->ghost_label[0] = '\0';
+}
+
+/* While the runner's menu is open, remember its rows' bands: the driver's
+ * row press lands in the same input step that closes the menu, so by the
+ * time a frame is drawn the menu is gone and only this record says which
+ * row the runner's pointer pressed. */
+static void
+app_watch_note_runner_menu(struct App* app)
+{
+    struct App_WatchState* state = &g_watch_state;
+    struct UIMinimenu const* menu = App_RunnerView(app)->minimenu;
+    int rows;
+
+    assert(menu);
+    if( !menu->visible )
+        return;
+    rows = menu->option_count < APP_WATCH_MENU_ROWS_MAX ? menu->option_count : APP_WATCH_MENU_ROWS_MAX;
+    state->menu_x = menu->x;
+    state->menu_width = menu->width;
+    for( int i = 0; i < rows; i++ )
+    {
+        int const option_y = UIMinimenu_OptionY(menu, i);
+        struct App_WatchMenuRow* row = &state->menu_rows[i];
+        row->y_top = option_y - menu->layout.hover_above;
+        row->y_bottom = option_y + menu->layout.hover_below;
+        row->pick = menu->options[i].pick;
+        app_watch_plain_text(row->text, (int)sizeof(row->text), menu->options[i].text);
+    }
+    state->menu_row_count = rows;
+}
+
+static int
+app_watch_pick_is_world(enum UIMinimenuPickKind kind)
+{
+    return kind == UI_MINIMENU_PICK_NPC || kind == UI_MINIMENU_PICK_SCENERY ||
+           kind == UI_MINIMENU_PICK_OBJ || kind == UI_MINIMENU_PICK_PLAYER ||
+           kind == UI_MINIMENU_PICK_TERRAIN;
+}
+
+/* A press the runner made: a click cross that was not there last frame (the
+ * game shows one for every op row and every walk that resolves) while the
+ * runner moved last, or a rise of a runner button seen between frames. The
+ * row under the runner's pointer in the remembered menu is what it pressed. */
+static void
+app_watch_note_press(struct App* app)
+{
+    struct App_WatchState* state = &g_watch_state;
+    struct App_ViewSplit const* split = &app->view_split;
+    uint64_t const now = app->last_frame_ms;
+    int new_cross;
+    int button_rise;
+
+    new_cross = app->cross.mode != UI_CROSS_OFF &&
+                (app->cross.x != state->cross_x || app->cross.y != state->cross_y ||
+                 (int)app->cross.mode != state->cross_mode || app->cross.cycle < state->cross_cycle);
+    button_rise = (split->runner_buttons_held & ~state->runner_buttons) != 0;
+    state->cross_x = app->cross.x;
+    state->cross_y = app->cross.y;
+    state->cross_mode = (int)app->cross.mode;
+    state->cross_cycle = app->cross.cycle;
+    state->runner_buttons = split->runner_buttons_held;
+
+    if( split->physical_moved_last )
+        return;
+    if( !new_cross && !button_rise )
+        return;
+    if( split->runner_pointer_valid )
+    {
+        state->click_cross_until_ms = now + APP_WATCH_CLICK_CROSS_MS;
+        state->click_cross_x = split->runner_x;
+        state->click_cross_y = split->runner_y;
+    }
+    if( !new_cross || state->menu_row_count == 0 )
+        return;
+    if( split->runner_x <= state->menu_x || split->runner_x >= state->menu_x + state->menu_width )
+        return;
+    for( int i = 0; i < state->menu_row_count; i++ )
+    {
+        struct App_WatchMenuRow const* row = &state->menu_rows[i];
+        if( split->runner_y <= row->y_top || split->runner_y >= row->y_bottom )
+            continue;
+        if( !app_watch_pick_is_world(row->pick.kind) )
+            break;
+        state->press_active = 1;
+        state->press_until_ms = now + APP_WATCH_PRESS_MARK_MS;
+        state->press_pick = row->pick;
+        snprintf(state->press_text, sizeof(state->press_text), "%s", row->text);
+        state->presses++;
+        break;
+    }
+    /* One press per remembered menu: the next press needs the next menu. */
+    state->menu_row_count = 0;
+}
+
+/* The ground quad of one tile at its own height, through the frame's view. */
+static int
+app_watch_outline_tile(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level,
+    uint32_t color)
+{
+    static const int corner[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+    int px[4];
+    int py[4];
+    int count = 0;
+
+    for( int c = 0; c < 4; c++ )
+    {
+        int const fine_x = (tile_x + corner[c][0]) * 128;
+        int const fine_z = (tile_z + corner[c][1]) * 128;
+        int const height = app_world_height(app, fine_x, fine_z, level);
+        if( !app_world_project_at(app, fine_x, fine_z, height, &px[count], &py[count]) )
+            continue;
+        count++;
+    }
+    if( count < 2 )
+        return 0;
+    app_overlay_push_polygon(app, px, py, count, color, APP_OVERLAY_SEGMENT_WIDTH);
+    return 1;
+}
+
+/**
+ * The press outline, on the world list of the PRESENTED frame (called with
+ * the hover footprint, app_build_entity_overlays). One predicted branch when
+ * no script's view is attached.
+ */
+void
+app_overlay_build_watch_world(struct App* app)
+{
+    struct App_WatchState* state = &g_watch_state;
+    int before;
+
+    assert(app);
+    if( !app->view_split.attached )
+        return;
+    if( !app_watch_presented(app) || !app->world )
+        return;
+    app_watch_sync_attach(app);
+    app_watch_note_runner_menu(app);
+    app_watch_note_press(app);
+    state->press_items_last = 0;
+    if( !state->press_active )
+        return;
+    if( app->last_frame_ms >= state->press_until_ms )
+    {
+        state->press_active = 0;
+        return;
+    }
+    before = OverlayStage_Count(&app->overlays, OVERLAY_SURFACE_WORLD);
+    if( state->press_pick.kind == UI_MINIMENU_PICK_TERRAIN )
+    {
+        /* A deck tile (view_id != 0) is in its view's own coordinates; the
+         * root world's is a scene tile. Only the root's is outlined. */
+        if( state->press_pick.view_id == 0 )
+            app_watch_outline_tile(
+                app,
+                state->press_pick.secondary_id,
+                state->press_pick.tertiary_id,
+                state->press_pick.quaternary_id,
+                APP_WATCH_COLOR_PRESS);
+    }
+    else
+    {
+        /* A model that has gone (despawned, picked up, out of view) draws
+         * nothing: the mark is about the thing, not where it was. */
+        (void)app_overlay_outline_element_model(app, state->press_pick.id, APP_WATCH_COLOR_PRESS);
+    }
+    state->press_items_last = OverlayStage_Count(&app->overlays, OVERLAY_SURFACE_WORLD) - before;
+}
+
+static void
+app_watch_canvas_push(
+    struct App* app,
+    struct UITreeEntityOverlay const* item)
+{
+    OverlayStage_Push(&app->overlays, OVERLAY_SURFACE_CANVAS, item);
+}
+
+static void
+app_watch_canvas_segment(
+    struct App* app,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    uint32_t color,
+    int line_width)
+{
+    struct UITreeEntityOverlay seg = {
+        .kind = UITREE_ENTITY_OVERLAY_LINE,
+        .x = x0 < x1 ? x0 : x1,
+        .y = y0 < y1 ? y0 : y1,
+        .w = x0 < x1 ? x1 - x0 : x0 - x1,
+        .h = y0 < y1 ? y1 - y0 : y0 - y1,
+        .color = color,
+        .line_width = (uint8_t)line_width,
+        .line_direction = ((x0 < x1) != (y0 < y1)) ? 1 : 0,
+    };
+    app_watch_canvas_push(app, &seg);
+}
+
+static void
+app_watch_canvas_rect(
+    struct App* app,
+    int x,
+    int y,
+    int w,
+    int h,
+    uint32_t color,
+    int trans)
+{
+    struct UITreeEntityOverlay rect = {
+        .kind = UITREE_ENTITY_OVERLAY_RECT,
+        .x = x,
+        .y = y,
+        .w = w,
+        .h = h,
+        .color = color,
+        .trans = trans,
+    };
+    app_watch_canvas_push(app, &rect);
+}
+
+/* Centred on x, baseline at y, with a one-pixel shadow (the overhead chat's
+ * recipe) unless the text sits on its own fill. */
+static void
+app_watch_canvas_text(
+    struct App* app,
+    int x,
+    int y,
+    int font_id,
+    uint32_t color,
+    int shadow,
+    char const* text)
+{
+    struct UITreeEntityOverlay item = {
+        .kind = UITREE_ENTITY_OVERLAY_TEXT,
+        .x = x,
+        .y = y + 1,
+        .font_id = font_id,
+        .color = APP_WATCH_COLOR_GHOST_SHADOW,
+    };
+
+    snprintf(item.text, sizeof(item.text), "%s", text);
+    if( shadow )
+    {
+        item.x = x + 1;
+        app_watch_canvas_push(app, &item);
+        item.x = x;
+    }
+    item.y = y;
+    item.color = color;
+    app_watch_canvas_push(app, &item);
+}
+
+static int
+app_watch_text_width(
+    struct App* app,
+    int font_id,
+    char const* text)
+{
+    int width = font_id >= 0 ? app_measure_text_cb(app, font_id, text) : 0;
+    /* No font resident yet: a fixed advance keeps the badge a sane size. */
+    return width > 0 ? width : (int)strlen(text) * 7;
+}
+
+/* What the runner's own pick holds, as words: kind, the config id, the
+ * absolute tile, and how many more hits are under it. Recomputed only when
+ * the first world hit or the count changes (the getters walk a pool). */
+static void
+app_watch_ghost_label(struct App* app)
+{
+    struct App_WatchState* state = &g_watch_state;
+    struct World_PickSet const* pickset = &App_RunnerView(app)->world_pickset;
+    struct World_Picked const* hit = NULL;
+    char const* kind = "tile";
+    int id = -1;
+
+    for( int i = 0; i < pickset->count && !hit; i++ )
+    {
+        enum World_PickType const type = pickset->items[i].type;
+        if( type == WORLD_PICK_NPC || type == WORLD_PICK_SCENERY || type == WORLD_PICK_OBJSTACK ||
+            type == WORLD_PICK_PLAYER )
+            hit = &pickset->items[i];
+    }
+    if( !hit && pickset->count > 0 && pickset->items[0].type == WORLD_PICK_TERRAIN )
+        hit = &pickset->items[0];
+    if( !hit )
+    {
+        if( state->label_element_id != -1 || state->label_count != pickset->count )
+            snprintf(state->ghost_label, sizeof(state->ghost_label), "runner");
+        state->label_element_id = -1;
+        state->label_count = pickset->count;
+        return;
+    }
+    if( hit->element_id == state->label_element_id && (int)hit->type == state->label_type &&
+        pickset->count == state->label_count )
+        return;
+    state->label_element_id = hit->element_id;
+    state->label_type = (int)hit->type;
+    state->label_count = pickset->count;
+    switch( hit->type )
+    {
+    case WORLD_PICK_NPC:
+    {
+        struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, hit->element_id, NULL);
+        kind = "npc";
+        id = npc ? npc->npc_id : -1;
+        break;
+    }
+    case WORLD_PICK_SCENERY:
+    {
+        struct WorldEntity_Scenery* scenery = World_SceneryGetByElementId(app->world, hit->element_id);
+        kind = "loc";
+        id = scenery ? scenery->loc_id : -1;
+        break;
+    }
+    case WORLD_PICK_OBJSTACK:
+    {
+        struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(app->world, hit->element_id);
+        kind = "obj";
+        id = stack ? stack->obj_id : -1;
+        break;
+    }
+    case WORLD_PICK_PLAYER:
+        kind = "player";
+        break;
+    default:
+        kind = "tile";
+        break;
+    }
+    if( id >= 0 )
+        snprintf(
+            state->ghost_label,
+            sizeof(state->ghost_label),
+            "runner: %s %d at %d,%d (%d hit%s)",
+            kind,
+            id,
+            app->world->_base_tile_x + hit->tile_x,
+            app->world->_base_tile_z + hit->tile_z,
+            pickset->count,
+            pickset->count == 1 ? "" : "s");
+    else
+        snprintf(
+            state->ghost_label,
+            sizeof(state->ghost_label),
+            "runner: %s at %d,%d (%d hit%s)",
+            kind,
+            app->world->_base_tile_x + hit->tile_x,
+            app->world->_base_tile_z + hit->tile_z,
+            pickset->count,
+            pickset->count == 1 ? "" : "s");
+}
+
+static void
+app_watch_trace(
+    struct App* app,
+    char const* badge)
+{
+    struct App_WatchState* state = &g_watch_state;
+    struct App_ViewSplit const* split = &app->view_split;
+
+    if( !state->trace_resolved )
+    {
+        char const* path = getenv("TORIRS_WATCH_TRACE");
+        state->trace_resolved = 1;
+        if( path && path[0] )
+        {
+            state->trace = fopen(path, "w");
+            assert(state->trace);
+        }
+    }
+    if( !state->trace )
+        return;
+    fprintf(
+        state->trace,
+        "presented=%llu ms=%llu interact=%d badge=\"%s\" ghost=%d,%d,%d buttons=%d click_cross=%d "
+        "runner_menu=%d rows=%d presses=%llu press=%d kind=%d element=%d a=%d b=%d c=%d items=%d "
+        "text=\"%s\" label=\"%s\" badge_box=%d,%d,%d viewport=%d,%d,%d,%d cuts=%llu\n",
+        (unsigned long long)split->presented_frames,
+        (unsigned long long)app->last_frame_ms,
+        split->interact,
+        badge,
+        split->runner_pointer_valid,
+        split->runner_x,
+        split->runner_y,
+        split->runner_buttons_held,
+        app->last_frame_ms < state->click_cross_until_ms,
+        App_RunnerView(app)->minimenu->visible ? 1 : 0,
+        state->menu_row_count,
+        (unsigned long long)state->presses,
+        state->press_active,
+        (int)state->press_pick.kind,
+        state->press_pick.id,
+        state->press_pick.secondary_id,
+        state->press_pick.tertiary_id,
+        state->press_pick.quaternary_id,
+        state->press_items_last,
+        state->press_active ? state->press_text : "",
+        state->ghost_label,
+        state->badge_x,
+        state->badge_y,
+        state->badge_w,
+        app->world_emit_desc.x,
+        app->world_emit_desc.y,
+        app->world_emit_desc.w,
+        app->world_emit_desc.h,
+        (unsigned long long)state->canvas_cuts);
+    fflush(state->trace);
+}
+
+/**
+ * The badge and the ghost cursor, appended to the CANVAS list after every
+ * plugin's items (app_build_canvas_overlays). `count` is the list's length
+ * before them; the answer is its length after. With no script's view
+ * attached, or for a walk through the runner's view, nothing is added.
+ */
+int
+app_overlay_build_watch_canvas(
+    struct App* app,
+    int count)
+{
+    struct App_WatchState* state = &g_watch_state;
+    struct App_ViewSplit const* split = &app->view_split;
+    struct UITreeEmitDesc const* viewport = &app->world_emit_desc;
+    char const* badge;
+    int font_id;
+    int badge_w;
+    int badge_h = 18;
+    int badge_x;
+    int badge_y;
+
+    assert(app);
+    state->canvas_base = count;
+    if( !split->attached )
+        return count;
+    if( !app_watch_presented(app) )
+        return count;
+    app_watch_sync_attach(app);
+    font_id = app_minimenu_font_scene_id(app);
+
+    /* THE BADGE: top-centre of the world viewport, which every window size
+     * and every gameframe has. */
+    badge = split->interact ? "You can interact (Scripts: Interact is on)" : "Runner has control";
+    badge_w = app_watch_text_width(app, font_id, badge) + 16;
+    badge_x = viewport->x + (viewport->w - badge_w) / 2;
+    if( badge_x < 2 )
+        badge_x = 2;
+    badge_y = viewport->y + 4;
+    state->badge_x = badge_x;
+    state->badge_y = badge_y;
+    state->badge_w = badge_w;
+    if( split->interact )
+    {
+        app_watch_canvas_rect(app, badge_x - 1, badge_y - 1, badge_w + 2, badge_h + 2, APP_WATCH_COLOR_BADGE_EDGE_ON, 0);
+        app_watch_canvas_rect(app, badge_x, badge_y, badge_w, badge_h, APP_WATCH_COLOR_BADGE_FILL_ON, 0);
+        app_watch_canvas_text(app, badge_x + badge_w / 2, badge_y + 13, font_id, APP_WATCH_COLOR_BADGE_TEXT_ON, 0, badge);
+    }
+    else
+    {
+        app_watch_canvas_rect(app, badge_x, badge_y, badge_w, badge_h, APP_WATCH_COLOR_BADGE_FILL_OFF, 80);
+        app_watch_canvas_text(app, badge_x + badge_w / 2, badge_y + 13, font_id, APP_WATCH_COLOR_BADGE_TEXT_OFF, 1, badge);
+    }
+
+    /* THE GHOST CURSOR: a ring of four ticks around the runner's pointer
+     * (shadowed, so it reads on sky and on sand), a red X while it presses,
+     * and what its pick holds under it. */
+    if( split->runner_pointer_valid )
+    {
+        int const x = split->runner_x;
+        int const y = split->runner_y;
+        static const int tick[4][4] = {
+            { -9, 0, -3, 0 },
+            { 3, 0, 9, 0 },
+            { 0, -9, 0, -3 },
+            { 0, 3, 0, 9 },
+        };
+
+        for( int pass = 0; pass < 2; pass++ )
+        {
+            uint32_t const color = pass == 0 ? APP_WATCH_COLOR_GHOST_SHADOW : APP_WATCH_COLOR_GHOST;
+            int const offset = pass == 0 ? 1 : 0;
+            for( int i = 0; i < 4; i++ )
+                app_watch_canvas_segment(
+                    app,
+                    x + tick[i][0] + offset,
+                    y + tick[i][1] + offset,
+                    x + tick[i][2] + offset,
+                    y + tick[i][3] + offset,
+                    color,
+                    2);
+        }
+        app_watch_canvas_rect(app, x - 1, y - 1, 3, 3, APP_WATCH_COLOR_GHOST, 0);
+        if( split->runner_buttons_held || app->last_frame_ms < state->click_cross_until_ms )
+        {
+            int const cx = split->runner_buttons_held ? x : state->click_cross_x;
+            int const cy = split->runner_buttons_held ? y : state->click_cross_y;
+            app_watch_canvas_segment(app, cx - 6, cy - 6, cx + 6, cy + 6, APP_WATCH_COLOR_CLICK_CROSS, 2);
+            app_watch_canvas_segment(app, cx - 6, cy + 6, cx + 6, cy - 6, APP_WATCH_COLOR_CLICK_CROSS, 2);
+        }
+        if( app->world )
+            app_watch_ghost_label(app);
+        else
+            snprintf(state->ghost_label, sizeof(state->ghost_label), "runner");
+        app_watch_canvas_text(app, x, y + 22, font_id, APP_WATCH_COLOR_GHOST, 1, state->ghost_label);
+    }
+    app_watch_trace(app, badge);
+    return OverlayStage_Count(&app->overlays, OVERLAY_SURFACE_CANVAS);
+}
+
+/**
+ * The canvas list's length for a walk that reuses this frame's list (the
+ * list is built once per frame): a walk through the runner's view (its
+ * photograph) stops before the watch items.
+ */
+int
+app_overlay_watch_canvas_count(
+    struct App* app,
+    int count)
+{
+    assert(app);
+    if( !app->view_split.attached )
+        return count;
+    if( app_watch_presented(app) )
+        return count;
+    if( g_watch_state.canvas_base >= count )
+        return count;
+    g_watch_state.canvas_cuts++;
+    return g_watch_state.canvas_base;
+}

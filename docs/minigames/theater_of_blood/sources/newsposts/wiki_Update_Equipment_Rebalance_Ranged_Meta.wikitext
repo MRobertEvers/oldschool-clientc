@@ -1,0 +1,352 @@
+{{Update|date=20 April 2021|link=https://secure.runescape.com/m=news/equipment-rebalance-ranged-meta?oldschool=1|category=your feedback}}
+[[File:Equipment Rebalance- Ranged Meta newspost.png|right]]
+{{clear}}
+In our last [https://secure.runescape.com/m=news/equipment-rebalance-next-steps?oldschool=1 Equipment Rebalance blog], we discussed splitting the process into four releases. The idea is to start out on the simpler rebalancing, before moving on to tackle trickier subjects - such as changes to the Ranged meta - separately, giving everything the room it needs to breathe and be properly considered.
+
+In this blog we're going to take a closer look at those Ranged meta changes, covering:
+* The current Ranged meta
+* Our previous proposal
+* Various top-level concepts for what we could change
+* Detailed DPS numbers
+* Our next steps - and a survey for you to fill in!
+
+As a team, we believe a rebalance is clearly needed in order to curb any risk of powercreep and to ensure the long-term health of the game. It’s vital that we get this right, and we appreciate all of the support we’ve received so far.
+
+A bit of a warning, though - this blog will contain a lot of information. But regardless, we strongly advise reading through all of it before providing any feedback. We also encourage you all to be constructive in your responses - if you're unhappy with an approach, consider offering an alternative suggestion or let us know which areas in particular need changing and why. This ensures that we’re able to action the changes that matter the most to you.
+
+We should also note that '''the 'solution' to the Ranged Meta won't be found in this blog!''' We're going to continue working on it, and further down the road we'll be asking you to fill out a survey that will help shape our actual proposal. Together, we'll be able to find a solution that we can all be happy with.
+
+So, grab some water and stay hydrated as you traverse the desert of Equipment Rebalance...
+
+{{ToC}}
+==The Current Ranged Meta==
+First, how do things currently stand?
+
+===Toxic Blowpipe===
+It’s no secret that the Toxic Blowpipe is strong. Here's why it's so popular:
+
+* It's never a bad weapon to use unless a monster is specifically invulnerable to Ranged, you’re forced to wear a shield, or you are attacking a creature that the Blowpipe cannot reach (such as TzKal-Zuk).
+* It has a very versatile special attack (when it hits).
+* It is very obtainable, costing anywhere from as little as 3m to 5m GP depending on the market.
+* It's among the fastest attacking weapons in the game, which drastically reduces its overkill potential (this also allows it to scale better than most Ranged items as max hit increases).
+* The upkeep cost isn't all that high unless using Rune/Dragon Darts, and the return on investment only provides marginal increases in damage.
+* It’s the only Ranged weapon which can compete with the Twisted Bow in terms of DPS output against lots of creatures.
+* The only Ranged weapons which out-perform the Blowpipe in places where Ranged is relevant are:
+** Dragonhunter Crossbow against high-defence dragons like Vorkath (but only if their Defence is not reduced)
+** Twisted Bow against creatures which have mid-high Defence and also a mid-high Magic level
+** Armadyl crossbow with Ruby Enchanted Bolts against creatures with exceptionally high Hitpoints, such as TzKal-Zuk
+** Chinchompas in places where creatures can be affected by Ranged AoE damage
+* Even against creatures it would not typically be match for, the Blowpipe will be a reasonably strong choice as long as the Defence can be reduced, making it fit to take on tough cookies such as:
+** Xarpus
+** Vorkath
+** Abyssal Sire
+** Sotetseg
+
+===Twisted Bow===
+When used against creatures with a high Magic level, the Twisted Bow is the strongest Ranged weapon in the game by a large margin. This is because of its unique effect; the higher the target's Magic level or Magic accuracy, the higher the Twisted Bow's accuracy and damage becomes!
+
+It can be used to great effect against creatures including:
+* The Great Olm
+* Commander Zilyana
+* Dagannoth Prime
+* Alchemical Hydra
+* Skotizo
+* Vasa Nistirio
+* Most Chambers of Xeric: Challenge Mode creatures
+* TzTok-Jad
+* TzKal-Zuk
+* Zulrah
+
+And, even if it isn't the strongest weapon, The Twisted Bow is still a reasonable choice against creatures such as:
+* Cerberus
+* Abyssal Sire
+* King Black Dragon
+* Maiden of Sugadinti
+* Sotetseg
+* Xarpus
+
+However, The Twisted Bow is '''''significantly''''' worse than almost any other alternative Ranged weapon if the creature has a low Magic level, and is worse than almost every weapon in the game when the creature has no Magic level at all.
+
+Because the Twisted Bow is a very rare drop from end-game content, it remains relatively exclusive and has held its position as one of the most expensive non-cosmetic items to obtain in the game.
+
+===Heavy Ballista===
+The Heavy Ballista sits within the Tier 75 Ranged weapons alongside the Twisted Bow and Toxic Blowpipe. Even though it is comparable in requirements, it sees next to no use in most PvM scenarios compared to its tier-mates because of its slow attack speed.
+
+With the Ballista having such a slow attack speed, the potential for overkill becomes a much bigger issue.
+
+It is, however, one of the best Ranged KO weapons in PvP due to its high hits and powerful special attack.
+
+===Crystal Bow===
+The Crystal Bow is an iconic Tier 70 Ranged weapon, known for having one of the longest attack ranges in the game - and not requiring arrows to shoot!
+
+It can be used by players on a budget, and is great for those that cannot afford (or are yet to unlock) the Toxic Blowpipe. It also has some niche uses such as attacking the respiratory systems of the Abyssal Sire.
+
+The strength of the Crystal Bow can be enhanced further by equipping a full set of the Crystal Armour. Each armour piece will give a 3% damage boost and 6% accuracy bonus to the bow. If all pieces are worn, the total set bonus is equal to a 15% damage and 30% accuracy boost.
+
+This increase in power would suggest its effective strength should be higher than a Tier 70 item. However, it isn't all that useful because:
+* The set bonus require a head slot to be equipped, so it's often replaced by the Slayer helmet for better bonuses in many situations.
+* The set bonus is not strong enough to outdo the Toxic Blowpipe - even in situations where you cannot fight a creature on a Slayer task.
+* The armour set takes up a total of four worn equipment slots (including the bow), limiting its effectiveness where switching gear is favoured.
+* The Bow and its armour have a steep upkeep cost as they degrade in combat. They can only be recharged with Crystal Shards.
+* The armour is reasonably expensive/difficult to unlock, and the cost does not necessarily reflect its strength.
+
+===Standard Crossbows===
+The most commonly used standard Crossbows in game are Tier 61 for Rune, Tier 64 for Dragon and Tier 70 for Armadyl.
+
+There is very little difference in power between them, with the best Tier (Armadyl) only providing +1 Prayer bonus alongside +10 Ranged accuracy over Rune and +6 Ranged accuracy over Dragon. However, Dragon and Armadyl crossbows are the only crossbows which can fire Dragon Bolts and their enchanted variants, which provides a substantial DPS increase over the Adamant enchanted Bolts used by the Rune Crossbow.
+
+Crossbows allow a shield to be equipped at the same time making them a more defensive option, and in some specific encounters, this approach is forced by design. Some examples include:
+* Taking an Antifire Shield or a Dragonfire Ward against Dragons such as Vorkath
+* Taking a Crystal Shield or Dragonfire Shield into places where Defence matters
+* Taking a Mirror Shield or V's Shield against creatures such as Basilisks and Basilisk Knights
+
+With Dragon Bolts equipped, the Armadyl Crossbow is the strongest Ranged weapon option against high Defence targets with high Hitpoints and a low Magic level. It's the second strongest weapon against creatures such as TzKal-Zuk.
+
+The Armadyl Crossbow also has a special attack that doubles the accuracy of the next attack by 40%. However, this attack has no effect if the next move triggers the special effect of a Bolt, as this is checked before accuracy rolls occur.
+
+Against the vast majority of creatures, a Toxic Blowpipe will always be better DPS than any Crossbow.
+
+===Karil’s Crossbow===
+Karil’s Crossbow is another Tier 70 Ranged weapon, though it sees much less use due to its high upkeep cost.
+
+As it is a part of the Barrows set, it degrades during combat, and after 15 hours of use it will need repairing before it can be used again. In addition to this, the crossbow uses unique ammunition that is consumed with every shot fired.
+
+Other noteworthy points about Karil's Crossbow include:
+* It has higher DPS than a Rune Crossbow against low-mid Defence targets, unless the Rune Crossbow is used with enchanted Ruby Bolts against creatures with high Hitpoints.
+* A shield cannot be equipped at the same time as it is two-handed.
+* When worn with a full set of Karil the Tainted's armour, shots from the Crossbow benefit from a special effect that gives a chance to reduce the agility level of an opposing player by 25%
+** But... this has little to no significance even in PvP combat
+* When worn with a full set of Karil the Tainted's armour and an Amulet of the Damned, there is also a 25% chance for each attack to deal a second hit for half the damage of the first.
+* This set effect does provide a slight DPS increase and can find uses in PvP for certain players, but it does requires 5 items to be worn, all of which will degrade over time.
+
+===Magic bows===
+The Magic Shortbow and Magic Longbow are Tier 50 Ranged weapons, though Longbows are mostly considered irrelevant due to their slow attack speed. However, this doesn’t outweigh the benefits of having an increased attack distance!
+
+Magic Shortbows can have comparable DPS to a Rune Crossbow, depending on the Defence of the creature and the quality of ammunition used. But a shield cannot be equipped at the same time, as they are two-handed weapons.
+
+Even when using Amethyst arrows, the Magic Shortbow is weaker than using Karil’s Crossbow. However, the cost of upkeep is severely reduced as it doesn't degrade and any ammunition used benefits from the ammunition-saving effect of Ava's devices.
+
+The Magic Shortbow can be imbued, increasing its base Ranged accuracy from +69 to +75 and lowering the special attack energy used from 55% to 50%.
+
+But, imbued or not, you're always better off using a Rune Crossbow against targets with Hitpoints high enough to take full advantage of Ruby Bolt special attacks.
+
+==Room for Growth==
+The Tier 70 Ranged meta has lots of options, with plenty of ways for lower-tier items to be improved, increasing the available variety. However, the Tier 75 Ranged meta only has four options:
+* Twisted Bow against specific bosses (for those who can afford it)
+* Toxic Blowpipe for everything else, unless there's a significant drawback/reason why it can't be used
+* Armadyl Crossbow for the few occasions where the Toxic Blowpipe isn't the right choice
+* Crystal Bow with Crystal Armour... trying to be relevant and failing spectacularly!
+
+The solution to the current meta isn't as simple as just introducing more Ranged items at Tier 75 either. Simply put, the Toxic Blowpipe is just too strong everywhere it is used. Its damage per tick ratio (see further down for more info) is too high for where it sits. This leaves us with the following options:
+* Nerf the Toxic Blowpipe so we can introduce more Ranged items at Tier 75. These would fill in places where the Blowpipe was previously used, and might be even better in some circumstances.
+* Create a new Tier above the Toxic Blowpipe. This would unavoidably result in powercreep for what one is one of the most dominant playing styles.
+
+==Our Previous Proposal==
+===What was it?===
+These are the changes we had suggested for the charged Toxic Blowpipe:
+* 100% increased accuracy added to the special attack
+* Toxic Blowpipe base Ranged accuracy reduced from +60 to +30
+* Toxic Blowpipe base Ranged strength reduced from +40 to +25
+* All Dart variants' accuracy and strength reduced (see table below)
+* Ranged level requirement increased from 75 to 78
+
+The intention was to make Dart choice more important, with cheaper ones being notably weaker than the more expensive options. In addition to reducing the base stats of the Toxic Blowpipe, this would bring its overall power more in line with where we considered it to be as a Tier 75/78 Ranged weapon.
+
+Space would have been created for new items in the Tier 75/78 bracket, leading to increased diversity of options for Ranged combat.
+
+These changes would also have helped to overcome the balancing hurdle we face currently when designing new PvM content. The Toxic Blowpipe would have a new identity as the best Ranged weapon to use against low Defence targets.
+
+We then looked to offset the nerf of the Toxic Blowpipe by increasing the damage and accuracy bonus of Crystal Armour set. Unfortunately, our previously proposed buffs weren’t enough to make a sufficient difference and failed to bridge the gap that would have been left behind.
+
+You can find the original details of the Toxic Blowpipe changes and more [https://secure.runescape.com/m=news/equipment-rebalancing-updated?oldschool=1 in this newspost].
+
+===What worked?===
+* Darts became a more important factor, emphasising that higher DPS should have an appropriately higher cost.
+* It created a larger gap between the Toxic Blowpipe and the Twisted Bow, allowing us to fill that space over time with future rewards.
+* It created space for diversity in the Ranged meta and made existing items better in various situations.
+* It gave the Toxic Blowpipe a clear identity - the best weapon against low Defence targets.
+
+===What didn’t work?===
+* The power level between those who owned a Twisted Bow and those who didn't was widened considerably, resulting in players feeling like more content would be locked behind an incredibly expensive item.
+* Despite its identity as the best weapon against low Defence targets, the Toxic Blowpipe would still be the best weapon against medium Defence targets too, unless they were specifically susceptible to the Twisted Bow.
+* With the power level of the Toxic Blowpipe being balanced more around Rune and Dragon Darts, players with limited access to these Darts (especially those playing an Iron account) felt like the nerf impacted them more than others.
+* Whilst the Ranged meta changed, it didn't really change by enough to make a noticeable immediate impact, especially towards end-game content. It still mostly revolved around using either the Toxic Blowpipe or the Twisted Bow, with the Toxic Blowpipe just being weaker than it was before. This went against our goal of increasing diversity in viable Ranged weapons, and relied too heavily on new items being added in the future.
+* The changes essentially nerfed the player rather than the weapon, as there were no immediate replacements for the Toxic Blowpipe. With no publicly available schedule for releases of new items, this undermined player confidence in the changes.
+* Many felt like those who had used the Toxic Blowpipe pre-nerf had achieved things more easily than players attempting the same tasks post-nerf.
+Even after buffing the Crystal Armour, the Crystal Bow would remain uncompetitive. After testing various stat changes, we determined that we'd have to increase the set bonus accuracy and damage to 40% accuracy and 50% damage for the Crystal Bow to be better against the Ket-Zek in the Inferno. That's quite a substantial increase over our proposal, and something we were not comfortable doing given the Crystal Bow is still a Tier 70 item!
+* The Crystal Armour was still less viable against creatures where getting a Slayer task is possible.
+
+===Is This REALLY Needed?===
+The game has been just fine for the last six years with the Toxic Blowpipe in its current form, so why change it now? Does it even need to be changed at all?
+
+No it doesn’t.
+
+There is almost certainly a scenario where the Toxic Blowpipe could remain in-game just the same. However, we’d be left in a situation where adding new Ranged gear from future pieces of content would result in blatant powercreep. The gap between Melee/Magic and one Ranged item would continue to grow.
+
+We believe that making changes now is in the best interest of the long-term health of the game. We still want the Toxic Blowpipe to remain viable, but for it to be a tool in your arsenal rather than the entire army!
+
+==Top Level Concepts==
+Since first suggesting Equipment Rebalancing we’ve received an overwhelming amount of feedback. We’ve listened to it all, and here are some of your suggestions.
+
+===Ranged Damage Types===
+One popular suggestion was to separate Ranged accuracy and strength into different styles, similar to how Melee works with Stab, Slash and Crush. Our internal discussions proposed:
+* Piercing (Arrows/Bows)
+* Bludgeoning (Bolts/Crossbows)
+* Magical/Special (Crystal Bow)
+
+A change like this would definitely help to fix the issue with diversity in Ranged equipment, although it's arguably a bit extreme considering the issue only really exists because of one Ranged weapon.
+
+Implementing the fundamentals of this would require an incredibly large amount of dev work. First we’d need to completely re-write almost all existing NPCs defensive stats and respective Ranged weapon offensive stats. Then, a similar amount of time would be needed to calculate the shift in DPS values for each Ranged weapon to ensure each one was correctly balanced.
+
+With something of this scale, it’s likely a lot of existing metas would change (potentially for the worse) and the reality is that no matter how much time we spent balancing things internally, it would take several iterations to get right. This would have huge implications on the work done for Combat Achievements and potentially delay the project even further.
+
+It’s also a huge shift in how Ranged combat works across Old School, and might not be a universally accepted direction for the game to take. This level of change needs serious thought, and isn’t something we’d approach without first fully investigating alternative options.
+
+===Special Boss Mechanics===
+Another suggestion was to introduce unique mechanics for bosses and creatures that would limit the effectiveness of the Toxic Blowpipe against them.
+
+This is something we’ve done in the past and continue to keep in mind with new content releases. For example, Basilisk Knights require a shield and TzKal-Zuk is intentionally placed out of range for the Blowpipe.
+
+Alternate ways of achieving this could involve:
+* Mechanics such as damage reflection, making the use of a fast attacking weapon much more punishing.
+* Mechanics that require the player to move around a lot so there are fewer opportunities to attack.
+* Drastically increasing the Defence/Ranged Defence of bosses and creatures to combat the Toxic Blowpipe. However:
+** This would however impact the viability of Melee
+** Increasing Ranged defence makes all Ranged weapons weaker, not just the Toxic Blowpipe
+** Landing special attacks with the Dragon Warhammer still has the potential to undo any high Defence stats we apply unless we specifically limit the amount of Defence that can be reduced like we have at Sotetseg
+
+Ultimately we still feel like these solutions don't fix the underlying problem. Whilst we’re able to design new content with the current Toxic Blowpipe in mind, all existing content would remain susceptible to powercreep as and when new Ranged items become available. There’s also the potential for any changes having an unintended negative impact on other weapons.
+
+===Rebalancing Old Content===
+One of the most common concerns was that existing content would become much harder, or that some PvM goals would take longer to achieve. For example:
+* Lizardman Shamans would be impacted significantly due to the low Ranged accuracy of the Shayzien armour, which is required to fight them effectively.
+* The Inferno would become slightly harder. If the Blowpipe is dealing less damage, then monsters are taking longer to die. This would become a problem when reaching TzKal-Zuk, as taking down the Jal-MejJak’s quickly is very beneficial. There were also concerns raised about the increased difficulty of defeating sets of Jal-Xil and Jal-Zek during the TzKal-Zuk phase, and that the triple JalTok-Jads taking longer to kill.
+* Vasa Nistiro becomes even more reliant on having fellow raiders with a Twisted Bow, especially in Challenge Mode.
+
+It was suggested that we could reduce the stats of affected creatures accordingly. But again, applying this kind of change across the entire game is something we’d like to avoid. However, we can certainly look case-by-case and adjust bosses and creatures where necessary.
+
+===Why don't we just ban the bots?===
+“The Toxic Blowpipe is only a problem because it's cheap. It's only cheap because Jagex haven't banned bots/goldfarmers. It's not our fault and we shouldn’t suffer because of this.”
+
+Whilst the affordability and upkeep costs of the Toxic Blowpipe are an issue, they’re only contributing to the bigger problem of how crazy powerful the weapon is. By just making it more expensive to purchase and use, we'd still face the following snags:
+* A single Tier 75/78 weapon being the meta.
+* Continued issues with powercreep whenever new Ranged strength and accuracy items are introduced.
+* Dart scaling issues, with extremely accessible and affordable Darts out-DPS-ing some of the best-in-slot alternatives.
+
+We don't disagree that the Toxic Blowpipe is cheaper than we’d like. And yes, that is partially due to the amount of them available because of accounts farming Zulrah.
+
+We asked our Anti-Cheating Team to provide some insight into the situation:
+
+''"We have multiple BotWatch heuristics specifically looking at bosses such as Zulrah. These are frequently updated to remain as accurate and informative as possible. However, with the vast amount of scripts and bots out there, we simply can't catch every one of them, all of the time. This is an ongoing battle between the Anti-Cheating Team and people abusing our system.''
+
+''"The number of botted accounts that the team remove on a weekly basis fluctuates, but is usually in the low thousands. A lot of these accounts are played manually, just as a normal player would do, but their intention is purely around Gold farming.''
+
+''"This is an issue because players seek to make a living from converting in-game items to real-world currencies. So long as our games provide these players with a real-world financial incentive to play, then they'll do so at all costs. These type of accounts aren't easily identifiable via BotWatch - they require a mixture of data analysis, profiling and manual tracking.''
+
+''"Over the last year, the team has been working to improve our arsenal with new talent, fresh ideas, and innovative ways of working. One example we can give is the implementation of Machine Learning models and analysis to help flag any suspicious accounts for manual review!''
+
+''"We're happy to report early success with this. Through these additional analysis methods we're now seeing on average of 600 to 2,500 additional Real World Trading bans applied daily.''
+
+''"We're aware that there is more work to do, and we can be doing better. Over the coming months we are actively going to be working on developing new systems to aid in the fight against cheating in our games. We can't go into detail about these new systems for obvious reasons, but alongside hiring more staff it's been a main focus of the team's planning and strategy over the past year."''
+
+==Damage Per Tick - Accuracy Is Our Friend==
+One of the fundamental issues with the Toxic Blowpipe is its potential damage output is far higher than its competition.
+
+By working out the raw potential damage output of an item, we can focus purely on the figures when comparing them. We don’t need to worry about various different stats, if a weapon is one-handed or two-handed, or things like attack range. In its simplest form, our calculations take a weapon's max hit and attack speed, and then output a simple figure that we can refer to.
+
+The below table is based on the following:
+* Maximum Ranged gear available
+* A boosted Ranged level of 112
+* Rigour active
+* No Slayer Helmet
+* We've used three different Magic levels for the Twisted Bow to show how the Magic level really affects its raw damage output
+* We've ignored the Bolt effect chance of Crossbows
+* Naturally this doesn't take into account any upkeep costs, which we'd normally consider during balancing
+* We assume that you have 100% accuracy and will never miss, which is a good way for us to actually show the potential DPS output of a weapon
+
+{|class=wikitable style="text-align:center; width:665px;"
+!Weapon
+!Attack Speed
+!Max Hit
+!Average Damage
+!Theoretical Max Damage per tick
+!Theoretical Max Damage per second
+|-
+|Twisted Bow with Dragon Arrows at 350 Magic level* || 5 || 84 || 42 || 8.4 || 14
+|-
+|Toxic Blowpipe with Dragon Darts || 2 || 30 || 15 || 7.5 || 12.5
+|-
+|Twisted Bow with Dragon Arrows at 250 Magic level || 5 || 73 || 36.5 || 7.3 || 12.16
+|-
+|Toxic Blowpipe with Rune Darts || 2 || 28 || 14 || 7 || 11.67
+|-
+|Toxic Blowpipe with Adamant Darts || 2 || 27 || 13.5 || 6.75 || 11.25
+|-
+|Toxic Blowpipe with Bronze Darts || 2 || 25 || 12.5 || 6.25 || 10.41
+|-
+|Twisted Bow with Dragon Arrows at 150 Magic level || 5 || 55 || 27.5 || 5.5 || 9.17
+|-
+|Karil's Crossbow || 3 || 29 || 14.5 || 4.83 || 8.05
+|-
+|Magic Shortbow with Amethyst Arrows || 3 || 29 || 14.5 || 4.83 || 8.05
+|-
+|Crystal Bow with Crystal Armour || 4 || 36 || 18 || 4.5 || 7.5
+|-
+|Armadyl/Dragon Crossbow with Dragon Bolts (without Bolt effects) || 5 || 44 || 22 || 4.4 || 7.33
+|-
+|Rune Crossbow with Rune Bolts (without Bolt effects) || 5 || 42 || 21 || 4.2 || 7
+|-
+|Crystal Bow without Crystal Armour || 4 || 32 || 16 || 4 || 6.67
+|-
+|Twisted Bow with Dragon Arrows at 0 Magic level || 5 || 18 || 9 || 1.8 || 3
+|}
+''*The Twisted Bow only scales past 250 Magic inside the Chambers of Xeric, where its cap becomes 350 Magic.''
+
+===Accuracy Matters, So Why Are We Ignoring It?===
+Accuracy is a very important metric in Old School combat. It controls how often you’re going to hit with a weapon, which directly impacts to the amount of damage you can output over a period of time. As a monster's Defence value increases, accuracy against that same creature decreases, and therefore the overall DPS typically goes down.
+
+However, accuracy is not a very reliable stat, especially given how a lot of existing encounters involve using Defence-reducing special attacks to get as close to 100% accuracy as possible.
+
+So in general, this is a good way to show the potential power level of items. You can clearly see from the table above just how far ahead the Toxic Blowpipe is against low Defence targets, even with low-tier Darts being used! This method also emphasises the non-existent gap between the Toxic Blowpipe and the Twisted Bow - something we should certainly work on filling with other items or future rewards.
+
+Let’s take a look at how things are when we bring Effective Defence into the mix…
+
+The below graph is based on the following:
+* Effective Defence is calculated by the formula Effective Ranged Defence = (Ranged Defence + 64) * (Defence + 9)
+* The benchmarks in order of effective Ranged Defence: Lizardman Shamans, Jal-Zek, Jaltok-Jad, Tzkal-Zuk, Sarachnis
+* Twisted Bow: The Accuracy/Damage of Twisted Bow assumes a creature with a Magic level of 250
+* Creatures are shown in this graph only to highlight Effective Defence - this is not the DPS against these specific creatures (they are placed approximately where their Effective Defence level lies)
+* Armadyl Crossbow and Dragon Bolts with procs assumes that the max hit of the special attack is always 100
+** The true DPS value will be somewhere between the 'with procs' and 'no procs' lines, though this would entirely depend on the creature being killed at the time
+
+[[File:Equipment Rebalance- Ranged Meta (1).png|thumb|centre|600px|''Click the image to see the graph in full.'']]
+
+
+By looking at the graph, it’s very clear that the Toxic Blowpipe is strong against more than just low Defence creatures, which is really limiting the Ranged design space.
+
+In our eyes, a healthy meta would look something like this:
+* Weapon A = 12 DPS against 0 Defence and 4 DPS against 30,000 effective Defence
+* Weapon B = 9 DPS against 0 Defence and 6 DPS against 30,000 effective Defence
+
+This allows for a clearly identifiable breakpoint where you choose to use weapon A over weapon B. Obviously this is just an example of how it would look, and a rather simple one at that! We'd expect the actual meta to be much more diverse, factoring in one-handed vs two-handed weapons, attack range, bane effects against specific monsters, special attacks etc.
+
+===Moving Forward===
+If you’re still with us after all this information, then very well done - you most certainly command the power of armies, and could probably punch a horse to the ground? Which is why we need your help!
+
+We've been working on a new proposal for the Ranged portion of Equipment Rebalancing, but before we share that, we’d really appreciate some additional guidance from you all.
+
+We’ve created a survey about the Ranged meta and how we might proceed. Please help us by [https://jagex.eu.qualtrics.com/jfe/form/SV_erjpcfNWPJplhrM clicking here and letting us know what you think]!
+
+Some of the questions in the survey should give you some insight into our current thinking. While we will not be polling all of these changes, we do want you as a community to help us shape a healthy Ranged meta that will keep us playing happily for years to come!
+
+Once we’ve processed your feedback from both this post and the survey, we'll come back to you with some new proposals. We expect that there will be several rounds of feedback required, so don’t worry - we won't rush this!
+
+As Combat Achievements is close to completion, it’s important we make these changes soon, and that we get them right. We'd like to give ourselves an opportunity to evaluate any immediate changes to the meta too, so this time has been factored in.
+
+As always, thank you for your continued support and we'll see you next blog with our shiny new Ranged meta proposal!
+
+----
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Gee, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

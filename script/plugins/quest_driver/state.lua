@@ -454,6 +454,67 @@ function QD.inv.await_all(items, ticks)
     return awaited, note
 end
 
+-- t.inv.blowpipe() -> ("ok", {where, pipe, dart, darts, scales, line})
+--                     refused (no toxic blowpipe worn or held) | timeout
+--
+-- The load of the toxic blowpipe the player wears (else the first one in the
+-- backpack), read from the SERVER (raid seam33, kit_loaded_blowpipe). A
+-- loaded pipe's darts and Zulrah's scales are item vars on the item instance
+-- (content's blowpipe_ammo.rs2), which no client record carries, so this
+-- issues the read-only `::blowpipe` readout (torirs_server_world.c, beside
+-- ::give) and parses its one line:
+--   blowpipe where=worn pipe=<obj> dart=<obj|-1> darts=<n> scales=<n>
+-- `where` is "worn" or "inv"; `dart` is the loaded dart's obj id (-1 when
+-- none was ever loaded); a fight reads `darts` falling one per shot
+-- (~blowpipe_consume) and `scales` falling on two shots in three.
+--
+-- The kit half is a setup line, not this verb: `::blowpipe dragon_dart 2000
+-- 2000` loads a toxic blowpipe in the backpack through the content's own
+-- use-on (darts on the pipe, then scales), then `::wield toxic_blowpipe_loaded`.
+QD.inv._BLOWPIPE_READ_TICKS = 5
+
+function QD.inv.blowpipe()
+    local serial_result, since = api_drive.message_serial()
+    if serial_result ~= "ok" then
+        return serial_result, "inv.blowpipe: message_serial answered " .. tostring(serial_result)
+    end
+    local cheat_result, cheat_detail = QD.cheat("::blowpipe", false)
+    if cheat_result ~= "ok" then
+        return cheat_result, "inv.blowpipe: ::blowpipe answered " .. tostring(cheat_result)
+            .. (cheat_detail and (" -- " .. tostring(cheat_detail)) or "")
+    end
+    local line = nil
+    local awaited = await({
+        level = function()
+            local result, list = api_drive.messages()
+            if result ~= "ok" then
+                return false
+            end
+            for i = 1, #list do
+                if list[i].serial > since and string.find(list[i].text, "blowpipe where=", 1, true) == 1 then
+                    line = list[i].text
+                    return true
+                end
+            end
+            return false
+        end,
+        note = "inv.blowpipe ::blowpipe reply",
+    }, QD.inv._BLOWPIPE_READ_TICKS)
+    if awaited ~= "ok" or line == nil then
+        return "timeout", string.format("inv.blowpipe: no 'blowpipe where=' line within %d tick(s)",
+            QD.inv._BLOWPIPE_READ_TICKS)
+    end
+    local where = string.match(line, "where=(%a+)")
+    local pipe = tonumber(string.match(line, "pipe=(%-?%d+)"))
+    local dart = tonumber(string.match(line, "dart=(%-?%d+)"))
+    local darts = tonumber(string.match(line, "darts=(%-?%d+)"))
+    local scales = tonumber(string.match(line, "scales=(%-?%d+)"))
+    if where == nil or pipe == nil or dart == nil or darts == nil or scales == nil then
+        return "refused", "inv.blowpipe: unparsed line '" .. line .. "'"
+    end
+    return "ok", { where = where, pipe = pipe, dart = dart, darts = darts, scales = scales, line = line }
+end
+
 -- msg -----------------------------------------------------------------
 
 function QD.msg.last(n)

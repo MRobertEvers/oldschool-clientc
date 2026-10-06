@@ -1,0 +1,29 @@
+{{Infobox Combat Achievement
+|name = Can't Drain This
+|image = [[File:The Maiden of Sugadinti (30% health).png|250px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill The Maiden of Sugadinti without anyone in the team losing any prayer points.
+|tier = Master
+|monster = Theatre of Blood
+|type = Restriction
+|id = 250
+|leagueRegion = Morytania
+}}
+'''Can't Drain This''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill [[The Maiden of Sugadinti]] without losing any prayer points.
+
+==Strategy==
+
+* Dodge the incoming attacks by moving your character before each attack to avoid blood splatters. 
+* Freeze or kill [[Blood spawn|Blood spawns]] as quickly as possible. 
+* Flicking prayers can be used if done nearly perfectly to avoid losing any prayer points. 
+* [[Vengeance]] will help speed up the encounter, as many players will take high damage from Maiden's auto attacks which start with a max hit of 36. 
+* Avoid letting any [[Nylocas Matomenos|Nylocas]] reach maiden, as each will raise her maximum hit by 3 or 4. 
+
+You will fail the achievement if you (or anyone on your team) stand in blood trails from her blood throw attack or from trails the blobs leave. This will fail the achievement even if you are at 0 prayer, making draining your prayer points before attempting this achievement not useful. 
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+{{Combat Achievements}}

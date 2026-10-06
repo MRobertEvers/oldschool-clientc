@@ -1,0 +1,60 @@
+{{Infobox Monster
+|version1 = Normal
+|version2 = Challenge Mode
+|name = Glowing crystal
+|image = [[File:Glowing crystal.png|225px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[17 May]] [[2018]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size = 4
+|examine = The crystal is glowing with power.
+|attributes = xerician
+|xpbonus = 2.5
+|max hit = 0
+|aggressive = Yes
+|poisonous = No
+|attack style = None
+|attack speed = 4
+|hitpoints = 120
+|scaledhp = Yes
+|att = 1
+|str = 1
+|def = 100
+|mage1 = 100
+|mage2 = 150
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = -5
+|dslash = 180
+|dcrush = 180
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|id = 7568
+}}
+'''Glowing crystals''' are large clusters of crystals found in [[Vasa Nistirio]]'s room in the [[Chambers of Xeric]]. These crystals were used by [[Xeric]] to bind the former High Priest after he attempted to usurp him, eternally imprisoning his avatar in the chambers.
+
+Four crystal clusters are found within the room, one spawning in each corner. Throughout the fight, Vasa will move towards a crystal which visibly brightens. The crystal heals Vasa and regenerates any drained defence levels once he reaches it, so it is important that players neutralise each one as quickly as possible to minimise the amount of healing he can receive. They are weak to stab attacks, immune to ranged damage (including the ranged [[thrall]]), and take 1/3rd damage from magic attacks. 
+
+After healing enough, Vasa will use his special attack upon returning to the middle of the room. Otherwise, he will walk to another set of glowing crystals; this will always be a different crystal than the previous one unless the special attack was just used.
+
+Glowing crystals regenerate stats at a rate of 1 per 9 ticks, faster than the standard rate of 1 per 100 ticks.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1524701424460628080|date=9 July 2026|quote=Stone guardians - 8 Muttadiles - 15 Vasa Nistirio - 10 Vasa's crystal - 9 Tekton - 15 LizardShamans - 20 Skeletal mystics - 25 Jewelled Crabs - 1 Vespula - 10 Vespula's portal - 45 Vespula's grubs - 10000 (i.e. never) Vespine soldier (flying) - 16 Vespine soldier (walking) - 10000 Otherwise default should be 100, as for outside CoX.|ctxquote=Hi@JagexAsh would you per chance be able to say the regen time (in ticks) for mobs in chambers?}}
+
+==Trivia==
+*Despite being unable to retaliate, casting [[Monster Examine]] reveals it has an [[attack speed]] of 4.
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}

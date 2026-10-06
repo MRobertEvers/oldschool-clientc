@@ -1,0 +1,357 @@
+{{Update|date=25 September 2020|link=https://secure.runescape.com/m=news/gielinor-gazette-september-2020?oldschool=1|category=community}}
+[[File:Gielinor Gazette- September 2020 newspost.jpg|right]]
+{{clear}}
+
+{{Horizontal Line}}
+
+'''Hello and welcome to the September edition of the Gielinor Gazette!'''
+
+We've got quite a long Gazette for you to sink your teeth into this month! Mod MikeD is back with his regular monthly article, we've got an amazing Leagues II feature, we talk about porting RuneScape content to Old School (quick, turn on the bad graphics machine!), and there's another new J-Mod to introduce you to!
+
+Don't forget that each month's Gazette is accompanied with a monthly leadership livestream. Join us at on [http://www.twitch.tv/OldSchoolRS www.twitch.tv/OldSchoolRS] at 16:00 BST on Friday September 25th. If you happen to be reading this in the future and the livestream has already happened, you can find the recording [https://www.youtube.com/c/OldSchoolRuneScape/videos on our YouTube channel].
+
+
+{{Horizontal Line}}
+
+{{Collapsed section|18|Message from Mod MikeD}}
+Some of you seem to quite like hearing from me, so I'll keep rambling for as long as you'll tolerate me! You can catch my [https://secure.runescape.com/m=news/gielinor-gazette-july-2020?oldschool=1 July] and [https://secure.runescape.com/m=news/gielinor-gazette-august-2020?oldschool=1 August] blogs through the links.
+
+Earlier this week it dawned on me that it's been about six months since the whole Old School team began working remotely. I can't stress just how proud I am about being part of this team and this community. In that time we've released a lot of content, we've run a lot of polls, we've had to turn the game off and on again, and we've hired a ton of new people! What's really incredible is that some of these J-Mods began their new gold crown-filled lives in other countries. We've got new Mods still based over in Sweden and Norway, and I've been in Texas for the last half year, but that's another story entirely. I did mention that I do tend to ramble! Alright, here goes.
+
+
+'''RuneScape on Steam'''
+
+Firstly, I want to take some time to congratulate RuneScape. Yesterday they announced that RuneScape would soon be releasing on Steam. RuneScape Classic launched way back on January 4th, 2001 and this kind of activity and growth is testament to our vision as the RuneScape franchise prepares to turn 20 years old. There's been a lot of great work to make this happen. You might be asking, what about Old School? Some eagle-eyed players ''(44 Prayer, right? See, I do know this game!)'' have already put two-and-two together after what I said about 'Old School Everywhere' in my article last month. You're right! We'll be looking to put Old School on Steam too. But not just yet. We'll be coming to Steam in early 2021.
+
+You've all shown a lot of support for getting Old School on new platforms, stores and consoles (and anywhere else we can put it!). That said, there was a lot of constructive feedback too - many of you didn't think Old School could thrive on these new frontiers without us paying attention to things like the game client, tackling bots, or resolving login and connectivity issues. Well, as it happens, that's exactly what we're going to do.
+
+There’s a lot of information I can’t share just yet (I would love to tell you, but then, of course, I’d have to kill you). Sometimes secret projects must stay secret for a reason. And sometimes those reasons must stay secret too! What I can say is this - there's a lot happening at Jagex. There are whole teams devoting their time on improving our tech and our tools, entire new teams that weren't here a year ago. The honest truth is that we're playing catch-up on the years we didn't improve our tech to resolve long-standing player (and J-Mod) complaints, and to better prepare the studio for growth. This is stuff that's long overdue, and I'm not promising overnight fixes - I expect a lot of these projects to carry on into 2021, 2022, and beyond. But the ball is rolling. I should be in a position to talk about one of these secret projects next month. So, I'll dangle that tantalising little detail for now...
+
+
+
+'''Roadmap Changes'''
+
+Sharing the content roadmap wasn't my plan initially, but I've done it for the past two months, and it makes sense to keep doing it as long as there are changes to update you on. You've told us loud and clear that you're hugely appreciative of seeing this, but sometimes it's a bit of a double-edged sword. We want to be as transparent as possible but the truth is that roadmaps are flexible, they can change often, and they can change at the last minute.
+
+Here's the roadmap we shared last month:
+
+[[File:Gielinor Gazette- September 2020 (1).png|center|500px]]
+
+
+'''We didn't poll the Fishing Skill Boss as soon as we initially planned.''' We wanted to take more time to engage with your feedback and to communicate the content in a better way. This means that it won't be released until next year.
+
+'''We want to spend more time working with you before we blog and poll Combat Achievements.''' There's a lot we could have done better with announcing things like the Slayer Boss Master, Mahogany Homes and the Fishing Skill Boss. We'll put those learnings into practice now.
+
+'''We're going to be polling minigame improvements.''' When we've spoken to you about things like the Fishing Skill Boss and Soul Wars you wanted to know why we were focusing on new minigames rather than trying to improve older minigames. That's a great point, so we're going to be doing that. Expect that poll in the next couple of weeks!
+
+'''We need to make sure we stay flexible to fix big issues.''' This shouldn't affect the roadmap too much, since it's covered by the 'Usual Weekly Updates' section. By big issues I mean things like Revenant Caves and other community issues. We have to make sure that we're keeping enough time free to react quickly and efficiently to these sorts of things as they arise.
+
+With those things in mind, here's the new roadmap:
+
+[[File:Gielinor Gazette- September 2020 (2).png|center|500px]]
+
+
+''A look at the current iteration of the content roadmap for the rest of this year and early next. You'll notice that we haven't included 'Seasonal Events' (Leagues or DMM) - that's largely because we don't want to give any release dates away just yet! That isn't all you'll see in 2021 either. We've included things that we've already told you about, but there's room for more updates! Note that this is a very rough draft. Dates can easily move if we need them to, and it's dependent on the content passing a poll.''
+
+I bet next month I'll be sharing a roadmap that looks completely different! And that's OK - a roadmap is only supposed to be a rough guide towards a destination. Content will move around, and if it does we'll tell you why. Even if the content stays in the same place, I should still be able to include Leagues II and maybe some of the tech stuff I teased!
+
+As always, thanks for reading what I've got to say. Let me know your thoughts on everything we've shared, and I'll see you on this evening's livestream!
+
+- '''Mod MikeD'''
+
+{{Collapsed section end}}
+
+{{Horizontal Line}}
+
+{{Collapsed section|18|Project Status Update}}
+Active Content Projects:
+
+'''Leagues II - Trailblazer:''' We are very nearly ready to share the release date. This Gazette has a fantastic design article for you to sink your teeth into and you can catch up on all things Leagues by checking out 1) [https://secure.runescape.com/m=news/leagues-ii---trailblazer?oldschool=1 the announcement blog], 2) [https://www.youtube.com/watch?v=qtTRKdxdmtM the announcement stream] , 3) [https://secure.runescape.com/m=news/leagues-ii---trailblazer-reward-poll-blog?oldschool=1 the rewards blog] and 4) [https://www.youtube.com/watch?v=IViuol1eDRY the rewards stream] .
+
+'''Fishing Skill Boss:''' Recently we introduced you to Tempoross, the Spirit of the Sea. You delivered a ton of feedback that we're working through, and we'll be back with another blog in early October!
+
+'''PvP Roadmap:''' We're still committed to delivering the content outlined in the PvP roadmap from earlier in the year. 2021/2022 content planning will be picking up in the coming weeks, and that's where we'd like to offer some of the bigger changes we discussed. At the moment we're paying close to Revenant Caves, with content changes to come as soon as possible.
+
+'''Combat Achievements:''' We'll begin blogging and polling this in the coming months! The design is progressing well, and we recently surveyed 10,000 players to get an early understanding of your thoughts on the content. We'll be sharing those survey results soon.
+
+'''Soul Wars:''' Soul Wars is set to be the next big project for the Wardens once they've finished work on Leagues II. We'll be bringing you the first blog as soon as next week!
+
+'''A Kingdom Divided:''' We're hoping to offer this (the next quest in the Kourend storyline) early next year, along with another change to Kourend's environment!
+
+'''Clans:''' Last month we revealed that the Clans release would be delayed until 2021. Work will remain ongoing, and we'll continue to share progress updates.
+
+'''Group Ironman:''' We've spoken at length about the fact that Group Ironman's release is dependent on the infrastructure offered by Clans. Group Ironman is also delayed until next year.
+
+'''Halloween:''' We've got a sinister seasonal event in store for October! We'll be sharing a sneak peek of rewards next week.
+
+
+'''Other Projects/Topics'''
+
+'''Account Security:''' We know it's been more than a year since we published the [https://secure.runescape.com/m=news/account-security-features---status-update?oldschool=1 Account Security Features Blog] and we haven't yet delivered on things such as the backup security codes. The delay is due to our tech priorities centering on mitigating persistent attacks on our game worlds and login servers. At the worst of times these attacks have rendered our game unplayable, and regularly cause some players login issues. We've tightened up account recovery processes to better defend against malicious account hijacking attempts, and the addition of Authenticator checks for all website logins has also proved a fantastic tool for account safety.
+
+'''Login Issues:''' On that subject, some players are regularly reporting issues when trying to login, having been met with error messages like "Too many login attempts from your address". Most of the time this is a generic connection error and will quickly resolve itself on its own, but malicious login attacks are sometimes to blame. '''Our tech teams are working on resolving this as a matter of priority.''' In the meantime, [https://support.runescape.com/hc/en-gb/articles/360002267798-Too-many-login-attempts-from-your-address you can report the issue to us here]. We'll also be looking into adjusting the error message on the login screen to direct affected players to this link.
+
+'''Account Services:''' At the moment we're investigating the options available to us to tackle these services, including the feasibility of taking down sites and social media pages which offer them, as well as using our relationships with various platforms like Discord and YouTube to tackle the communities directly. We hope to be able to update you soon.
+
+'''HiScores Problems:''' We're aware that HiScores is still slow at peak times. We've not yet been able to prioritise this, although investigations about what might be done remain ongoing.
+
+'''DMM:''' You'll notice that DMM appears on our ''ideal'' roadmap in MikeD's article above. There aren't concrete plans to deliver this yet, but we're still great lovers of the gamemode. For any return we'd like to approach any future releases in a similar way as Leagues, offering bespoke new gameplay experiences rather than rehashing the same Seasons/Tournaments as we have done in recent years.
+
+'''Equipment Rebalancing:''' Recently we spoke about our desire to rebalance equipment to tackle ongoing concerns about powercreep, and to establish clear gaps to fill with future content releases. We haven't done much since then, but we'll soon be meeting to discuss the changes. 
+{{Collapsed section end}}
+
+{{Horizontal Line}}
+
+{{Collapsed section|18|Designing Leagues II}}
+'''Introduction'''
+
+As you know, Leagues II - Trailblazer has been officially revealed and has been very well received by a large portion of the community. We couldn't be happier!
+
+In Leagues II - Trailblazer you start off locked to the Misthalin area (roughly including Lumbridge, Varrock and Edgeville) and as you complete tasks you'll unlock more areas. Choose wisely though, as you can only unlock so many areas, so think carefully about which areas or Relics will work best for you and how you can use them to tailor your League experience to your liking.
+
+For a more detailed look, head [https://secure.runescape.com/m=news/leagues-ii---trailblazer?oldschool=1 here].
+
+
+'''Learnings from Twisted League'''
+
+Twisted League was a huge success from our perspective and many of you have asked us if we can run it again, or even run it permanently. Clearly we did some things right to have such an overwhelmingly positive response, but there were also several issues brought forward the community, both during Twisted League and in the months following its end. Ultimately the goal when designing Leagues II - Trailblazer has been to keep doing the things you guys liked from Twisted League and to change the things you didn't.
+
+
+'''Things to keep doing:'''
+
+'''Relics/Tasks.''' The combination of completing tasks to unlock powerful buffs was the biggest draw of Twisted League, allowing you to play the game in new and exciting ways.
+
+'''Having creative restrictions.''' The restrictions didn't feel bad at all - in-fact, they elevated the gameplay experience. Dragon was the highest tier of armour outside of CoX and meant that there was a lot more choice in the gear people would be wearing. Optimal setups from the main-game were not obtainable meaning players had to figure out which items to use on their own.
+
+'''The new-game experience.''' Starting off with a fresh account and competing against other players in a new HiScore table was an exciting experience. It's one of the many reasons players love DMM so much and it's why seasonal content in Old School Runescape is so exciting.
+
+
+'''Things to fix for next time:'''
+
+'''Kourend/Kebos.''' Starting in Kourend/Kebos was exciting to many but off-putting to some players who felt like they didn't know the content well. Some were willing to take the plunge, but perhaps we would've seen even more of you excited about it if you had started in a more familiar starting zone (like Lumbridge).
+
+'''Relic Choices.''' Some Relics seemed way too powerful compared to their competitors, and there weren't as many diverse Relic choices as we expected. The biggest offenders here are Endless Endurance and Xeric's Wisdom. The aim with Trailblazer has been to better balance which relics are grouped together and to reduce the feeling of 'buyers remorse'. We've also made conscious effort to avoid creating Relics which only excel in one niche area. A good example of this in Twisted League was the Spirit of Dinh relic.
+
+'''PvM.''' We heard you loud and clear in Twisted League. Going for a 'PvM focused strategy' was very off-putting for several reasons. Drop rates of items were not modified, a lot of the tasks were too RNG (especially compared to some skilling tasks) and PvM tasks had questionable difficulty ratings. We've endeavoured to better balance the task difficulties this time, and to do what we can do reduce the amount of RNG required in getting the drops you want. If you put in enough time you should reach near end-game setups by the end of the Trailblazer.
+
+With so much to cover from areas, tasks, Relics and rewards, we felt it was important to split up the work among our developers in the Wardens so that each team member could specialise in one aspect. Mod Ed primarily worked on tasks, Mod Flippy on Relics, Mod Husky on areas and the art team on the rewards. We've also had support from Mod Mack since he joined, and Mod Lenny gave us a hand implementing a few of the trickier Relics affecting code. Finally, the QA team oversaw everything, ensuring that each component would work together seamlessly. Also, every step of the way we've had feedback from the rest of the team, presenting our work every other week in order to get as much feedback as possible.
+
+
+'''Area Design'''
+
+The biggest decision when designing Trailblazer was how we were going to split up the map. How big should these areas be? How are we going to balance each area against the others given the diverse nature of their content?
+
+Generally, lots of smaller areas means substantially more work is required to set up the boundaries between them, but larger areas meant less choice for players, reducing the impact of their decisions and customisation options. In the end we decided to go with 'kingdom' sized areas (with a few exceptions) so that each area unlock would feel substantial and gameplay changing. We currently have the game world divided into nine areas (including Misthalin), of which players will be able to unlock five. This means that just over half of the game world will be available to each participant. Allowing additional unlocks would result in it just feeling like the main game. Being restricted is actually a good thing as it forces the player to be creative.
+
+Another advantage of going with kingdoms is there are already a lot of natural borders separating them. In a few cases we have added blocking scenery where there wasn't any in order to prevent players from accessing unlocked areas. Generally speaking, instances of an area you have unlocked are allowed and any dungeons with an entrance in the above ground will be included in that area. For example, Varrock Sewers is included in Misthalin because Varrock is! The hardest part of development was cataloging every single map square into their appropriate areas - the QA work to make sure none were missed was a massive task. As a result, however, we now have a piece of code which will return loosely which region of the game a particular coordinate is in (we're sure will be useful for future projects).
+
+However, each area has its quirks (like region-spanning dungeons) and we had to draw the boundaries somewhere. This does of course have the risk of making it quite confusing to you the player - how can you be expected to make such a choice without knowing everything that is included? In order to help with this we have developed an interface displaying all the information you will need to know prior to unlocking an area.
+
+[[File:Gielinor Gazette- September 2020 (3).gif|center]]<center>''Area Details Interface''</center>
+
+
+* '''Overview:''' A general overview of the area and its boundaries including which shortcuts are restricted to nearby areas. For example, the grapple across the River Lum is disabled because that would take you to Al-Kharid which is not part of Misthalin.
+* '''Key Info:''' A summary of the various PvM and skilling activities in the area, as well as which Slayer creatures will be added to your Slayer list upon unlocking the area.
+* '''Unlocks:''' A list of the quests and Diary tasks that will be completed upon selecting the area.
+* '''Drops:''' A list of the drops from creatures which will be affected by the passive Relic effect drop rate modifier (described in the Relic Design section below).
+* '''Map:''' A slideshow map clearly showing which parts of the game are included in the area.
+* '''Teleport Button:''' I'm sure a few of you keen-eyed readers have noticed the button at the bottom right which says Teleport. This will be available for all areas you have unlocked and can be used to teleport to a pre-determined location in that area chosen by us. The casting time of this teleport will be the same as your home teleport spell. It is only there to easily get you to a new area you've unlocked, and will not be a game-changing way to train skills more easily.
+
+And lastly, the biggest part of this is deciding how many tasks are going to be in each area, and how many points those tasks should give. We want players to make choices based on the content they want to do and the Relics they have picked, as opposed to gravitating toward areas with the most points. As of the time of writing, each area has roughly 10,000 points and combined with the general tasks (explained below) we're sure you'll find more than enough activities to complete over the course of Trailblazer.
+
+
+'''Task Design'''
+
+
+All in all, tasks are a key part of League identity, and were very well received in Twisted League. However, there are a number of improvements we'd like to make in Trailblazer.
+
+The biggest was how repetitive these tasks were. During Twisted League we spent a lot of time making the interfaces, meaning there wasn't much time left to develop a lot of the tasks. So instead we often used the same tasks again and again, increasing the numbers as they progressed. We thought this was fine at the time, but after playing the League it became apparent that the gameplay became a little stale and repetitive, especially towards the mid-late game. Instead, we are now aiming to have more unique tasks. Here are a few examples:
+
+
+
+Twisted League:
+*Reach level 20, 40, 60 Woodcutting
+*Reach level 20, 40, 60 Fishing
+
+
+Leagues II - Trailblazer:
+*Chop 200 willow logs, chop a tree using a rune axe, build a waka canoe
+*Catch an anchovy, catch 100 lobsters, catch 100 raw shark
+
+
+
+The levels may not line up exactly, but the activities are a lot more varied. Don't worry though - we're still going to celebrate you getting 99 in each of the 23 skills with an appropriate amount of League Points. We're even going to celebrate you getting 25m in a skill! However, that's where we draw the line in this League. We want to discourage doing one activity for a long amount of time simply because it offers high Points per hour.
+
+By the nature of Trailblazer's rules, one of the biggest changes to the task system is that tasks can only be completed in specific areas. This means players may be incentivised to level their skills to certain thresholds to complete tasks dependent on the areas they have accessed - that will be a huge factor in the planning and strategy. Don't worry, though, as there will also be a plethora of what we call 'General Tasks' - tasks which don't require a specific area. These tasks total around 30,000 points, but while they are not tied down to a specific area that doesn't mean they can be included in every area. For example, 'Catch 100 Lobsters' cannot be offered everywhere.
+
+Having so many tasks to implement can be quite time consuming. Fortunately, we have means to create the data for these tasks really quickly. A task in the back-end system looks like this:
+
+[[File:Gielinor Gazette- September 2020 (4).png|center]]<center>'''Catch 100 Lobsters' Task in the back-end code.''</center>
+
+
+Because all of the tasks have the same parameters, we can quite quickly write a script in Python that takes an Excel document of all the tasks and then get it to write this very repetitive RuneScript for us. Then it's simply a matter of going into the appropriate script and adding the following code to complete a task should the player satisfy the conditions.
+
+[[File:Gielinor Gazette- September 2020 (5).png|center]]<center>''Plugging in the completion of the Catch 100 Lobsters Task.''</center>
+
+
+This is of course still a lot of work from both a developer and QA perspective, but using tools like Python to speed up some of the more menial tasks makes big difference when it comes to development time.
+
+And lastly, we've added new filters to find tasks relevant to you. In Twisted League you could filter by task difficulty and completion. In Trailblazer there are filters for the task's area and the type of the task (skilling, combat, quest, achievement, minigame or other). We are still considering adding the ability to search and sort tasks, but we're unsure if we'll be able to deliver that in time - perhaps for the next League!
+
+
+'''Relic Design'''
+
+Tasks are great and all, but for many players they are simply a means to an end - a way to earn points to unlock powerful Relics which render the gameplay unlike anything in the main game. Relics were by far the most fun part of the design for Trailblazer, with a ton of interesting effects pitched and only the best chosen. Let's look into that process as a whole!
+
+Looking at the Relics in Twisted League, ultimately we came up with two pretty interesting philosophies that informed the decision to have passive Relic effects.
+
+''"If a Relic is so powerful that none of the other Relics can compete and that all players want it, it either shouldn't exist at all, or everyone should get it."''
+
+''"Every Relic should be fun and powerful. At no point should the player feel like they are choosing between the two."''
+
+The first quote is what led to the decision to give everyone infinite Run Energy at the start of the League. The second, however, was more interesting. Players enjoyed having really, really high XP rates that increased throughout the League, but many regretted missing out on fun relics like Xeric's Focus. Now, your passive XP will increase passively as you unlock Relic tiers, leaving the Relics themselves to be completely fun and game-changing without you having to worry about your XP rate. However, we didn't want to increase your XP/hr after every single Relic, so instead we alternate between offering more XP and modifying the drop-rates of certain uniques.
+
+{| class="wikitable" style="width:500px; text-align:center;"
+|+ align=bottom style="font-weight: normal;" | ''Passive Relic effects and Relic Categories for Leagues II - Trailblazer.''
+! Tier
+! 1
+! 2
+! 3
+! 4
+! 5
+! 6
+|-
+! Passive
+| Your Run Energy will never drain while running
+| Your League XP multiplier will increase from 5x to 8x
+| Your drop rate modifier will increase from 1x to 2x
+| Your League XP multiplier will increase from 8x to 12x
+| Your drop rate modifier will increasefrom 2x to 3x
+| Your League XP multiplier will increase from 12x to 16x
+|-
+! Relic Category
+| Skilling
+| Teleportation
+| Combat
+| Utility
+| Skilling
+| Combat
+|}
+
+
+Probably the most substantial change to Relics is grouping Relics into similar groups so that they can be more easily compared. Skilling Relics up against skilling Relics and combat Relics up against combat Relics. Last League we saw a huge imbalance in power across accounts between people who picked only combat Relics or skilling Relics. The new system means that everyone will have two skilling Relics, two combat Relics, one teleportation Relic and one utility Relic. This then allows us to make the specific skilling or combat Relics more powerful without worrying about people stacking too many effects together.
+
+Since our initial blog we have revised the first three Relics we revealed, and are fairly happy with the balancing going into launch. Here are the changes:
+
+{| class="wikitable" style="width:600px; text-align:center;"
+|+ align=bottom style="font-weight: normal;" | ''Tier 1 Relic Choices for Leagues II - Trailblazer.''
+!
+! Old
+! New
+! Reason for Change
+|-
+! Endless harvest
+| Resources gathered from Fishing, Woodcutting and Mining will be multiplied by 2. Resources generated this way will not provide any additional experience. The resources you gather are sent directly to your Bank if you have space. If not, they will be placed in your Inventory.
+| Resources gathered from Fishing, Woodcutting and Mining will be multiplied by 2. The resources you gather are sent directly to your Bank if you have space. If not, they will be placed in your Inventory.
+| This was probably the weakest Relic among the three, but is naturally very strong for those who would prefer a more afk-centric playstyle. However, during internal playtesting we noticed that you'd end up at significantly higher levels in your production skills than the gathering skill counterparts. Now the gathering/production counterparts will level at the same natural rate relative to each other, much how players are accustomed to in the main game.
+|-
+! Production Master
+| When doing the following activities, all items will be processed at once, awarding full XP: 1) Smelting ores, smithing bars and making cannonballs, 2) Fletching logs and cutting bolt tips, 3) Cleaning herbs and making potions, 4) Cooking food and making jugs of wine, and 5) Crafting leather, uncut gems, glass, jewelry, pottery, battlestaves and spinning flax/wool.
+| No change.
+| This was considered to be the strongest Relic, and the changes to the other two Relics are intended to bring them up to this Relic's strength. This will still remain a really strong choice if you get a lot of your gathering supplies from PvM sources.
+|-
+! Skilling Prodigy
+| All non-combat skills will permanently be boosted by 10. When skills are boosted beyond 10 levels, the boosts will over time drain back to the standard +10 boost. By the same token, when skills are drained down, they will eventually restore.
+| All non-combat skills will permanently be boosted by 12. When skills are boosted beyond 12 levels, the boosts will over time drain back to the standard +12 boost. By the same token, when skills are drained down, they will eventually restore.
+| This Relic is probably the most flexible of all, and it was always a consideration for many. It starts off strong and falls off hard, we were relatively happy with its power level. But after buffing Endless Harvest we decided to give it a little push, so that it has a slightly stronger early game impact - really leaning into the benefits of picking this Relic.
+|}
+
+
+And lastly, one of the best parts about designing Relics is picking cool sprites which represent their effects! For Leagues II - Trailblazer we've changed the colour scheme of the Relics to be blue/sandy as opposed to black/green as they were for Twisted League. Here is the Relic which we had the most back and forth over - can you guess what the effect is?
+
+[[File:Gielinor Gazette- September 2020 (6).png|center|400px]]<center>''Mysterious Relic Sprites.''</center>
+
+
+'''Reward Design'''
+
+And last but not certainly not least, the rewards! Naturally, many of you are going to pour much of your time into the League and ensuring that there are enticing rewards for you to carry back over to the main game is one of the unique appeals! Early on in development, [https://twitter.com/JagexHusky/status/1226824923496185856 Mod Husky tweeted] asking what you all liked and disliked about the Twisted League's rewards. While we got a ton of cool ideas, the overwhelming response was to keep them cosmetic and to ensure that the rewards had a theme that made them identifiable.
+
+Originally this left us quite stumped. With Twisted League, we essentially did this by name: Twisted. Unfortunately, this logic can't be applied to Trailblazer. We originally designed a bunch of rewards so that we had one from each region of the game. However, they ended up feeling disconnected from one another. For example, would a Prifddinas Wall-kit and a Verzik Slayer Helm be awesome? Of course! Would they feel like they came from the same content? Absolutely not. For those of you who are disappointed these aren't the rewards, don't worry - we have added them to our rewards backlog as potential ideas for the future.
+
+Early on in design, the placeholder name for this League was 'Explorer League'. So when it came to the rewards, we decided to instead focus on this theme. This lead to art team favouring browns, yellows and blue as a highlight that can be seen in all of the rewards in the original [https://secure.runescape.com/m=news/leagues-ii---trailblazer?oldschool=1 Trailblazer blog].
+
+[[File:Gielinor Gazette- September 2020 (7).png|center|400px]]<center>''Leagues II - Trailblazer Colour Scheme''</center>
+
+
+Fortunately for us, we seem to have got it right, because all of the rewards passed the poll. So you can expect to see all of those lovely in-game rewards in the League Reward Shop once Leagues II - Trailblazer has ended. If you have any left over Twisted League Points, you can also spend them here. You can spend your Trailblazer League Points on Twisted League rewards, too!
+
+Now let's talk about League-to-League rewards. We previously spoke about giving players who did well in Twisted League their own worlds and a boost to their starter items. At the time we thought this was well received, but now with the next League coming upon us we've heard your concerns loud and clear. We're not going to scrap the rewards entirely because we don't want players who earned them to feel like they've lost something they worked for, but we've instead re-worked them so that the advantage isn't quite so large.
+
+Twisted League Rank Worlds are instead going to be Twisted League Participation Worlds. Instead of a Mithril, Adamant and Rune world we are going to have two worlds that are only accessible to those of you who received a trophy in Twisted League. We feel like this still gives players who participated an advantage over those who didn't, but it's significantly less exclusive.
+
+Twisted League armour sets are now purely cosmetic. We'll instead be handing out Tier 1,2 or 3 Twisted Relic Hunter armour depending on the rank you achieved. These will be awarded as such:
+
+We're also deciding internally if we should give Twisted Blueprints and Twisted Horns to players in Trailblazer to compensate them for us nerfing the other rewards. Here is what we are proposing:
+*Bronze, Iron and Steel trophy players will get Tier 1 Relic Hunter
+*Bronze, Iron and Steel trophy players will get Tier 1 Relic Hunter Mithril and Adamant trophy players will get Tier 2 Relic Hunter
+*Rune and Dragon trophy players will get Tier 3 Relic Hunter
+*Mithril, Adamant, Rune and Dragon players will get Twisted Blueprints
+*Rune and Dragon trophy players will get Twisted Horns and have the Twisted Vision Slayer perk unlocked so that they can attach them if they do earn a Slayer Helm in the League.
+
+
+'''Where we are now? What left do we have to do?'''
+
+And finally, to those of you who made it this far - I bet you're all dying to know when the League will be released! Unfortunately, we're not ready to announce a release date just yet, but you will be pleased to know we don't actually have all that much work left to do.
+
+Firstly, we've got to finish implementing and testing the last few Relics and tasks. Then we have to implement a few of the extra features to make the League run smoothly, such as increasing certain shop restock rates and implementing League Firsts. Finally, we'll move onto our final playtesting/balancing, making any necessary tweaks and, more importantly, testing every single area as if it's our first pick to try and identify any bottlenecks. We wouldn't like to run into situations like the plough fields in Hosidius!
+
+Stay tuned for more news in the coming weeks.
+
+{{Collapsed section end}}
+
+{{Horizontal Line}}
+
+{{Collapsed section|18|Porting RuneScape Content To Old School}}
+Old School RuneScape started life as a backup of the old game dating back from August 2007. However, it’s no secret that RuneScape has seen many fantastic additions in the years that followed, and some of these additions have inspired a lot of Old School content. The ‘While Guthix Sleeps’ vibes in ‘Dragon Slayer II’ are clear to see, and in some cases post-2007 content such as the Corporeal Beast has been recreated in Old School. A lot has been borrowed from RuneScape (bad graphics machine go brrr) and we've continued existing questlines, but also deviated where we wanted to do things differently, as with Song of the Elves and Sins of the Father.
+
+A lot of you played RuneScape between 2007-2011, and you regularly tell us that you miss a lot of the content you once loved. That said, we know there are some of you who want Old School to forge its own path. This puts us in a tricky position when trying to please everybody.
+
+There are some clear benefits recreating RuneScape content. Recent experiments in ideation sessions have made it clear that porting things from RuneScape to Old School can be extremely efficient when it comes to development time and content volume. That said, recreating content doesn't mean reproducing it - it doesn't have to be exactly as it was. We can identify problems, and we can solve them. Let's consider Soul Wars.
+
+We began talking about Soul Wars back in March and we've continued working on it since then, iterating on the design and making the visuals feel more Old School. We've seen a lot of excitement for Soul Wars, but also some trepidation. You mentioned things like rewards, saying they were either over-powered (lots of XP!), not fit for Old School (buyable pets), or just not suited for Old School at all (Summoning charms). Those are problems we can solve. We expect to be blogging and polling Soul Wars in the coming weeks, and we'll be sure to give ample detail when it comes to rewards and other concerns you may have had.
+
+[[File:Gielinor Gazette- September 2020 (8).png|center|400px]]<center>''The initial Soul Wars prototype (with placeholder cow boss) was born during ideation.''</center>
+
+It might be possible to recreate - and change to suit Old School - quests, minigames, monsters, or other things. We want you to help us and to guide us. Do you want us to focus on some things but not others? At the end of the day, we just want to offer you game content that you'd enjoy. So, to that end, we've built a short survey asking about your reaction to things coming from RuneScape, and what areas (if any!) you'd like us to concentrate on. Take the survey and let us know! We'll be sharing the results in upcoming Gazettes.
+
+[https://osrs.game/Porting-Content-Survey Take the Survey - Click here!]
+{{Collapsed section end}}
+
+{{Horizontal Line}}
+
+{{Collapsed section|18|Old School's Ins and Outs}}
+There's another new face joining our Game Engine Tech team (that's a lot of people we've welcomed who can get that elusive engine work done!) but it's not all happy news - this week we also say goodbye to a long-serving stalwart of the Old School team. Let's catch up on the latest.
+
+
+Our newest J-Mod is '''Mod Morty, Java Game Developer:'''
+
+''Hi! I am Mod Morty and I've just moved to the Old School team! I've been at Jagex for a few months now, having joined at the very start of the pandemic... lucky me! I've been in the games industry for a couple of years and I'm very excited to be here on the Old School team. I'll be helping the team and game with backend engineering!''
+
+
+Recently we said a sad farewell to '''Mod Weath''', who had this to say:
+
+''After 10 years, I've decided that now is a good time to take the next step in my career. Thanks to everyone who's made my time here so amazing. I've seen the OS team grow from just five people when I joined to well over 30 people now, and it's really great to see the team and game do so well, with such passionate people behind it! Hopefully during my time here I've made a big impact on the cheaters and also managed to help a fair few of you along the way! Take care and stay safe :)''
+
+
+There's one more notable change to tell you about! '''Mod Acorn''' has recently made the move from publishing to development, transitioning from a Senior Community Manager to Associate Producer. So while you might be seeing less of her on streams, the excellent news is that she'll be working more closely with the game content and the content development process!
+
+
+As always, we always want to hand out more gold Mod crowns! If you've ever dreamed of building your favourite game and seeing your name at the bottom of our blogs, then head to the Jagex careers listings and take a look at the RS OLD SCHOOL section (Head of Product Marketing and Lead Product Manager) and the COMMUNITY MANAGEMENT & SOCIAL MEDIA section (Senior Community Manager).
+
+{{Collapsed section end}}
+
+Old School has a very special blood running through its veins – you, our fantastic players. And as with everything else, if you’ve got any ideas about the sorts of things you’d like to see in upcoming editions of the Gielinor Gazette, then please do let us know!
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Ed, Elena, Errol, Fed, Flippy, Gayns, Gee, Halo, Husky, Impact, Jndr, John C, Kandosii, Kieren, Lenny, Lottie, Lyric, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard & West'''
+
+''The Old School Team''

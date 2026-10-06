@@ -1,0 +1,29 @@
+{{Infobox Item
+|name = Water container
+|image = [[File:Water container (Tombs of Amascut).png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Check, Empty, Destroy
+|destroy = Another will be nearby.
+|examine = It's a little leaky!
+|value = 100
+|alchable = No
+|weight = 2.000
+|id = 27295
+}}
+[[File:Water container (Tombs of Amascut) detail.png|left|130px]]
+A '''water container''' is an item obtained in the Path of Crondis within the [[Tombs of Amascut]], where it is used to water the [[Palm of Resourcefulness]] in the centre of the challenge room.
+
+To fill it with water, players must obtain water from the [[Waterfall (Tombs of Amascut)|waterfalls]] in the area, whilst avoiding the obstacles in order to minimise water spilling out of the container. [[Humidify]] has no effect on this water container.
+
+When the player is hit by an obstacle, the water container will be reduced by 50% of the current level. There is a slight chance that the contents will be reduced by 16% of the current level, rather than 50%. This will stack effectively infinitely, with the current capacity never being reduced below 1% in the game chat.
+
+If a [[Crocodile (Tombs of Amascut)|crocodile]] successfully bites the player, the water container will also be reduced by 50%. Once it's under 15% capacity, successful crocodile bites will reduce the capacity by 10%.
+
+{{Tombs of Amascut}}

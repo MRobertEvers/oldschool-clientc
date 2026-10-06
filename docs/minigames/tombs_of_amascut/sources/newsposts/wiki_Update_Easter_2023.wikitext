@@ -1,0 +1,139 @@
+{{Update|date=5 April 2023|url=https://secure.runescape.com/m=news/a=1/easter-2023?oldschool=1|category=game}}
+[[File:Easter 2023 newspost.png|right]]
+{{clear}}
+''This week we’re putting a spring in your step with the 2023 Easter Event!''
+__TOC__
+==Easter Event==
+[[File:Easter 2023 (1).png|centre|600px]]
+The Easter Bunny is back, and once again, he needs your help to keep egg production on track! In what seems to be a recurring tradition, the fate of the entire holiday rests on your shoulders, as you use your best detective skills to track down the Easter Bunny’s Egg Mould in time to feast on the chocolatey goodness.
+
+To kick off this year’s event, head to Varrock, where the Easter Bunny is hanging out between Varrock West Bank and Zaff’s Staff Shop.
+
+Tracking down the Egg Mould will be no simple task. You’ll have to navigate through conversations with ''all'' of Gertrude’s children – and they’re a pesky bunch! They’re so pesky, in fact, that they wouldn’t even tell ''us'' where they’ve hidden the Egg Mould – so you’re on your own!
+
+We ''can'' reveal, however, that you’ll be rewarded with some egg-citing fashionscape for your efforts: some hot-to-trot headwear and a ''fearsome'' new weapon.
+
+Lastly, here are some words from Mod Manked, who developed the event:
+
+{{News Poll|textalign=left|qtext=Mod Manked:|2=<i>Hey gamers!
+
+It's official, my first piece of content being released into OSRS is here. Words cannot express how excited I am for you all to delve in to the Easter event this year. After being a 'Scaper for over half of my life, it's been heartwarming to work on the game I love, to produce a fun experience for you all. It's been delightful working with so many talented, enthusiastic, hard-working people to produce this fun seasonal event which should get your brain ticking. I'm ecstatic to work on some really awesome projects coming throughout the year, 2023 is going to be amazing for Old School.
+
+The Art team have done a fantastic job with the rewards, the art team never miss (unlike my ags). I look forward to seeing the Easter rewards being used in-game, I'm confident there is one reward the community will try some interesting challenges with...
+
+Stay safe and happy 'Scaping!
+
+- Mod Manked<i/>}}
+
+Aww!
+
+Now for something a little less sugary: the ongoing Bounty Hunter Rewards beta!
+
+==New Skill Pitches Poll!==
+[[File:Easter 2023 (2).png|centre|600px]]
+If you've not been living under the biggest rock imaginable, you'll know what we've been ramping up talks about Old School's first ever new skill. In fact, we've ramped up so much that there is a poll '''live now''' for you to vote for your favourite of our three new skill pitches so that we can take one through to refinement.
+
+Make sure to check out [https://secure.runescape.com/m=news/a=13/adding-a-new-skill-introducing-sailing-taming-and-shamanism-?oldschool=1 the blog] we released detailing the pitches before casting your vote! If you're looking for even more information you can check out a [https://secure.runescape.com/m=news/a=13/new-skill-pitches---faq-and-discord-stages-summary-?oldschool=1 brief FAQ] (and summary of our first time using Discord Stages to talk with players about the new skill), [https://www.reddit.com/r/2007scape/comments/12aiwjt/new_skill_pitches_ama_before_polling_tomorrow/ an AMA we hosted] on the /r/2007scape subreddit, [https://www.youtube.com/watch?v=xOyUlj0mHwY a roundtable] we recorded before sharing the pitches with all of you ''and'' a [https://www.youtube.com/watch?v=_RHBIAxq59I livestream Q&A VOD] where we answered a bunch of questions from all of you!
+
+If you'd like to get involved in the conversations yourself, join the [https://discord.gg/t8y9cKYyKS New Skill Player Council Discord Server], we're checking in weekly over there and fast approaching 10,000 members!
+
+That's a whole lot of ''stuff'' for you to consume, so get yourself clued up and be sure to cast your vote using the Community menu under the in-game Account Settings menu or visiting your nearest Poll Booth in Gielinor!
+
+==Bounty Hunter Rewards Beta Changes==
+[https://secure.runescape.com/m=news/a=13/bounty-hunter-rewards-beta--more?oldschool=1 Last week] we opened up beta worlds 401, 405, 407, 409 and 412 to give players a chance to test some of the proposed rewards for Bounty Hunter, coming later this year.
+
+Following your feedback, we’ve made a handful of changes, specifically to the Corrupt Ancient Warrior Armours, the imbued Dark Bow, and the imbued Abyssal Dagger.
+
+Some of you felt as though the Corrupt Ancient Warrior Armours were underwhelming offensively, and that they lacked a solid Strength bonus to make those extra combat levels worth your while. Additionally, the Accuracy bonuses were less useful than they could be, as a lot of players will be using these sets to fight other low-Defence builds. We’ve taken this feedback on board and given the Corrupt sets a little extra oomph!
+
+Additionally, we saw lots of comparisons between Morrigan’s Armour and Void Knight Armour – although they have similar Accuracy bonuses, Void’s Strength bonus, coupled with the low risk of the Bounty Hunter environment, leaves Morrigan’s set looking less desirable. We’ve decided to give both the Corrupted and Uncorrupted versions some Ranged Strength bonuses for this week of the beta, to see if this helps.
+
+===Ancient Warrior's Equipment===
+* Statius' Full Helm (c): Increased Strength bonus from 0 to 2.
+* Statius' Platebody (c): Increased Strength bonus from 0 to 4.
+* Statius' Platelegs (c): Increased Strength bonus from 0 to 2.
+* Vesta's Chainbody (c): Increased Strength bonus from 2 to 5, increased Stab, Slash and Crush bonuses from 7 to 8.
+* Vesta's Plateskirt (c): Increased Stab, Slash and Crush bonuses from 5 to 6.
+* Morrigan's Coif: Increased Ranged Strength bonus from 0 to 4.
+* Morrigan's Leather Body: Increased Ranged Strength bonus from 0 to 6.
+* Morrigan's Leather Chaps: Increased Ranged Strength bonus from 0 to 6.
+* Morrigan's Coif (c): Increased Ranged bonus from 7 to 13. Increased Ranged Strength bonus from 0 to 2.
+* Morrigan's Leather Body (c): Increased Ranged bonus from 16 to 36. Increased Ranged Strength bonus from 0 to 4.
+* Morrigan's Leather Chaps (c): Increased Ranged bonus from 12 to 23. Increased Ranged Strength bonus from 0 to 4.
+* Zuriel's Hood (c): Increased Magic bonus from 4 to 5.
+* Zuriel's Robe Top (c): Increased Magic bonus from 15 to 25.
+* Zuriel's Robe Bottom (c): Increased Magic bonus from 10 to 18.
+
+===Weapon Imbues===
+We’re largely happy with how the imbued variants of several weapons are shaking out. However, we have made some small changes to the Dark Bow and the Abyssal Dagger.
+
+
+''Dark Bow (i)''
+
+Although many of you feel the Dark Bow is much improved by the imbue, we’ve seen suggestions that the delay between hits makes its Special Attack easy to eat through and that it struggles to be viable as a result.
+
+For the second week of the beta, we’ve tweaked the imbued Dark Bow’s Special Attack so that both arrows land at the same time. We’re really interested to see your feedback on this one, so let us know if this change makes the bow feel more useful, or just more OP.
+
+
+''Abyssal Dagger (i)''
+
+Remember what we said about ‘no longer living in the shadow of the Dragon Dagger’? Well, it seems that statement has aged a little too well.
+
+To recap, the imbued version comes with a nice Accuracy increase and ditches the damage reduction component of the Special Attack. Combined with the set effects of the Ancient Warrior gear, the Dagger is ''seriously'' consistent and hits extremely hard. We’d like to rein it in a little and add back -5% damage reduction to the Special Attack. We’re open to further tweaks on this one. Our aim is to make the Abyssal Dagger (i) feel good to use, without making it feel like a death sentence when your opponent equips one.
+
+===Ancient Warrior Weapons===
+It's the moment you’ve been waiting for! We’ve enabled the Ancient Warrior weapons for this week of the beta.
+
+That means you’ll now be able to try out Statius’ Warhammer, Vesta’s Longsword, Vesta’s Spear, Zuriel’s Staff, Morrigan’s Throwing Axes and Morrigan’s Javelins! Their stats are unchanged from the versions that already exist in Last Man Standing and Deadman Mode, but we think it’s important that you're able to test them alongside the other rewards on offer.
+
+As a final couple of tweaks to the beta worlds, you should now be able to test your shiny new weapons out on the dummy inside your Player Owned House. Additionally, your Energy will now drain as normal when running since we've seen a few requests for this to facilitate more realistic interactions when testing various PvP scenarios!
+
+Now, before we move on to this week’s smaller changes, we’ve got an update regarding Jagex Accounts…
+
+==Jagex Accounts Open Beta==
+[[File:Easter 2023 (3).png|centre|600px]]
+It’s HAPPENING! Yesterday, we expanded our Jagex Accounts beta from 50% of players to 100% of players.
+
+Now, anyone who wants to can navigate to their Account Settings on [https://secure.runescape.com/m=account-creation/transfer_account our website] and opt-in to the Jagex Accounts beta. This represents a huge step forward for account security, allowing players to protect all their characters under a single, safe Jagex Account.
+
+If you’ve somehow missed all the news about Jagex Accounts, you can read all about them in [https://secure.runescape.com/m=news/a=13/jagex-accounts---open-beta?oldschool=1 this blog post].
+
+After signing up, you '''must''' make a note of your backup codes and keep them in a safe place. This is the '''only''' way you’ll be able to recover your account if you forget your details or lose access to your authenticator after making the switch, so it’s imperative that you have them on deck!
+
+Now, let’s wrap up with a tasty spoonful of miscellaneous changes.
+
+==Other Changes==
+* Players can now toggle a ‘Make-x’ interface for Fletching Darts. This setting is toggled Off by default for existing accounts, but can be enabled in the Settings Menu. If you're making a new account, this setting will be toggled On by default and needs to be disabled if you'd like to go back to making darts ''rapidly''.
+* The mobile client will now remember whether or not your minimap was expanded the last time you logged out.
+* The Soul Bearer will now ask players how many charges they’d like to add, rather than just using all the runes they have available. How polite!
+* Zealot Robes now provide their resource-saving bonus to Ensouled Heads on the ground, meaning those of you looking to save valuable ticks by dropping your Ensouled Heads before reanimating (or reanimating them without ever picking them up in the first place) will have a shot at preserving them!
+* Fixed a bug in Tombs of Amascut where freezing a Warden just as it was waking up would simply remove it from existence. Oops!
+* Praying at an altar will now reset the timer on any Prayer Point draining effects. We’ve also applied this change to Player Owned House pools, the Falador Elite Shield, and various Raid rooms.
+* Fixed a bug where the Occult Necklace was not being dropped upon death for the Max/Med and Zerker modes in Last Man Standing. It is still deleted on death in 1 Def Pure mode, where the necklace is offered as a starting loadout item.
+* Players can now check the number of charges in their Revenant weapons and their Wilderness Boss upgrades while in the Bank interface, via a new ‘Check’ option.
+* Previously inaccessible music tracks from Castle Wars, Clan Wars, Last Man Standing, the Volcanic Mine, the Fossil Island underwater area and Trouble Brewing have been made available on the Deadman world (345). Visiting or attempting to enter the relevant areas will unlock the tracks.
+* Activity HiScores that previously had a minimum KC of 30 have been expanded; the new minimum is 25. Players in the 25-29 KC range should find that their scores are added gradually over their next few gaming sessions. As a reminder, we’re rolling this update out in seperate parts to reduce strain on the HiScores system, and you can expect to see more expansions in the coming weeks!
+
+==Crack the Clue==
+Woox has provided us all with an especially cryptic clue this week. With no additional information needed, feast your eyes on this week's hint:
+[[File:Easter 2023 (4).png|centre|600px]]
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota. The PvP Arena is using 'Max/Med' loadouts in Ranked Duels and Tournaments this week.
+
+That's a wrap on this week, we hope to see loads of you helping the Easter bunny, trying out the new additions to the Bounty Hunter Rewards beta and - perhaps most-importantly - levelling up your Account security by making the switch to Jagex Accounts in our open beta!
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381#_ga=2.156079800.2056601990.1680688457-625340818.1642597733 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [http://oldschool.runescape.wiki/ Old School Wiki].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Pumpkin, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

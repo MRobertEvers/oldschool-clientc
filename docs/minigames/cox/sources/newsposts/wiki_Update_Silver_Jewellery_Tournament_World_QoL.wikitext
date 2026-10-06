@@ -1,0 +1,54 @@
+{{Update|date=2 February 2017|link=http://services.runescape.com/m=news/silver-jewellery-tournament-world--qol?oldschool=1|category=game}}
+[[File:Silver Jewellery, Tournament World & QoL! newspost.png|right]]
+{{clear}}
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">Silver Jewellery, Tournament World & QoL!</font></center>
+
+<center>'''This week sees the release of Silver Jewellery, as well as the return of Tournament Worlds & a whole host of QoL updates.'''</center>
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Silver Jewellery</font></center>
+
+<center>'''An all new range of jewellery, with a variety of effects!'''</center>
+
+Silver jewellery is created in the same way as you craft gold jewellery. However naturally it is created using Silver Bars and Opal, Jade and Red Topaz. 
+
+It will be possible to enchant all different types of gem-holding silver jewellery using the existing enchant spells found on the normal spellbook. Level 1 Enchant for Opal, Level 2 Enchant for Jade and Level 3 Enchant for Red Topaz.
+
+Unchanged from the original design, the jewellery will offer the following effects when enchanted.
+
+[[File:Silver Jewellery, Tournament World & QoL! (1).png|center|500px]]
+
+The different jewellery able to be crafted out of silver bars and semi-precious gems are scattered throughout the low to mid levels of Crafting. The experience gained will be just lower than what gold jewellery offers at similar levels.
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Tournament World</font></center>
+
+<center>'''The Tournament World returns, but with a few new surprises!'''</center>
+
+[[File:Silver Jewellery, Tournament World & QoL! (2).png|center|500px]]
+
+With maxed accounts and access to the tournament supply chests, you'll have the ability to handcraft your perfect set up every time, meaning everything comes down to skill.
+
+However this time, we're adding in '''all new Raids rewards''' as well as opening up '''Castle Wars''' to provide a little variety. So if you've ever wanted to test out Rigour or give Dragon Claws a go, now's your chance!
+
+Whether you've been playing Old School Runescape for a week or a decade, tournament worlds are the perfect way to develop and hone your PvP abilities. Or just cause some carnage in the arena. 
+
+The Tournament World will be open for the duration of QoL month, so get in there and cause some chaos!
+
+----
+
+'''In other news'''
+
+*The Fire max cape has been updated to be animated and look brighter.
+*If you boost a stat, and hadn't already boosted any stats, your stat-boost is now more likely to last for longer before restoring down.
+*While Premier Club closes on Sunday, you may continue to upgrade an existing package from the Bonds membership package interface.
+*Can now catch bats bare-handed in raids at level 99 Hunter.
+*The Vanguard now have their healthbars visible throughout the fight.
+*The tooltip for the Augury prayer has been re-worded for clarity; the text change does not affect the prayer's effect.
+*The Khazard Warlord in Tree Gnome Village is once again vulnerable to safe-spotting.
+*Corrected the spelling of the Dexterous prayer scroll.
+*You no longer get the message about a raid starting without you if you are not in the raids lobby area.
+
+Discuss this update on our [http://services.runescape.com/m=forum/c=3CE56PHdJlE/forums.ws?380,381,361,65876293 forums].
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''

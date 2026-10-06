@@ -1,0 +1,188 @@
+{{Infobox Monster
+|version1 = Normal
+|version2 = Enraged
+|version3 = Normal (Challenge Mode)
+|version4 = Enraged (Challenge Mode)
+|name1 = Tekton
+|name2 = Tekton (enraged)
+|name3 = Tekton
+|name4 = Tekton (enraged)
+|image1 = [[File:Tekton.png|220px]]
+|image2 = [[File:Tekton (enraged).png|220px]]
+|image3 = [[File:Tekton.png|220px]]
+|image4 = [[File:Tekton (enraged).png|220px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[5 January]] [[2017]]
+|release3 = [[17 May]] [[2018]]
+|release4 = [[17 May]] [[2018]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric
+|update3 = Chambers of Xeric: Challenge Mode Is Here!
+|update4 = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size = 4
+|examine1 = Xeric's former artisan.
+|examine2 = Xeric's former artisan in a rage.
+|examine3 = Xeric's former artisan.
+|examine4 = Xeric's former artisan in a rage.
+|attributes = xerician
+|xpbonus1 = 35
+|xpbonus2 = 52.5
+|xpbonus3 = 50
+|xpbonus4 = 77.5
+|max hit1 = 52
+|max hit2 = 59
+|max hit3 = 78
+|max hit4 = 87
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Stab]], [[Slash]], [[Crush]]
+|attack speed = 3
+|hitpoints1 = 300
+|hitpoints2 = 300
+|hitpoints3 = 450
+|hitpoints4 = 450
+|scaledhp = Yes
+|att1 = 390
+|att2 = 390
+|att3 = 585
+|att4 = 585
+|str1 = 390
+|str2 = 390
+|str3 = 585
+|str4 = 585
+|def1 = 205
+|def2 = 205
+|def3 = 246
+|def4 = 246
+|mage1 = 205
+|mage2 = 205
+|mage3 = 246
+|mage4 = 246
+|range = 1
+|attbns = 64
+|strbns1 = 20
+|strbns2 = 30
+|strbns3 = 20
+|strbns4 = 30
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab1 = 155
+|dstab2 = 280
+|dstab3 = 155
+|dstab4 = 280
+|dslash1 = 165
+|dslash2 = 290
+|dslash3 = 165
+|dslash4 = 290
+|dcrush1 = 105
+|dcrush2 = 180
+|dcrush3 = 105
+|dcrush4 = 180
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 20
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 7540,7541,7542
+|id2 = 7543
+|id3 = 7545
+|id4 = 7544
+|leagueRegion = Kourend
+}}
+'''Tekton''' is one of the [[bosses]] encountered in the [[Chambers of Xeric]]. He was the artisan that created the chambers.
+
+==History==
+Based on [[Tekton's journal|his journal]], Tekton was one of the few that were still loyal to [[Xeric]] after the majority of [[Great Kourend]] usurped him. He built many grand buildings to worship Xeric, though it is unknown if they are still around.{{CiteText|text=Tekton's journal|author=Tekton|quote=Tekton has served Master for long time. Tekton built huge buildings, clever buildings with magic in the walls. Tekton made buildings for people to praise Master in, big buildings with pretty decorations so everyone knows how great Master is. Then Master had to leave kingdom. People ungrateful, didn't understand they should obey Master like Tekton did.}} He also believes he had a family and children,{{CiteText|text=Tekton's journal|author=Tekton|quote=Tekton wonders what happened to Tekton's spouse from big kingdom, or Tekton's children. They sound important, but Tekton can't remember much.}} though their current status is unknown along with any potential descendants.
+
+He oversaw the creation of the chambers under [[Mount Quidamortem]], in addition to creating a new temple. Xeric was pleased that Tekton gave him the ability to use cave magic,{{CiteText|text=Tekton's journal|author=Tekton|quote=Mountain caves have magic that Master wanted, but Master didn't know how to take it. But Tekton clever - Tekton learnt to take the magic from the caves. Tekton built Master a new temple on mountain top. Tekton's temple could focus cave magic, bring it out of caves so anyone could use it without needing to be as clever as Tekton. Master used Tekton's temple to wield cave magic.}} but was disappointed when everyone else began using it, especially the "[[Vasa Nistirio|nasty high priest]]". Xeric ordered him to destroy the temple, which he did, but only slightly in the event that Xeric changed his mind. Tekton unsuccessfully tried to teach Xeric how to use the magic without the aid of the temple.{{CiteText|text=Tekton's journal|author=Tekton|quote=But Master not so happy when everyone else started wielding cave magic too, especially nasty high priest. Master didn't really like the high priest. Master told Tekton to shut down temple. Master wanted Tekton to find new ways to wield cave magic, but so only Master could do it. Tekton broke temple like Master said - but only slightly, so Tekton can fix it again if Master ever changes his mind. Tekton tried to teach Master how to wield cave magic without needing temple, but Master couldn't do it. Maybe Master didn't understand crystals as well as Tekton did.}}
+
+Xeric later took him into the caves and gave him immortality by putting his soul in a new, indestructible body, enchanting his anvil and teaching him how to repair his new body.{{CiteText|text=Tekton's journal|author=Tekton|quote=One day Master took Tekton into cave, and promised to reward Tekton for all Tekton's service. Master promised Tekton immortality! Tekton very happy. Master created new body for Tekton out of rock and metal from caves, and transferred Tekton's soul into it. Tekton's old body disintegrated, but that okay now Tekton was living in shiny new body that Master made. Master enchanted Tekton's anvil, and brought it into cave, and taught Tekton to use it to fix the new body whenever it get damaged.}} While he gained a large amount of power, Tekton soon noted he was unable to manipulate the crystals{{CiteText|text=Tekton's journal|author=Tekton|quote=Tekton wonders sometimes why new body doesn't understand crystals as well as old body did.}} or remember much of his past, though he believed that he wanted his strength, not intelligence.{{CiteText|text=Tekton's journal|author=Tekton|quote=Tekton was clever, understood all about crystals. Tekton knew how to draw power from crystals to make magic buildings for Master. Tekton not sure how it worked anymore. Ever since Master made Tekton so strong, Tekton can't remember much about crystals. Tekton can't remember how to make buildings either. Tekton can't remember much about Tekton anymore. Didn't Tekton have a spouse back in the big kingdom? Tekton not sure what spouse is for anymore. But that okay. Master made Tekton strong, so Master must want Tekton's strength, not Tekton's memory.}} Xeric's companions began mocking Tekton afterwards and eventually cut off all contact with him. Tekton, believing that his safety could not be guaranteed if he wandered around, has since remained by his anvil to improve himself, awaiting Xeric's return so he could serve his master once more.{{CiteText|text=Tekton's journal|author=Tekton|quote=Now Tekton very strong, but Master's friends were rude. They called Tekton stupid. Tekton got confused - new body is what Master made, so new body must be better. But Master's friends not want to talk to Tekton anymore, especially nasty high priest. So Tekton staying in cave now, near anvil. It safer for Tekton to stay near anvil, so Tekton can repair body if it get damaged. [...] Tekton had better keep on using anvil to make body strong, until Master come back to give Tekton more work to do. Until then, Tekton can wait for Master.}}
+
+==Mechanics==
+Tekton is seen working with his magnetic anvil. As soon as someone gets near him, he will notice them and begin the fight. 
+
+Tekton is immune to Range and takes 80% reduced Magic damage.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1699739619221246331|date=7 September 2023|archiveurl=https://reldo.runescape.wiki/i/108640|archivedate=7 September 2023|quote=[Is this the same way Tekton functions with magic (and divided by 5 instead)?] Yes, it is.}} He is also immune to binding effects, should the spell somehow land on him.
+
+The first [[elder maul]] or [[dragon warhammer]] special that makes contact with Tekton will always land as a damaging [[successful hit]]. If multiple specials land on the same tick, it will only apply to one of the attacks. After the first successful hit, further specials will act as normal. If the special from an elder maul or dragon warhammer fails to hit, it will still drain 5% of his Defence. A [[bandos godsword]] that fails to land will drain 10 Defence levels instead.
+
+Tekton will walk to a player until he makes contact with them, after which he will stop moving and enter a combat stance. Tekton will turn into a solid NPC, meaning it is not possible to walk under him. He will proceed to attack with melee, attacking both the area in front of him and to his right simultaneously. If multiple players are surrounding Tekton, he will randomly change direction, so all players should ideally attack from the same direction to avoid the chance of getting hit.
+
+After a short duration of fighting, or if Tekton is unable to scan anyone in melee range on his next attack, he will stop and return to the anvil, slowly repairing himself for small amounts of health (roughly 1.11 to 1.33%)<!--Tekton heals 4 in normal max solo (300 hp), 5 in challenge max solo (450 hp)--> every few ticks. At the same time, sparks will fly from the lava in the chamber, with all players getting targeted by two sparks. These sparks have a 3x3 AoE and getting hit by them will deal moderate damage, even if from another player, so it is important to avoid them. Once Tekton finishes repairing himself (around ~10 or so seconds), he will stop, enter an enraged form and attempt to walk to a player to enter his combat stance again. In his enraged form, Tekton's max hit and defence bonuses increase, so it is important to continue avoiding his attacks as necessary. The enraged stance will only last briefly before he returns to normal, which in turn drops all bonuses from the enraged form.
+
+Tekton regenerate his stats at a rate of 1 per 15 ticks, faster than the standard rate of 1 per 100 ticks.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1524701424460628080|date=9 July 2026|quote=Stone guardians - 8 Muttadiles - 15 Vasa Nistirio - 10 Vasa's crystal - 9 Tekton - 15 LizardShamans - 20 Skeletal mystics - 25 Jewelled Crabs - 1 Vespula - 10 Vespula's portal - 45 Vespula's grubs - 10000 (i.e. never) Vespine soldier (flying) - 16 Vespine soldier (walking) - 10000 Otherwise default should be 100, as for outside CoX.|ctxquote=Hi@JagexAsh would you per chance be able to say the regen time (in ticks) for mobs in chambers?}}
+
+[[File:Fighting Tekton.png|thumb|290px|A group of players facing Tekton.]]
+
+Due to Tekton being the first room in [[Chambers of Xeric/Challenge Mode|Challenge Mode]] and Full Layout raids, both can be ideal places to practice as the boss mechanics can be unforgiving to small mistakes.
+
+==Drops==
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Tekton's journal|quantity=1|rarity=Always|altrarity=Never|raritynotes=<ref name=book group=d>No longer dropped after reading the book.</ref>|gemw=No}}
+{{DropsLine|name=Stinkhorn mushroom|quantity=5|rarity=Always|gemw=No}}
+{{DropsLine|name=Overload (+)(4)|quantity=2|rarity=Always|gemw=No}}
+{{DropsLine|name=Prayer enhance (+)(4)|quantity=1|rarity=Always|gemw=No}}
+{{DropsLine|name=Revitalisation (+)(4)|quantity=1|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Onyx|quantity=1|rarity=1/450|altrarity=1/210|altraritydash=yes|raritynotes=<ref group=d>The drop rate scales depending on party size, with 1/450 being the rate in solo normal mode raids and increasing in bigger parties. In Challenge Mode raids, the drop rate is lower for parties of 3 or less.</ref>{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1428701217253908485|date=20 August 2021|archiveurl=https://archive.ph/PIaYr|archivedate=10 April 2025|quote=The chance improves for a tougher Tekton. As Tekton gets tougher based on the party size, the chance is therefore improved for a bigger party. In addition to that effect, though, Mod Maz appears to have made the onyx chance *higher* in Challenge Mode if the party's 3 or fewer.}}{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1516485081475321976|date=16 June 2026|quote=I worded that poorly. Maz's check makes the chance number higher, i.e. a higher value of X in "1 / X", meaning that you're LESS likely to get an onyx that way. Sorry. So your chance is 3x WORSE - that 1/70 would become 1/210. I thought this might be an error, but the comment says it's intentionally making the onyx less likely due to other balancing changes that she'd made to the NPC in CM: "if it is a challenge mode, and the ones we have dropped the defence on, it is 3 times less likely than before"|ctxquote=|archiveurl=|archivedate=|notes=|name=|group=}}}}
+{{DropsTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Tekton now has a 20% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change =
+* The first [[dragon warhammer]] [[special attack]] against Tekton is now guaranteed to hit.
+* Tekton no longer resets his [[Defence]] when healing at the anvil.
+}}
+{{Subject changes
+|date = 31 January 2019
+|update = Chambers of Xeric, Kebos, and Collection Log Changes
+|change = Tekton's defence was reduced by 25% to make it less dependent on defence draining special attacks. He was also made less sensitive to return to the anvil without trying to hit anyone.
+}}
+{{Subject changes
+|date = 13 April 2017
+|update = Wilderness Slayer
+|change = The [[Bandos godsword]] will now reduce Tekton's defence by 10 levels if players fail to land a [[successful hit]].
+}}
+{{Subject changes
+|date = 6 April 2017
+|update = Easter 2017 Holiday Event
+|change = The [[dragon warhammer]] will now reduce Tekton's defence by 5% if players fail to land a successful hit.
+}}
+{{Subject changes
+|date = 6 January 2017
+|type = hotfix
+|change = Tekton was considerably buffed to increase his "massacring" capabilities.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*"Téktōn" ("[[wiktionary:τέκτων|τέκτων]]") is Ancient Greek for various types of builders, such as craftsmen and carpenters, referencing Tekton's role as an artisan.
+*Tekton is the only Chambers of Xeric mid-boss that drops a non-raid item other than bones or ashes.
+*It is possible to cook raw food on the fire blocking the entrance to Tekton’s room once he is awakened.
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+{{Bosses}}
+[[Category:Monsters with no combat level]]

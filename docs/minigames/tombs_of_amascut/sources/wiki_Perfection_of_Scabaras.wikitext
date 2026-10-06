@@ -1,0 +1,24 @@
+{{Infobox Combat Achievement
+|name = Perfection of Scabaras
+|image = [[File:Tombs of Amascut - Fighting Kephri.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete 'Perfect Scabaras' and 'Perfect Kephri' in a single run of Tombs of Amascut.
+|tier = Grandmaster
+|monster = Tombs of Amascut: Expert Mode
+|type = Perfection
+|id = 443
+|leagueRegion = Desert
+}}
+'''Perfection of Scabaras''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete [[Perfect Scabaras]] and [[Perfect Kephri]] in a single Expert mode run of the [[Tombs of Amascut]] raid.
+
+==Strategy==
+Path of Scabaras does not need to be completed in less than 1 min, as is normally required for [[Perfect Scabaras]]. Additionally, [[Perfect Scabaras]] and [[Perfect Kephri]] do not need to be completed in succession. 
+
+As death invocations do not need to be enabled, players that complete Perfect Scabaras and then fail Perfect Kephri can all die and re-attempt Perfect Kephri without having to redo Perfect Scabaras.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

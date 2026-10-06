@@ -1,0 +1,53 @@
+{{External|rs}}
+{{Infobox NPC
+|version1 = Freed
+|version2 = Imprisoned
+|name = Crondis
+|image1 = [[File:Crondis.png|140px]]
+|image2 = [[File:Crondis (imprisoned).png|230px|class=notpageimage]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|race = Crocodile
+|quest = [[Into the Tombs]]
+|location = [[Jaltevas Pyramid]]
+|gender = Female
+|options1 = Talk-to
+|options2 = None
+|examine = Tumeken's avatar of resourcefulness.
+|map = No
+|id1 = 11659,11660
+|id2 = 11657
+|leagueRegion = Desert
+}}
+[[File:Crondis chathead.png|left]]
+'''Crondis''' is the lesser [[Gods|goddess]] of resourcefulness and one of the four [[Avatars of Tumeken]], which are minor gods of the [[Menaphite Pantheon]], a collection of deities worshipped in the [[Kharidian Desert]]. According to legend from the [[Book of Light and Day]], she was created from one of the four dreams that the main god [[Tumeken]] once had over four days.{{CiteText|text=Book of Light and Day|quote=The Book of Light and Day says that Tumeken once fell into a deep sleep and dreamt for four days and four nights. With each night, his dreams took form. Those four forms became the lesser deities of the pantheon, with Scabaras being the last of them.}}
+
+A [[Apparition#Crondis|manifestation]] of her can be encountered during [[Icthlarin's Little Helper]]. If the player picks up the crocodile-headed [[canopic jar]] containing the lungs, the player can fight the manifestation. However, fighting her is not necessary to finish the quest.
+
+During [[Beneath Cursed Sands]] it is revealed that she, alongside [[Apmeken]], [[Het]], and [[Scabaras]], have been captured by [[Amascut]] who had hunted them down over the centuries, with Amascut having manipulated [[Zebak]] into assisting her. They have all been taken to the [[Jaltevas Pyramid]], the tomb of [[Osmumten]], where Amascut plans to use two ancient weapons against them to steal their divine energy and ascend from a demi-goddess to a true [[god]]dess. However, an adventurer was able to free them, and they returned to their roles as Avatars of Tumeken, promising that they will be there to help face Amascut when the time comes.
+
+==Dialogue==
+{{Hastranscript|speaksin}}
+
+==Gallery==
+<gallery>
+File:Crondis (monster).png|The [[Apparition#Crondis|apparition]] of Crondis appearing during [[Icthlarin's Little Helper]].
+File:Statue (Crondis).png|A statue of Crondis found in the [[Tombs of Amascut]].
+File:Crondis statue.png|A statue of Crondis found in the [[Uzer Mastaba]].
+File:Crocodile emblem detail.png|A [[crocodile emblem]] dedicated to Crondis.
+File:Canopic jar (Crondis) detail.png|A [[Canopic jar#Crondis|canopic jar]] containing a pair of lungs bearing the visage of Crondis.
+File:Menaphite Pantheon lesser gods concept art.png|Concept art of the Avatars of Tumeken, by Mod Jerv.
+File:Crondis symbol.png|The symbol representing Crondis as seen in the [[Tombs of Amascut]]
+</gallery>
+
+==Trivia==
+*Crondis is probably based on the Egyptian god {{Wp|Sobek}}.
+*With the release of the Do No Evil quest in 2010, Crondis's alignment was reinterpreted to pertain to resourcefulness and modesty, rather than egregious enjoyment. For this reason, the richer people of [[Menaphos]] were said to shun her, and the [[Pharaoh]] particularly so. This was also changed in ''Old School RuneScape'' with the release of [[Beneath Cursed Sands]].
+
+==References==
+{{Reflist}}
+
+{{Gods}}
+{{Into the Tombs}}
+{{Tombs of Amascut}}

@@ -1,0 +1,184 @@
+{{External|rs|rsc=Stat restoration Potion}}
+{{Infobox Item
+|defver = 4
+|version1 = 1 dose
+|version2 = 2 dose
+|version3 = 3 dose
+|version4 = 4 dose
+|bucketname1 = (1)
+|bucketname2 = (2)
+|bucketname3 = (3)
+|bucketname4 = (4)
+|name1 = Restore potion(1)
+|name2 = Restore potion(2)
+|name3 = Restore potion(3)
+|name4 = Restore potion(4)
+|image1 = [[File:Restore potion(1).png]]
+|image2 = [[File:Restore potion(2).png]]
+|image3 = [[File:Restore potion(3).png]]
+|image4 = [[File:Restore potion(4).png]]
+|release1 = [[27 February]] [[2002]]
+|release2 = [[27 February]] [[2002]]
+|release3 = [[27 February]] [[2002]]
+|release4 = [[29 March]] [[2004]]
+|update1 = Latest RuneScape News (27 February 2002)
+|update2 = Latest RuneScape News (27 February 2002)
+|update3 = Latest RuneScape News (27 February 2002)
+|update4 = RS2 Launched!
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drink, Empty, Drop
+|examine1 = 1 dose of restore potion.
+|examine2 = 2 doses of restore potion.
+|examine3 = 3 doses of restore potion.
+|examine4 = 4 doses of restore potion.
+|value1 = 44
+|value2 = 66
+|value3 = 88
+|value4 = 110
+|weight1 = 0.020
+|weight2 = 0.025
+|weight3 = 0.030
+|weight4 = 0.035
+|exchange = Yes
+|id1 = 131
+|id2 = 129
+|id3 = 127
+|id4 = 2430
+}}
+{{Synced switch
+|version1 = [[File:Restore potion(1) detail.png|left|130x200px]]
+|version2 = [[File:Restore potion(2) detail.png|left|130x200px]]
+|version3 = [[File:Restore potion(3) detail.png|left|130x200px]]
+|version4 = [[File:Restore potion(4) detail.png|left|130x200px|class=pageimage]]
+}}
+A '''restore potion''' is a [[Herblore#Potions|potion]] made by using [[red spiders' eggs]] on a [[harralander potion (unf)]], requiring 22 [[Herblore]], yielding a restore potion(3) and 62.5 [[Herblore]] [[experience]]. A dose of restore potion restores levels of temporarily reduced stats in [[Attack]], [[Strength]], [[Defence]], [[Ranged]], and [[Magic]] equal to 10 + 30% of the related maximum level, rounded down, for each skill. It does '''not''' restore [[Prayer]] points or any other skill that is not listed like a [[super restore]]. Restore potions will '''not''' boost any skill above its base level, even if the listed restore is greater than the current reduction.
+
+After partial completion of the [[In Aid of the Myreque]] [[quest]], [[garlic]] can be added to a restore potion(3), requiring 22 Herblore, yielding a [[Guthix balance (unf)]] and 25 Herblore experience.
+
+After [[Barbarian Training#Barbarian Herblore|Barbarian Herblore Training]], [[roe]] or [[caviar]] can be added to a restore potion(2), requiring 24 Herblore, yielding a [[Restore mix]] and 21 Herblore experience. A restore mix has 2 doses, restores the listed stats equal to 10 + 30% of the related current level, rounded down, for each skill, and heals 3 [[Hitpoints]].
+
+A restore potion(4) is a reward from [[Jekyll and Hyde]] [[random event]]s if a [[harralander]] is given to Dr Jekyll.
+==Effects==
+When [[Attack]], [[Strength]], [[Defence]], [[Ranged]], or [[Magic]] are temporarily reduced, the amount of levels restored is calculated with: <math>\lfloor SkillLevel \times \frac{3}{10} \rfloor + 10</math> for each of those skills up to the player's current level of that skill. 
+{| class="wikitable" style="text-align:center"
+!Level!!Restored!!Level!!Restored!!Level!!Restored
+|-
+|'''1–3'''||+10||'''34-36'''||+20||'''67-69'''||+30
+|-
+|'''4–6'''||+11||'''37-39'''||+21||'''70-73'''||+31
+|-
+|'''7–9'''||+12||'''40-43'''||+22||'''74-76'''||+32
+|-
+|'''10–13'''||+13||'''44-46'''||+23||'''77-79'''||+33
+|-
+|'''14–16'''||+14||'''47-49'''||+24||'''80-83'''||+34
+|-
+|'''17–19'''||+15||'''50-53'''||+25||'''84-86'''||+35
+|-
+|'''20–23'''||+16||'''54-56'''||+26||'''87-89'''||+36
+|-
+|'''24–26'''||+17||'''57-59'''||+27||'''90-93'''||+37
+|-
+|'''27-29'''||+18||'''60-63'''||+28||'''94-96'''||+38
+|-
+|'''30-33'''||+19||'''64-66'''||+29||'''97-99'''||+39
+|}
+==Creation==
+{{Recipe
+|skill1 = Herblore
+|skill1lvl = 22
+|skill1boostable = Yes
+|skill1exp = 62.5
+|members = Yes
+|ticks = 2
+|mat1 = Harralander potion (unf)
+|mat2 = Red spiders' eggs
+|output1 = Restore potion(3)
+}}
+==Products==
+{{Uses material list|Restore potion(1)|Restore potion(2)|Restore potion(3)|Restore potion(4)}}
+
+==Price per dose==
+{{Price per dose|Restore potion}}
+==Item sources==
+
+===Restore potion(2)===
+{{Drop sources|Restore potion(2)}}
+
+===Restore potion(3)===
+{{Drop sources|Restore potion(3)}}
+
+===Restore potion(4)===
+{{Drop sources|Restore potion(4)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 April 2016
+|update = Bank Placeholder Feedback Changes
+|change = Half full potions could now be turned into bank placeholders.
+}}
+{{Subject changes
+|date = 26 October 2004
+|update = Treasure Trails and Changes
+|change = An "Empty" option was added.
+}}
+{{Subject changes
+|date = 29 March 2004
+|update = RS2 Launched!
+|change = The 4 dose potion became permanently available with the launch of ''RuneScape 2''.
+}}
+{{Subject changes
+|date = 9 March 2004
+|update = RS2 Beta update
+|change = The 4 dose potion was added to the ''RuneScape 2'' Beta.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{{Switch infobox
+|text1 = 1 dose
+|item1 =
+|text2 = 2 dose
+|item2 =
+|text3 = 3 dose
+|item3 =
+}}
+{|style="text-align: center" cellpadding="15"
+|
+{{Synced switch
+|version1 = [[File:Restore potion(1) detail (beta).png|center|300x150px]]
+|version2 = [[File:Restore potion(2) detail (beta).png|center|300x150px]]
+|version3 = [[File:Restore potion(3) detail (beta).png|center|300x150px]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Restore potion(1) detail.png|center|300x150px]]
+|version2 = [[File:Restore potion(2) detail.png|center|300x150px]]
+|version3 = [[File:Restore potion(3) detail.png|center|300x150px]]
+}}
+|-
+|
+{{Synced switch
+|version1 = [[File:Restore potion(1) (beta).png|center]]
+|version2 = [[File:Restore potion(2) (beta).png|center]]
+|version3 = [[File:Restore potion(3) (beta).png|center]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Restore potion(1).png|center]]
+|version2 = [[File:Restore potion(2).png|center]]
+|version3 = [[File:Restore potion(3).png|center]]
+}}
+|-
+|RuneScape 2<br/>Beta
+|29 March 2004 –<br/>present
+|}
+
+{{Potions}}
+[[Category:Items storable in the potion storage]]

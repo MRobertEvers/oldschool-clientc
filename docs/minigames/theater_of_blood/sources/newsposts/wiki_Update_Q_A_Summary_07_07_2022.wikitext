@@ -1,0 +1,307 @@
+{{Update|date=12 July 2022|link=https://secure.runescape.com/m=news/qa-summary-07072022?oldschool=1|category=community}}
+[[File:Q&A Summary 07-07-2022 newspost.png|right]]
+{{clear}}
+This week's livestream was a general Q&A, with a focus on the recent PvP Arena release! Topics included:
+* [[#Question #1|Wilderness Boss Rewards]]
+* [[#Question #9|Prayer Reordering]]
+* [[#Question #15|PvP Arena Rewards]]
+* [[#Question #22|Chambers of Xeric and Theatre of Blood]]
+
+Thanks to Mod Sarnie (Community Manager), Mod Goblin (Community Manager) Mod Kirby (Junior Content Developer) for their insights!
+
+Missed the live stream? Check out the transcript below!
+
+DISCLAIMER: Livestreams are a glimpse into the ongoing creative process at Jagex. JMods are speaking off-the-cuff and their comments are not intended to be read in the same way as prepared updates from the company. Please keep this in mind when discussing the Q&A!
+
+__TOC__
+==Question #1==
+{{Cquote2|Wildy Boss Rework news? It wasn’t mentioned in the Gazette and has been delayed. Do you have any updates on this?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=402s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' With Mod Ayiza out, he’s said for me to put a message in here that says we have a design, and development is due to begin once the PvP Arena has launched fully - we're still intending for this to be complete this year. But we'll know more once we get to the stage of blogging and polling.
+
+==Question #2==
+{{Cquote2|As someone who hasn't been involved in any kind of PvP in OSRS, do you think I should try out the PvP Arena? Does it cater to people just starting, and what incentives are there for me to try if so?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=437s Youtube Time Stamp]
+
+* '''Mod Kirby:''' The honest answer to that question - do you have any interest in doing PvP in this video game at all? If the answer to that is any form of “yes”, then I would at least try the PvP Arena!
+* '''Mod Kirby:''' It's completely free to enter, you don't need any gear, you don't need any stats. All you need to do is just show up and play some PvP. If you don't like it, you can at least say “I tried, I didn't like it”.
+* '''Mod Kirby:''' It's a reasonable starting point; we give you the gear, we give you the stats. There's no investment on your end, you just show up and play. I feel the best way to start doing stuff is just to get yourself in the deep end and doing it!
+* '''Mod Kirby:''' We still have the imbue scrolls, they're actually really nice to have outside of Nightmare Zone. So if you want some imbue scrolls, there’s your incentive! But even if you just think “maybe I'll enjoy PvP”, or “I haven't done it, I would at least like to confirm I hate it”, now's your opportunity!
+* '''Mod Sarnie:''' For those of you who don’t know, the rewards aren’t implemented yet. They’ll be there next week, so you won’t be able to get anything this week. Just bear this in mind!
+
+==Question #3==
+{{Cquote2|Do Jagex have any future plans of hosting their own events/tournaments? There’s no doubt players like Oda will be hosting community-run events, but I feel monthly or maybe even weekly “official tournaments” with ladder ranks & similar flex prizes would be huge for PvP.}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=556s Youtube Time Stamp]
+
+* '''Mod Goblin:''' The short answer is “hopefully”. It's a bit of a multifaceted response. One of the things that PvP Arena does really well is that it makes it really easy for creators and grassroots organisers to actually organise, and have a spectator overlay that works, without needing to dive into something like making remote plugins, etc.
+* '''Mod Goblin:''' One of the easiest ways to support a thriving tournament scene is for us to properly support grassroots and community organisers, and find ways of maybe helping by promoting them on socials, maybe giving them money towards prize pools, maybe being able to give bonds away, etc.
+* '''Mod Goblin:''' In terms of hosting our own tournaments, it’s really just a matter of resources and the time invested. Running esports events is not easy, it takes a really long time. But it's the kind of thing I'd like to be able to do, especially if we get to a place of being able to display a ladder.
+* '''Mod Goblin:''' I think there were some web limitations on the way the HiScores handle numbers that move up and down, I'm not really sure, but if we ever get to that kind of a position where we could perhaps pick out the 64 best players from the last three months, it would be cool to do invitationals and things like that.
+* '''Mod Goblin:''' Maybe we could move a focus towards LAN events and we could perhaps avoid some of the issues that we have had. So yes, hopefully, but no promises - managing expectations!
+
+==Question #4==
+{{Cquote2|Could the PvPA be more made like the WoW arenas? I want to be able to play the main game. Get a queue pop, jump in the PvP action with a maximum of a 1 min timer to make little changes to my gear/setup and then jump right in the action.}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=708s Youtube Time Stamp]
+
+* '''Mod Kirby:''' I haven't actually played any World of Warcraft beyond level 6, so I don't know anything about how their Arenas work! I'm guessing the main complaint here is the staging area times. We were defensive with these because we were slightly worried that things weren't going to work, and we wanted to make sure there was ample time for players to get into matches. 
+* '''Mod Kirby:''' Now we're very happy that's happening, and now the main complaint is it's taking a while to start matches! Next week, we should be decreasing the amount of waiting time you will be spending in that arena.
+* '''Mod Kirby:''' Hopefully that addresses what this concern is aimed at, because the rest of it is already in the game. If you weren't aware, you can join the PvP Arena from anywhere you'd like! All you need to do is go to the grouping interface, press the button, join the group and wait for the match to come to you.
+
+==Question #5==
+{{Cquote2|Have you thought about adding a “copy opponents gear setup” option?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=802s Youtube Time Stamp]
+
+* '''Mod Kirby:''' Yes, but not for ranked duels. In my humble opinion, inventory management and correct gear setup are something that should be considered for your personal advancement.
+* '''Mod Kirby:''' I feel that having a gear advantage over your opponent is something that should count towards you winning a fight, so I'm not going to give you the opponent's gear. Also, that could probably be used for scouting!
+* '''Mod Kirby:''' For private 1v1s though, sure, that is something we're working on. I'm hoping we can get it for next week, but if not, it should be soon afterwards.
+
+==Question #6==
+{{Cquote2|Why don’t you guys just update Bounty Hunter instead?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=862s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' I have a little snippet here from Mod Ayiza, which says “we have to bring back Bounty Hunter before we can update it!” - which is completely understandable!
+* '''Mod Sarnie:''' But on a real note, we know there's an appetite for it and we're not ignoring it. We just have to be mindful of where it sits in the roadmap and how we can deliver an effective piece of content that's not plagued by the issues that previous Bounty Hunters suffered from.
+* '''Mod Sarnie:''' If we are going to bring it back, we're just making sure that it makes sense and we've got the time and have the right resources to make sure that we can deliver it, hopefully right this time!
+
+==Question #7==
+{{Cquote2|We ever getting noob-friendly setups/rules? Could be fun only with no rewards. BH style PKing I mean.}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=904s Youtube Time Stamp]
+
+* '''Mod Goblin:''' Bounty Hunter, and Edge-style is my preferred style of PvP. You know, I'm in my mid-20s, I'm closer to 30 than 20, too old for bridding, and my hands don't work like they used to. I'm just not very good at bridding - an average brid would absolutely kick my teeth in with their monitor turned off, and they have been for the last few days!
+* '''Mod Goblin:''' The problem with Bounty Hunter style and Edge-style in a forced deathmatch is that, especially with a ranking system, I feel like everybody sits at 80HP and hopes that they hit the big numbers. It’s a lot more RNG-reliant than NH is when it comes to a ranking system.
+* '''Mod Goblin:''' That being said, if you're organising unofficial duels or unofficial tournaments, especially if we're able to deliver on the idea that you can just copy your opponent's gear setup, then there's nothing stopping you from finding other similarly-minded players.
+* '''Mod Goblin:''' Whether that's in a streamer community, whether that's in your clan, or whether that's just sitting around and just asking people to honour-fight, there's nothing stopping you from starting unofficial fights in a BH style, if that's what you'd want to mess around with in practice. 
+* '''Mod Goblin:''' I think the only problem is that when you come to the ranking ladder, obviously most people are going to be NHing, because it's the most catch-all style. I will say, there are noob-friendly setups that still work. If you're sitting there Veng-tanking in a max/med bracket, you'll be okay, versus bad brids.
+* '''Mod Goblin:''' It's something we'll explore, that BH style specifically, and spec-tab 'sesh' style. probably doesn't work that well in a deathmatch, but maybe things like melee-only Veng or MSB.
+* '''Mod Goblin:''' We spoke today about how we could maybe explore doing things like seasonal ladders, but the tech is a little bit more involved than you might expect, and it’s not likely something we'd be able to do soon. But it's something we're able to talk about and if there is heavy demand for it, then perhaps. But there's nothing stopping you from just organising yourselves and making those things happen. It's an MMO! Join a community, find people to practice BH-style with anyway, and just have fun!
+* '''Mod Sarnie:''' We're going to make sure the Arena is in a solid place before we start really pushing the boat out, and doing more and more and more. We're gonna make sure it's all solid and set up before we properly delve deep into what else we can do with it. After the full release, we'll be in a better position to know where we stand with what we want to do with it.
+
+==Question #8==
+{{Cquote2|With the PvP Arena making Pures an official character type, is it possible that we could make removing defensive attack styles possible through the main client rather than a 3rd party client? Could we get the same type of support that we get for Ironmen for niche account builds that limit their stats to certain levels?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=1001s Youtube Time Stamp]
+
+* '''Mod Goblin:''' When it comes to removing attack styles, I feel at the very least, it's the kind of feature we probably want to be able to put into the Enhanced Client when we end up deploying that.
+* '''Mod Goblin:''' I don't really think having the ability to misclick or lose concentration one time and suddenly ruin your build really contributes to what makes the restriction fun or interesting. It doesn't contribute to “I want to play a glass cannon for optimising PvP”, or for experimenting with PvM while everything hits really hard. It's just “I've misclicked and now my build is trolling”.
+* '''Mod Goblin:''' Personally, I’m not opposed, at least to offering it on our client. I'm not in a position to say whether or not that's easy to do with an in-game setting…
+* '''Mod Kirby:''' An in-game setting should be fine. It depends on how far you look into it, but because there are probably some shenanigans where default starts have to be overwritten. That's fine, we can probably get away with blocking XP on Attack if we wanted to. There would be more investigation work into what needs blocking than there is dev work, but that is still a decent amount of investigation work.
+* '''Mod Kirby:''' It's something that, given the fact that we are trying to get a bigger commitment towards PvP and now Pure is an official build in some senses, it would be nice to give it some level of official support.
+* '''Mod Goblin:''' I feel like back in the day, Pures were one of the most predominant builds anyway, as they're the easiest to make. I don't think it's the difficulty, because most people are just using RuneLite and hiding the style on a Pure anyway. It's literally just an honest mistake and it feels bad. If it's wildly unpopular, then yeah, I'll roll over. I'm happy to have my mind changed, I just think it's fine to hide it.
+
+==Question #9==
+{{Cquote2|Will Prayer Reorder ever get added to RuneLite? It failed a poll by 2% previously and with differing loadouts in PvP Arena main/pure it's annoying as someone who solely PKs as a main to use 15% prays.}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=1302s Youtube Time Stamp]
+
+* '''Mod Goblin:''' Speaking purely personally, as a player; I don't really mind. I think for people that maybe specialise in main and want to perhaps climb in the PvP Arena, and suddenly having to play Pure - giving them the option to customise their clicks to how they want doesn't feel that deep to me.
+* '''Mod Goblin:''' People might say, “skill gap” or “click better”, but if you're just moving it to a position that's more comfortable for you, does it really matter that much? I'm happy to be wrong on it, but I think being able to give players a little bit more freedom with their UI in that regard isn't necessarily a bad thing.
+* '''Mod Goblin:''' I don't think it harms anyone because you still have to learn how to click wherever you put the stuff anyway, it's not like suddenly the game becomes a lot easier. It's now, for example, that maybe you can more comfortably top-switch rather than having to adjust to bottom-switching after years of top-switching, because bottom-switching is now more common than top-switching, even though back in the day it wasn't that way.
+* '''Mod Goblin:''' I don't think this would be particularly game-breaking, speaking purely personally (don’t come at me!). And again, it failed by 2%, however long ago that was, so maybe it would be different now. And it's good for accessibility, like somebody in chat has pointed out!
+
+==Question #10==
+{{Cquote2|Can we just have multiple different presets players can choose from, or a "copy opponent option"?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=1440s Youtube Time Stamp]
+
+* '''Mod Kirby:''' For the second one: yes, soon TM. For the first one, unfortunately the builds are not the cheapest thing in the world to have more of. I think that’s the politest way of putting it. It's not looking likely in the immediate future, but if there is still extending demand for more builds, we can maybe look at it, but don't expect it anytime soon. 
+* '''Mod Goblin:''' For the benefit of people, when you say “cheapest”, what does that mean?
+* '''Mod Kirby:''' Cheapest in terms of dev time - interface work to get the stuff on there, and actually making sure that switches go through properly. Also, storing three whole inventories of players' stuff is not exactly small on the player’s save.
+
+==Question #11==
+{{Cquote2|Are there any plans to expand the PvPA to include a 2v2 mode?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=1515s Youtube Time Stamp]
+
+* '''Mod Goblin:''' I think when these initial conversations were going on, I wasn't here, so Kirby feel free to correct me, but my understanding was that in the initial pitch we had attempted to design with the intention of having 2v2, 3v3 and 10v10. Is that correct?
+* '''Mod Kirby:''' We had some level of group battles planned, but I can't remember the exact details.
+* '''Mod Goblin:''' I think Mod Ayiza spoke about it maybe yesterday a little bit, while we were monitoring the update. I think it's something that might be cool to explore down the line. I know the Clan Wars Arena hasn't gotten the most love recently.
+* '''Mod Goblin:''' A lot of people have been self-organising some 5s tournaments, which have been really entertaining to watch. Small team PvP in Old School especially is really competitive. There's a lot to it, I think it makes for pretty compelling viewing!
+* '''Mod Goblin:''' It's really exciting to watch small teams in a 3v3 or a 5v5 fight and see the team-play and the coordination required to excel in that, as opposed to just a 1v1 where mechanical prowess is absolutely King.
+* '''Mod Goblin:''' I think it would be cool if we're able to, down the line, expand into having other team sizes, especially small team PvP. Then for bigger team sizes, maybe there's something we could do with the Clan Wars Arena to make it a little bit more exciting and maybe bring it into 2022, or 2023 or 2024. Who knows?
+
+==Question #12==
+{{Cquote2|Can you put a big arrow over the heads of people who haven't readied up for tournament fights so everyone else can flame them?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=1627s Youtube Time Stamp]
+
+* '''Mod Kirby:''' No, that would be rude! But we are adding some more aggressive messaging to hopefully indicate to players that they should ready up. Part of the problem is, though, that we need to make sure that everyone who was meant to arrive has arrived, so there will be some inherent delay. Again, we are playing with the numbers as well.
+* '''Mod Kirby:''' Hopefully next week, it feels better. If it's still not right, maybe we can have another look at being really aggressive with timers. But for players who just are there not pressing the button, expect some more aggressive messages and please just push the button! It's not that hard, thank you.
+* '''Mod Goblin:''' I'm hoping that after the full launch if there are players who are just routinely queuing up and then not doing anything, we can just start stopping them from doing that because it's pretty annoying. I find games really quickly and then I'll be sitting there for eight minutes ready and raring to go, staring at my loadout. Then nobody comes and I'm just back at Bloodvelds going "Okay, that was cool."
+
+==Question #13==
+{{Cquote2|With the new PvP updates, have you ever considered a PvP minigame which is purely based on skilling? I understand this sounds daft but what I mean is Something similar to Wintertodt or Zalcano which pits teams against each other for a reward?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=1715s Youtube Time Stamp]
+
+* '''Mod Kirby:''' The main problem with that kind of design is that it's a lot easier to manipulate. In Player versus Enemies, we as devs control one side of that equation, where we can very easily make the fight harder - usually harder - or potentially easier, as we see fit, depending on what the rewards are going to be.
+* '''Mod Kirby:''' In Player versus Player, both sides control how difficult it is for each other. Theoretically, they can make it really damn easy, so it's hard to justify giving worthwhile rewards sometimes without any additional risk involved, especially because if they're skilling I can't imagine there's going to be too much in terms of risk involved.
+* '''Mod Kirby:''' It's not a design space I can claim we're actively looking at, because it's not particularly conducive to a good gameplay experience, I think it's fair to say.
+* '''Mod Goblin:''' I loved Stealing Creation, but people begged for Soul Wars and within about two weeks it was just two clans and boosting. I adored Stealing Creation but with Old School player tendencies, I am relatively confident that Stealing Creation would be added, then people would want some kind of really good reward and then just be boosted again for all of eternity.
+* '''Mod Goblin:''' I'd rather we stepped away from backporting. Quests are cool - I don't mind backporting quests - but I'd rather just make cool new content instead of stuff that people want for the nostalgia and then get over really quickly.
+* '''Mod Sarnie:''' That's definitely a problem with something outside of quests, because even with quests, we'll take any of those we're porting in and add that Old School spice to it. It will still have an Old School feeling even if it is a previous quest with content, but it's a lot harder to do without really derailing away from the core of the content.
+
+==Question #14==
+{{Cquote2|Have the rewards that failed been entirely scrapped, or is the team looking at polling a new way to introduce them into the game, and considering whether it would be through PvP or non-PvP related content?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=1882s Youtube Time Stamp]
+
+* '''Mod Kirby:''' The majority of the armours we put in the Calamity sets are available in the Arena right now. If you want to go and play with them, you're more than welcome to do so, and it's a reasonable place for them. It's PvP content. It did fail the poll, but it's fairly defensively statted, and I feel it's more than a reasonable place to have them.
+* '''Mod Kirby:''' Cosmetics are mostly art, and that art budget has already been spent. Theoretically, if there's in future any kind of content that we go "Hey, wouldn't a Bandos Ornament Kit fit really nicely here?", we have it ready to ship, so I can see that coming back.
+* '''Mod Kirby:''' I’m going to be honest, I feel like the reason that they failed in the first place is because they're associated with the PvP Arena more than anything else! But there is a potential for it to be repolled. Even in the future, if we wanted to repoll the Calamity sets for the main game, we could. I don't know where they could come from, if not the Arena, but the option is available to us.
+
+==Question #15==
+{{Cquote2|The PvP Arena needs some better rewards, untradeable and tradeable rewards. How are you gonna tackle this?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=1971s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' I've got a quote here from Mod Ayiza. They say: "If there is suitable demand after the Arena has been released, and we’re able to come up with new designs that the community as a whole are happy with, I’d love to be able to offer additional rewards from the Arena. We do want to avoid GP generation rewards though, as they tend to incentivise more nefarious activity than we’d like to see within the Arena."
+* '''Mod Goblin:''' I'd like to see some kind of profit incentive, but I also completely understand why that's the stance we've taken at the moment. I'm hoping there will come a time where we're on top of everything enough, that being able to reward players engaging in good faith makes sense. But I think part of the issue, especially when it's one-to-one player interaction, is that if you've got people just gold-farming it, then it ruins it for players who are looking to actually engage.
+* '''Mod Goblin:''' I think this was a big issue with Bounty Hunter 2. For me, if you wanted to fight, and you got matched up against a gold-farmer, they just type skip, and then you'd have to wait for five minutes, and then you'd match up versus another gold-farmer.
+* '''Mod Goblin:''' I think by the time it was gone, that was pretty common. We need to find more thorough workarounds for issues like that, and more ways to incentivize longevity of content without necessarily also incentivizing that side of things, which is a difficult conversation to have.
+* '''Mod Goblin:''' It's something that we need to sort out because the PvP Arena is so sick, and I really don't want people to say a couple of months down the line,"oh, you know, what's in it for me?", and I just think "But the rank!". I'm hoping we'll figure something out.
+* '''Mod Goblin:''' The community makes cool suggestions and pitches all the time that we're always looking at, especially on this side of things. It's just a case of if you do make suggestions on this sort of thing, bear in mind how keen we are to make sure that the people engaging with it are engaging in good faith, and not just to farm it all.
+
+==Question #16==
+{{Cquote2|Why invest so much time into a piece of Game Mode when there are essentially no rewards to it, which will mean the Game Mode will die because there is no actual reason for good players to consistently go there.}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=2131s Youtube Time Stamp]
+
+* '''Mod Kirby:''' Because we were developing it with the intention to have good rewards with it - see polls.
+* '''Mod Kirby:''' It is unfortunate that it came out like this, but honestly, the infrastructure we got in for it means the content is good enough that it can stand on its own. If you had to interrupt everything you were doing to go have a PvP fight, it'd be a bit more of a problem. We've got it set up now so that you can go “I’m in the middle of doing skilling, but I would like to go for a 1v1. I can just push a button and I will get into a fight in next to no time at all!”
+* '''Mod Kirby:''' There’s also the work we’ve done for custom tournaments as well, to give PvP communities some way of holding their own tournaments. I feel like that’s good work in and of itself! It’s unfortunate that we got into the state of rewards that we did. I would have preferred to launch with good rewards, trust me. It's a shame, but I still think it was time well invested overall.
+
+==Question #17==
+{{Cquote2|Will there be any plans to add the failed cosmetic rewards to content in the future? They look super cool and it would be a shame to let them go to waste.}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=2210s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' Mod Ayiza has put “no plans as of yet, but it's certainly something we can revisit in the future. Some of the cosmetics did look awesome, and it’d be a shame to never see them in-game!”
+
+==Question #18==
+{{Cquote2|Have you considered adding rewards that would be useful for players trying to skill/PvM in the Wilderness? Items that may only work while unskulled.}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=2244s Youtube Time Stamp]
+
+* '''Mod Goblin:''' This is a point that came up, especially in our discussions with the PvP Feedback Discord. There were some concerns about the potential of items that provide a benefit to unskulled, disproportionately empowering people who are anti-PKing. If anyone hops around in South Revs, everyone and their nan is anti-PKing there these days, and everybody is in disguise; nobody’s real, everybody’s the imposter.
+* '''Mod Goblin:''' One of the conversations I had with * '''Mod Kirby:'''  and Mod Ash about the rewards in terms of skilling and PvM in the Wilderness side of things, is that there would maybe be a better position for Wilderness content than the structured PvP Arena. Things that were specifically designed for these competitive 1v1 environments might have been a better fit for here, which is what we tried to do. They failed, and it is what it is.
+* '''Mod Goblin:''' If there’s something that people really want to see, and if the community is overwhelmingly in favour or crying out for these kinds of rewards, then we’ll have to think about it, because I’d love to be able to attach rewards to it - we all would! A fit issue was the main thing, and leaving some of that design space to be filled by future Wilderness content, which is coming!
+
+==Question #19==
+{{Cquote2|Can Wintertodt damage be changed to scale based on your current hp, instead of hp lvl? So at 10hp left you'd be hit the same as current players with lvl 10hp get hit. This doesn't punish players for not rushing Wintertodt on a new account.}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=2382s Youtube Time Stamp]
+
+* '''Mod Kirby:''' I did way too much Wintertodt on the GIM when it came out. HP is certainly an issue for accounts! Honestly, Wintertodt was a pain in the bum for reasons that weren’t HP as well. This would be a very nice thing to do in combination with making it less painful to play - “why does the animation keep going when you interrupt the fletch? I just need to know when to fletch again, oh god, please stop interrupting me!”
+* '''Mod Goblin:''' For me, I feel that a lot of people who are, down the line, looking to max an Ironman just rush Wintertodt to get it out of the way, because it’s good to do it. Wintertodt rush is just so awful; the rewards are pretty bad when you’re rushing unless you get a spooned a Tome of Fire which is good in the mid-game for Iban’s, and then at the late-late-late-game.
+* '''Mod Goblin:''' But rushing Wintertodt, especially people trying out Iron and having seen loads of creators doing it, I think it can be pretty off-putting for new players who feel like they’re missing out by not doing it. I don’t like Todt rush personally, but I’ll say that when you get to the late game, it’s not that bad with brews, especially if you’re soloing.
+
+==Question #20==
+{{Cquote2|Why do so many PvP minigames/modes use the NH format? Wasn't the minigame supposed to have a diversity of builds?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=2517s Youtube Time Stamp]
+
+* '''Mod Goblin:''' In terms of so many mini-games or modes using the NH format, LMS uses the NH format. The default setup, which is completely changeable, for the PvP Arena uses the NH format. Players looking to PvP competitively use NH because it is the strongest and the most versatile style of 1v1 PvP.
+* '''Mod Goblin:''' You can put anything in your build - the problem is that because NH is skill-based and because NH is stronger than the other styles in a deathmatch or an outlaw scenario it is the meta. People use NH. You can use anything in the mode itself, you can put Graceful on!
+* '''Mod Goblin:''' I get the point that’s being made, and we addressed this earlier, that perhaps there are ways that we could experiment with some slightly lower skill floor styles, like melee only, or encouraging some veng-fights and such.
+* '''Mod Goblin:''' Generally speaking, I think it's disingenuous to say you're forced to use NH. If you're rolling into the max-med bracket and you're just veng-tanking, you're just rag-bolting with some tank with vengeance. You will beat so many bad brids and even like average brids because range rag/veng tanking is just so easy.
+* '''Mod Goblin:''' You're not forced to use NH. It's just that people do it, and in terms of a ranking system is the most skill-based and the least RNG-reliant style of PvP, in my opinion.
+
+==Question #21==
+{{Cquote2|Now that we can get back pets if we have a place holder in the bank, can the same be done with an untrimmed skill cape that also has a placeholder in our bank?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=2635s Youtube Time Stamp]
+
+* '''Mod Kirby:''' Technically, yes? This is one where I'm going to pass it to the team. I know why players care about the untrimmed skill capes so much, but this affects such a small portion of the player base!
+* '''Mod Goblin:''' I think it would be cool! For the untrimmed capes that are flexes, or that people just want to remember as their first; if you’re getting untrimmed Slayer or untrimmed Herblore on an Iron or a UIM, the difficult part is getting the cape, and the tedious part is “oh no I have to drop it and then tele-grab it”.
+* '''Mod Goblin:''' I wish it were easier to hold onto them, because the difficult part is already done, and the tedium of maintaining and risking ruining it, it’s not fun or engaging or interesting. It’s just a little bit bleh. I could be wrong, I don’t have any trophy accounts with niche untrimmed!
+
+==Question #22==
+{{Cquote2|Can we get a nerf to Chambers of Xeric and Theatre of Blood after Tombs of Amascut release? OSRS recently got an influx of new player. Jagex can't expect a new generation of player to perform like the older players. People like doing easier content than doing difficult content, for example WoW Classic raid vs WoW Retail raid. The skilled player can do Tombs of Amascut or Nex. Chambers of Xeric and Theatre of Blood can cater to people with lower skill sets.}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=2743s Youtube Time Stamp]
+
+* '''Mod Goblin:''' I think what was a little bit wild about this one is “the skilled player can do Tombs of Amascut or Nex, and Chambers of Xeric and Theatre of Blood can cater to people with low skill sets.”
+* '''Mod Goblin:''' ToB is infinitely harder than Nex. Maybe there's an unlimited number of universes with an unlimited number of possibilities and in every single one of them, ToB is harder than Nex by an absolute landslide.
+* '''Mod Goblin:''' In terms of the difficulty, I think we've been pretty open about saying that at base level, Tombs of Amascut is intended to be even more accessible than Chambers of Xeric. It's not intended to be crazy inaccessible. The fact that it has a path system means you can essentially brute force individual bosses one by one until you learn them and then you can start chaining them together. 
+* '''Mod Goblin:''' Tombs of Amascut is likely the most accessible raid (and I think Chambers of Xeric in a group is pretty accessible anyway) and then the difficulty for Tombs of Amascut comes from the invocations, etc. 
+* '''Mod Goblin:''' I'm hoping you'll be pleasantly surprised by the accessibility of Tombs of Amascut. Also in regards to expecting a new generation of players to perform like the older players, I think the average RuneScape player now, especially since ToB, the average PvMer is so many leagues better than the average PvMer before ToB’s release. Obviously newer players have to learn certain things, however the resources to learn from are far better now.
+* '''Mod Goblin:''' I think overall Tombs of Amascut will be able to be engaged with by far more people than this question asker realises. Tombs of Amascut scales to be easier than Chambers all the way up to be harder than ToB.
+* '''Mod Sarnie:'''  Especially with ToB specifically, I know the rewards are less but there is an entry mode if you want to try an easier version of ToB. It is an amazing entryway into learning how to PvM.
+* '''Mod Goblin:''' You could always have your colleagues carry you through it for a Quest Cape, isn’t that right Mod Sarnie? 
+* '''Mod Sarnie:''' Don’t call me out like that!
+
+==Question #23==
+{{Cquote2|Is it possible in the future for f2p players to sell members items they held previously?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=2954s Youtube Time Stamp]
+
+* '''Mod Kirby:''' I don't actually know if we can currently do sales on free-to-play worlds. I don't actually know if we give the client the data to actually sell the items in the first place.
+* '''Mod Kirby:''' Of course, the real answer is please buy a bond or buy membership, that works too! Then you can sell your items and buy bonds as well. You know, pay us money please. I'm not a salesman. This is why I’m a content dev, I'm not a good salesman!
+
+==Question #24==
+{{Cquote2|In a past Q&A, Mod Kieren talked about his intention to give to run energy a proper QoL update e.g. make it restore 5x-10x faster when we're idle or making pots give a much better restore ratio/ longer effect...Are those plans/ideas still in development?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=3038s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' I would say to take any of these answers to the questions that you have asked us with a pinch of salt, because even if we say that our intention is there, it's not something we're going to just jump on straightaway. 
+* '''Mod Sarnie:''' This idea could well be something we're doing soon, but it's more than likely not going to be happening for a while if it is coming into the game. It would have to be blogged and polled and everything first. 
+* '''Mod Kirby:''' This seems like a stream of ideas that Mod Kieren has had and has yet to allocate dev time to actually implementing, and design time to actually fleshing out the details. So potentially in the future, but I've not heard anything in terms of production level that we can make this happen.
+* '''Mod Goblin:''' Maybe it's controversial - I liked resting, however in the game right now you can teleport within six tiles of anywhere from the player-owned house and you can just run permanently by drinking the brown juice. 
+* '''Mod Goblin:''' Early game it matters more. Ages ago, way before I joined, it was talked about to make low level Agility free-to-play to address some of the problems with run energy on free-to-play, because I know you still benefit from having a decent Agility level for main free-to-play. 
+* '''Mod Goblin:''' In general, I've not heard anything about it. I wouldn't be opposed to something that's kind of like an in-world rest. But it’s already so easy to get everywhere!
+* '''Mod Sarnie:''' Yeah, I think what you touched on before, it would probably be more catered to early game than late game because, as you say, POH is OP!
+
+==Question #25==
+{{Cquote2|Can we please rework/revisit coin pouches? Methods for cheaters to circumvent this mechanic are already prevalent through bot scripts and other macros, meaning that the only players punished are the innocent.}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=3172s Youtube Time Stamp]
+
+* '''Mod Goblin:''' There was a change that was made to coin pouches when you're pickpocketing, so that you get up to 28 coin pouches and then you have to open them. I think it was introduced way before I joined, as a measure to counteract auto-clicking. I think these days you just click 28 times and then click the coin pouch.
+* '''Mod Kirby:''' I thought we made a change to coin pouches I wasn't aware of, like we’d made them so that you have to input your bank pin to open a stack of coin pouches!
+* '''Mod Kirby:''' I mean… maybe? It's not that bad. You just get 28 coin pouches and go “oh, I actually have to pay attention to the game and left click”. It's not that much of a pain honestly. I don't know if we would implement it now, but I don't know if it's worth removing honestly.
+* '''Mod Sarnie:''' Alright, again, as probably potentially something we can raise, but I wouldn't take anything away from a potential for it
+
+==Question #26==
+{{Cquote2|Can the Redwood abyssal lantern prevent pouch degradation outside of Guardians of the rift.}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=3266s Youtube Time Stamp]
+
+* '''Mod Kirby:''' I believe the intention with the abyssal lantern was to be an item specifically for Guardians of the Rift, and that is meant to be an item that helps you in the mini-game long term, through the grind. I guess it would be a minor buff to other runecrafting methods, if you could to get away with no degradation with this lantern outside of the rift. But that wasn't the initial design for it. Technically it could be done, but I can't imagine it being done just on a level of what the item was meant to be in the first place.
+* '''Mod Goblin:''' I'm pretty sure that preventing pouch degradation is the only benefit of the Runecraft skill cape! It'd be pretty rough if you've got all the way to 99, to be like “Ah, but my 90 Firemaking from my epic Wintertodt rush strategy when I had 10HP allows me to circumvent needing 99!”
+* '''Mod Kirby:''' Skillcapes in general are wild, man.
+* '''Mod Goblin:''' I think the range of “useful” to “why even spend the 99k on this cape?” is brilliant!
+* '''Mod Sarnie:''' Yeah, there is probably a bigger conversation to be had outside of this specific example. 
+
+==Question #27==
+{{Cquote2|For placement of spells, can we get the option to decide what runes are in the pouch?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=3373s Youtube Time Stamp]
+
+* '''Mod Kirby:''' This is actually a thing that we've agreed to work on. It does require some level interface which is not trivial. I don't know if it's going to be ready for next week but it should be Soon™, and by Soon™ I actually mean soon, just not necessarily next week.
+* '''Mod Goblin:''' I really hope so, yesterday was the first time I ever cast Smoke Barrage in a 1v1…
+* '''Mod Sarnie:''' Yeah. To restate what Kirby saying - this is not soon as in “soon”, like we say with some questions and never get around to it. This is something that's been agreed upon.
+
+==Question #28==
+{{Cquote2|Any chance the hit box for the top of the agility pyramid can be expanded on mobile? It's so hard to actually climb on mobile without clicking to walk somewhere else.}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=3427s Youtube Time Stamp]
+
+* '''Mod Kirby:''' We can’t do it just for mobile. I can’t say how bad it actually is having not actually done Agility in forever… We can pass this on and it might just be a case of us needing to expand the model’s hitbox a little bit, and see how it handles after that. 
+* '''Mod Goblin:''' The way that click box is - it’s not a contiguous clickbox, it's a bunch of small little circles that you have to click. It's really easy for you to want to click on the wall, then you will click slap bang in between all of them. Then you just start running around. 
+* '''Mod Goblin:''' It's an unusual click box. I think a lot of Agility click boxes sometimes vary in terms of “here is a huge box” or “here is a tiny peg on a tight rope that you're allowed to click”. The pyramid one is a little bit unusual, especially on mobile.  I've got fat fingers so it's really easy for me to just hit everything perfect!
+
+==Question #29==
+{{Cquote2|Thoughts on a 1-use potion that would remove freeze/root?}}
+
+[https://www.youtube.com/watch?v=R2SIjk_WvoUt=3525s Youtube Time Stamp]
+
+* '''Mod Kirby:''' Correct me if I'm wrong - I'm fairly sure we proposed this in like the original PvP Arena blogs, and people hated it. This is off memory so feel free to correct me if I'm wrong, but I don't think there's demand for this unfortunately.
+* '''Mod Goblin:''' Hm, you give up a food but I think generally, if somebody catches the freeze on you and starts DD’ing, the difference in not having that food is outweighed by you not being frozen anymore. I think it seems a bit busted… If it's like a one use, there's other questions; how many can you have in your inventory? Is there a cooldown on it? I think it's already pretty easy to escape these days as well, which is maybe a spicy thing to say, but you can just catch a freeze and run around a tree and you're fine.

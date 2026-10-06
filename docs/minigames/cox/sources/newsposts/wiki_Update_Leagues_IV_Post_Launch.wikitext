@@ -1,0 +1,345 @@
+{{Update|date=23 November 2023|url=https://secure.runescape.com/m=news/leagues-iv---post-launch?oldschool=1|category=game}}
+[[File:Leagues IV - Post-Launch newspost.jpg|right]]
+{{clear}}
+__TOC__
+''How do you do, fellow Trailblazers?''
+
+{| class="wikitable" style="text-align: center;"
+|-
+!Last Updated
+!Issue
+!Progress
+!Status
+|-
+|15:35 GMT - 23/11
+|Undying Retribution isn't activating for players.
+|We've released a hotfix for this issue. Please relog to apply this fix.
+
+UPDATE: We've changed Undying Retribution's explosion to also trigger on typeless damage.
+|RESOLVED
+|-
+|12:55 GMT - 23/11
+|The task for completing Ghosts Ahoy, isn't unlocking for players with today's change.
+|This should now be fixed, please open your Area interface to complete this.
+|RESOLVED
+|-
+|15:35 GMT - 23/11
+|Players are still receiving some clue steps they are unable to complete.
+|The team are currently looking into the following issues:        
+* Jorral steps
+* Talking with Ambassador Alvijar
+* Clap in the Exam Room with Green Gnome Boots
+* Coordinate Clue at Lithkren (Need to take a rowboat)
+* Panic at Trollweiss Mountain needing a Sled
+* Speaking to Cam the Camel with a Camulet
+
+We've released fixes for the following clues: 
+* Clues needing Arclight
+* Speaking to the Zamorak Mage
+* Needing to have the Bar Crawl Miniquest completed
+* Visiting Evil Dave's Basement
+* Falo Clue Steps
+* Steps involving the use of Pyre Logs
+* Dance at the Grand Exchange with a Pink Skirt, Robe Top & Body Tiara
+* Steps needing a White Platebody and Platelegs
+* Steps needing the Ring of Visability/Shadows
+* Dig in front of the icy arena
+* Thorgel being at the Death Altar
+* Speak to Thorgel at the entrance to the Death Altar
+|INVESTIGATING
+|-
+|12:50 GMT - 23/11
+|Players have noted certain teleports being crossed out on the Fairy Flight Mushroom when having the areas.
+|The team are currently looking into this issue.
+|INVESTIGATING
+|}
+
+==Game Update Changes==
+We're making some changes to our weekly game update process! Going forward, we are going to be including a back up with each week's update to ensure we have the most up-to-date save data from each player to ensure we're ready for any circumstance once an update launches.
+
+You might already be aware that we've been testing this over the past month to make sure we're happy with the process and making sure updates are still in a good place.
+
+Because of this, it does mean that downtime for updates will be slightly extended to accommodate the backup and ensure that's processed correctly. So going forward, the normal update will still occur on Wednesdays and the process will look like the following:
+
+* '''10:45 GMT''': 45-minute Shutdown Timer begins
+* '''11:30 GMT''': Game goes offline
+* '''12:00 GMT''': The Game is back online
+
+Throughout the year, the day and times might differ slightly to accommodate bigger updates or holidays, but we will always state this across our socials and via our Game Status newspost beforehand.
+
+==Changelog November 23rd==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Leagues IV: Trailblazer Reloaded'''
+
+<u>Previous Hotfixes</u>
+
+* The ‘Flex’ emote now unlocks automatically with the Desert region, allowing players to complete the ‘Flex in front of The Guns’ Task.
+* Players are now correctly addressed by their chosen gender rather than a particularly spacious comma in certain NPC dialogues.
+** Remember, you may change your gender using the Makeover Mage’s services, which are now also available from Thessalia in Varrock.
+* The ‘Pray at an altar in Molch while poisoned’ Task can now be completed after selecting the Brawler’s Resolve Relic.
+* Unlocking the Fremennik area now auto-completes the ‘Complete Rune Mysteries’ Task.
+* Fixed an issue where some Hot/Cold Clue steps were leading players into the Desert even when this region was locked.
+* Soul Wars XP modifiers and caps now apply multipliers correctly. Players can gain up to 1,000,000 XP per day, so enjoy those Zeal gains!
+* Doors in the Barrows’ crypts no longer get ‘stuck’.
+* Krystilia now provides appropriate tasks for players’ combat level.
+* The Task for completing 10 Combat Achievements now completes properly.
+* Removed the Task for completing Elemental Workshop I, as it was auto-completed during the Leagues Tutorial.
+* Herbs planted within Chambers of Xeric are now properly harvested by players with the Farmer’s Fortune Relic.
+* Players with the Trickster Relic can now progress through the Barbarian Firemaking section of Otto’s Barbarian Training.
+* Players can now be assigned Hydra Slayer Tasks.
+* The following items now scale correctly with modified drop rates:
+** Gout Tuber
+** Revenant Weapon Upgrades
+** Voidwaker Pieces
+** Shade Scrolls
+** Zealot Outfit
+** Holy Elixir (from Corporeal Beast)
+
+<u>New Changes</u>
+
+* New Theme Worlds have been added for Leagues IV:
+** Pest Control: 582 (EU), 581 (US East) & 595 (AUS)
+** Barb Assault: 566 (UK), 543 (US West) & 594 (AUS)
+** Shades of Mort'ton: 575 (US East)
+** Soul Wars: 557 (EU)
+** Morytania Activities: 556 (EU) & 574 (US East)
+** Asgarnia Activities: 564 (UK) & 542 (US West)
+** Desert Activities: 563 (UK) & 483 (US East)
+** Fremennik Activities: 551 (EU) & 541 (US West)
+** Kandarin Activities: 562 (UK) 476 (US East)
+** Tirannwn Activities: 550 (EU) &  442 (US West)
+** Kourend Activities: 498 (UK) &  475 (US East)
+** Wilderness Activities: 462 (EU) &  440 (US West)
+* We’ve made extensive changes to ensure that Treasure Trail steps are now limited to the regions you’ve unlocked.
+** Please let us know if you’re given a step you can’t complete after today’s update!
+* We've fixed an issue with the Guardian and it should now attack the following NPCs: Zuk, Kree'Arra, Vespula.
+* We've added a toggle to all the Trailblazer tool that will turn off the auto-burn effect.
+* The Osmumten's Fang Special Attack should now hit it's max hit correctly.
+* Using Slayer points to extend the revenant task should correctly make your tasks longer.
+* The Magers and Rangers in the TzHaar-Ket-Rak Leagues Challenge will now attack you correctly.
+* The HP at Hard Mode Phosani's Nightmare should now correctly scale.
+* The Kill Count tasks for the Kalphite Queen have had their names updated to 1, 50 and 150 times respectively to be corrrect.
+* Protecting the Tree Patch for the Elite Western Diary can now be done with Farmer's Fortune. You'll still need to pay 25 Coconuts to complete this.
+* Fixed a graphical issue with the new animations for Low & High Alchemy.
+* Players using the Farmer’s Fortune Relic can now complete the ‘Cast Resurrect Crops’ Task.
+* Added Bloodvelds into the slayer list for players with Kourend unlocked.
+* Updated the interface to state that Bloodvelds are also available in Kandarin.
+* Reduced the kill counts required to complete various low-level, undesirable Slayer Tasks.
+* Bolt Special Attacks will now correctly heal players with the Soul Stealer Relic.
+* The Granite Maul’s Special Attack now hits correctly.
+* Fixed a bug where the ‘Obtain a Magic Seed from a Bird Nest’ task was not completing correctly.
+* Fixed an issue that prevented players who’d unlocked Kourend and Kebos from filtering their Task List via 'Unlocked'.
+* West Ardougne is now accessible for anyone with Kandarin, regardless of whether or not you've completed Biohazard.
+* You'll now be able to complete the 'Equip a Full Angler's Outfit' by equipping it anywhere.
+* Fixed a bug where the Trailblazer Pickaxe was equivalent or worse than an adamant pickaxe at Guardians of the Rift and the Path of Het.
+* Queen Points from Barbarian Assault now correctly apply the Minigame Modifier.
+* Players chopping Sulliceps can now roll a Mushroom and Fossil simultaneously.
+* Unlocking Fremennik will now correctly complete the ‘Complete Client of Kourend’ and ‘Complete Ghosts Ahoy’ Tasks.
+* The Task ‘Kill a Creature in Mount Quidamortem’ Task has been renamed ‘Kill a Creature in Mount Karuulm’. The description has also been changed.
+* Superior Hydras now give Slayer Points correctly to players with the Bloodthirsty Relic.
+* The ‘Obtain a Boss Pet’ task can now be completed by obtaining pets from the Tombs of Amascut. This should be unlocked retroactively for anyone that has gotten the pet before via opening the interface.
+* Players using the Crystal of Memories to return to Nex will now appear inside the inner area near the bank.
+* Bloodthirsty Superiors will now have the correct icon above them.
+* MOBILE ONLY: Fixed an issue where expanding tasks in the Task Interface changed the background colour.
+* Corrected spelling errors.
+
+'''Other Changes''' 
+
+* Fixed a bug with Thralls which means you can now use them at the Kraken.
+* Spellbook filters can now hide the Teleport to Target spell for players who aren’t in the Bounty Hunter crater.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using ''''Max/Med'''' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Leagues IV: Trailblazer Reloaded ==
+It’s been a whole ''week ''since our latest League launched, and you’ve been ‘Scaping harder than ever before. We've hit record player numbers, seen incredible World Firsts, and observed ongoing civil war between Fire Sale and Banker's Note gangs. Most importantly, we’ve been having an absolute blast.
+
+Behind the scenes, the team has been hard at work deploying hotfix after hotfix. Most of the more significant ones graced our Game Status page over the days following release, while others were slightly lower in priority. We're not going to list ''every ''fix we've made, but here are a few you might like to know about:
+
+* The ‘Flex’ emote now unlocks automatically with the Desert region, allowing players to complete the ‘Flex in front of The Guns’ Task.
+* Players are now correctly addressed by their chosen gender rather than a particularly spacious comma in certain NPC dialogues.
+** Remember, you may change your gender using the Makeover Mage’s services, which are now also available from Thessalia in Varrock.
+* The ‘Pray at an altar in Molch while poisoned’ Task can now be completed after selecting the Brawler’s Resolve Relic.
+* Unlocking the Fremennik area now auto-completes the ‘Complete Rune Mysteries’ Task.
+* Fixed an issue where some Hot/Cold Clue steps were leading players into the Desert even when this region was locked.
+* Soul Wars XP modifiers and caps now apply multipliers correctly. Players can gain up to 1,000,000 XP per day, so enjoy those Zeal gains!
+* Doors in the Barrows’ crypts no longer get ‘stuck’.
+* Krystilia now provides appropriate tasks for players’ combat level.
+* The Task for completing 10 Combat Achievements now completes properly.
+* Removed the Task for completing Elemental Workshop I, as it was auto-completed during the Leagues Tutorial.
+* Herbs planted within Chambers of Xeric are now properly harvested by players with the Farmer’s Fortune Relic.
+* Players with the Trickster Relic can now progress through the Barbarian Firemaking section of Otto’s Barbarian Training.
+* Players can now be assigned Hydra Slayer Tasks.
+* The following items now scale correctly with modified drop rates:
+** Gout Tuber
+** Revenant Weapon Upgrades
+** Voidwaker Pieces
+** Shade Scrolls
+** Zealot Outfit
+** Holy Elixir (from Corporeal Beast)
+
+This week’s changes have mostly focussed on Clue Scrolls. If you’ve read your Tier 1 Relic’s passive effects, you’ll know that you should only be receiving Treasure Trail steps that you can complete in the regions you’ve unlocked. Unfortunately, there are a significant number of emote clues which don’t respect this rule – and Falo the Bard was being outright rude to players who haven’t yet unlocked the Fremennik area!
+
+We’ve now made significant changes which should ensure that all the clue steps you obtain can actually be completed. If there are any we’ve missed, please let us know, and we’ll adjust them as soon as we’re able. Unfortunately, these kinds of changes can’t be hotfixed, so you may have to wait until next week’s update!
+
+Next up, Bloodvelds are loose in Gielinor! We saw that the Bloodthirsty Relic felt pretty underwhelming in some regions, so we’ve added low-level superior Bloodvelds onto various Slayer Task Lists in regions where they’re available – and unleashed a small herd of them in Kourend, too! We’ve also adjusted the number of monsters players are required to kill on low-level Slayer Tasks to make things a bit more exciting.
+
+Those are the biggest changes this week, but we also have some smaller tweaks to show you:
+
+* We've fixed an issue with the Guardian and it should now attack the following NPCs: Zuk, Kree'Arra, Vespula.
+* We've added a toggle to all the Trailblazer tool that will turn off the auto-burn effect.
+* The Osmumten's Fang Special Attack should now hit it's max hit correctly.
+* Using Slayer points to extend the revenant task should correctly make your tasks longer.
+* The Magers and Rangers in the TzHaar-Ket-Rak Leagues Challenge will now attack you correctly.
+* The HP at Hard Mode Phosani's Nightmare should now correctly scale.
+* The Kill Count tasks for the Kalphite Queen have had their names updated to 1, 50 and 150 times respectively to be corrrect.
+* Protecting the Tree Patch for the Elite Western Diary can now be done with Farmer's Fortune. You'll still need to pay 25 Coconuts to complete this.
+* Fixed a graphical issue with the new animations for Low & High Alchemy.
+* Players using the Farmer’s Fortune Relic can now complete the ‘Cast Resurrect Crops’ Task.
+* Added Bloodvelds into the slayer list for players with Kourend unlocked.
+* Updated the interface to state that Bloodvelds are also available in Kandarin.
+* Reduced the kill counts required to complete various low-level, undesirable Slayer Tasks.
+* Bolt Special Attacks will now correctly heal players with the Soul Stealer Relic.
+* The Granite Maul’s Special Attack now hits correctly.
+* Fixed a bug where the ‘Obtain a Magic Seed from a Bird Nest’ task was not completing correctly.
+* Fixed an issue that prevented players who’d unlocked Kourend and Kebos from filtering their Task List via 'Unlocked'.
+* West Ardougne is now accessible for anyone with Kandarin, regardless of whether or not you've completed Biohazard.
+* You'll now be able to complete the 'Equip a Full Angler's Outfit' by equipping it anywhere.
+* Fixed a bug where the Trailblazer Pickaxe was equivalent or worse than an adamant pickaxe at Guardians of the Rift and the Path of Het.
+* Queen Points from Barbarian Assault now correctly apply the Minigame Modifier.
+* Players chopping Sulliceps can now roll a Mushroom and Fossil simultaneously.
+* Unlocking Fremennik will now correctly complete the ‘Complete Client of Kourend’ and ‘Complete Ghosts Ahoy’ Tasks.
+* The Task ‘Kill a Creature in Mount Quidamortem’ Task has been renamed ‘Kill a Creature in Mount Karuulm’. The description has also been changed.
+* Superior Hydras now give Slayer Points correctly to players with the Bloodthirsty Relic.
+* The ‘Obtain a Boss Pet’ task can now be completed by obtaining pets from the Tombs of Amascut. This should be unlocked retroactively for anyone that has gotten the pet before via opening the interface.
+* Players using the Crystal of Memories to return to Nex will now appear inside the inner area near the bank.
+* Bloodthirsty Superiors will now have the correct icon above them.
+* MOBILE ONLY: Fixed an issue where expanding tasks in the Task Interface changed the background colour.
+* Corrected spelling errors.
+
+Not only have we made a bunch of positive changes but we've changed some of the worlds to give you more options for where you do your activities this League!
+
+* Pest Control: 582 (EU), 581 (US East) & 595 (AUS)
+* Barb Assault: 566 (UK), 543 (US West) & 594 (AUS)
+* Shades of Mort'ton: 575 (US East)
+* Soul Wars: 557 (EU)
+* Morytania Activities: 556 (EU) & 574 (US East)
+* Asgarnia Activities: 564 (UK) & 542 (US West)
+* Desert Activities: 563 (UK) & 483 (US East)
+* Fremennik Activities: 551 (EU) & 541 (US West)
+* Kandarin Activities: 562 (UK) 476 (US East)
+* Tirannwn Activities: 550 (EU) &  442 (US West)
+* Kourend Activities: 498 (UK) &  475 (US East)
+* Wilderness Activities: 462 (EU) &  440 (US West)
+
+Some more great news from the first week of Leagues IV: there isn’t anything else that needs changing! While we’re keeping our eye out for potential improvements, for the most part it seems like you’re all having a fantastic time unlocking new regions, ticking off tasks, and piling up points.
+
+As a reminder, please note that your League Point totals may not be 100% up-to-date in the main game Leagues Rewards Shop. This is because your total updates periodically to prevent our systems becoming overloaded. If you’re experiencing this issue, don’t panic – just give it a little while to catch up.
+
+Lastly, we have some firsts – League Firsts! Congratulations to the following trailblazers for being the very first players to complete these momentous challenges!
+==League Firsts==
+
+* First Nex Kill: Mythologies
+* First Completion of Theatre of Blood: Pigeons Lie
+* First to achieve a Level 99: MagnumCopus
+* First to open the Grand Hallowed Coffin: CCP Furret
+* First to complete a Tombs of Amascut Raid: Ledryathan
+* First to kill Tz-Kal-Zuk: DV8
+* First to kill the Phantom Muspah: Kaio-ken x0
+* First to complete Tzhaar-Ket-Rak's 6th Challenge: DV8
+* First to kill Phosani's Nightmare: Jinxta
+* First to achieve 2277 Total Level: bedtime
+* First to catch a Lucky Impling: evonaabi
+* First to unlock a 5th Area: crUEshIp
+* First to kill and Awakened Desert Treasure II Boss: salt snorter
+* First to kill a Goblin: PeePee McGee
+* First to unlock a Tier 8 Relic: Barry Hall
+* First to open the Elven Crystal Chest: Hunlleffed
+* First to complete a Chambers of Xeric Raid: avoiderless
+* First to complete all tasks from the Easy Combat Achievements: DV8
+* First to kill a Desert Treasure II Boss: Mmorpg
+* First to complete a Master Clue Scroll: AlsoAlso
+* First to kill a Lesser Demon: de_cbble
+* First to complete Tzhaar-Ket-Rak's League Only Challenge: Richardant
+* First to kill a Demonic Gorrila: Urri
+
+We’ve also gathered up our favourite community content from the first week of Leagues IV. Take a look!
+==Community Content==
+Some of your favourite content creators have been on the Leagues IV grind and have fire content for you to check out! Here is a Leagues IV Community Playlist below.
+
+<center><big><big>[https://www.youtube.com/embed/videoseries?si=5vVUknNglp-WkY4y&list=PLRs68iqW7gYvWZAFs7-rW2bBQF0QtAH9g Leagues IV Community Playlist]</big></big></center>
+
+<center>'''''Click the top right corner of the video to see the full playlist. If you can’t see the video above, click [https://youtube.com/playlist?list=PLRs68iqW7gYvWZAFs7-rW2bBQF0QtAH9g&si=dIQjCKuPXuqW8o7D here] to see it and access the playlist!'''''</center>
+
+<gallery mode="packed", heights="180", style="text-align:center">
+Leagues IV - Post-Launch (1).jpg
+Leagues IV - Post-Launch (2).jpg
+Leagues IV - Post-Launch (3).jpg
+Leagues IV - Post-Launch (4).jpg
+Leagues IV - Post-Launch (5).jpg
+Leagues IV - Post-Launch (6).jpg
+</gallery>
+
+
+==Helpful Resources==
+Feeling inspired? Fancy giving Leagues a go? We’ve picked out our favourite resources to help you on the way.
+
+* [https://docs.google.com/spreadsheets/d/1wBXIlvAmqoQpu5u9XBfD4B0PW7D8owyO_CnRDiTHBKQ/edit#gid=158500257 DPS Calculator Sheet with Combat Relics]
+* [https://gearscape.net/ DPS Calculator Tool]
+* [https://www.leagueplans.com/ Leagues IV Planning Tool]
+* [https://docs.google.com/spreadsheets/d/1wFVRc91AOj2SF7McvH7E65yP2isCyzqmIT3di85jBM8/edit#gid=0 Leagues IV Planning Sheet]
+* [https://docs.google.com/spreadsheets/d/1CUVOiOZ_Ce186cxKvdeOluGJBNvWiVXvHKwqdWB_6K0/edit#gid=1108599647 Trailblazer Reloaded Region Combos]
+* [https://docs.google.com/spreadsheets/d/19zEeKdz7GyULf-8SY8oRRSqLd_ZNLEri7tXXq5161c0/edit#gid=0 Shy’s Leagues IV Starting Guide Sheet]
+* [https://docs.google.com/spreadsheets/d/1rollzZw2GmVJQQL_ukn-AjcLb5vok1dkY54jKYpnaps/edit#gid=0 Leagues IV ShopScape Sheet]
+* [https://oldschool.runescape.wiki/w/Trailblazer_Reloaded_League OSRS Wiki]
+* [https://discord.gg/leagues OSRS Leagues Discord]
+* [https://twitter.com/OldSchoolRS/status/1723764096146063541 GentleTractor Infographics]
+* [https://youtu.be/xDiSMO5SAWg?si=RqEBT-XTdLEO0LqX Which Regions to Choose by 11 Content Creators]
+* [https://youtu.be/4iSNCv_MqHI?si=e5rTxIV4uTP7gVWH Which Regions to Choose by A Cold One]
+* [https://youtu.be/9X9QJRiak1I?si=jjKpIZWEU1apBJVE Trailblazer Reloaded: Builds, Regions, Tactics by OnlyTrails]
+* [https://youtu.be/NxVA9LHY38o?si=28u5GSyEmfWDbBGo Leagues Tips and Tricks for First Timers by SoloMission]
+* [https://youtu.be/ldSyjiTbCRQ?si=v9qT2OFZTU6BWkND Complete Starting Route by doubleshine]
+* [https://youtu.be/ARbKDUztvrE?si=Ux6u0Uxijd4kdGTf Best Regions for Every Combat Style by doubleshine]
+
+==Other Changes ==
+
+* Spellbook filters can now hide Teleport to Target for players who aren’t in the Bounty Hunter Crater, which is required to use the spell.
+* Fixed a bug with Thralls which means you can now use them at the Kraken.
+
+==PvP World Rota ==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using ''''Max/Med'''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,900,66290831 official forums], on the [https://new.reddit.com/r/2007scape/comments/181ykug/leagues_iv_postlaunch/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Blossom, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

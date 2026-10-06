@@ -1,0 +1,18 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	lobby.goto	PASS	2	001-lobby.goto	at 3670,3218,0 from 3206,3233,0
+2	loc.tob_surface_raid_entrance	PASS	1	002-loc.tob_surface_raid_entrance	32653 at nil,nil L0
+3	loc.tob_surface_notice_board	PASS	0		32655 at nil,nil L1 [frame unchanged]
+4	loc.tob_surface_gravestone_chest	PASS	0		32656 at nil,nil L0 [frame unchanged]
+5	loc.tob_surface_deposit_box	PASS	0	003-loc.tob_surface_deposit_box	32665 at nil,nil L0
+6	loc.tob_scoreboard	PASS	0		32987 at nil,nil L0 [frame unchanged]
+7	loc.tob_rewards_chest_lobby_multi	PASS	0	004-loc.tob_rewards_chest_lobby_multi	41437 at nil,nil L0
+8	loc.tob_surface_blood_well_multi	PASS	0		33085 at nil,nil L0 [frame unchanged]
+9	loc.tob_surface_bankbooth	PASS	0	005-loc.tob_surface_bankbooth	32666 at nil,nil L0
+10	loc.tob_surface_teleport_pad_01	PASS	0	006-loc.tob_surface_teleport_pad_01	32672 at nil,nil L0
+11	loc.tob_surface_teleport_pad_12	PASS	0	007-loc.tob_surface_teleport_pad_12	32683 at nil,nil L0
+12	npc.tob_stranger	PASS	0		ok nil at 3673,3223 [frame unchanged]
+13	npc.tob_male_orator	PASS	0	008-npc.tob_male_orator	ok nil at 3662,3224
+14	npc.tob_female_orator	PASS	0		ok nil at 3662,3213 [frame unchanged]
+15	lobby.region	PASS	0		tile 3670,3218 -> region 14642 [frame unchanged]
+SUMMARY	15	PASS	3	exit=0	pass=15 fail=0

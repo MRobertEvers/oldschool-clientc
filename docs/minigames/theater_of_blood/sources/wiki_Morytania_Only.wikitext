@@ -1,0 +1,373 @@
+{{Infobox Combat Achievement
+|name = Morytania Only
+|image = [[File:Fighting Nylocas hordes.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete the Theatre of Blood without any member of the team equipping a non-barrows weapon (except Dawnbringer).
+|tier = Grandmaster
+|monster = Theatre of Blood
+|type = Restriction
+|id = 252
+|leagueRegion = Morytania
+}}
+'''Morytania Only''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete a [[Theatre of Blood]] run using only [[Barrows brothers]] weapons, barring the [[Dawnbringer]].
+
+==Strategy==
+Players will be limited to [[Barrows equipment|Barrows weapons]] for their run. Non-barrows armour is permitted, though every room will be a significant struggle due to the slow speed and damage output of Barrows weapons. This achievement is possible in any team size, with 4-5 man being highly recommended. Lower team size completions are possible, but means a significant struggle.
+
+Roles are fundamentally the same: Melee DPS, Range DPS, North Freeze and South Freeze, and each player performs the same actions as in regular runs while fighting [[The Maiden of Sugadinti]] and [[Nylocas Vasilias]].
+
+Meleers should opt for [[Guthan's Warspear]] with strongest melee gear available. [[Dharok's Greataxe]] with its respective full set results in higher damage output, however, it requires staying at lower HP thresholds. Rangers and magers are locked with [[Karil's crossbow]] and [[Ahrim's staff]] respectively.
+
+One or two players should bring [[Serpentine helm]] to inflict poison to [[Nylocas Athanatos]]. An alternative poison method is casting [[Smoke spells]], although this is highly inconsistent and less practical.
+
+It is possible to bring runes for [[Surge spells]] and [[Vulnerability]] to considerably speed up the raid, which is only possible with [[Magic cape]]. All bosses in the raid are susceptible to Vulnerability's defence reduction, except for [[Sotetseg]] and [[Verzik Vitur]].
+
+Main differences with regular Theatre of Blood completions will be listed below.
+
+===The Maiden of Sugadinti===
+For the most part this encounter is similar to regular runs. All players should melee except for the ranger, since ranged results in higher DPS compared to any other style.
+
+When attacking [[Nylocas Matomenos]], consider using [[Torag's hammers]] instead of the spear for more consistent damage output.
+
+If the player decides to autocast [[Ice Barrage]] with [[Ahrim the Blighted's equipment]] with [[Amulet of the Damned]], keep in mind that unequipping the staff cancels the autocast setting.
+
+===Pestilent Bloat===
+This encounter is almost identical as in regular runs. Make sure to play safe, as each death means less supplies, which will be more noticeable than usual runs during this challenge.
+
+===Nylocas Vasilias===
+Meleers in this room should use [[Torag's hammers]] to deal with both small and large [[Nylocas Ischyros]]. Previous strategies involved using [[Avernic defender]] and punch/kick them, however, this is a slighly inferior method due to the better hit distribution the hammer's double hitsplats provide.
+
+Rangers should exclusively focus on [[Nylocas Toxobolos]], while magers should [[Ice barrage]] their respective [[Nylocas Hagios]] and any other Nylocas whenever possible.
+
+===Sotetseg===
+Before entering the boss room, make sure each member has their respective corners, while having on each east/west side at least one [[Serpentine helm]] user. This will help later on when fighting [[Verzik Vitur]] in order to deal with their Nylocas summons. It's possible for just one single player to bring the helmet, although this will make their job harder and might put the completion at risk. Two players bringing the helmet is ideal.
+
+All players should melee, although magers can choose to autocast [[Ancient magicks]], as its damage heavily competes with other roles, potentially surpassing it.
+
+====Chest room====
+
+Before proceding, each player should have 7 or 8 [[Super restore(4)]]. Unlike regular runs, it's imperative all players have one [[Stamina potion(4)]].
+
+It's possible to drop [[Karil's crossbow]] and [[Magic cape]] for additional supplies.
+
+===Xarpus===
+All players should melee. Magers with [[Magic cape]] can cast [[Wind Surge]] because of Xarpus 50% air elemental weakness (see: Mage (swap spellbook) below). This doesn't require moving back and forth and potentially missing attacks, and gives more breathing room for meleeing players while they're attacking and moving.
+
+Rangers should avoid using [[Karil's crossbow]], unless Xarpus surrounding tiles are completely covered in poison.
+
+===Verzik Vitur===
+Once again all players should melee. 
+*Part 1: [[Torag's hammers]] is the strongest weapon for this achievement. Players without hammers should punch or kick instead.
+
+*Part 2: Magers can choose to either melee or cast spells from a distance, while all other players melee.
+
+*Part 3: At this point Verzik has 50% fire elemental weakness, making [[Fire Surge]] a strong spell to cast on her. Make sure all players are constantly using [[Thralls]] and if needed wait for yellow safespots before pushing below 20% HP to have easier time with the tornadoes.
+
+If a player dies at any point while fighting Verzik, the achievement '''will not be awarded to the player that died.'''
+
+==Equipment==
+<tabber>
+Melee=
+[[Oathplate armour]] is the best option for completing this challenge. [[Dharok the Wretched's equipment]] offers better melee damage output than Oathplate armour, as long as player health stays lower than 62, although this adds considerable risk while fighting Verzik Vitur, where players must stay alive to succesfully finish the achievement.
+<br /><br />
+Bringing full [[Guthan the infested's equipment]], despite granting large amounts of healing, results in poor damage output, thus slowing completion times by several minutes.
+
+{{Recommended equipment
+|align = left
+|style = Melee
+| head1 = {{plink|Oathplate helm}}
+| head2 = {{plink|Torva full helm}}
+| head3 = {{plink|Dharok's helm}}  / {{plink|Serpentine helm}}{{efn|Saves an inventory slot|name=serpentine}}
+| neck1 = {{plink|Amulet of rancour}}
+| neck2 = {{plink|Amulet of torture}}/{{plink|Amulet of blood fury}}
+| cape1 = {{plink|Infernal cape}}
+| body1 = {{plink|Oathplate chest}}
+| body2 = {{plink|Torva platebody}}
+| body3 = {{plink|Dharok's platebody}} 
+| legs1 =  {{plink|Oathplate legs}}
+| legs2 = {{plink|Torva platelegs}}
+| legs3 = {{plink|Dharok's platelegs}}
+| weapon1 = {{plink|Guthan's warspear}}{{efn|On slash|name=slash}}
+| weapon2 = {{plink|Dharok's greataxe}}{{efn|On slash|name=slash}}
+| ammo1 = {{plink|Bolt rack}}
+| hands1 = {{plink|Ferocious gloves}}
+| hands2 = {{plink|Barrows gloves}}
+| feet1 = {{plink|Avernic treads (max)}}
+| feet2 = {{plink|Primordial boots}}
+| feet3 = {{plink|Aranea boots}} > {{plink|Dragon boots}}
+| ring1 = {{plink|Ultor ring}} / {{plink|Bellator ring}}
+| ring2 = {{plink|Berserker ring (i)}}
+}}
+{{notelist}}
+==Inventory==
+{{Inventory|align=right
+|1=Karil's crossbow
+|2=Necklace of rupture
+|3=Salve amulet (e)
+|4=Serpentine helm
+|5=Torag's hammers
+|6=Saradomin brew(4)
+|7=Divine super combat potion(4)
+|8=Divine super combat potion(4)
+|9=Saradomin brew(4)
+|10=Saradomin brew(4)
+|11=Super combat potion(4)
+|12=Super combat potion(4)
+|13=Saradomin brew(4)
+|14=Saradomin brew(4)
+|15=Saradomin brew(4)
+|16=Saradomin brew(4)
+|17=Saradomin brew(4)
+|18=Saradomin brew(4)
+|19=Super restore(4)
+|20=Super restore(4)
+|21=Super restore(4)
+|22=Super restore(4)
+|23=Super restore(4)
+|24=Super restore(4)
+|25=Guthix rest(4)
+|26=Super restore(4)
+|27=Book of the Dead
+|28=Rune pouch
+}}
+{{Rune pouch|align=right
+|1=Blood rune
+|2=Fire rune
+|3=Cosmic rune
+}}
+*[[Karil's crossbow]] with [[Necklace of rupture]] to deal range damage against [[Nylocas Vasilias]]. Additional range switches are not necessary.
+*[[Torag's hammers]] double hitsplat results in an exceptional weapon against [[Nylocas Ischyros]] and [[Verzik Vitur]] first form.
+*[[Serpentine helm]] to deal with [[Nylocas Athanatos]]. Only one or two players need to bring it.
+*[[Guthix rest(4)]] for tick eating.
+*[[Rune pouch]], with runes to cast [[Resurrection spells]] and a [[Book of the Dead]].
+*'''Optional:''' [[Locator orb]] or [[Dwarven rock cake]] to maintain low health with Dharok's equipment. Bring 1-2 additional Guthix rest for small healing to preserve low health in order to maximize damage, replacing [[Saradomin Brew]]s.
+
+|-|
+Range=
+[[Masori equipment]] offers best ranged DPS, assuming the player only brings few range switches. [[Elite Void Knight equipment]] offers higher dps even without defence reduction, but it requires having ranged items in multiple slots to reach this DPS potential, using valuable inventory space. Lastly, [[Karil the Tainted's equipment]] in conjunction of [[Amulet of the Damned]] offers the highest max hit possible, but it's inconsistent and with lower accuracy than Masori set, resulting in lower DPS overall.
+<br /><br />
+Additional switches for cape, hand, and ring slots are optional, however, bringing as many supplies as possible might be more beneficial than the additional damage and accuracy gained from filling them.
+{{Recommended equipment
+|align = left
+|style = Range
+| head1 = {{plink|Masori mask (f)}} / {{plink|Masori mask}}
+| head2 = {{plink|Karil's coif}}
+| head3 = {{plink|Void ranger helm}}
+| neck1 = {{plink|Necklace of rupture}}
+| neck2 = {{plink|Necklace of anguish}}
+| neck3 = {{plink|Amulet of the Damned}}{{efn|With full [[Karil the Tainted's equipment]]|name=damn}}
+| cape1 = {{plink|infernal cape}}
+| body1 = {{plink|Masori body (f)}} / {{plink|Masori body}}
+| body2 = {{plink|Karil's leathertop}}
+| body3 = {{plink|Elite void top}}
+| legs1 = {{plink|Masori chaps (f)}} / {{plink|Masori chaps}}
+| legs2 = {{plink|Karil's leatherskirt}}
+| legs3 = {{plink|Elite void robe}}
+| weapon1 = {{plink|Karil's crossbow}}
+| ammo1 = {{plink|Bolt rack}}
+| hands1 = {{plink|Ferocious gloves}} 
+| hands2 = {{plink|Void knight gloves}} / {{plink|Barrows gloves}}
+| feet1 = {{plink|Avernic treads (max)}}
+| feet2 = {{plink|Primordial boots}}
+| feet3 = {{plink|Aranea boots}} > {{plink|Dragon boots}}
+| ring1 = {{plink|Ultor ring}} / {{plink|Bellator ring}}
+| ring2 = {{plink|Berserker ring (i)}}
+}}
+{{notelist}}
+==Inventory==
+{{Inventory|align=right
+|1=Guthan's warspear
+|2=Serpentine helm
+|3=Salve amulet (e)
+|4=Divine super combat potion(4)
+|5=Oathplate chest
+|6=Oathplate legs
+|7=Amulet of rancour
+|8=Super combat potion(4)
+|9=Saradomin brew(4)
+|10=Armadyl brew(4)
+|11=Armadyl brew(4)
+|12=Super combat potion(4)
+|13=Saradomin brew(4)
+|14=Saradomin brew(4)
+|15=Saradomin brew(4)
+|16=Saradomin brew(4)
+|17=Saradomin brew(4)
+|18=Saradomin brew(4)
+|19=Super restore(4)
+|20=Super restore(4)
+|21=Super restore(4)
+|22=Super restore(4)
+|23=Super restore(4)
+|24=Super restore(4)
+|25=Guthix rest(4)
+|26=Super restore(4)
+|27=Book of the Dead
+|28=Rune pouch
+}}
+{{Rune pouch|align=right
+|1=Blood rune
+|2=Fire rune
+|3=Cosmic rune
+}}
+*Melee switches. Either bring [[Serpentine helm]] as a main helmet, or a better helmet if serpentines are covered. Optionally bring both.
+*[[Armadyl brew(4)]] is a great source of healing without requiring to drink [[Super restore]] doses afterward. Use these during [[The Maiden of Sugadinti]] and the [[Nylocas Vasilias]] encounter, as ranged isn't needed later in the raid.
+*[[Guthix rest(4)]] for tick eating.
+*[[Rune pouch]], with runes to cast [[Resurrection spells]] and a [[Book of the Dead]].
+
+|-|
+Mage=
+[[Ahrim the Blighted's equipment]] in conjunction of the [[Amulet of the Damned]] offers good damage output, together with the possibility of autocasting [[Ice barrage]]. On the other hand, both [[Ancestral robes]] and [[Virtus robes]] offer slightly higher DPS, but without the possibility of autocasting. 
+<br /><br />
+
+{{Recommended equipment
+|align = left
+|style = Range
+| head1 = {{plink|Ahrim's hood}} / {{plink|Ancestral hat}} / {{plink|Virtus mask}}
+| neck1 = {{plink|Amulet of the Damned}}{{efn|With full [[Ahrim the Blighted's equipment]]|name=damn}}
+| neck2 = {{plink|Occult necklace}}
+| cape1 = {{plink|Infernal cape}}
+| cape2 = {{plink|God capes#Imbuing|txt=Imbued god cape|pic=Imbued Zamorak cape}}
+| body1 = {{plink|Ahrim's robetop}} / {{plink|Ancestral robe top}} / {{plink|Virtus robe top}}
+| legs1 = {{plink|Ahrim's robeskirt}} / {{plink|Ancestral robe bottom}} / {{plink|Virtus robe bottom}}
+| weapon1 = {{plink|Ahrim's staff}}
+| shield1 = {{plink|Elidinis' ward (f)}} > {{plink|Elidinis' ward}}
+| ammo1 = {{plink|Bolt rack}}
+| hands1 = {{plink|Confliction gauntlets}} 
+| hands2 = {{plink|Tormented bracelet}}
+| hands3 = {{plink|Barrows gloves}}
+| feet1 = {{plink|Avernic treads (max)}}
+| feet2 = {{plink|Aranea boots}}
+| ring1 = {{plink|Ultor ring}}
+}}
+{{notelist}}
+==Inventory==
+{{Inventory|align=right
+|1=Guthan's warspear
+|2=Serpentine helm
+|3=Ferocious gloves
+|4=Salve amulet (e)
+|5=Oathplate chest
+|6=Oathplate legs
+|7=Amulet of rancour
+|8=Divine super combat potion(4)
+|9=Karil's crossbow
+|10=Saradomin brew(4)
+|11=Super combat potion(4)
+|12=Super combat potion(4)
+|13=Saradomin brew(4)
+|14=Saradomin brew(4)
+|15=Saradomin brew(4)
+|16=Saradomin brew(4)
+|17=Saradomin brew(4)
+|18=Saradomin brew(4)
+|19=Saradomin brew(4)
+|20=Super restore(4)
+|21=Super restore(4)
+|22=Super restore(4)
+|23=Super restore(4)
+|24=Super restore(4)
+|25=Guthix rest(4)
+|26=Super restore(4)
+|27=Super restore(4)
+|28=Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Blood rune
+|2=Soul rune
+|3=Death rune
+|4=Water rune
+}}
+*[[Karil's crossbow]] to deal range damage against [[Nylocas Vasilias]]. Additional range switches are not necessary.
+*Melee switches. Either bring [[Serpentine helm]] as a main helmet, or a better helmet if serpentines are covered. Optionally bring both.
+*[[Guthix rest(4)]] for tick eating.
+*[[Rune pouch]], with runes to cast [[Ice barrage]] and [[Blood barrage]].
+*'''Optional:''' [[Saturated heart]].
+
+|-|
+Mage (swap spellbook)=
+With the introduction and expansion of [[Elemental weakness]], players can use [[Wind surge]] and [[Fire surge]] as a primary source of damage when fighting [[Xarpus]] (50% air weakness), and [[Verzik Vitur]] 2nd and 3rd form (50% fire weakness while on her final form). Considering mager's role is to freeze [[Nylocas Matomenos]] during Maiden's encounter, using surge spells is only possible by carrying a [[Magic cape]], allowing to switch from one spellbook to another up to 5 times. This means the method can only be used limited amount of times per day.
+<br /><br />
+With [[Confliction gauntlets]], [[Ahrim the Blighted's equipment]] set effect together with [[Amulet of the Damned]] offers best magic DPS when casting surge spells, while also allowing to autocast ancient magicks. The high accuracy provided from the gauntlets also makes [[Ice barrage]] autocasting compete with melee against [[Sotetseg]].
+<br /><br />
+Standard spellbook allows the use of [[Vulnerability]], which reduces target defence by 10% (or 15% with [[tome of water]]), shortening the raid duration by a reasonable amount. This is the only defence reduction method available during this combat achievement. It cannot be cast against [[Sotetseg]] and [[Verzik Vitur]] in any of her forms. Bringing [[Dust rune]]s allows to cast this spell without wasting extra inventory space.
+
+{{Recommended equipment
+|align = left
+|style = Range
+| head1 = {{plink|Ahrim's hood}}
+| head2 = {{plink|Ancestral hat}} / {{plink|Virtus mask}}
+| neck1 = {{plink|Amulet of the Damned}}{{efn|With full [[Ahrim the Blighted's equipment]]|name=damn}}
+| neck2 = {{plink|Occult necklace}}
+| cape1 = {{plink|God capes#Imbuing|txt=Imbued god cape|pic=Imbued Zamorak cape}}
+| body1 = {{plink|Ahrim's robetop}}
+| body2 = {{plink|Ancestral robe top}} / {{plink|Virtus robe top}}
+| legs1 = {{plink|Ahrim's robeskirt}}
+| legs2 = {{plink|Ancestral robe bottom}} / {{plink|Virtus robe bottom}}
+| weapon1 = {{plink|Ahrim's staff}}
+| shield1 = {{plink|Elidinis' ward (f)}} and {{plink|Tome of Fire}}{{efn|With [[Searing page]]s|name=page}}
+| shield2 = {{plink|Tome of Fire}}{{efn|With [[Searing page]]s|name=page}}
+| ammo1 = {{plink|Bolt rack}}
+| hands1 = {{plink|Confliction gauntlets}} 
+| feet1 = {{plink|Avernic treads (max)}}
+| feet2 = {{plink|Eternal boots}}
+| feet3 = {{plink|Aranea boots}}
+| ring1 = {{plink|Magus ring}}
+| ring2 = {{plink|Ultor ring}}
+}}
+{{notelist}}
+==Inventory==
+{{Inventory|align=right
+|1=Karil's crossbow
+|2=Ultor ring
+|3=Salve amulet (e)
+|4=Serpentine helm
+|5=Torag's hammers
+|6=Ferocious gloves
+|7=Tome of Fire
+|8=Divine super combat potion(4)
+|9=Saradomin brew(4)
+|10=Saradomin brew(4)
+|11=Saradomin brew(4)
+|12=Saradomin brew(4)
+|13=Saradomin brew(4)
+|14=Saradomin brew(4)
+|15=Saradomin brew(4)
+|16=Saradomin brew(4)
+|17=Super restore(4)
+|18=Super restore(4)
+|19=Super restore(4)
+|20=Super restore(4)
+|21=Guthix rest(4)
+|22=Super restore(4)
+|23=Super restore(4)
+|24=Super restore(4)
+|25=Magic cape(t)
+|26=Water rune
+|27=Dust rune
+|28=Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Blood rune
+|2=Soul rune
+|3=Death rune
+|4=Wrath rune
+}}
+*[[Karil's crossbow]] to deal range damage against [[Nylocas Vasilias]]. Additional range switches are not necessary.
+*[[Torag's hammers]] double hitsplat results in an exceptional weapon against [[Nylocas Ischyros]] and [[Verzik Vitur]] first phase. This will also be the main melee weapon.
+*[[Serpentine helm]] to deal with [[Nylocas Athanatos]]. Only one or two players need to bring it.
+*[[Guthix rest(4)]] for tick eating.
+*A single [[Divine super combat potion(4)]] for Bloat and Nylo room.
+*[[Rune pouch]] and extra runes to cast [[Ice barrage]], [[Blood barrage]], [[Fire Surge]], [[Wind surge]], and [[Vulnerability]].
+*'''Optional:''' Players might consider swapping water runes for [[tome of water]], which boosts [[Vulnerability]] defence reduction from 10% to 15%. Keep in mind this means [[Ice barrage]] will have to be cast while holding the tome.
+</tabber>
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+==Trivia==
+*The achievement's name is a reference to the ''Old School RuneScape'' content creator ''Settled'', known for his series ''Swampletics'' where he attempts to complete the Theatre of Blood on an [[Ironman Mode#Ultimate|Ultimate Ironman]] that can't leave Morytania.
+
+{{Combat Achievements}}

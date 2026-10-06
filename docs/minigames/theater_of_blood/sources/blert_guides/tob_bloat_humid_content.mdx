@@ -1,0 +1,141 @@
+# Humid Bloat
+
+<GuideTags challenge="tob" scale="all" level="speedrun" />
+
+<AuthorCredits>
+  Video contributed by [Verix](https://www.youtube.com/@verix3983), with
+  commentary by the Blert community.
+</AuthorCredits>
+
+## Video
+
+<YoutubeEmbed
+  id="pIVbIs5qvAk"
+  chapters={[
+    { time: 0, label: 'Introduction' },
+    { time: 50, label: 'Plugins' },
+    { time: 176, label: 'Inventory Setup' },
+    { time: 188, label: 'Click Order' },
+    { time: 197, label: 'Flicking neck' },
+    { time: 206, label: 'Dealing with hands/feet' },
+    { time: 230, label: 'General advice' },
+    { time: 267, label: 'Low/Highroll examples' },
+    { time: 284, label: 'Dealing with Stomp' },
+    { time: 317, label: 'Full Bloat room example' },
+    { time: 390, label: 'Non Humid Entries' },
+    { time: 442, label: 'Alex Bloat Entries' },
+    { time: 446, label: 'Alex P2' },
+    { time: 480, label: 'Alex P3' },
+    { time: 514, label: 'Alex P3 Hunter Kit' },
+    { time: 545, label: 'Alex Full Salve Examples' },
+    { time: 650, label: 'Vintage P1 Wrap' },
+    { time: 684, label: 'Vintage P1 Extended' },
+    { time: 715, label: 'Vintage P2' },
+    { time: 749, label: 'Vintage P3 Extended' },
+    { time: 783, label: 'Vintage P3 Short' },
+  ]}
+/>
+
+## The basics
+
+Humid Bloat is a strategy where players attack Bloat while he is walking,
+casting the <Spell name="humidify" /> spell to stall their character's animation
+between attacks, and using Phoenix necklaces to avoid death.
+
+This strategy works by combining two game engine mechanics:
+
+1. While a player is animation stalled, all damage against them is queued, and
+   applied once the stall ends.
+2. When a Phoenix necklace procs, it clears the remainder of the player's damage
+   queue.
+
+By entering the stall at low enough HP that the first fly will proc a Phoenix
+necklace, but not kill you, you can survive all fly damage and continuously
+attack Bloat every 5t while he is up.
+
+In order to cast Humidify, you need a container in your inventory that can be
+filled with water. Teams will set up so that each player has either an empty
+vial or a teacup (from a Guthix rest). Between attacks, you must empty it.
+
+### Standard Humid cycle
+
+The Humid cycle repeats every 5 ticks as follows. On your very first attack,
+your vial will already be empty, so skip that click.
+
+1. Scythe Bloat. On the same tick as you swing, click your vial to empty it,
+   equip a Phoenix necklace, then click Bloat to target him.
+2. On the following tick, cast Humidify, stalling you for 3t. Your character
+   will automatically run towards and attack Bloat coming out of the stall.
+
+You **must click Bloat** before entering Humidify so that your character is
+targeting him while stalled. This will cause your character to run towards him
+and catch up coming out of the stall.
+
+<Notice>
+
+This is just the most basic version of Humid; real strategies involve equipping
+a Salve amulet for some swings, which requires additional clicks.
+
+</Notice>
+
+## Strategies and entries
+
+Prior to the first down, Bloat walks around the room either clockwise or
+counterclockwise (chosen randomly on entry). This means that his position is
+known on every tick. By starting the room when Bloat is at a specific position,
+teams can optimize their attack cycles against him.
+
+In scales 3+, there are two common Humid strategies ("Bloats"):
+
+- Alex Bloat: most commonly used in trios.
+- Vintage Bloat: most commonly used in 4s and 5s.
+
+These strategies give each player in a team a role with an "entry": the tick at
+which they enter the room (based on Bloat's position), and the sequence of
+movements and attacks they perform at the start, up to their first Humidify
+cast. After that, the player does the standard 5t Humidify cycle until Bloat
+goes down.
+
+Each role's entry is specifically designed such that the player's first Humidify
+occurs at a valid HP threshold, and must be performed exactly as shown. Many
+roles require you to sip a dose of Saradomin brew to overheal before entering,
+and to activate the Rapid Heal prayer on a specific tick such that HP regen
+will occur during the first Humid stall, tickeating the damage from the initial
+fly on exit.
+
+Verix's video showcases every entry for the roles in these two Bloats.
+
+## Consistency
+
+Humid Bloat does not have a 100% rate of success, even if everyone plays
+perfectly. Be prepared to reset a lot.
+
+- While stalled, hands can drop onto your character, and you won't be able to
+  dodge them. These will either kill you instantly or stun you for several
+  ticks as Bloat walks away. If you survive, you should continue the exact same
+  Humid cycle, even though you won't actually be attacking; with luck, you might
+  catch up.
+- Fly damage is random within a small range. On certain entry roles, it is
+  possible that every fly from Bloat high-rolls its damage and kills you without
+  proccing your Phoenix necklace.
+- Depending on the scale, you might not get good damage RNG on Bloat after he
+  goes down. This is particularly noticeable in trios. In 4s and 5s, as long as
+  everyone survives, you should almost always kill Bloat on the first down.
+
+Because of this, individual consistency is essential. A wise man once said that
+if every person in a team of 5 is only 90% consistent at Humid, there is a 41%
+chance that someone will die. (Before the unavoidable stuff above!) Go practice
+in Entry mode before trolling your team.
+
+## Other spells
+
+Several roles have one or two players casting <Spell name="hunter-kit" /> in
+addition to Humidify as part of their entry. This spell stalls you for only 2t,
+allowing you to avoid some initial damage while still being maneuverable for the
+opening sequence.
+
+Instead of Humidify, players can run the same strategies using <Spell name="spellbook-swap" />
+as the stall. The benefit of this is that no vial is required; however, after
+each stall you will be on the Arceuus spellbook and need to cast a different
+spell each time to return to Lunars (as they have cooldowns). This involves more
+clicks and precision than Humid, especially to get attacks with a Salve.

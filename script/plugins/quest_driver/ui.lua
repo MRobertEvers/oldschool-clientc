@@ -521,13 +521,17 @@ function QD.shot(name, keep)
         answered_poll = nil }
     QD.drive._shot_last = last
     if aim ~= nil then
-        last.aimed = api_drive.camera(aim.yaw, aim.pitch, aim.zoom) == "ok"
+        -- Through the one camera call; a watched client never gets here
+        -- (_shot_plan answers no aim there) and the call refuses it anyway.
+        last.aimed = QD.drive.camera_aim({ yaw = aim.yaw, pitch = aim.pitch, zoom = aim.zoom,
+            purpose = "photograph", note = "shot aim" }) == "ok"
     end
     local polls = 0
     local function put_back()
         if last.aimed and last.restored_poll == nil then
             last.restored_poll = polls
-            api_drive.camera(keep_pose.yaw, keep_pose.pitch, keep_pose.zoom)
+            QD.drive.camera_aim({ yaw = keep_pose.yaw, pitch = keep_pose.pitch,
+                zoom = keep_pose.zoom, purpose = "photograph", note = "shot put back" })
         end
     end
     local last_result, last_detail, last_unchanged, captured = api_drive.shot(numbered, keep)

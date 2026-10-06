@@ -1,0 +1,62 @@
+{{Infobox Item
+|name = Verzik Vitur - Patient Record
+|image = [[File:Verzik Vitur - Patient Record.png]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Read, Drop
+|examine = Medical notes by Vulcan Orvoros on Verzik Vitur.
+|value = 50
+|weight = 0.510
+|id = 22514
+}}
+[[File:Verzik Vitur - Patient Record detail.png|left|150px]]
+'''Verzik Vitur - Patient Record''' are a set of medical notes that appear on the ground after defeating [[Verzik Vitur]] in the [[Theatre of Blood]]. It can also be obtained from the [[grand bookshelves]] in her treasure vault beneath her throne room, accessed after her defeat.
+
+The patient record, written by [[Vulcan Orvoros]], contains medical notes on Verzik Vitur, detailing a sickness she was infected with after a [[nylocas]] bite. In [[A Night at the Theatre]] it is revealed that the bite was actually a result of a prototype nylocas biting her when she presented it to [[Ranis Drakan]], which injected a parasite that eventually matured into the [[Nylocas Queen]] and killed her, before the Queen ordered him killed too.
+
+If lost, it can be reclaimed by defeating Verzik Vitur, or from a [[bookcase]] within a [[player-owned house]].
+
+==Transcript==
+{{Hastranscript|Verzik Vitur - Patient Record|transclude=Yes}}
+
+==Item sources==
+{{Drop sources|Verzik Vitur - Patient Record}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 August 2026
+|update = Summer Sweep Up - Hunter & Skilling
+|change = The item was renamed from "Verzik vitur - patient record" to "Verzik Vitur - Patient Record".
+}}
+{{Subject changes
+|date = 3 June 2021
+|update = Theatre of Blood: New Modes
+|change =
+* The patient record is now dropped directly by [[Verzik Vitur]], in addition to being available from Verzik's [[grand bookshelves]].
+* The text received some minor grammar changes.
+* The item's [[value]] was changed from 1 to 50.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="150" style="text-align:center">
+File:Verzik Vitur - Patient Record (interface, 1).png|Pages 1-2
+File:Verzik Vitur - Patient Record (interface, 2).png|Pages 3-4
+File:Verzik Vitur - Patient Record (interface, 3).png|Pages 5-6
+File:Verzik Vitur - Patient Record (interface, 4).png|Pages 7-8
+File:Verzik Vitur - Patient Record (interface, 5).png|Pages 9-10
+File:Verzik Vitur - Patient Record (interface, 6).png|Pages 11-12
+File:Verzik Vitur - Patient Record (interface, 7).png|Pages 13-14
+</gallery>
+
+{{A Night at the Theatre}}
+{{Theatre of Blood}}
+[[Category:Texts and tomes]]
+[[Category:Storable in bookcases]]

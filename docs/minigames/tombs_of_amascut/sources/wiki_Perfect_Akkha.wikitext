@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = Perfect Akkha
+|image = [[File:Tombs of Amascut - Akkha's final stand.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete Akkha in a group of two or more, without anyone taking any damage from the following: Akkha's attacks off-prayer, Akkha's special attacks (orbs, memory, detonate), exploding shadow timers, orbs in the enrage phase or attacking Akkha with the wrong style. You must have all Akkha invocations activated.
+|tier = Master
+|monster = Tombs of Amascut
+|type = Perfection
+|id = 433
+|leagueRegion = Desert
+}}
+'''Perfect Akkha''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete [[Akkha]] in a group of two or more, without anyone taking any damage from the following: Akkha's attacks off-prayer, Akkha's special attacks (orbs, memory, detonate), exploding shadow timers, orbs in the enrage phase or attacking Akkha with the wrong style. The player must have all Akkha invocations activated.
+
+==Strategy==
+'''Using a melee thrall in the final phase of the fight will fail this combat achievement.''' It is not known whether this is intended or a bug. However, as Akkha has a chance to change his combat style with every special, it is not recommended to use thralls when attempting this achievement, even if the player starting the encounter is confident with their "butterfly" technique.
+
+As Double Trouble needs to be activated with multiple players, the player butterflying Akkha should dodge the memory attack in the middle, while other players should use the "staircase" technique to skip the memory attack at the edges of the arena. If Akkha switches styles and uses black orbs at the same time, it may be safer to stay still and flick protection prayers, rather than attempting to [[Flinching|flinch]].
+
+Since the achievement is under Tombs of Amascut, the fastest method is to attempt the achievement with a raid level of 150 with all Akkha invocations active, reducing his health.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

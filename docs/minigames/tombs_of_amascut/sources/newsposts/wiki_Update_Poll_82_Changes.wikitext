@@ -1,0 +1,155 @@
+{{Update|date=07 August 2024|url=https://secure.runescape.com/m=news/poll-82-changes?oldschool=1|category=game}}
+[[File:Poll 82 Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+''It's time for some Poll 82! We're rolling out the first batch of Poll 82 changes, plus various animation improvements are coming your way.''
+
+==Changelog - August 7th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Poll 82'''
+
+* Nail Beasts will now drop between 2-3 Nail Beasts Nails.
+* We've increased the speed at which the dangerous Fog in LMS will now appear by ~4 minutes.
+* All Perilous Moons sets have been added as potential drops within the 75 Defence LMS Bracket.
+* A Quick-Start feature has been added to Tempoross!
+* In Mahogany homes, you will no longer be shown the Furniture creation menu to build a particular hotspot if you have the materials already on you.
+* The delay when drinking tea after completing a construction contract has been removed.
+
+'''Animation Spring Clean'''
+
+* The Hunter's Crossbow and Sunlight Crossbow's animation stalling has been fixed.
+* We've also given a fresh lick of paint to a few things across the game including:
+** Voidwaker - special attack
+** Morrigan's Throwing Axe - special attack
+** Morrigan's Javelin - special attack
+** Osmumten's Fang - model, special attack and audio
+** Dharok's Axe/Soulreaper Axe - running animation
+** Removed the lone green pixel from the Trick Emote
+** Removed the 1-tick delay on the returning animation of the Tonalztics of Ralos special attack when charged
+** Tonalztics of Ralos special attack plays correct animation when used against another player
+** Correcting alignments of special attack animations of the Ancient Mace, Dragon Hasta and SoulReaper Axe
+
+'''Other Changes'''
+
+* Tormented demons are less likely to lose interest in the player when they run out of range. If they do happen to lose interest, they will still attack the player correctly if the player re-engages them.
+* Emberlight now helps cut through the damage reduction effect of Skotizo's altars, like Arclight does.
+* If you meet an Armadylean Guard during a treasure trail, it'll now have a small elemental vulnerability to air.
+* The Avatar of Creation and the Avatar of Destruction now have one safespot within each boss area.
+* If you missed it, the Deadman Armageddon rewards shop is now open for players to use any Deadman points accrued to purchase any of the four available items.
+* Items you drop manually to the ground in Phosani's Nightmare fights will now stay there for longer, as they do in various other boss instances.
+* For standard herb patches that are in a state where they need attention, such as harvesting or curing, the click-zone now covers the full 2x2 patch to enable easier clicking.
+* Players can now heat cups of water on a range or fire. Bowls of boiling water can now be poured into empty cups via a Make-All menu.
+* Some trap hotspots are no longer missing from POH dungeons in houses using the Hosidius and Cosy Cabin wallkits.
+
+'''Discord Events'''
+
+* On '''Thursday, 8th August''' from''' 5pm BST''' Mods Blossom, Ed and Errol will be talking all things lore in a Discord Stages Modcast!
+* Come and join us on '''Saturday, 10th August''' at '''8pm BST''' as our official Discord server Chat Mods host a Tempoross Mass Run event to celebrate the launch of our Events category within the server!
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Poll 82==
+[[File:Poll 82 Changes (1).png|400px|center]]
+
+We didn't want to wait too long to start dropping you updates from the previous QoL Poll 82, so we're starting today with some of the smaller but fantastic improvements.
+
+First up, while the Nail Beasts will remain loud and proud, they will drop a few more nails upon defeat which should help those savvy Sanfew brewers out there.
+
+Next, grab your Saw, Hammer and Plank Sack as we head over to Mahogany Homes. From now on, you will no longer be shown the Furniture creation menu to build a particular hotspot if you have the materials already on you. Also, as an additional change we've removed the delay when drinking your much-deserved tea after completing a contract - so you can keep going fast! We have even more QoL tweaks based on your requests on their way in the coming weeks, like not being prompted to accept the tea to drink it, and contractors will have a right-click option to be given the same tier contract you just completed. So, while you won't see them today, know there's still more on the way!
+
+Skull up and get ready as we head to LMS - but you might want to brace yourself as you'll now see the deadly fog much sooner than before when playing. Previously it was around ~10 minutes until the fog rolled in but now it will be around ~6 minutes. Alongside making the fog more scary, we've added all the beloved Perilous Moons sets as potential loot from the 75 Defence LMS Bracket.
+
+Finally, for those of you helping the Spirit Anglers keep Tempoross at bay, you'll now have a lovely Quick-Start option to get you back into the action sooner.
+
+==Animation Spring Clean==
+During our previous Game Jam V, Mod Hend took some time to look over some animations and make them feel more lively and unique. With DMM over it's time to spruce up a few animations from several weapons found within the wide world of Gielinor.
+
+Before we dive into the more hyped-up changes, we know that animation stalling of the Hunter's Crossbow and Sunlight Crossbow has been an issue for some time, so we've fixed that bug from happening - no more surprise attacks from those weapons!
+
+The core of this update however gives some of the more iconic special attacks a nice update to make them more unique and hopefully more identifiable! This includes the special attacks of the Voidwaker, Morrigan's Throwing Axe, Morrigan's Javelin and Osmumten's Fang which has also had its special attack's audio improved, while the model has been updated by Mod West!
+
+[[File:Poll 82 Changes (2).gif|thumb|400px|center|''New Fang Special Attack Animation'']]
+
+
+[[File:Poll 82 Changes (3).gif|thumb|400px|center|''New Voidwaker Special Attack Animation'']]
+
+
+[[File:Poll 82 Changes (4).mp4|thumb|600px|center|''Sound Effect of the New Voidwaker Special Attack Animation. If you can't view the video above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-08-06/voidwaker_audio.mp4 here].'']]
+
+While we were at it, the running animation when you're carrying Dharok's Greataxe and the Soulreaper Axe has been refreshed.
+
+[[File:Poll 82 Changes (5).gif|thumb|600px|center|''Updated running animation when carrying Dharok's Greataxe and the Soulreaper Axe'']]
+
+As for a few miscellaneous changes, no longer will the Trick Emote be dragged down by that lone green pixel and the alignments of special attack animations of the Ancient Mace, Dragon Hasta and Soulreaper Axe have been corrected. We've also removed the 1-tick delay on the returning animation of the Tonalztics of Ralos special attack when charged and the weapon's special attack now plays correct animation when used against another player.
+
+So there you have it, we hope you enjoy this small polish to some animations across the game, and who knows, maybe there'll be more in the future!
+
+==Other Changes==
+
+* Tormented demons are less likely to lose interest in the player when they run out of range. If they do happen to lose interest, they will still attack the player correctly if the player re-engages them.
+* Emberlight now helps cut through the damage reduction effect of Skotizo's altars, like Arclight does.
+* If you meet an Armadylean Guard during a treasure trail, it'll now have a small elemental vulnerability to air.
+* The Avatar of Creation and the Avatar of Destruction now have one safespot within each boss area.
+* If you missed it, the Deadman Armageddon rewards shop is now open for players to use any Deadman points accrued to purchase any of the four available items.
+* Items you drop manually to the ground in Phosani's Nightmare fights will now stay there for longer, as they do in various other boss instances.
+* For standard herb patches that are in a state where they need attention, such as harvesting or curing, the click-zone now covers the full 2x2 patch to enable easier clicking.
+* Players can now heat cups of water on a range or fire. Bowls of boiling water can now be poured into empty cups via a Make-All menu.
+* Some trap hotspots are no longer missing from POH dungeons in houses using the Hosidius and Cosy Cabin wallkits.
+
+==Discord Events==
+Our fantastic volunteer moderation team have already been hosting a range of fun events on our official Discord server, but we've recently expanded our focus on events and server activities further! For a brief overview: you can now suggest events you'd like to see run through the server via a new suggestions forum channel, you can opt into a new Events role to get pinged whenever there are any event updates and you can find all the information around events in a new FAQ channel.
+
+===Launch Event: Tempoross Run===
+[[File:Poll 82 Changes (6).png|400px|center]]
+
+* '''Date:''' Saturday 10th August
+* '''Time:''' from 8pm BST
+* '''World:''' 358
+
+Come and join us this Saturday as our official Discord server Chat Mods host a Tempoross Mass Run event to celebrate the launch of our Events category within the server! There'll be a channel in the Discord server set up to chat throughout the event, and you can also join the in-game friends chat: 07friends, though it's not a requirement. You'll also spot JMods there to cheer you on, as we gather to celebrate the occasion!  We'll be putting out more information in an upcoming newspost, with everything you need to know to get involved so keep your eyes peeled!
+
+===Old School Lore Q&A Stages===
+[[File:Poll 82 Changes (7).png|400px|center]]
+
+We're brushing up on our lore knowledge with the masters themselves, Mods Ed and Errol, with Mod Blossom leading the discussion! Join us from 5pm BST on Thursday 8th August to delve into the the story and history of Gielinor. There'll be an Ask Your Questions channel to ask all the us what you want to know, plus you'll spot a post on our social channels if you'd like to add your questions there. Head to the Discord server, you'll find the Discord Stage Modcast section near the top of the channel list and when the time comes you'll be able to hop into the call and listen in. The call will be recorded and you'll be able to access the recording via Discord soon after. 
+
+You can join the official Discord server, [http://discord.gg/OSRS here], and get stuck in!
+
+==PvP World Rota==
+===Period A:===
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1em7o2l/poll_82_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nin, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

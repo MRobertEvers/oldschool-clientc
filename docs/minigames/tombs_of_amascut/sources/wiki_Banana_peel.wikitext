@@ -1,0 +1,30 @@
+{{Infobox Scenery
+|name = Banana peel
+|image = [[File:Banana peel.png|250x250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Tombs of Amascut]]
+|options = None
+|examine = Looks slippery.
+|map = No
+|id = 45755
+}}
+'''Banana peels''' can be found during the fight with [[Ba-Ba]] in the [[Tombs of Amascut]]. Two banana peels are spawned after killing [[baboon]]s only when the "Jungle Japes" invocation is active. If the peels are stepped on, the player takes small amounts of damage and is left [[Stun (status)|stunned]] for 3 seconds.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Baboons now drop two banana peels upon death, rather than one.
+}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change = Banana peels now spawn upon a baboon's death rather than randomly, and deal significantly reduced damage.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

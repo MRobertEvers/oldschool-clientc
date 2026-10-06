@@ -1,0 +1,60 @@
+{{Infobox Monster
+|version1 = Normal
+|version2 = Challenge Mode
+|name = Vespine soldier
+|image = [[File:Vespine soldier.png|250px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[17 May]] [[2018]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size = 3
+|examine = A soldier of Queen Vespula.
+|attributes = xerician, flying
+|xpbonus = 0
+|max hit1 = 14
+|max hit2 = 20
+|aggressive = Yes
+|poisonous = Yes (15)
+|attack style = [[Crush]]
+|attack speed = 4
+|hitpoints1 = 100
+|hitpoints2 = 150
+|scaledhp = Yes
+|att1 = 150
+|att2 = 225
+|str1 = 150
+|str2 = 225
+|def1 = 40
+|def2 = 60
+|mage1 = 40
+|mage2 = 60
+|range = 1
+|attbns = 0
+|strbns = -8
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = -8
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 30
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|id = 7538,7539
+}}
+'''Vespine soldiers''' are offspring of [[Vespula]]. They will only appear if the team allows a [[lux grub]]'s meter to reach zero, at which point a vespine soldier will burst out of the lux grub, while also healing Vespula and the [[abyssal portal]]. Players will need to deal with the vespine soldiers while also working against Vespula if this occurs.
+
+Vespine soldiers have relatively low health. Similarly to Vespula, they will drop to the ground after their health becomes low and become immune to ranged. In order to kill them off, the player must use melee. If they are not killed while grounded, they will explode after a some time, dealing damage to anyone near it. Another grub will appear shortly after it dies.
+
+Vespine soldiers regenerate their stats at a rate of 1 per 16 ticks when flying, faster than the standard rate of 1 per 100 ticks. When walking, they regenerate at the rate of 1 per 10000 (i.e. never).{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1524701424460628080|date=9 July 2026|quote=Stone guardians - 8 Muttadiles - 15 Vasa Nistirio - 10 Vasa's crystal - 9 Tekton - 15 LizardShamans - 20 Skeletal mystics - 25 Jewelled Crabs - 1 Vespula - 10 Vespula's portal - 45 Vespula's grubs - 10000 (i.e. never) Vespine soldier (flying) - 16 Vespine soldier (walking) - 10000 Otherwise default should be 100, as for outside CoX.|ctxquote=Hi@JagexAsh would you per chance be able to say the regen time (in ticks) for mobs in chambers?}}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}

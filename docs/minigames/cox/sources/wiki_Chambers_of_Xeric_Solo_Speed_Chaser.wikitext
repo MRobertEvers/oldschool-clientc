@@ -1,0 +1,34 @@
+{{Infobox Combat Achievement
+|name = Chambers of Xeric (Solo) Speed-Chaser
+|image = [[File:Chambers of Xeric - keystone room.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete a Chambers of Xeric (Solo) in less than 21 minutes.
+|tier = Master
+|monster = Chambers of Xeric
+|type = Speed
+|id = 322
+|leagueRegion = Kourend
+}}
+'''Chambers of Xeric (Solo) Speed-Chaser''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete a [[Chambers of Xeric]] solo run within 21 minutes.
+
+==Strategy==
+Look for a raid with extremely easy and simple rooms, if possible, try to align this with the [[Chambers of Xeric (Solo) Speed-Runner|grandmaster]] variant. There is a 4 minute gap between this and the grandmaster variant, though taking either master or grandmaster variants are acceptable for this achievement.
+
+Ideal layouts for a raid can include:
+
+*Vasa, Vespula, Tekton, Tightrope, Crabs
+*Vasa, Vespula, Tekton, Crabs, Guardians
+*Vanguards, Tekton, Vespula, Tightrope, Crabs
+
+Vasa is a very fast room when a [[twisted bow]] is used alongside a [[dragon warhammer]], assuming that the hammer does land at least once in the fight. Vespula can be easily taken out by using either the twisted bow or a [[Tumeken's shadow]]. Tekton can be easily dealt with using [[Osmumten's fang]] if no [[Scythe of Vitur]] or [[Inquisitor's mace]] is available. Tightrope can be skipped if needed and crabs are fairly straightforward to do, assuming the ideal layout. This will result in 4 brews, 2 restores, prayer enhances and overloads, which is more than enough for an experienced player at Olm.
+
+Vanguards are only put on the list as it is possible to clear them fast with good gear. Vanguards can provide 3-6 brews, 0-3 restores and 1 overload, which is even more supplies, but they do take longer to kill compared to the other rooms.
+
+Muttadiles can provide a full set of one brew, restore, prayer enhance and overload, however, due to the high variance in each fight this room can consume a lot of supplies if unlucky and thus discouraged from attempting this room for the sake of time.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

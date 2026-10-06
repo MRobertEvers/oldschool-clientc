@@ -1,0 +1,71 @@
+{{Update|date=1 December 2022|url=https://secure.runescape.com/m=news/your-feedback-our-next-steps---game-update-november-30th-2022?oldschool=1|category=community}}
+[[File:Your Feedback, Our Next Steps - Game Update- November 30th 2022 newspost.png|right]]
+{{clear|right}}
+
+{{Collapsed section|18|TL;DR - CLICK HERE TO SHOW}}
+'''Losing Charges Issues'''
+* The team is investigating if we can potentially help players affected by the loss of charges.
+
+'''Tombs of Amascut: Combat Achievements'''
+* A number of hotfixes have been released since yesterday - find them all [https://secure.runescape.com/m=news/a=97/the-garden-of-death--more?oldschool=1 here]
+* Three issues cannot be hotfixed and will be resolved with next week's update:
+** The description for "But... Damage" incorrectly states 'above tier 75'. We are going to edit this to 'tier 75 and above'.
+** 'Tombs Speed Runner III' shows up for prestiged GIM players even though it isn't possible. It will be removed for affected players next week.
+** Currently, getting hit for '0' while off-Prayer will fail the 'Perfect Ba-Ba' task. This is not the intention and from next week, if you receive a no-damage hit while off-Prayer, you will not fail the task.
+* We'll be changing a few things with the new Achievements:
+** The task 'Amascut's Remnant' will be retroactively completed for anyone who has received a Cursed Phalanx (which is only possible above a 500+ raid level).
+** The kill count requirements for 'Novice Tomb Raider' and 'Tomb Raider' will be reduced from 100 to 50.
+** 'Novice Tomb Explorer' will be moved from the Medium to the Hard tier.
+* We'll be adding extra clarity around certain Achievements to show what level raid you need to complete and highlight the 10 second rule for group Achievements.
+
+'''Blast Furnace Changes - Poll 77'''
+* This will be changed to correctly reflect how it was polled, meaning that all levels of stock can be bought and sold for a fixed price.
+
+'''Poison Dynamite'''
+* The team is looking into ways to make Poison Dynamite feel better to use.
+
+'''Extra Information'''
+* The team is not looking to remove Coin Pouches but investigating ways to make them better.
+{{Collapsed section end}}
+
+----
+
+Yesterday's [https://secure.runescape.com/m=news/a=97/the-garden-of-death--more?oldschool=1 game update] included two weeks' worth of content in one: Combat Achievements, The Garden of Death, Poll 77 changes and more. We decided to make some adjustments to our release schedule last week to ensure we dealt with the server outages promptly. Unfortunately, following the update, we were made aware of a number of bugs that had affected players.
+
+Today we'd like to give you a quick update on the most prevalent issues and let you know what we're doing to fix them.
+
+Following a bug with Combat Achievements, we understand that several players lost charges from any equipment which utilises the 'charge' system. The most egregious cases of this happening were with high-level equipment such as Infernal Equipment or the Scythe of Vitur etc.
+
+We're taking this issue very seriously as we understand the frustration caused by losing supplies through no fault of your own. We'd like to let you know that the team is currently investigating ways to identify the accounts affected by this incident so that we can compensate players for the items lost.
+
+For full transparency, we only have a limited number of ways we track this data, so we are currently not sure whether we can reimburse players at this time. We'll keep you updated on the status of our investigation and we're sorry for the frustration caused by this bug.
+
+In terms of the other bugs with Combat Achievements, we've released hotfixes today that cover a variety of those issues (the full list of which can be found in the Issues Table in yesterday's [https://secure.runescape.com/m=news/a=97/the-garden-of-death--more?oldschool=1 The Garden of Death & More] newspost). Unfortunately, there are a few things we were unable to hotfix, which will be changed with next week's update.
+
+These include the following:
+* The description for "But... Damage" incorrectly states 'above tier 75'. We are going to edit this to state 'tier 75 and above' to make it clearer.
+* 'Tombs Speed Runner III' shows up for prestiged GIM players even though this isn't possible. This will be removed for those players next week.
+* Currently, getting hit for '0' while off-Prayer will fail the 'Perfect Ba-Ba' task. This is not the intention and from next week, if you receive a no-damage hit while off-Prayer, you will not fail the task.
+
+From our discussions and your feedback, there are also a few other Achievement-related changes coming next week:
+* The task 'Amascut's Remnant' will be retroactively completed for anyone who has received a Cursed Phalanx (which is only possible above a 500+ raid level).
+* The kill count requirements for 'Novice Tomb Raider' and 'Tomb Raider' will be reduced from 100 to 50.
+* 'Novice Tomb Explorer' will be moved from the Medium to the Hard tier of Combat Achievements.
+
+We also heard your feedback on seeing extra information to clarify precisely what is required for the completion of the new Achievements. We agree with you. Next week, we'll be adding clearer messages to any Achievements which require a certain level or raid difficulty. You'll also see more information regarding group tasks, including which team members are required to be inside the main part of the room within 10 seconds of the first player engaging the encounter for Combat Achievement completion.
+
+You also raised concerns about the Blast Furnace change from Poll 77. The intention of this change was to always have it buy/sell at a fixed price, regardless of stock level, as the poll question stated.
+
+Unfortunately, we implemented the change differently from how it was polled. This was a mistake, and it will be corrected as soon as we're able. You should be able to buy and sell at a fixed price from the shop regardless of stock soon. We're sorry for the confusion and will be doing more to ensure these things don't happen going forward.
+
+Onto the big PD (Poison Dynamite) - we've noticed feedback from players regarding its power. It's there for a niche purpose and we want using it to feel good, without making it too overpowered. We've tested this item during several rounds of betas, but we've heard feedback from players in the live game that it can feel clunky to use. We'll be looking into this more closely and we're open to making balance changes if required. Stay tuned and please continue to let us know what you think.
+
+Finally, we'd like to mention our thoughts on a hot community topic that's been trending lately. A lot of players are expressing a desire for us to consider removing Coin Pouches. We firmly believe that Coin Pouches are still essential Anti-Cheating tools, but we're actively investigating ways to make them less annoying for legitimate players. Currently, we're looking to try something with the Diary system - so keep an eye out for more info in the next QoL Poll!
+
+We hope this provides some insight into how we're handling your feedback. Let us know your thoughts and please continue to enjoy the update!
+
+----
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Chilly, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Other, Regent, Redfield, Roq, Ry, Sarnie, Shaun, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Steve W, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

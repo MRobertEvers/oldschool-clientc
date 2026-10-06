@@ -1,0 +1,383 @@
+{{Update|date=19 November 2025|rev=26 November 2025|url=https://secure.runescape.com/m=news/sailing---known-issues--fixes-?oldschool=1|category=community}}
+[[File:Sailing - Known Issues & Fixes newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+==Quick Reference==
+<center>
+[[#Sailing - Known Issues|Known Issues]]    [[#Sailing - Fixed Issues|Fixed Issues]]
+
+[[#How We Handle Bug Reports & Feedback|How We Handle Bug Reports & Feedback]]
+
+[[#A Primer on Sailing Settings - Click to Expand!|A Primer on Sailing Settings]]    [[#Some Sailing tips and tricks!|Some Sailing Tips & Tricks]]
+
+[[#Recent Hotfixes - Friday, November 21st|Fixes - Friday - November 21st]]    [[#Recent Hotfixes - Thursday, November 20th|What We're Working On - Thursday, November 20th]]<br/>[[#20th November Coldfix - 4:05pm UTC|Coldfix - 20th November]]    [[#An Update on Sailing - 19th November (21:40 UTC)|Day One Evening Update (Includes news on Sailing XP changes)]]
+</center>
+
+==Sailing - Known Issues==
+Check back here for known issues.
+
+===Boats getting stuck===
+We'll do our best to address any mapping issues that arise from bug reports in this update. In the short-term, here's how you can escape if you get stuck on your boat:
+
+* If you are at the Dock, right-click the Gangplank to leave, and then relog.
+* If you are out at sea, right-click the Tiller and click 'Escape', and then relog. This will cause you to lose any Cargo in your hold but will reset the ship.
+* If you are at the Dock and unable to click the Dock to leave or the Tiller to 'Escape', then relog.
+
+===Today's Issues - 26th November===
+'''13:34 UTC:''' We've been made aware that the Glide Shark Trial is currently not possible to complete the shark time. This has now been hotfixed.
+
+'''14:35 UTC:''' Players are reporting the Crystal Extractor isn't working in certain locations (i.e. Gwenith Glide mooring points). The team is aware of this issue and will be resolved with next week's update.
+
+'''14:55 UTC:''' We've seen further reports of the Crystal Extractor not resetting correctly at the start of Barracuda Trials. The team are aware of this issue and looking into it.
+
+===Crystal Extractor===
+We're aware the Crystal Extractor is giving a lot of XP and feeling like compulsory gameplay. We are considering taking some of this XP and redistributing it into other areas of the game. This is likely to be a change set for next week as part of a wider 'XP Review'. No changes are being made this week as the team is taking a considered approach and reviewing data before we make those adjustments.
+
+===Ultimate Ironmen===
+UIM have expressed concern on restrictions for the Cargo Hold. The current set of restrictions was deliberately conservative in case of any unexpected and undesired shift in meta for the game mode, but it's clear from your feedback that they need changes. While there isn't a change in this update, we're going to be making Cargo not count towards total Cargo Hold space for UIM in next week's update.
+
+As a general approach, we prefer making smaller, incremental improvements for UIM. This helps us address frustrations without removing the problem-solving element that many players value in the game mode. We’ll continue monitoring your feedback around the Cargo Hold, so if you have additional thoughts, please share them in the Sailing space on the Official OSRS Discord. We will be keeping a close eye on the conversations!
+
+===Group Ironmen===
+Group Ironmen should be able to share each others' facilities without having them already built. This was an oversight, and will be fixed in the coming weeks.
+
+===Sail Clickbox===
+We're looking to increase to the model of the Cargo Hold to help tackle issues where players can mistakenly click their sail instead. If this doesn't work, we may look at swapping the position of the Cargo Hold on the boat with a facility that doesn't require as many clicks.
+
+===Boat Repairs===
+We're making a change next week to allow Shipwrights to repair your boat for a fee. Additionally, when upgrading your boat, upgrades will restore HP back to your boat.
+
+===Cargo Hold===
+We're actively looking at ways to make losing items in the Cargo Hold less punishing. Additionally, we're looking at how we can make it clearer to players to understand what items you will lose on death. This will take a little longer for us to implement, as we need time to design a solution that considers the impact that changes may have on Courier Tasks.
+
+===Whirlpool Surprise (Boostable Sailing Unlocks)===
+Players want more Sailing-related unlocks to be boostable, such as Charting and Facility building. Whilst we can't confirm exactly what will and won't be boostable yet, we're going to do a general review of what's boostable and what isn't and make some changes in the coming weeks.
+
+===Plank Sack===
+We've also heard the complaints around not being able to use planks directly from your Plank Sack when constructing Ship parts. We are hoping to address this within the next couple of weeks, so stay tuned!
+
+===New Logs===
+Looks like there was a small miscommunication from one of our previous blogs as the new logs added with Sailing cannot be gotten from any Salvaging. The team have agreed to update the droptables within the next couple of weeks so that players can rarely obtain the higher-tier logs from appropriate tiers of shipwrecks.
+
+===Log-Out Boat Behaviour===
+We've also confirmed that there's a bug related to logging out at sea whilst on a boat sending players to unexpected locations, and we're hoping to get that fixed in the next two weeks.
+
+===Frost Dragons===
+Players have noted that the demand for Frost Dragons (Dragon Sheets) currently outweighs supply. We're exploring how we can increase supply to keep up with demand, e.g a task-only section within the cave.
+
+===Other===
+* Let crewmates remember which task they were doing between world hops.
+* Add Ability to disable teleport warnings while on a boat (Yes and don't ask me again).
+* Adding Level requirements to docking points.
+* Further adjustments to the colourful fade/flash effects within the Gwenith Glide.
+* Add Options for 'Repair Kit' and 'Hull Parts' to Shipwrights' Workbench.
+* Add a toggle for 'Auto-Accept Available Cargo'.
+
+==Sailing - Fixed Issues==
+Check back here for fixed issues.
+
+November 26th
+
+* '''12:48 UTC:''' The Crystal Extractor no longer works while near the docks or Bank Boat. While we enjoy how you've been using Crystal Extractor, to give extremely passive Sailing experience while being able to 'bankstand' train other skills feels against the spirit of Sailing.
+* We've reduced the animations on Fetid Pools with The Jubbly Jive to help improve perfomance. We'll be continue to monitor this area and look to further address performance issues.
+* To make sure that everyone starts a trial with their boat in a neutral state, the Crystal Extractor will now reset its charge progress when a trial restarts and will not charge while the trial is 'paused'.
+** When you interact with it the trial timer will start and if it was activated before the trial started it will re-activate automatically when you start moving.
+* We've fixed issues with extra trial boxes and uneven box collision within all Barracuda Trials. We'll keep an eye on your feedback surrounding this!
+* Opening a chest with a key obtained from a barracuda trial will no longer delete the key if you don't have space to receive what is inside it.
+* Gwenith Glide's blue and green crystal map icons now correctly match their teleport destinations.
+* Fixed a collision logic issue that led to a lot of issues with boats becoming stuck. Additional sticking points are expected to need map changes to resolve them, and we expect to work through these in the coming weeks.
+** '''Please continue to [https://discord.com/channels/324132423636090880/1440656893306736711 report any issues] with your boat becoming stuck!'''
+* Added an option to the settings menu to allow players to determine who can use their cargo hold, separate and independent from who is allowed on your boat.
+* It is now no longer possible to trim the Sails while holding Cargo.
+* The Carpenter's outfit XP bonuses are now granted when crafting items at the Shipwrights’ Workbench.
+* Bounty tasks now correctly match the required Sailing level for their NPC locations, with Narwhals repositioned to keep tasks accessible.
+* Sea creatures that shouldn’t drop bones (such as sharks, rays, and kraken) no longer do so.
+* The materials list has been corrected for the teleport focus and the Rune Salvaging Hook in the skill guide.
+* Fixed an issue where the camera would sometimes hide in a corner when joining a friend's boat.
+* Fixed an issue where Repair Kits weren't updating the Ship's HP in the Sailing side-panel.
+* Made it clearer for players to understand how to return to the Pandemonium during the Quest.
+* The Collection Log buttons for Shellbane Gryphon and Scurrius now open the correct entries.
+* Sailing is now selectable as a skilling activity for a Clan event.
+* Fixed typos in the message when receiving Shark Paint, Sailing music tracks unlock hints and Parleying Preston's examine text.
+
+November 24th
+
+* Players will no longer receive 500 Magic XP for assembling a Medallion of the Deep.
+
+November 21st
+
+* Bounty Task Drops can no longer be earned from engaging in combat with sea creatures on land.
+* Fixed an issue with Sea Charting tasks: 'Help the meteorologist document the local weather on a small island east of the Kharazi Jungle' and 'Help the meteorologist document the local weather on the southern coast of Neitiznot' tasks. Both task locations have been moved to somewhere more accessible.
+* 'Quick Deposit' now respects the new Cannonball limit we set on Cargo Holds (2,000).
+* Players who had tried to use the new Sailing Ores with the Blast Furnace found themselves unable to use it. We've added an 'Empty' option to restore access back, and in a future update we will make a change to ensure that players don't soft lock themselves out of the Blast Furnace.
+
+November 20th
+
+* Locked the Cargo Hold temporarily to only be accessible to the Captain for now (preventing any form of multiplayer interaction on it).
+* Removed some of the words used in the pool used in boat naming to avoid some unfortunate combinations. Some players may find that their boat name has changed as a result.
+* Released a hotfix to limit the amount of Cannonballs that you can store to 2,000 (of each type).
+* Fixed an issue where wealth restriction caused Group Ironmen to not be able to withdraw port task cargo.
+* The drop rate for Squid Beaks has been corrected.
+
+November 19th
+
+* 08:37 UTC, November 19th - We've fixed an issue where the HiScores 'Hall of Fame' were not up to date.
+* 13:20 UTC, November 19th - Daddy's Special Water's special water was more generous than intended, and will now give an appropriate level of XP.
+* 17:45 UTC, November 19th - We balanced sea creatures based on player damage, but the Dwarven Multi-cannon wasn’t included in those calculations. As a temporary measure, it has been disabled when fighting sea creatures. We’ll review its intended role and make further updates in the coming days.
+* 21:40 UTC, November 19th - Sea Charting drinks can teleport your boat, which unintentionally wipes your Cargo Hold. We've made a fix to prevent this from happening and we can confirm that items will be restored to those that lost them as a result of this. We'll have more information to share on this tomorrow.
+
+==How We Handle Bug Reports & Feedback==
+Sailing is one of our biggest updates ever, and although we’ve done our utmost to make sure all issues have been fixed for launch during Alpha and Beta testing, there may be bugs or unexpected issues that occur.
+
+To get issues fixed effectively, we’ll triage them based mainly on player impact, ensuring that the most ‘game-breaking’ ones are dealt with first where possible. We’ll keep this news post updated with the most important bugs that we’re aware of, and the [http://osrs.game/Game-Status Game Status] page will also be updated for anything that might impact downtime. For more minor bugs or issues, we’ll use a space within the [http://discord.gg/OSRS OSRS Discord] and keep it updated as regularly as possible.
+
+Some bugs will be fixed straight away, and others may require a reboot to fix. We’ll assess this based on our triage process, where the most player-impacting and game-impacting ones are fixed as quickly as possible.
+
+If you’ve encountered a bug or issue, please consider using in-game bug report button to make us aware of it - we'd really appreciate it!
+
+You may also want to consider reporting them to us via [http://discord.gg/OSRS Discord] in the ‘Sailing’ channel. This is because Discord’s functionality includes the ability for users to upload images or files, which can be useful to us when we identify bugs or issues. Please note, tagging individual staff members outside of the Community Management team is not required and may disrupt their work.
+
+Finally, we often check our owned and community-ran social media platforms, including X, Reddit, Instagram and Facebook - feel free to post there and we'll do our best to update you where we can.
+
+==A Primer on Sailing Settings - Click to Expand!==
+{{Collapsed section|18|CLICK HERE TO FIND OUT MORE}}
+If you haven’t already, try typing "Sailing" into your Settings search bar! You’ll uncover a range of useful options covering Gameplay, Interfaces, and Warnings - all designed to make your voyages that little bit more customisable.
+
+===Fine-tune how your ship behaves at sea:===
+* You can choose to toggle if the boat stops when you leave the helm
+* Decide if the heading of a boat that is stopped should start the boat moving - always, never, or just the first time.
+* Toggle hint arrows for the Current Duck and Barracuda trials
+
+[[File:Sailing - Known Issues & Fixes (1).png|500px|center|thumb|''If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-11-19/gameplay.jpg click here].'']]
+
+===Adjust how your Sailing information appears while you explore:===
+* Show the Sailing Side Panel always, or only when aboard your ship.
+* Choose whether to see a pop-up notification when you chart something new.
+* Toggle if charting hints are shown in the Captain's log.
+* Enable chat box messages listing materials when viewing boat customisation requirements.
+* Decide if you’d like a warning before dropping items on your boat.
+
+[[File:Sailing - Known Issues & Fixes (2).png|500px|center|thumb|''If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-11-19/interfaces.jpg click here].'']]
+
+===Avoid costly mistakes with these helpful alerts:===
+Get a warning before you:
+* Drink from a Forgotten Crate at sea
+* Cancel a Port Task
+* Deposit cargo at the wrong port
+* Leave your ship while cargo is still onboard (a lifesaver for forgetful sailors!)
+* Open a cargo hold on someone else’s boat where items can’t be retrieved
+
+[[File:Sailing - Known Issues & Fixes (3).png|500px|center|thumb|''If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-11-19/warnings.jpg click here].'']]
+
+{{Collapsed section end}}
+
+==Some Sailing tips and tricks!==
+{{Collapsed section|18|CLICK HERE TO FIND OUT MORE}}
+Port Tasks will be the first thing that you're likely to do when training Sailing after completing the Pandemonium quest. Deliver cargo from A to B, easy peasy. And, what's even better, is that from Level 7 you can grab yourself two at once! Use this to grab multiple tasks towards the same destination, or stop off at a mid-point and grab an extra task on your way to keep that XP steadily increasing.
+
+While this is a good method, exploring the seas will give you major benefits to your Sailing endeavours alongside experience. Not only do you get a nice chunk of bonus XP from fully charting an area, but you'll also unlock rapids within that area to make you faster. With over 50 Charting points for you to find in the early game areas, or locations to view at Level 1, there's plenty of options for you to explore! Make sure to upgrade your ship where you can so that you can make use of these rapids and maximise your speed at sea - we'd recommend upgrading to an Iron Helm to make use of the rapids that you unlock, and upgrading your sails & hull as you progress to keep your ship speed increasing!
+
+It's a good thing to keep in mind that whenever you're travelling the sea, whether it be finding salvage, or just charting, it's wise to have a port task (or two) active so you always have some Sailing experience you can cash in while working towards more unlocks.
+
+Keep an eye out for chance encounters too! Saving a castaway, catching a gust of wind allowing you to trim your sails multiple times, the ocean man who takes you by the hand and leads you to the land, and many more! They give you either XP or loot for each time you complete them!
+
+You can also gain extra Charting Tools from some early quests including Crowbars from 'Prying Times' at Level 15, and the Current Duck from 'Current Affairs' at Level 22, which will give you more options for charting on top of the Sailing XP that they award on completion.
+
+Finally, it's always worth moving to newly unlocked Notice Boards when you unlock their associated docks, as these will give you higher level tasks that grant more Sailing experience. Remember that you can just teleport there and recover your boat (assuming you've got nothing in your Cargo Hold that you're not willing to lose), or you could sail there yourself and tick off some extra charting tasks along the way!
+
+''Ultimately this is just a rough example of how you can tackle the seas, as the beauty of Sailing, much like Old School, is that you can choose how you play! We hope that you continue to play in a way that you enjoy the most!''
+{{Collapsed section end}}
+
+==Recent Hotfixes - Friday, November 21st==
+{{Collapsed section|18|CLICK HERE TO FIND OUT MORE}}
+Bounty Task Drops can no longer be earned from engaging in combat with sea creatures on land. This change has been made because some players were able to gain Sailing XP from Bounty Tasks faster by using a Dwarf Multicannon on islands rather than a Cannon on their boat. Whilst we love players discovering new and exciting training methods, we don't feel that it's appropriate to award Sailing XP for gameplay loops that don't actually involve any Sailing, instead circumventing it with teleports and multicannons, unlike some charting tasks which at least require you to use Sailing tools or navigate to the locations by boat.
+
+Other fixes today:
+
+* We've identified an issue with two Charting tasks where players couldn't reach the co-ordinate easily. These are 'Help the meteorologist document the local weather on a small island east of the Kharazi Jungle' and 'Help the meteorologist document the local weather on the southern coast of Neitiznot'. Both task locations have been moved to somewhere more accessible.
+* 'Quick Deposit' now respects the new Cannonball limit we set on Cargo Holds (2,000).
+* Players who had tried to use the new Sailing Ores with the Blast Furnace found themselves unable to use it. We've added an 'Empty' option to restore access back, and in a future update we will make a change to ensure that players don't soft lock themselves out of the Blast Furnace.
+
+We're committed to reviewing your feedback over the coming days and weeks ahead. As the release settles, we'll share more information about our plans to address core feedback on Sailing, how progression feels and our longer term plans to improve it even further. We appreciate all of the feedback we've received so far and we hope you're having fun sailing the seas of Gielinor!
+{{Collapsed section end}}
+
+==Recent Hotfixes - Thursday, November 20th==
+{{Collapsed section|18|CLICK HERE TO FIND OUT MORE}}
+===Horizon's Lure & Whirlpool Surprise===
+The requirement to unlock drink crates was accidentally lower than originally intended. They were mistakenly being unlocked based on the number of charts done, rather than the intended number of seas completed.
+
+The corrected requirements are:
+
+* Kraken Ink Stout - 5 seas in the Ardent Ocean and 5 seas in the Unquiet Ocean.
+* Perildance Bitter - 8 seas in the Western Ocean and 5 seas in the Shrouded Ocean.
+* Trawler's Trust - 50 seas across all oceans
+* Horizon's Lure - 70 seas across all oceans
+
+Whilst resolving this issue, we also noted that the XP buff from Horizon's Lure was not providing additional XP for Barracuda Trials or Port Task completions as intended. We are currently investigating this and will update you when we have more to share.
+
+We understand this news will undoubtedly be upsetting to hear for those of you who unlocked these rewards early, and we've also seen comments regarding the reward space from Charting being underwhelming outside of these. So, in addition to the changes listed above, we're also open to buffing the effect of the Whirlpool surprise drink.
+
+Currently, Whirlpool Surprise provides you with an invisible +2 Sailing boost and a buff to your crew's Deckhandiness and Helmsmanship. Because we recognise that no player likes a nerf to XP rates, we're considering offering an additional bonus that would provide you with 1.5% additional Sailing XP. Please note, we wouldn't be able to provide Sailing XP for this change retroactively, and the 1.5% XP bonus would not apply to Port Task completions, nor to Barracuda Trials until we have resolved the issue described with Horizon's Lure above.
+
+Players who obtained drink crate rewards prior will no longer benefit from their effects without the correct requirements, even when stored in their Keg. Additionally, Whirlpool Surprise & Horizon's Lure XP boost effect don't stack together.
+
+Let us know how you feel about these changes.
+
+===Dwarf Multicannon===
+The Dwarf Multicannon has also been re-enabled to work against sea creatures! Both the Dwarf Multicannon, Poison Damage and Burn Damage now scale appropriately in line with damage reductions that regular combat has against sea creatures.
+{{Collapsed section end}}
+
+==What We're Working On - Thursday, November 20th==
+{{Collapsed section|18|CLICK HERE TO FIND OUT MORE}}
+Ahoy, Sailors. As we mentioned in our previous update, we buffed Sea Charting XP last night which should help to make your early Sailing grind a little faster. As a result of this change, we're retroactively granting players back the difference in XP gained via a coldfix later today. This will also include rectifying an issue for players who did not receive the full XP for Charting until a hotfix this morning.
+
+Game worlds will be taken offline for at least 40 minutes at ~14:15 UTC today. Any accounts impacted by 100 Sailing XP or more will benefit from this change.
+
+The reason for the cut-off point in XP is because downtime required will be longer when more accounts are impacted. The downtime has been considered and we felt that XP below 100 is negligible since players would likely prefer game worlds to be brought back online as quickly as possible.
+
+===Coming Today/Already Fixed===
+====Cargo Hold - Multiplayer====
+Currently, the ability to board other boats is linked to your status (whether your Private Chat is set to 'Friends', 'All' or 'Off'). This meant that players were able to board other boats and - depending on their settings - have access to the items within the Cargo Hold of the ship. Whilst we appreciate the thematics of piracy, it's not immediately obvious to players that these settings control access to your boat similar to a Player-Owned House. To resolve this issue in the short term, we're locking the Cargo Hold entirely to only be accessible to the Captain for now (preventing any form of multiplayer interaction on it).
+
+Next week, we'll add a setting to allow you to open it up again for other players on your boat, which will by default be OFF. If you want to avoid unwanted players getting on your boat, continue to use the 'friends' or 'private' status which will prevent them from joining. We'll explore how we can adjust settings for the Cargo Hold so that you can more choices with how you want to share items, e.g friends-only, clan-only, etc. in the longer term.
+
+====Boat Names====
+We're removing some of the words used in the pool used in boat naming to avoid some unfortunate combinations. Some players may find that their boat name has changed as a result.
+
+If you're not fond of destroying your ship to obtain a new one, then you'll undoubtedly stumble across an NPC during your Sailing journey who will rename your ship for you. You unlock this ability around lvl 60 Sailing.
+
+====Lost Items====
+The following sea drinks teleported you away from your boat (which was intentional) but, as a result, the game unintentionally wiped items stored in the Cargo Hold for a brief period of time.
+
+* Slug Balm
+* Way Home
+* Elven Wine
+* Fishier Stout
+* Exile's Welcome
+* Winter Sun
+* Martini
+* Portal Perry
+* Sea Shandy
+
+We've successfully fixed the bug, however we're aware that some players lost items. Alongside this post, we've deployed a fix to restore the following items to those impacted:
+
+* Cannonballs
+* Deep Sea Trawling Fish (including Offcuts)
+* Repair Kits
+
+====Cargo Hold - Preventing Items Being Lost====
+Currently, the Cargo Hold wipes items upon capsizing or teleporting. This was an intentional design choice as content is balanced around players Sailing to and from various locations. However, we appreciate that it can feel punishing and frustrating to lose items, especially if you have many stored within your Cargo Hold. Today, we're releasing a hotfix to limit the amount of Cannonballs that you can store to 2,000 (of each type). '''Next week''', the team will discuss further changes as we explore alternative solutions.
+
+====Other====
+* Fixed an issue where wealth restriction caused Group Ironmen to not be able to withdraw port task cargo.
+
+===Coming Next Week===
+As more feedback comes in, we'll continue to listen and triage bugs as quickly as we can. Here's an update on some of the more important bugs that we're aware of which impact you the most.
+
+====Boats Getting Stuck====
+We'll seek to resolve some of the ways that boats are getting stuck, especially around Ports, via an engine fix. For other areas, we will need to look at them on a case-by-case basis. We're making a space within the [https://discordapp.com/channels/324132423636090880/1440656893306736711 OSRS Discord] to report these areas, so it would be great if you could send us any reports if you find them and we'll investigate as soon as we can.
+
+====Shipyard====
+The 'Check Materials' prompt at the Shipyard is turned OFF by default. In next week's update, it will be ON by default. Make sure to check the 'Sailing' settings in your Settings Menu!
+
+You can see a full list of [[#A Primer on Sailing Settings - Click to Expand!|Sailing Settings]] in our section below!
+
+====Other====
+* We're investigating how we can make it clearer for players to get back to the Pandemonium if they teleport away during the quest.
+* We're also exploring feedback from the UIM community about restrictions in the Cargo Hold.
+* We're fixing an issue with the Collection Log button for the Shellbane Gryphon opening up Scurrius's tab.
+* Fixing various typos we spotted.
+* Adding the Sailing Skilling Event option into the Clans tab. Oops!
+* Sharks don't have bones, but in Gielinor they do! Some sea creatures are dropping bones when they shouldn't be. This will be fixed next week. Enjoy those bones while you can!
+* We'll fix an issue where using Repair Kits in the Shipyard doesn't visually update your boat's HP in the Sailing menu.
+* Completing Pandemonium will be made a requirement before you can use a Spyglass.
+* The Sea Charting interface level requirement filter will take into account quest requirements for Charting activities."
+* A very clever player has figured out that there is a Sailing Mermaid task which should accept 'Rune Med Helm' as an answer instead of just 'Iron Med Helm'. This will be fixed next week!
+* The Construction Skilling outfit will also work on Shipwrights' Workbench next week.
+{{Collapsed section end}}
+
+==20th November Coldfix - 4:05pm UTC==
+{{Collapsed section|18|CLICK HERE TO FIND OUT MORE}}
+Update (18:30 UTC) - Retroactive Sailing XP has been succcessfully added back to all acccounts. Access to Tombs of Amascut and Theatre of Blood is now restored.
+
+Update (17:50 UTC) - Some players may not yet have all XP returned. As we process these, if you are impacted, you will be force logged out of the game. If in combat, logout will occur after leaving combat. We advise avoiding dangerous activities during this time. Access to Tombs of Amascut and Theatre of Blood is temporarily disabled for safety.
+
+Our estimations for downtime needed to return all lost XP were incorrect.
+
+Rather than keeping the game offline for all players for even longer, we will be shortly bringing worlds back online. Some players will find they have not yet had all of their XP returned. We will instead process these returns while the game is live, and each player impacted will be force logged out of the game. If a player is in combat, you will be able to continue playing, but will be instantly logged out once you leave combat.
+
+We heavily advise that players do not engage in dangerous activities during this time. We are prioritising HCIM accounts first, and will inform you when we're finished with our work.
+
+As a temporary safety measure, we have disabled access to Tombs of Amascut and Theatre of Blood.
+{{Collapsed section end}}
+
+==An Update on Sailing - 19th November (21:40 UTC)==
+{{Collapsed section|18|CLICK HERE TO FIND OUT MORE}}
+What a day! Thank you so much to everyone who has logged in and played Sailing.
+
+Over 181,179 of you have trained the skill so far, with a total of 1.06b Sailing XP gained. Over 972 Soups have been earned alone. It's been truly wonderful watching so many of you discover and explore Gielinor's ocean.... And there's more to come! We’ve also seen your feedback, heard your praise, and recognised your frustrations.
+
+Sailing is a vast and expansive skill, with content spread across all levels. Throughout your levelling journey, you’ll unlock various upgrades along the way that help you level up even faster – whether it be a new tool or an entirely different way to train. As you progress, you’ll notice that your experience rates increase too! We highly encourage players to be diverse in the way they’re training, rather than sticking to one thing if you want to maximise your potential, since these milestone unlocks sometimes lead to significant 'breakpoints' in the XP/hr available to you. This means that even if you're running Port Tasks, unlocking a new tier of shipwreck to salvage or a new set of things to chart might lead to better experience gains.
+
+We’ve taken time to check the data available to us and compared that to what we’d expected players to achieve during the 1-30 grind. While the top percentile of players are close to our predictions, it’s clear that most are not sharing the same experience. When combining this data alongside your feedback, we felt some changes were needed.
+
+In this section we’d like to talk about the early grind, specifically between levels 1-30, and what we’re doing to help improve that.
+
+===First, let’s just get straight into what changes we’re making now:===
+* Increased the base XP from each Charting point discovered. We’ll also be retroactively granting the difference in XP gained for those who have already discovered said Charting point, which will come tomorrow via a coldfix so we have time to make sure no single point of XP is missed!
+** Generic charting point XP increased from 15 XP to 35 XP.
+** Spyglass charting point XP increased from 15 XP to 50 XP.
+** Drink Crate charting point XP increased from 20 XP to 75 XP.
+** Current Duck charting point XP increased from 30 XP to 125 XP.
+** Mermaid Dive point charting XP increased from 60 XP to 175 XP.
+** Weather troll point charting XP increased from 120 XP to 250 XP.
+* Increased the XP gained when fully Charting a section of sea. We’ll also be retroactively granting the difference in XP gained for those who have already discovered said Charting point, which will come tomorrow via a coldfix so we have time to make sure no single point of XP is missed! Note: the interface will still show the old XP values until this coldfix is out.
+** Level 5 Seas increased from 100 XP to 190 XP.
+** Level 12 Seas increased from 200 XP to 270 XP.
+** Level 22 Seas increased from 470 XP to 510 XP.
+** Level 24 Seas increased from 570 XP to 590 XP.
+* Increased the XP gained from completing Port Tasks from levels 1-30 by 20%
+** ''It is not possible for us to retroactively grant the difference in XP that would have been gained here.''
+* Increased the XP gained from Shipwreck salvage from levels 1-30 by 20%
+** ''It is not possible for us to retroactively grant the difference in XP that would have been gained here.''
+* Increased the time all Shipwreck salvage lasts by an additional minute.
+** Note: the timer for Shipwreck salvage de-spawning starts the moment a player begins to salvage.
+
+These changes won’t suddenly make you flash through the early levels and find yourself halfway to maxing, but we hope they help make it feel a little better than it currently does and make exploring the seas feel even more rewarding!
+
+----
+
+===Next, a word from Mod Kieren, Design Director for Old School:===
+{| class="wikitable" style="text-align: center;"
+|-
+| It's been a thrill to see everyone finally jumping on and fully experience Sailing. Today's been great and I can't wait to see the culmination of the 99 race over the coming days.
+
+XP rates are a huge topic which we're seeing lots of discussion around. It's one of the most important parts of any skill to get right and we'll make the adjustments necessary both now and in future weeks if needed, ensuring Sailing is in the right spot for the long term.
+
+I'd like to explain our intentions with Sailing balancing.
+
+Sailing 1-99 by our calculations is in a good place. It fits nicely within the faster 50% of our skills. We think this is appropriate for the level of attention it requires and number of resources it will consume.
+
+The big difference with Sailing is that we intentionally took a different approach for the early levels, especially 1-30. Most skills in the game race through these levels extremely quickly, some skipping it almost entirely via quests too. We put more weighting on this part of progression, ramping up XP gain slower than usual until the later levels. The primary reason for this was to help the learning process for captaining your boat, ensuring you felt well equipped and ready for the Barracuda trial by the time you got there.
+
+We've been clear to ourselves before launch that we don't want to make rash calls, in knowledge that players will not be making optimal decisions, and that efficient methods will be discovered as information is shared. However, we went into the launch prepared, with the help of our Analytics team who've got reports automatically generating, providing us valuable information on the XP rates you are all getting at different level brackets. That has been immensely valuable in spotting what should be changed considering the feedback many of you have presented.
+
+With that in mind, we're happy we have the info we need to make an appropriate buff here, with the aim of specifically improving 1-30 primarily.
+
+Thank you again and apologies we didn't get it to where it ought to have been on launch. That said, what we promise is we will always listen to your feedback and adjust until we're happy it's right
+|}
+
+----
+
+===Construction XP===
+We're halving the amount of Construction XP given from all Sailing workbenches. Unintentionally, Sailing introduced an AFK-style Construction method with XP rates that are much higher than we had intended for the effort required. There's an established Construction XP value for each plank that we tried to stay true to. However, we failed to consider just how AFK this method would be, and whether we should stray from the established XP value. We considered other options, such as increasing the animation time it takes to create items, but this would have had unintended negative effects on important Sailing items like Boat Repair Kits. Adjusting the Construction XP from Planks feels like the right way to go to resolve this issue, but we'll of course keep an eye on your feedback.
+{{Collapsed section end}}
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blighted, Blossom, Boko, Bruno, Chilly, Criminal, Curse, Daizong, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

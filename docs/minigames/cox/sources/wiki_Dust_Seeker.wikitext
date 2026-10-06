@@ -1,0 +1,48 @@
+{{Infobox Combat Achievement
+|name = Dust Seeker
+|image = [[File:Chambers of Xeric - keystone room.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete a Chambers of Xeric Challenge mode raid in the target time.
+|tier = Elite
+|monster = Chambers of Xeric: Challenge Mode
+|type = Speed
+|id = 292
+|leagueRegion = Kourend
+}}
+'''Dust Seeker''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to complete a challenge mode [[Chambers of Xeric]] run in the targeted time.
+
+{|class=wikitable style="text-align:center;"
+!Number of players
+!Completion time required
+|-
+|1
+|1 hour 10 minutes
+|-
+|2
+|1 hour 5 minutes
+|-
+|3
+|50 minutes
+|-
+|4
+|45 minutes
+|-
+|5-10
+|42 minutes
+|-
+|11-15
+|45 minutes
+|-
+|16-23
+|1 hour
+|-
+|24+
+|1 hour 20 minutes
+|}
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric: Challenge Mode}}
+
+{{Combat Achievements}}

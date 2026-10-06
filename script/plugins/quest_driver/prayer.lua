@@ -6,7 +6,8 @@
 --
 --   t.prayer.set(name, on)  -> ok | refused | no_row | not_found | not_visible | timeout
 --   t.prayer.read()         -> ok, detail, set      (set[name] = true/false, all 29)
---   t.prayer.points()       -> ok, detail, reading  (t.skill.read("prayer")'s reading)
+--   t.prayer.points()       -> ok, reading, detail  (t.skill.read("prayer")'s reading
+--                              plus .points and .text; seam22 swapped the order)
 --   t.prayer.set_on_tick(name, on, tick) / switch(list, opts) / flick(name, at_tick)
 --                           -> result, detail, info -- presses on a named SERVER
 --                              tick; the section at the end of this file
@@ -101,6 +102,63 @@ QD.prayer.TABLE = {
     { "augury",              "prayerbook:prayer28", "varb5465_prayer_augury" },
     { "preserve",            "prayerbook:prayer29", "varb5466_prayer_preserve" },
 }
+
+-- THE EXCLUSION GROUPS (raid seam31 play_library_faults).  "Two prayers that
+-- share a group cannot be up together: switching one on switches the other
+-- off" (skill_prayer/configs/prayers.constant:69-70); each prayer's groups are
+-- its `data=group` lines in skill_prayer/configs/prayers.dbrow, copied here
+-- in the same order, and the server applies them in `[proc,prayer_toggle]` ->
+-- `~prayer_deactivate_conflicting` (prayer.rs2:309-318) BEFORE it lights the
+-- new one.  A press is a toggle, so a caller lighting X must never also send
+-- an "off" for a prayer X shares a group with: the server has already put it
+-- out, and the "off" press lights it again (raid seam30 ny30d: Protect from
+-- Missiles held t67-362 while Protect from Magic was asked seven times).
+-- The four with no group (rapidrestore, rapidheal, protectitem, preserve)
+-- conflict with nothing.
+QD.prayer.GROUPS = {
+    thickskin = { "defence" }, rockskin = { "defence" }, steelskin = { "defence" },
+    burstofstrength = { "strength" }, superhumanstrength = { "strength" }, ultimatestrength = { "strength" },
+    clarityofthought = { "attack" }, improvedreflexes = { "attack" }, incrediblereflexes = { "attack" },
+    sharpeye = { "ranged", "attack", "strength", "magic" },
+    hawkeye = { "ranged", "attack", "strength", "magic" },
+    eagleeye = { "ranged", "attack", "strength", "magic" },
+    mysticwill = { "magic", "attack", "strength", "ranged" },
+    mysticlore = { "magic", "attack", "strength", "ranged" },
+    mysticmight = { "magic", "attack", "strength", "ranged" },
+    protectfrommagic = { "overhead" }, protectfrommissiles = { "overhead" }, protectfrommelee = { "overhead" },
+    retribution = { "overhead" }, redemption = { "overhead" }, smite = { "overhead" },
+    chivalry = { "attack", "strength", "defence", "ranged", "magic" },
+    piety = { "attack", "strength", "defence", "ranged", "magic" },
+    rigour = { "attack", "strength", "defence", "ranged", "magic" },
+    augury = { "attack", "strength", "defence", "ranged", "magic" },
+    rapidrestore = {}, rapidheal = {}, protectitem = {}, preserve = {},
+}
+
+-- QD.prayer.conflicts(a, b) -> true when lighting `a` puts `b` out on the
+-- server (they share an exclusion group, prayers.dbrow; a prayer never
+-- conflicts with itself).  Both names in the content spelling of
+-- QD.prayer.TABLE; a name with no row there is a caller's bug and raises.
+function QD.prayer.conflicts(a, b)
+    local ea, why_a = QD.prayer._entry(a)
+    assert(ea, why_a)
+    local eb, why_b = QD.prayer._entry(b)
+    assert(eb, why_b)
+    if ea[1] == eb[1] then
+        return false
+    end
+    local ga = QD.prayer.GROUPS[ea[1]]
+    local gb = QD.prayer.GROUPS[eb[1]]
+    assert(ga, "prayer.conflicts: no group row for " .. ea[1])
+    assert(gb, "prayer.conflicts: no group row for " .. eb[1])
+    for i = 1, #ga do
+        for j = 1, #gb do
+            if ga[i] == gb[j] then
+                return true
+            end
+        end
+    end
+    return false
+end
 
 -- The server's refusal sentences, prayer.rs2 `prayer_checks` (:94, :98, :103)
 -- and the drain-out line (`[timer,prayer_drain]`).  Matched as plain
@@ -244,6 +302,11 @@ function QD.prayer.set(name, on)
         return before_result, "prayer.set " .. entry[1] .. ": the varbit before the press read "
             .. tostring(before_result) .. " " .. tostring(before)
     end
+    -- SEAM-TOGETHER (raid seam27): inside t.together, press and do not wait
+    -- (pointer.lua, the several_inputs_one_tick banner).
+    if QD._together ~= nil then
+        return QD._together_prayer(entry, want, word, before)
+    end
     if before == want then
         return "ok", string.format(
             "%s already %s: %s = %d (%s) on drive tick %d -- no press made (a press would toggle it %s)",
@@ -337,16 +400,28 @@ function QD.prayer.read()
         tick, #lit, #QD.prayer.TABLE, table.concat(lit, ", "), overhead), set
 end
 
--- t.prayer.points() -> "ok", detail, reading
--- The prayer stat as t.skill.read("prayer") reads it (level = points left,
--- base_level = the prayer level), with a detail a ledger row can carry.
+-- t.prayer.points() -> "ok", reading, detail
+-- The prayer stat, in t.skill.read("prayer")'s own shape: the SECOND value is
+-- the reading (level = points left, base_level = the prayer level,
+-- experience, stated), plus `points` (= level, the number a room test wants)
+-- and `text`, the detail a ledger row can carry, which is also the third value.
+--
+-- Raid seam22 (party_death_and_member_readers): it used to answer
+-- ("ok", detail, reading), so every room author who wrote it the way they
+-- write `local _, pp = t.skill.read("prayer")` got the detail STRING in `pp`
+-- and called it unusable (the Normal Sotetseg review; four of six Normal
+-- authors fell back to t.skill.read). Same numbers, same read, now the order
+-- every other reader has. Record it with t.check(name, r, reading.text).
 function QD.prayer.points()
     local result, reading = QD.skill.read("prayer")
-    if result ~= "ok" then
-        return result, "prayer.points: skill.read(prayer) answered " .. tostring(result) .. " " .. tostring(reading)
+    if result ~= "ok" or type(reading) ~= "table" then
+        local why = "prayer.points: skill.read(prayer) answered " .. tostring(result) .. " " .. tostring(reading)
+        return result ~= "ok" and result or "refused", why, why
     end
-    return "ok", string.format("prayer points %d/%d (xp %d) on drive tick %d",
-        reading.level, reading.base_level, reading.experience, api_drive.tick()), reading
+    reading.points = reading.level
+    reading.text = string.format("prayer points %d/%d (xp %d) on drive tick %d",
+        reading.level, reading.base_level, reading.experience, api_drive.tick())
+    return "ok", reading, reading.text
 end
 
 -- ------------------------------------------------------------------------

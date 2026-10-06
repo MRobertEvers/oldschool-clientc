@@ -1,0 +1,95 @@
+{{Update|date=16 July 2020|link=https://secure.runescape.com/m=news/ferox-enclave?oldschool=1|category=game}}
+[[File:Ferox Enclave newspost.png|right]]
+{{clear}}
+
+<center>''This week’s update comes to you live (for now) from the all-new Wilderness Hub.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Ferox Enclave - The Wilderness Hub}}
+
+
+[[File:Ferox Enclave (1).gif|center|450px]]
+
+
+Back in June's [https://secure.runescape.com/m=news/gielinor-gazette-june-2020?oldschool=1 Gielinor Gazette], we spoke about the Wilderness Hub, a new home for PvP in the heart of the Wilderness. Today that update goes live, and it’s called Ferox Enclave. Let's take a tour!
+
+Ferox Enclave is a rough-and-tumble frontier town, featuring all the facilities a bold adventurer might need to set out on a Wilderness adventure. There’s a bank, a pub and even a chapel, complete with rejuvenation pools. Ahh... refreshing!
+
+It’s also the new home of the Last Man Standing and Clan Wars minigames. There are now lobbies for all three of the Last Man Standing game modes, spread across three floors of a building on the north side of the Enclave, next to The Old Nite pub. The new Clan Wars area is to the south. Incidentally, the area southeast of the Duel Arena where both minigames used to be is now an abbey, complete with a Cooking range and Prayer altar.
+
+Now that you’ve had a look around, why not say hello to the Enclave’s founder, Ferox? He’s an ex-Zamorakian acolyte, anxious to learn more about the history of the Wilderness. He’s even uncovered a spell that can change your respawn point to Ferox Enclave for a one-time fee of 5 million coins. You can speak to Ferox to switch your respawn point whenever you wish.
+
+Now, let’s talk about the Enclave’s main attraction: the PvP opportunities! Although the town itself is a safe zone, there’s plenty of room for you to execute your murderous rampages on the outskirts. To the south, you’ll exit into level 13-14 Wilderness. To the east and west, it’s level 15, and to the north, level 16. The safe zone extends for a few tiles outside each exit, so tread carefully.
+
+Crucially, Ferox has a strict ban on teleblocked individuals. If you’re unlucky enough to get teleblocked on your way back to the Enclave, you will ''not'' be allowed in, and you ''can'' be attacked while you’re stuck outside.
+
+You’ll be able to reach the Enclave on foot, via the Last Man Standing and Clan Wars minigame teleports and jewellery, or by waka canoe from anywhere on the River Lum. The locals can’t wait to meet you!
+
+'''Very High Risk Worlds'''
+
+[[File:Ferox Enclave (2).png|center|136px]]
+
+
+To accompany the Ferox Enclave update, we’ve turned High Risk worlds into Very High Risk Worlds. Essentially this means that in PvP scenarios, you will lose '''all''' your items, whether you are unskulled or not. We’ve changed the Items Lost on Death interface and updated the log in messaging on these worlds to reflect the changes.
+
+'''What’s Next for PvP?'''
+
+[[File:Ferox Enclave (3).png|center|450px]]
+
+
+We know you’re anxious to hear more about our plans for the rest of PvP – in particular, the Revenant Caves and Bounty Hunter. Rest assured that these updates haven’t been forgotten in all the excitement. In fact, we’ve outlined a few ideas for improvements below.
+
+
+'''Revenant Caves'''
+
+As you know, we’re considering a number of issues with Revenant Caves, including the impact of drops on the in-game economy, real world trading, the stats on the Bracelet of Ethereum, and all kinds of other nitty-gritty issues.
+
+After some deliberation, we’re changing two things.
+
+Firstly, we’ll be reducing the damage reduction stat on the Bracelet of Ethereum, and carefully monitoring the effect this has on the popularity of the Revenant Caves.
+
+Additionally, we’ll also be working on an alternative to the cave system. A lot of you have said that the caves themselves feel artificial, and that’s something we’d like to work on. We don’t know quite yet what these alternatives might look like, but we’ve seen plenty of awesome player suggestions to consider.
+
+
+'''Bounty Hunter'''
+
+We’ll be proceeding with the changes to Bounty Hunter as described in the Gielinor Gazette.
+
+The current target system will remain in place. We would, however, like to add a PvP World-style PJ Timer, to make things fairer.
+
+All rewards will eventually be moved to Last Man Standing, which will also be seeing new restrictions in order to prevent botting.
+
+Your remaining emblems will be converted to points on log in, which you can then spend in the shop. These points, and the shop, will be wiped after the grace period ends.
+
+We’d also like to investigate other incentives for PKing – we know it’s not all about the money, you want fame and glory, too! We’re currently looking at installing Noticeboards, which will display the names of the most prolific player killers, alongside similar features.
+
+{{Horizontal Line}}
+
+'''Official Merch Store Update'''
+
+[[File:Ferox Enclave (4).png|center|500px]]
+
+
+This week, the [https://runescape.backstreetmerch.com/ Official Merch Store] is getting a godlike new range! Angels Scapes has collaborated with Tehnoobshow to bring you a limited-edition pin set based on the iconic RuneScape Gods Exposed series. For the first time ever you’ll be able to show your support for Guthix, Zamorak, Saradomin and, of course, the mighty Gonthorian. The set is available exclusively by pre-order, ending on August 2nd at midnight PST.
+
+In addition, you can take your godly garb everywhere with three new Max Cape keyrings, each proudly displaying the colours of Guthix, Saradomin and Zamorak. We expect these to sell out fast – so don’t miss out!
+
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+*H.A.M. guards no longer allow unlimited numbers of coin pouches to stack in your Inventory.
+*Pets are no longer welcome in the Nightmare’s arena. This does not prevent the Little Nightmare pet from spawning.
+*Fixed an issue where players would be hit by Vespula’s melee attack if the portal died in Chambers of Xeric. Is anyone else getting déjà vu?
+*The Agility route to the God Wars Dungeon is now marked with a shortcut icon.
+*With the Hallowed Focus equipped, you will always attempt to cast the lowest level enchantment spell you have access to, since you’ll always succeed.
+*Corrected a typo in the 'Shilo Village' quest.
+*Raised the priority of various attack animations in the God Wars Dungeon to stop them being interrupted by defend animations.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,650,66170657 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''Mods Acorn, Arcane, Archie, Ash, Banjo, Boko, Bonsai, Bruno, Curse, Deagle, Ed, Elena, Errol, Fed, Flippy, Gayns, Gee, Halo, Husky, Impact, Jndr, John C, Kandosii, Kieren, Lenny, Lottie, Lyric, Mack, Maylea, MikeD, Nasty, Oasis, Roq, Ry, Steve W, Sween, Tide, Vegard, Weath & West'''<br/>''The Old School Team''

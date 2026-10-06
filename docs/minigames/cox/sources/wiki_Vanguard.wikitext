@@ -1,0 +1,298 @@
+{{Otheruses|the boss|the pet|Vanguard (pet)}}
+{{Infobox Monster
+|version1 = Magic
+|version2 = Melee
+|version3 = Ranged
+|version4 = Magic (Challenge Mode)
+|version5 = Melee (Challenge Mode)
+|version6 = Ranged (Challenge Mode)
+|version7 = Moving
+|name = Vanguard
+|image1 = [[File:Vanguard (magic).png|280px]]
+|image2 = [[File:Vanguard (melee).png|280px]]
+|image3 = [[File:Vanguard (ranged).png|280px]]
+|image4 = [[File:Vanguard (magic).png|280px]]
+|image5 = [[File:Vanguard (melee).png|280px]]
+|image6 = [[File:Vanguard (ranged).png|280px]]
+|image7 = [[File:Vanguard (moving).png|280px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[5 January]] [[2017]]
+|release3 = [[5 January]] [[2017]]
+|release4 = [[17 May]] [[2018]]
+|release5 = [[17 May]] [[2018]]
+|release6 = [[17 May]] [[2018]]
+|release7 = [[5 January]] [[2017]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric
+|update3 = Chambers of Xeric
+|update4 = Chambers of Xeric: Challenge Mode Is Here!
+|update5 = Chambers of Xeric: Challenge Mode Is Here!
+|update6 = Chambers of Xeric: Challenge Mode Is Here!
+|update7 = Chambers of Xeric
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size = 3
+|examine = Formerly a member of Xeric's elite tactical unit.
+|attributes = xerician
+|xpbonus1 = 27.5
+|xpbonus2 = 7.5
+|xpbonus3 = 5
+|xpbonus4 = 40
+|xpbonus5 = 12.5
+|xpbonus6 = 7.5
+|xpbonus7 = 
+|max hit1 = 22
+|max hit2 = 18
+|max hit3 = 22
+|max hit4 = 33
+|max hit5 = 27
+|max hit6 = 33
+|max hit7 = 
+|aggressive = Yes
+|poisonous = No
+|attack style1 = [[Magic]]
+|attack style2 = [[Melee]]
+|attack style3 = [[Ranged]]
+|attack style4 = [[Magic]]
+|attack style5 = [[Melee]]
+|attack style6 = [[Ranged]]
+|attack style7 = None
+|attack speed = 4
+|hitpoints1 = 180
+|hitpoints2 = 180
+|hitpoints3 = 180
+|hitpoints4 = 280
+|hitpoints5 = 280
+|hitpoints6 = 280
+|hitpoints7 = 
+|scaledhp = Yes
+|att1 = 150
+|att2 = 150
+|att3 = 150
+|att4 = 225
+|att5 = 225
+|att6 = 225
+|att7 = 
+|str1 = 150
+|str2 = 150
+|str3 = 150
+|str4 = 225
+|str5 = 225
+|str6 = 225
+|str7 = 
+|def1 = 160
+|def2 = 160
+|def3 = 160
+|def4 = 240
+|def5 = 240
+|def6 = 240
+|def7 = 
+|mage1 = 150
+|mage2 = 150
+|mage3 = 150
+|mage4 = 225
+|mage5 = 225
+|mage6 = 225
+|mage7 = 
+|range1 = 150
+|range2 = 150
+|range3 = 150
+|range4 = 225
+|range5 = 225
+|range6 = 225
+|range7 = 
+|attbns1 = 0
+|attbns2 = 20
+|attbns3 = 0
+|attbns4 = 0
+|attbns5 = 20
+|attbns6 = 0
+|attbns7 = 
+|strbns1 = 0
+|strbns2 = 10
+|strbns3 = 0
+|strbns4 = 0
+|strbns5 = 10
+|strbns6 = 0
+|strbns7 = 
+|amagic1 = 40
+|amagic2 = 0
+|amagic3 = 0
+|amagic4 = 40
+|amagic5 = 0
+|amagic6 = 0
+|amagic7 = 
+|mbns1 = 25
+|mbns2 = 0
+|mbns3 = 0
+|mbns4 = 25
+|mbns5 = 0
+|mbns6 = 0
+|mbns7 = 
+|arange1 = 0
+|arange2 = 0
+|arange3 = 40
+|arange4 = 0
+|arange5 = 0
+|arange6 = 40
+|arange7 = 
+|rngbns1 = 0
+|rngbns2 = 0
+|rngbns3 = 25
+|rngbns4 = 0
+|rngbns5 = 0
+|rngbns6 = 25
+|rngbns7 = 
+|dstab1 = 315
+|dstab2 = 150
+|dstab3 = 55
+|dstab4 = 315
+|dstab5 = 150
+|dstab6 = 55
+|dstab7 = 
+|dslash1 = 340
+|dslash2 = 150
+|dslash3 = 60
+|dslash4 = 340
+|dslash5 = 150
+|dslash6 = 60
+|dslash7 = 
+|dcrush1 = 400
+|dcrush2 = 150
+|dcrush3 = 100
+|dcrush4 = 400
+|dcrush5 = 150
+|dcrush6 = 100
+|dcrush7 = 
+|dmagic1 = 110
+|dmagic2 = 20
+|dmagic3 = 400
+|dmagic4 = 110
+|dmagic5 = 20
+|dmagic6 = 400
+|dmagic7 = 
+|dlight1 = 50
+|dlight2 = 400
+|dlight3 = 300
+|dlight4 = 50
+|dlight5 = 400
+|dlight6 = 300
+|dlight7 = 
+|dstandard1 = 50
+|dstandard2 = 400
+|dstandard3 = 300
+|dstandard4 = 50
+|dstandard5 = 400
+|dstandard6 = 300
+|dstandard7 = 
+|dheavy1 = 50
+|dheavy2 = 400
+|dheavy3 = 300
+|dheavy4 = 50
+|dheavy5 = 400
+|dheavy6 = 300
+|dheavy7 = 
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 7529
+|id2 = 7527
+|id3 = 7528
+|id4 = 7529
+|id5 = 7527
+|id6 = 7528
+|id7 = 7526
+|leagueRegion = Kourend
+}}
+The '''Vanguard''' are a trio of Xeric's former commanders encountered in the [[Chambers of Xeric]].
+
+Each Vanguard is weak to a specific attack style, following the [[combat triangle]]:
+*The ranged Vanguard is weak to [[Melee]] attacks and can be identified by the rocks gathered beneath its tentacles.
+*The melee Vanguard is weak to [[Magic]] attacks and can be identified by the tentacles raised up in front of it.
+*The mage Vanguard is weak to [[Ranged]] attacks and can be identified by the lack of tentacles.
+
+[[File:Fighting the Vanguard.png|thumb|left|350px|A group of players battle against the Vanguard.]]
+{{clear|left}}
+
+==History==
+The Vanguard, whose real names are unknown, were a trio of elite officers that served under Xeric during his reign. Each officer specialized in a specific combat style, and when the three were together, it was said that they were unstoppable. Their skill quickly caught Xeric's attention, and he appointed them as commanders of his army.{{CiteText|text=Vanguard judgement|quote=The most prominent commanders of Lord Xeric's army were known as the Vanguard, three elite officers who rose quickly through the ranks. Their cunning on the battlefield, their ruthlessness in the interrogation chambers and their loyalty to our Lord were exemplary. Each of the Vanguard was proficient in a different form of combat, and when the three stood together, none could prevail against their united power because they would share their strength to protect each other. For their successes in his service, Lord Xeric rewarded them with the command of his army.}}
+
+When disloyalty was suspected amongst the populace, the Vanguard would order their troops into the dissidents' homes at night. Being authorized to employ any tactic to make the suspects talk, the Vanguards soon developed a reputation for their cunning on the battlefield, ruthlessness in interrogation, and loyalty to Xeric.{{CiteText|text=Vanguard judgement|quote=Whenever traitors muttered against our Lord, his troops would ravage their homes in the dead of night, arresting anyone suspected of disloyalty or rebellion. Under questioning by the commanders, who were empowered to use any interrogation techniques they deemed necessary in Lord Xeric's service, the traitors would inevitably reveal more suspects for the troops to arrest. Thus the power of our Lord Xeric was maintained over his people.}}
+
+Despite their abilities, when the people of Great Kourend rose against Xeric's tyranny, the Vanguards fled to save their own lives, which Xeric and an aide took note of.{{CiteText|text=Vanguard judgement|quote=A proletarian uprising caught the army by surprise. Had the Vanguard performed their duty, perhaps disaster would have been averted, and Lord Xeric would have remained on the throne of Kourend. However, even the legendary Vanguard were frail. As their troops were slaughtered around them by the rage of the proletariat, the Vanguard fled the kingdom to protect their own skins. Lord Xeric took note of their retreat, and I witnessed him vow that their fate would be worse than if they had stayed to die serving him.}} The Vanguard later discovered Xeric's camp at [[Mount Quidamortem]], apologizing to Xeric for their failure and promised to serve him again, with Xeric treated them with respect in return, which initially confused the aide, knowing of their cowardice.{{CiteText|text=Vanguard judgement|quote=Then, one day, our sentinels reported movement on the flanks of the mountain. It was the Vanguard. They had heard of our new settlement on Mount Quidamortem, and had come to re-pledge their allegiance to our Lord. Their apology was abject, I will admit. They admitted that they had fled the battle, abandoning their duty to Lord Xeric. They pledged that they would never fail him again, if he would take them back into his service. I waited for Lord Xeric to vent his wrath upon them. But he did not. Instead he welcomed the Vanguard, letting them approach his presence - an honour granted only to his most trusted servants. He bade us deck them in fine clothes and set out a feast in their honour, as though they were his long-lost kin rather than traitors who had failed him. I confess I almost came to doubt the wisdom of Lord Xeric - how could he stomach the presence of such craven turncoats, let alone grant them such honour?}} At some point, Xeric brought the trio down to the caves to grant them more power, lowering their guard.{{CiteText|text=Vanguard judgement|quote=Lord Xeric invited the Vanguard to enter the caverns with him, so that he could imbue them with the same power that he could now draw from the crystals of the mountain. He allowed me to follow, as a witness. We travelled through the caverns to a fiery chamber, where glowing lava reflected off the facets of a hundred orange crystals. Once there, Lord Xeric invited the Vanguard to lower their defences so he could instil into them the power of the crystals. I watched in distaste as the traitors reached out to accept the power - power that had never been offered to me. Instead, I saw our Lord's expression change. The sickly benevolence in his eyes was replaced with bloodshot wrath, and his face contorted into a sneer of derision. The Vanguard realised that they had been tricked - but it was too late.}} They realized the deceit too late as Xeric, fuming at their betrayal, melted their bodies down and reforged them into crustacean-like creatures, their souls completely destroyed.{{CiteText|text=Vanguard judgement|quote=Their grasping hands twisted. Their legs buckled. Their skin glowed, as if the heat of the chamber's lava had set their blood to boiling. From their mouths came a ghastly bubbling scream that rapidly died away as their ruined bodies collapsed to the ground. But that was not the end. Lord Xeric waved a hand in a curious gesture, and I felt a magical wave emanating from the crystals of the chamber. Writhing on the ground, the Vanguard began to melt and re-form into new shapes. Soon three lumpen figures lay, hunching on the ground at Lord Xeric's feet. There was no light of intelligence in their eyes; their souls had clearly been destroyed.}} Xeric coldly scolded the trio and ordered them to stand guard in the caves until the end of time.{{CiteText|text=Vanguard judgement|quote=And then, in tones of the coldest malice, Lord Xeric addressed them:<br>You failed me. You crawled away from my service to save your skins. Know, now, that I do not forgive such failure. I do not forget such failure. Had you fled to the ends of the world, my vengeance would have pursued you. Had you taken your own sorry lives to escape my wrath, even beyond the gates of death my revenge would have come upon you. Instead you came to grovel at my feet, snivelling and begging to be taken back. Your apology is not accepted. Now you can serve me in your new forms. In life you stood united, and you betrayed me. Now I grant you an un-life, standing united as before, but bound to the crystals of my caverns so you cannot fail me again. Guard my chambers, protect my secrets until the end of time.}} The follower, who accompanied Xeric as a witness, was traumatized by the event and recorded it so others who came would learn of the fate of those who betrayed Xeric.{{CiteText|text=Vanguard judgement|quote=That day, Lord Xeric bade me record all that I had seen of the Judgement of the Vanguard. My record is to stand as a testimonial to his wrath and his vengeance. I have written it down faithfully. So now you have read to the end, reader, learn ye from what I have recorded here. Learn ye that, if you must choose between serving Lord Xeric and saving your own skin, our Lord will not forgive those who choose poorly. Learn ye from the fate of the Vanguard. And, if ye fail to learn... upon your own head be your fate.}}
+
+==Mechanics==
+The three Vanguards originally spawn underground. When a player gets near one of the holes, all three will burst from the ground.
+
+All Vanguards attack three times with each attack; however, the [[magic]] and [[ranged]] Vanguards use AoE attacks (one always hitting the main target while two are launched elsewhere). The [[melee]] Vanguard simply attacks its target three times for every attack it performs. Protection prayers will not nullify their damage, but they will reduce it by a significant amount.
+[[File:Vanguard health difference near threshold.png|thumb|left|200px|The swirling mass around a Vanguard, indicating that the difference between the three's health is approaching the maximum threshold.]]
+To harm the Vanguards, damage must be '''spread equally''' to all three Vanguards. If just one of the Vanguard is heavily damaged while the others have much higher health (a difference of 40% in groups of four or less, and 33.3% in groups of five or more), the Vanguards will immediately shuffle and restore their health to full. As a warning indicator, a swirling mass of energy will appear around the Vanguards, which brightens in colour the closer they are to a forced heal.
+
+To stop this from occurring, the Vanguards' health must be within similar range of the other Vanguards by the time they shuffle positions. Vanguards will shuffle every 20 to 36 ticks on their own.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1437925375535984642|date=14 September 2021|archiveurl=https://web.archive.org/web/20210915112056/https://twitter.com/JagexAsh/status/1437925375535984642|archivedate=15 September 2021|quote=[How long do the vanguards stay attacking until they go back down to rotate, excluding the effects of healing which makes them go down instantly?] 20 - 36 ticks, I think.}} The Vanguards cannot be attacked while in their shell, but any damage dealt just before they shuffle will still count. When shuffling, they will lose aggression over their current target. If the damage is fatal but hits after the Vanguard goes into its shell, it will survive the hit and restore 1 health.
+
+As uncontrolled high damage is detrimental, weapons with low damage per hit such as [[toxic blowpipe]] are highly recommended. It may also be worthwhile to not activate damage boosting prayers and unequip gear that increases damage if there is a risk of dealing too much damage. Knowing the maximum hit for each weapon used is helpful.
+
+Stat drains are not recommended for Vanguards, as they will restore all drained stats upon retreating into their shell. Instead, opt for damaging specials.
+{{Clear|left}}
+
+==Drops==
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Vanguard judgement|quantity=1|rarity=Always|altrarity=Never|gemw=No|raritynotes=<ref name=book group="d">The book is dropped once all Vanguards are dead. No longer dropped after reading the book.</ref>}}
+{{DropsLine|name=Elder (+)(4)|quantity=1|rarity=Always|raritynotes=<ref group="d" name="vanguard">The Vanguard's combat style determines which potion is dropped.</ref>|gemw=No}}
+{{DropsLine|name=Twisted (+)(4)|quantity=1|rarity=Always|raritynotes=<ref group="d" name="vanguard"/>|gemw=No}}
+{{DropsLine|name=Kodai (+)(4)|quantity=1|rarity=Always|raritynotes=<ref group="d" name="vanguard"/>|gemw=No}}
+{{DropsLine|name=Xeric's aid (+)(4)|quantity=1-2|rarity=always|raritynotes=<ref group="d" name="potionA">2 from the melee, 1 from the other two.</ref>|gemw=No}}
+{{DropsLine|name=Revitalisation (+)(4)|quantity=2|rarity=Always|raritynotes=<ref group="d" name="range">Only from the ranged vanguard.</ref>|gemw=No}}
+{{DropsLine|name=Prayer enhance (+)(4)|quantity=1|rarity=Always|raritynotes=<ref group="d" name="mage">Only from the magic vanguard.</ref>|gemw=No}}
+{{DropsTableBottom}}
+{{reflist|group=d}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Overload (+)(4)|quantity=1|rarity=1/3|raritynotes=<ref group="d">At least one Overload (+)(4) is given per Vanguard room, up to a maximum of 3.</ref>|gemw=No}}
+{{DropsTableBottom}}
+{{reflist|group=d}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 June 2024
+|type = hotfix
+|change = Fixed an issue where the Vanguards were not appearing consistently due to a recent engine change.
+}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change = 
+* Vanguards drops have been standardized with overload drop mechanics remaining unchanged.
+* Melee Vanguard now drops 2 [[Xeric's aid]] and an [[elder potion]].
+* Ranged Vanguard now drops 1 Xeric's aid, 2 [[revitalisation potion]]s and a [[twisted potion]].
+* Magic Vanguard now drops 1 Xeric's aid, 1 [[prayer enhance]] and a [[kodai potion]].
+}}
+{{Subject changes
+|date = 28 May 2020
+|update = Chambers of Xeric Improvements
+|poll = Old School Content Poll 71: Gauntlet, Grotesques, CoX and more
+|change = 
+*Vanguards now have a visual cue that indicates whether their health is too high or low.
+*The Vanguards will now heal themselves when their health differs by 40% in groups of four or less rather than 33%.
+}}
+{{Subject changes
+|date = 21 May 2020
+|update = Vanguard Improvements
+|poll = Old School Content Poll 71: Gauntlet, Grotesques, CoX and more
+|change = 
+*Vanguards' defence levels were lowered and their hitpoints were increased.
+*The melee Vanguard's magic and melee defences were swapped to better suit the [[combat triangle]].
+*The Vanguards' aggression range was reduced and one of the spawn positions was shifted.
+*At least one overload drop is guaranteed from a Vanguard room.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+{{Bosses}}
+[[Category:Monsters with no combat level]]

@@ -1,0 +1,117 @@
+{{Infobox Monster
+|version1 = Normal
+|version2 = Challenge Mode
+|name = Vasa Nistirio
+|image = [[File:Vasa Nistirio.png|250px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[17 May]] [[2018]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size = 5
+|examine = A former High Priest, fused with the rock and bound to the dark crystals.
+|attributes = xerician
+|xpbonus1 = 7.5
+|xpbonus2 = 10
+|max hit = Varies
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]], [[Ranged]]
+|attack speed = 3
+|hitpoints1 = 300
+|hitpoints2 = 450
+|scaledhp = Yes
+|att = 1
+|str = 1
+|def1 = 175
+|def2 = 262
+|mage1 = 230
+|mage2 = 345
+|range1 = 230
+|range2 = 345
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 100
+|rngbns = 0
+|dstab = 170
+|dslash = 190
+|dcrush = 40
+|dmagic = 400
+|dlight = 40
+|dstandard = 40
+|dheavy = 30
+|poisonresistance = 100
+|venomresistance = 100
+|id = 7566,7567
+|leagueRegion = Kourend
+}}
+'''Vasa Nistirio''' is one of the [[bosses]] encountered in the [[Chambers of Xeric]].
+
+==History==
+Little is known about Vasa's history. However, Vasa played a role in Xeric's rise to power, and he was rewarded appropriately by being given the role of High Priest. Despite his powers, he and the others were unable to retain control of Great Kourend, but he was not punished for his failures.
+
+Sometime after Xeric's exile, Vasa was given a [[ancient letter|letter]] from [[Xamphur]], who ransacked [[The Forsaken Tower (location)|Dinh's Redoubt]] for equipment which was sent to him, ordering him to keep the transported equipment safe.{{CiteText|text=Ancient letter|author=Xamphur|quote=High Priest Nistirio<br>Cautious of prying eyes, our lord has instructed me to investigate possible new locations for our experiments. One of the locations I have looked at is Dinh's Redoubt. While it has potential, the tower is too small for our needs. However, Dinh has left behind many useful pieces of equipment. I will have them transported to you at Quidamortem at once. Make sure they are kept safe.<br>Xamphur }}
+
+Inside the caverns of Quidamortem, Vasa discovered several purple crystals. Knowing that they contained power that his lord sought, Vasa began investigating them. Completely distracted by the crystals, he failed to notice a tremor and the cavern collapsed on him.{{CiteText|text=Nistirio's manifesto|author=Vasa Nistirio|quote=We had always known that this mountain housed great power; that is why we travelled here after our exile from Kourend. However, it is one thing to perceive power, but it is often much harder to wield it for oneself. And then came my accident. I had entered a cavern in the great labyrinths under Mount Quidamortem, and found it to contain a huge number of purple crystals. Immediately I was drawn to investigate, for such crystals are a sign of the magicks that we've been seeking. If we could learn to wield this power for ourselves, nothing could prevent our triumph. While my attention was focused solely on the crystals, I failed to detect a tremor in the cavern. Suddenly the roof gave way, and I felt myself pinned to the ground by the crushing weight of the rocks falling from above.}} In panic, he was unable to maintain his form, but rather than dying and dissipating, he instead fused with the rock and crystals.{{CiteText|text=Nistirio's manifesto|author=Vasa Nistirio|quote=I admit I panicked - powerful though I am, I am not invulnerable, and the power within the mountain could have destroyed me. In my shock, I failed to maintain the bindings of my incorporeal form, so my essence flowed outwards, intersecting with the rocks and the fragments of crystal within them. That was how it happened. I should have faded away into oblivion, but instead I felt the rocks and crystal shards respond to my essence. I could move them. I could control them. And I could control the power that resided within them.}} Having control over the power that nearly killed him, Vasa returned to camp, drawing astonishment and fear from them.{{CiteText|text=Nistirio's manifesto|author=Vasa Nistirio|quote=I returned, transfigured, to the others. They were astonished by my new form, and feared for their lives. They were right to be fearful. My power was beyond anything they could comprehend. With a mere thought I could have collapsed the mountain upon them all, then returned to Kourend to claim the kingdom as my own.}} With the power at his hands, Vasa believed that he was now a [[god]] and attempted to overthrow Xeric.{{CiteText|text=Nistirio's manifesto|author=Vasa Nistirio|quote=What is a priest? A priest is a conduit between the mundane and the transcendent, yet the priest remains mundane. A priest is a guide, teaching the plodding folk of this world to look beyond the everyday toil of their labour, elevating their thoughts to seek the divine, yet the priest must plod among them. I am not the priest. I am the god. I am the god, and I need no priests. There is no need for a guide or conduit, not when my power is manifest. If Xeric will not recognise me as his lord and master, away with him! }} Although his powers were indeed commendable, Vasa was still no match for Xeric and was imprisoned in a cavern with four great crystals of power that tied his avatar down; as punishment, he would stand guard until the mountain crumbled and his essence released into oblivion. As a result of his treachery, Xeric quickly appointed another High Priest to succeed him.{{CiteText|text=Nistirio's manifesto|quote=Our lord Xeric commanded that we preserve this document as a warning. Let the fate of Vasa Nistirio serve as an example to anyone who dares challenge Lord Xeric. Although the former High Priest had indeed become mighty, Xeric was able to bind him to four great crystals of power, imprisoning his avatar forever in this place. As a punishment for his hubris and treachery, he shall stand guard in Xeric's chambers until the mountain crumbles to dust and his essence is finally released into oblivion.}}
+
+==Mechanics==
+{{Obsolete|need to be updated with the COX QOL updates}}
+Vasa Nistirio is initially seen as a pile of rocks. Upon approaching the pile, he will animate himself and start the fight. He will also raise a [[magical fire (Chambers of Xeric)|purple flame]] at the entrance, which will damage players who pass through it. The fight begins with his special attack.
+
+Vasa will teleport all players within the arena, including those outside if they are standing next to the magical fire. Teleported players will either be placed next to him (always the case in solo encounters) or by the arena walls. He will then charge up an attack, during which he cannot be attacked by any player, and the teleported player(s) will be stunned and be unable to activate any prayers. In groups, Vasa will try to divide them into equal amounts; e.g four players in the arena during teleport means that two will teleport next to him and the other two by the edge). Projectiles will fall from Vasa, which will explode and damage all players next to him.
+
+The amount of damage inflicted is equal to the accumulated hitpoints of all players teleported next to him; in solo encounters, this is always the player's current hitpoints - 5; e.g at 94 hitpoints, the blast would deal 89 damage. In group encounters, players who are teleported away from Vasa can further divide the damage up by running next to him. If these running players have [[Protect from Magic]] enabled, they will not take any damage.
+
+For teams, the player with the least amount of [[Hitpoints]] should initiate the battle and stand next to him; then, teammates should cross the flame and use [[Protect from Magic]] next to him once the low-health player initiates the battle. After his [[magical]] attack, players can switch to [[Protect from Missiles]]. When running through Vasa Nistirio, players should pray [[Protect from Melee]]. If the team has [[Overload (Chambers of Xeric)|overloads]], using them before entering the room is a good idea. Solo players will have to take the special attack's full effect (at the start of the fight as well as any consequent times), but they can start the room with lower health to avoid getting killed after the attack or use [[Vengeance]] to rebound large amounts of damage back.
+
+Vasa throws boulders as a standard ranged attack to any players within 8 tiles of him but not underneath, in which he applies rapid stomp damage of up to 8 damage per tick. The boulders are fairly accurate and can hit hard, so using [[Protect from Missiles]] will reduce their accuracy and strength. After a teleport attack, Vasa will activate one of the four crystals in the corners of the room and walk his way over to it. Once he reaches it, he becomes invulnerable to damage as he siphons it, "healing" 1% every 2 [[tick]]s{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1262826375347666944|date=19 May 2020|archiveurl=https://reldo.runescape.wiki/i/98628|archivedate=1 September 2023|quote=Every 2 ticks, it heals 1% HP and (10% + 1) Defence.}} and restoring (10% + 1) Defence. The [[glowing crystal]]s are immune to ranged, take 66% less damage from magic and are highly resistant to crush and slash attacks, making stab the best option. 
+
+When Vasa reaches a Glowing crystal for the first time, a 40 second, 66- or 67-tick timer begins. This timer only counts down while the glowing crystal is active. When no glowing crystals are active, the timer is paused. When this timer reaches zero, Vasa immediately leaves the glowing crystal and proceeds to the centre of the room to use his special attack again. 
+
+If the team disables the [[Glowing crystal]] in time, the healing will be negated; otherwise, he will heal in full for the amount he had siphoned. If the team does not disable the crystal in time, Vasa will deactivate it himself and return to the centre for a teleport attack.
+
+Vasa regenerate its stats at a rate of 1 per 10 ticks, faster than the standard rate of 1 per 100 ticks.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1524701424460628080|date=9 July 2026|quote=Stone guardians - 8 Muttadiles - 15 Vasa Nistirio - 10 Vasa's crystal - 9 Tekton - 15 LizardShamans - 20 Skeletal mystics - 25 Jewelled Crabs - 1 Vespula - 10 Vespula's portal - 45 Vespula's grubs - 10000 (i.e. never) Vespine soldier (flying) - 16 Vespine soldier (walking) - 10000 Otherwise default should be 100, as for outside CoX.|ctxquote=Hi@JagexAsh would you per chance be able to say the regen time (in ticks) for mobs in chambers?}}
+
+Vasa is not considered [[undead]], so he is not affected by the [[salve amulet]] or [[Crumble Undead]].
+
+==Drops==
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Nistirio's manifesto|quantity=1|rarity=Always|altrarity=Never|raritynotes=<ref name=book group=d>No longer dropped after reading the book.</ref>|gemw=No}}
+{{DropsLine|name=Overload (+)(4)|quantity=1|rarity=Always|gemw=No}}
+{{DropsLine|name=Endarkened juice|quantity=5|rarity=Always|gemw=No}}
+{{DropsLine|name=Xeric's aid (+)(4)|quantity=2|rarity=Always|gemw=No}}
+{{DropsLine|name=Twisted (+)(4)|quantity=2|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change = 
+* Vasa's healing has been adjusted - he will only heal if he fully siphons from the crystal, rather than healing over time.
+* Reduced Vasa's ranged defence bonus by -20 to make the [[toxic blowpipe]] more consistent on the boss.
+* Vasa now drops an [[Overload (+)]] on death.
+}}
+{{Subject changes
+|date = 10 January 2019
+|update = The Kebos Lowlands
+|change = The examine text was slightly modified, the old examine text was "A former Arceuus Elder, fused with the rock and bound to the dark crystals."
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*It is possible to cook raw food on the fire blocking the entrance to Vasa’s room once he is awakened.
+*Vasa Nistirio's name is likely derived from the Greek word "βασανιστήριο" ("vasanistirio"), meaning torture or torment.
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+{{Bosses}}

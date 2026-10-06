@@ -1,0 +1,219 @@
+{{Update|date=22 January 2025|url=https://secure.runescape.com/m=news/bank-qol--mini-menu-improvements?oldschool=1|category=game}}
+[[File:Bank QoL & Mini Menu Improvements newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+{| class="wikitable" style="text-align: center;"
+|-
+! KNOWN ISSUES
+! STATUS
+|-
+| Some teleports on items such as the Max Cape are currently pointing to the wrong location. This includes dangerous areas such as the Wilderness.
+| This looks to be two separate issues, one on the RuneLite clients, which we're sure will be fixed with an update. The second is on our own clients and we are investigating a fix. Please teleport with caution.
+|-
+| When removing the Raging Echoes Portal Nexus, it currently removes all saved teleports.
+| Functionality for Nexus portal removal has now been restored. Anyone who lost their saved teleports will have them restored to how they were.
+|-
+| Players cannot build the Raging Echoes rug in the League Hall room. 
+| To be coldfixed.
+|}
+{| class="wikitable" style="text-align: center;"
+|-
+! RAISED BUT NOT A BUG
+|-
+| Locked deposit slots will now apply when depositing runes to the pool in Guardians of the Rift. You can also right-click on the pool if you want to change the deposit settings while in the game.
+|}
+
+''Today we have a couple of projects from Game Jam V, including Mini Menu Improvements and Bank QoL!''
+
+'''PSA: Before we get started, please note that the Friends List and Friends Chat may be unavailable for a few minutes following today’s update. We expect this to be resolved very quickly, but content that relies on these systems (such as the Chambers of Xeric) will be impacted for a short while.'''
+
+==Changelog January 22nd==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Game Jam updates'''
+
+* Customizable Mini Menu improvements let you hover to view all teleport options for smoother escapes.
+* The new Inventory to Bank Locking feature prevents accidental banking of essential items, making trips easier and more efficient.
+
+'''Leagues V Ends and Bug Fixes'''
+
+* Leagues V has concluded! Check out the League Firsts board in Lumbridge Castle Courtyard.
+* Restored the stats of the Virtus Mask. Additionally, it will no longer appear as “The Batman" floating head in the chat box.
+* Added functionality to remove the Raging Echoes scrolls from PoH furniture.
+* Added Echo Venator Bow Ornament Kit and Echo Spirit Tree Scroll to be marketable via the GE.
+* Added a rotation option for PoH Spirit Trees, accessed by using a spade on the tree.
+* Raging Echoes Relic Hunter sets are now storable on the PoH Armour Stand.
+* The Virtus Ornament kit outfit is now storable in the magic wardrobe.
+* Fixed a bug where the Goblin Decorations would not change the appearance of specific PoH items.
+* The Venator Bow has a new projectile that more closely matches the one in the concept art.
+* Players are now redirected to the Spirit Tree in their PoH when using the Fairy Ring teleports, instead of being teleported to the Fairy Ring, due to the Raging Echo override.
+* Ahrim's Ornament Kit can now be used on an Ahrim's Staff, and purchasing Ahrim's Kits from the Reward Shop will now provide four kits rather than three to match this. For those who bought a set of kits from the reward shop before this update, an extra kit will be added to your Bank at some time post-update, as this is a manual process.
+'''Other changes'''
+
+* Updated side panel tabs to match players' side panel transparency settings.
+* Further changes to Chambers of Xeric points have been made to prevent megascale boosting: Personal points are no longer capped at 131,071 during the raid, while regular loot reward rolls are still capped at 131,071 points.
+* Guildmaster Jane now speaks fewer lines of dialogue when she rewards you for completing a contract and offers you another one.
+* Fixed the non-functional options for equipping Trailblazer Tools from the Bank menu.
+* Updated the menu ordering for certain items, including Drakan's Medallion and Pharaoh's Sceptre, to prioritize key actions over the 'Use' option.
+
+'''Client and Mobile Updates'''
+
+On Monday, January 20th we rolled out our latest mobile and client update, version 228.2, so the following change is already live in-game. In case you missed it:
+
+* Fixed Minimenus sometimes inadvertently showing right-click menu options when left-clicking.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Game Jam Updates==
+Back in September we unveiled our talented J-Mods’ latest Game Jam projects! You can read all about them [https://secure.runescape.com/m=news/game-jam-v---summer-summit-2024?oldschool=1 here]. After an overwhelmingly positive poll, we're delighted to announce that Mini Menu Improvements and the Bank Deposit Refresh are now officially part of the game!
+
+These changes are all about streamlining your gameplay and making life in Gielinor that little bit easier.
+
+===Mini Menu Improvements===
+Hold onto your capes, folks – it's time to say “Hello!” to the shiny new Mini Menu teleport options!
+
+We’ve all been there – you’re having trouble in a boss fight, it’s time to gracefully bow out, but you’re too busy dealing with a giant teleport menu! Annoying, right? Well, not any more!
+
+Now, you can simply hover over your minimenu to see all your teleport options in a neat little submenu. With a couple of clicks you can travel anywhere you please! If you prefer the classic feel, you can always select the old ‘rub’ or ‘teleport’ options to access the traditional menu.
+
+[[File:Bank QoL & Mini Menu Improvements (1).gif|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-22/MiniMenu.gif here]!'']]
+
+We’re pretty sure you’ll love the new system, but we want to hear from YOU! Share your thoughts on the [http://discord.gg/OSRS Old School RuneScape Discord], [https://www.reddit.com/r/2007scape/comments/1i78fd6/bank_qol_mini_menu_improvements/ Reddit], or [https://x.com/OldSchoolRS X] – we’re watching and waiting to hear how it feels in action.
+
+===Bank QoL===
+Once you’ve teleported to the Bank, you’ll be glad to see that we have another update which makes restocking your gear a breeze!
+
+In both the Bank screen and the Deposit Box menu, you can now lock individual slots.
+
+[[File:Bank QoL & Mini Menu Improvements (2).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-22/bank_locks.jpg here]!'']]
+
+Locking a slot means that when you hit the Deposit-All button, your locked items won’t be accidentally banked. Never again will you arrive at your Slayer Task to find that those all-important supplies are sat twiddling their thumbs next to your massive stacks of loot.
+
+Remember, the menu locks the SLOT, not the ITEM. If you’ve rearranged your Inventory after locking your slots, you can right-click to ‘Unlock’ them again. They’re off by default and take the place of the usual ‘Examine’ option. Visit the new Deposit Lock Settings menu to toggle them on.
+
+This is opened from the Bank's settings menu:
+
+[[File:Bank QoL & Mini Menu Improvements (3).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-22/BankSettingsMenu.jpg here]!'']]
+
+We’ve also revamped the Deposit Box layout to align with your inventory, making it easier and more intuitive to locate your items at a glance.
+
+[[File:Bank QoL & Mini Menu Improvements (4).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-22/bank_deposit_box.jpg here]!'']]
+
+Additionally, if you’re tired of the deposit box asking how many items to deposit whenever you use items on it, you can now enable a setting to skip the item quantity check and always deposit everything in one go.
+
+Lastly, we’ve moved the ‘Deposit Worn Items’ button further away to prevent misclicks.
+
+We hope this delivers a smoother, hassle-free banking experience! Give it a try and share your thoughts - we’d love to hear from you!
+
+==Leagues V Concludes==
+Just like that, Leagues V has come to an epic close! From the moment those buffs started shaking up gameplay to the jaw-dropping leaderboard races, it’s been a journey to remember. The speedruns, the echo boss takedowns, the grand skilling streaks... Leagues V truly brought out the best in everyone.
+
+But now, as we hang up our Leagues boots, let's take a moment to reflect on the fierce competition, the creativity, and of course, the community spirit that made this event such a legendary experience. Head over to Lumbridge Courtyard and check out the League Firsts Board!
+
+[[File:Bank QoL & Mini Menu Improvements (5).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-22/LeaguesVworldfirsts.jpg here]!'']]
+
+Congratulations to all the legends below: 
+
+* First Kill of TzKal-Zuk: DV8
+* First unlock of a Tier 8 Relic: SoloMission
+* First unlock of a 5th area: Insanewolfy
+* First to achieve a level 99: Okke
+* First to achieve a total level of 2277: Jcw
+* First to complete solo TOA (expert): Rin Natsume
+* First to complete solo TOB: Widega
+* First to complete solo COX: Farmer McRee
+* First to fully complete a combat mastery path: Chriskies
+* First to kill an Echo Boss: frag s
+
+===Discord HiScores: Who’s Top of the Leaderboard?===
+Don’t forget to pop over to the #[https://discord.com/channels/324132423636090880/1309479543131869235 Leagues-leaderboard Discord channel] to check out the final standings! Whether you’re basking in the glory of a top spot or just had a blast pushing your limits, you all made''' '''Leagues V one for the history books. A massive round of applause for everyone who joined in – your passion and dedication is what makes Leagues great, year after year.  
+
+[[File:Bank QoL & Mini Menu Improvements (6).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-22/Leagues-Discord-Hiscores5.jpg here]!'']]
+
+===Leagues V Reward Feedback===
+We’ve been listening to your feedback on a few quirks with the Leagues reward kits, so let’s dive into some of the details and clear up any confusion!
+
+===Building Rugs and Curtains===
+So, you’ve been trying to place those fancy rugs and curtains from the Leagues kit, but something’s a bit... off? While other rewards (like the Nexus portal) let you just ‘Use’ the kit on your furniture, the rugs and curtains require a little more work.
+
+So here’s the deal:
+
+To place your new decor, you’ll need to right-click an empty hotspot, select ‘Build’, and pop into the Build menu. This system is consistent with how things worked for items of the same kind (think: Deadman Rug), but we're sorry if this threw you for a loop!
+
+[[File:Bank QoL & Mini Menu Improvements (7).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-01-22/Rug%20(1).jpg here]!'']]
+
+We’d love to hear whether this system works for you or if you’d prefer a different approach in future.
+
+===Reward kits Affecting Multiple vs. Single Items===
+Another head-scratcher has been how some rewards, like the Leagues V Spirit Tree Scroll, only affect one piece of furniture, while rewards in past Leagues let you slap the kit on'' ''everything of that type in your PoH.
+
+So why the change?
+
+Well, we wanted to give you more flexibility with your customization. When League VI rolls around we don’t want you to be stuck choosing just one style for your entire PoH. Imagine mixing and matching your Leagues V and League VI Portal Kits to create the perfect setup – now that’s what we call customisation!
+
+We know it’s a shift, but we believe this will give you way more control over your PoH designs in the long run. As always, we appreciate your feedback and patience as we continue to refine and improve these systems. Keep those ideas coming – we’re listening!
+
+And with that, another Leagues adventure wraps up... until next time!
+
+===Leagues V Reward bug fixes===
+
+* Restored the stats of the Virtus Mask. Additionally, it will no longer appear as “The Batman" floating head in the chat box.
+* Added functionality to remove the Raging Echoes scrolls from PoH furniture.
+* Added Echo Venator Bow Ornament Kit and Echo Spirit Tree Scroll to be marketable via the GE.
+* Added a rotation option for PoH Spirit Trees, accessed by using a spade on the tree.
+* Raging Echoes Relic Hunter sets are now storable on the PoH Armour Stand.
+* The Virtus Ornament kit outfit is now storable in the magic wardrobe.
+* Fixed a bug where the Goblin Decorations would not change the appearance of specific PoH items.
+* The Venator Bow has a new projectile that more closely matches the one in the concept art.
+* Players are now redirected to the Spirit Tree in their PoH when using the Fairy Ring teleports, instead of being teleported to the Fairy Ring, due to the Raging Echo override.
+* Ahrim's Ornament Kit can now be used on an Ahrim's Staff, and purchasing Ahrim's Kits from the Reward Shop will now provide four kits rather than three to match this. For those who bought a set of kits from the reward shop before this update, an extra kit will be added to your Bank at some time post-update, as this is a manual process.
+
+==Client and Mobile Updates==
+On Monday, January 20th we rolled out our latest mobile and client update, version 228.2, so the following change is already live in-game. In case you missed it:
+
+* Fixed Minimenus sometimes inadvertently showing right-click menu options when left-clicking.
+
+==Other Changes==
+
+* Updated side panel tabs to match players' side panel transparency settings.
+* Further changes to Chambers of Xeric points have been made to prevent megascale boosting: Personal points are no longer capped at 131,071 during the raid, while regular loot reward rolls are still capped at 131,071 points.
+* Guildmaster Jane now speaks fewer lines of dialogue when she rewards you for completing a contract and offers you another one.
+* Fixed the non-functional options for equipping Trailblazer Tools from the Bank menu.
+* Updated the menu ordering for certain items, including Drakan's Medallion and Pharaoh's Sceptre, to prioritize key actions over the 'Use' option.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '</b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1i78fd6/bank_qol_mini_menu_improvements/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Rach, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

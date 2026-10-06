@@ -1,0 +1,54 @@
+{{External|rs}}
+{{Redirect|Chinning|the ranged training method using Chinchompas|Maniacal monkey/Strategies}}
+{{Otheruses|def=no|other uses|Chinchompa (disambiguation)}}
+{{Infobox Ranged Weapon Group
+|name = Chinchompa
+|images = {{plinkp|Chinchompa}}{{plinkp|Red chinchompa}}{{plinkp|Black chinchompa}}
+|type = heavy
+|ammunition = Thrown
+|twohanded = No
+|speed = 4
+|speed_rapid = 3
+|attackrange = 9 tiles
+|attackrange_long = 10 tiles
+}}
+'''Chinchompas''' are a type of [[members]] [[Ranged]] throwing weapon. They must either be bought from other players or caught in a [[box trap]] using the [[Hunter]] skill.
+
+They are thrown and explode on impact, hitting any targets in a 3x3 area, similar to [[Burst spells|burst]] and [[barrage spells]]. Unlike other throwing weapons, they cannot be retrieved, even when doing no damage.
+
+Chinchompas make use of unique mechanics, where their accuracy depends on how many squares they travel until they reach the target and the combat style being used by the player. The initial target also serves as the accuracy roll for surrounding targets - if the initial hit is a [[successful hit]], then all surrounding targets will be hit. As such, it can be useful to target an opponent with lower [[Defence]] in order to damage a nearby higher Defence opponent; this is commonly used against [[Kree'arra]]. The accuracy roll made on the initial target uses the 'heavy' ranged defence for determining the opponent's defence roll.<ref>{{PlainCiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1817838437292032420|date=29 July 2024|archiveurl=https://reldo.runescape.wiki/i/27963340|archivedate=7 April 2026|quote=I believe those are 'heavy'.}}</ref>
+
+Below lists all the accuracy rates of possible combinations.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/761964699646828544|date=6 August 2016|archiveurl=https://reldo.runescape.wiki/i/100775|archivedate=26 May 2020|quote=If you chose the short fuse, 0-3 gives you full accuracy, 4-6 gives reduced, 7+ gives bad, etc.}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/993196171677126661|date=6 May 2018|archiveurl=https://reldo.runescape.wiki/i/100487|archivedate=26 May 2020|quote=Medium fuses 0-3 tiles and 7+ tiles are 75%, not 50%. It's applied to the accuracy/defence roll when the attack is cast, like armour bonuses are.}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/865225157736095744|date=18 May 2017|archiveurl=https://reldo.runescape.wiki/i/99678|archivedate=26 May 2020|quote=No, they work with the same mechanics but not with the same numbers. It's like you guessed.}}
+
+{| class="wikitable" style="text-align: center;"
+! Style !! 0-3 Squares !! 4-6 Squares !! 7+ Squares
+|-
+|Short fuse
+|100%
+|75%
+|50%
+|-
+|Medium fuse
+|75%
+|100%
+|75%
+|-
+|Long fuse
+|50%
+|75%
+|100%
+|}
+
+'''Note:''' 100% accuracy does not mean a successful hit — it takes into consideration the player's Ranged attack bonus. For example, if the player had +100 Ranged attack, and used the short fuse style on an opponent one square away, it would roll the full +100 Ranged attack against the opponent's Defence. However, if the player used long fuse with the same distance and Ranged attack bonus, then their Ranged attack effectively becomes +50 instead.
+
+==Combat styles==
+{{CombatStyles|Chinchompas|speed=4|attackrange=9}}
+
+==Chinchompas==
+{{Infotable Bonuses|Chinchompa|Red chinchompa|Black chinchompa|sort=arange|nototals=yes}}
+
+==References==
+{{reflist}}
+
+{{Weapon}}
+{{Ranged weapons}}

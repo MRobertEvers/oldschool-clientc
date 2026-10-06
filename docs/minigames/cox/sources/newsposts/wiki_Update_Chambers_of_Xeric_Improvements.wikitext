@@ -1,0 +1,95 @@
+{{Update|date=28 May 2020|link=https://secure.runescape.com/m=news/chambers-of-xeric-improvements?oldschool=1|category=game}}
+[[File:Chambers of Xeric Improvements newspost.png|right]]
+{{clear}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Chambers of Xeric Improvements}}
+
+
+[[File:Chambers of Xeric Improvements (1).png|center|247px]]
+
+
+Hello! This week we continue with the improvements to the Chambers of Xeric raid that came from Poll #71.
+
+'''Further Vanguard Improvements'''
+
+[[File:Chambers of Xeric Improvements (2).png|center|130px]]
+
+
+[https://secure.runescape.com/m=news/vanguard-improvements?oldschool=1 Last week] we went through a number of Vanguard changes including some changes to their stats, aggro range and spawn position. But there are still further improvements to be made!
+
+From now on, Vanguards will have a visual cue if their health is either too high or low.
+
+Furthermore, should you brave the Chambers of Xeric with four members or fewer in your raid team Vanguards will now reset if their HP differs by 40% - previously this was set at 33%, and this remains the case for raids of five members or more.
+
+'''Olmlet Metamorphs'''
+
+<center>
+[[File:Chambers of Xeric Improvements (3).png|96px]] [[File:Chambers of Xeric Improvements (4).png|163px]]
+</center>
+
+
+While many of our waistlines are metamorphosing during this prolonged period of working from home, alas our pets have not yet begun to do so. But if you're the proud owner of an Olmlet, then metamorphosis is very much on the cards!
+
+Specifically, Vespina now has a flying form metamorphis and Tektiny now has an enraged form metamorphis.
+
+'''Twisted Ornament Kit'''
+
+[[File:Chambers of Xeric Improvements (5).png|center|197px]]
+
+
+The Chambers of Xeric Challenge Mode now offers a brand new reward - the Twisted Ornament Kit! Players will have a chance to obtain it from an extra roll on the drop table akin to the metamorphic dust drop. Note: You do not need dust in order to get the kit.
+
+This kit is untradeable, and you'll require one kit for every piece that you want to recolour. Your flash new robes will be stored in the Magic Wardrobe of your Player-Owned House, whereas the regular version appears in the armour case. We are aware players wanted the original Ancestral kit in the magic wardrobe, and the plan is to deliver it as soon as we can after Darkmeyer hits. This delay is due to a national holiday in the UK this week, and the focus on getting Darkmeyer finished. The changes to the raid itself were obviously more important!
+
+Note too that when this kit used on any piece of Ancestral Robes, it will make that item untradeable.
+
+And beware - your sweet new threads transform back to their original colour when dropped to a PKer in the event of a PvP death. However, should you die somewhere with a special death system (for example, The Nightmare), you may pay to get them back.
+
+'''Other Chambers of Xeric Improvements'''
+
+[[File:Chambers of Xeric Improvements (6).png|center|136px]]
+
+*Players with higher Thieving levels will now have a chance of receiving multiple grubs from a chest.
+*Potion drops now have a higher value, and are thus more likely to appear on top of the lootpile alongside raid supplies and bones.
+*Players can now build an extra large storage chest with a capacity of 1,500. To make it, you will require 99 Construction and 8 planks.
+*Players now have the chance to obtain the metamorphic dust again even if they have already previously obtained it in Challenge Mode.
+*Unique rewards collected from the reward chest will now be given as items rather than banknotes.
+
+The final Chambers of Xeric change, which will add a HUD to Vanguards and bosses, is still in development. We'll update you with an estimated release date nearer the time.
+
+{{Horizontal Line}}
+
+{{Headline|22|Limited Edition Merch}}
+
+
+[[File:Chambers of Xeric Improvements (7).png|center|500px]]
+
+
+To celebrate the 5th Anniversary of Prezleek's first ever Baroo Cartoon, three limited edition pins arrive in the Official Merch Store today (May 28th)!
+
+Is your preference for the Fighting Boots Baroo? Or the Fancy Boots Baroo? And for those who simply can't make their mind up, there's also a Barootiful Baroo that is wearing both Fighting and Fancy Boots. This is also sold with a limited edition card featuring an illustration from Prezleek herself.
+
+Also arriving in-store today is a keyring version of the popular Dragonfire Shield pin.
+
+Head over to the [https://runescape.backstreetmerch.com/tag/oldschool%20featured Merch Store] now to check them out!
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+The PvP world rota has moved to '''Period A'''. On the east of the Atlantic, the host for the '''High Risk PvP''' world will be W343, Germany and the '''Bounty Hunter''' world will be W318, UK. On the west of the Atlantic, the host for the '''Standard PvP''' world will be W324, USA, and for the '''F2P PvP''' world, W417, USA. The '''members-only LMS''' world will be W333, UK, and the '''F2P LMS''' world will be W469, US.
+
+*Numulites will now appear under more items in loot stacks. As a consequence, they'll be worth a bit less if sold to general stores.
+*Many weapons have had their positions fixed on female characters to ensure they are firmly grasped when equipped.
+
+And don't forget - Lord Lowerniel Drakan, the vampyre overlord of Morytania, has finally emerged from his castle, and is intent on avenging his brother and eradicating the Myreque once and for all.
+
+Darkmeyer arrives in Old School RuneScape on Thursday June 4th and we cannot wait for you to play it! You can [https://secure.runescape.com/m=news/darkmeyer-release-date-june-4th?oldschool=1 read all about here].
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,642,66162532 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''Mods Acorn, Arcane, Archie, Ash, Banjo, Boko, Bonsai, Bruno, Curse, Deagle, Ed, Errol, Fed, Flippy, Gayns, Gee, Halo, Husky, Impact, Jndr, John C, Kandosii, Kieren, Lenny, Lottie, Lyric, Maylea, MikeD, Nasty, Oasis, Roq, Ry, Steve W, Sween, Tide, Vegard, Weath & West'''<br/>''The Old School Team''

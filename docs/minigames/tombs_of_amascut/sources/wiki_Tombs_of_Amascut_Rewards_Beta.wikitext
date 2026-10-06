@@ -1,0 +1,24 @@
+{{Stub}}
+{{Infobox Beta
+|name = Tombs of Amascut: Rewards Beta
+|image = [[File:Tombs_of_Amascut-_Rewards_Beta_newspost.png]]
+|open = [[12 August]] [[2021]]
+|end = [[17 August]] [[2021]]
+|update = Tombs of Amascut: Rewards Beta
+|removalupdate = None
+}}
+[[File:ToA Weapons Beta.png|thumb|right|Players test the rewards against the Kalphite Queen.]]
+
+In preparation for the [[Tombs of Amascut]] raid, players were able to log in to an unrestricted world to test various rewards to be polled for the boss, including:
+* Masori equipment
+** [[Masori chestplate (beta)|Masori chestplate]]
+** [[Masori chainskirt (beta)|Masori chainskirt]]
+** [[Masori amulet]]
+* [[Elidinis' ward (beta)|Elidinis' ward]]
+* [[Keris partisan (beta)|Keris partisan]]
+** [[Keris partisan of breaching (beta)|Keris partisan of breaching]]
+* [[Lightbearer (beta)|Lightbearer]]
+* [[Osmumten's fang (beta)|Osmumten's khopesh]]
+* [[Tumeken's heka]]
+
+As the beta's purpose was to test the strength of the rewards against players, monsters, and bosses, players were given complete access to the game world (including the [[Inferno]]), and nearly all high-end equipment and supplies available in its usual location in [[Clan Wars]], with the typical accommodations for convenience, such as a fully furnished [[player-owned house]] and ability to skip [[Slayer task]]s for free.

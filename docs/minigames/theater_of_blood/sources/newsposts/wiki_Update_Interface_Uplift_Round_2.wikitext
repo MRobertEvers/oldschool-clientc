@@ -1,0 +1,251 @@
+{{Update|date=01 October 2025|url=https://secure.runescape.com/m=news/interface-uplift-round-2?oldschool=1|category=game}}
+[[File:Interface Uplift Round 2 newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+| We’re aware of an issues with Perilous Moons that can cause players to become stuck and unable to move. '''While we investigate a fix, we recommend Hardcore players avoid this activity.'''
+| Hotfixed.
+|-
+| We're aware that some worlds are facing severe lag and disconnections. If you're affected, hopping to another world should resolve the issue temporarily.
+| Resolved
+|-
+| It's not possible to currently skip Slayer tasks using Turial or Aya Slayer masters.
+| Hotfixed.
+|-
+| We are aware that players are currently unable to receive boss tasks.
+| Hotfixed.
+|-
+| Chaos Fanatic has a typo at the Rune Pouch load-out drop-down menu.
+| To be coldfixed.
+|}
+
+''This week’s update brings another batch of Interface Uplift changes. S.T.A.S.H your gear in a snap, zip through fairy rings, and minimise the minimap!''
+
+==Changelog October 1st==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Interface Uplift'''
+
+* You can now minimise the minimap on desktop (just like on mobile) to tidy up your UI.
+* Added a Quick-start option to Verzik Vitur in Theatre of Blood for players who have at least 1 prior completion.
+* Rune Pouch loadouts have been expanded to 10 slots, with the option to select a name for each one.
+* Fairy Rings now have search functionality on the official client, faster wheels, and up to 10 favourite slots for quick teleports.
+* You can now deposit worn items directly into S.T.A.S.H units while they're still equipped, with a new setting to toggle this behaviour.
+* Combat Achievements now remember the last tab you viewed, saving you from repeatedly re-navigating your tasks, bosses, or rewards.
+* The Port Phasmatys barrier now combines Pass and Pay-toll into a single click for post-Ghost Ahoy players.
+* Rantz now has a simple interface for claiming and reclaiming Chompy Hunting Hats, with the option to store them in your POH Costume Room.
+* Added a Bank all option to the Chambers of Xeric rewards chest.
+
+'''Other Changes'''
+
+* Players can no longer pick up food/potions within 15 ticks of combat in the Wilderness, Deadman, or PvP worlds (multi-combat unaffected), or trade within 20 ticks in Deadman/PvP, preventing unfair refills mid-fight.
+* Guardians of the Rift enjoyers should now find that the entrance barrier can only be locked on non-GOTR-themed worlds. Previously, the list of worlds was inaccurate, and one world was missed.
+* Joining Blood Moon mid-Jaguar phase will now correctly show the right Jaguar's safety circle straight away, instead of briefly displaying the wrong one. *Edit, this has unfortunately been reversed while the team investigates an issue. Apologies.
+* The Virtus set now has its set bonus for Ancient magicks displayed.
+* Fixed an issue where completing 'Enter the Abyss' incorrectly allowed players to receive Abyssal Demon Slayer tasks without Priest in Peril or Fairy Tale Part II.
+* Slayer masters will now respect your combat level (if enabled) even with a Slayer cape equipped.
+* Players can now speak to any Slayer master to cancel a task for free that is not possible to complete based on quest requirements or Slayer level, in case you received a task you were ineligible for in the prior weeks.
+* The weeds in the Morytania herb patch have been restored to their proper dark green colour, matching the rest of the region's gloomy vegetation.
+* Hovering over the world map icon on desktop (with tooltips enabled) now displays 'World Map' along with the desktop shortcut 'Ctrl+M'.
+* A rogue full stop has been spotted, rounded up, and removed! The level 93 Meiyerditch shortcut in the Agility guide is now punctuation-consistent.
+* Buying a piece of the Tithe Farm outfit no longer causes the Collection Log to increment the item's counter by 2.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Interface Uplift==
+This week brings in the second batch of changes from our [https://secure.runescape.com/m=news/interface-uplift---ui-qol-coming-soon?oldschool=1 Interface Uplift blog]. Let's take a look!
+
+===Desktop Minimap Toggle===
+If you’ve ever played OSRS on mobile, you’ll know the joy of tucking away the minimap to free up some precious screen space, especially handy when you’re trying to tap around a boss arena or keep your UI clean while skilling!
+
+Well, desktop players, it’s your turn! You can now right-click the world map icon and minimise your minimap just like on mobile. Your Hitpoints, Prayer, Run Energy, and Special Attack orbs will neatly stack up in the corner, leaving you with more breathing room to focus on the action. Just a heads up, this option is only available on the resizable layout. 
+
+[[File:Interface Uplift Round 2 (1).gif|thumb|350px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/map.gif here]!'']]
+
+===Quick-starting Verzik===
+We know the Theatre of Blood (ToB) is all about high stakes and sharp execution - not sitting through dialogue you’ve already heard a dozen times. To help you get to the action faster, we’ve added a 'Quick-start' option to Verzik in normal and hard mode versions of ToB.
+
+Once you’ve faced her at least once, you’ll be able to right-click and jump straight into the fight, skipping the chatter.
+
+Note, this option isn’t available in Entry Mode. We wouldn’t want to rob new players of their first introduction to Verzik’s… charming personality.
+
+[[File:Interface Uplift Round 2 (2).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/start.jpg here]!'']]
+
+===Rune Pouch Loadout Expansion===
+Your Rune Pouch just got a new look! We’ve added six extra loadout slots, giving you a total of 10 to play with.
+
+On top of that, you can now name your loadouts, so no more guessing whether 'Loadout 3' was your Inferno setup or ToB Mage build. Just pick from a handy list of preset names, slap them on your loadouts, and swap between them at a glance.
+
+[[File:Interface Uplift Round 2 (3).gif|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/pouch.gif here]!'']]
+
+===Fairy Ring Search Functionality===
+Fairy rings are now in flight on the offical client!
+
+You can now search for destinations by name, making it far easier to find where you’re going without needing to memorise dozens of 3-letter codes. Just type, click, and you’re on your way.
+
+We’ve also made the selector’s wheels spin much faster, so it won’t feel like turning an ancient rotary phone anymore.
+
+[[File:Interface Uplift Round 2 (4).gif|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/fairy.gif here]!'']]
+
+Finally, we’ve boosted your favourite slots from 4 to 10, giving you plenty of room to save all your most-used destinations.
+
+===S.T.A.S.Hing===
+Ever finished a clue step, tele’ed away, and realised you’re still rocking that mismatched clue outfit? We’ve all been there.
+
+Now, things just got easier - STASH Units can accept items directly from your equipped slots. Once you’ve done the emote, just shove your clue gear straight back into its hidey-hole without the inventory juggling.
+
+[[File:Interface Uplift Round 2 (5).gif|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/stash.gif here]!'']]
+
+This feature comes with a handy toggle in the settings menu. Leave it off if you prefer the classic method, or flick it on to let S.T.A.S.H units grab equipped gear as well as items from your inventory.
+
+[[File:Interface Uplift Round 2 (6).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/stash.jpg here]!'']]
+
+Do note that withdrawing items still sends them to your inventory, so make sure you’ve got space when reclaiming them!
+
+===Combat Achievements: Remembered===
+Ever re-open your Combat Achievements tab only to sigh as it dumps you back at the overview, forcing you to hunt down the boss, task, or reward you were last checking? We feel that.
+
+From now on, the interface will remember the last thing you were looking at, be it tasks, bosses, or rewards - complete with any filters you had applied. Open the tab, and you’re right back where you left off.
+
+Not a fan? No worries! A toggle in the settings menu lets you disable this feature and stick with the classic 'overview first' behaviour. 
+
+[[File:Interface Uplift Round 2 (7).gif|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/ca.gif here]!'']]
+
+===Port Phasmatys: Streamlined Barrier===
+Post-Ghost Ahoy, the Port Phasmatys barrier now takes a single click to pass, merging Pass and Pay-toll - just one click and you’re through, with no more woo woo woo!
+
+[[File:Interface Uplift Round 2 (8).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/port.jpg here]!'']]
+
+===Chompy Hat Menu===
+Claiming your Chompy Hunting Hats just got a whole lot easier. Rantz now has a simple interface for picking up or reclaiming hats you’ve unlocked with your chompy kills, so no more juggling dialogue boxes!
+
+[[File:Interface Uplift Round 2 (9).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/hat.jpg here]!'']]
+
+You can now store all your Chompy Hunting Hats in the Armour case in your Player-owned house's Costume room, keeping your collection organised and ready to show off. 
+
+[[File:Interface Uplift Round 2 (10).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/case.jpg here]!'']]
+
+Simply complete the Big Chompy Bird Hunting quest and unlock hats through your kills, then speak to Rantz to view, claim, and manage your collection - all from one tidy interface!
+
+===Chambers of Xeric rewards chest===
+Claiming your Chambers loot just got easier! The rewards chest now includes a 'Bank all' button, letting you send your hard-earned rewards straight to your bank in a single click.
+
+[[File:Interface Uplift Round 2 (11).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/bank.jpg here]!'']]
+
+==Sunfire Splinters at Doom==
+We need to talk about splinters, and not the kind you get from playing with wood...
+
+Since Dooms' release, we've noticed that the value of Sunfire splinters has decreased significantly.
+
+Although the splinters gained per player at Doom are fairly modest (around 400 an hour), the sheer number of players engaging with Doom for its uniques has led to millions entering the game passively. This has had a significant impact on their value, and on other pieces of content, such as the Colosseum, where splinters play a major role.
+
+As such, we're removing Sunfire Splinters from Doom's loot table with today's game update.
+
+We know splinters are an important resource, and we want them to remain valuable and rewarding to earn. However, it's clear that they can't come passively from another highly engaged activity. Instead, we see potential for a future activity designed specifically around splinter acquisition, one that provides a healthy, sustainable supply without overwhelming their value.
+
+We understand that this decision may disappoint some of you, but please know it has been made with the long-term health of the game in mind. Doom should be about chasing its uniques, while the Colosseum should remain a rewarding and valuable endgame activity. By removing splinters from Doom, we're protecting the Colosseum's integrity and ensuring its rewards remain worthwhile in the long run, without being unintentionally undermined.
+
+==Join the Halloween-related Challenges!==
+===Pumpkin Carving Competition===
+[[File:Interface Uplift Round 2 (12).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/banner.png here]!'']]
+
+Spooktober is officially here, and we’re kicking things off with an OSRS-themed jack-o-lantern carving contest, just the thing to get you in the Halloween spirit. Flex your IRL Crafting skill by carving a pumpkin with your best OSRS-inspired design and share it either at our [https://discord.gg/sXWAg3Kx dedicated channel] on [https://discord.gg/OSRS our Discord] or under the [https://www.reddit.com/r/2007scape/comments/1nv361h/0srsinspired_pumpkin_carving_competition dedicated Reddit post]! Can’t get your hands on a pumpkin where you live? No problem, any fruit or vegetable will do! A terrifying turnip? A menacing mango? We stan them all!
+
+We’ll be picking a winner in three categories:
+
+* The spookiest
+* The most creative
+* The funniest
+For each winner, the following prizes are up for grabs:
+
+* 1 Slayer Enamel Mug
+* 1 Embroidered PK Skull Cap
+* 1 Baron Keyring
+
+[[File:Interface Uplift Round 2 (13).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/prize.png here]!'']]
+
+Competition is '''live now''' and runs until '''Monday, 13 October 2025 9am UTC'''. For more info, check out the T&Cs [https://osrs.game/PumpkinT&Cs here.]
+
+===Scapetober Challenge by RAC===
+October 1st also means the return of the Scapetober challenge, hosted by the wonderful [https://discord.gg/runescapeartcommunity RuneScape Art Community!] We love seeing the artwork you come up with for the Scapetober challenge every year, so we are ''dying'' to see what you'll share this time around!
+
+[[File:Interface Uplift Round 2 (14).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-10-01/cal.png here]!'']]
+
+Above, you can see this year's Scapetober calendar and daily prompts, with a twist this time! As always, you can daily draw and share something inspired by the prompt of the day. If you're unable to join the challenge every day for a month, you can choose among the orange prompts instead and share your drawings every 3 days for only 2 weeks. Where to share? Either in the [https://discord.gg/7RaSsVptqN dedicated channel] on RAC Discord, or over on X using the '''#Scapetober''' hashtag. Looking forward to seeing your creations, they'll be such a ''treat!''
+
+===JMods Draw Your Halloween Suggestions===
+We're back with another JMods Draw, but this time it's '''Halloween edition'''! What would you like to see from OSRS with a Halloween twist? Get creative and share your suggestions to the [https://discord.gg/sXWAg3Kx dedicated channel] on Discord! Mods West and Jerv will pick up from your suggestions and share their designs on an upcoming livestream - all inspired by you! Drop your spookified ideas, pumkin-ified concepts, cursed combinations and Halloween makeovers until 13 October 2025 9am UTC!
+
+Like all the previous JMods Draw sessions, this is purely for fun and for your Halloween pleasure.
+
+==Merch==
+Time is running out to get your hands on the latest official Old School RuneScape x Makeship plushies! Our cute critters range spans four iconic NPCs such as Zanik, Thurgo, Varrock Stray Dog and Varlamore Capybara.
+
+[[File:Interface Uplift Round 2 (15).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-18/make.png here]!'']]
+
+There is only 1 week left to order these limited-edition plushies.
+
+You have until October 4th 8:00am UTC, 4am ET, 1am PT and 6pm AET to purchase them on Makeship's website [https://www.makeship.com/shop/creator/runescape here.]
+
+==Other Changes==
+===Trading Restrictions in PvP===
+Some sneaky players were using alternate accounts to 'deliver' food and potions mid-fight, cutting out a lot of the risk that makes PvP thrilling. That’s no longer possible:
+
+* If you’ve been in combat within the last 15 ticks in the Wilderness, Deadman, or PvP worlds, you can’t pick up food or potions that are on the floor.
+* If you’ve been in combat within the last 20 ticks in Deadman or PvP worlds, you can’t trade either.
+* Multi-combat zones are unaffected, so group fights can carry on as usual.
+Risk is what makes these worlds exciting, and we hope these changes will keep fights fairer and more intense!
+
+Finally, a few more improvements and fixes to cover:
+
+* Guardians of the Rift enjoyers should now find that the entrance barrier can only be locked on non-GOTR-themed worlds. Previously, the list of worlds was inaccurate, and one world was missed.
+* Joining Blood Moon mid-Jaguar phase will now correctly show the right Jaguar's safety circle straight away, instead of briefly displaying the wrong one. *Edit, this has unfortunately been reversed while the team investigates an issue. Apologies.
+* The Virtus set now has its set bonus for Ancient magicks displayed.
+* Fixed an issue where completing 'Enter the Abyss' incorrectly allowed players to receive Abyssal Demon Slayer tasks without Priest in Peril or Fairy Tale Part II.
+* Slayer masters will now respect your combat level (if enabled) even with a Slayer cape equipped.
+* Players can now speak to any Slayer master to cancel a task for free that is not possible to complete based on quest requirements or Slayer level, in case you received a task you were ineligible for in the prior weeks.
+* The weeds in the Morytania herb patch have been restored to their proper dark green colour, matching the rest of the region's gloomy vegetation.
+* Hovering over the world map icon on desktop (with tooltips enabled) now displays 'World Map' along with the desktop shortcut 'Ctrl+M'.
+* A rogue full stop has been spotted, rounded up, and removed! The level 93 Meiyerditch shortcut in the Agility guide is now punctuation-consistent.
+* Buying a piece of the Tithe Farm outfit no longer causes the Collection Log to increment the item's counter by 2.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1nv3x9d/interface_uplift_round_2/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blighted, Blossom, Boko, Bruno, Chilly, Criminal, Curse, Daizong, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

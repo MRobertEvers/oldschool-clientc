@@ -1,0 +1,103 @@
+# Sotetseg spec pass: OUR server measured, 2026-10-02. Driver: python3 tools/quest_gate/run.py --script <lua> --name <name> --no-build --no-publish (binary src/torirs_questtest, content pack current). Scripts in scratch/.
+# God mode was on in every run except spec_sotetseg_10, so hit_player damage reads 0 where god mode absorbed it; timing rows are unaffected. Ticklog columns: serial tick kind a b c d e f label.
+
+## SOLO_NORMAL_CADENCE (spec_sotetseg_1: normal, solo, player at the fight tile 22 tiles from him, ::tobgo at tick 8)
+attacks 40 melee 0 ball 40
+gaps {5: 39}
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+melee -> hit_player delay {}
+1604 launches [58, 108, 158, 208]
+ticks with two npc_anim rows (death ball tick) [58, 108, 158, 208]
+53 npc_anim 1079 8388 8139 0 0 0 
+53 projectile 105103466 105103444 -1 1606 20 232 
+56 hit_player 0 1079 0 26 -1 8388 
+58 npc_anim 1079 8388 8139 0 0 0 
+58 projectile 105103466 105103444 -1 1606 20 232 
+58 npc_anim 1079 8388 8139 0 0 0 
+58 projectile 105103466 105103444 -1 1604 30 242 
+61 hit_player 0 1079 0 26 -1 8388 
+63 npc_anim 1079 8388 8139 0 0 0 
+63 projectile 105103466 105103444 -1 1606 20 232 
+66 hit_player 0 1079 0 26 -1 8388 
+67 hit_player 0 1079 0 26 -1 8388 
+68 npc_anim 1079 8388 8139 0 0 0 
+68 projectile 105103466 105103444 -1 1606 20 232 
+(tick 58: npc_anim 8139 twice, projectile 1606 (start 20, end 232) and projectile 1604 (start 30, end 242): the death ball goes out WITH the tenth ordinary ball; the next attack is tick 63 (+5); impact of the 1604 is tick 67 = +9 at 22 tiles, the ordinary ball +8)
+
+## ADJACENT_ROLL (spec_sotetseg_7: ::tobwarp 15 39, the tile south of him, 420 ticks)
+attacks 84 melee 41 ball 43
+gaps {5: 83}
+BMMMMMBBMBMMMMBBMBBBBMBMMBMMMBMBMBBBBBMMMMMMMMBBBBMBBMBBMBBMBBMBMBBBBMMMBBMBBMBMMBMB
+melee -> hit_player delay {2: 41}
+1604 launches [113, 243, 313, 393]
+ticks with two npc_anim rows (death ball tick) [113, 243, 313, 393]
+
+## MAZE_PROC (spec_sotetseg_4: ::tobgo then ::tobmazearm in the same tick, so boss_seen is still 0)
+9 npc_retype 1079 8388 8387 2147483647 0 0 
+9 npc_anim 1079 8387 8142 0 0 0 
+16 hit_player 0 -1 0 26 0 -1 
+17 npc_retype 1079 8387 8388 2147483647 0 0 
+23 npc_anim 1079 8388 8139 0 0 0 
+23 projectile 105103466 105103444 -1 1606 20 232 
+28 npc_anim 1079 8388 8139 0 0 0 
+28 projectile 105103466 105103444 -1 1606 20 232 
+player_tile tick 9: 6427,151,plane 3
+player_tile tick 15: 6428,166,plane 3
+player_tile tick 18: 6415,84,plane 0
+(proc = tick 9: npc_retype 8388->8387 and npc_anim 8142 on the same tick the runner is at 6427,151 plane 3 (arrival +0); maze left at 17; his attack attempt is at 18 (+1) with no target in the arena (solo) and it consumes the clock, so the next visible attack is 23 = 18+5)
+
+## MAZE_CYCLE (spec_sotetseg_c3, c4, c7, c8: ::tobmazeout issued after k ticks; proc 9; despawn checks 13, 17, 21)
+k=3: mark tick 11; re-activation tick 13
+k=4: mark tick 12; re-activation tick 17
+k=7: mark tick 15; re-activation tick 17
+k=8: mark tick 16; re-activation tick 21
+
+## RUNNER_TICK_PERIOD (spec_sotetseg_8: runner steps north off the path; spec_sotetseg_9: proc on an even tick, standing on the path; spec_sotetseg_10: no god mode, 150 ticks)
+8: hit_player ticks: 16 20 22 24 24 26 28 30 32 32 34 36 38 40 40 42 44 46 48 48 50 52 54 56 56 58 60 62 64 64 66 68 
+8: tornado npc_spawn tick: 20 (step 4, onto row 3 = the fourth row, resolved at tick 20); npc_free tick 48
+8: tornado npc_tile rows (tick:x,z): 21:6427,152 22:6428,152 23:6429,152 24:6430,152 25:6430,153 26:6430,154 27:6429,154 28:6429,155 29:6429,156 30:6430,156 31:6431,156 32:6432,156 33:6433,156 34:6433,157 35:6433,158 36:6432,158 37:6431,158 38:6430,158 39:6430,159 40:6430,160 41:6430,161 42:6430,162 43:6430,163 44:6430,164 45:6429,164 46:6428,164 47:6428,165 
+9: hit_player ticks: 17 25 33 41 49   (proc tick 10; chip gaps 8)
+10: chip hits tick:damage 17:3 25:3 33:3 41:3 49:1 57:1 65:3 73:3 81:2 89:1 97:2 105:1 113:2 121:1 129:2 137:3 145:1 153:3 
+
+## SOLO_RUNNER_FALSE_CLEAR (spec_sotetseg_3: ::tobgo, 12 ticks, ::tobmazearm, ::tobmazestate each tick; 'The way onward is open' at tick 24 = the room declared cleared)
+arm	tobmazearm: hp=1997 of 3000 | npcs in instance=1 at 20
+st21	tobmazestate active=1 under=2 mine=2 mirror=-1 plane=3 col=9 row=0 seed0=9 | <col=ffffff>Sotetseg chooses you...
+st22	tobmazestate active=1 under=2 mine=2 mirror=576 plane=3 col=9 row=0 seed0=9 | tobmazestate active=1 under=2 mine=2 mirror=-1 plane=3 col=9 row=0 seed0=9
+st23	tobmazestate active=1 under=2 mine=2 mirror=576 plane=3 col=9 row=0 seed0=9 | tobmazestate active=1 under=2 mine=2 mirror=576 plane=3 col=9 row=0 seed0=9
+st24	tobmazestate active=1 under=2 mine=2 mirror=576 plane=3 col=9 row=0 seed0=9 | <col=8f0000>The way onward is open: the corridor back to the south.
+st25	tobmazestate active=1 under=2 mine=2 mirror=576 plane=3 col=9 row=0 seed0=9 | tobmazestate active=1 under=2 mine=2 mirror=576 plane=3 col=9 row=0 seed0=9
+st26	tobmazestate active=1 under=2 mine=2 mirror=576 plane=3 col=9 row=0 seed0=9 | tobmazestate active=1 under=2 mine=2 mirror=576 plane=3 col=9 row=0 seed0=9
+st27	tobmazestate active=1 under=2 mine=2 mirror=576 plane=3 col=9 row=0 seed0=9 | tobmazestate active=1 under=2 mine=2 mirror=576 plane=3 col=9 row=0 seed0=9
+st28	tobmazestate active=1 under=2 mine=2 mirror=576 plane=3 col=9 row=0 seed0=9 | tobmazestate active=1 under=2 mine=2 mirror=576 plane=3 col=9 row=0 seed0=9
+st29	tobmazestate active=0 under=2 mine=2 mirror=-1 plane=3 col=9 row=0 seed0=9 | tobmazestate active=1 under=2 mine=2 mirror=576 plane=3 col=9 row=0 seed0=9
+
+## PRAYER_BLOCK (spec_sotetseg_5: a ball hit at tick 21 re-blocks every 5 ticks, never lapses; spec_sotetseg_6: ::tobmazearm right after the hit at 21 stops the next hit; drive tick of each attempt, refused until tick 25 processed at 26)
+enter	in tob sotetseg (normal) at 6415,81,0; boss present (tob_sotetseg_combat slot 29 at 6413,104); handle 1, started 0, fight 6415,84,0
+try1	21->21 refused protectfrommagic on refused: You can't use protection prayers at the moment. -- pressed prayerbook:prayer13 (component 3
+try2	22->22 refused protectfrommagic on refused: You can't use protection prayers at the moment. -- pressed prayerbook:prayer13 (component 3
+try3	23->23 refused protectfrommagic on refused: You can't use protection prayers at the moment. -- pressed prayerbook:prayer13 (component 3
+try4	24->24 refused protectfrommagic on refused: You can't use protection prayers at the moment. -- pressed prayerbook:prayer13 (component 3
+try5	25->25 ok protectfrommagic on: pressed prayerbook:prayer13 (component 35454997) on drive tick 25; varb4116_prayer_protectfrommagic 0 ->
+6	pass=6 fail=0
+
+## HITPOINTS (spec_sotetseg_hp_entry, spec_sotetseg_hp_hard, spec_sotetseg_2 for normal; ::tobwhy; solo = scale 1)
+npcs in instance=1 |   npc Sotetseg hp=560 | room=4
+tobmazearm: hp=371 of 560 | npcs in instance=1 |   npc Sotetseg hp=560
+tobsotestate form=combat def=200 of 200 hud=1105976 | tobmazearm: hp=371 of 560 | npcs in instance=1
+npcs in instance=1 |   npc Sotetseg hp=3000 | room=4
+tobmazearm: hp=1997 of 3000 | npcs in instance=1 |   npc Sotetseg hp=3000
+tobsotestate form=combat def=200 of 200 hud=1356076 | tobmazearm: hp=1997 of 3000 | npcs in instance=1
+npcs in instance=1 |   npc Sotetseg hp=3000
+tobmazearm: hp=1997 of 3000 | npcs in instance=1 at 20
+
+## MAZE_GENERATOR (spec_sotetseg_11: ::tobmaze, ::tobmazerate)
+tobmaze OK - the generated maze is contiguous. | tobstate active=1 handle=1 room=4 mode=1 started=0 cleared=0 boss_uid=66615 fight=6415,84,0 | <col=8f0000>Sotetseg. Cross the barrier to begin, or use ::tobgo.
+tobmazerate OK - the no-lateral-move rate matches the measured corpus. | tobmazerate: turns with no lateral move 200 permille of 7000 (want 178..222) [M11] | tobmaze OK - the generated maze is contiguous.
+
+## DAMAGE_ROLLS (spec_sotetseg_dmg_off: adjacent, no god mode, ::setlevel hitpoints 99 every tick, 105 ticks; the prayer run is identical because the first ball hit blocks the melee prayer, so Protect from Melee halving was NOT measured)
+melee hits [2, 4, 7, 9, 15, 17, 18, 19, 38, 38, 44]
+ball hits [13, 17, 24, 41, 44, 47, 49, 49, 50]
+
+## TOBRUN (spec_sotetseg_run: ::tobrun in a Sotetseg room)
+tobrun OK - 53 checks passed. | tobstate active=1 handle=1 r
+(its Sotetseg checks are ~tob_st_sote_clock, _seed_pack, _tornado_damage, _ball_ring, _research; they pin the 5-tick period and the TENTH magic attack as the ball tick, which the recorder contradicts, see sotetseg.magic_per_ball)
