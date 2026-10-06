@@ -22,13 +22,17 @@
 --    coins, 500)), asserted literally.
 --
 -- RE-AUTHOR (matthew-mbp-m4-b57): NO goto into or out of a closed space.
--- The whole quest is walked: the only gotos are the two overland hops
--- (Lumbridge -> outside the tower's east door, and outside the tower ->
--- beside Brother Cedric's ladder), each from an open outdoor tile to one.
--- Every door is passed with pass_door (walk to the near side; click the
--- closed leaf, or assert the open leaf if an earlier press left it open;
--- walk through; check the far tile), every ladder and stair is clicked and
--- its landing read back:
+-- The whole quest is walked: the only gotos are three overland hops
+-- (Lumbridge -> south of the members' gate 2934,3320, which is pressed
+-- (b66: the owner's 2026-10-05 ruling puts the first goto under the door
+-- rule) -> outside the tower's east door, and outside the tower -> beside
+-- Brother Cedric's ladder), each from an open outdoor tile to one.
+-- Every door is passed with the driver's t.player.pass_door (b66; walk to
+-- the near side; click the closed leaf, or assert the open leaf if an
+-- earlier press left it open; walk through; check the far tile), every
+-- walk-through (the members' gate, secretdoor2, ctratgatec) with
+-- t.player.cross_gate, every ladder and stair with t.player.climb (the
+-- landing read back), every route with t.player.walk_route:
 --  * tower: the east door poordoor 2574,3250 (Kojo's room), the inner door
 --    poordoor 2567,3245 (the spindle room), ladder_cellar 2566,3242 down /
 --    ladder_from_cellar 2566,9642 up (maplink.dbrow rows on all four sides),
@@ -114,18 +118,10 @@ return {
         end
 
         -- Walk a static-map route (cog_path.py's closed-door BFS, a waypoint
-        -- every ~8 tiles); a waypoint missed by more than 2 tiles is a FAIL row.
+        -- every ~8 tiles) with the driver's t.player.walk_route: one row,
+        -- graded on the player standing EXACTLY on the last waypoint.
         local function walk_route(prefix, way)
-            for wi, wp in ipairs(way) do
-                local cw, cd = t.player.walk_to(wp[1], wp[2], 40)
-                if cw ~= "ok" then
-                    local wr, wt = t.world.tile()
-                    if not (wr == "ok" and wt.level == 0 and math.abs(wt.x - wp[1]) <= 2 and math.abs(wt.z - wp[2]) <= 2) then
-                        t.step(prefix .. ".walk" .. wi, "FAIL", "walk_to " .. wp[1] .. "," .. wp[2] .. " -> "
-                            .. tostring(cw) .. " (" .. tostring(cd) .. ") at " .. tile_text(wr, wt))
-                    end
-                end
-            end
+            t.exec(prefix, t.player.walk_route, way)
         end
 
         -- Read the player's tile and grade it against a box on one level.
@@ -135,52 +131,30 @@ return {
                 string.format("player at %s (want level %d, x %d-%d, z %d-%d: %s)", tile_text(r, tl), want_level, x0, x1, z0, z1, why))
         end
 
-        -- Cross one door on foot (docs/quest_authoring/sampler-findings.md,
-        -- b56 round 4). Walk to the near side; if the closed leaf stands on
-        -- the door tile, click THAT copy; otherwise an earlier press left it
-        -- open (a door swings back after 500 ticks), so assert the open leaf
-        -- stands on or beside the door tile -- a row that fails when neither
-        -- leaf is there -- and do not press it again. Then walk to the far
-        -- tile and check it exactly.
+        -- Cross one door on foot: the driver's t.player.pass_door (one graded
+        -- row per crossing: walks to the near side, presses the CLOSED leaf on
+        -- the exact door tile and level or, if an earlier press left it open,
+        -- asserts the OPEN leaf within 1 and walks through without pressing;
+        -- then grades the exact far tile). docs/quest_authoring/verbs-pointer.md.
         local function pass_door(prefix, closed_sym, open_sym, door_x, door_z, near_x, near_z, far_x, far_z)
-            t.player.walk_to(near_x, near_z, 40)
-            local nr, nt = t.world.tile()
-            t.check(prefix .. ".atDoor", nr == "ok" and nt.level == 0 and nt.x == near_x and nt.z == near_z,
-                "walked to " .. near_x .. "," .. near_z .. " beside " .. closed_sym .. " at " .. door_x .. "," .. door_z .. " -> " .. tile_text(nr, nt))
-            local cr, cd = t.world.loc_near(closed_sym, 1)
-            if cr == "ok" and cd.tile_x == door_x and cd.tile_z == door_z then
-                t.exec(prefix .. ".openDoor", t.player.click_loc, closed_sym, 1, { at = { door_x, door_z } })
-                t.ticks(1)
-            else
-                local orr, od = t.world.loc_near(open_sym, 2)
-                t.check(prefix .. ".doorStandsOpen", orr == "ok" and math.abs(od.tile_x - door_x) <= 1 and math.abs(od.tile_z - door_z) <= 1,
-                    closed_sym .. " at " .. door_x .. "," .. door_z .. ": "
-                        .. (cr == "ok" and ("nearest closed copy at " .. cd.tile_x .. "," .. cd.tile_z) or tostring(cr))
-                        .. "; " .. open_sym .. ": " .. (orr == "ok" and ("open leaf at " .. od.tile_x .. "," .. od.tile_z) or tostring(orr))
-                        .. " (want within 1 of the door tile: already standing open from an earlier press, so walked through, not pressed again)")
-            end
-            local wr, wd = t.player.walk_to(far_x, far_z, 20)
-            local fr, ft = t.world.tile()
-            t.check(prefix .. ".throughDoor", fr == "ok" and ft.level == 0 and ft.x == far_x and ft.z == far_z,
-                "walked through " .. closed_sym .. " to " .. far_x .. "," .. far_z .. " -> " .. tile_text(fr, ft)
-                    .. " (walk " .. tostring(wr) .. (wd and (" " .. tostring(wd)) or "") .. ")")
+            t.exec(prefix, t.player.pass_door, { closed = closed_sym, open = open_sym, at = { door_x, door_z, 0 },
+                near = { near_x, near_z }, far = { far_x, far_z } })
         end
 
-        -- Climb a ladder or stair by clicking it (op given), then read the
-        -- landing: the level and the box it must land in.
-        -- click_loc can answer on the walk to the ladder (map_flag) before the
-        -- climb itself lands, so the landing is awaited, then graded.
+        -- Climb a ladder or stair by clicking it: the driver's t.player.climb,
+        -- graded on the new level and a landing inside the box (the box's
+        -- centre is the dest, its half-width the slack). A ladder between the
+        -- surface and the basement keeps level 0 but changes map frame
+        -- (z // 6400), which climb accepts as a climb (b62-seam1).
         local function climb(name, sym, op, at, want_level, x0, x1, z0, z1, why)
-            t.exec(name, t.player.click_loc, sym, op, { at = at })
-            t.await({
-                level = function()
-                    local r, tl = t.world.tile()
-                    return r == "ok" and tl.level == want_level and tl.x >= x0 and tl.x <= x1 and tl.z >= z0 and tl.z <= z1
-                end,
-                note = name .. " landing",
-            }, 20)
-            t.ticks(1)
-            check_at(name .. ".landed", want_level, x0, x1, z0, z1, why)
+            local here_result, here = t.world.tile()
+            local from_level = (here_result == "ok" and here) and here.level or 0 -- the floor the press is made from
+            local cx, cz = (x0 + x1) // 2, (z0 + z1) // 2
+            local slack = math.max(cx - x0, x1 - cx, cz - z0, z1 - cz)
+            t.exec(name, t.player.climb, { loc = sym, op = op, at = { at[1], at[2], from_level },
+                dest = { cx, cz, want_level }, slack = slack,
+                landed_ok = function(tl) return tl.level == want_level and tl.x >= x0 and tl.x <= x1 and tl.z >= z0 and tl.z <= z1 end,
+                landed_desc = string.format("level %d, x %d-%d, z %d-%d: %s", want_level, x0, x1, z0, z1, why) })
         end
 
         -- The tower's two doors, both directions.
@@ -209,8 +183,22 @@ return {
         -- NOT-A-STEP: syncStep quest-helper's own plugin-state refresh, not a player action -- the real sync (~cog_sync_progress) runs automatically inside every opnpc1,brother_kojo click, already exercised by talkToKojo-finish below, brother_kojo.rs2:9
 
         -- ==== Talk to Brother Kojo, start the quest ====
-        -- An overland hop from the fixture's outdoor tile beside Hans to the
-        -- open ground outside the tower's east door; the door is clicked.
+        -- From the Lumbridge fixture (3206,3233) the only walk on foot into
+        -- Kandarin goes through the members' wall south of Taverley (reach.py
+        -- 3206,3233 -> 2576,3250: UNREACHABLE at 160; the fewest-door walk at
+        -- 400 opens membergater 2933,3320). So: overland to the open ground on
+        -- its south side (reach.py 3206,3233 -> 2934,3318: REACH closed-doors
+        -- len=387), the walk-through gate membergatel 2934,3320 pressed by the
+        -- driver's cross_gate (2934,3318 -> 2934,3322: NEEDS-DOOR len=4 via
+        -- membergatel: the only way), then overland from its north side to
+        -- the open ground outside the tower's east door (reach.py 2934,3322 ->
+        -- 2576,3250: REACH closed-doors len=860 at margins 250/300/400), and the
+        -- door is clicked. No teleport, so no Magic is staged and Kojo's
+        -- dialogue (no combat-level branch) is the fresh account's.
+        t.exec("goto-kojo-start.memberGate", t.player.goto_tile, 2934, 3318, 0)
+        t.exec("kojo.memberGate", t.player.cross_gate, { loc = "membergatel", at = { 2934, 3320, 0 },
+            near = { 2934, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2934) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320", far = { 2934, 3322 } })
         t.exec("goto-kojo-start", t.player.goto_tile, 2576, 3250, 0)
         tower_east_door_in("kojo")
         local kojo_walk = t.player.walk_to(2570, 3249, 20)
@@ -257,9 +245,10 @@ return {
         local red_pole = t.player.by_symbol("loc", "brokeclockpole_red")
         local red_place_result, red_place_detail = t.player.use_on("redcog", red_pole) -- oplocu,brokeclockpole_red -> ~cog_place
         local red_await_result = red_place_result == "ok" and t.var.await_server("varp10_cogquest", 2, 15) or "skipped"
-        t.check("redCogOnRedSpindle", red_place_result == "ok" and red_await_result == "ok", string.format(
-            "use_on(redcog,brokeclockpole_red) -> %s (%s); cogquest await(quest_cog_three_remaining_cogs=2) -> %s",
-            tostring(red_place_result), tostring(red_place_detail), tostring(red_await_result)))
+        local red_left_result, red_left_count = t.inv.count("redcog") -- the cog left the pack onto the spindle
+        t.check("redCogOnRedSpindle", red_place_result == "ok" and red_await_result == "ok" and red_left_result == "ok" and red_left_count == 0, string.format(
+            "use_on(redcog,brokeclockpole_red) -> %s (%s); cogquest await(quest_cog_three_remaining_cogs=2) -> %s; inv redcog after=%s",
+            tostring(red_place_result), tostring(red_place_detail), tostring(red_await_result), tostring(red_left_count)))
         t.expect("quest.stage.three_remaining_cogs", t.quest.expect_stage("quest_cog_three_remaining_cogs"))
 
         -- ==== Blue cog: out of the tower, down Cedric's ladder, the secret
@@ -276,16 +265,13 @@ return {
         walk_route("blue.secretPath", { { 2613, 9660 }, { 2613, 9652 }, { 2616, 9647 }, { 2616, 9639 }, { 2615, 9632 },
             { 2609, 9630 }, { 2608, 9623 }, { 2607, 9616 }, { 2606, 9609 }, { 2601, 9606 }, { 2596, 9603 },
             { 2590, 9601 }, { 2583, 9600 }, { 2580, 9605 }, { 2580, 9613 }, { 2580, 9621 }, { 2580, 9629 }, { 2577, 9630 } })
-        t.player.walk_to(2576, 9631, 20)
-        check_at("pushWall.atWall", 0, 2576, 2576, 9631, 9631, "east of secretdoor2 2575,9631 at the tunnel's end")
-        -- secretdoor2 op1=Push -> door_walkthrough_try: a walk-through, so
-        -- called directly and graded on the far tile.
-        local push_result, push_detail = t.player.click_loc("secretdoor2", 1)
-        t.ticks(2)
-        local pr, pt = t.world.tile()
-        t.check("pushWall", pr == "ok" and pt.level == 0 and pt.x <= 2575 and pt.x >= 2573 and pt.z >= 9630 and pt.z <= 9634,
-            string.format("click_loc(secretdoor2,1) -> %s (%s); player at %s (want the cell west of the wall, x 2573-2575 z 9630-9634)",
-                tostring(push_result), tostring(push_detail), tile_text(pr, pt)))
+        -- secretdoor2 op1=Push -> door_walkthrough_fallback.rs2
+        -- [label,door_walkthrough_try]: a WALK-THROUGH (p_teleport across,
+        -- no opened leaf), so the driver's cross_gate from the tunnel's end
+        -- east of it, graded on the tile before (east) and after (the cell).
+        t.exec("pushWall", t.player.cross_gate, { loc = "secretdoor2", at = { 2575, 9631, 0 }, near = { 2576, 9631 },
+            far_ok = function(tl) return tl.x >= 2573 and tl.x <= 2575 and tl.z >= 9630 and tl.z <= 9634 end,
+            far_desc = "the cell west of the wall, x 2573-2575 z 9630-9634" })
         local blue_pickup_result, blue_pickup_detail = t.player.click_obj("bluecog")
         local blue_have_result, blue_have_count = t.inv.count("bluecog")
         t.check("pickUpBlueCog", blue_pickup_result == "ok" and blue_have_result == "ok" and blue_have_count == 1,
@@ -301,9 +287,10 @@ return {
         local blue_pole = t.player.by_symbol("loc", "brokeclockpole_blue")
         local blue_place_result, blue_place_detail = t.player.use_on("bluecog", blue_pole)
         local blue_await_result = blue_place_result == "ok" and t.var.await_server("varp10_cogquest", 3, 15) or "skipped"
-        t.check("blueCogOnBlueSpindle", blue_place_result == "ok" and blue_await_result == "ok", string.format(
-            "use_on(bluecog,brokeclockpole_blue) -> %s (%s); cogquest await(quest_cog_two_remaining_cogs=3) -> %s",
-            tostring(blue_place_result), tostring(blue_place_detail), tostring(blue_await_result)))
+        local blue_left_result, blue_left_count = t.inv.count("bluecog") -- the cog left the pack onto the spindle
+        t.check("blueCogOnBlueSpindle", blue_place_result == "ok" and blue_await_result == "ok" and blue_left_result == "ok" and blue_left_count == 0, string.format(
+            "use_on(bluecog,brokeclockpole_blue) -> %s (%s); cogquest await(quest_cog_two_remaining_cogs=3) -> %s; inv bluecog after=%s",
+            tostring(blue_place_result), tostring(blue_place_detail), tostring(blue_await_result), tostring(blue_left_count)))
         t.expect("quest.stage.two_remaining_cogs", t.quest.expect_stage("quest_cog_two_remaining_cogs"))
 
         -- ==== Black cog: down the stairs and the ladder, the three doors to
@@ -327,11 +314,15 @@ return {
         local blackcog_second_result, blackcog_second_detail = t.player.click_obj("blackcog") -- opobj3,blackcog; hollow
         local black_await_result = t.inv.await("blackcog", 1, 10)
         local black_have_result, black_have_count = t.inv.count("blackcog")
+        local water_left_result, water_left = t.inv.count("bucket_water")
+        local empty_bucket_result, empty_bucket = t.inv.count("bucket_empty")
         t.check("pickupBlackCog.confirm", blackcog_find_result == "ok" and black_await_result == "ok"
-            and black_have_result == "ok" and black_have_count == 1,
-            string.format("obj_near(blackcog) -> %s; click_obj(blackcog) -> %s (%s); inv.await(blackcog,1) -> %s; inv blackcog=%s",
+            and black_have_result == "ok" and black_have_count == 1
+            and water_left_result == "ok" and water_left == 0 and empty_bucket_result == "ok" and empty_bucket == 1,
+            string.format("obj_near(blackcog) -> %s; click_obj(blackcog) -> %s (%s); inv.await(blackcog,1) -> %s; inv blackcog=%s; "
+                .. "bucket_water=%s bucket_empty=%s (want 0 and 1: cogs.rs2 [label,cog_pour_and_take] inv_del bucket_water, inv_add bucket_empty)",
                 tostring(blackcog_find_result), tostring(blackcog_second_result), tostring(blackcog_second_detail),
-                tostring(black_await_result), tostring(black_have_count)))
+                tostring(black_await_result), tostring(black_have_count), tostring(water_left), tostring(empty_bucket)))
         t.player.walk_to(2605, 9638, 20)
         pass_door("black.door3Out", "poordoor", "poordooropen", 2602, 9638, 2602, 9638, 2601, 9638)
         walk_route("black.toDoor2Out", { { 2599, 9640 } })
@@ -352,9 +343,10 @@ return {
         local black_pole = t.player.by_symbol("loc", "brokeclockpole_black")
         local black_place_result, black_place_detail = t.player.use_on("blackcog", black_pole)
         local black_place_await = black_place_result == "ok" and t.var.await_server("varp10_cogquest", 4, 15) or "skipped"
-        t.check("blackCogOnBlackSpindle", black_place_result == "ok" and black_place_await == "ok", string.format(
-            "use_on(blackcog,brokeclockpole_black) -> %s (%s); cogquest await(quest_cog_one_remaining_cog=4) -> %s",
-            tostring(black_place_result), tostring(black_place_detail), tostring(black_place_await)))
+        local black_left_result, black_left_count = t.inv.count("blackcog") -- the cog left the pack onto the spindle
+        t.check("blackCogOnBlackSpindle", black_place_result == "ok" and black_place_await == "ok" and black_left_result == "ok" and black_left_count == 0, string.format(
+            "use_on(blackcog,brokeclockpole_black) -> %s (%s); cogquest await(quest_cog_one_remaining_cog=4) -> %s; inv blackcog after=%s",
+            tostring(black_place_result), tostring(black_place_detail), tostring(black_place_await), tostring(black_left_count)))
         t.expect("quest.stage.one_remaining_cog", t.quest.expect_stage("quest_cog_one_remaining_cog"))
 
         -- ==== White cog: the north-western door, the rat poison, the lever
@@ -385,17 +377,13 @@ return {
             string.format("inv rat_poison after pouring=%s (%s)", tostring(ratpoison_gone_count), tostring(ratpoison_gone_result)))
 
         -- ctratgatec: [oploc1] opens a mesbox first ("The death throes of the
-        -- rats..."), then ~cog_walk_gate teleports the player through.
-        t.player.walk_to(2580, 9656, 20)
-        check_at("westernGate.atGate", 0, 2580, 2580, 9656, 9656, "east of ctratgatec 2579,9656")
-        local gate_in_result, gate_in_detail = t.player.click_loc("ctratgatec", 1)
-        t.ticks(1)
-        t.exec("westernGate.mesbox", t.chat.continue_, true)
-        t.ticks(2)
-        local gr, gt = t.world.tile()
-        t.check("westernGate", gr == "ok" and gt.level == 0 and gt.x == 2578 and gt.z == 9656,
-            string.format("click_loc(ctratgatec,1) -> %s (%s); player at %s (want 2578,9656 west of the gate: ~cog_walk_gate)",
-                tostring(gate_in_result), tostring(gate_in_detail), tile_text(gr, gt)))
+        -- rats...", quest_cog_gates_and_levers.rs2:13), then ~cog_walk_gate
+        -- p_teleports the player through: a guarded WALK-THROUGH, so the
+        -- driver's cross_gate with the page as chat, graded on the tiles.
+        t.exec("westernGate", t.player.cross_gate, { loc = "ctratgatec", at = { 2579, 9656, 0 }, near = { 2580, 9656 },
+            far_ok = function(tl) return tl.x == 2578 and tl.z == 9656 end,
+            far_desc = "2578,9656 west of the gate (~cog_walk_gate's entering dest)",
+            chat = { "mesbox:The death throes of the rats" } })
         local white_pickup_result, white_pickup_detail = t.player.click_obj("whitecog")
         local white_have_result, white_have_count = t.inv.count("whitecog")
         t.check("pickUpWhiteCog", white_pickup_result == "ok" and white_have_result == "ok" and white_have_count == 1,
@@ -403,15 +391,10 @@ return {
 
         -- Back out through the western gate (from the cage side
         -- ~cog_walk_gate stands the player on the gate tile, 2579,9656).
-        t.player.walk_to(2578, 9656, 20)
-        local gate_out_result, gate_out_detail = t.player.click_loc("ctratgatec", 1)
-        t.ticks(1)
-        t.exec("westernGateOut.mesbox", t.chat.continue_, true)
-        t.ticks(2)
-        local gor, got = t.world.tile()
-        t.check("westernGateOut", gor == "ok" and got.level == 0 and got.x == 2579 and got.z == 9656,
-            string.format("click_loc(ctratgatec,1) -> %s (%s); player at %s (want 2579,9656, the gate tile on the trough side)",
-                tostring(gate_out_result), tostring(gate_out_detail), tile_text(gor, got)))
+        t.exec("westernGateOut", t.player.cross_gate, { loc = "ctratgatec", at = { 2579, 9656, 0 }, near = { 2578, 9656 },
+            far_ok = function(tl) return tl.x == 2579 and tl.z == 9656 end,
+            far_desc = "2579,9656, the gate tile on the trough side",
+            chat = { "mesbox:The death throes of the rats" } })
         walk_route("white.toLeverGateOut", { { 2583, 9657 }, { 2591, 9657 } })
         pass_door("white.leverGateOut", "ctratgatea", "prisondooropen", 2595, 9657, 2595, 9657, 2596, 9657)
         walk_route("white.toDoorOut", { { 2596, 9660 }, { 2589, 9661 }, { 2581, 9661 }, { 2574, 9660 }, { 2567, 9659 },
@@ -425,9 +408,10 @@ return {
         local white_pole = t.player.by_symbol("loc", "brokeclockpole_white")
         local white_place_result, white_place_detail = t.player.use_on("whitecog", white_pole)
         local white_await_result = white_place_result == "ok" and t.var.await_server("varp10_cogquest", 21, 15) or "skipped" -- native 5 | 16 (rat-door bit set above)
-        t.check("whiteCogOnWhiteSpindle", white_place_result == "ok" and white_await_result == "ok", string.format(
-            "use_on(whitecog,brokeclockpole_white) -> %s (%s); cogquest await(quest_cog_no_remaining_cogs=21, native 5|16) -> %s",
-            tostring(white_place_result), tostring(white_place_detail), tostring(white_await_result)))
+        local white_left_result, white_left_count = t.inv.count("whitecog") -- the cog left the pack onto the spindle
+        t.check("whiteCogOnWhiteSpindle", white_place_result == "ok" and white_await_result == "ok" and white_left_result == "ok" and white_left_count == 0, string.format(
+            "use_on(whitecog,brokeclockpole_white) -> %s (%s); cogquest await(quest_cog_no_remaining_cogs=21, native 5|16) -> %s; inv whitecog after=%s",
+            tostring(white_place_result), tostring(white_place_detail), tostring(white_await_result), tostring(white_left_count)))
         t.expect("quest.stage.no_remaining_cogs", t.quest.expect_stage("quest_cog_no_remaining_cogs"))
 
         -- ==== Hand in: down the stairs, into Kojo's room ====
