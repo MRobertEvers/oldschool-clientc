@@ -95,6 +95,34 @@ adds four rules, each with a switch on helper_coverage.Grader that restores the 
   wt_swung_off_first            a row before the goto pressed tree_ropeswing3 and landed
                                 outside the island                           FULL
 
+Seam matthew-mbp-m4-b64-seam1 `helper_coverage_judges_the_start_placement_and_crossing_locs` (owner
+ruling 2026-10-05: the run's first goto and the setup placement obey the door rule) adds two
+readings, each with a switch whose `*_off` case shows the hole: MapWalls.CROSSINGS (a blocking
+object a walk crosses by its own op -- the Wilderness Ditch, the Shantay Pass -- is a gate
+only_way_gates names; before it, a wall that made the open-doors route fail, so nothing was
+charged) and Grader.START_JUDGED (an unstamped first goto leaves from the fixture's tile; a setup
+cheat that moves the player is a "(setup placement) <cheat>" hop from it). The fixtures are the
+b63/b64 committed runs before b64 re-authored them, read from git:
+
+  druid_first_goto              test/quests/druid.lua at 462e83022 + OSRS-Content 212092e3ea's ledger:
+                                talkToKaqemeex, row 2 goto-talkToKaqemeex (no stamp) from the
+                                fixture's 3206,3233 past membergater 2935,3450 CHEAT:gate_crossings
+  druid_first_goto_off          the same, START_JUDGED off                   FULL (the hole)
+  atotc_sphinx                  atailoftwocats.lua at e3473be6c + e4d9b4ce78's ledger: talkToSphinx,
+                                row 138 goto-sphinx 2926,3554 -> 3284,2812, names
+                                shantay_pass_henge_doorway 3302,3116           CHEAT:gate_crossings
+  atotc_sphinx_off              the same, CROSSINGS off                      DRIVEN (the hole)
+  eta_placement                 entertheabyss.lua at 40a7c51ce + 740a5a388b's ledger: setup
+                                ::entertheabyss (p_teleport 3106,3558) from 3206,3233 over the ditch
+                                "(setup placement) ::entertheabyss ..."      CHEAT:gate_crossings
+  eta_placement_off             the same, START_JUDGED off                   absent (the hole)
+  eta_remedy                    the RETRY remedy: setup "::goto 3106 3510 0" after ::entertheabyss,
+                                walk north, cross_trap the ditch, goto the mage: no placement step,
+                                talkToMageInWildy                              DRIVEN
+  eadgar_unchanged              eadgar.lua at 567f22ae6 + ce7c8d26e6's ledger (a stamped first goto,
+                                judged already): goUpToSanfew CHEAT:gate_crossings naming
+                                membergater 2933,3320, every step's class as with both switches off
+
 Writes only temporary files. Exit 0 when every case holds.
 """
 
@@ -195,7 +223,16 @@ WATCHTOWER_LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_itwatc
 HM_FULLROUTE = os.path.join(helper_coverage.REPO_ROOT, "build", "orchestrator", "fix_b63")
 VERDICT = "(verdict)"
 ABSENT = "absent"
-RULES = ("GATE_CROSSINGS", "SOLID_LANDINGS", "USE_NEEDS_EFFECT", "POCKET_PRESS_SINCE_ARRIVAL")
+RULES = ("GATE_CROSSINGS", "SOLID_LANDINGS", "USE_NEEDS_EFFECT", "POCKET_PRESS_SINCE_ARRIVAL", "START_JUDGED",
+         "MapWalls.CROSSINGS")
+START_FIXTURES = {   # test_id: (lua commit, OSRS-Content ledger commit)
+    "druid": ("462e83022", "212092e3ea"),
+    "atailoftwocats": ("e3473be6c", "e4d9b4ce78"),
+    "entertheabyss": ("40a7c51ce", "740a5a388b"),
+    "eadgar": ("567f22ae6", "ce7c8d26e6"),
+}
+NO_STEP_STARTING = "(no step starting) "   # a want key: no step's name starts with the rest
+ETA_PLACEMENT = "(setup placement) ::entertheabyss lands at 3106,3558,0 past ditch_wilderness_cover"
 
 
 def git_show(repo, commit, path):
@@ -236,6 +273,57 @@ def watchtower_goto_off_island(press_first=False):
             line = "\t".join(fields)
         out.append(line)
     return lua, "\n".join(out)
+
+
+def start_fixture(test_id):
+    lua_commit, ledger_commit = START_FIXTURES[test_id]
+    lua = git_show(helper_coverage.REPO_ROOT, lua_commit, "test/quests/%s.lua" % test_id)
+    ledger = git_show(os.path.join(helper_coverage.REPO_ROOT, "OSRS-Content"), ledger_commit,
+                      "osrs239-content/server/scripts/selftest/quests/quest_%s/play/ledger.tsv" % test_id)
+    return lua, ledger
+
+
+def eta_remedy():
+    """Enter the Abyss with the RETRY remedy: a setup ::goto to open Edgeville ground south of the
+    ditch, a walk north to it, the ditch crossed north by its own op, then the goto to the mage."""
+    lua, ledger = start_fixture("entertheabyss")
+    anchor = '        "::entertheabyss",'
+    assert anchor in lua, "the eta fixture no longer carries the ::entertheabyss setup line"
+    lua = lua.replace(anchor, anchor + '\n        "::goto 3106 3510 0", -- open ground south of the ditch', 1)
+    row = "2\tgoto-talkToMageInWildy\tPASS\t0\t001-goto-talkToMageInWildy\tat 3106,3558,0 from 3106,3558,0"
+    assert row in ledger, "the eta fixture no longer carries its zero-length first goto"
+    ledger = ledger.replace(row, "\n".join((
+        "2\twalkToDitchSouth\tPASS\t5\t001-walkToDitchSouth\twalk_to 3106,3520: reached 3106,3520,0 from "
+        "3106,3510 in 5 tick(s)",
+        "2\tcrossDitchNorth\tPASS\t3\t001-crossDitchNorth\tcross_trap ditch_wilderness_cover at 3106,3521,0 "
+        "(want 3106,3520,0 -> 3106,3523,0): press 1: from 3106,3520,0 click_loc(ditch_wilderness_cover at "
+        "3106,3521,0, op1 Cross) -> ok map_flag; landed 3106,3523,0 -- click_loc ditch_wilderness_cover: pressed "
+        "the copy at 3106,3521,0",
+        "2\tgoto-talkToMageInWildy\tPASS\t0\t001-goto-talkToMageInWildy\tat 3106,3558,0 from 3106,3523,0")))
+    return lua, ledger
+
+
+def start_cases():
+    table = {}
+    lua, ledger = start_fixture("druid")
+    table["druid_first_goto"] = ("druid", lua, ledger, {
+        "talkToKaqemeex": ("CHEAT:gate_crossings", "(row start \"the fixture's tile, fresh_lumbridge.ini\") to "
+                           "2925,3486,0"),
+        VERDICT: "TEST_GAP"}, ())
+    table["druid_first_goto_off"] = ("druid", lua, ledger, {"talkToKaqemeex": "DRIVEN", VERDICT: "FULL"},
+                                     ("START_JUDGED",))
+    lua, ledger = start_fixture("atailoftwocats")
+    table["atotc_sphinx"] = ("atailoftwocats", lua, ledger, {
+        "talkToSphinx": ("CHEAT:gate_crossings", "shantay_pass_henge_doorway at 3302,3116,0")}, ())
+    table["atotc_sphinx_off"] = ("atailoftwocats", lua, ledger, {"talkToSphinx": "DRIVEN"}, ("MapWalls.CROSSINGS",))
+    lua, ledger = start_fixture("entertheabyss")
+    table["eta_placement"] = ("entertheabyss", lua, ledger, {
+        ETA_PLACEMENT: ("CHEAT:gate_crossings", "from 3206,3233,0 (row start \"the fixture's tile")}, ())
+    table["eta_placement_off"] = ("entertheabyss", lua, ledger, {ETA_PLACEMENT: ABSENT}, ("START_JUDGED",))
+    lua, ledger = eta_remedy()
+    table["eta_remedy"] = ("entertheabyss", lua, ledger, {
+        NO_STEP_STARTING + "(setup placement)": ABSENT, "talkToMageInWildy": "DRIVEN"}, ())
+    return table
 
 
 HM_HEAD = "quest-ledger-v1\nindex\tstep\tverdict\tticks\tshots\tdetail\n1\tquest.bind\tPASS\t1\t\tbound\n"
@@ -315,10 +403,17 @@ def seam_cases():
     return table
 
 
+def rule_owner(name):
+    """(class, attribute) a RULES name switches: `MapWalls.X` is on MapWalls, the rest on Grader."""
+    if name.startswith("MapWalls."):
+        return helper_coverage.MapWalls, name.split(".", 1)[1]
+    return helper_coverage.Grader, name
+
+
 def grade_report(test_id, lua, ledger_text, off=()):
-    saved = {name: getattr(helper_coverage.Grader, name) for name in RULES}
+    saved = {name: getattr(*rule_owner(name)) for name in RULES}
     for name in off:
-        setattr(helper_coverage.Grader, name, False)
+        setattr(*rule_owner(name), False)
     try:
         with tempfile.TemporaryDirectory() as scratch:
             ledger = os.path.join(scratch, "ledger.tsv")
@@ -329,7 +424,7 @@ def grade_report(test_id, lua, ledger_text, off=()):
             return grader.report()
     finally:
         for name, value in saved.items():
-            setattr(helper_coverage.Grader, name, value)
+            setattr(*rule_owner(name), value)
 
 
 def check_seam_case(report, wants):
@@ -337,6 +432,11 @@ def check_seam_case(report, wants):
     steps = {s["step"]: s for s in report["steps"]}
     bad = []
     for step, want in wants.items():
+        if step.startswith(NO_STEP_STARTING):
+            prefix = step[len(NO_STEP_STARTING):]
+            bad.extend((s["step"], want, s["class"], s["reason"]) for s in report["steps"]
+                       if s["step"].startswith(prefix))
+            continue
         if step == VERDICT:
             if report["verdict"] != want:
                 bad.append((step, want, report["verdict"], ""))
@@ -386,6 +486,7 @@ def main():
         failures += not ok
         print("%-4s %-20s want=%-10s got=%-10s %s" % ("ok" if ok else "FAIL", name, want, got, reason[:160]))
     seam = seam_cases()
+    seam.update(start_cases())
     for name, (test_id, lua, ledger_text, wants, off) in seam.items():
         bad = check_seam_case(grade_report(test_id, lua, ledger_text, off), wants)
         failures += bool(bad)
@@ -394,7 +495,21 @@ def main():
                                            for step, want, got, reason in bad) or
                                  ", ".join("%s=%s" % (step, want if not isinstance(want, tuple) else want[0])
                                            for step, want in wants.items())))
-    total = len(table) + len(seam)
+    # eadgar's stamped first goto was judged before this seam: every step's class is the same with
+    # START_JUDGED and CROSSINGS on as with both off.
+    lua, ledger = start_fixture("eadgar")
+    on = grade_report("eadgar", lua, ledger)
+    before = grade_report("eadgar", lua, ledger, ("START_JUDGED", "MapWalls.CROSSINGS"))
+    bad = check_seam_case(on, {"goUpToSanfew": ("CHEAT:gate_crossings", "membergater at 2933,3320,0")})
+    moved = [(s["step"], c["class"], s["class"]) for s, c in zip(on["steps"], before["steps"])
+             if (s["step"], s["class"]) != (c["step"], c["class"])] + \
+        ([("(step count)", len(before["steps"]), len(on["steps"]))] if len(on["steps"]) != len(before["steps"]) else [])
+    ok = not bad and not moved
+    failures += not ok
+    print("%-4s %-26s %s" % ("ok" if ok else "FAIL", "eadgar_unchanged",
+                             "goUpToSanfew=CHEAT:gate_crossings, %d steps as before (%s)" % (
+                                 len(on["steps"]), on["verdict"]) if ok else "%s %s" % (bad, moved)))
+    total = len(table) + len(seam) + 1
     print("%d/%d" % (total - failures, total))
     return 1 if failures else 0
 

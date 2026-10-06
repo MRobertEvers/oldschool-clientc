@@ -949,7 +949,9 @@ Three quests were sampled: atailoftwocats, druid and elemental_workshop. All thr
 Under the owner rule of 2026-10-05, no images were opened. Each verdict rests on the run, the
 gate, the lint, `helper_coverage` (FULL for all three), the ledger and `goto_table.py`/`reach.py`.
 
-(a) THE SAMPLE TOOLS ASSUME THE MAIN CHECKOUT. `reach.py` hard-codes
+(a) THE SAMPLE TOOLS ASSUME THE MAIN CHECKOUT (FIXED matthew-mbp-m4-b64-seam1: `reach.py`,
+`goto_table.py`, `comp.py` and `locs_near.py` take `--root <repo>` and default to the checkout they
+live in, so a worktree batch runs them in place). `reach.py` hard-codes
 `REPO = "/Users/matthewevers/Documents/git_repos/3draster"`, and `locs_near.py` hard-codes the
 same path. In a worktree batch such as `3draster-b63`, the tools read the other checkout's maps
 and write their loc cache under that checkout's `build/`. The atailoftwocats reviewer found no

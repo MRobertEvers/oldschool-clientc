@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
-"""locs_near.py x z [radius] [level] [filter-regex] -- list map locs near a world tile with names/ops."""
+"""locs_near.py x z [radius] [level] [filter-regex] [--root <repo>] -- list map locs near a world tile with names/ops.
+
+--root names the checkout whose maps and configs are read (default: the checkout this file lives in,
+reach.repo_of); the loc table is cached under that checkout's build/."""
 import os, re, sys, pickle
-BASE = "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content"
-CACHE = "/Users/matthewevers/Documents/git_repos/3draster/build/orchestrator/sample_b56/locs.pickle"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import reach  # noqa: E402
+ARGV = reach.take_root(sys.argv[1:])
+BASE = reach.BASE
+CACHE = reach.REPO + "/build/orchestrator/sample_tools/locs_near.pickle"
 
 def load():
     if os.path.exists(CACHE):
@@ -30,10 +36,11 @@ def load():
     return ids, info
 
 def main():
-    x, z = int(sys.argv[1]), int(sys.argv[2])
-    rad = int(sys.argv[3]) if len(sys.argv) > 3 else 6
-    lvl = int(sys.argv[4]) if len(sys.argv) > 4 else 0
-    flt = re.compile(sys.argv[5], re.I) if len(sys.argv) > 5 else None
+    argv = [sys.argv[0]] + ARGV
+    x, z = int(argv[1]), int(argv[2])
+    rad = int(argv[3]) if len(argv) > 3 else 6
+    lvl = int(argv[4]) if len(argv) > 4 else 0
+    flt = re.compile(argv[5], re.I) if len(argv) > 5 else None
     ids, info = load()
     seen = set()
     for mx in range((x - rad) >> 6, ((x + rad) >> 6) + 1):
