@@ -93,7 +93,7 @@ adds four rules, each with a switch on helper_coverage.Grader that restores the 
                                                                              CHEAT:sealed_exits
   wt_goto_off_island_off        the same, POCKET_PRESS_SINCE_ARRIVAL off     FULL (the b62 escape)
   wt_swung_off_first            a row before the goto pressed tree_ropeswing3 and landed
-                                outside the island                           FULL
+                                outside the island            leaveGrewIsland DRIVEN (b65-seam1)
 
 Seam matthew-mbp-m4-b64-seam1 `helper_coverage_judges_the_start_placement_and_crossing_locs` (owner
 ruling 2026-10-05: the run's first goto and the setup placement obey the door rule) adds two
@@ -399,7 +399,11 @@ def seam_cases():
     table["wt_goto_off_island_off"] = ("itwatchtower", wt_lua, wt_ledger, {VERDICT: "FULL"},
                                        ("POCKET_PRESS_SINCE_ARRIVAL",))
     first_lua, first_ledger = watchtower_goto_off_island(press_first=True)
-    table["wt_swung_off_first"] = ("itwatchtower", first_lua, first_ledger, {VERDICT: "FULL"}, ())
+    # leaveGrewIsland is DRIVEN by the swing; the verdict is no longer FULL because this pair's
+    # goto-goUpTrellis (Lumbridge -> 2548,3120) crosses membergater at margin 400, which seam
+    # matthew-mbp-m4-b65-seam1's hop_route charges (helper_coverage_departure_cross_test
+    # itwatchtower_trellis), not because of the island.
+    table["wt_swung_off_first"] = ("itwatchtower", first_lua, first_ledger, {"leaveGrewIsland": "DRIVEN"}, ())
     return table
 
 

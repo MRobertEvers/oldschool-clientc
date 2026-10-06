@@ -1686,6 +1686,7 @@ class MapWalls:
         self.locs_at = {}     # (x, z, level) -> [(symbol, origin)]: every loc on the tile (an object's footprint)
         self.op_tiles = {}    # (x, z, level) -> (symbol, origin): a walkable tile an op loc or zone trigger holds
         self.blockers = {}    # (x, z, level) -> [(symbol, origin)]: the locs that block the tile (solid_landings)
+        self.diagonal_door_at = {}  # (x, z, level) -> [(symbol, origin)]: a closed door set diagonally (shape 9)
         self._names = None
         self._triggers = None
 
@@ -1737,6 +1738,24 @@ class MapWalls:
         if cls.is_climb(symbol):
             return False
         return any(op_word(name) in cls.CROSSING_OPS for name in OPS.get(("loc", symbol), {}).values())
+
+    # door_route (doors open) opens a closed door set diagonally across a
+    # wall's corner (shape 9), which blocks its whole tile: the Wizards'
+    # Tower's ladder room door (fai_wiztower_poor_door at 3107,3162,0) read
+    # as a wall with no door before seam matthew-mbp-m4-b65-seam1, so the
+    # room was UNREACHABLE. False restores that, kept for the fixtures.
+    DIAGONAL_DOORS = True
+
+    def diagonal_doors(self, x, z, level):
+        """[(symbol, origin)]: the closed diagonal doors (shape 9, is_door)
+        that alone block the tile (x, z, level); [] when none does or
+        another loc blocks it too."""
+        if not self.DIAGONAL_DOORS:
+            return []
+        doors = self.diagonal_door_at.get((x, z, level), [])
+        if not doors or any(loc not in doors for loc in self.blockers.get((x, z, level), ())):
+            return []
+        return list(doors)
 
     def crossing_locs(self, x, z, level):
         """[(symbol, origin)]: the crossing locs (is_crossing) that block the
@@ -1878,6 +1897,8 @@ class MapWalls:
                     for oz in range(length):
                         self.blocked.add((wx + ox, wz + oz, real))
                         self.blockers.setdefault((wx + ox, wz + oz, real), []).append((symbol, (wx, wz, real)))
+                if shape == 9 and self.is_door(symbol):
+                    self.diagonal_door_at.setdefault((wx, wz, real), []).append((symbol, (wx, wz, real)))
             elif shape == 22 and blockwalk == 1 and active:
                 self.blocked.add((wx, wz, real))
                 self.blockers.setdefault((wx, wz, real), []).append((symbol, (wx, wz, real)))
@@ -2120,7 +2141,13 @@ class MapWalls:
                 over = []
                 if (nx, nz) not in ends and ((nx, nz, level) in self.blocked or (nx, nz, level) in self.op_tiles):
                     over = self.crossing_locs(nx, nz, level) if cross else []
-                    if not over or (nx, nz, level) in self.op_tiles:
+                    diagonal = self.diagonal_doors(nx, nz, level) if doors_open and not over and \
+                        (nx, nz, level) not in self.op_tiles else []
+                    if diagonal:
+                        # a door set diagonally across a wall's corner (shape
+                        # 9) blocks its tile: a walk opens it like a wall door
+                        edge = (edge or []) + [loc for loc in diagonal if loc not in (edge or [])]
+                    elif not over or (nx, nz, level) in self.op_tiles:
                         continue
                 if cross:
                     step = (cost[0] + (1 if over else 0), cost[1] + (1 if edge else 0), cost[2] + 1)
@@ -2210,6 +2237,66 @@ class MapWalls:
             elif all(near & set(doors) for doors in routes):
                 common.append(door)
         return common
+
+    # hop_route's wider bound: a hop with no route on foot at all at the
+    # widest of GATE_MARGINS (not even with every door open and every
+    # crossing loc enterable) is flooded again at each of these before it is
+    # called UNREACHABLE -- a walk that goes round the margin-160 box (Making
+    # History's Lumbridge -> Jorral hop crosses membergater 2933,3320 only at
+    # margin 250; Chompy Bird's Lumbridge -> Rantz and Clock Tower's
+    # Lumbridge -> Kojo only at 400). A true island (Lunar Isle, the
+    # Pandemonium) or a region only a climb reaches (Morytania past the
+    # Paterdomus trapdoor, Lletya) has none at 600. NO_ROUTE False is the reading before seam
+    # matthew-mbp-m4-b65-seam1 (a hop with no route at 160 said nothing),
+    # kept for the fixtures.
+    WIDE_MARGINS = (250, 400, 600)
+    NO_ROUTE = True
+
+    def square_present(self, x, z):
+        """Is the map square holding (x, z) on disk (a flood can read it)?"""
+        return self._ready(x, z)
+
+    def hop_route(self, start, end, level):
+        """What a walk on foot from `start` to `end` on `level` must do, for
+        gate_crossings: ("walk", [], margin) when a walk with every door shut
+        joins them (at margin 160, else at a WIDE_MARGINS margin); ("gates",
+        [(symbol, origin)], margin) when every walk opens or crosses those
+        (only_way_gates at 30/80/160 -- margin None -- or the doors-open /
+        crossing route at the first WIDE_MARGINS margin that has one);
+        ("none", [], None) when the margins disagree on the gate, an end's
+        map square is not on disk, an end is a solid tile (solid_landings'
+        business), or NO_ROUTE is off; ("unreachable", [],
+        margin) when no walk exists even at the widest WIDE_MARGINS margin:
+        an island, a cave with no way in on this level, a region a climb,
+        an op loc, a boat or a teleport alone reaches."""
+        widest = self.GATE_MARGINS[-1]
+        if self.door_route(start, end, level, widest, False)[0]:
+            return ("walk", [], widest)
+        gates = self.only_way_gates(start, end, level)
+        if gates:
+            return ("gates", gates, None)
+        if self.door_route(start, end, level, widest, True)[0] or \
+                (self.CROSSINGS and self.door_route(start, end, level, widest, "cross")[0]):
+            return ("none", [], None)  # a route exists; the margins disagree on its gate
+        if not self.NO_ROUTE or not self.square_present(start[0], start[1]) or \
+                not self.square_present(end[0], end[1]):
+            return ("none", [], None)
+        for margin in self.WIDE_MARGINS:
+            if self.door_route(start, end, level, margin, False)[0]:
+                return ("walk", [], margin)
+            # the FEWEST-door walk (door_route "cross" weighs crossings, then
+            # doors, then length): a shortest doors-open walk cuts through
+            # every house on the way (Elena's Lumbridge -> Edmond hop named
+            # three Ardougne poordoors beside membergater)
+            found, doors = self.door_route(start, end, level, margin, "cross" if self.CROSSINGS else True)
+            if found:
+                return ("gates", doors, margin) if doors else ("walk", [], margin)
+        if (start[0], start[1], level) in self.blocked or (end[0], end[1], level) in self.blocked:
+            # a hop off or onto a solid tile (furniture, a stair's footprint):
+            # solid_landings charges the goto that put the player there, and
+            # a flood from inside a footprint says nothing about the route
+            return ("none", [], None)
+        return ("unreachable", [], self.WIDE_MARGINS[-1] if self.WIDE_MARGINS else widest)
 
     def footprint(self, x, z, level):
         """{(x, z, level)}: the tile, and when it is blocked every blocked
@@ -4855,6 +4942,28 @@ class Grader:
         return (leaf, "ALTERNATIVE", "branch-only step (%s): a state the guide shows outside its panels; not "
                 "driven, not skipped by a teleport or cheat (was %s: %s)" % (where, klass, reason))
 
+    # player_track reads a row as a goto by what it DID (a setup placement,
+    # or _real_goto: its source line calls goto_tile/::goto, or its detail is
+    # goto_tile's own `at x,z,l[ from a,b,c]`), never by its name; a
+    # crossing row named goTo* contributes its END tile (TRACK_END_READS).
+    # False is the reading before seam matthew-mbp-m4-b65-seam1 (a row named
+    # goto*/goTo* read as a goto, its loc tile as the landing), kept for the
+    # fixtures.
+    GOTO_BY_ACTION = True
+    # Where a crossing, climb, cast or walk row says the player ended up
+    # (GOTO_BY_ACTION): `landed x,z,l` (climb, cross_gate, a press),
+    # `-> at x,z,l` (pass_door's far side, walk_route's end), a cast's `at
+    # a,b,c -> x,z,l`, a walk's `reached x,z,l` / `; at x,z,l`, a position
+    # check's `player at x,z,l`.
+    TRACK_END_READS = (
+        re.compile(r"\blanded (?:on level \d at )?(\d{3,4}),(\d{3,5}),([0-3])\b"),
+        re.compile(r"-> at (\d{3,4}),(\d{3,5}),([0-3])\b"),
+        re.compile(r"\bat \d{3,4},\d{3,5},[0-3] -> (\d{3,4}),(\d{3,5}),([0-3])\b"),
+        re.compile(r"\breached (\d{3,4}),(\d{3,5}),([0-3])\b"),
+        re.compile(r"; at (\d{3,4}),(\d{3,5}),([0-3])\b"),
+        re.compile(r"^player at (\d{3,4}),(\d{3,5}),([0-3])\b"),
+    )
+
     def player_track(self):
         """[(ledger row position, (x, z, level), is_goto)] -- where the
         player stood, read from the run's own rows: a goto row's landing
@@ -4878,6 +4987,8 @@ class Grader:
         # the obstacle after it looks like one that left from its near side
         # (travel_hops_that_skip_a_guide_obstacle).
         reads.append(re.compile(r"\bat (\d{3,4}),(\d{3,5}) level ([0-3])\b"))
+        if self.GOTO_BY_ACTION:
+            reads.extend(self.TRACK_END_READS)
         # Readings with no level: `from 2209,3201 to 2209,3205` (a crossing
         # check), `attempt 1: ok now at 2480,9712` (a climb).
         flat = [re.compile(r"\bfrom \d{3,4},\d{3,5} to (\d{3,4}),(\d{3,5})\b"),
@@ -4892,8 +5003,15 @@ class Grader:
             detail = row.get("detail") or ""
             # the author's reading, not the server lines quoted after ` :: `
             own = re.sub(r" :: .*?(?= ## | -- |$)", "", detail)
-            is_goto = row["step"] in goto_rows or re.search(r"(?:^|[.\-_])goto", row["step"], re.I) is not None or \
-                bool(row.get("placement"))
+            if self.GOTO_BY_ACTION:
+                # by what the row did, never by its name: Fishing Contest's
+                # cross_gate row `goToHemenster.gateIn` read as a goto
+                # landing on the gate's own tile, so its own press of the
+                # gate was not "before" it (fix_b65 fishingcompo run 1)
+                is_goto = bool(row.get("placement")) or self._real_goto(position)
+            else:
+                is_goto = row["step"] in goto_rows or \
+                    re.search(r"(?:^|[.\-_])goto", row["step"], re.I) is not None or bool(row.get("placement"))
             if is_goto:
                 landing = re.search(r"(?<!copy )\bat " + tile, own)
                 if landing and row["verdict"] == "PASS":
@@ -6303,8 +6421,19 @@ class Grader:
     SIDE_CHANGE_DETAIL = re.compile(r"teleport|\blanded\b|\bemerged\b|\bmoved\b|\blevel\b|\bclimb|pass_door|"
                                     r"cross_gate|cross_trap|\bopen leaf\b|\bwent through\b|::goto|::tele",
                                     re.I)
+    # Every t.sail verb but the ones that never move the player or the hull
+    # (SAIL_NO_MOVE: a read, a notice board, a crate taken, loaded or
+    # delivered at a ledger) may change sides: Prying Times' deliverCargo
+    # (t.sail.cargo_deliver) kept goto-thurgo's departure unknown before seam
+    # matthew-mbp-m4-b65-seam1.
+    # SAIL_NO_MOVE_KEPT False is the reading before it (every t.sail verb
+    # may change sides), kept for the fixtures.
+    SAIL_NO_MOVE = ("state", "tasks", "task_board", "task_accept", "cargo_take", "cargo_load", "cargo_deliver")
+    SAIL_NO_MOVE_KEPT = True
     SIDE_CHANGE_LINE = re.compile(r"t\.player\.(cast|teleport|teleport_cast|climb|pass_door|cross_gate|cross_trap|"
-                                  r"walk_route)\b|t\.drive\.op\b|t\.sail\.|t\.cheat\b|::goto|::tele")
+                                  r"walk_route)\b|t\.drive\.op\b|t\.sail\.(?!(?:%s)\b)|t\.cheat\b|::goto|::tele"
+                                  % "|".join(SAIL_NO_MOVE))
+    SIDE_CHANGE_LINE_ANY_SAIL = re.compile(r"t\.sail\.")
     # A loc whose op takes a player across something (TRAVEL_OPS) is no
     # loc a press of keeps the player on one side.
     GATE_MAX_TILES = 1200  # a hop longer than this is not flooded (cost); the longest tier 1 overland hop is ~870
@@ -6320,7 +6449,8 @@ class Grader:
             return False
         line = self.row_line(row["step"])
         source = self.test.code_lines[line - 1] if line is not None else ""
-        if self.SIDE_CHANGE_LINE.search(source):
+        if self.SIDE_CHANGE_LINE.search(source) or \
+                (not self.SAIL_NO_MOVE_KEPT and self.SIDE_CHANGE_LINE_ANY_SAIL.search(source)):
             return False
         named = set(re.findall(r"[a-z][a-z0-9_]+", detail)) | set(re.findall(r"\"([a-z][a-z0-9_]+)\"", source))
         named |= self._line_names(line)
@@ -6363,7 +6493,11 @@ class Grader:
                 pass
         return False
 
-    GOTO_DETAIL = re.compile(r"^at \d{3,4},\d{3,5},[0-3](?: from \d{3,4},\d{3,5},[0-3])?\s*$")
+    # goto_tile's own detail: `at x,z,l[ from a,b,c]`, or its ::goto retry's
+    # `at x,z,l[ from a,b,c] on attempt N of M via ::goto -- ...`
+    # (Watchtower's goto-usePotionOnOgre2).
+    GOTO_DETAIL = re.compile(r"^at \d{3,4},\d{3,5},[0-3](?: from \d{3,4},\d{3,5},[0-3])?"
+                             r"(?:\s*$| on attempt \d+ of \d+ via ::goto\b)")
 
     def _real_goto(self, position):
         """Is rows[position] a goto_tile/::goto row (its source line calls
@@ -6411,6 +6545,61 @@ class Grader:
         return before, before_position, False
 
     STEPPED_OFF = re.compile(r"stepped off the target tile \d+,\d+ \(\d+,\d+ -> (\d{3,4}),(\d{3,5})\)")
+
+    # gate_crossings charges a hop no walk makes at all (MapWalls.hop_route
+    # "unreachable": an island, a region only a boat, climb, op loc or
+    # teleport reaches) unless a travel row lies between the departure and
+    # the goto. False is the reading before seam matthew-mbp-m4-b65-seam1
+    # (only an only-way gate was charged; a hop with no route charged
+    # nothing), kept for the fixtures.
+    NO_ROUTE_CHARGED = True
+    # A row that may have carried the player where no walk goes: a cast or
+    # teleport, a climb, a t.sail verb that moves the hull or puts the player
+    # ashore, a ride a page names (a ferry, a boat, a cart, a carpet). Never
+    # the word "sailing" (a Sailing xp read) or a stale "You walk down the
+    # gangplank." quoted in a cargo_deliver row (Prying Times row 36).
+    TRAVEL_LINE = re.compile(r"t\.player\.(cast|teleport|teleport_cast|climb)\b|"
+                             r"t\.sail\.(board|helm|sails|sail_to|await_arrival|disembark)\b|::goto|::tele")
+    TRAVEL_DETAIL = re.compile(r"\bteleport: [\d,]+ -> |\bcast \w*teleport|\bashore at\b|\blanded\b|"
+                               r"\b(?:ferry|boat|ship|cart|carpet|charter|canoe|glider|balloon)\b", re.I)
+
+    TRAVEL_STEP = re.compile(r"travel|ferry|boat|ship|sail|charter|carpet|glider|balloon|canoe|landed|arrived",
+                             re.I)
+    ANY_TILE = re.compile(r"\b(\d{4}),(\d{4,5}),[0-3]\b")
+    TRAVEL_FAR_TILES = 30
+
+    def _no_route_judged(self, walls):
+        """Is the no-route reading on (NO_ROUTE_CHARGED, MapWalls.NO_ROUTE)?
+        Every older switch restores the reading before its own seam, and
+        this rule came after all of them, so turning any of them off turns it
+        off too (the `*_off` fixtures of seams b63/b64 keep their meaning:
+        Tail of Two Cats' goto-sphinx with CROSSINGS off reads DRIVEN, the
+        hole, not a no-route charge)."""
+        return bool(self.NO_ROUTE_CHARGED and walls.NO_ROUTE and walls.CROSSINGS and self.START_JUDGED and
+                    self.POCKET_PRESS_SINCE_ARRIVAL and self.GOTO_BY_ACTION)
+
+    def _travel_between(self, before_position, position, start):
+        """Is a row strictly between rows[before_position] (where the hop
+        left from, the tile `start`) and rows[position] (the goto) a travel
+        row: TRAVEL_LINE on its source, TRAVEL_DETAIL in its own detail,
+        TRAVEL_STEP in its name (`travelToNeitiznot`, `returnToRellekka.
+        landed`), or a tile in its own detail more than TRAVEL_FAR_TILES
+        from `start` (the player was somewhere else: The Fremennik Isles'
+        ferry talk, whose landing check says `tile 2311,3782,0 want ...`)?
+        A stamped hop has none between: its departure is the goto's own
+        reading."""
+        for row in self.rows[before_position + 1:position]:
+            detail = re.sub(r" :: .*?(?= ## | -- |$)", "", row.get("detail") or "")
+            if self.TRAVEL_DETAIL.search(detail) or self.TRAVEL_STEP.search(row["step"]):
+                return True
+            line = self.row_line(row["step"])
+            if line is not None and self.TRAVEL_LINE.search(self.test.code_lines[line - 1]):
+                return True
+            for match in self.ANY_TILE.finditer(detail):
+                x, z = int(match.group(1)), int(match.group(2))
+                if max(abs(x - start[0]), abs(z - start[1])) > self.TRAVEL_FAR_TILES:
+                    return True
+        return False
 
     def gate_crossings(self):
         """{step name: [((row index, row step), reason)]}: a goto between two
@@ -6467,8 +6656,39 @@ class Grader:
             row = self.rows[position]
             if (row["index"], row["step"]) in charged:
                 continue
-            gates = walls.only_way_gates(before[:2], point[:2], point[2])
-            if not gates:
+            if self._no_route_judged(walls):
+                kind, gates, margin = walls.hop_route(before[:2], point[:2], point[2])
+            else:
+                kind, gates, margin = "gates", walls.only_way_gates(before[:2], point[:2], point[2]), None
+            if kind == "unreachable":
+                if self._travel_between(before_position, position, before):
+                    continue
+                if any(walls.enclosure(x, z, level, self.ENCLOSURE_MAX_TILES) is not None
+                       for x, z, level in (before, point)):
+                    continue  # a room or pocket: enclosure_entries/exits and sealed_entries/exits judge it
+                until = next((track[j][0] for j in range(i + 1, len(track)) if track[j][2]), len(self.rows))
+                name = self._charge_name(position, until, None, "with no on-foot route")
+                if name is None:
+                    continue
+                from_row = self.rows[before_position]
+                if stamped:
+                    from_row = self._departure_row(from_row)
+                items = self._gate_crossings.setdefault(name, [])
+                if any(key == (row["index"], row["step"]) for key, _ in items):
+                    continue
+                items.append(((row["index"], row["step"]),
+                    "ledger row %s %r goes from %d,%d,%d (row %s %r) to %d,%d,%d: no on-foot route "
+                    "(UNREACHABLE at margin %d): with every door open and every crossing loc enterable no walk "
+                    "joins them inside their box widened by %s tiles (maps/m%d_%d.jl2 -> m%d_%d.jl2), and no "
+                    "travel row (a teleport or cast, a sail that moves the hull or disembarks, a ferry, cart "
+                    "or carpet, a climb) between: the goto stood in for the boat, teleport, climb or op loc "
+                    "that gets there (gate_crossings)" % (
+                        row["index"], row["step"], before[0], before[1], before[2], from_row["index"],
+                        from_row["step"], point[0], point[1], point[2], margin,
+                        "/".join(str(m) for m in walls.GATE_MARGINS + walls.WIDE_MARGINS),
+                        before[0] >> 6, before[1] >> 6, point[0] >> 6, point[1] >> 6)))
+                continue
+            if kind != "gates" or not gates:
                 continue
             if self._gate_pressed_before(position, walls.door_cluster(gates)):
                 continue
@@ -6488,16 +6708,20 @@ class Grader:
             crossing = [symbol for symbol, _ in gates if walls.is_crossing(symbol) and not walls.is_door(symbol)]
             items.append(((row["index"], row["step"]),
                 "ledger row %s %r goes from %d,%d,%d (row %s %r) to %d,%d,%d: with every door shut no walk "
-                "joins them (margin %d), and every walk on foot %s %s (%s at margins %s; maps/m%d_%d"
+                "joins them (margin %d), and %s %s %s (%s at margin%s %s; maps/m%d_%d"
                 ".jl2), with no press of it in the %d ticks before: it skipped an only-way gate "
                 "(gate_crossings)" % (
                     row["index"], row["step"], before[0], before[1], before[2], from_row["index"],
                     from_row["step"], point[0], point[1], point[2], walls.GATE_MARGINS[-1],
+                    "every walk on foot" if margin is None else "the fewest-door walk on foot",
                     "opens or crosses" if crossing and len(crossing) < len(gates) else
                     "crosses (by its own op)" if crossing else "opens", named,
-                    "NEEDS-OP" if crossing else "NEEDS-DOOR",
-                    "/".join(str(m) for m in walls.GATE_MARGINS), gates[0][1][0] >> 6, gates[0][1][1] >> 6,
-                    self.DOOR_OPEN_TICKS)))
+                    "NEEDS-OP" if crossing else "NEEDS-DOOR", "s" if margin is None else "",
+                    "/".join(str(m) for m in walls.GATE_MARGINS) if margin is None else
+                    "%d only: no route at all at %s" % (
+                        margin, "/".join(str(m) for m in walls.GATE_MARGINS +
+                                         tuple(w for w in walls.WIDE_MARGINS if w < margin))),
+                    gates[0][1][0] >> 6, gates[0][1][1] >> 6, self.DOOR_OPEN_TICKS)))
         return self._gate_crossings
 
     def solid_landings(self):
