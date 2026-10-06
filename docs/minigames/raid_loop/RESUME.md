@@ -402,6 +402,39 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
 - Joined relay scratch: `build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/joined.lua`; run
   names seed on their first 12 characters, case folded (jbase37).
 
+---
+## State on 2026-10-06 17:30 (RESUME HERE), after seam52 and seam53; seam54 RUNNING
+
+- Raid branch `matthew-mbp-m4-raid-b1` at d76a55047 (seam52 landed 763aadba8; camera lane seam53
+  merged 9d6163dc3); content 79e5a7178e. v3 at 97602934a (PR #126 / OSRS-Content #50 merged
+  earlier today). The lanes raid25 and camera are idle and fully merged into raid.
+- Entry mode: COMPLETE by the owner's word (six rooms + the relay green on five names).
+- Normal trio per room against the Blert references (sources/blert_api/reference/<room>_normal_3.json):
+  Verzik 5 of 5 on ::tobkit, deterministic. Xarpus green (4 of 4, seam40). Bloat 5 of 5 on
+  ::tobkitsalve (seam54, repeat AGREE; rooms 133-148 vs cap 195). Sotetseg 3 of 5 on ::maxmelee,
+  2 of 5 on ::tobkit (maze 10 of 10 blast-free, hp inside; room ticks 275-292 vs 164-262).
+  Nylocas 0 of 5 (the south-west support falls; boss ticks a content question). Maiden 0 of 5
+  (seam54 in progress: rooms 253-312 vs 132-204, 6-9 crab leaks).
+- Seam52 (content, `SEAM_TRIAGE_2026-10-06w.md`): our melee formula matches the wiki term by
+  term; the per-swing gap was the KIT. The recorded raiders wear radiant oathplate (and salve(ei)
+  at Bloat). Cheats `::tobkit` / `::tobkitsalve` in cheat_max_gear.rs2; probe 41.9 per swing
+  (wiki 42.6). Sotetseg/Nylocas/Verzik plans rewritten whole; kit.melee_damage_per_swing.md in its
+  state dir.
+- Seam53 (camera lane, `SEAM_TRIAGE_2026-10-06x.md`): the Normal relay once: NOT KEPT, 0 of 3
+  twice. Relay-level fixes in `_play_normal.lua` (door kit, super combat, supplies per seat,
+  Bloat starter seat 2). It dies at MAIDEN: the freezer stands 3-4 ticks in blood at its home
+  tile and dies; dps seats in melee kit take 41-59 from npc 8363 per storm. Open relay item:
+  drop `::wield slayer_boots` after the melee kit for seats 1 and 3 (avernic treads land in the pack).
+- Seam54 RUNNING in worktrees/raid (`SEAM_TRIAGE_2026-10-06y.md`, width 2): Maiden written whole
+  with the recorded gear; Bloat on ::tobkitsalve (done, 5 of 5). Launch args: pass
+  matthew-mbp-m4-raid-b1-seam54, reuse_triage docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-06y.md, width 2.
+- Owner rules in force: no real-time play; diagnose from the tick log (raid_report.py); content
+  fixes are done when the pack compiles; whole-plan edits, one survey, at most three iterations;
+  closer capped at conformance + verb list; all rooms in ONE worktree; wip snapshots every 10 min.
+- NEXT: seam54 lands -> seam55 = Nylocas (stands + cleanup, 0 of 5), Sotetseg room ticks on
+  ::tobkit, and Maiden again if seam54 leaves it red, width 3, same method; then the Normal relay
+  once on the corrected plans, carrying the slayer_boots item; then Hard, ToA, CoX.
+
 ## Next, in order
 
 1. Seam22 lands (above); then relaunch the Normal pass with the same args (its rejected rooms get the findings); re-launch for rejected or sent-back rooms until kept. (Seam21 landed.) SEAM21 was on
