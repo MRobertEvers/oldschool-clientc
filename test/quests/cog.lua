@@ -48,13 +48,12 @@
 --    ctratgatea 2595,9657: quest_cog_gates_and_levers.rs2 [oploc1,ctlevera]
 --    loc_find(0_40_150_35_57, ctratgatea) -> prisondooropen one tile east),
 --    the trough, ctratgatec (its mesbox, then ~cog_walk_gate's teleport
---    through), and back out the same way. The guide's climbWhiteLadder
---    (ladder_from_cellar 2575,9655) is NOT used: no maplink.dbrow row has a
---    src beside it, so ~climb_ladder(1) -> ~climb falls to the +1 PLANE
---    default (ladders.rs2 [proc,climb]) and would stand the player at
---    2575,9655,1, not on the surface (LostCity's loc_1755 is -6400,
---    ladders.rs2:87-94). The walk back to the tower ladder is the honest
---    route; that ladder is a content gap, not a step this test skips.
+--    through), the cog, then the guide's climbWhiteLadder: ladder_from_cellar
+--    2575,9655 has no maplink.dbrow row, and since seam
+--    matthew-mbp-m4-b66-seam1 a rowless copy climbs out of the dungeon by
+--    LostCity's loc_1755 rule (the player's tile -6400, LostCity_Content2
+--    ladders.rs2:87-94), so it is climbed for real to the surface north of
+--    the tower (2576,3255,0), then round to the east door.
 --
 -- Every hostile npc type m40_150.spawn stands up in the basement is held
 -- passive in setup (a level-3 fixture draws aggression from all of them;
@@ -351,7 +350,7 @@ return {
 
         -- ==== White cog: the north-western door, the rat poison, the lever
         -- (it opens ctratgatea), the trough, the western gate, the cog, and
-        -- back out the same way to the tower ladder ====
+        -- up the white ladder to the surface, round to the east door ====
         walk_route("white.toDoor", { { 2575, 9642 }, { 2578, 9647 } })
         pass_door("northWesternDoor", "poordoor", "poordooropen", 2575, 9651, 2576, 9651, 2575, 9651)
         walk_route("white.toPoison", { { 2574, 9651 }, { 2568, 9653 }, { 2562, 9655 }, { 2563, 9661 } })
@@ -389,19 +388,22 @@ return {
         t.check("pickUpWhiteCog", white_pickup_result == "ok" and white_have_result == "ok" and white_have_count == 1,
             string.format("click_obj(whitecog) -> %s (%s); inv whitecog=%s", tostring(white_pickup_result), tostring(white_pickup_detail), tostring(white_have_count)))
 
-        -- Back out through the western gate (from the cage side
-        -- ~cog_walk_gate stands the player on the gate tile, 2579,9656).
-        t.exec("westernGateOut", t.player.cross_gate, { loc = "ctratgatec", at = { 2579, 9656, 0 }, near = { 2578, 9656 },
-            far_ok = function(tl) return tl.x == 2579 and tl.z == 9656 end,
-            far_desc = "2579,9656, the gate tile on the trough side",
-            chat = { "mesbox:The death throes of the rats" } })
-        walk_route("white.toLeverGateOut", { { 2583, 9657 }, { 2591, 9657 } })
-        pass_door("white.leverGateOut", "ctratgatea", "prisondooropen", 2595, 9657, 2595, 9657, 2596, 9657)
-        walk_route("white.toDoorOut", { { 2596, 9660 }, { 2589, 9661 }, { 2581, 9661 }, { 2574, 9660 }, { 2567, 9659 },
-            { 2568, 9654 }, { 2573, 9651 } })
-        pass_door("northWesternDoorOut", "poordoor", "poordooropen", 2575, 9651, 2575, 9651, 2576, 9651)
-        walk_route("white.toLadder", { { 2578, 9648 }, { 2576, 9642 }, { 2570, 9640 } })
-        tower_ladder_up("climbToGroundFloorFromBasement-white")
+        -- climbWhiteLadder: the guide's own way out of the cage -- the
+        -- ladder_from_cellar 2575,9655 up to the surface north of the tower.
+        -- No maplink.dbrow row has a src beside it, so since seam
+        -- matthew-mbp-m4-b66-seam1 ladders.rs2 [oploc1,ladder_from_cellar]
+        -- climbs by LostCity's loc_1755 rule (LostCity_Content2
+        -- ladders+stairs/scripts/ladders.rs2:87-94): the player's own tile
+        -- -6400, from the stand tile east of it 2576,9655 -> 2576,3255,0, open
+        -- ground outside the tower's north fence (reach.py 2576,3255 ->
+        -- 2577,3250: REACH closed-doors len=6). Then round to the tower's east
+        -- door, clicked, and the spindle room's door and stairs.
+        climb("climbWhiteLadder", "ladder_from_cellar", 1, { 2575, 9655 }, 0, 2574, 2576, 3255, 3257,
+            "outdoors north of the tower, LostCity loc_1755 -6400 from the stand tile beside 2575,9655")
+        walk_route("white.toEastDoor", { { 2577, 3255 }, { 2577, 3250 } })
+        tower_east_door_in("white")
+        t.player.walk_to(2568, 3249, 20)
+        spindle_room_in("white")
         climb("climbToFirstFloor-white", "spiralstairs", 1, { 2572, 3240 }, 1, 2563, 2573, 3239, 3245, "the tower's first floor")
         climb("climbToSecondFloor", "spiralstairsmiddle", 2, { 2572, 3240 }, 2, 2563, 2573, 3239, 3245, "the tower's second floor")
 
