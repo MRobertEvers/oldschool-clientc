@@ -1573,3 +1573,31 @@ all clean. No C and no content changed.
   PASS each, both seats' status on `launch: status:`, no member left after exit; leader
   SIGKILLed at 75 s -> both members gone 0.32 s later (`the leader (pid 5184) is gone`).
   The 015-bloat.killed.png Read failed on a hook timeout and was not looked at.
+## matthew-mbp-m4-camera-b1-seam41 (2026-10-06; the commit that carries this heading, OSRS-Content bf3dabef7c): the room-clear restore, the supply chest's points, bound-player ops, two kept rows
+
+- tob_room_clear_restore: LANDED (content). A boss kill restores every raider (wiki
+  Strategies:537), proved on the tick log (_play_bloat --party 3: death t388, t392 members'
+  prayer 69 -> 99, a 120 hp boost kept). The chest's points are each player's own (wiki
+  Strategies:568), code only. OPEN: a party run that opens the chest and reads each
+  raider's points; the "below average" band is unreached; the Normal relay not re-run with
+  restored members; run energy has no tick-log column; tob_vault.rs2 / ~tob_build_room
+  still copy the old instance registers (no reader left).
+- ops_player_bound_and_kept_rows: LANDED (engine + two kept rows). p_oploc / p_opobj /
+  p_opplayer act on the script's bound player (PlayerOps.ts:389-403, :998-1028), proved by
+  a scratch party probe (member, not leader, opened the door); tob_bloat
+  tech.protect_from_missiles reads the lit prayer; tob_verzik reds_attacks_between counts
+  casts only (Blert 7). OPEN: no conformance row (the probe debugproc is not in the tree);
+  p_opobj / p_opplayer proved by selftest and reading only; remote_view_start/end still use
+  the phase's player; reds summon read above 35 percent (filed in CONTENT_BUGS.md); the
+  kept rooms vary run to run on this tree.
+- Closer: check-quest-verbs was red on the branch (merge c6abc903b joined 192 seam rows
+  under a count of 191): counts bumped to 192. Conformance 387/387 PASS (195 verbs + 192
+  seams); check-quest-verbs, check-drive-abi, check-pt-switch, test-quest-cheats,
+  test-plugin-lua PASS; lint clean; server selftest 11 failures = baseline, identical rows;
+  quest suite 115 green + deserttreasure forgettabletale regicide troll red = baseline;
+  cooks_assistant and druid byte-identical to merge17; kept tob_bloat 94/94 and tob_verzik
+  254/254 under their own names, 0 rows changed against the fixer's runs (tob_verzik's gate
+  keeps its old p3_yellows duplicate-shot finding); seed_survey _play_entry --names 3 3/3
+  and _play_bloat --party 3 5/5, 0 rows changed. tools/raid_gate/seed_survey.py was edited
+  in this worktree by someone outside the pass during the close (a --jobs flag): not
+  committed.

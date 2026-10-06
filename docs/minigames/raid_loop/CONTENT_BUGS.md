@@ -1465,3 +1465,117 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   Xarpus 100/160; Verzik 10-250 per form; every Nylocas and the Maiden and Blood spawn 0), so
   a heavy split changes no ToB roll; the tree's single `rangedefence` equals the heavy value
   there. Still open tree-wide (an npc whose heavy differs needs the param first).
+
+## From seam41 tob_room_clear_restore (matthew-mbp-m4-camera-b1-seam41, 2026-10-06)
+
+- FIXED, CONTENT: the room-clear restore reached one raider. Source, quoted: "When each boss
+  is killed, the [[hitpoints]], [[prayer points]], [[run energy]] and [[special attack]]
+  energy of all team members are restored to full (drained stats will '''not''' be
+  restored)." (wiki_Theatre_of_Blood_Strategies.wikitext:537; the live page, fetched by name
+  2026-10-06, carries the same line at :545). Entry's own page says the same of its subset:
+  "In Entry Mode, your Hitpoints and Prayer are replenished after defeating each boss"
+  (wiki_Theatre_of_Blood_Entry_Mode.wikitext:22), and a guide video: "Once you defeat her,
+  all of your stats are fully restored automatically" (transcripts/yt_M1t2qWMbzEs.md:37).
+  The seam39 relay's reading "Normal should restore nobody, Entry everybody" has no line
+  behind it: the Strategies page is the Normal page and says all four, for all members.
+  `~tob_room_cleared` (tob_raid.rs2) ran `~tob_restore` on whichever raider's watchdog
+  noticed the corpse (the Maiden's: her hero), so the members walked on with what they had.
+  Now `~tob_restore_party`: the noticer, then every orb-slot uid once (p_finduid, still in
+  this raid by active flag and handle), as `~tob_room_cleared_announce` walks them. The cage
+  path (`~tob_spectate_tick`) and the vault (`~tob_vault_award`) were already per raider.
+  - BEFORE (seam39 relay, old content, build/quest_gate/svbplaynorma): Maiden npc_death tick
+    582; tick 591 pid 0 hp 58->99 prayer 92->99; pid 1 prayer 84 and pid 2 hp 71 prayer 83
+    unchanged.
+  - AFTER (r41spec2p3, `_play_bloat` copy, --party 3, members' special energy set to 0 before
+    the fight): Bloat npc_death 327; tick 330 p1 hp 96 pr 82 spec 0, p2 hp 97 pr 82 spec 0;
+    tick 331 p0, p1, p2 all hp 99, prayer 99, spec 1000. A brew's boost above base is kept
+    (r41bloatp3 tick 357: p1/p2 hp 120 stay 120, prayer 80 -> 99), which is "drained stats
+    will not be restored" read the other way: the restore heals up to base, never down.
+    Run energy is the same proc's `healenergy(10000)`; the raider row has no run column.
+  - Rows changed: none in `seed_survey.py _play_entry --names 3` (3 of 3, 96 rows, 0 of 97
+    ledger rows differ from the pre-fix ledgers: a solo raider was always the noticer, so its
+    supplies_left row does not move). `_play_bloat --party 3`: 5 of 5 green; in every name
+    the members' prayer goes 69-82 -> 99 on the leader's tick (death + 4). The Normal relay
+    (_play_normal) was not re-run: its members now reach Bloat restored, which is the
+    supply budget the relay's open issue asked about.
+- FIXED, CONTENT (behaviour not yet driven): the supply chest's points were the TEAM's.
+  Source: "These supplies can be purchased with points, which are earned based on the
+  individual performance of each player: Above average: 10-13 points, Average: 8-11 points,
+  Below average: 6-9 points. The points earned can carry over to the second chest within
+  the Theatre." (wiki_Theatre_of_Blood_Strategies.wikitext:568-574); "the amount of points a
+  player is given can range from 6 to 13" (wiki_Chest__Theatre_of_Blood_.wikitext:20). Ours
+  kept the balance in one instance register (`^tob_var_points`), so in a trio each raider's
+  first Open paid into one pool any of them could spend, and banded on the team's death
+  count (`^tob_var_deaths_room`), which the first Open zeroed (the second raider always drew
+  the deathless band). Now: the balance is the player's own `%varp6844_tob_points` (tob.varp
+  "one running balance for the raid", cleared at raid start and now also for a joiner in
+  `~tob_join_raid`, with `%varp6840_tob_died_in`); the band reads the player's own death bits
+  for the two rooms the chest covers (`~tob_chest_own_deaths`). OPEN: a party run that opens
+  the chest. Scratch r41chest.lua (three runs, r41chestp3 / r41chest2p3 / r41chest3p3) found
+  the chest but never opened it: from the arena it is not framed, and after the west-barrier
+  walk the loc was out of the client's entity pool. The next try takes `_play_entry.lua`'s
+  POST.bloat + take_chest whole in a Normal party and reads `::tobstores points=` per raider
+  (expected: each 6-13, not a sum). The "below average" band is now unreached (one raider's
+  own deaths are 0, 1 or 2 = the onion); what "below average" measures is unpublished (M22).
+- CHECKED, no change: where the Normal chest stands. "It is accessible twice per raid - once
+  after killing the Pestilent Bloat, and once after killing Sotetseg" (Chest page :20; the
+  main page :61 "After Bloat and Sotetseg, players have an opportunity to buy supplies ...
+  using points earned within the raid at a supply chest"). `~tob_chest_place` places it on
+  those two clears only; Normal is a points store (8 items, enum 1952/1953), Entry gives 10
+  bandages. The relay fixer's "Nothing refills before Bloat" is the game's own budget.
+
+## From seam41 ops_player_bound_and_kept_rows (matthew-mbp-m4-camera-b1-seam41, 2026-10-06)
+
+- FIXED, ENGINE: `p_oploc`, `p_opobj`, `p_opplayer` re-issued the interaction on
+  `srv->active_player` (whoever the phase last selected), not the script's bound player
+  (seam38's OPEN row above). Source: Engine-TS `src/engine/script/handlers/PlayerOps.ts:389-403`
+  `state.activePlayer.stopAction(); ... state.activePlayer.setInteraction(Interaction.SCRIPT,
+  state.activeLoc, ServerTriggerType.APLOC1 + type)`, the same `state.activePlayer` at :998-1014
+  (P_OPOBJ) and :1017-1028 (P_OPPLAYER, target `state._activePlayer2`), where
+  `ScriptState.ts:214` `activePlayer = this.intOperand === 0 ? this._activePlayer :
+  this._activePlayer2` is the bound player. `torirs_server_ops_player.c` now reads
+  `SSVM_Active(state, SSVM_ENT_PLAYER)`, binds it to the world around the op
+  (`ops_player_bind_world` / `_unbind_world`, the shape of seam38's
+  `script_world_bind_player`; it also binds that player's scene window, where the loc handle
+  resolves), resolves the multiloc transform against that player, and compares
+  `p_opplayer`'s target with the bound actor. Proof on a stand-in (no content caller exists):
+  a scratch debugproc `::s41oploc` (compiled only into a scratch pack via
+  TORIRSSERVER_SCRIPTS, never into the tree) queues a script on the leader that
+  `p_finduid`-binds the other raider and calls `p_oploc(1)` on poordoor 3226,3223. Party of
+  2: BEFORE (HEAD binary, s41oplocB) the LEADER walked 3222,3218 -> 3226,3222 and opened the
+  door (ticklog `input` t8 pid 0 `[oploc1,poordoor]`), the member stayed at 3220,3214;
+  AFTER (s41oplocA) the MEMBER walked 3220,3214 -> 3226,3222 and opened it (`input` t10
+  pid 1 `[oploc1,poordoor]`, loc_set t10 1535 -> 1536), the leader stayed. Server selftest
+  11 failures before and after, the same 11 rows (farming rake and firemaking, the
+  `p_oploc`/`p_opobj` self re-issues, pass).
+- OPEN, ENGINE (same file, same shape, no known raid caller): `remote_view_start` /
+  `remote_view_end` still act on `srv->active_player`
+  (torirs_server_ops_player.c, `SS_OP_REMOTE_VIEW_START`/`_END`); a remote view started from
+  a script bound to another player would open on the wrong one.
+- FIXED, KEPT TEST ROW: tob_bloat.lua `tech.protect_from_missiles` (and the
+  `spec.bloat.fly_prayer` reading built on the same window) counted a walking tick as
+  shielded when prayer POINTS were above 0, so flies before the first press counted as
+  prayed. Source: wiki_Pestilent_Bloat.wikitext:90 "[[Protect from Missiles]] reduces damage
+  from the flies by 25%." The window now reads the lit set (`t.prayer.read()`,
+  `set.protectfrommissiles`). Kept run (own name): green 94 of 94, "93 fly hits ... first
+  lit at tick 131, the largest was 6"; spec.bloat.fly_prayer 3-6 over 93 hits.
+- FIXED, KEPT TEST ROW: tob_verzik.lua `spec.verzik.reds_attacks_between` counted the casts
+  plus the summon. Source: Blert VerzikDataTracker.java:71 `P2_ATTACKS_PER_REDS = 7`, reset
+  at the spawn (:846 `verzikAttacksUntilSpecial = P2_ATTACKS_PER_REDS`) and counted down per
+  auto to "Last auto before the next reds phase" (:718-722): seven autos BETWEEN spawns. The
+  row now counts casts strictly between two summons. HEAD file on this tree (s41verzikold):
+  "measured 8 count ... 7 casts and the summon" FAIL; kept run (own name): "measured 7
+  count ... after the summon on tick 369 and before the next summon on tick 413" PASS, 254 of
+  254 rows.
+- OPEN, TEST VARIANCE (not this seam's rows; the kept room tests are not reproducible run to
+  run on this tree): four tob_bloat runs killed Bloat on ticks 389, 570, 277 and never (the
+  HEAD file's s41bloatold, 900 loop turns); s41bloatnew2 red on `tech.eat_before_stomp`
+  (hitpoints 38 on the tick before a stomp). tob_verzik's own-name run is 254 of 254 but
+  gate.py finds two shots with one MD5 (213 `spec.verzik.av.p3_yellows.seq`, 215
+  `...gfx_blast`); a second run of the same file (s41verziknew2) had 39 gate findings
+  (p1_cap, p3 melee predicate, tornado pct ...).
+- OPEN, CONTENT or MEASUREMENT (found, not this seam's file): `spec.verzik.reds_threshold`
+  read the summon at 22.0 percent of her P2 pool (s41verzikold, tick 438) and at 43.2 percent
+  (s41verziknew2, tick 461), against Blert's 35. Since seam36 the 35 percent test runs on the
+  attack slot only (tob_verzik.rs2 `[proc,tob_verzik_reds_due]`); a summon above 35 percent
+  is not explained by that, so either the `::tobboss` phase_hp read or the trigger is wrong.

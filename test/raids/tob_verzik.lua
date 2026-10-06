@@ -835,8 +835,10 @@ return {
                         for _, a in ipairs(A2) do
                             if a.tick > heals2[1].tick and a.tick < heals2[2].tick then n = n + 1 end
                         end
-                        out_rows[#out_rows + 1] = { "spec.verzik.reds_attacks_between", n + 1 == 7,
-                            "measured " .. (n + 1) .. " count, her attacks from the Matomenos summon on tick " .. heals2[1].tick .. " up to and including the next summon on tick " .. heals2[2].tick .. " (" .. n .. " casts and the summon, which takes the seventh attack's place) " .. SPEC.reds_attacks_between }
+                        -- the casts strictly between two summons: Blert VerzikDataTracker.java:71 `P2_ATTACKS_PER_REDS = 7`,
+                        -- reset at each reds spawn (:846) and counted down per auto to "Last auto before the next reds phase" (:718-722) (seam36/seam41)
+                        out_rows[#out_rows + 1] = { "spec.verzik.reds_attacks_between", n == 7,
+                            "measured " .. n .. " count, her attacks after the Matomenos summon on tick " .. heals2[1].tick .. " and before the next summon on tick " .. heals2[2].tick .. " (the summons themselves not counted) " .. SPEC.reds_attacks_between }
                     end
                 end
                 -- bombs: landing tick, live ticks, the judged tile and the maximum

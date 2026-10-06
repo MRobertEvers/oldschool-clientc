@@ -182,7 +182,10 @@ return {
                 end
             end
             last_phase = phase
-            shield_at[now] = (phase == "walk" and prayer_now > 0)
+            -- shielded = Protect from Missiles LIT (the varbit set), not prayer points: wiki_Pestilent_Bloat.wikitext:90
+            -- "Protect from Missiles reduces damage from the flies by 25%", so a fly before the first press is unprayed (seam36/seam41)
+            local _, _, lit_set = t.prayer.read()
+            shield_at[now] = (phase == "walk" and lit_set ~= nil and lit_set.protectfrommissiles == true)
             if iteration % 50 == 0 then
                 t.check("bloat.progress" .. iteration, true, log_text)
                 log_text = ""

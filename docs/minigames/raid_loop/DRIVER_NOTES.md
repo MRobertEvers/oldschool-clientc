@@ -6629,6 +6629,9 @@ re-talk after walking four tiles up the carpet.
 
 ## In a party, `~tob_restore` heals only the leader (seam39)
 
+SUPERSEDED (seam41): a boss kill now restores every raider; see "A boss kill restores
+the whole party" below. What follows is the old behaviour.
+
 `tob_raid.rs2 ~tob_room_cleared` calls it once, in the room watchdog's raider. A member
 reaches the next room with the hitpoints, prayer, run and special energy the last room
 left it: a relay member must eat up in the corridor (`top_up`), and the raider who needs
@@ -6749,3 +6752,55 @@ available on this platform` until the party link runs there.
   `TORIRS_DRIVE_ON_DEMAND=1`, `TORIRS_DRIVE_AUTOPLAY={"id":"_play_bloat",...,"party":
   {"size":3,"launch":true},"quit":true}`, `TORIRS_EMBED_CLOCK_MS=20`, `TORIRS_MAX_FRAMES`.
   Read the leader's `watch/<account>/p1/ledger.tsv` and its `launch: status:` lines.
+## A boss kill restores the whole party (seam41)
+
+"When each boss is killed, the hitpoints, prayer points, run energy and special attack
+energy of all team members are restored to full (drained stats will not be restored)"
+(wiki Theatre of Blood/Strategies:537). The content does it on every party member at the
+watchdog's death + 4 tick (`~tob_restore_party`, tob_raid.rs2). A plan's supply budget is
+per room, not per raid. A brew boost above base survives the restore (hp 120 stays 120).
+
+To see it on the tick log, read every pid's `raider` row at npc_death + 3 and + 4: hp is
+column b, prayer column c, special energy column g. A raider whose protection prayer is
+still lit reads one point under max on the restore tick (the drain runs after it).
+`::setvar varp300_sa_energy` does not arm `[timer,sa_regen]`, so a special energy set by
+cheat stays put until the restore: a clean before and after.
+
+## Supply chest points are each raider's own (seam41)
+
+The balance is `%varp6844_tob_points` per player (read it with `::tobstores points=`), and
+the band is that player's own deaths in the two rooms the chest covers (wiki
+Strategies:568 "individual performance of each player"). One raider opening the chest no
+longer pays into, or spends from, a team pool. The chest is not framed from the Bloat arena:
+walk the west barrier and the corridor first (`_play_entry.lua` POST.bloat). A party run
+that opens it and reads every raider's points is still OPEN.
+
+## `p_oploc`, `p_opobj`, `p_opplayer` act on the script's bound player (seam41)
+
+The re-issued interaction belongs to the player the script has bound (`p_finduid`, or the
+`.` operand), as LostCity's `state.activePlayer` (PlayerOps.ts:389-403, :998-1014,
+:1017-1028). A room script that walks a party with `p_finduid` can hand a loc op to each
+raider. Before, every such call landed on whichever player the server phase last selected.
+`remote_view_start` / `remote_view_end` in the same file still use the phase's player
+(no raid caller yet).
+
+## Kept tob_bloat: Protect from Missiles is the lit prayer, not prayer points (seam41)
+
+`tech.protect_from_missiles` counts a fly as prayed only when `t.prayer.read()` shows
+Protect from Missiles lit on that tick and the six before it (wiki Pestilent Bloat:90, the
+prayer takes 25 percent off a fly). Prayer points above zero are not the prayer.
+
+## Kept tob_verzik: reds_attacks_between counts casts only (seam41)
+
+`spec.verzik.reds_attacks_between` counts her casts strictly between two Matomenos summons
+and expects 7 (Blert VerzikDataTracker.java:71, :718-722, :846). The summons themselves
+are not attacks in the count.
+
+## Proving a server op that no committed content calls (seam41)
+
+Compile a scratch pack with `build_opt/sscompile --src <tree>/server/scripts --out
+<scratch> --content-root <tree> --seams <scratch seams dir>` (the dir holds
+`lane_seams/*.rs2` plus the probe debugproc) and run with `TORIRSSERVER_SCRIPTS=<scratch>`;
+the env reaches the leader's embedded server. `QUEST_BINARY=<HEAD build>` gives the
+before. The seam41 probe for a bound `p_oploc` is kept in the pass state dir
+(`probe/s41_oploc_probe.rs2`), not in the tree, so it has no conformance row.
