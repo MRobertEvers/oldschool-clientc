@@ -1045,3 +1045,138 @@ Sources: E = wiki_Theatre_of_Blood_Entry_Mode.wikitext, W = wiki_Theatre_of_Bloo
   wiki says restore is Entry's ("your Hitpoints and Prayer are replenished after defeating each
   boss", E:17), so Normal should restore nobody and Entry everybody. Not changed here: no seam
   row names tob_raid.rs2.
+
+## The four rooms against Blert, Normal trio (raid seam42)
+
+Closer survey on HEAD 407dc4a25: Xarpus 3 of 3 (fixer: 5 of 5, party_repeat AGREE), LANDED;
+Bloat 0 of 3 on blert.room_ticks and blert.downs only (every technique row passes), LANDED as
+the measured step toward the reference; Sotetseg NOT LANDED (0 of 3 against HEAD's 2 of 3);
+Verzik unchanged (the gap is the kit). Entry solo 5 of 5 on _play_smoke, _play_xarpus,
+_play_sotetseg.
+
+### Bloat, Normal trio -- follows Blert (seam42)
+Reference: docs/minigames/theater_of_blood/sources/blert_api/reference/bloat_normal_3.json (blert_reference.py
+bloat --mode normal --scale 3 --offline; 19 death-free of 30 cached rooms): room 137 [75-195], downs 2 (3 in 2 of 19),
+down1 starts at 42 [39-47] and lasts 33, swings per raider in down1 6 [5-7], first swing age 3, last swing age 26.5,
+down1 party damage 27 hp/tick [18.7-35.1], down2 22.8 [19.9-26.4], eat at ~25% hitpoints, hp lost per raider ~95.
+What the plan now does like the recorded trios: all three enter with the leader (15 of 22 death-free rooms; the
+wiki's "rest enter on the down" is 3 of 22); NO Dragon warhammer run-by (no DWH special in 30 rooms, one BGS);
+hide hugging the tank, one tile off it ("Hug the pillar", W:687; Blert walk distance mode 7; the mirror tile was 9);
+the last swing as late as the raider's own distance out of the stomp allows (leave_from_here) and no stomp threat
+counted while it will leave in time (no more bites at 85-99 hitpoints on a down's last swings).
+Before -> after (_play_bloat leader; after = 3 names): room 332 -> 259/340/269; downs 5 -> 4/5/4; down1 hp/tick
+11.6 -> 16.6/13.8/12.4; down1 swings p1 4 p2 2 -> 4/4/4 each; first swing age 7-9 -> 5-7; hp lost 269/184/215 ->
+131/36/56 (inside the reference); stomp hits 0; PfM'd fly max 15.
+Still outside: room ticks, downs, swings per down (4 vs 6), damage per tick (half), eat threshold (81-99% vs 25%).
+Where the rest is: (1) followers have no tick log, so raid_play.lua counts a swing every 5 ticks once engaged and
+never re-presses when the server stops swinging: p3 stood in reach 20 ticks of down2 and down3 with no input
+(_play_bloat t170-190, t242-262); (2) the 5th swing (age 25) is lost to the stomp margin (a -1 margin put the
+stomp on 2-3 raiders, survey_5); (3) the real trios add a crystal halberd special on down1 (17 of 19) and claws on
+down2 (12 of 19) and ZCB/tbow on walk1 (11 of 19), none in our kit.
+
+### Xarpus, Normal trio, follows Blert (raid seam42 play_tob_xarpus_follows_blert)
+
+Reference: `docs/minigames/theater_of_blood/sources/blert_api/reference/xarpus_normal_3.json`
+(`blert_reference.py xarpus --mode normal --scale 3 --rooms 20 --offline`: 13 death-free rooms of 20
+cached Regular trio rooms under build/blert/xarpus/; plus `extra_seam42` from
+build/seam_state/matthew-mbp-m4-raid-b1-seam42/xarpus_blert/analyse.py). Comparison:
+xarpus_blert/xcompare.py (raid_report.py --against knows only Maiden in this tree).
+
+What real trios do that the stack did not: they never stack in phase 2 (0% of ticks; each raider's
+nearest other raider 5 [3-6] tiles away) and swing about every 5.2 ticks (21.5 scythe swings in a
+112-tick phase; W:844 "With a 5 tick weapon ... players will only delay an attack once in their
+cycle"). The stack has to step out on S+2 (the chains' aim) and S+3 (the next spit's aim) every
+cycle, so it swung every ~7.2 ticks and phase 2 ran 117-141 ticks.
+
+| Who / when | Intent (changed rows only) | Source |
+|---|---|---|
+| phase 1 | The exhumed goes to the raider whose wait tile is nearest, unless that raider holds one still up (then the nearest free one) | reference outcome.phase.start.boss_heal 96 [50-182] (ours was 204); role.melee*.phase.start.dist_raider 5 |
+| phase 2, the spread | Each raider holds its own side: the melee and step-back tiles whose nearest wait tile is its own (Voronoi of 34,32 / 31,35 / 37,35) | reference role.melee*.phase.phase1.dist_raider 5 [3-6]; extra_seam42 p2_all_three_on_one_tile_pct 0 |
+| phase 2, the target stays in | The raider the spit in flight was aimed at (acid thrown from inside his footprint, destination = its own step-back tile) stays in melee that cycle; the other two step out on S+2 and S+3 as before | S ~tob_xarpus_spit (never the last target twice running, Near-Reality validTargets) and ~tob_xarpus_chain_to (a chain never goes to the spit's target); W:844 |
+| phase 2, a used-up side | A melee tile with no clean step-back tile of its own side in reach is left for one that has one (also at the press: the run back in goes there); with none, any clean step-back tile in reach | measured: late-phase chains on melee tiles (t248) without it |
+| exit | The leader eats one anglerfish if the pack is full before searching the skeleton | S ~tob_dawnbringer_take ("You don't have enough inventory space to take that"); measured svb (free 0) |
+
+Rows: `trio.stacked` is gone; `trio.spread` (each raider's median nearest-other distance in [3,6]);
+`trio.ring_clean` is bounded by the real rooms (<= 7: 13 death-free rooms leave 2-7, median 4,
+distinct P2 splats on melee tiles; was == 0).
+
+**Measured, five names (leader p1), `seed_survey.py _play_xarpus --party 3 --names 5`: 5 of 5.**
+
+| Leader | Room (ref 276 [257-298]) | P1 heal (96 [50-182]) | P2 ticks (112 [96-124]) | P3 ticks (51 [45-70]) | spits (27 [23-30]) | P2 swings/raider (21.5 [19-29]) | P2 dist_raider (5 [3-6]) | ring puddles (2-7) |
+|---|---|---|---|---|---|---|---|---|
+| before (_play_xarpus, stack) | 297 | 204 | 139 | 41 | 33 | ~20 over P2+P3 27 | 0 | 0 |
+| _play_xarpus | 273 | 168 | 119 | 37 | 28 | 20/20/20 | 5/5/5 | 2 |
+| svaplayxarpu | 266 | 168 | 111 | 38 | 26 | 18/18/19 | 5/5/5 | 2 |
+| svbplayxarpu | 264 | 168 | 103 | 44 | 24 | 17/17/18 | 5/5/5 | 0 |
+| svcplayxarpu | 252 | 168 | 99 | 36 | 23 | 17/16/17 | 5/5/5 | 0 |
+| svdplayxarpu | 278 | 168 | 123 | 38 | 29 | 20/20/21 | 5/5/5 | 2 |
+
+Heal orbs 14 (was 17); no deaths. Repeat: `party_repeat.py --script build/xn42_repeat/_play_xarpus_trio.lua
+--name xn42rep --runs 3`: AGREE (tick log sha ccbb1f5144c5, 342 boundaries). Entry solo
+`seed_survey.py _play_xarpus`: 5 of 5.
+
+**Still outside the reference.** Phase 3 is 36-44 ticks on every name (ref 45-70) with 7-9 swings
+a raider (ref 9-12): ours kills the last 25% faster on FEWER swings, so the gap is the damage per
+swing or the hit points left at the screech, not the plan (phase 3 is the Entry per-raider plan,
+unchanged). svc's room (252) is 5 under the reference's minimum for the same reason. P3 raiders
+sit 0-6 apart (ref 2 [0-4]).
+
+NOT LANDED. The closer's survey on HEAD 407dc4a25 (after the follower-prayer fix) put the plan below at 0 of 3 (two deaths, one unfinished run) against HEAD's own plan at 2 of 3; the files were restored from HEAD and the work is kept at build/seam_state/matthew-mbp-m4-raid-b1-seam42/close/sotetseg_unproved.patch. The measurements stand.
+
+### Sotetseg, Normal trio, against Blert (seam42 play_tob_sotetseg_follows_blert)
+
+Reference: `docs/minigames/theater_of_blood/sources/blert_api/reference/sotetseg_normal_3.json`
+(`blert_reference.py sotetseg --mode normal --scale 3 --rooms 20`; 20 death-free rooms of 29; roles melee x3 in 19).
+`raid_report.py --against` cannot read a Sotetseg run (`blert_reference.BOSS_IDS` holds only Maiden: run_room -> None);
+the comparison is `build/seam_state/matthew-mbp-m4-raid-b1-seam42/sotetseg/compare.py`, the real maze timings
+`.../sotetseg/maze_times.py` over the cached streams in build/blert/sotetseg (58 mazes).
+
+| number | Blert median [range] | before (seam33 plan) | after (s4, last clean party run) |
+|---|---|---|---|
+| room ticks | 212.5 [164-262] | 418 / 460 / died | 333 / 350 / 354 |
+| start phase ticks (to maze 1) | 52.5 [42-67] | 92 / 83 | 63 / 73 / 88 |
+| maze, proc to combat form back | 28 [15-49] | 41, 47 | 31-36 |
+| scythe accuracy before maze 1 | (~30 dmg a swing) | 0.47 (22 a swing) | 0.85-0.87 |
+| hp lost per raider | 92.5-108 [3-225] | 247-327 | 199-383 |
+
+What the real trios do that ours did not:
+* ELDER_MAUL once a phase per raider (weapons table: 15/13/12 of 19 rooms by phase). Defence 200 untouched left
+  the scythe at 47% accuracy; one maul special each (`pvm_elder_maul.rs2`: -35% of current Defence) took it to 87%.
+  The maul goes on in the SAME block as the orb press, the tick after a scythe swing; a tick earlier and the
+  auto-attack swings it plain first (seq 7516 then 11124 six ticks later).
+* Followers walk BEHIND the glow while it is lit (two tiles back), not after the last tile: maze 41/47 -> 31-36.
+  Rules that made it safe: follow a neighbour chain built from the lit tiles each tick (the order tiles were lit in
+  cut a corner diagonally onto a dark tile); never retarget mid-run on the grid (the server routes the new target
+  from wherever the raider got to); never walk a tile guessed across a 3+ tile glow gap (a glow missed while the
+  runner ran two a tick crosses two lateral rows, and either can hold the turn).
+* Eat for ONE attack of his, not one per five ticks of the horizon: two worst-case melees made every raider eat
+  and brew at 80-115 of 99, and the brews' Attack drain took accuracy to 0.29 by the last phase.
+
+Still outside the reference: room 333-354 (> 262); hp lost; the post-maze phases (defence back, fewer specs: the
+energy allows two mauls, the real teams three - a lightbearer or spec restore is the next lever, unsourced here).
+
+### Verzik, Normal trio, against Blert (seam42 play_tob_verzik_follows_blert) -- NOT closed
+
+Reference: `docs/minigames/theater_of_blood/sources/blert_api/reference/verzik_normal_3.json`
+(blert_reference.py verzik --mode normal --scale 3 --rooms 20: 20 death-free rooms of 27).
+`raid_report.py --against` refuses Verzik (BOSS_IDS knows only Maiden), so the comparison was
+`build/seam_state/matthew-mbp-m4-raid-b1-seam42/verzik/compare_verzik.py` (phase bounds from her retypes 8371/8373).
+
+| Number | Blert median [range] | Ours at HEAD 7f942f915: _play_verzik / sva / svb |
+|---|---|---|
+| room ticks | 438.5 [359-607] | 833 (two died) / 638 / 591 |
+| P1 ticks | 85.5 [60-152] | 127 / 135 / 156 |
+| P2 ticks | 210 [170-261] | 299 / 296 / 289 |
+| P3 ticks | 134.5 [122-200] | 407 / 207 / 146 |
+| P2 heal on her | 198 [65-313] | 802-848 (three red absorbs of 206-228) |
+| hp lost per raider | 130-173 [69-259] | 268-715 |
+| P2 weapon | SCYTHE (16-18 of 20 rooms per role; melee 83-92%) | twisted bow 47-51 shots |
+| P3 weapon | SCYTHE (21-23 swings per role) | twisted bow 26-66 shots |
+| P1 | DAWN 4 + SCYTHE 8-10 per role | dawn 3-4 + scythe 14-21 per role |
+
+Every real Normal trio plays Verzik ALL MELEE. Ours is a ranged kit (`::maxrange`, Rigour). Tried and
+reverted: the scythe on the reds in P2 with the ranged kit -- 8.0 a hit on a red (729 hits), P2 never
+ended (0 of 3). Next: the melee kit (`::maxmelee` exists, cheat_max_gear.rs2:31) with Piety, P2 melee with
+the out-on-T-1 step against the bounce (V verzik.p2_scan_rule), P3 melee with the under-her step on T-1
+(V verzik.p3_melee_predicate). At HEAD the survey is 2 of 3 (the leader's own name dies in a 407-tick P3),
+where seam34v measured 5 of 5 before the content merge bf3dabef7c.

@@ -26,7 +26,9 @@ local kit = {
 -- run-by on the boss with a Bandos godsword special to lower its Defence";
 -- the BGS is not in this cache, tob_bloat_normal.lua:5; "a dragon
 -- warhammer is basically essential", yt_4i4lv-srJkw.md:45)
-if role == 1 then kit[#kit + 1] = "::give dragon_warhammer 1" end
+-- raid seam42 play_tob_bloat_follows_blert: no run-by, so no hammer.  The 30
+-- recorded Normal trio rooms (reference/bloat_normal_3.json; build/blert/bloat)
+-- hold no Dragon warhammer special and one Bandos godsword special.
 -- raid seam32: a raider's Agility.  Every raider hides on the walk and runs
 -- the ring at Bloat's own speed (it RUNS at 40-60%, W:679), and a fresh
 -- character's run energy is spent by the third walk: svbplaysmoke t346-361
@@ -75,16 +77,15 @@ return {
             if size > 1 then t.expect("party.barrier.started", t.party.barrier("started", 900)) end
         else
             t.expect("party.barrier.started", t.party.barrier("started", 900))
-            -- "As soon as Bloat deactivates, the rest of the team should enter" (wiki :689)
-            local waited = 0
-            while waited < 150 do
-                local wr, wb = t.npc.state(boss)
-                if wr == "ok" and wb.seq_id == 8082 then break end
-                waited = waited + 1
-                t.ticks(1)
-            end
+            -- raid seam42: the whole trio is in from the start.  The wiki's
+            -- "As soon as Bloat deactivates, the rest of the team should enter"
+            -- (W:689) is what 3 of 22 recorded death-free Normal trio rooms
+            -- did; in 15 all three were in before the first down (Blert,
+            -- build/blert/bloat; seam42 progress notes), and a raider who
+            -- enters on the down swings first at age 7-9 against the
+            -- reference's 3 (seam42 _play_bloat before: down1 swings 4 and 2).
             local xr, xd = t.player.click_loc("tob_arena_barrier", 1)
-            t.check("play.barrier_cross", xr == "ok", "p" .. role .. " waited " .. waited .. " ticks for the first down: " .. tostring(xd))
+            t.check("play.barrier_cross", xr == "ok", "p" .. role .. " crossed with the leader: " .. tostring(xd))
         end
 
         -- THE FIGHT: the library and the room's plan, nothing else
@@ -312,36 +313,20 @@ return {
         -- W:673 "up to 20 damage every tick, reduced by 25% if Protect from Missiles are active"
         t.check("tech.protect_from_missiles", #fly_hits_protected > 0 and protected_max <= 15,
             #fly_hits_protected .. " fly hits landed with Protect from Missiles lit from the fly's launch to its landing, the largest was " .. protected_max .. " against the protected Normal maximum of 15 (unprotected 20)")
-        -- THE RUN-BY.  The technique row: the special spent on Bloat on the first
-        -- walk, before the first down, and its splat in the log.  Whether it
-        -- DRAINED is the hammer's roll (a 0 drains nothing) and is reported in
-        -- the detail, not asserted.
-        -- W:687 "one or two players should do a run-by on the
-        -- boss with a Bandos godsword special to lower its Defence"): the
-        -- leader is the raider in the room on the first walk.  The special is
-        -- the energy it spent (rec.runby.fired, varp300 down by 500) and its
-        -- splat the boss's hit_npc row within two ticks before that read:
-        -- the Dragon warhammer drains only on a hit above 0 (DRIVER_NOTES
-        -- "Bloat: Defence reads 80 of 80 after a Dragon warhammer special").
+        -- raid seam42: THE REFERENCE ROWS.  The room against Blert's 19 recorded
+        -- death-free Normal trio rooms (docs/minigames/theater_of_blood/sources/
+        -- blert_api/reference/bloat_normal_3.json): outcome.room_ticks 137
+        -- [75-195], and no recorded room needed more than three downs inside
+        -- that range (outcome.phase.down3 n=2, no down4).
         t.ticks(1)
         local _, boss_hits = t.ticklog.rows({ kind = "hit_npc", slot = boss_slot })
-        local rb = rec.runby
-        local spec_hit, spec_tick = nil, nil
-        if rb ~= nil and rb.fired ~= nil then
-            for i = 1, #boss_hits do
-                local row = boss_hits[i]
-                if spec_hit == nil and row.tick >= rb.fired - 2 and row.tick <= rb.fired + 1 then spec_hit, spec_tick = row.damage, row.tick end
-            end
-        end
-        local swaps = {}
-        for _, g in ipairs(rec.gear_swaps or {}) do swaps[#swaps + 1] = "t" .. g.tick .. " " .. g.items .. " " .. tostring(g.result) end
-        t.check("tech.runby", rb ~= nil and rb.fired ~= nil and rb.fired < (downs[1] or end_tick) and spec_hit ~= nil,
-            "drained " .. ((spec_hit ~= nil and spec_hit > 0) and "yes" or "no (a 0 drains nothing)") .. "; run-by " .. tostring(rb and rb.stage) .. ": energy " .. tostring(rb and rb.energy0) .. " -> " .. tostring(rb and rb.energy1) .. " read on t" .. tostring(rb and rb.fired)
-            .. ", the special's splat " .. tostring(spec_hit) .. " on t" .. tostring(spec_tick) .. " (halved: Bloat was walking); splats seen " .. table.concat((rb and rb.splats) or {}, ",") .. "; swaps " .. table.concat(swaps, ", ")
-            .. (rb and rb.why and ("; " .. rb.why) or ""))
+        local room_ticks = (death_tick ~= nil and mark_tick ~= nil) and (death_tick - mark_tick) or nil
+        t.check("blert.room_ticks", room_ticks ~= nil and room_ticks >= 75 and room_ticks <= 195,
+            "room " .. tostring(room_ticks) .. " ticks from the mark to Bloat's death; the reference's 19 rooms: 137 [75-195]")
+        t.check("blert.downs", #downs >= 1 and #downs <= 3,
+            #downs .. " downs to the kill; the reference: 2 in 17 of 19 rooms, 3 in 2 (outcome.phase.down3 n=2)")
         -- the measure per down: dealt, zeros (hit_npc carries no dealer pid,
-        -- so zeros are per down: the first down follows the drain, the
-        -- stomp restores Defence for every later one, W:675)
+        -- so zeros are per down)
         local per_down = {}
         for i = 1, #downs do
             local dealt, hits, zeros = 0, 0, 0

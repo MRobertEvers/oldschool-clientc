@@ -1623,3 +1623,28 @@ nylocas' defence/accuracy against the wiki stat block and whether a copy attacki
 ### Vasilias: 12.5 hp per tick vs Blert 20.3 (24.7 a swing vs ~34) with Blert's weapons on her forms.
 
 ### Mage level 112 in Blert = Imbued heart; no heart in content (the plan drinks a magic potion, 103).
+
+### Bloat stomp reach is anchored on the SOUTH-WEST tile (tob_bloat.rs2:823 huntall(npc_coord, ^tob_bloat_stomp_range = 6))
+Status: OPEN (seam42 closer). Not applied: the plan's in_stomp (raid_play_tob_bloat.lua) reads the same south-west anchor, so the content and the plan must change together, with a run; the radius is still the closer's guess from Blert data.
+Source: Blert, 27 recorded Normal trio downs (build/blert/bloat, seam42 reader bloat/blert_bloat_reference.py):
+a raider at Chebyshev distance <=2 from Bloat's 5x5 footprint at T+28 took the stomp 23 of 27 times, at 3 4 of 10,
+at >=4 0 of 10, on every side.  Ours reaches footprint distance 6 on the south and west faces and only 2 on the
+north and east faces (radius 6 round the south-west corner).  The tob.constant comment says [M65] "no source gives
+a number".  Proposed (the closer decides the radius; the data puts it at footprint+2..3):
+    huntall(movecoord(npc_coord, 2, 0, 2), 5, 0);   // centre tile, footprint + 3
+or radius 4 (footprint + 2).  The plan's in_stomp (raid_play_tob_bloat.lua) reads stomp_range from the
+south-west tile like the content; change both together.  UNPROVED by a run in this pass (no content edit made).
+
+### From raid seam42 play_tob_xarpus_follows_blert -- Xarpus Normal trio phase 3 is short (UNSOURCED, Open)
+Status: OPEN (seam42 closer): unsourced; measure first, as the entry says.
+
+Evidence: Blert reference/xarpus_normal_3.json (13 death-free Regular trio rooms):
+outcome.phase.phase2.ticks (the screech to his death) 51 [45-70]; role.melee*.phase.phase2.attacks_boss
+9-10 [8-12] per raider, mostly scythe (weapons.melee*|phase2.SCYTHE 8-9). Ours (seed_survey.py
+_play_xarpus --party 3 --names 5, seam42 final): 36-44 ticks on 7-9 swings a raider, 0 retaliations.
+Fewer swings and a shorter phase means each swing takes more of him in ours, or he has less left at
+the screech (ours screeches on the first grid slot after the bar reads <= 25%: plan screech_pct 27.5
+with the margin; X xarpus.p3.screech_pct 22.5 for Entry, W:851 "~25%"). Not fixed: no source in hand
+says which (his Normal hit points at the screech, or the scythe's three hits on a 5x5 in phase 3);
+measure the screech hit points from the npc row against Blert's npc hitpoints (event 8 at the
+xarpusPhase 2 tick) before changing anything.

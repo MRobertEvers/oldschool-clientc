@@ -62,8 +62,20 @@ QD.raid._play_plan("tob_bloat", {
         --               them back (wiki Super restore) and the super combat is
         --               re-sipped on the walk (yt_4i4lv-srJkw.md:47 "three
         --               super combats" for the raid).
+        --
+        -- raid seam42 play_tob_bloat_follows_blert: Normal follows the Blert
+        -- reference (reference/bloat_normal_3.json, 19 death-free trio rooms;
+        -- PLAY_NOTES.md "Bloat, Normal trio").  NO run-by: 30 recorded Normal
+        -- trio rooms hold no Dragon warhammer special and one Bandos godsword
+        -- special, and the run-by kept p1 in the flies eating four times
+        -- before the first down (seam42 _play_bloat t63-82, hp lost 269
+        -- against the reference's 49-217).  leave_from_here: the last swing is
+        -- taken as late as the raider's own distance out of the stomp allows
+        -- (Blert last swing age median 26.5, p10 15, p90 31), not at the age
+        -- that fits the farthest raider (24 for everyone).
         normal = { fly = 20, stomp = 80, hand = 50, stomp_plan = "leave",
-            fly_prayed = 15, runby = "dragon_warhammer", offence_pots = true, hand_dodge = true },
+            fly_prayed = 15, offence_pots = true, hand_dodge = true, leave_from_here = true,
+            hug_tank = true },
         hard = { fly = 20, stomp = 80, hand = 50, stomp_plan = "leave",
             fly_prayed = 15, runby = "dragon_warhammer", offence_pots = true, hand_dodge = true },
     },
@@ -120,10 +132,37 @@ function QD.raid._play_bloat_decide(st, v)
     end
     st.prev_b = { x = b.x, z = b.z }
     local hide_x, hide_z = 2 * O.x + P.mirror[1] - fx, 2 * O.z + P.mirror[2] - fz
+    -- raid seam42 (N.hug_tank): "Hug the pillar" (W:687).  The mirror tile is
+    -- two tiles off the tank (seam42 _play_bloat: all three at 6428,101, nine
+    -- from Bloat's footprint, first swing at age 6-7); the recorded Normal
+    -- trios hid at seven (Blert walk distance mode 7, build/blert/bloat) and
+    -- swung first at age 3 (reference react.phase.down1 3 [1-6]).  The tile
+    -- one off the tank on the same line is still behind it.
+    if N.hug_tank then
+        hide_x = math.max(O.x + P.tank[1] - 1, math.min(O.x + P.tank[3] + 1, hide_x))
+        hide_z = math.max(O.z + P.tank[2] - 1, math.min(O.z + P.tank[4] + 1, hide_z))
+    end
     local in_stomp = math.max(math.abs(v.me.x - b.x), math.abs(v.me.z - b.z)) <= P.stomp_range
     local hidden = math.max(math.abs(v.me.x - hide_x), math.abs(v.me.z - hide_z)) <= 1
     local on_shadow = v.shadows[v.me.x * 100000 + v.me.z] == true
     local leave_age = P.stomp_age - 1 - math.ceil((P.stomp_range + 1) / QD.RAID_PLAY_RUN_TILES)
+    -- raid seam42 (N.leave_from_here): the stomp is a huntall of stomp_range
+    -- round Bloat's south-west tile (tob_bloat.rs2:823), so a raider is out of
+    -- it after (stomp_range + 1 - its own distance from that tile) tiles, not
+    -- after stomp_range + 1 from anywhere.  One tick more than that run: the
+    -- old age's own arithmetic on the raider's distance (no spare tick) let
+    -- the stomp land on 2-3 raiders a run in seam42 survey_5 (_play_bloat
+    -- t193, t264: the run round the tank's corner is longer than the
+    -- distance); with the tick none landed in survey_4.  The farthest case
+    -- (distance 0) is the old age.
+    if N.leave_from_here and phase == "down" then
+        local d_sw = math.max(math.abs(v.me.x - b.x), math.abs(v.me.z - b.z))
+        local need = math.max(0, P.stomp_range + 1 - d_sw)
+        leave_age = math.max(leave_age, P.stomp_age - 2 - math.ceil(need / QD.RAID_PLAY_RUN_TILES))
+        if st.down ~= nil and st.down.leave_at == nil and age >= leave_age then
+            st.down.leave_at = { age = age, d_sw = d_sw }
+        end
+    end
     -- raid seam32: the most one fly lands with Protect from Missiles (W:673).
     -- The plan lights it on every walking tick and from T+32, the tick before
     -- the first fly of a rise (walk_prayers; the `list` below), so every fly
@@ -138,7 +177,12 @@ function QD.raid._play_bloat_decide(st, v)
                 if not hidden then total = total + fly end
             else
                 local a = age + k
-                if a == P.stomp_age and (N.stomp_plan == "stay" or in_stomp) then total = total + N.stomp end
+                -- raid seam42 (N.leave_from_here): a raider who will leave in
+                -- time is not hit by the stomp; counting it while it still
+                -- swings ate a bite at 85-99 hitpoints on a down's last swings
+                -- (seam42 _play_bloat t125, t218: all three raiders)
+                local caught = in_stomp and (not N.leave_from_here or age >= leave_age)
+                if a == P.stomp_age and (N.stomp_plan == "stay" or caught) then total = total + N.stomp end
                 if a >= P.up_age then total = total + fly end
             end
         end

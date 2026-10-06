@@ -6883,3 +6883,73 @@ by the delay (play.potion row).
 
 P.trace_seat = <role> in the Nylocas plan traces one party seat without turning on the whole
 trace; leave it nil in committed code.
+
+## A party follower has no tick log, so it never re-presses a stopped attack (seam42)
+
+`raid_play.lua` `_play_attack` counts a swing every `st.weapon.speed` ticks once a follower
+(p2, p3: no tick log of its own) is engaged, so the "no swing for speed + 2 ticks" re-press
+never fires for it. In seam42 `_play_bloat`, p3 stood adjacent to Bloat's footprint and sent no
+input for 20 ticks of down 2 and down 3 (leader's tick log t170-190, t242-262), about a third
+of the party's damage on those downs. Open: a follower needs to see its own swing (a per-member
+tick log, or its own seq in `api_drive.players()`), or to re-press every speed + 2 ticks while
+the plan wants a swing. Every trio room is affected.
+
+## A party follower answers `unsupported` to any `*_content` read (seam42)
+
+A follower process has no embedded world, so `api_drive.varbit_content` and the other
+content readers answer `unsupported` there. The v3 `prayer.lua` merged at 90ea66f70 read it
+for every press, and `t.prayer.set` was refused on every follower until 1d82249dd added the
+fallback to the client's record. Any new driver read that goes through the content readers
+needs the same fallback before a trio harness can use it.
+
+## `raid_report.py --against` reads only Maiden (seam42)
+
+`blert_reference.BOSS_IDS` holds only Maiden's ids, so `run_room` returns None for any other
+room and the assert fires. Until the ids are added (Bloat 8359/10812/10813 with phases cut
+from npc_anim 8082; Sotetseg 8387/8388 for Normal; Xarpus; Verzik with her P2/P3 size), the
+seam42 readers stand in: `build/seam_state/matthew-mbp-m4-raid-b1-seam42/bloat/against.py`,
+`.../sotetseg/compare.py`, `.../xarpus_blert/xcompare.py`, `.../verzik/compare_verzik.py`.
+
+## `blert_reference.py` rewrites `reference/README.md` (seam42)
+
+Every run regenerates the README from every `*_*_*.json` in the reference directory. With
+several fixers running it at once, leave the README to the closer, who regenerates it once
+(`blert_reference.write_readme`).
+
+## Xarpus P2, Normal trio: spread, and tell the spit from a chain by its source tile (seam42)
+
+Real Normal trios never stack in P2 (nearest other raider 5 [3-6], stacked 0% of ticks;
+`xarpus_normal_3.json`). With our content's rules (the next spit never takes the last
+target, chains never go to the spit's target), the raider whose step-back tile the spit's
+acid is heading to stays in melee that cycle; the other two step out on S+2 and S+3. Tell the
+spit from a chain by the projectile's source tile (`v.incoming[i].sx/sz`, inside his
+footprint): a chain still in flight from the last landing aims at the same step-back tile,
+and reading it as the spit gave false stays and 18 puddles on melee tiles.
+
+## A trio harness can leave a room with a full pack (seam42)
+
+Raiders who take little damage keep every anglerfish, and the Dawnbringer skeleton refuses
+("not enough inventory space"): `exit.dawnbringer` times out. Free a slot first (the Xarpus
+harness eats one anglerfish when the pack is full).
+
+## Sotetseg's maze glow is one tile, the runner's tile at the end of each tick (seam42)
+
+Running two tiles a tick, the middle tile is never lit (`tob_sote_mirror`). A missed read
+leaves a gap of three or more tiles that can cross two lateral rows, and the turn cannot be
+recovered from it. Real Normal trio mazes (Blert events 130/131, npc 8387/8388): proc to the
+combat form back 28 [15-49] ticks over 58 mazes; proc to the first path tile 7; first tile
+to last 14. The seam42 attempt to follow behind the glow did not land (see SEAM_LEDGER).
+
+## The elder maul is equipped in the same block as the special orb (seam42)
+
+Equip it on the tick after a scythe swing, in the block that presses the orb: one tick
+earlier and the auto-attack swings it plain first (seq 7516, then the special 11124 six
+ticks later). Measured in the seam42 Sotetseg attempt, which did not land.
+
+## Verzik, Normal trio: the recorded trios play all melee (seam42)
+
+`verzik_normal_3.json` (20 rooms): P1 is DAWN 4 + SCYTHE 8-10 per role, P2 SCYTHE about 31 on
+her and 5-6 on the adds, P3 SCYTHE 21-24. Our `::maxrange` plan is a different strategy, not a
+tuning gap. A scythe in the `::maxrange` kit (no melee gear, Rigour) deals 8.0 a hit on a
+Normal Matomenos (729 hits): never trade bow shots on her for scythe swings on reds in that
+kit, or P2 never ends (a fresh pair every 44 ticks).
