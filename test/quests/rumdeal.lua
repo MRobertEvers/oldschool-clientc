@@ -17,9 +17,12 @@
 --      before it, ladders.rs2 [proc,climb] dropped the player into a sealed
 --      pocket under floor 1 or onto a tile no walk left.
 --   3. The Evil spirit's combat block, quest_rumdeal/configs/rumdeal.npc
---      (wiki Evil_spirit oldid 15199641): 90 hp, 170/146/100, crush, max hit
---      16 off its stats (the wiki's 28 is a recorded gap in
---      docs/bosses/quest_combat_manifest.json, not this test's).
+--      (wiki Evil_spirit oldid 15199641): 90 hp, 170/146/100, crush; since
+--      seam matthew-mbp-m4-b68-seam1 it swings the page's max hit 28
+--      (deal_combat.rs2 [ai_opplayer2,deal_evil_spirit],
+--      ^deal_evil_spirit_melee_maxhit). The fight is the wiki's: Protect
+--      from Melee (Walkthrough "Evil spirits"; docs/quests/rum_deal.md
+--      section 4) on the quest's own Prayer 47 requirement.
 --
 -- The two ladders use the default climb: the top-floor ladder
 -- deal_ladder_up/deal_laddertop 2163,5092 L1<->L2 lands 2162,5092 (the
@@ -65,7 +68,10 @@
 -- (mausoleum_drezel.rs2:29-34). No ::setvar on any deal_ var in run().
 --
 -- Combat level: Attack/Strength/Defence/Hitpoints 99 are staged for the
--- island fights. No dialogue this run passes branches on the combat level
+-- island fights. Prayer 47 is the quest's requirement (wiki infobox,
+-- ~deal_meets_requirements), not a fight stage; it unlocks Protect from
+-- Melee (43). No prayer potion is staged: the guide lists none, and 47
+-- points last the spirit fight (killSpirit.prayerLasted asserts it). No dialogue this run passes branches on the combat level
 -- (deal_pete.rs2 reads ~deal_meets_requirements only; Drezel's
 -- [label,drezel_access_holy_barrier] reads nothing).
 
@@ -94,7 +100,7 @@ return {
         "::give rake 1",
         "::give dibber 1",
         "::give deal_slayer_gloves 1",
-        "::give shark 10", -- the spirit fight ate 4 of 5 (b67 r2 run 1), the spiders none: 10 keeps a margin
+        "::give shark 10", -- food for the spirit and the spiders; under Protect from Melee neither ate one (b68 r2), unprotected the spirit ate all 10 (b68-seam1)
         "::give rune_scimitar 1",
     },
 
@@ -405,6 +411,15 @@ return {
         -- deal_multicontrol is 2x2 at 2143-2144,5100-5101: stand east of it.
         local multicontrol = t.player.by_symbol("loc", "deal_multicontrol")
         t.exec("walk-useWrenchOnControl", t.player.walk_to, 2145, 5101, 40)
+        -- Protect from Melee goes up BEFORE the wrench: the spirit spawns
+        -- on the control aggressive, and a protection prayer is read on its
+        -- attack animation tick, so it must already be lit when it first
+        -- swings. Points first: the quest's Prayer 47 must be there to spend.
+        local bp_r, bp_d, bp = t.prayer.points()
+        t.check("killSpirit.prayerPoints",
+            bp_r == "ok" and type(bp) == "table" and bp.base_level >= 43 and bp.level >= 40,
+            tostring(bp_d) .. " (Protect from Melee needs Prayer 43; want >= 40 points to spend)")
+        t.exec("killSpirit.protectFromMelee", t.prayer.set, "protectfrommelee", true)
         t.exec("control.wrench", t.player.use_on, "deal_wrench_blessed", multicontrol)
         -- `~mesbox(...)` suspends the calling script (trap 22) --
         -- `~deal_spawn_evilspirit` is the line AFTER the mesbox call in
@@ -416,14 +431,24 @@ return {
             "npc.await_present(deal_evil_spirit,10,10) -> " .. tostring(spirit_present))
         -- The spirit's block: quest_rumdeal/configs/rumdeal.npc (wiki
         -- Evil_spirit oldid 15199641, cache all.npc agrees): 90 hp,
-        -- 170/146/100, crush, speed 4, aggressive; its max hit is 16 off
-        -- those stats (the wiki's 28 is a recorded manifest gap,
-        -- docs/bosses/quest_combat_manifest.json). Fought with the guide's
-        -- combat gear (the rune scimitar) and sharks eaten below 70 inside
-        -- the press and the wait.
+        -- 170/146/100, crush, speed 4, aggressive; it swings the page's max
+        -- hit 28 (deal_combat.rs2 [ai_opplayer2,deal_evil_spirit], seam
+        -- matthew-mbp-m4-b68-seam1). Fought with the guide's combat gear (the
+        -- rune scimitar), Protect from Melee (the wiki: it "negates its
+        -- attacks") and sharks eaten below 70 inside the press and the wait.
+        -- Without the prayer it ate all 10 sharks (b68-seam1 step 5).
         local _, sad = t.exec("killSpirit.attack", t.player.attack, "deal_evil_spirit", 2, 20, { eat = EAT })
         local _, sdd = t.exec("killSpirit", t.npc.await_dead_engaged, 120, 8, { eat = EAT })
         margin_row("killSpirit.margin", "Evil spirit (level 150)", sad, sdd)
+        -- The prayer lasted the fight: still lit, points left (prayer will
+        -- not regenerate; the guide stages no prayer potion).
+        local sl_r, sl_d, sl_set = t.prayer.read()
+        local sp_r, sp_d, sp = t.prayer.points()
+        t.check("killSpirit.prayerLasted",
+            sl_r == "ok" and type(sl_set) == "table" and sl_set.protectfrommelee == true
+                and sp_r == "ok" and type(sp) == "table" and sp.level >= 1,
+            "after the kill: " .. tostring(sp_d) .. "; " .. tostring(sl_d))
+        t.exec("killSpirit.protectFromMeleeOff", t.prayer.set, "protectfrommelee", false)
         t.ticks(6)
         t.expect("spirit.told_spider", t.quest.expect_stage("told_kill_spider"))
 
