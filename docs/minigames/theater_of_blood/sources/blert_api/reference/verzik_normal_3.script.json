@@ -181,6 +181,17 @@
       "NOXIOUS_HALBERD": 6
      },
      "return_to_boss": null,
+     "wave_adds_hit": {
+      "8370": {
+       "share": 1.0,
+       "first": {
+        "median": 1.0,
+        "min": 1,
+        "max": 23,
+        "n": 20
+       }
+      }
+     },
      "weapon": {
       "SCYTHE": 16,
       "DAWN": 2,
@@ -302,6 +313,17 @@
       "SULPHUR_BLADES": 6
      },
      "return_to_boss": null,
+     "wave_adds_hit": {
+      "8370": {
+       "share": 1.0,
+       "first": {
+        "median": 1.0,
+        "min": 1,
+        "max": 11,
+        "n": 20
+       }
+      }
+     },
      "weapon": {
       "SCYTHE": 18,
       "SULPHUR_BLADES": 1,
@@ -423,6 +445,17 @@
       "EYE_OF_AYAK_AUTO": 5
      },
      "return_to_boss": null,
+     "wave_adds_hit": {
+      "8370": {
+       "share": 1.0,
+       "first": {
+        "median": 1.5,
+        "min": 1,
+        "max": 30,
+        "n": 20
+       }
+      }
+     },
      "weapon": {
       "SCYTHE": 16,
       "NOXIOUS_HALBERD": 2,
@@ -619,6 +652,35 @@
       "UNKNOWN": 8
      },
      "return_to_boss": null,
+     "wave_adds_hit": {
+      "8381": {
+       "share": 0.05,
+       "first": {
+        "median": 115,
+        "min": 115,
+        "max": 115,
+        "n": 1
+       }
+      },
+      "8384": {
+       "share": 0.75,
+       "first": {
+        "median": 42,
+        "min": 25,
+        "max": 127,
+        "n": 15
+       }
+      },
+      "8385": {
+       "share": 1.0,
+       "first": {
+        "median": 124.0,
+        "min": 103,
+        "max": 157,
+        "n": 20
+       }
+      }
+     },
      "weapon": {
       "SCYTHE": 16,
       "NOXIOUS_HALBERD": 2,
@@ -777,6 +839,26 @@
       "BLOWPIPE": 6
      },
      "return_to_boss": null,
+     "wave_adds_hit": {
+      "8384": {
+       "share": 0.3,
+       "first": {
+        "median": 38.5,
+        "min": 28,
+        "max": 121,
+        "n": 6
+       }
+      },
+      "8385": {
+       "share": 1.0,
+       "first": {
+        "median": 124.5,
+        "min": 104,
+        "max": 153,
+        "n": 20
+       }
+      }
+     },
      "weapon": {
       "SCYTHE": 18,
       "SOULREAPER_AXE": 2
@@ -935,6 +1017,35 @@
       "ZCB_AUTO": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {
+      "8383": {
+       "share": 0.05,
+       "first": {
+        "median": 120,
+        "min": 120,
+        "max": 120,
+        "n": 1
+       }
+      },
+      "8384": {
+       "share": 0.4,
+       "first": {
+        "median": 32.5,
+        "min": 23,
+        "max": 113,
+        "n": 8
+       }
+      },
+      "8385": {
+       "share": 1.0,
+       "first": {
+        "median": 126.0,
+        "min": 102,
+        "max": 155,
+        "n": 20
+       }
+      }
+     },
      "weapon": {
       "SCYTHE": 17,
       "NOXIOUS_HALBERD": 3
@@ -1089,6 +1200,7 @@
       "FANG": 8
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 16,
       "NOXIOUS_HALBERD": 2,
@@ -1217,6 +1329,17 @@
       "CLAW_SPEC": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {
+      "8381": {
+       "share": 0.05,
+       "first": {
+        "median": 48,
+        "min": 48,
+        "max": 48,
+        "n": 1
+       }
+      }
+     },
      "weapon": {
       "SCYTHE": 18,
       "SOULREAPER_AXE": 2
@@ -1345,6 +1468,17 @@
       "SCEPTRE_BARRAGE": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {
+      "8381": {
+       "share": 0.05,
+       "first": {
+        "median": 45,
+        "min": 45,
+        "max": 45,
+        "n": 1
+       }
+      }
+     },
      "weapon": {
       "SCYTHE": 17,
       "NOXIOUS_HALBERD": 3

@@ -271,6 +271,13 @@ def segment_record(room_data, player, segment, definitions):
         held = br.series_at(player["weapon"], stop - 1) if player["weapon"] else None
         weapons = [br.weapon_family(definitions, held)] if held is not None else []
     prayers = ["+".join(sorted(v)) or "none" for t, v in player["prayers"].items() if start <= t < stop]
+    # The wave's own adds this role attacked, at ANY tick (seam56 ny_table.py's
+    # "kills"): lane -> ticks from the wave spawn to its first attack on it.
+    hits = {}
+    for a in player["attacks"]:
+        add = room_data["adds"].get(a[3]) if a[3] is not None else None
+        if add is not None and add.get("segment") == name and add["lane"] not in hits:
+            hits[add["lane"]] = a[0] - start
     tile, tile_share = modal(list(tiles.values()))
     spells = [(definitions.get(a[1]) or {}).get("name", str(a[1])) for a in attacks]
     return {"tile": tile, "tile_share": tile_share, "spawn_tile": spawn_tile,
@@ -279,6 +286,7 @@ def segment_record(room_data, player, segment, definitions):
             "attacks": len(attacks), "targets": targets[:MAX_ACTIONS],
             "attack_names": spells[:MAX_ACTIONS],
             "return_to_boss": back, "weapon": modal(weapons)[0], "prayer": modal(prayers)[0],
+            "wave_adds_hit": hits,
             "first_tick": attacks[0][0] if attacks else None}
 
 
@@ -344,6 +352,10 @@ def aggregate_segment(records):
             "targets": targets,
             "attack_names": dict(collections.Counter(n for x in rows for n in x["attack_names"]).most_common(4)),
             "return_to_boss": br.summary([x["return_to_boss"] for x in rows]),
+            "wave_adds_hit": {lane: {"share": round(sum(1 for x in rows if lane in x["wave_adds_hit"]) / len(rows), 2),
+                                     "first": br.summary([x["wave_adds_hit"][lane] for x in rows
+                                                          if lane in x["wave_adds_hit"]])}
+                              for lane in sorted({l for x in rows for l in x["wave_adds_hit"]})},
             "weapon": dict(collections.Counter(x["weapon"] for x in rows if x["weapon"]).most_common(3)),
             "prayer": dict(collections.Counter(x["prayer"] for x in rows if x["prayer"]).most_common(3)),
         }

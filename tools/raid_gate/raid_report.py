@@ -727,16 +727,38 @@ def pick_attack(candidates, weapon):
     return candidates[0][0] if candidates else None
 
 
+# Each room's boss ids, every mode (Entry / Normal / Hard), for telling which
+# room a ticklog is in.  Maiden's are blert_reference.BOSS_IDS; Nylocas also
+# answers to its pillars (8358 / 10790 / 10811), which stand from the room's
+# first tick while the Vasilias only spawns at the end.
+ROOM_NPC_IDS = {
+    "maiden": blert_reference.BOSS_IDS["maiden"],
+    "nylocas": {8354, 8355, 8356, 8357, 10786, 10787, 10788, 10789, 10807, 10808, 10809, 10810,
+                8358, 10790, 10811},
+    "bloat": {8359, 10812, 10813},
+    "sotetseg": {8387, 8388, 10864, 10865, 10867, 10868},
+    "xarpus": {8338, 8339, 8340, 8341, 10766, 10767, 10768, 10769, 10770, 10771, 10772, 10773},
+    "verzik": set(range(8369, 8376)) | set(range(10830, 10837)) | set(range(10847, 10854)),
+}
+ROOM_OVERRIDE = [None]
+
+
 def run_room(rows):
-    for room, ids in blert_reference.BOSS_IDS.items():
-        if any(row["kind"] == "npc_spawn" and row.get("type") in ids for row in rows):
-            return room
+    """The room a ticklog is in: --room when given, else the first room whose
+    boss (or Nylocas pillar) spawns in it."""
+    if ROOM_OVERRIDE[0]:
+        return ROOM_OVERRIDE[0]
+    for row in rows:
+        if row["kind"] == "npc_spawn":
+            for room, ids in ROOM_NPC_IDS.items():
+                if row.get("type") in ids:
+                    return room
     return None
 
 
 def ticklog_trace(rows, room, definitions):
     """The TRACE (blert_reference.py) of one run's ticklog rows."""
-    boss_ids = blert_reference.BOSS_IDS[room]
+    boss_ids = blert_reference.BOSS_IDS.get(room) or (ROOM_NPC_IDS[room] - {8358, 10790, 10811})
     add_ids = blert_reference.ADD_IDS.get(room, set())
     marks = [row["tick"] for row in rows if row["kind"] == "mark" and row.get("label") == "room start"]
     start = marks[0] if marks else rows[0]["tick"]
@@ -943,9 +965,12 @@ def main():
                         help="with --waves, one wave in full (70 / 50 / 30 / 100 at Maiden, 7 or w7 at Nylocas)")
     parser.add_argument("--roles", default=None, metavar="p0=ROLE,...",
                         help="with --waves, seat our players on the script's roles by hand")
+    parser.add_argument("--room", default=None, choices=sorted(ROOM_NPC_IDS),
+                        help="the room the run is in (default: from the boss npc ids in the ticklog)")
     parser.add_argument("--all-numbers", action="store_true",
                         help="with --against, list the numbers inside the range too")
     arguments = parser.parse_args()
+    ROOM_OVERRIDE[0] = arguments.room
     MISTAKES_SHOWN[0] = arguments.mistakes
     for entry in arguments.hazard:
         spotanim, _, ticks = entry.partition(":")

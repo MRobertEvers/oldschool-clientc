@@ -7399,3 +7399,114 @@ seam.maiden_blackstorm_always_lands_entry now asserts exactly that: every
 launch lands, raw within 0..9 at c 0, and more than one value. The seam54
 Maiden numbers (hp_lost.dps 198-543 against 60-106, 5-8 eats a phase) were
 measured on the fixed storm, so they predate the ruling.
+
+## Reference scripts and the wave diff
+
+Tools seam, 2026-10-06 (the owner: "Blert literally tells you what you need to do ...
+improve the test harness so you can more quickly iterate").  A fixer no longer re-derives
+the Blert raiders' per-wave play from the raw streams by hand:
+
+    python3 tools/raid_gate/blert_script.py maiden --mode normal --scale 3     # writes reference/maiden_normal_3.script.json
+    python3 tools/raid_gate/raid_report.py build/quest_gate/_play_maiden --waves \
+        docs/minigames/theater_of_blood/sources/blert_api/reference/maiden_normal_3.script.json
+    ... --wave 70            # one wave in full: ours vs script tile, first action, casts, targets, return, weapon, prayer
+    ... --roles p0=freezer   # seat a player on a script role by hand (default: same name, then same style, then by attack count)
+
+The script is per segment (Maiden 100/70/50/30, Nylocas w1..w31/cleanup/boss, the other
+rooms Blert's phase events) and per role, every number a median/min/max over the same
+rooms the statistical reference uses; the field list is in the reference README,
+"Per-wave scripts".  The diff prints one line per wave, `role:tNNN kind` or `role:ok`,
+and a `FIRST DEVIATION` line on top; kinds are tile (off the script's tile box 3 ticks
+running), late (first action after the latest real team's), none, target (i-th distinct
+target not the one at least half the teams hit), return (back on the boss later than
+any team).  All six normal_3 scripts are written; Maiden and Nylocas are the ones
+checked against runs.  The other four use Blert's phase events as segments only
+(Sotetseg has no maze-end segment in these streams, Xarpus/Verzik roles vary by
+composition), so read them with --wave and judgment.  Nylocas streams are cached in
+build/blert/nylocas/ (fetched 2026-10-06, the reference's 27 rooms); Maiden's in
+build/blert_maiden/.
+
+**The "missing" crab spawn rows were not missing.**  The run read as "a Normal trio with
+2 crab spawns a wave" was the Entry SOLO run of _play_maiden (its ledger: `spec.scope
+mode=entry party=1`); tob_maiden.rs2 `~tob_maiden_crab_count` is two crabs per player, so
+2 a wave is right.  The writer (torirs_server_ticklog.c ToriRSServer_TicklogNpcSpawn,
+called from every npc_add in torirs_server_world.c) has no slot, LOS, level or row-cap
+filter; the later trio run of the same harness logs 6 a wave (t103, t153, t219).
+
+**Leaks are now their own row.**  A crab reaching her healed through
+`~tob_maiden_heal_found`, the same proc as a blood-splat heal, so its npc_heal row could
+not be told from a splat's (and raid_report.py's --against counted every heal on her as
+a leak).  tob_maiden.rs2 now passes `$leak` down `~tob_maiden_heal_at` and a leak heals
+inside `[proc,tob_maiden_leak_heal]`: the row reads `npc_heal t SLOT TYPE amount hp base
+[proc,tob_maiden_leak_heal]`, the crab's hitpoints = amount / 2 unless her maximum
+clamped it (hp = base).  No row if she is at full health when it lands (nothing healed).
+raid_waves.py counts these per wave; a log from before the change falls back to "a
+heal_found heal on a tick a crab died".
+
+## Triggers and watches (seam55)
+
+The owner, 2026-10-06: "You need to do what the blert raid players do and you need to
+add triggers and watch capabilities to the script api so you can do so."  The play loop
+(`t.raid.play`, raid_play.lua "TRIGGERS AND WATCHES") now DIFFS what the client shows
+between two ticks and raises events before the plan's `decide` runs:
+
+| Event | Fields | Raised when |
+|---|---|---|
+| `<add>_spawn` | slot, x, z, dx, dz (from the boss SW), wave, index, label | a new row of the plan's add (`events.add`, prefix `events.add_event`); a gap over 3 ticks starts a new wave |
+| `<add>_walk` | slot, x, z, gap, was | its tile moved closer to the boss |
+| `<add>_frozen` | slot, x, z, how = graphic / halted | a spotanim in `events.freeze_spotanims` landed on it, or it had walked and stood still a tick; once per freeze |
+| `<add>_gone` | slot, x, z, at_her | its row left the scene (at_her: within one tile of her footprint) |
+| `events.projectiles[spotanim]` (Maiden: `blood_thrown`) | x, z, cycles, ticks, mine, near | a throw not seen before; a throw AT an entity (target != 0) is keyed by source + target and its dst is the one at first sight |
+| `events.pools[spotanim]` (Maiden: `pool_landed`) | x, z, mine | a ground spotanim new at a tile |
+| `events.boss_seqs[seq]` (Maiden: `storm_sent`, `blood_sent`) | seq, tick, target | the boss started that seq on a new seq_tick |
+| `hit_taken` | amount, hp, was | own hitpoints fell since last tick |
+| `boss_phase` | from, to, symbol | the boss's npc id changed (`events.forms` names the plan's form list, so a retype is seen on its own tick) |
+
+A plan registers handlers in its `on_start` (`st.on(event, fn)`) and readings with
+`st.watch(name, reader, on_change)` / `t.raid.watch(st, ...)` (fires when the reading
+changes; the first reading only primes it).  A test can pass `opts.on = {event = fn}`.
+A handler returns an INTENT for this tick: the plan intent's fields (walk, attack,
+press = {symbol, slot, op}, cast = {spell, symbol, slot}, want, eat, drink, gear,
+spec) plus `pri` (default 1) and `why`.
+
+THE FOLD: field by field the highest `pri` wins (a tie keeps the first registered);
+`want` merges prayer by prayer.  The plan's `decide` then runs with `v.events` and
+`v.trigger` (the folded intent) in view; its intent is the DEFAULT and every field the
+fold set replaces it.  A step and a press/cast cannot both land in one tick (the press's
+path replaces the step), so the step is sent and the press/cast is HELD to the next tick
+at its own priority (`st.trig_hold`, dropped after 2 ticks).  A trigger press/cast also
+clears the default's attack and walk.  The record carries `st.trig_log` (per tick: the
+events fired and the field winners), the summary one clause (`triggers [...] won [...]
+held N`), and the leader writes a ticklog MARK per won tick when `opts.trigger_marks`.
+The server's FILE-ONLY `raider` row is written by the server and cannot name a client
+trigger without a new wire; the trigger record lives in the play record and the ledger.
+
+Proof (Maiden Entry, run m55trig, `_play_triggers.lua` = `_play_maiden.lua` solo plus
+three probe rows): crab_spawn 6/6 on the npc_spawn ticks (lag +0), blood_thrown 9/9 on
+the projectile ticks (lag +0, no extra), pool_landed 9/9 on the map_spotanim ticks
+(+0 x8, +1 x1).  The first probe read 18 throws for 9: the throw at the raider follows
+it on the client (target -(pid + 1)), so its dst moved every tick.
+
+Maiden's trio plan on the triggers (QD.RAID_MAIDEN_REF, from the 26 Regular trio Blert
+rooms): the freezer's cast clock (a watch on the 5-tick index since the wave's spawn)
+casts on the spawn tick in the order position 0, 2/3, 4, 6/7/9, 5/8/1, then the
+biggest live clump every 5 ticks (up to 8 a wave: the barrage is what kills the crabs,
+216 of 233 kills under the barrage or a scythe, 20-50 ticks after the spawn); the scythe
+seats take the 1st / 2nd north crab of the burst (+1..+10 / +5..+14) and the east seat a
+frozen south crab at +15..+35; `blood_thrown` / `pool_landed` on my tile steps to the
+shortest safe tile (pri 8, the cast held a tick); `storm_sent` lights Protect from Magic.
+Normal trio stays 0 of 5 on it (seam55 report): the spawns are RANDOM subsets of the ten
+positions (ours and the reference's), and the leaks did not come down to the median.
+
+Room detection (same day, the seam56 Nylocas fixer's report): `raid_report.py --against`
+asserted "the run is in None" on every room but Maiden, because run_room() only knew
+Maiden's boss ids.  It now knows every room's boss ids (Nylocas also by its pillars,
+which stand from the first tick) and takes `--room <name>` to say so by hand; --waves
+checks the same.  A party run reads the leader's log (<run>/p1/ticklog.tsv when the run
+directory has none of its own), which carries every seat's raider / player_tile /
+player_anim rows (p0..p2 all classify from it).  The Nylocas script also carries, per
+role per wave, `wave_adds_hit` (seam56 ny_table.py's "kills": the wave's lanes the role
+attacked at any tick, the share of rooms and the offset of its first hit); --wave N
+prints it as `lanes`.  The leak row is proven to compile and the splat path still reads
+heal_found (scratch run build/quest_gate/tools_leak1, Entry solo); that run had no crab
+reach her, so the first leak row will appear in the next run that leaks.

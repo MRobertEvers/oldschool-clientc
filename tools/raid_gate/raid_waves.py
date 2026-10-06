@@ -245,6 +245,8 @@ def map_roles(room_data, script, overrides):
 def wave_lines(run_directory, script, report, only_wave=None, overrides=None):
     rows = report.read_ticklog(run_directory)
     room = script["room"]
+    found = report.run_room(rows)
+    assert found == room, "the run is in %s, the script is %s (--room to say which)" % (found, room)
     definitions = br.load_attack_definitions()
     room_data = ticklog_room(rows, room, definitions, report)
     classified = dict(room_data["roles"])
@@ -301,6 +303,11 @@ def wave_lines(run_directory, script, report, only_wave=None, overrides=None):
                 detail.append("    return ours %s  script %s  weapon ours %s script %s  prayer ours %s script %s" % (
                     o["return_to_boss"], fmt_summary(r["return_to_boss"]), o["weapon"], r["weapon"],
                     o["prayer"], r["prayer"]))
+                if r.get("wave_adds_hit"):
+                    detail.append("    lanes  ours %s  script %s" % (
+                        " ".join("%s+%d" % (k, v) for k, v in sorted(o["wave_adds_hit"].items(), key=lambda i: i[1])),
+                        " ".join("%s:%d%%+%s" % (k, round(100 * v["share"]), fmt_summary(v["first"]))
+                                 for k, v in sorted(r["wave_adds_hit"].items(), key=lambda i: -i[1]["share"])[:5])))
                 for tick, kind, text in found:
                     detail.append("    DEVIATES t%d %s: %s" % (tick, kind, text))
         lines.append(head + " | " + " ".join(verdicts))

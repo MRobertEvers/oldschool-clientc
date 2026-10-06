@@ -172,6 +172,7 @@
       "SCEPTRE_BARRAGE": 5
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 19,
       "TWISTED_BOW": 1
@@ -288,6 +289,7 @@
       "FANG": 8
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 19,
       "FANG": 1
@@ -404,6 +406,7 @@
       "FANG": 7
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 18,
       "FANG": 1
@@ -518,6 +521,7 @@
       "HAMMER_SPEC": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "TWISTED_BOW": 1
      },
@@ -663,6 +667,7 @@
       "SOULREAPER_AXE": 2
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 19,
       "TWISTED_BOW": 1
@@ -779,6 +784,7 @@
       "CLAW_SPEC": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 19,
       "FANG": 1
@@ -895,6 +901,7 @@
       "HAMMER_SPEC": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 18,
       "FANG": 1
@@ -1009,6 +1016,7 @@
       "HAMMER_SPEC": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "TWISTED_BOW": 1
      },
@@ -1154,6 +1162,7 @@
       "CHALLY_SPEC": 2
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 19,
       "SOULREAPER_AXE": 1
@@ -1270,6 +1279,7 @@
       "CHALLY_SPEC": 2
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 19,
       "FANG": 1
@@ -1386,6 +1396,7 @@
       "CHALLY_SPEC": 3
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 18,
       "FANG": 1
@@ -1499,6 +1510,7 @@
       "TWISTED_BOW": 8
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "TWISTED_BOW": 1
      },

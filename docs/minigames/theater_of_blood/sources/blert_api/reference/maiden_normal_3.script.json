@@ -219,6 +219,7 @@
       "TONALZTICS_SPEC": 16
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 18,
       "BLOWPIPE": 4,
@@ -329,6 +330,7 @@
       "ELDER_MAUL_SPEC": 9
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 23,
       "BLOWPIPE": 1
@@ -438,6 +440,7 @@
       "ZCB_AUTO": 4
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "TWISTED_BOW": 23,
       "ZCB": 1
@@ -637,6 +640,98 @@
       "max": 40,
       "n": 20
      },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.58,
+       "first": {
+        "median": 4.0,
+        "min": 3,
+        "max": 8,
+        "n": 14
+       }
+      },
+      "N2": {
+       "share": 0.58,
+       "first": {
+        "median": 9.0,
+        "min": 3,
+        "max": 39,
+        "n": 14
+       }
+      },
+      "N3": {
+       "share": 0.04,
+       "first": {
+        "median": 11,
+        "min": 11,
+        "max": 11,
+        "n": 1
+       }
+      },
+      "N4out": {
+       "share": 0.08,
+       "first": {
+        "median": 34.0,
+        "min": 30,
+        "max": 38,
+        "n": 2
+       }
+      },
+      "S1": {
+       "share": 0.12,
+       "first": {
+        "median": 19,
+        "min": 16,
+        "max": 23,
+        "n": 3
+       }
+      },
+      "S2": {
+       "share": 0.25,
+       "first": {
+        "median": 24.0,
+        "min": 11,
+        "max": 40,
+        "n": 6
+       }
+      },
+      "S3": {
+       "share": 0.04,
+       "first": {
+        "median": 25,
+        "min": 25,
+        "max": 25,
+        "n": 1
+       }
+      },
+      "S4in": {
+       "share": 0.12,
+       "first": {
+        "median": 33,
+        "min": 26,
+        "max": 36,
+        "n": 3
+       }
+      },
+      "S4out": {
+       "share": 0.21,
+       "first": {
+        "median": 31,
+        "min": 22,
+        "max": 42,
+        "n": 5
+       }
+      },
+      "off": {
+       "share": 0.04,
+       "first": {
+        "median": 33,
+        "min": 33,
+        "max": 33,
+        "n": 1
+       }
+      }
+     },
      "weapon": {
       "SCYTHE": 18,
       "BLOWPIPE": 6
@@ -781,6 +876,80 @@
       "max": 32,
       "n": 19
      },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.58,
+       "first": {
+        "median": 4.0,
+        "min": 3,
+        "max": 6,
+        "n": 14
+       }
+      },
+      "N2": {
+       "share": 0.54,
+       "first": {
+        "median": 9,
+        "min": 4,
+        "max": 44,
+        "n": 13
+       }
+      },
+      "N3": {
+       "share": 0.08,
+       "first": {
+        "median": 20.5,
+        "min": 17,
+        "max": 24,
+        "n": 2
+       }
+      },
+      "N4out": {
+       "share": 0.04,
+       "first": {
+        "median": 50,
+        "min": 50,
+        "max": 50,
+        "n": 1
+       }
+      },
+      "S1": {
+       "share": 0.33,
+       "first": {
+        "median": 39.0,
+        "min": 23,
+        "max": 40,
+        "n": 8
+       }
+      },
+      "S2": {
+       "share": 0.33,
+       "first": {
+        "median": 31.0,
+        "min": 12,
+        "max": 44,
+        "n": 8
+       }
+      },
+      "S3": {
+       "share": 0.08,
+       "first": {
+        "median": 34.0,
+        "min": 29,
+        "max": 39,
+        "n": 2
+       }
+      },
+      "S4out": {
+       "share": 0.04,
+       "first": {
+        "median": 28,
+        "min": 28,
+        "max": 28,
+        "n": 1
+       }
+      }
+     },
      "weapon": {
       "SCYTHE": 23,
       "BLOWPIPE": 1
@@ -924,6 +1093,107 @@
       "min": 6,
       "max": 41,
       "n": 23
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.04,
+       "first": {
+        "median": 2,
+        "min": 2,
+        "max": 2,
+        "n": 1
+       }
+      },
+      "N2": {
+       "share": 0.5,
+       "first": {
+        "median": 6.0,
+        "min": 2,
+        "max": 7,
+        "n": 12
+       }
+      },
+      "N3": {
+       "share": 0.25,
+       "first": {
+        "median": 11.0,
+        "min": 11,
+        "max": 26,
+        "n": 6
+       }
+      },
+      "N4in": {
+       "share": 0.04,
+       "first": {
+        "median": 31,
+        "min": 31,
+        "max": 31,
+        "n": 1
+       }
+      },
+      "N4out": {
+       "share": 0.42,
+       "first": {
+        "median": 16.0,
+        "min": 15,
+        "max": 36,
+        "n": 10
+       }
+      },
+      "S1": {
+       "share": 0.5,
+       "first": {
+        "median": 1.0,
+        "min": 1,
+        "max": 2,
+        "n": 12
+       }
+      },
+      "S2": {
+       "share": 0.67,
+       "first": {
+        "median": 3.5,
+        "min": 1,
+        "max": 6,
+        "n": 16
+       }
+      },
+      "S3": {
+       "share": 0.58,
+       "first": {
+        "median": 11.0,
+        "min": 11,
+        "max": 11,
+        "n": 14
+       }
+      },
+      "S4in": {
+       "share": 0.25,
+       "first": {
+        "median": 16.0,
+        "min": 16,
+        "max": 16,
+        "n": 6
+       }
+      },
+      "S4out": {
+       "share": 0.46,
+       "first": {
+        "median": 16,
+        "min": 16,
+        "max": 20,
+        "n": 11
+       }
+      },
+      "off": {
+       "share": 0.04,
+       "first": {
+        "median": 36,
+        "min": 36,
+        "max": 36,
+        "n": 1
+       }
+      }
      },
      "weapon": {
       "SCEPTRE": 19,
@@ -1137,6 +1407,89 @@
       "max": 40,
       "n": 22
      },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.42,
+       "first": {
+        "median": 4.0,
+        "min": 3,
+        "max": 5,
+        "n": 10
+       }
+      },
+      "N2": {
+       "share": 0.33,
+       "first": {
+        "median": 9.0,
+        "min": 4,
+        "max": 14,
+        "n": 8
+       }
+      },
+      "N3": {
+       "share": 0.08,
+       "first": {
+        "median": 14.0,
+        "min": 14,
+        "max": 14,
+        "n": 2
+       }
+      },
+      "N4out": {
+       "share": 0.12,
+       "first": {
+        "median": 20,
+        "min": 20,
+        "max": 31,
+        "n": 3
+       }
+      },
+      "S1": {
+       "share": 0.12,
+       "first": {
+        "median": 5,
+        "min": 4,
+        "max": 13,
+        "n": 3
+       }
+      },
+      "S2": {
+       "share": 0.12,
+       "first": {
+        "median": 12,
+        "min": 9,
+        "max": 34,
+        "n": 3
+       }
+      },
+      "S3": {
+       "share": 0.08,
+       "first": {
+        "median": 11.0,
+        "min": 9,
+        "max": 13,
+        "n": 2
+       }
+      },
+      "S4in": {
+       "share": 0.04,
+       "first": {
+        "median": 19,
+        "min": 19,
+        "max": 19,
+        "n": 1
+       }
+      },
+      "S4out": {
+       "share": 0.12,
+       "first": {
+        "median": 38,
+        "min": 32,
+        "max": 45,
+        "n": 3
+       }
+      }
+     },
      "weapon": {
       "SCYTHE": 18,
       "BLOWPIPE": 6
@@ -1292,6 +1645,71 @@
       "min": 9,
       "max": 27,
       "n": 24
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.62,
+       "first": {
+        "median": 4,
+        "min": 2,
+        "max": 5,
+        "n": 15
+       }
+      },
+      "N2": {
+       "share": 0.25,
+       "first": {
+        "median": 8.5,
+        "min": 6,
+        "max": 9,
+        "n": 6
+       }
+      },
+      "N3": {
+       "share": 0.17,
+       "first": {
+        "median": 31.5,
+        "min": 17,
+        "max": 45,
+        "n": 4
+       }
+      },
+      "N4out": {
+       "share": 0.12,
+       "first": {
+        "median": 32,
+        "min": 26,
+        "max": 34,
+        "n": 3
+       }
+      },
+      "S1": {
+       "share": 0.38,
+       "first": {
+        "median": 18,
+        "min": 14,
+        "max": 39,
+        "n": 9
+       }
+      },
+      "S2": {
+       "share": 0.25,
+       "first": {
+        "median": 16.0,
+        "min": 9,
+        "max": 44,
+        "n": 6
+       }
+      },
+      "S4out": {
+       "share": 0.08,
+       "first": {
+        "median": 44.5,
+        "min": 44,
+        "max": 45,
+        "n": 2
+       }
+      }
      },
      "weapon": {
       "SCYTHE": 23,
@@ -1454,6 +1872,98 @@
       "min": 6,
       "max": 43,
       "n": 24
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.04,
+       "first": {
+        "median": 1,
+        "min": 1,
+        "max": 1,
+        "n": 1
+       }
+      },
+      "N2": {
+       "share": 0.21,
+       "first": {
+        "median": 6,
+        "min": 3,
+        "max": 6,
+        "n": 5
+       }
+      },
+      "N3": {
+       "share": 0.25,
+       "first": {
+        "median": 11.0,
+        "min": 11,
+        "max": 21,
+        "n": 6
+       }
+      },
+      "N4in": {
+       "share": 0.08,
+       "first": {
+        "median": 31.0,
+        "min": 15,
+        "max": 47,
+        "n": 2
+       }
+      },
+      "N4out": {
+       "share": 0.67,
+       "first": {
+        "median": 18.0,
+        "min": 16,
+        "max": 41,
+        "n": 16
+       }
+      },
+      "S1": {
+       "share": 0.67,
+       "first": {
+        "median": 1.0,
+        "min": 1,
+        "max": 2,
+        "n": 16
+       }
+      },
+      "S2": {
+       "share": 0.46,
+       "first": {
+        "median": 6,
+        "min": 1,
+        "max": 7,
+        "n": 11
+       }
+      },
+      "S3": {
+       "share": 0.67,
+       "first": {
+        "median": 11.0,
+        "min": 10,
+        "max": 11,
+        "n": 16
+       }
+      },
+      "S4in": {
+       "share": 0.38,
+       "first": {
+        "median": 16,
+        "min": 16,
+        "max": 31,
+        "n": 9
+       }
+      },
+      "S4out": {
+       "share": 0.29,
+       "first": {
+        "median": 16,
+        "min": 16,
+        "max": 35,
+        "n": 7
+       }
+      }
      },
      "weapon": {
       "SCEPTRE": 18,
@@ -1667,6 +2177,62 @@
       "max": 23,
       "n": 17
      },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.58,
+       "first": {
+        "median": 4.0,
+        "min": 2,
+        "max": 6,
+        "n": 14
+       }
+      },
+      "N2": {
+       "share": 0.17,
+       "first": {
+        "median": 9.0,
+        "min": 3,
+        "max": 9,
+        "n": 4
+       }
+      },
+      "N4out": {
+       "share": 0.08,
+       "first": {
+        "median": 21.5,
+        "min": 15,
+        "max": 28,
+        "n": 2
+       }
+      },
+      "S1": {
+       "share": 0.04,
+       "first": {
+        "median": 4,
+        "min": 4,
+        "max": 4,
+        "n": 1
+       }
+      },
+      "S3": {
+       "share": 0.08,
+       "first": {
+        "median": 14.5,
+        "min": 13,
+        "max": 16,
+        "n": 2
+       }
+      },
+      "S4out": {
+       "share": 0.04,
+       "first": {
+        "median": 36,
+        "min": 36,
+        "max": 36,
+        "n": 1
+       }
+      }
+     },
      "weapon": {
       "SCYTHE": 18,
       "BLOWPIPE": 4,
@@ -1805,6 +2371,26 @@
       "min": 8,
       "max": 21,
       "n": 20
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.71,
+       "first": {
+        "median": 4,
+        "min": 2,
+        "max": 5,
+        "n": 17
+       }
+      },
+      "N2": {
+       "share": 0.12,
+       "first": {
+        "median": 9,
+        "min": 5,
+        "max": 10,
+        "n": 3
+       }
+      }
      },
      "weapon": {
       "SCYTHE": 23,
@@ -1961,6 +2547,89 @@
       "min": 6,
       "max": 36,
       "n": 24
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.04,
+       "first": {
+        "median": 4,
+        "min": 4,
+        "max": 4,
+        "n": 1
+       }
+      },
+      "N2": {
+       "share": 0.46,
+       "first": {
+        "median": 6,
+        "min": 2,
+        "max": 7,
+        "n": 11
+       }
+      },
+      "N3": {
+       "share": 0.17,
+       "first": {
+        "median": 11.0,
+        "min": 11,
+        "max": 12,
+        "n": 4
+       }
+      },
+      "N4out": {
+       "share": 0.5,
+       "first": {
+        "median": 16.0,
+        "min": 16,
+        "max": 21,
+        "n": 12
+       }
+      },
+      "S1": {
+       "share": 0.5,
+       "first": {
+        "median": 1.0,
+        "min": 1,
+        "max": 1,
+        "n": 12
+       }
+      },
+      "S2": {
+       "share": 0.54,
+       "first": {
+        "median": 3,
+        "min": 1,
+        "max": 6,
+        "n": 13
+       }
+      },
+      "S3": {
+       "share": 0.62,
+       "first": {
+        "median": 11,
+        "min": 6,
+        "max": 12,
+        "n": 15
+       }
+      },
+      "S4in": {
+       "share": 0.33,
+       "first": {
+        "median": 16.0,
+        "min": 16,
+        "max": 16,
+        "n": 8
+       }
+      },
+      "S4out": {
+       "share": 0.21,
+       "first": {
+        "median": 16,
+        "min": 11,
+        "max": 31,
+        "n": 5
+       }
+      }
      },
      "weapon": {
       "SCEPTRE": 15,

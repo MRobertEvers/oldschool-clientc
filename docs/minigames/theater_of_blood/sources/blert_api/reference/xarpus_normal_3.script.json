@@ -99,6 +99,7 @@
      "targets": [],
      "attack_names": {},
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "ELDER_MAUL": 1
      },
@@ -146,6 +147,7 @@
      "targets": [],
      "attack_names": {},
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "ELDER_MAUL": 11,
       "HAMMER/HAMMER_BOP": 1
@@ -194,6 +196,7 @@
      "targets": [],
      "attack_names": {},
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "ELDER_MAUL": 12
      },
@@ -241,6 +244,7 @@
      "targets": [],
      "attack_names": {},
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "ELDER_MAUL": 12
      },
@@ -288,6 +292,7 @@
      "targets": [],
      "attack_names": {},
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "HAMMER/HAMMER_BOP": 1
      },
@@ -335,6 +340,7 @@
      "targets": [],
      "attack_names": {},
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "HAMMER/HAMMER_BOP": 1
      },
@@ -479,6 +485,7 @@
       "TONALZTICS_SPEC": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 1
      },
@@ -592,6 +599,7 @@
       "UNKNOWN": 6
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 11,
       "RAPIER": 1
@@ -706,6 +714,7 @@
       "BGS_SPEC": 3
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 12
      },
@@ -819,6 +828,7 @@
       "CLAW_SPEC": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 12
      },
@@ -930,6 +940,7 @@
       "HAMMER_SPEC": 2
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "BLOWPIPE": 1
      },
@@ -1041,6 +1052,7 @@
       "HAMMER_SPEC": 2
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "BLOWPIPE": 1
      },
@@ -1183,6 +1195,7 @@
       "SCYTHE": 8
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 1
      },
@@ -1296,6 +1309,7 @@
       "EYE_OF_AYAK_AUTO": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 11,
       "RAPIER": 1
@@ -1410,6 +1424,7 @@
       "CLAW_SCRATCH": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 12
      },
@@ -1523,6 +1538,7 @@
       "CLAW_SCRATCH": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 12
      },
@@ -1633,6 +1649,7 @@
       "BLOWPIPE": 8
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "BLOWPIPE": 1
      },
@@ -1739,6 +1756,7 @@
       "CHALLY_SPEC": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "NOXIOUS_HALBERD": 1
      },

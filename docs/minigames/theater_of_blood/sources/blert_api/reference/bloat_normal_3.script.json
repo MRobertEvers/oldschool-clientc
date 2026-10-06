@@ -141,6 +141,7 @@
       "BOWFA": 3
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "ZCB": 11,
       "TWISTED_BOW": 5,
@@ -226,6 +227,7 @@
       "BGS_SPEC": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "ZCB": 14,
       "CHALLY": 2,
@@ -304,6 +306,7 @@
       "SCYTHE": 7
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "ZCB": 9,
       "CHALLY": 7,
@@ -440,6 +443,7 @@
       "CLAW_SPEC": 5
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 16,
       "SAELDOR": 2,
@@ -543,6 +547,7 @@
       "SOULREAPER_AXE": 4
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 18,
       "SOULREAPER_AXE": 1
@@ -645,6 +650,7 @@
       "CLAW_SPEC": 8
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 15,
       "4151": 3,
@@ -743,6 +749,7 @@
       "CHALLY_SPEC": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "CLAW": 7,
       "SCYTHE": 3,
@@ -806,6 +813,7 @@
       "CHALLY_SPEC": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "CLAW": 11,
       "CHALLY": 3,
@@ -855,6 +863,7 @@
      "targets": [],
      "attack_names": {},
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "CLAW": 8,
       "SCYTHE": 6,
@@ -979,6 +988,7 @@
       "CHALLY_SPEC": 6
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 12,
       "CLAW": 3,
@@ -1071,6 +1081,7 @@
       "SOULREAPER_AXE": 4
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 14,
       "CLAW": 3,
@@ -1163,6 +1174,7 @@
       "CHALLY_SPEC": 8
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 13,
       "4151": 3,
@@ -1245,6 +1257,7 @@
      "targets": [],
      "attack_names": {},
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 2,
       "CHALLY": 1,
@@ -1295,6 +1308,7 @@
      "targets": [],
      "attack_names": {},
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 3,
       "SOULREAPER_AXE": 1
@@ -1343,6 +1357,7 @@
      "targets": [],
      "attack_names": {},
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 2,
       "4151": 1,
@@ -1447,6 +1462,7 @@
       "CHALLY_SPEC": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 1,
       "CHALLY": 1
@@ -1516,6 +1532,7 @@
       "SCYTHE": 1
      },
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "SCYTHE": 2
      },
@@ -1564,6 +1581,7 @@
      "targets": [],
      "attack_names": {},
      "return_to_boss": null,
+     "wave_adds_hit": {},
      "weapon": {
       "CHALLY": 1,
       "SCYTHE": 1
