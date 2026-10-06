@@ -17,8 +17,14 @@
 -- amulet, spade, needle, 5 thread, a silver bar, 3 bronze wire, coins, and a
 -- weapon (armor is listed generically as "Armour and weapons defeat a level
 -- 51 monster" -- a rune scimitar plus setlevel'd combat stats stand in for
--- gear the fixture does not hand out), food for that fight, and the two
--- ectotokens of the Port Phasmatys toll (the nearest furnace).
+-- gear the fixture does not hand out), and food for that fight. From Quest
+-- Helper's getItemRecommended(): a Fenkenstrain's Castle Teleport tablet
+-- (fenkenstrainTeleports) and a Falador teleport (teleportToFurnace's
+-- alternate) -- the spell's runes plus Magic 48, which is also the level
+-- teleport_tablet.rs2 [label,use_teleport_tablet] demands for the castle
+-- tablet (magic_spell_teleport_fenkenstrain_castle levelrequired=48).
+-- No ectotokens: neither the guide nor the wiki quick guide has you obtain
+-- any, so the furnace is Falador's, not Port Phasmatys's behind its toll.
 --
 -- WALLS (door rule, owner 2026-10-03; re-driven in b60). Every goto departs
 -- from and lands on open ground outside; every door, stair and ladder of the
@@ -46,14 +52,16 @@
 --     (-> 3578,3526): Quest Helper's "run back through the caves".
 --   The cavern's fenk_mausoleum_door 3510,9957 opens with the key and is
 --     walked through on foot.
---   The furnace is Port Phasmatys's (fai_falador_furnace 3688,3478), behind
---     the west Energy Barrier 3652,3485: op4 Pay-toll(2-Ecto) going in, op1
---     Pass (free, ahoy_hub.rs2 [label,ahoy_barrier_pass]) coming out.
+--   The furnace is Falador's (fai_falador_furnace 2976,3368), reached by the
+--     guide's own recommended Falador Teleport (Falador square 2965,3378,
+--     then a walk: reach.py 2965,3378 -> 2974,3369 REACH closed-doors len=18,
+--     no door) and left by the Fenkenstrain's Castle Teleport tablet
+--     (tele_coord 0_55_55_30_10 = 3550,3530, outside the front door).
 
 return {
     id = "fenkenstrain",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 360000, -- the Paterdomus route in, every castle door, stair and ladder walked, Port Phasmatys and the caves both ways
+    max_frames = 360000, -- the Paterdomus route in, every castle door, stair and ladder walked, the caves both ways
     setup = {
         "::clearinv",
         -- The quest's own gate (fenkenstrain.rs2:6-22 [proc,fenk_has_requirements]):
@@ -87,7 +95,22 @@ return {
         "::give bronzecraftwire 3",
         "::give coins 200",
         "::give lobster 4", -- food for the level-51 Experiment
-        "::give ectotoken 2", -- the Port Phasmatys barrier toll (ahoy_hub.rs2, ^ahoy_barrier_toll = 2), carried like coins
+        -- Quest Helper getItemRecommended(): teleportToFurnace (its alternate
+        -- "a Falador teleport": [magic_spell_teleport_falador] level 37,
+        -- waterrune 1 + airrune 3 + lawrune 1) and fenkenstrainTeleports
+        -- (teletab_fenk; teleport_tablet.rs2:34 refuses it below Magic 48).
+        -- The OSRS wiki's tablet page says the opposite: no Magic level is
+        -- needed to break it, only Priest in Peril with Drezel's warning
+        -- (staged above, reached for real). The spell alone needs 37; the 48
+        -- is the content's gate, an open owner question on staged levels.
+        -- Magic 48 leaves the combat level where the 80 melee stats put it
+        -- (melee 0.325*160 = 52 over magic 0.325*72 = 23.4), so no dialogue
+        -- the run passes takes another branch.
+        "::setlevel magic 48",
+        "::give waterrune 1",
+        "::give airrune 3",
+        "::give lawrune 1",
+        "::give teletab_fenk 1",
     },
 
     run = function(t)
@@ -594,31 +617,47 @@ return {
         t.exec("searchFirePlace.held", t.inv.await, "fenk_lightning_mould", 1, 10)
 
         -- Any furnace works (smelting.rs2's silver_bar case calls
-        -- fenk_try_cast_conductor before the ordinary jewellery menu). The
-        -- nearest is Port Phasmatys's, east across the swamp, behind the
-        -- town's west Energy Barrier.
-        door("makeLightningRod", "westRoomOut")
-        stairs("makeLightningRod.downstairs", WEST_DOWN)
-        west_stairs_to_hall("makeLightningRod")
-        leave_castle("makeLightningRod")
-        t.exec("makeLightningRod.gotoBarrier", t.player.goto_tile, 3651, 3485, 0)
-        local tok_before_r, tok_before = t.inv.count("ectotoken")
-        t.exec("makeLightningRod.enterPhasmatys", t.player.cross_gate, { loc = "ahoy_town_barrier_multi", op = 4,
-            at = { 3652, 3485, 0 }, near = { 3651, 3485 }, far_ok = function(tile) return tile.x >= 3653 end,
-            far_desc = "inside Port Phasmatys, x >= 3653" })
-        local tok_after_r, tok_after = t.inv.count("ectotoken")
-        t.check("makeLightningRod.toll", tok_before_r == "ok" and tok_after_r == "ok" and tok_before == 2 and tok_after == 0,
-            "ectotoken " .. tostring(tok_before) .. " -> " .. tostring(tok_after) .. " (want 2 -> 0, ^ahoy_barrier_toll)")
+        -- fenk_try_cast_conductor before the ordinary jewellery menu). Quest
+        -- Helper: "Go to any furnace make a lightning rod", recommending a
+        -- Falador teleport; the wiki quick guide (oldid 15266785) names
+        -- "teleport to Falador" among its furnaces. Cast from where the
+        -- mould was found, walk into Falador's furnace room, and come back
+        -- by the recommended Fenkenstrain's Castle Teleport tablet.
+        t.player.teleport_cast("falador_teleport", { 2965, 3378, 0 }, { name = "makeLightningRod.faladorTeleport",
+            runes = { { "waterrune", 1 }, { "airrune", 3 }, { "lawrune", 1 } },
+            where = "Falador square, tele_coord 0_46_52_21_50" })
+        -- Falador square -> the furnace room (2973-2977,3366-3372; the open
+        -- doorway fai_falador_poor_door_open 2977,3373): reach.py 2965,3378
+        -- -> 2974,3369 REACH closed-doors len=18, so the walk is travel.
+        t.exec("makeLightningRod.toFurnace", t.player.walk_to, 2974, 3369, 40)
         local furnace_target = t.player.by_symbol("loc", "fai_falador_furnace")
-        t.exec("makeLightningRod", t.player.use_on, "silver_bar", furnace_target, { at = { 3688, 3478, 0 } })
+        t.exec("makeLightningRod", t.player.use_on, "silver_bar", furnace_target, { at = { 2976, 3368, 0 } })
         t.exec("makeLightningRod.held", t.inv.await, "fenk_conductor", 1, 10)
+        -- fenkenstrain_lightning.rs2 [proc,fenk_try_cast_conductor]: the
+        -- conductor's own sentence, not the ordinary silver-crafting menu.
+        t.exec("makeLightningRod.msg", t.msg.expect, "You cast a silver lightning conductor")
         t.check("makeLightningRod.barUsed", t.inv.expect_absent("silver_bar"))
-        walk("makeLightningRod.backToBarrier", 3653, 3485, 0)
-        t.exec("makeLightningRod.leavePhasmatys", t.player.cross_gate, { loc = "ahoy_town_barrier_multi", op = 1,
-            at = { 3652, 3485, 0 }, near = { 3653, 3485 }, far_ok = function(tile) return tile.x <= 3651 end,
-            far_desc = "outside Port Phasmatys, x <= 3651" })
 
-        enter_castle("goUpWestStairsWithRod")
+        -- Back: break the tablet (teleport_tablet.rs2 [opheld1,teletab_fenk]),
+        -- graded on the landing (map_findsquare within 2 of 3550,3530,0) and
+        -- the tablet leaving the backpack.
+        local tab_before_r, tab_before = t.inv.count("teletab_fenk")
+        local tab_r, tab_d = t.player.inv_op("teletab_fenk", 1)
+        await_tile(function(tt) return tt.level == 0 and math.abs(tt.x - 3550) <= 2 and math.abs(tt.z - 3530) <= 2 end,
+            12, "goUpWestStairsWithRod.castleTeleport")
+        local land_r, land = t.world.tile()
+        local tab_after_r, tab_after = t.inv.count("teletab_fenk")
+        t.check("goUpWestStairsWithRod.castleTeleport",
+            tab_r ~= "refused" and land_r == "ok" and land.level == 0 and math.abs(land.x - 3550) <= 2
+                and math.abs(land.z - 3530) <= 2 and tab_before_r == "ok" and tab_after_r == "ok"
+                and tab_before == 1 and tab_after == 0,
+            "inv_op(teletab_fenk,1) -> " .. tostring(tab_r) .. " " .. tostring(tab_d) .. "; landed " .. tile_text(land_r, land)
+                .. "; teletab_fenk " .. tostring(tab_before) .. " -> " .. tostring(tab_after)
+                .. " (want within 2 of 3550,3530,0, tele_coord 0_55_55_30_10, and the tablet 1 -> 0)")
+
+        -- The tablet lands four tiles from the castle front: walked, not goto'd.
+        walk("goUpWestStairsWithRod.toCastleFront", 3548, 3528, 0)
+        doors("goUpWestStairsWithRod", { "frontIn", "hallIn" })
         hall_to_west_stairs("goUpWestStairsWithRod")
         stairs("goUpWestStairsWithRod", WEST_UP)
         door("goUpTowerLadder", "conductorIn")
