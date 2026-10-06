@@ -1184,3 +1184,10 @@ all clean. No C and no content changed.
   every Play still starts on a fresh account. The closer had no headless tab-Play harness to
   prove it. Also, snippet 3(f) passes the manifest's script-item path as the fixture name,
   which the cheat would refuse; pass the basename when it lands.
+  WIRED BY THE ORCHESTRATOR after the merge (2026-10-05, 419333fb1): the "Start from" select above Play
+  (Reset character default, Fresh character, As it is), `start`/`reset_fixture` on api.drive.play and
+  `start` in drive.status, quest rows carry `start=reset`. Proved headless through the tab (seam24's
+  run_watch.sh, sim picks suite=raid, slot1, play): on the watcher's own logged-in account `_play_smoke`
+  wrote `watch.start PASS ... ::resetcharacter; read back in 22 frame(s): backpack 0, worn 0; server:
+  Reset character: 14 backpack, 0 worn emptied`, no relog, then played Bloat to its kill (play.fight
+  PASS, 3 downs, 200 ticks).
