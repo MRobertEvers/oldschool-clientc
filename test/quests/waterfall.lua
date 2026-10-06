@@ -3,6 +3,25 @@
 -- Brought along: a rope (used on rock and tree every trip) and, for the puzzle, 6 air / earth /
 -- water runes. The tomb refuses any rune in the backpack, so the runes are given at the
 -- getFinalItems step (the guide banks them before the pebble), not in setup.
+--
+-- Door rule (b69): every closed space is entered and left by its own door, gate, ladder or op.
+--   * From the Lumbridge fixture the only way on foot to Baxtorian Falls is the members' gate
+--     south of Taverley (goto_table: NEEDS-DOOR via membergater@2933,3320), so the first goto
+--     stops on its south side (reach.py 3206,3233 -> 2934,3318: REACH closed-doors len=387) and
+--     the gate is pressed (cross_gate); then overland (2934,3322 -> 2530,3495: REACH len=871).
+--   * Almera's yard (x 2513-2527 z 3489-3503, maps/m39_54.jl2) is fenced: in by the east
+--     fencegate_l 2528,3495, out to the raft pocket (x 2510-2512) by the west fencegate_l
+--     2513,3494, on both raft trips.
+--   * Hadley's house: in and out by elfdoor 2520,3432; the spiralstairs both ways by maplink
+--     (maplink_0_39_53_23_38_up -> 2518,3431,1; maplink_1_39_53_22_39_down -> 2519,3430,0).
+--   * Golrie's cellar: down the Tree Gnome Village ladder (quest_waterfall_locs.rs2:25, +6400 z
+--     from the player's tile), in by the key on golrie_gate, out by its op1 (walk-through,
+--     quest_waterfall_locs.rs2:377), up by ladder_from_cellar_directional
+--     (maplink_0_39_149_37_20 -> 2533,3156).
+--   * Glarial's tomb: in by the pebble, out by its ladder (maplink_0_39_153_61_52_up -> 2557,3444).
+--   * Baxtorian Falls: the key crate room by castledoubledoorl 2582,9875 in and out, north by
+--     castledoubledoorr 2565,9881, the key on baxtorian_door_2 2568,9893 (into the 13-tile
+--     room), then on the west door 2566,9901 (into the puzzle room).
 
 return {
     id = "waterfall",
@@ -10,6 +29,25 @@ return {
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots
         "::give rope 1",
+        -- Incidental aggressors on the walked route, none of which the quest fights (huntmode=aggressive
+        -- in npc/configs/combat_stats.generated.npc / the type's .npc): Golrie's cellar (m39_149.spawn),
+        -- Glarial's tomb (m39_153.spawn) and the Baxtorian Falls dungeon (m40_154.spawn). The b69 run 1
+        -- walked the cellar on foot instead of a goto and the level-3 fixture died at Golrie's gate.
+        "::passive hobgoblin_unarmed",
+        "::passive bat",
+        "::passive skeleton_armed",
+        "::passive skeleton_armed2",
+        "::passive skeleton_armed4",
+        "::passive skeleton_armed5",
+        "::passive zombie_armed3",
+        "::passive zombie_unarmed4",
+        "::passive zombie_unarmed5",
+        "::passive roving_mossgiant",
+        "::passive firegiant",
+        "::passive firegiant2",
+        "::passive firegiant3",
+        "::passive giantskeleton",
+        "::passive shadow_spider",
     },
 
     run = function(t)
@@ -33,8 +71,35 @@ return {
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
+        local function tile_check(name, pred, want)
+            local tile_result, tile = t.world.tile()
+            local ok = tile_result == "ok" and tile ~= nil and pred(tile)
+            t.check(name, ok, "player at " .. (tile and (tile.x .. "," .. tile.z .. "," .. tostring(tile.level)) or tostring(tile_result))
+                .. " (want " .. want .. ")")
+            return ok
+        end
+        -- Almera's yard: the east gate in from the open ground, the west gate out to the raft.
+        local function yard_in(tag)
+            t.exec(tag .. ".yardGateIn", t.player.cross_gate, { loc = "fencegate_l", open = "openfencegate_l",
+                at = { 2528, 3495, 0 }, near = { 2529, 3495 }, far = { 2526, 3495 },
+                far_ok = function(tile) return tile.x <= 2527 and tile.x >= 2513 end,
+                far_desc = "in Almera's yard, x 2513-2527" })
+        end
+        local function raft_pocket(tag)
+            t.exec("walk-" .. tag .. ".raftGate", t.player.walk_to, 2514, 3494, 30)
+            t.exec(tag .. ".raftGateOut", t.player.cross_gate, { loc = "fencegate_l", open = "openfencegate_l",
+                at = { 2513, 3494, 0 }, near = { 2513, 3494 }, far = { 2511, 3494 },
+                far_ok = function(tile) return tile.x <= 2512 end,
+                far_desc = "in the raft pocket west of the yard, x <= 2512" })
+        end
+
         -- ---- talkToAlmera ----
-        t.exec("goto-talkToAlmera", t.player.goto_tile, 2522, 3498, 0)
+        t.exec("goto-talkToAlmera.memberGate", t.player.goto_tile, 2934, 3318, 0)
+        t.exec("talkToAlmera.memberGate", t.player.cross_gate, { loc = "membergatel", at = { 2934, 3320, 0 },
+            near = { 2934, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2934) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320", far = { 2934, 3322 } })
+        t.exec("goto-talkToAlmera", t.player.goto_tile, 2530, 3495, 0)
+        yard_in("talkToAlmera")
         t.exec("talkToAlmera", t.player.talk_to, "almera_waterfall_quest", 1)
         t.exec("talkToAlmera-chat", t.chat.play, {
             "player:Hello.",
@@ -48,7 +113,7 @@ return {
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
         -- ---- boardRaft (the raft meets Hudon: started -> spoken_to_hudon) ----
-        t.exec("goto-boardRaft", t.player.goto_tile, 2510, 3494, 0)
+        raft_pocket("boardRaft")
         t.exec("boardRaft", t.player.click_loc, "lograft_waterfall_quest", 1)
         t.await({ level = function() return t.chat.kind() ~= "none" end, note = "raft lands and Hudon's page opens" }, 20)
         t.exec("boardRaft-chat", t.chat.play, {
@@ -75,14 +140,25 @@ return {
         t.exec("useRopeOnRock", t.player.use_on, "rope", rock)
         local tree = t.player.by_symbol("loc", "overhanging_tree1_waterfall_quest")
         t.exec("useRopeOnTree", t.player.use_on, "rope", tree)
+        t.ticks(2)
+        -- [oplocu,overhanging_tree1_waterfall_quest]: p_teleport(0_39_54_15_7) lets the player down onto the ledge.
+        tile_check("useRopeOnTree-landed", function(tile) return tile.x == 2511 and tile.z == 3463 and tile.level == 0 end,
+            "2511,3463,0, the ledge below the tree")
         t.exec("getInBarrel", t.player.click_loc, "barrel_waterfall_quest", 1)
         t.ticks(4)
 
+        tile_check("getInBarrel-washedUp", function(tile) return tile.x == 2527 and tile.z == 3413 and tile.level == 0 end,
+            "2527,3413,0, ^waterfall_fail_coord")
+
         -- ---- goUpstairsHadley, searchBookcase, readBook ----
-        t.exec("goto-goUpstairsHadley", t.player.goto_tile, 2518, 3429, 0)
-        t.exec("goUpstairsHadley", t.player.click_loc, "spiralstairs", 1)
+        -- The river bank to Hadley's door is open ground (reach.py 2527,3413 -> 2521,3432: REACH len=37).
+        t.exec("walk-goUpstairsHadley", t.player.walk_to, 2521, 3432, 50)
+        t.exec("goUpstairsHadley.houseDoorIn", t.player.pass_door, { closed = "elfdoor", open = "elfdooropen",
+            at = { 2520, 3432, 0 }, near = { 2521, 3432 }, far = { 2520, 3431 } })
+        t.exec("goUpstairsHadley", t.player.climb, { loc = "spiralstairs", op = 1, op_name = "Climb-up",
+            at = { 2517, 3429, 0 }, src = { 2519, 3430 }, dest = { 2518, 3431, 1 } })
         t.ticks(3)
-        t.exec("goto-searchBookcase", t.player.goto_tile, 2520, 3428, 1)
+        t.exec("walk-searchBookcase", t.player.walk_to, 2520, 3428, 10)
         t.exec("searchBookcase", t.player.click_loc, "bookcase_waterfall_quest", 1)
         t.inv.await("baxtorian_book_waterfall_quest", 1, 6)
         local book_result, book_count = t.inv.count("baxtorian_book_waterfall_quest")
@@ -92,26 +168,36 @@ return {
         t.expect("quest.stage.opened_book_on_baxtorian", t.quest.expect_stage("opened_book_on_baxtorian"))
 
         -- ---- leaveHouse ----
-        t.exec("leaveHouse", t.player.click_loc, "spiralstairstop", 1)
-        t.ticks(3)
+        t.exec("leaveHouse", t.player.climb, { loc = "spiralstairstop", op = 1, op_name = "Climb-down",
+            at = { 2518, 3430, 1 }, src = { 2518, 3431 }, dest = { 2519, 3430, 0 } })
+        t.ticks(2)
+        t.exec("leaveHouse.houseDoorOut", t.player.pass_door, { closed = "elfdoor", open = "elfdooropen",
+            at = { 2520, 3432, 0 }, near = { 2520, 3432 }, far = { 2522, 3432 } })
 
         -- ---- enterGnomeDungeon ----
-        t.exec("goto-enterGnomeDungeon", t.player.goto_tile, 2533, 3157, 0)
-        t.exec("enterGnomeDungeon", t.player.click_loc, "roving_golrie_ladder_to_cellar", 1)
+        -- Overland from Hadley's door to the east end of the ladder's corridor in Tree Gnome
+        -- Village (reach.py 2521,3432 -> 2536,3155: REACH closed-doors len=550; the ladder stands
+        -- in the hedge row, so the press is made from 2534,3155).
+        t.exec("goto-enterGnomeDungeon", t.player.goto_tile, 2536, 3155, 0)
+        t.exec("enterGnomeDungeon", t.player.climb, { loc = "roving_golrie_ladder_to_cellar", op = 1,
+            op_name = "Climb-down", at = { 2533, 3155, 0 }, src = { 2534, 3155 }, dest = { 2534, 9555, 0 }, slack = 1 })
         t.ticks(3)
 
         -- ---- searchGnomeCrate ----
-        t.exec("goto-searchGnomeCrate", t.player.goto_tile, 2548, 9566, 0)
+        t.exec("walk-searchGnomeCrate", t.player.walk_to, 2548, 9566, 40)
         t.exec("searchGnomeCrate", t.player.click_loc, "golrie_crate_waterfall_quest", 1)
         t.inv.await("golrie_key_waterfall_quest", 1, 6)
         local key_result, key_count = t.inv.count("golrie_key_waterfall_quest")
         t.check("searchGnomeCrate-key", key_count == 1, "Golrie's key in backpack: " .. tostring(key_count))
 
         -- ---- enterGnomeDoor ----
-        t.exec("goto-enterGnomeDoor", t.player.goto_tile, 2515, 9573, 0)
+        t.exec("walk-enterGnomeDoor", t.player.walk_to, 2515, 9573, 50)
         local golrie_gate = t.player.by_symbol("loc", "golrie_gate_waterfall_quest")
         t.exec("enterGnomeDoor", t.player.use_on, "golrie_key_waterfall_quest", golrie_gate)
         t.ticks(4)
+        -- [label,waterfall_golrie_door]: the key carries the player through to the gate's north side.
+        tile_check("enterGnomeDoor-through", function(tile) return tile.z >= 9576 and tile.level == 0 end,
+            "in Golrie's room, z >= 9576")
 
         -- ---- talkToGolrie ----
         t.exec("talkToGolrie", t.player.talk_to, "golrie_waterfall_quest", 1)
@@ -135,15 +221,25 @@ return {
         local pebble_result, pebble_count = t.inv.count("glarials_pebble_waterfall_quest")
         t.check("talkToGolrie-pebble", pebble_count == 1, "Glarial's pebble in backpack: " .. tostring(pebble_count))
 
+        -- ---- leave Golrie's cellar: the gate's op1 from inside, then the cellar ladder ----
+        t.exec("leaveGolrie.gateOut", t.player.cross_gate, { loc = "golrie_gate_waterfall_quest",
+            at = { 2515, 9575, 0 }, near = { 2515, 9576 },
+            far_ok = function(tile) return tile.z <= 9575 end, far_desc = "south of Golrie's gate, z <= 9575" })
+        t.exec("walk-leaveGolrie.ladder", t.player.walk_to, 2533, 9556, 50)
+        t.exec("leaveGolrie.ladderUp", t.player.climb, { loc = "ladder_from_cellar_directional", op = 1,
+            op_name = "Climb-up", at = { 2533, 9555, 0 }, src = { 2533, 9556 }, dest = { 2533, 3156, 0 } })
+        t.ticks(3)
+
         -- ---- usePebble ----
-        t.exec("goto-usePebble", t.player.goto_tile, 2558, 3445, 0)
+        -- Overland from Tree Gnome Village to the memorial (reach.py 2533,3156 -> 2558,3446: REACH len=559).
+        t.exec("goto-usePebble", t.player.goto_tile, 2558, 3446, 0)
         local tombstone = t.player.by_symbol("loc", "glarials_tombstone_waterfall_quest")
         t.exec("usePebble", t.player.use_on, "glarials_pebble_waterfall_quest", tombstone)
         t.ticks(10)
         t.expect("quest.stage.entered_glarial_tomb", t.quest.expect_stage("entered_glarial_tomb"))
 
         -- ---- searchGlarialChest ----
-        t.exec("goto-searchGlarialChest", t.player.goto_tile, 2531, 9844, 0)
+        t.exec("walk-searchGlarialChest", t.player.walk_to, 2531, 9844, 40)
         t.exec("searchGlarialChest-open", t.player.click_loc, "glarials_chest_closed_waterfall_quest", 1)
         t.ticks(2)
         t.exec("searchGlarialChest", t.player.click_loc, "glarials_chest_open_waterfall_quest", 1)
@@ -152,11 +248,17 @@ return {
         t.check("searchGlarialChest-amulet", amulet_count == 1, "Glarial's amulet in backpack: " .. tostring(amulet_count))
 
         -- ---- searchGlarialCoffin ----
-        t.exec("goto-searchGlarialCoffin", t.player.goto_tile, 2542, 9814, 0)
+        t.exec("walk-searchGlarialCoffin", t.player.walk_to, 2542, 9813, 50)
         t.exec("searchGlarialCoffin", t.player.click_loc, "glarials_tomb_waterfall_quest", 1)
         t.inv.await("glarials_urn_full_waterfall_quest", 1, 6)
         local urn_result, urn_count = t.inv.count("glarials_urn_full_waterfall_quest")
         t.check("searchGlarialCoffin-urn", urn_count == 1, "Glarial's urn in backpack: " .. tostring(urn_count))
+
+        -- ---- leave Glarial's tomb by its ladder ----
+        t.exec("walk-leaveTomb", t.player.walk_to, 2557, 9844, 50)
+        t.exec("leaveTomb.ladderUp", t.player.climb, { loc = "ladder_from_cellar_directional", op = 1,
+            op_name = "Climb-up", at = { 2556, 9844, 0 }, src = { 2557, 9844 }, dest = { 2557, 3444, 0 } })
+        t.ticks(3)
 
         -- ---- getFinalItems (runes are brought along; the guide banked them for the tomb) ----
         t.cheat("::give airrune 6")
@@ -167,13 +269,20 @@ return {
         t.check("getFinalItems", air_count == 6, "runes brought back for the pillars: air " .. tostring(air_count))
 
         -- ---- boardRaftFinal, useRopeOnRockFinal, useRopeOnTreeFinal ----
-        t.exec("goto-boardRaftFinal", t.player.goto_tile, 2510, 3494, 0)
+        -- Overland from the memorial to the yard's east gate (reach.py 2557,3444 -> 2530,3495: REACH len=80).
+        t.exec("goto-boardRaftFinal", t.player.goto_tile, 2530, 3495, 0)
+        yard_in("boardRaftFinal")
+        raft_pocket("boardRaftFinal")
         t.exec("boardRaftFinal", t.player.click_loc, "lograft_waterfall_quest", 1)
         t.ticks(8)
         local rock2 = t.player.by_symbol("loc", "crossing_rock_waterfall_quest")
         t.exec("useRopeOnRockFinal", t.player.use_on, "rope", rock2)
         local tree2 = t.player.by_symbol("loc", "overhanging_tree1_waterfall_quest")
         t.exec("useRopeOnTreeFinal", t.player.use_on, "rope", tree2)
+        t.ticks(2)
+        -- [oplocu,overhanging_tree1_waterfall_quest]: p_teleport(0_39_54_15_7) lets the player down onto the ledge.
+        tile_check("useRopeOnTreeFinal-landed", function(tile) return tile.x == 2511 and tile.z == 3463 and tile.level == 0 end,
+            "2511,3463,0, the ledge below the tree")
 
         -- ---- equipAmulet, enterFalls ----
         t.exec("equipAmulet", t.player.equip, "glarials_amulet_waterfall_quest")
@@ -182,18 +291,38 @@ return {
         t.expect("quest.stage.entered_waterfall", t.quest.expect_stage("entered_waterfall"))
 
 
-        -- ---- searchFallsCrate ----
-        t.exec("goto-searchFallsCrate", t.player.goto_tile, 2589, 9887, 0)
+        -- ---- searchFallsCrate: the east room by its large door ----
+        t.exec("searchFallsCrate.doorIn", t.player.pass_door, { closed = "castledoubledoorl", open = "opencastledoubledoorl",
+            at = { 2582, 9875, 0 }, near = { 2581, 9875 }, far = { 2583, 9875 } })
+        t.exec("walk-searchFallsCrate", t.player.walk_to, 2589, 9887, 30)
         t.exec("searchFallsCrate", t.player.click_loc, "baxtorian_crate_waterfall_quest", 1)
         t.inv.await("baxtorian_key_waterfall_quest", 1, 6)
         local fkey_result, fkey_count = t.inv.count("baxtorian_key_waterfall_quest")
         t.check("searchFallsCrate-key", fkey_count == 1, "Baxtorian's key in backpack: " .. tostring(fkey_count))
 
         -- ---- useKeyOnFallsDoor ----
-        t.exec("goto-useKeyOnFallsDoor", t.player.goto_tile, 2566, 9899, 0)
+        -- Out of the crate room, north through the large door at 2565,9881, the key on the
+        -- door at 2568,9893 into the small room, then the key on the west door 2566,9901.
+        t.exec("walk-useKeyOnFallsDoor.crateDoorOut", t.player.walk_to, 2583, 9875, 30)
+        t.exec("useKeyOnFallsDoor.crateDoorOut", t.player.pass_door, { closed = "castledoubledoorl", open = "opencastledoubledoorl",
+            at = { 2582, 9875, 0 }, near = { 2582, 9875 }, far = { 2580, 9875 } })
+        t.exec("walk-useKeyOnFallsDoor.northDoor", t.player.walk_to, 2565, 9881, 40)
+        t.exec("useKeyOnFallsDoor.northDoor", t.player.pass_door, { closed = "castledoubledoorr", open = "opencastledoubledoorr",
+            at = { 2565, 9881, 0 }, near = { 2565, 9881 }, far = { 2565, 9883 } })
+        t.exec("walk-useKeyOnFallsDoor.southDoor", t.player.walk_to, 2568, 9892, 20)
+        local south_door = t.player.by_symbol("loc", "baxtorian_door_2_waterfall_quest")
+        t.exec("useKeyOnFallsDoor.southDoor", t.player.use_on, "baxtorian_key_waterfall_quest", south_door)
+        t.ticks(3)
+        -- [oplocu,baxtorian_door_2_waterfall_quest] ~waterfall_walk_door: through to 2568,9894.
+        tile_check("useKeyOnFallsDoor.southDoor-through", function(tile)
+            return tile.z >= 9894 and tile.z <= 9901 and tile.x >= 2566 and tile.x <= 2569 end,
+            "in the small room, x 2566-2569 z 9894-9901")
+        t.exec("walk-useKeyOnFallsDoor", t.player.walk_to, 2566, 9899, 10)
         local falls_door = t.player.by_symbol("loc", "baxtorian_door_2_waterfall_quest")
         t.exec("useKeyOnFallsDoor", t.player.use_on, "baxtorian_key_waterfall_quest", falls_door)
         t.ticks(4)
+        tile_check("useKeyOnFallsDoor-through", function(tile) return tile.z >= 9902 end,
+            "in the puzzle room, z >= 9902")
         t.expect("quest.stage.entered_puzzle_room", t.quest.expect_stage("entered_puzzle_room"))
 
         -- ---- the six pillars: air, earth and water rune on each ----
@@ -201,14 +330,31 @@ return {
             { 2563, 9910 }, { 2563, 9912 }, { 2563, 9914 },
             { 2568, 9910 }, { 2568, 9912 }, { 2570, 9914 },
         }
+        -- Each rune goes on its own pillar copy (`at`): from a walked stand tile the nearest copy is
+        -- not always the one beside it (b69 run 2 put pillar 2/4/6's runes on 1/3/5 again).
+        local pillar_locs = {
+            { 2562, 9910 }, { 2562, 9912 }, { 2562, 9914 },
+            { 2569, 9910 }, { 2569, 9912 }, { 2569, 9914 },
+        }
         local runes = { "airrune", "earthrune", "waterrune" }
         for pillar = 1, 6 do
-            t.exec("goto-pillar" .. pillar, t.player.goto_tile, pillar_tiles[pillar][1], pillar_tiles[pillar][2], 0)
+            t.exec("walk-pillar" .. pillar, t.player.walk_to, pillar_tiles[pillar][1], pillar_tiles[pillar][2], 20)
             local pillar_loc = t.player.by_symbol("loc", "stonepillar_small_waterfall_quest")
             for rune = 1, 3 do
-                t.exec("useRuneOnPillar" .. pillar .. "-" .. runes[rune], t.player.use_on, runes[rune], pillar_loc)
+                t.exec("useRuneOnPillar" .. pillar .. "-" .. runes[rune], t.player.use_on, runes[rune], pillar_loc,
+                    { at = { pillar_locs[pillar][1], pillar_locs[pillar][2], 0 } })
                 t.ticks(2)
             end
+            local spent_ok = true
+            local spent_detail = ""
+            for rune = 1, 3 do
+                local rune_result, rune_count = t.inv.count(runes[rune])
+                spent_ok = spent_ok and rune_count == 6 - pillar
+                spent_detail = spent_detail .. runes[rune] .. " " .. tostring(rune_count) .. " "
+            end
+            t.check("useRunesOnPillar" .. pillar .. "-spent", spent_ok,
+                spent_detail .. "(want " .. tostring(6 - pillar) .. " of each: one of each placed on pillar "
+                .. pillar_locs[pillar][1] .. "," .. pillar_locs[pillar][2] .. ")")
         end
         local left_result, left_count = t.inv.count("airrune")
         t.check("pillars-runes-spent", left_count == 0, "air runes left after the pillars: " .. tostring(left_count))
