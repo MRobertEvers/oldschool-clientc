@@ -1,5 +1,26 @@
 -- The Slug Menace. Relay file: one leg per runner (docs/quest_authoring/relay.md).
 -- Leg 1: Tiffy -> Witchaven talks -> ruin -> false wall -> imposing door -> scan.
+--
+-- RE-DRIVEN b69 (door rule). Nothing is goto'd into or out of a closed space:
+--   * Falador -> Witchaven crosses the Taverley members' gate membergater 2935,3450
+--     (cross_gate, every visit; reach.py: every walk from Falador opens it). The
+--     setup no longer runs ::theslugmenace (it stood the player ON rd_bench2_half
+--     2996,3373, a solid tile); a fresh fixture already has every quest var at 0.
+--   * Hobb's / the mayor's room (castledoubledoorl|r 2713,3291-3292, west edge, stays
+--     open 500 ticks), Lovecraft's room (slug2_village_poordoor 2730,3292, east edge),
+--     Jorral's room (makinghistory_doubledoorr 2433,3347, east edge) and Bailey's room
+--     (slug2_village_poordoor 2768,3276, west edge) are each entered and left by pass_door.
+--   * The false wall lands at the WEST END of the sea slug tunnel (2323,5104); the door
+--     is walked to (quest-helper: "Follow the path until you reach an imposing door").
+--     The tunnel is left the real way: its Passage (slug2_cave_entrance 2322,5104, Enter)
+--     back into the shrine room, then the ruin exit ladder (slug2_dongeon_ruin_exit).
+--   * The Fishing Platform is left by Jeb's boat (slug2_holgart_jeb once track1 = 1;
+--     Transcript:Jeb "Fishing Platform"), landing on Holgart's shore stand 2722,3305.
+--   * Witchaven -> Falador crosses membergater 2935,3450 going out (cross_gate).
+--   * Each altar is entered the runecraft way: its talisman used on the mysterious
+--     ruins (runecraft.rs2 [oplocu,_rc_ruins]), the blank rune charged on the altar,
+--     then the exit portal clicked. The five talismans are staged in setup.
+--   * The fight is graded with a margin row (lowest hp >= a quarter of max, food left).
 
 local function held_summary(t)
     local held = {}
@@ -12,12 +33,98 @@ local function held_summary(t)
     return #held > 0 and table.concat(held, ",") or "empty"
 end
 
+-- Falador side -> inside Taverley: open ground east of membergater, then the press
+-- (gates.rs2 [label,member_fencegate_try]; Taverley is x <= 2935).
+local function taverley_gate_in(t, name)
+    t.exec("goto-" .. name, t.player.goto_tile, 2938, 3450, 0)
+    t.exec(name, t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 },
+        near = { 2936, 3450 }, far_ok = function(tile) return tile.x <= 2935 end,
+        far_desc = "inside Taverley, x <= 2935" })
+end
+
+-- Hobb's room (also the mayor's study): castledoubledoorl|r 2713,3291-3292, wall on the
+-- west edge of x 2713; the room is x 2704-2712. A double door stands open 500 ticks.
+local function hobb_door(t, name, going_in)
+    t.exec(name, t.player.pass_door, { closed = "castledoubledoorl", open = "opencastledoubledoorl",
+        at = { 2713, 3291, 0 }, near = going_in and { 2713, 3291 } or { 2712, 3291 },
+        far = going_in and { 2712, 3291 } or { 2713, 3291 } })
+end
+
+-- Lovecraft's room: slug2_village_poordoor 2730,3292 (selfstage; wall on the east edge of
+-- x 2730, the room is x 2731-2736).
+local function lovecraft_door(t, name, going_in)
+    t.exec(name, t.player.pass_door, { closed = "slug2_village_poordoor", open = "slug2_village_poordoor",
+        at = { 2730, 3292, 0 }, near = going_in and { 2730, 3292 } or { 2731, 3292 },
+        far = going_in and { 2731, 3292 } or { 2730, 3292 } })
+end
+
+-- Jorral's room: makinghistory_doubledoorr 2433,3347 (wall on the east edge of x 2433).
+local function jorral_door(t, name, going_in)
+    t.exec(name, t.player.pass_door, { closed = "makinghistory_doubledoorr", open = "makinghistory_doubledoorr_open",
+        at = { 2433, 3347, 0 }, near = going_in and { 2433, 3347 } or { 2434, 3347 },
+        far = going_in and { 2434, 3347 } or { 2433, 3347 } })
+end
+
+-- Bailey's room on the Fishing Platform: slug2_village_poordoor 2768,3276 (wall on the
+-- west edge of x 2768; the room is x 2763-2767).
+local function bailey_door(t, name, going_in)
+    t.exec(name, t.player.pass_door, { closed = "slug2_village_poordoor", open = "slug2_village_poordoor",
+        at = { 2768, 3276, 0 }, loc_level = 1, near = going_in and { 2768, 3276 } or { 2767, 3276 },
+        far = going_in and { 2767, 3276 } or { 2768, 3276 } })
+end
+
+-- Inside Taverley -> Falador side: open ground west of membergater, then the press.
+local function taverley_gate_out(t, name)
+    t.exec("goto-" .. name, t.player.goto_tile, 2934, 3450, 0)
+    t.exec(name, t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 },
+        near = { 2935, 3450 }, far_ok = function(tile) return tile.x >= 2936 end,
+        far_desc = "outside Taverley, x >= 2936" })
+end
+
+-- Out of the sea slug tunnel the real way: walk back to its Passage (slug2_cave_entrance
+-- 2322,5104, op1=Enter) -> the shrine room side of the false wall (2700,9688), then the
+-- ruin exit ladder (slug2_dongeon_ruin_exit 2696,9682) up to 2696,3282, the open tile south
+-- of the Old ruin entrance west of Witchaven.
+local function leave_tunnel(t, name)
+    -- Walk the tunnel back to its west end (reach.py: REACH closed-doors len=159).
+    t.exec("goto-" .. name .. ".passage", t.player.goto_tile, 2323, 5104, 0)
+    -- click_loc's pose hunt answers "screen_position: framed nothing in 5 poses" for the
+    -- Passage (a wall on the east edge of 2322,5104, model 18376, seen edge-on from the
+    -- tunnel). As eadgar.lua's secret door: drive.op sends the op with no pixel and no
+    -- route; the server still validates and runs the real [oploc1,slug2_cave_entrance].
+    local passage = t.player.by_symbol("loc", "slug2_cave_entrance")
+    local op_result, op_detail = t.drive.op(passage, 1)
+    t.check(name .. ".passage", op_result == "ok", "drive.op(slug2_cave_entrance, 1) -> " .. tostring(op_result) .. " " .. tostring(op_detail))
+    local pr, pd = t.await({
+        level = function()
+            local r, tt = t.world.tile()
+            return r == "ok" and tt.x > 2600 and tt.z > 9000
+        end,
+        note = "back through the passage",
+    }, 20)
+    t.ticks(2)
+    local _, shrine = t.world.tile()
+    t.check(name .. ".shrine", pr == "ok" and shrine ~= nil and shrine.x == 2700 and shrine.z == 9688,
+        "after the Passage -> " .. tostring(shrine and (shrine.x .. "," .. shrine.z .. "," .. shrine.level)) .. " (" .. tostring(pr) .. " " .. tostring(pd) .. ")")
+    t.exec(name .. ".ladder", t.player.click_loc, "slug2_dongeon_ruin_exit", 1)
+    local lr, ld = t.await({
+        level = function()
+            local r, tt = t.world.tile()
+            return r == "ok" and tt.z < 4000
+        end,
+        note = "up the ruin exit ladder",
+    }, 30)
+    t.ticks(2)
+    local _, up = t.world.tile()
+    t.check(name .. ".surface", lr == "ok" and up ~= nil and up.x == 2696 and up.z == 3282 and up.level == 0,
+        "after the ladder -> " .. tostring(up and (up.x .. "," .. up.z .. "," .. up.level)) .. " (" .. tostring(lr) .. " " .. tostring(ld) .. ")")
+end
+
 return {
     id = "theslugmenace",
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv",
-        "::theslugmenace", -- resets the quest vars and stands the player at Sir Tiffy
         "::slugprep", -- guide requirement: Wanted!, Sea Slug and Recruitment Drive complete
         "::setlevel crafting 30", -- guide requirement: 30 Crafting
         "::setlevel runecraft 30", -- guide requirement: 30 Runecrafting
@@ -26,7 +133,12 @@ return {
         "::give wanted_crystal_ball 1", -- guide item: Commorb (Sir Tiffy upgrades it to v2)
         "::give swamppaste 1", -- guide item for leg 2's useSwampPasteOnFragments (Quest Helper lists Swamp paste)
         "::give chisel 1", -- guide item for leg 3's useEmptyRunes (Chisel)
-        "::give blankrune_high 12", -- guide item for leg 3's useEmptyRunes (Rune or Pure Essence, extra: shaping can shatter it)
+        "::give blankrune_high 9", -- guide item for leg 3's useEmptyRunes (Rune or Pure Essence, extra: shaping can shatter it)
+        "::give air_talisman 1", -- the five talismans open the mysterious ruins to the altars the runes are charged at
+        "::give mind_talisman 1",
+        "::give water_talisman 1",
+        "::give earth_talisman 1",
+        "::give fire_talisman 1",
         "::setlevel attack 70", "::setlevel strength 70", "::setlevel defence 60", "::setlevel hitpoints 70", -- guide: melee weapon to fight the Slug Prince (level 62)
     },
     bind = {
@@ -45,7 +157,8 @@ return {
             t.ticks(3)
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-            t.exec("goto-talkToTiffy", t.player.goto_tile, 2997, 3373, 0)
+            -- Sir Tiffy stands on 2996,3373 (a bench); 2997,3372 is open floor beside him.
+            t.exec("goto-talkToTiffy", t.player.goto_tile, 2997, 3372, 0)
             t.exec("talkToTiffy", t.player.talk_to, "rd_teleporter_guy", 1)
             t.exec("talkToTiffy-dialog", t.chat.play, {
                 "player:Do you have any other jobs",
@@ -63,6 +176,8 @@ return {
             t.expect("quest.stage.told_by_tiffy", t.quest.expect_stage("told_by_tiffy"))
             t.expect("talkToTiffy.commorb_v2", t.inv.expect_has("slug2_crystal_ball", 1))
 
+            -- Witchaven is behind the members' wall: reach.py from Falador opens membergater 2935,3450.
+            taverley_gate_in(t, "talkToNiall.memberGate")
             t.exec("goto-talkToNiall", t.player.goto_tile, 2739, 3309, 0)
             t.exec("talkToNiall", t.player.talk_to, "slug2_oniall", 1)
             t.exec("talkToNiall-dialog", t.chat.play, {
@@ -85,7 +200,9 @@ return {
             t.ticks(2)
             t.expect("quest.stage.talked_one", t.quest.expect_stage("talked_one"))
 
-            t.exec("goto-talkToHobb", t.player.goto_tile, 2709, 3292, 0)
+            -- Hobb is inside the mayor's room: in by its double door, out by it.
+            t.exec("goto-talkToHobb.door", t.player.goto_tile, 2715, 3291, 0)
+            hobb_door(t, "talkToHobb.doorIn", true)
             t.exec("talkToHobb", t.player.talk_to, "slug2_hobb", 1)
             t.exec("talkToHobb-dialog", t.chat.play, {
                 "player:I'm just looking around.",
@@ -94,6 +211,7 @@ return {
             })
             t.ticks(2)
             t.expect("quest.stage.talked_two", t.quest.expect_stage("talked_two"))
+            hobb_door(t, "talkToHobb.doorOut", false)
 
             t.exec("goto-talkToHolgart", t.player.goto_tile, 2721, 3303, 0)
             t.exec("talkToHolgart", t.player.talk_to, "holgartlandtravel", 1)
@@ -125,8 +243,10 @@ return {
             t.exec("enterWall", t.player.click_loc, "slug2_hidden_entrance", 1)
             t.ticks(3)
             local _, tile2 = t.world.tile()
-            t.check("enterWall.arrived", tile2 ~= nil and tile2.x < 2400, "arrived " .. tostring(tile2 and (tile2.x .. "," .. tile2.z .. "," .. tile2.level)))
+            t.check("enterWall.arrived", tile2 ~= nil and tile2.x == 2323 and tile2.z == 5104, "arrived " .. tostring(tile2 and (tile2.x .. "," .. tile2.z .. "," .. tile2.level)) .. " (want the tunnel's west end 2323,5104)")
 
+            -- Follow the path to the imposing door (reach.py: REACH closed-doors len=159).
+            t.exec("goto-tryToOpenImposingDoor", t.player.goto_tile, 2350, 5094, 0)
             t.exec("tryToOpenImposingDoor", t.player.click_loc, "slug2_cave_doors_closed", 1)
             t.ticks(2)
 
@@ -149,7 +269,10 @@ return {
             t.ticks(2)
             t.expect("pickUpDeadSlug.held", t.inv.expect_has("slug2_seaslug_young", 1))
 
-            t.exec("goto-talkToJorral", t.player.goto_tile, 2437, 3347, 0)
+            -- Out of the tunnel the real way, then overland west to Jorral (reach.py: REACH len=348).
+            leave_tunnel(t, "leaveCave")
+            t.exec("goto-talkToJorral", t.player.goto_tile, 2431, 3347, 0)
+            jorral_door(t, "talkToJorral.doorIn", true)
             t.exec("talkToJorral", t.player.talk_to, "makinghistory_jorral", 1)
             t.exec("talkToJorral-dialog", t.chat.play, {
                 "player:Translations",
@@ -160,6 +283,7 @@ return {
             t.ticks(2)
             t.expect("talkToJorral.transcript_gone", t.inv.expect_absent("slug2_transcript"))
             t.expect("quest.stage.got_transcript", t.quest.expect_stage("got_transcript"))
+            jorral_door(t, "talkToJorral.doorOut", false)
 
             t.exec("goto-talkToNiall3", t.player.goto_tile, 2739, 3309, 0)
             t.exec("talkToNiall3", t.player.talk_to, "slug2_oniall", 1)
@@ -186,12 +310,15 @@ return {
             })
             t.ticks(2)
 
-            t.exec("goto-searchMayorsDesk", t.player.goto_tile, 2709, 3292, 0)
+            t.exec("goto-searchMayorsDesk.door", t.player.goto_tile, 2715, 3291, 0)
+            hobb_door(t, "searchMayorsDesk.doorIn", true)
             t.exec("searchMayorsDesk", t.player.click_loc, "slug2_mayors_desk", 1)
             t.ticks(3)
             t.expect("searchMayorsDesk.page1", t.inv.expect_has("slug2_page1", 1))
+            hobb_door(t, "searchMayorsDesk.doorOut", false)
 
-            t.exec("goto-talkToLovecraft", t.player.goto_tile, 2734, 3289, 0)
+            t.exec("goto-talkToLovecraft.door", t.player.goto_tile, 2728, 3292, 0)
+            lovecraft_door(t, "talkToLovecraft.doorIn", true)
             t.exec("talkToLovecraft", t.player.talk_to, "slug2_lovecraft", 1)
             t.exec("talkToLovecraft-dialog", t.chat.play, {
                 "player:Brother Maledict said",
@@ -200,6 +327,7 @@ return {
             t.ticks(2)
             t.expect("talkToLovecraft.page2", t.inv.expect_has("slug2_page2", 1))
             t.expect("quest.stage.have_two_pages", t.quest.expect_stage("have_two_pages"))
+            lovecraft_door(t, "talkToLovecraft.doorOut", false)
 
             t.exec("goto-talkToNiall4", t.player.goto_tile, 2739, 3309, 0)
             t.exec("talkToNiall4", t.player.talk_to, "slug2_oniall", 1)
@@ -219,6 +347,8 @@ return {
                 "result=" .. tostring(paste_result) .. " " .. tostring(paste_detail))
             t.ticks(2)
             t.expect("useSwampPasteOnFragments.refused", t.inv.expect_has("slug2_page4a", 1))
+            local drop_result = t.player.drop("swamppaste")
+            t.check("dropSwampPaste", drop_result == "ok", "drop swamppaste -> " .. tostring(drop_result) .. " (the paste is refused and useless; backpack room)")
 
             local _, end_tile = t.world.tile()
             local _, stage = t.var.server("varb2610_slug2_main")
@@ -243,7 +373,8 @@ return {
             t.check("talkToJeb.platform", jeb_tile ~= nil and jeb_tile.x >= 2760,
                 "tile=" .. tostring(jeb_tile and (jeb_tile.x .. "," .. jeb_tile.z)))
 
-            t.exec("goto-talkToBailey", t.player.goto_tile, 2764, 3276, 0)
+            -- Bailey is in the room behind slug2_village_poordoor 2768,3276: in by the door, never a goto.
+            bailey_door(t, "talkToBailey.doorIn", true)
             t.exec("talkToBailey", t.player.talk_to, "bailey", 1)
             t.exec("talkToBailey-dialog", t.chat.play, {
                 "player:Sir Tiffy sent me",
@@ -350,13 +481,79 @@ return {
                 t.expect("useEmptyRunes.shape-" .. shape.name, t.inv.expect_has(shape.blank, 1))
                 t.check("useEmptyRunes.shape-" .. shape.name .. ".tries", true, attempts .. " chisel attempt(s)")
             end
-            for _, shape in ipairs(shapes) do
-                t.exec("goto-useEmptyRunes-" .. shape.name, t.player.goto_tile, shape.x, shape.z, 0)
+            -- Back to Witchaven in Jeb's boat (he has Holgart's; Transcript:Jeb "Fishing Platform").
+            bailey_door(t, "leavePlatform.doorOut", false)
+            t.exec("leavePlatform", t.player.talk_to, "slug2_holgart_jeb", 1)
+            t.exec("leavePlatform-dialog", t.chat.play, {
+                "player:Hey, Jeb.",
+                "npc:Business here is complete",
+                "choose:Okay, let's go back.",
+                "player:Okay, let's go back.",
+                "npc:Then board the rowing boat.",
+            })
+            local br, bd = t.await({
+                level = function()
+                    local r, tt = t.world.tile()
+                    return r == "ok" and tt.x < 2750
+                end,
+                note = "Jeb's boat to Witchaven",
+            }, 20)
+            t.ticks(2)
+            local _, shore = t.world.tile()
+            t.check("leavePlatform.shore", br == "ok" and shore ~= nil and shore.x == 2722 and shore.z == 3305 and shore.level == 0,
+                "after Jeb's boat -> " .. tostring(shore and (shore.x .. "," .. shore.z .. "," .. shore.level)) .. " (" .. tostring(br) .. " " .. tostring(bd) .. ")")
+            t.chat.continue_()
+            taverley_gate_out(t, "leavePlatform.memberGate")
+
+            -- Each blank is charged at its own altar, entered the runecraft way: the talisman used on the
+            -- mysterious ruins (runecraft.rs2 [oplocu,_rc_ruins]), the exit portal clicked to come back out.
+            -- near = the tile the portal sets you on (skill_runecraft runecraft.dbrow exit_coord).
+            local altar_trip = {
+                air = { ruin = "airtemple_ruined", talisman = "air_talisman", portal = "airtemple_exit_portal", x = 2983, z = 3288 },
+                water = { ruin = "watertemple_ruined", talisman = "water_talisman", portal = "watertemple_exit_portal", x = 3182, z = 3162 },
+                fire = { ruin = "firetemple_ruined", talisman = "fire_talisman", portal = "firetemple_exit_portal", x = 3310, z = 3252 },
+                earth = { ruin = "earthtemple_ruined", talisman = "earth_talisman", portal = "earthtemple_exit_portal", x = 3302, z = 3477 },
+                mind = { ruin = "mindtemple_ruined", talisman = "mind_talisman", portal = "mindtemple_exit_portal", x = 2980, z = 3511 },
+            }
+            local by_name = {}
+            for _, shape in ipairs(shapes) do by_name[shape.name] = shape end
+            for _, name in ipairs({ "air", "water", "fire", "earth", "mind" }) do
+                local shape, trip = by_name[name], altar_trip[name]
+                t.exec("goto-useEmptyRunes-" .. name, t.player.goto_tile, trip.x, trip.z, 0)
+                local ruin = t.player.by_symbol("loc", trip.ruin)
+                t.exec("enterAltar-" .. name, t.player.use_on, trip.talisman, ruin)
+                local ar, ad = t.await({
+                    level = function()
+                        local r, tt = t.world.tile()
+                        return r == "ok" and tt.z > 4000 and tt.z < 5000
+                    end,
+                    note = name .. " altar room entered",
+                }, 20)
+                t.ticks(3)
+                local er, et = t.world.tile()
+                t.check("enterAltar-" .. name .. ".inside", ar == "ok" and er == "ok" and et.z > 4000 and et.z < 5000,
+                    "after the talisman on the ruins -> " .. tostring(et and (et.x .. "," .. et.z .. "," .. et.level))
+                        .. " (" .. tostring(ar) .. " " .. tostring(ad) .. ")")
                 local altar = t.player.by_symbol("loc", shape.altar)
-                t.exec("useEmptyRunes-" .. shape.name, t.player.use_on, shape.blank, altar)
+                t.exec("useEmptyRunes-" .. name, t.player.use_on, shape.blank, altar)
                 t.ticks(2)
-                t.expect("useEmptyRunes-" .. shape.name .. ".charged", t.inv.expect_has(shape.rune, 1))
+                t.expect("useEmptyRunes-" .. name .. ".charged", t.inv.expect_has(shape.rune, 1))
+                local dr = t.player.drop(trip.talisman)
+                t.check("dropTalisman-" .. name, dr == "ok", "drop " .. trip.talisman .. " -> " .. tostring(dr) .. " (backpack room for the Slug Prince gear)")
+                t.exec("exitAltar-" .. name, t.player.click_loc, trip.portal, 1)
+                local xr, xd = t.await({
+                    level = function()
+                        local r, tt = t.world.tile()
+                        return r == "ok" and tt.z < 4000
+                    end,
+                    note = name .. " portal exit",
+                }, 20)
+                t.ticks(2)
+                local xr2, xt = t.world.tile()
+                t.check("exitAltar-" .. name .. ".outside", xr == "ok" and xr2 == "ok" and xt.z < 4000,
+                    "after the exit portal -> " .. tostring(xt and (xt.x .. "," .. xt.z .. "," .. xt.level)) .. " (" .. tostring(xr) .. " " .. tostring(xd) .. ")")
             end
+            t.player.drop("chisel")
 
             -- Gear for the Slug Prince (guide: melee weapon; only melee can hurt it), given here so the
             -- earlier legs' backpack stays small.
@@ -365,6 +562,11 @@ return {
             t.ticks(2)
             t.exec("equip-scimitar", t.player.equip, "rune_scimitar")
 
+            -- Back west through the members' wall (the mind ruin is north of Falador, beside the north gate).
+            t.exec("goto-enterDungeonAgain.gate", t.player.goto_tile, 2938, 3450, 0)
+            t.exec("enterDungeonAgain.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 },
+                near = { 2936, 3450 }, far_ok = function(tile) return tile.x <= 2935 end,
+                far_desc = "inside Taverley, x <= 2935" })
             t.exec("goto-enterDungeonAgain", t.player.goto_tile, 2697, 3283, 0)
             t.exec("enterDungeonAgain", t.player.click_loc, "slug2_ruin_entrance", 1)
             t.ticks(3)
@@ -375,8 +577,9 @@ return {
             t.exec("enterWallAgain", t.player.click_loc, "slug2_hidden_entrance", 1)
             t.ticks(4)
             local _, cave = t.world.tile()
-            t.check("enterWallAgain.cave", cave ~= nil and cave.x < 2400,
-                "tile=" .. tostring(cave and (cave.x .. "," .. cave.z .. "," .. cave.level)))
+            t.check("enterWallAgain.cave", cave ~= nil and cave.x == 2323 and cave.z == 5104,
+                "tile=" .. tostring(cave and (cave.x .. "," .. cave.z .. "," .. cave.level)) .. " (want the tunnel's west end 2323,5104)")
+            t.exec("goto-useEmptyRunesOnDoor", t.player.goto_tile, 2350, 5094, 0)
 
             for _, rune in ipairs({ "slug2_rune_air", "slug2_rune_water", "slug2_rune_earth", "slug2_rune_fire", "slug2_rune_mind" }) do
                 local door = t.player.by_symbol("loc", "slug2_cave_doors_closed")
@@ -390,12 +593,27 @@ return {
             t.ticks(3)
             t.exec("killSlugPrince.present", t.npc.await_present, "slug2_the_slug_prince", 12, 10)
             t.exec("killSlugPrince", t.player.attack, "slug2_the_slug_prince", 2, 20)
-            t.exec("killSlugPrince.dead", t.npc.await_dead_engaged, 600, 40, { eat = { item = "shark", below = 35 } })
+            local _, shark_before = t.inv.count("shark")
+            local _, kill_detail = t.exec("killSlugPrince.dead", t.npc.await_dead_engaged, 600, 40, { eat = { item = "shark", below = 35 } })
             t.ticks(10)
+            -- Margin row: lowest hp at least a quarter of max AND food left.
+            do
+                local lowest = tonumber(tostring(kill_detail):match("lowest hp (%d+)/"))
+                local _, hitpoints = t.skill.read("hitpoints")
+                local max_hp = type(hitpoints) == "table" and hitpoints.base_level or nil
+                local food_result, food_left = t.inv.count("shark")
+                t.check("killSlugPrince.margin", lowest ~= nil and max_hp ~= nil and food_result == "ok"
+                    and lowest * 4 >= max_hp and food_left >= 1,
+                    "lowest hp " .. tostring(lowest) .. "/" .. tostring(max_hp) .. ", sharks " .. tostring(shark_before)
+                        .. " -> " .. tostring(food_left) .. " (margin: lowest hp >= a quarter of max AND at least one shark left)")
+            end
             t.expect("quest.stage.prince_dead", t.quest.expect_stage("prince_dead"))
 
             -- reportBackToTiffy
-            t.exec("goto-reportBackToTiffy", t.player.goto_tile, 2997, 3373, 0)
+            -- Out of the tunnel the real way, then east through the members' gate to Sir Tiffy.
+            leave_tunnel(t, "leaveCaveAgain")
+            taverley_gate_out(t, "reportBackToTiffy.memberGate")
+            t.exec("goto-reportBackToTiffy", t.player.goto_tile, 2997, 3372, 0)
             local _, before = t.skill.snapshot()
             t.exec("reportBackToTiffy", t.player.talk_to, "rd_teleporter_guy", 1)
             t.exec("reportBackToTiffy-dialog", t.chat.play, {
