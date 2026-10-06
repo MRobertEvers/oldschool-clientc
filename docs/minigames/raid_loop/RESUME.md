@@ -204,6 +204,18 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
   library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
   pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
+  STATE 2026-10-06 09:50. ENTRY RELAY LANDED (w25 debbf5380, merged 56ae174c9): the whole raid
+  Entry solo end to end, 5 of 5 names on content 1c612cdfe3. CONTENT PASS LANDED (9998dec43,
+  content 525e8538a9: Verzik reds cycle from 60 Blert streams, salve amulet, br_ brews boost
+  Defence, overheal holds; Bloat flies and Sotetseg melee settled as not bugs). ON THE MERGED TREE
+  the relay is 2 of 3 (`build/mergerelay_entry.log`): `svaplayentry` fails at Sotetseg --
+  `sotetseg.potion` reads attack 96 after the brews' drain (the overheal now holds, so the raider
+  drinks differently and the name diverges), then `sotetseg.begin` finds no dialogue (the barrier
+  talk pressed while the plan was mid-drink): a PLAN robustness fault the new content exposed, not
+  a content regression. TO FIX in the next free lane: `_play_entry` Sotetseg entry waits for the
+  dose to land before the barrier talk (or re-talks), then `seed_survey.py _play_entry --names 5`.
+  LANES: raid = seam37 (launch service); raid25 = seam38 (p_stopaction, overheal decay, health
+  regen, scythe arc, salve accuracy); camera = seam35m (Normal Maiden rows, Nylocas supports).
   STATE 2026-10-06 09:05. Normal Verzik LANDED (camera lane e17f5f9db, merged 3134c8804): 5 of 5
   leaders, repeat AGREE, Dawnbringer shared by drop-and-take. Normal Xarpus LANDED (w25 e98866545,
   merged d29386f06). Normal green: Bloat, Sotetseg, Xarpus, Verzik. RUNNING: raid lane seam36 (the
