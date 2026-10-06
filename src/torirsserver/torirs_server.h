@@ -5496,6 +5496,18 @@ ToriRSServer_WorldTeleport(
     int abs_x,
     int abs_z);
 
+/** LostCity's `player.delayed`: a script of this player's own is parked on
+ *  `p_delay`/`p_arrivedelay` and has not resumed yet. While it holds, the
+ *  server refuses the held-item and inventory-button packets outright
+ *  (`player_delayed_blocks_packet`) -- the quest driver's
+ *  `api_drive.player_delayed` asks this so a crossing does not hand its
+ *  caller a player whose next item use is dropped. A dialogue wait is not a
+ *  delay. Returns 1 when delayed. */
+int
+ToriRSServer_PlayerDelayed(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player);
+
 /* ------------------------------------------------------------------ */
 /* World map (torirs_server_worldmap.c)                                      */
 /* ------------------------------------------------------------------ */

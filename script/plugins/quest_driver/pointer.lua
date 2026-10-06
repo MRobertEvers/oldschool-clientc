@@ -2929,6 +2929,42 @@ function QD.player._goto_here(x, z, level)
         string.format("%d,%d,%d", tile.x, tile.z, tile.level)
 end
 
+-- SEAM goto_arrival_before_the_move (b69) -- A DEPARTURE WITHIN RANGE OF THE
+-- TARGET ALREADY PASSED THE ARRIVAL TEST.
+--
+-- `_goto_here` is Chebyshev 1, so a goto onto a tile next to the one the
+-- player stands on was "arrived" on the attempt's first poll, before the
+-- teleport had landed: the row printed the OLD tile and the move landed
+-- under the next row.  Red Reef row 64 (build/quest_gate/redreef/ledger.tsv,
+-- b63): `goto-inspectCase2 at 2795,2522,0 from 2795,2522,0` for a target of
+-- 2794,2523, and the next row departed from 2794,2523.  The grader reads the
+-- landing off that detail, so the hop was judged from the wrong tile.
+--
+-- So when the departure is not the target itself, an attempt arrives only
+-- on the EXACT target, or on an in-range tile that is NOT the departure (the
+-- one-off landing the Chebyshev slack is for -- a WorldPoint taken off a
+-- wall).  `departure` nil (the read failed) or ON the target leaves the plain
+-- range test.  A teleport that genuinely keeps the player on the departure
+-- tile (it was the nearest the world accepts) is still taken, by the plain
+-- test after the attempt's whole budget -- slow, never wrong.
+function QD.player._goto_arrived(x, z, level, departure)
+    local result, tile = QD.world.tile()
+    if result ~= "ok" or not tile or tile.level ~= level then
+        return false
+    end
+    if tile.x == x and tile.z == z then
+        return true
+    end
+    if QD.player._tile_distance(tile.x, tile.z, x, z) > QD.player._goto_range then
+        return false
+    end
+    if departure == nil or departure.level ~= level
+        or (departure.x == x and departure.z == z) then
+        return true
+    end
+    return tile.x ~= departure.x or tile.z ~= departure.z
+end
+
 -- Fire the teleport once: (how, result, detail).
 --
 -- `how` is handed back and handed in again because THE FALLBACK IS CHOSEN
@@ -2983,10 +3019,12 @@ function QD.player.goto_tile(x, z, level, ticks, attempts)
     -- written `from ?`, which the grader does not take for a tile; it then
     -- falls back to the reading before the row, as it did before this seam.
     local departure = "?"
+    local departure_tile = nil
     local depart_result, depart_tile = QD.world.tile()
     if depart_result == "ok" and depart_tile then
         departure = string.format("%d,%d,%d",
             depart_tile.x, depart_tile.z, depart_tile.level)
+        departure_tile = depart_tile
     end
     -- One line per attempt that did not hold: where the player was when it
     -- gave up and what the server had just said.  The last line is read PER
@@ -3009,12 +3047,21 @@ function QD.player.goto_tile(x, z, level, ticks, attempts)
                 tried, attempts)
         end
 
+        -- The move, not the range: see QD.player._goto_arrived.  A budget
+        -- spent with the player still on an in-range departure tile is the
+        -- teleport keeping him there -- taken below by the plain test.
         local arrived = QD.await({
             level = function()
-                return (QD.player._goto_here(x, z, level))
+                return QD.player._goto_arrived(x, z, level, departure_tile)
             end,
             note = "goto_tile attempt " .. tostring(tried),
         }, ticks)
+        if arrived ~= "ok" and QD.player._goto_here(x, z, level) then
+            arrived = "ok"
+            account[#account + 1] = string.format(
+                "attempt %d: never left the departure %s, which is within %d of the target",
+                tried, departure, QD.player._goto_range)
+        end
 
         if arrived == "ok" then
             -- THE SCENE IS ONE TICK BEHIND THE TILE, and a verb that returns
@@ -3086,6 +3133,9 @@ function QD.player.goto_tile(x, z, level, ticks, attempts)
     if tried > 1 then
         return "ok", string.format("at %s from %s on attempt %d of %d via %s -- %s",
             where, departure, tried, attempts, how, table.concat(account, "; "))
+    end
+    if #account > 0 then
+        return "ok", "at " .. where .. " from " .. departure .. " -- " .. table.concat(account, "; ")
     end
     return "ok", "at " .. where .. " from " .. departure
 end

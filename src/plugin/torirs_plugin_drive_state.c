@@ -776,6 +776,50 @@ lua_drive_vessel(struct lua_State* L)
     return 2;
 }
 
+/*
+ * api_drive.player_delayed() -> ("ok", { delayed, delay_ticks, tick })
+ *
+ * The SERVER's answer to "is the player held?" -- ToriRSServer_PlayerDelayed,
+ * the predicate the server itself refuses OPHELD1-5, OPHELDU and INV_BUTTON on
+ * (torirs_server_world.c player_delayed_blocks_packet).  The client cannot
+ * see it: an agility crossing p_teleports onto its landing and THEN
+ * p_delay(2)s (shortcuts_karamja_river.rs2 [oploc1,zq_logbalance]), so the
+ * tile the driver grades a crossing on reads "landed" for two ticks in which
+ * every item use is dropped -- tbwt getPoisonKarambwan-load1 "nothing in 10
+ * ticks" (build/orchestrator/fix_b69/tbwt.progress.md, probes 7/8).
+ * QD.player._await_free waits on this after a crossing or a climb lands.
+ *
+ * `delay_ticks` is how many ticks the p_delay still has to run (0 when the
+ * count is spent and only the parked script's resume is left -- the
+ * predicate's second half).  A socket run answers `unsupported`, nobody
+ * logged in answers `not_found`.
+ */
+static int
+lua_drive_player_delayed(struct lua_State* L)
+{
+    struct ToriRSServer* srv;
+    struct ToriRSServerPlayer const* player;
+    int delay_ticks;
+
+    srv = PluginDrive_EmbedWorld();
+    if( !srv )
+        return PluginDrive_PushResult(L, DRIVE_UNSUPPORTED, NULL);
+    player = srv->active_player;
+    if( !player )
+        return PluginDrive_PushResult(L, DRIVE_NOT_FOUND, NULL);
+
+    delay_ticks = player->delayed_until - srv->tick;
+    if( delay_ticks < 0 )
+        delay_ticks = 0;
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_createtable(L, 0, 3);
+    lua_pushboolean(L, ToriRSServer_PlayerDelayed(srv, player) != 0);
+    lua_setfield(L, -2, "delayed");
+    drive_state_set_int(L, "delay_ticks", delay_ticks);
+    drive_state_set_int(L, "tick", srv->tick);
+    return 2;
+}
+
 static struct LuaFn const LUA_DRIVE_STATE_FNS[] = {
     {"varp", lua_drive_varp},
     {"varbit", lua_drive_varbit},
@@ -791,6 +835,7 @@ static struct LuaFn const LUA_DRIVE_STATE_FNS[] = {
     {"messages", lua_drive_messages},
     {"message_serial", lua_drive_message_serial},
     {"vessel", lua_drive_vessel},
+    {"player_delayed", lua_drive_player_delayed},
     {NULL, NULL},
 };
 

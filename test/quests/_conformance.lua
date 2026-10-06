@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 126
+-- @seam-count 128
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 186
-local SEAM_COUNT = 126
+local SEAM_COUNT = 128
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -2742,6 +2742,59 @@ return {
             end
             return "ok", "arrival predicate exact; an unreachable plane accounts for "
                 .. "3 attempt(s) with the server's line on each; " .. table.concat(said, "; ")
+        end)
+
+        -- SEAM goto_arrival_before_the_move (b69).  The arrival test is
+        -- Chebyshev 1, so a goto onto a tile NEXT TO the departure passed it
+        -- on the first poll, before the teleport landed: Red Reef row 64 read
+        -- `goto-inspectCase2 at 2795,2522,0 from 2795,2522,0` for a target of
+        -- 2794,2523, and the move landed under the next row
+        -- (build/quest_gate/redreef/ledger.tsv, b63).  The verb now waits for
+        -- the exact target or an in-range tile that is not the departure
+        -- (QD.player._goto_arrived).  Graded: the predicate refuses the
+        -- departure for an adjacent target and takes the exact one; a live
+        -- goto one diagonal step away answers `at <target> from <departure>`
+        -- and world.tile reads the target exactly; a goto onto the tile the
+        -- player already stands on still answers ok.
+        seam("seam.goto_tile_waits_for_the_move", function()
+            local fn = verb("player", "goto_tile")
+            local arrived = verb("player", "_goto_arrived")
+            local tile_of = verb("world", "tile")
+            if not fn then return missing("player", "goto_tile") end
+            if not arrived then return missing("player", "_goto_arrived") end
+            if not tile_of then return missing("world", "tile") end
+            local read, start = tile_of()
+            if read ~= "ok" or not is_table(start) then
+                return read, "no departure tile: " .. describe(start)
+            end
+            local to_x, to_z, level = start.x + 1, start.z + 1, start.level
+            local from = start.x .. "," .. start.z .. "," .. level
+            local target = to_x .. "," .. to_z .. "," .. level
+            if arrived(to_x, to_z, level, start) then
+                return "hollow", "player._goto_arrived calls the departure " .. from
+                    .. " an arrival at the adjacent " .. target .. " -- the goto would answer before it moved"
+            end
+            if not arrived(start.x, start.z, level, start) then
+                return "hollow", "player._goto_arrived refuses the exact tile the player stands on (" .. from .. ")"
+            end
+            local result, detail = fn(to_x, to_z, level)
+            local text = target .. " -> " .. describe(result) .. " " .. tostring(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if string.find(tostring(detail), "at " .. target .. " from " .. from, 1, true) ~= 1 then
+                return "hollow", text .. " -- want the detail to open `at " .. target .. " from " .. from .. "`"
+            end
+            local at_result, at = tile_of()
+            if at_result ~= "ok" or not is_table(at) or at.x ~= to_x or at.z ~= to_z or at.level ~= level then
+                return "hollow", text .. " -- answered ok but world.tile reads " .. describe(at)
+            end
+            local same_result, same_detail = fn(to_x, to_z, level)
+            text = text .. " | onto itself -> " .. describe(same_result) .. " " .. tostring(same_detail)
+            if same_result ~= "ok" then
+                return "hollow", text .. " -- a goto onto the tile the player stands on must answer ok"
+            end
+            return "ok", text
         end)
 
 
@@ -12276,6 +12329,73 @@ return {
                 return "hollow", text .. " -- the second call must read nothing armed"
             end
             return "ok", text
+        end)
+
+        -- SEAM crossing_returns_inside_its_p_delay (b69).  A clean
+        -- zq_logbalance crossing p_teleports onto the far end and THEN
+        -- p_delay(2)s (shortcuts_karamja_river.rs2 [oploc1,zq_logbalance]);
+        -- cross_trap returned on the landing tile, and an item use pressed on
+        -- the next row reached a server that refuses OPHELDU while the player
+        -- is delayed -- tbwt getPoisonKarambwan-load1 "nothing in 10 ticks"
+        -- (build/orchestrator/fix_b69/tbwt.progress.md, probes 7/8).  The
+        -- crossing now waits out the hold (QD.player._await_free on
+        -- api_drive.player_delayed).  Agility 99 makes the roll clean
+        -- (stat_random(agility, 90, 250)); graded on the server reading free
+        -- the moment cross_trap returns and on a use_item_on_item pressed
+        -- straight after it LANDING (the crushed garlic in the pack).
+        seam("seam.cross_trap_waits_out_the_landing_delay", function()
+            local goto_tile = verb("player", "goto_tile")
+            local cross = verb("player", "cross_trap")
+            local free = verb("player", "_await_free")
+            local use = verb("player", "use_item_on_item")
+            local count = verb("inv", "count")
+            local read = verb("skill", "read")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not cross then return missing("player", "cross_trap") end
+            if not free then return missing("player", "_await_free") end
+            if not use then return missing("player", "use_item_on_item") end
+            if not count then return missing("inv", "count") end
+            if not read then return missing("skill", "read") end
+            local agility_result, agility = read("agility")
+            local agility_base = (agility_result == "ok" and is_table(agility)) and agility.base_level or nil
+            if agility_base == nil then
+                return "no_subject", "skill.read agility -> " .. describe(agility_result)
+            end
+            local function leave(result, text)
+                setup_cheat("::setlevel agility " .. agility_base)
+                setup_cheat("::tele lumbridge")
+                settle(4)
+                return result, text
+            end
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel agility 99")
+            setup_cheat("::give " .. USE_ITEM_HELD .. " 1")
+            setup_cheat("::give " .. USE_ITEM_TARGET .. " 1")
+            settle(2)
+            local goto_result, goto_detail = goto_tile(2906, 3049, 0)
+            if goto_result ~= "ok" then
+                return leave("no_subject", "goto 2906,3049,0 -> " .. describe(goto_result) .. " " .. describe(goto_detail))
+            end
+            local result, detail = cross({ loc = "zq_logbalance", op_name = "Cross", at = { 2907, 3049, 0 },
+                loc_level = 1, src = { 2906, 3049 }, dest = { 2910, 3049 }, attempts = 1 })
+            local text = "cross_trap -> " .. describe(result) .. " " .. tostring(detail)
+            if result ~= "ok" then
+                return leave("no_subject", text .. " -- no clean crossing to time the use against")
+            end
+            local free_now, free_text = free("conformance")
+            if free_now ~= true or free_text ~= "" then
+                return leave("hollow", text .. " -- cross_trap returned with the server still holding the player: "
+                    .. describe(free_now) .. tostring(free_text))
+            end
+            local use_result, use_detail = use(USE_ITEM_HELD, USE_ITEM_TARGET)
+            text = text .. " | use " .. USE_ITEM_HELD .. " on " .. USE_ITEM_TARGET .. " -> "
+                .. describe(use_result) .. " " .. tostring(use_detail)
+            local _, made = count(USE_ITEM_MADE)
+            if use_result ~= "ok" or not is_number(made) or made < 1 then
+                return leave("hollow", text .. " -- the use pressed right after the crossing did not land ("
+                    .. USE_ITEM_MADE .. " " .. describe(made) .. ")")
+            end
+            return leave("ok", text .. " [" .. USE_ITEM_MADE .. " " .. describe(made) .. "]")
         end)
 
         -- THE CAST FIGHT ENDS WITH NOTHING ARMED.  Two places leave a spell
