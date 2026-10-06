@@ -234,11 +234,18 @@ function QD.raid._play_xarpus_decide(st, v)
         end
         return true
     end
-    local function nearest_edge(allow, prefer)
+    -- raid seam35e play_tob_entry_relay: `loose` drops the route test.  The
+    -- relay's svdplayentry ran a P2 of 95 ticks (the room test's is 61): in
+    -- P3 every clean melee tile of a quadrant he was not watching lay behind
+    -- a pool on both route shapes, nearest_edge answered nil on every tick,
+    -- and the raider stood still for 700 ticks with Xarpus at 22 percent.
+    -- P3 asks loose only after the strict answer is nil, so a room where a
+    -- clean route exists plays exactly as before.
+    local function nearest_edge(allow, prefer, loose)
         local bt, bd = nil, nil
         for x = BX0 - 1, BX1 + 1 do
             for z = BZ0 - 1, BZ1 + 1 do
-                if edge(x, z) and clean(x, z) and route_ok(x, z) then
+                if edge(x, z) and clean(x, z) and (loose or route_ok(x, z)) then
                     local q = QD.raid._xarpus_quadrant(cx, cz, x, z)
                     if allow(q) then
                         local d = math.max(math.abs(x - v.me.x), math.abs(z - v.me.z)) * 10 + ((prefer ~= nil and q ~= prefer) and 5 or 0)
@@ -388,7 +395,18 @@ function QD.raid._play_xarpus_decide(st, v)
         intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, threat)
         -- no bite on the tick before a dodge: the dodge's step must be the
         -- tick's move (tob_xarpus.lua :946 counts a dodge late after an eat)
-        if v.tick >= S - 2 then intent.eat = nil end
+        -- raid seam35e play_tob_entry_relay: ONLY the dodge's own tick.  X.next_spit
+        -- is kept at tick-1 or later (the catch-up above), so with the 4-tick
+        -- cadence `v.tick >= S - 2` held on every tick, and this branch runs
+        -- once a cycle (the dodge's two steps and the swing press take the
+        -- ticks between), on S itself: P2 never ate.  The relay's Xarpus (a P2
+        -- past the room test's 61 ticks, the arena full of acid) chose the
+        -- bandage at 24, 13 and 2 hitpoints and sent only the brew (supply
+        -- trace, the relay's tenth run) and died with ten bandages.  The step
+        -- is its own tick (the S-1 branch above returns before this line), so
+        -- a bite here never displaces it.  The room test never drops to the
+        -- eat line (food 0 on every kept name), so it plays as before.
+        if v.tick == S - 1 then intent.eat = nil end
         intent.attack = QD.raid._play_attack(st, v, intent.attack)
         return intent
     end
@@ -429,7 +447,7 @@ function QD.raid._play_xarpus_decide(st, v)
         -- be moving to where he last looked if possible", W:853: the quadrant
         -- he looked at last is preferred)
         local prev = (#X.turns >= 2) and X.turns[#X.turns - 1].q or nil
-        target = nearest_edge(allowed, prev)
+        target = nearest_edge(allowed, prev) or nearest_edge(allowed, prev, true)
         X.moves3 = X.moves3 + 1
         if target == nil then
             -- no clean melee tile is reachable around him this tick: never
@@ -445,7 +463,7 @@ function QD.raid._play_xarpus_decide(st, v)
         else
             -- back onto a clean melee tile of this quadrant (or another he
             -- is not looking at) before the press
-            target = nearest_edge(allowed, myq)
+            target = nearest_edge(allowed, myq) or nearest_edge(allowed, myq, true)
         end
     elseif st.engaged then
         -- stop: "click on the ground to stop attacking" (E:212) -- one tile

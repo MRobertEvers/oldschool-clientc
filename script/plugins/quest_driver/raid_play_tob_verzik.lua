@@ -758,9 +758,18 @@ function QD.raid._play_verzik_decide(st, v)
         local function bolt_lands(h)
             local n = 0
             if vz.W ~= nil then
+                -- raid seam35e play_tob_entry_relay: counted at the LAUNCH, not
+                -- the landing.  The bolt's damage and its lethal verdict are
+                -- settled on the launch tick against the hitpoints then
+                -- (tob_verzik.rs2 ~tob_verzik_p1_attack: "NOT tick-eatable: the
+                -- verdict is settled here, on the launch tick"), so a bite
+                -- timed for the landing is three ticks late: the relay's
+                -- svdplayentry stood at 10 hitpoints through a launch, ate on
+                -- it, and the bolt killed him (a P1 of 107 ticks; the room
+                -- test's ends near 98 with the food never needed).
                 for k = 0, 3 do
-                    local land = vz.W + k * P.p1_cadence + P.p1_launch + P.p1_flight
-                    if land > v.tick and land <= v.tick + h then n = n + 1 end
+                    local verdict = vz.W + k * P.p1_cadence + P.p1_launch
+                    if verdict > v.tick and verdict <= v.tick + h then n = n + 1 end
                 end
             end
             return n
@@ -1252,7 +1261,17 @@ function QD.raid._play_verzik_decide(st, v)
             if best ~= nil then go(bx, bz) vz.spreads = (vz.spreads or 0) + 1 end
         end
         if intent.walk == nil and pool == nil then crab = QD.raid._verzik_crabs(st, v, ok, go) end
-        if intent.walk == nil then
+        -- raid seam35e play_tob_entry_relay: no attack press from the pool in
+        -- the blast's last ticks.  The bow's press paths to its own range and
+        -- sight line, and from the pool at 6428,207 that path was 6428,209: on
+        -- every swing the raider stepped off and the plan walked him back, and
+        -- the blast (judged on the tile of T-1, ET 1.1) found him off it (the
+        -- relay's own name, P3, 44 taken at 44 hitpoints).  Standing still on
+        -- it for the window keeps him on it; outside the window nothing changes.
+        local blast_close = pool ~= nil and on_pool and vz.pool_first ~= nil and v.tick >= vz.pool_first + P.pool_life - 4
+        if intent.walk == nil and blast_close then
+            intent.attack = false
+        elseif intent.walk == nil then
             if webbed then
                 if vz.target_slot ~= webbed.row.slot then QD.raid._verzik_press_add(st, v, webbed) end
             elseif crab ~= nil then

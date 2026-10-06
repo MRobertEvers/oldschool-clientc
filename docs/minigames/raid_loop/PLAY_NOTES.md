@@ -719,8 +719,85 @@ the hit"); 0-1 per room.
 P1 still costs 124-157 ticks against the wiki's "before the second pillar collapses" (W:885).
 Members do not see their own swings, so a member's out-window can still waste a swing. The client's
 tornado row standing still is the Entry section's open row (1).
+## The whole raid, Entry solo (`_play_entry`), proved (raid seam35e play_tob_entry_relay)
+
+`test/raids/_play_entry.lua` plays the Theatre end to end as a player does. It walks to the
+notice board in Ver Sinhaza, forms an Entry party of one (`t.party.form`) and takes the door's
+ready check (`t.party.ready`). It never calls `t.raid.enter`. Each room is its own harness's
+pre-fight (the barrier, the prayer, the loadout, re-based on the room square it arrives in)
+and then ONE `t.raid.play`. After each room it turns the prayers off and walks out: the
+cleared barrier is a gate, and the passage is `tob_dungeon_walkway_exit_clickbox`
+(`tob_dungeon_xarpus_arena_door_exit` at Xarpus). It takes the supply chest after Bloat and
+after Sotetseg, the Dawnbringer from the skeleton after Xarpus, Verzik's trapdoor into the
+reward room, and that room's chest.
+
+| Line | Rule | Source |
+|---|---|---|
+| Kit | Gear for all three styles, Ancient Magicks, a venom source, at least 6 brews and a restore per three brews, the rest food. The weapons and switch sets are the ones each plan names. ONE ranged armour set (the Maiden plan's `ranged_set`) is worn throughout. Insulated boots (`slayer_boots`) are worn from the start. Supplies are 6 brews and 6 restores, no fish. | E:24-31, E:94; raid_play_tob_<room>.lua loadouts |
+| Six restores, not two | This content's bandages restore no prayer (CONTENT_BUGS "From seam13": open, the item page gives no figure), so prayer is the budget. Over the first four rooms the run drank 16 restore doses: Maiden 7, Bloat 1, Nylocas 6, Sotetseg 2. | measured, the relay's fourth run |
+| Spent switches dropped | After Maiden: the magic set, the arcane and the blood runes. After the Nylocas: the shortbow, the staff, the whip and the chaos, water and death runes. The chest gives only as many bandages as fit: 4 with nothing dropped, 6 after Bloat with the drop, 10 after Sotetseg. | E:151 "always contain 10 bandages"; measured |
+| Super combat | One dose before Bloat, one before Sotetseg, one before Xarpus. | E:33 |
+| Prayers off after each kill | A plan lights what its room needs and never turns it off. Bloat's Piety drained through the corridor and the whole Nylocas (76 at the mark, 0 by t950), and Vasilias was fought unprayed. | the relay's second run |
+| Way out | Maiden: her entry barrier, then the passage. Bloat: the west barrier at local x 23 (pressed only while still east of it: a second press stepped one name back into the arena), the corridor, the chest. Nylocas: back through her entry barrier, then up the walkway to (38,51); from the platform a support covers the clickbox. Sotetseg: barrier, chest, passage. Xarpus: the north gate (34,43), the skeleton, the door. A covered click falls back to walking into the passage, which the content treats as the same thing (tob_raid.rs2 `~tob_exit_walked`). | tob_party.rs2 "The way out"; tob_raid.rs2 |
+
+**Measured** (`seed_survey.py _play_entry --names 5`: 5 of 5; the KEPT survey, `--names 3`:
+3 of 3). Per room, own name / sva / svb: ticks from the barrier to the death; damage taken; what
+was used (brew and restore doses, bandages).
+
+| Room | Ticks | Taken | Used |
+|---|---|---|---|
+| Maiden | 241 / 263 / 280 | 180 / 191 / 221 | 8-9 brew, 5-7 restore |
+| Bloat | 190 / 188 / 187 | 106 / 65 / 81 | 2-4 brew, 1 restore, 1 combat; chest 6 |
+| Nylocas | 670 / 721 / 708 | 168 / 193 / 180 | 6 bandages, 4-6 brew, 5-6 restore |
+| Sotetseg | 208 / 239 / 228 | 59 / 94 / 84 | 0-1 brew, 2-3 restore, 1 combat; chest 10 |
+| Xarpus | 230 / 224 / 176 | 162 / 168 / 17 | 0-5 bandages, 0-1 restore, 1 combat |
+| Verzik | 428 / 272 / 376 | 258 / 98 / 272 | 2-8 bandages, 1-6 brew, 4-6 restore |
+| Raid | 2291 / 2253 / 2304 ticks, lobby door to Verzik's death | | left: 0-8 brew doses, 1-5 restore doses, 0-3 bandages |
+
+The in-game line reads "Theatre of Blood completion time: 19:26-20:02". The Entry Mode page
+gives no typical time. The own name ends with 0 brew doses and 2 restore doses left, so the
+margin is thin.
+
+**What failed inside the relay and no room test showed.** Each was fixed where it lives:
+
+1. **Maiden's solo plan used absolute tiles** (raid_play_tob_maiden.lua). The floor and home
+   were written in the room test's instance (6426,92). The door builds her in the next free
+   instance (6426,156), so every dodge tile was 64 rows away and the raider died in her blood
+   at t158. The solo plan now re-bases on her body tile, as a party already did. The offset is
+   0 in the room test.
+2. **Bandages were not food to the library** (raid_play.lua `QD.RAID_PLAY_FOOD`). The relay's
+   Xarpus died at 14 hitpoints with ten in the pack. They are now the table's last row (heal 20;
+   E:151, tob_spectate.rs2).
+3. **Xarpus P2 never ate** (raid_play_tob_xarpus.lua). The "no bite before a dodge" gate was
+   `v.tick >= S - 2`, and the catch-up keeps `S >= tick - 1`, so the gate was always true. The
+   branch also runs once per cycle, on S. A supply trace showed the bandage chosen at 24, 13 and
+   2 hitpoints and dropped each time. Only the dodge's own tick (S-1) is gated now.
+4. **Xarpus P3 stalled** (same file). After a 95-tick P2 every clean melee tile lay behind a
+   pool on both route shapes, `nearest_edge` returned nil, and the raider stood still for 700
+   ticks. P3 now retries without the route test, and only when the strict answer is nil.
+5. **The first `_play_see` counted earlier rooms' swings** (raid_play.lua `_play_state`). A
+   room test's tick log starts at its room; the relay's starts in the lobby. Verzik's first read
+   took the 60 scythe swings from earlier rooms as punches and swapped to the bow fifteen ticks
+   in. `st.anim_serial` now starts at the newest `player_anim` row.
+6. **Verzik's P1 bolt is settled at its launch** (raid_play_tob_verzik.lua). "NOT tick-eatable:
+   the verdict is settled here, on the launch tick" (tob_verzik.rs2). The plan counted
+   landings, ate on the launch tick at 10 hitpoints, and died. `bolt_lands` now counts launches.
+7. **Verzik's P3 yellow pool** (same file). The bow's press paths to its own range: from the
+   pool at 6428,207 that meant 6428,209, so the raider left the pool on every swing, and the
+   blast (judged on T-1) found him off it. No press is made from the pool in the last 4 ticks of
+   its life.
+
+Each plan change was re-proved on its kept harness (`seed_survey --names 5`: _play_maiden,
+_play_xarpus, _play_verzik, _play_smoke, _play_nylocas, _play_sotetseg all 5 of 5 solo;
+_play_xarpus, _play_bloat, _play_sotetseg `--party 3` 5 of 5).
 
 ## Open rows (found is not fixed)
+
+- **The whole-raid relay's supply margin is thin** (raid seam35e). Under the own name the
+  relay ends with 0 brew doses and 2 restore doses. Prayer is the budget because the content's
+  bandages restore no prayer (CONTENT_BUGS "From seam13", open with no figure). Once that is
+  sourced and modelled, the relay's six restores can go back to the Entry page's ratio (E:30).
+  The Bloat chest gives 6 of its 10, because only 6 slots are free after the Maiden drop.
 
 - **A hand still lands on a pathed tile in the Normal trio** (seam29). CAUSE FOUND (raid seam32):
   the Bloat plan's tank box was one column west (local x 28..33; the tick logs say 29..34), so

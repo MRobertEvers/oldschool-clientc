@@ -520,3 +520,25 @@ the PLAY_NOTES.md rows to match. Its test is never a private loop. The kept room
 predate this rule (tob_*.lua) are re-authored onto the library in the re-author pass.
 `t.raid.play` answers `unsupported` for a plan with no decide function (Maiden, Nylocas,
 Sotetseg, Xarpus and Verzik today: each part names the seam30 row that writes it).
+
+## The whole raid: `_play_entry` (raid seam35e)
+
+`test/raids/_play_entry.lua` plays the whole Theatre of Blood: Entry Mode, one raider, ONE
+raid's supplies. It enters as a player does: `t.player.goto_tile` to the notice board,
+`t.party.form("entry")`, then `t.party.ready()` at the door. It never calls `t.raid.enter`
+or a `::tob*` room cheat. The only readers are `t.raid.state` (`::tobstate`) and the tick log.
+Each room is its harness's pre-fight plus one `t.raid.play`. After each room the prayers go
+off and the player walks out through the room's own way out (the gate, the corridor, the
+supply chest after Bloat and Sotetseg, the passage). The Dawnbringer comes from the skeleton
+after Xarpus. The run ends with Verzik's trapdoor and the reward chest. Rows: per room,
+`<room>.complete_line` and `<room>.measure` (ticks, damage taken, supplies used); then
+`raid.reward_room`, `raid.complete`, `raid.supplies_left` and `raid.measure`. A death ends
+the run (`player.died`).
+
+```sh
+python3 tools/raid_gate/run.py _play_entry --no-publish          # one name, ~25 s on the virtual clock
+python3 tools/raid_gate/seed_survey.py _play_entry --names 3     # KEPT bar (5 later)
+```
+
+Kit, the drop rule, the measured table and the seven relay-only faults it found are in
+`docs/minigames/raid_loop/PLAY_NOTES.md` "The whole raid, Entry solo".

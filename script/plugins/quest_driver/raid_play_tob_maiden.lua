@@ -701,8 +701,16 @@ function QD.raid._play_maiden_decide(st, v)
         local R = st.party > 1 and P.roles[st.role] or nil
         m.role = R and R.name or "solo"
         m.R = R
-        m.ox = R and (b.x - P.body[1]) or 0
-        m.oz = R and (b.z - P.body[2]) or 0
+        -- raid seam35e play_tob_entry_relay: the solo plan re-bases too.  Its
+        -- tiles were written in the room test's instance (::tobmode lands
+        -- Maiden at 6426,92); the Theatre entered by its door builds her in
+        -- the next free instance (6426,156 on the relay's first run, where
+        -- the absolute floor put every dodge tile 64 rows away and the
+        -- raider stood in her blood until it killed him at t158).  In the
+        -- room test her tile IS P.body, so the offset there is 0 and the
+        -- kept rooms play exactly as before.
+        m.ox = b.x - P.body[1]
+        m.oz = b.z - P.body[2]
         m.body_seen = { x = b.x, z = b.z, tick = v.tick }
         m.crab_track, m.crab_cast, m.crab_frozen = {}, {}, {}
     end
@@ -735,7 +743,7 @@ function QD.raid._play_maiden_decide(st, v)
             end
         end
     end
-    local home = R and { R.home[1] + ox, R.home[2] + oz } or P.home
+    local home = R and { R.home[1] + ox, R.home[2] + oz } or { P.home[1] + ox, P.home[2] + oz }
     local reach_x = P.reach_x + ox
     local freezer = R == nil or R.freezer
     local function cheb(ax, az, bx, bz) return math.max(math.abs(ax - bx), math.abs(az - bz)) end
