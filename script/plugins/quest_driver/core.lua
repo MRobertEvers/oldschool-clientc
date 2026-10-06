@@ -1248,30 +1248,17 @@ function QD.core_run_test(loader, options)
             .. ", not a table of cheat lines")
     end
     core_run_test_settle_shot()
-    local out_result, out_detail = QD.session.logout()
-    if out_result ~= "ok" then
-        QD.step("watch.account", "FAIL", "logging the watcher's account out answered "
-            .. tostring(out_result) .. ": " .. tostring(out_detail))
+    -- The starting state the tab chose (raid seam25): reset (::resetcharacter
+    -- on the live character, optionally a fixture in place), fresh (seam24's
+    -- new account: logout, forget varps, login) or as_is.  session.lua
+    -- QD.session._start owns all three; nil start is "fresh".
+    local start_result, start_detail = QD.session._start(options)
+    if start_result ~= "ok" then
+        QD.step("watch.start", "FAIL", tostring(start_detail))
         QD.finish(1)
         return
     end
-    -- The client's varps outlive the logout (torirs_plugin_drive.c
-    -- lua_drive_forget_varps says what that broke); forget them before the
-    -- fresh account's arrive, as a fresh process would have none.
-    local forget_result, forget_detail = api_drive.forget_varps()
-    if forget_result ~= "ok" then
-        QD.step("watch.account", "FAIL", "forgetting the last account's varps answered "
-            .. tostring(forget_result) .. ": " .. tostring(forget_detail))
-        QD.finish(1)
-        return
-    end
-    local in_result, in_detail = QD.session.login(options.account, options.password)
-    if in_result ~= "ok" then
-        QD.step("watch.account", "FAIL", "logging in as the fresh account " .. tostring(options.account)
-            .. " answered " .. tostring(in_result) .. ": " .. tostring(in_detail))
-        QD.finish(1)
-        return
-    end
+    QD.step("watch.start", "PASS", tostring(start_detail))
     -- The camera as the first Play found it (torirs_plugin_drive.c
     -- g_demand_camera_*): the last test's camera verbs and a logout leave the
     -- pose where they put it, and a fresh process would start from the
@@ -1290,6 +1277,6 @@ function QD.core_run_test(loader, options)
     end
     api_drive.report(string.format("watch: camera %s; %s (%s) on %s: %s; %s", tostring(camera_result),
         tostring(options.id),
-        tostring(options.suite), tostring(options.account), tostring(out_detail), tostring(in_detail)))
+        tostring(options.suite), tostring(options.account), tostring(options.start or "fresh"), tostring(start_detail)))
     return core_run_test_wrapped(quest_setup, QUEST.run)(QD)
 end

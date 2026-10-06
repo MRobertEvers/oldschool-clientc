@@ -47,6 +47,19 @@ local SUITES = {
 }
 local SUITE_ORDER = { quest = 1, raid = 2 }
 
+-- Raid seam25: where a Play starts from (the owner, 2026-10-05: "The script
+-- runner should also specify a starting character state, such as 'reset
+-- character' - clear inventory, clear worn items, clear effects").  Reset is
+-- the default; a manifest row may name its own (`start=reset|fresh|as_is`),
+-- which the select shows and the owner can still change before Play.
+local STARTS = {
+    { value = "reset", label = "Reset character" },
+    { value = "fresh", label = "Fresh character" },
+    { value = "as_is", label = "As it is" },
+}
+local START_LABEL = { reset = "Reset character", fresh = "Fresh character", as_is = "As it is" }
+local start_choice = "reset"
+
 -- The manifest, as parsed: array of {id, suite, title, source, fixture, legs,
 -- party, max_frames, available, reason}, sorted by suite then id.
 local scripts = {}
@@ -87,7 +100,7 @@ local function parse_manifest(text)
             local section = stripped:match("^%[test:(.+)%]$")
             if section then
                 current = { id = section, suite = "", title = "", source = "", fixture = "",
-                    legs = 0, party = 1, max_frames = 0, available = false, reason = "" }
+                    legs = 0, party = 1, max_frames = 0, available = false, reason = "", start = "" }
                 parsed[#parsed + 1] = current
             elseif stripped:sub(1, 1) == "[" then
                 current = nil
@@ -251,8 +264,8 @@ local function status_view(api)
         view.driver = "idle"
     end
     if status.play and status.id ~= "" then
-        view.test = string.format("%s %s on %s", status.suite ~= "" and status.suite or "test", status.id,
-            status.account ~= "" and status.account or "?")
+        view.test = string.format("%s %s on %s, start %s", status.suite ~= "" and status.suite or "test",
+            status.id, status.account ~= "" and status.account or "?", status.start or "fresh")
         if status.legs and status.legs > 0 then
             view.leg = status.leg > 0 and string.format("leg %d of %d", status.leg, status.legs)
                 or string.format("before leg 1 of %d", status.legs)
@@ -405,6 +418,7 @@ function plugin.on_ui_build(api, panel, view)
     panel.node({ kind = 5, id = "search", label = "Search", text = search_text })
     panel.label("matched", matched_text())
     panel.key_value("selected", "Selected", selected_text())
+    panel.select("start", "Start from", start_choice, STARTS)
     panel.button("play", "Play", status.play)
     panel.button("stop", "Stop", status.stop)
     panel.key_value("driver", "Driver", clip(status.driver))
@@ -457,10 +471,15 @@ local function play(api)
     local result, detail = api.drive.play({
         id = selected.id, source = selected.source, fixture = selected.fixture,
         suite = selected.suite, title = selected.title, legs = selected.legs,
+        start = start_choice,
+        -- a row that names start=reset asks for its fixture applied in place
+        -- (the cheat takes the fixture's basename)
+        reset_fixture = (start_choice == "reset" and selected.start == "reset")
+            and (selected.fixture:match("([^/]+)%.ini$") or selected.fixture) or nil,
     })
     if result == "ok" then
-        note = clip("Playing " .. selected.id .. " on a fresh account, " .. tostring(detail)
-            .. " (logging out and in first).")
+        note = clip("Playing " .. selected.id .. " from " .. START_LABEL[start_choice] .. ", "
+            .. tostring(detail) .. (start_choice == "fresh" and " (logging out and in first)." or "."))
     else
         note = clip(tostring(detail or result))
     end
@@ -487,6 +506,11 @@ local function select_script(api, script)
     end
     selected = script
     note = ""
+    -- The row's own required start, shown in the select; the owner can still
+    -- change it before Play (the select re-reads start_choice on rebuild).
+    if script.start == "reset" or script.start == "fresh" or script.start == "as_is" then
+        start_choice = script.start
+    end
     api.core.log("script-runner: selected " .. script.suite .. " " .. script.id)
     refresh_list(api)
     refresh_status(api)
@@ -503,6 +527,11 @@ function plugin.on_ui_action(api, ev)
                 api.core.log(string.format("script-runner: search '%s' -> %d rows", search_text, #matched))
             end
         end
+        return
+    end
+    if ev.id == "start" then
+        start_choice = ev.text or "reset"
+        api.core.log("script-runner: start from " .. start_choice)
         return
     end
     if ev.id == "suite" then

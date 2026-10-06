@@ -170,6 +170,10 @@ def describe(suite, directory, directory_script_path):
             "source": script_path(directory_script_path, name),
             "fixture": script_path(directory_script_path, "fixtures", fixture),
             "legs": legs,
+            # Raid seam25: a quest's fixture (fresh_lumbridge) applied IN PLACE
+            # by ::resetcharacter gives it quest progress 0 without a relog;
+            # a raid row's own setup clears and dresses, so the plain reset.
+            "start": "reset" if suite == "quest" else "",
             "party": party,
             "max_frames": max_frames,
             "available": 0 if reason else 1,
@@ -178,7 +182,7 @@ def describe(suite, directory, directory_script_path):
     return entries
 
 
-FIELDS = ("suite", "title", "source", "fixture", "legs", "party", "max_frames", "available", "reason")
+FIELDS = ("suite", "title", "source", "fixture", "legs", "party", "max_frames", "available", "reason", "start")
 
 
 def write_manifest(out_path, suites):

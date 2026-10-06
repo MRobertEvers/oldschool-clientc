@@ -286,6 +286,10 @@ static char g_demand_title[192];
 static char g_demand_fixture_path[TORIRS_IOITEM_MAX_PATH];
 static char g_demand_account[16];
 static int g_demand_legs;
+/* Raid seam25: the Play's starting state ("reset" | "fresh" | "as_is"),
+ * and the fixture a reset applies in place ("" = the plain reset). */
+static char g_demand_start[16];
+static char g_demand_reset_fixture[64];
 static int g_demand_leg;
 static int g_demand_fetch_serial;
 static enum DriveFetch g_demand_source_state;
@@ -1602,7 +1606,7 @@ drive_demand_begin_play(void)
     drive_play_discard();
 
     lua_getglobal(g_thread, "QD_ROOT");
-    lua_createtable(g_thread, 0, 8);
+    lua_createtable(g_thread, 0, 10);
     lua_pushstring(g_thread, g_demand_id);
     lua_setfield(g_thread, -2, "id");
     lua_pushstring(g_thread, g_demand_suite);
@@ -1617,6 +1621,13 @@ drive_demand_begin_play(void)
     lua_setfield(g_thread, -2, "source");
     lua_pushinteger(g_thread, g_demand_legs);
     lua_setfield(g_thread, -2, "legs");
+    lua_pushstring(g_thread, g_demand_start[0] ? g_demand_start : "fresh");
+    lua_setfield(g_thread, -2, "start");
+    if( g_demand_reset_fixture[0] )
+    {
+        lua_pushstring(g_thread, g_demand_reset_fixture);
+        lua_setfield(g_thread, -2, "reset_fixture");
+    }
     lua_createtable(g_thread, 0, 3);
     lua_pushinteger(g_thread, g_demand_camera_yaw);
     lua_setfield(g_thread, -2, "yaw");
@@ -2139,6 +2150,8 @@ lua_drive_status(struct lua_State* L)
     lua_setfield(L, -2, "suite");
     lua_pushstring(L, g_demand_account);
     lua_setfield(L, -2, "account");
+    lua_pushstring(L, g_demand_start[0] ? g_demand_start : "fresh");
+    lua_setfield(L, -2, "start");
     lua_pushinteger(L, g_demand_leg);
     lua_setfield(L, -2, "leg");
     lua_pushinteger(L, g_demand_legs);
@@ -2302,6 +2315,22 @@ lua_drive_play(struct lua_State* L)
     lua_getfield(L, 1, "legs");
     g_demand_legs = lua_isinteger(L, -1) ? (int)lua_tointeger(L, -1) : 0;
     lua_pop(L, 1);
+    if( drive_play_field(L, "start", 0, g_demand_start, sizeof(g_demand_start), reason,
+            sizeof(reason)) ||
+        drive_play_field(L, "reset_fixture", 0, g_demand_reset_fixture,
+            sizeof(g_demand_reset_fixture), reason, sizeof(reason)) )
+    {
+        g_demand_id[0] = '\0';
+        return PluginDrive_PushResult(L, DRIVE_REFUSED, reason);
+    }
+    if( g_demand_start[0] && strcmp(g_demand_start, "reset") != 0 &&
+        strcmp(g_demand_start, "fresh") != 0 && strcmp(g_demand_start, "as_is") != 0 )
+    {
+        snprintf(reason, sizeof(reason), "drive.play: start '%s' is not reset, fresh or as_is",
+            g_demand_start);
+        g_demand_id[0] = '\0';
+        return PluginDrive_PushResult(L, DRIVE_REFUSED, reason);
+    }
 
     if( drive_play_pick_account(g_demand_id, g_demand_account, sizeof(g_demand_account)) != 0 )
     {
