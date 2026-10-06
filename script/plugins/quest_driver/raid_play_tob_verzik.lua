@@ -102,6 +102,16 @@ QD.raid._play_plan("tob_verzik", {
     p3_ranged = 8125, p3_magic = 8124, p3_melee = 8123, p3_crabs = 14406, p3_webs = 8127, p3_yellows = 8126,
     p3_ranged_proj = 1593, p3_magic_proj = 1594, ball_proj = 1598, web_proj = 1601, pool_gfx = 1595,
     p3_cadence = 7, p3_enraged_cadence = 5,
+    -- raid seam45 (the Normal trio's melee clock): the first attack after a
+    -- summon (V verzik.reds_first_attack_after 12, B), and her gaps after a
+    -- P3 special, each a tick or two early of what svaplayverzi measured
+    -- (crabs 10, webs 42, yellows 21, the ball 12; QD.raid._verzik_p3_clock):
+    -- a raider beside her stays out from two before until her attack shows
+    -- the ticks after a summon the Matomenos are swung at (W:928 "until this
+    -- animation ends": p2_reds_anim; measured s45 e20/e21/e22 on five names:
+    -- the 10-tick window P2 270-310, every red killed 307-350, 5 ticks 259-335)
+    p2_reds_window = 10,
+    p2_reds_first = 12, p3_gap_crabs = 10, p3_gap_webs = 40, p3_gap_yellows = 20, p3_gap_ball = 12,
     pool_life = 14,                        -- V verzik.p3_yellow_pool_lifetime (B)
     -- run from a tornado nearer than this (its walk: one tile a tick, s30 vz30h)
     tornado_run = 5,
@@ -659,6 +669,308 @@ function QD.raid._verzik_p2_home(st, bx, bz, n, alt)
 end
 
 -- ==========================================================================
+-- raid seam45 play_tob_verzik_melee_follows_blert: P2 AND P3 MELEE FOR THE
+-- NORMAL TRIO, as the recorded trios play it.  Blert verzik_normal_3.json
+-- (20 death-free Normal trio rooms): every role is melee; the scythe in P2
+-- in 16 of 20 rooms per role, about 31 swings on her and 5-6 on the adds; in
+-- P3 21-24 swings on her and none on an add.  Both phases rest on ET 1.1:
+-- she scans on T from where the raiders stood at the END of T-1, so a raider
+-- beside her steps out on the tick before her attack and back in on its tick.
+--   P2 (V verzik.p2_scan_rule, C): a raider adjacent or inside on T-1 draws
+--   the body slam (up to 45, knockback 3, a stun: tob_verzik.rs2
+--   ~tob_verzik_body_slam), so "it's best to stay close to Verzik for every
+--   tick except for the dangerous tick" (Plank2g, quoted in ET 1.3).
+--   P3 (V verzik.p3_melee_predicate, C): her melee (up to 63 on everyone
+--   beside her, unprayable, V p3_melee_max) is on the table only when her
+--   tank stood adjacent on T-1 and never on her first P3 attack; W:953 "walk
+--   under or away from Verzik one or two ticks before she attacks".  A
+--   raider cannot tell which of three she is tanking, so every raider
+--   beside her steps out.
+-- The plan's tick is not the server's to the tick: an input sent on the
+-- plan's tick t lands on the server's t or t+1 (a decide that pressed waits
+-- out its one-tick settle), and her seq read off the npc row is dated to the
+-- server's tick or one before it (s45 e2/e3, the members' clock rows against
+-- the leader's tick log: 8114 dated t176 for t177, t188 for t189, t181 for
+-- t181).  So the step out goes on EITHER of the plan's ticks T-2 and T-1
+-- (whichever finds the raider beside her), no press is sent on them, and the
+-- press back in waits for T: the raider stands two out at the end of the
+-- server's T-1 whichever way the tick falls.  Measured against the one-tick
+-- shapes first: a step on the plan's T-2 alone stood the leader out at the
+-- end of T-2 and its press of T-1 had him beside her at the end of T-1 (e2:
+-- slams t181, t197); a step on T-1 alone was late on t185 and t237 (e3).
+-- ==========================================================================
+
+-- Whether the melee trio dodges its tornado along her edge in the enrage.
+-- Off: the client's tornado rows stay on the spawn tile (s31 vz31d; s45 e8:
+-- "r6431,91;6432,91;6432,90" while the server walked them round her), the
+-- plan's simulated tornado is a guess, and a dodge on the guess ran s45 e17
+-- sva's p3 round the west half of the room for 65 ticks with no swing and two
+-- touches anyway.  The trio POWERS THROUGH (W:983 "Teams with sufficient
+-- experience can simply power through into enrage; they can either keep their
+-- health low so the tornado heals little"), from the side of her the
+-- tornadoes rise furthest from (the east edge).
+QD.RAID_PLAY_VERZIK_DODGE = false  -- (the simulated dodge; the seen one below stays on)
+
+-- How many of the plan's ticks before her attack the step out may go on
+-- (2: T-2 and T-1; 1: T-1 alone).  See the timing note above.
+QD.RAID_PLAY_VERZIK_OUT_LEAD = 2
+
+-- The one-tile step out of her reach: a floor tile two from her footprint,
+-- beside me, nothing falling on it (an urnbomb is aimed at the tile of T-1,
+-- W:909 "dodged by simply avoiding the tile the urn was thrown at"); the
+-- straight step first, then the tile clear of the other raiders (the zap
+-- bounces between neighbours, W:911).  From under her (an add's press can
+-- path a raider through her body: s45 e5 _play_verzik t181, the leader
+-- pressed the Athanatos at 6432,87 from 6429,89 and stood on 6431,89 inside
+-- her until her stomp at t185) the nearest such tile is two away, a run's
+-- one tick.  nil when there is none.
+function QD.raid._verzik_step_out(st, v, ok, mates)
+    local me, b = v.me, v.boss
+    local best, bx, bz = nil, nil, nil
+    for dx = -2, 2 do
+        for dz = -2, 2 do
+            local x, z = me.x + dx, me.z + dz
+            if (dx ~= 0 or dz ~= 0) and ok(x, z) and not v.shadows[x * 100000 + z] and QD.raid._verzik_dist(x, z, b) >= 2 then
+                local sc = math.max(math.abs(dx), math.abs(dz)) * 100 + (math.abs(dx) + math.abs(dz)) * 10
+                for _, m in ipairs(mates or {}) do
+                    if math.max(math.abs(m.x - x), math.abs(m.z - z)) <= 1 then sc = sc + 5 end
+                end
+                if best == nil or sc < best then best, bx, bz = sc, x, z end
+            end
+        end
+    end
+    return bx, bz
+end
+
+-- The other raiders' tiles (api_drive.players), for the step's tie-break.
+function QD.raid._verzik_mates(st)
+    local mates = {}
+    if st.party > 1 then
+        local pr, prow = api_drive.players()
+        if pr == "ok" then
+            for _, r in ipairs(prow) do
+                if not r.me then mates[#mates + 1] = r end
+            end
+        end
+    end
+    return mates
+end
+
+-- Her next P2 attack, from what she was seen to do: every 4 (V
+-- verzik.p2_cadence, B); after the seventh attack since a summon the next
+-- slot is the summon, 8 later (tob_verzik.rs2 ^tob_verzik_p2_reds_after_last;
+-- s45 read off svaplayverzi: summons t352, t396, t440 each 8 after the
+-- seventh), and the first attack after a summon 12 later (V
+-- verzik.reds_first_attack_after, B; t308 -> t320).  Returns the tick and
+-- whether that slot is a summon (no scan: the summon returns before
+-- ~tob_verzik_body_slam).
+function QD.raid._verzik_p2_clock(st, v)
+    local P, vz = st.plan, st.vz
+    local a = v.attack
+    if a ~= nil then
+        if a.seq == P.p2_cast or a.seq == P.p2_slam then
+            vz.m2_N, vz.m2_summon_next = a.tick + P.p2_cadence, false
+            if vz.summon ~= nil and a.tick > vz.summon and (vz.p2_count or 0) >= P.p2_attacks_between then
+                vz.m2_N, vz.m2_summon_next = a.tick + 2 * P.p2_cadence, true
+            end
+        elseif a.seq == P.p2_reds then
+            vz.m2_N, vz.m2_summon_next = a.tick + P.p2_reds_first, false
+        end
+    end
+    return vz.m2_N, vz.m2_summon_next
+end
+
+-- P2, Normal trio, melee.  Each raider holds its own side (W:904 "one goes
+-- south, one east, and one west": QD.raid._verzik_p2_home), beside her and
+-- swinging on every tick but the one before her attack.  The adds: the
+-- Athanatos first (W:927, it heals her every few ticks), then the Matomenos
+-- (W:931; Blert 5-6 swings a role on adds); a nylocas is never swung at (it
+-- blasts everyone within 3 when it dies, tob_verzik.rs2 ~tob_verzik_crab_blast)
+-- but run from (W:925).  No swing on her across a summon: "DO NOT attack her
+-- while she summons them or immediately after, as any damage dealt will
+-- instead heal her" (Entry_Mode.wikitext:231; V verzik.reds_absorb_window 5).
+-- Returns the threat function.
+function QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
+    local P, N, vz, b, me = st.plan, st.numbers, st.vz, v.boss, v.me
+    vz.m2 = vz.m2 or { outs = 0, late = 0, waits = 0, add_presses = 0, kites = 0, log = {} }
+    local M = vz.m2
+    local d_boss = QD.raid._verzik_dist(me.x, me.z, b)
+    local nxt, summon_next = QD.raid._verzik_p2_clock(st, v)
+    -- the first ticks of the phase, as the plan read them (the ledger's
+    -- play.melee_clock row): tick, her next attack, my distance, her seq seen
+    if #M.log < 24 then
+        M.log[#M.log + 1] = v.tick .. "N" .. tostring(nxt) .. "d" .. d_boss .. (v.attack and ("a" .. v.attack.seq .. "@" .. v.attack.tick) or "")
+    end
+    -- not known: no attack seen yet this phase, or her slot passed unseen
+    local unknown = nxt == nil or v.tick > nxt + 1
+    if v.tick == (nxt or -10) and d_boss <= 1 then M.late = M.late + 1 end
+    local _, cd = nearest(v.crabs)
+    local threat = function(h)
+        local t = N.zap + N.bomb
+        if cd <= 3 then t = t + N.crab end
+        if vz.reds_tick ~= nil then t = t + N.blood end
+        return t
+    end
+    -- a nylocas within 4: away from it, onto the floor two out of her (its
+    -- blast reaches 3, tob.constant ^tob_verzik_p2_nylo_blast_range, and it
+    -- dies on its own 25 ticks after it rises, ^tob_verzik_p2_nylo_lifetime;
+    -- s45 e16 svb/svd: p2 went for the Athanatos at 6432,87 among the
+    -- nylocas and took 63 and 44-53 in seven ticks, dead at t212-213)
+    local ok2 = function(x, z) return ok(x, z) and QD.raid._verzik_dist(x, z, b) >= 2 end
+    if cd <= 4 then
+        QD.raid._verzik_crabs(st, v, ok2, go)
+        if intent.walk ~= nil then
+            M.kites = M.kites + 1
+            st.engaged = false
+            vz.target_slot = nil
+            return threat
+        end
+    end
+    -- under her (a press pathed me through her body): out at once, whatever
+    -- the tick (V verzik.p2_scan_rule: "inside" draws the stomp, up to 82)
+    if d_boss == 0 then
+        local sx, sz = QD.raid._verzik_step_out(st, v, ok, QD.raid._verzik_mates(st))
+        if sx ~= nil then
+            intent.walk = { x = sx, z = sz }
+            vz.steps = vz.steps + 1
+            M.outs = M.outs + 1
+            st.engaged = false
+            vz.target_slot = nil
+            return threat
+        end
+    end
+    -- my tile did not change while engaged from two out: the server is not
+    -- pathing me in (a member reads no tick log, so its swings are counted,
+    -- not seen: s45 e3 p2 stood 35 ticks at 6437,86 after a slam's
+    -- knockback, engaged by its own count): press again
+    -- (two ticks after the press at least: the press's own first tick shows
+    -- the old tile, s45 e4: the rule pressed twice a tick)
+    if st.engaged and vz.target_slot == nil and d_boss >= 2 and v.tick - st.engaged_tick >= 2 and st.last_me ~= nil and st.last_me.x == me.x and st.last_me.z == me.z then st.engaged = false end
+    -- the step out, on the plan's T-2 or T-1 (and whenever her clock is not known)
+    if unknown or (v.tick >= nxt - QD.RAID_PLAY_VERZIK_OUT_LEAD and v.tick <= nxt - 1) then
+        if d_boss <= 1 then
+            local sx, sz = QD.raid._verzik_step_out(st, v, ok, QD.raid._verzik_mates(st))
+            if sx ~= nil then
+                intent.walk = { x = sx, z = sz }
+                vz.steps = vz.steps + 1
+                M.outs = M.outs + 1
+                st.engaged = false
+                vz.target_slot = nil
+            end
+        elseif nxt == nil then
+            -- before her first P2 attack: my side's tile two out (W:904)
+            local hx, hz = QD.raid._verzik_p2_home(st, b.x, b.z, b.size or 3, 1)
+            if v.shadows[hx * 100000 + hz] then hx, hz = QD.raid._verzik_p2_home(st, b.x, b.z, b.size or 3, 2) end
+            go(hx, hz)
+        end
+        return threat
+    end
+    local purple = nearest(v.purples)
+    local red = nearest(v.reds)
+    -- (the Athanatos is left while a nylocas is within 4 of it: its press
+    -- walks the raider into the blast)
+    if purple ~= nil then
+        for _, c in ipairs(v.crabs) do
+            if math.max(math.abs(c.row.x - purple.row.x), math.abs(c.row.z - purple.row.z)) <= 4 then purple = nil break end
+        end
+    end
+    -- the Matomenos only while her summon animation plays: "players should
+    -- focus on the Matomenos until this animation ends" (W:928; 8117 is 10
+    -- ticks, V verzik.av.reds_summon.seq).  After it, her: a red left alive
+    -- heals her its remaining health at the next summon (tob_verzik.rs2
+    -- ~tob_verzik_absorb_reds), up to 150 (V verzik.reds_hp_3), and Blert's
+    -- trios swing at an add only 5-6 times a role in all of P2.  Measured
+    -- both ways on one name (s45 svaplayverzi): every red chased to its death
+    -- (e8) made P2 517 ticks, the window (e7) 393.
+    if red ~= nil and vz.summon ~= nil and v.tick > vz.summon + P.p2_reds_window then red = nil end
+    -- one red each: the pair split between the raiders by role, in slot
+    -- order, so both die (s45 e6 sva: all three on the nearest red, the other
+    -- absorbed whole four times, 588 healed)
+    if red ~= nil and #v.reds > 1 then
+        local sorted = {}
+        for _, r in ipairs(v.reds) do sorted[#sorted + 1] = r end
+        table.sort(sorted, function(a, c) return a.row.slot < c.row.slot end)
+        red = sorted[((st.role - 1) % #sorted) + 1]
+    end
+    local add = purple or red
+    -- her: never into a summon slot, never inside the absorb window after one
+    local hold_her = (summon_next and v.tick >= nxt) or (vz.summon ~= nil and v.tick <= vz.summon + P.p2_absorb)
+    if add ~= nil then
+        local idle = v.tick - math.max(st.last_swing, st.engaged_tick) > st.weapon.speed + 2
+        if vz.target_slot ~= add.row.slot or not st.engaged or idle then
+            QD.raid._verzik_press_add(st, v, add)
+            M.add_presses = M.add_presses + 1
+        end
+    elseif hold_her then
+        M.waits = M.waits + 1
+        if st.engaged then
+            -- engaged, the scythe repeats on its own: one step clears it
+            local sx, sz = me.x, me.z
+            if d_boss <= 1 then sx, sz = QD.raid._verzik_step_out(st, v, ok, QD.raid._verzik_mates(st)) end
+            if sx ~= nil then
+                intent.walk = { x = sx, z = sz }
+                vz.steps = vz.steps + 1
+                st.engaged = false
+            end
+        end
+    else
+        if vz.target_slot ~= nil then st.engaged = false vz.target_slot = nil end
+        intent.attack = true
+    end
+    return threat
+end
+
+-- Her next P3 attack, from what she was seen to do (s45, read off
+-- svaplayverzi's P3, t481-679): an auto every 7, 5 enraged (V
+-- verzik.p3_cadence, A; the enrage resets her clock to 5 from that tick,
+-- tob_verzik.rs2 ~tob_verzik_check_enrage: t607 -> t612); the green ball's
+-- next 12 later (t663 -> t675: "BALL consumes the attack slot and delays the
+-- next auto", tob_verzik.rs2 ~tob_verzik_special); the crabs' 10 (t509 ->
+-- t519); the yellows' 21 (t622 -> t643: the 14-tick charge, V
+-- p3_yellow_pool_lifetime, then 7); the webs' 42 (t554 -> t596).  The webs
+-- and the yellows STOP her clock until she re-acquires
+-- ([proc,tob_verzik_p3_tick]), so those two are measured gaps, and a slot
+-- that passes with nothing seen is not known.  Her first P3 attack is never
+-- a melee (V verzik.p3_melee_predicate), so before it the clock is nil.
+-- Returns (next tick, hold): hold is true on the ticks a raider beside her
+-- steps out and does not press: the plan's T-2 and T-1 when the next tick is
+-- SURE (an auto after an auto), and every tick from T-2 until her next attack is seen when it is
+-- a measured gap (after a special or the enrage), or when a slot passed with
+-- nothing seen.
+function QD.raid._verzik_p3_clock(st, v, ball)
+    local P, vz = st.plan, st.vz
+    local a = v.attack
+    local cad = vz.enraged and P.p3_enraged_cadence or P.p3_cadence
+    if a ~= nil then
+        local s = a.seq
+        if s == P.p3_ranged or s == P.p3_magic or s == P.p3_melee then
+            vz.m3_A, vz.m3_N, vz.m3_sure = a.tick, a.tick + cad, true
+        elseif s == P.p3_crabs then
+            vz.m3_A, vz.m3_N, vz.m3_sure = a.tick, a.tick + P.p3_gap_crabs, false
+        elseif s == P.p3_webs then
+            vz.m3_A, vz.m3_N, vz.m3_sure = a.tick, a.tick + P.p3_gap_webs, false
+        elseif s == P.p3_yellows then
+            vz.m3_A, vz.m3_N, vz.m3_sure = a.tick, a.tick + P.p3_gap_yellows, false
+        end
+    end
+    -- the green ball rides an auto: once it is seen in the air, her next is 12 on
+    if ball and vz.m3_sure and vz.m3_A ~= nil and vz.m3_ball ~= vz.m3_A then
+        vz.m3_ball = vz.m3_A
+        vz.m3_N, vz.m3_sure = vz.m3_A + P.p3_gap_ball, false
+    end
+    -- the enrage restarts her clock at 5 from its tick; seen a tick late at
+    -- most, so one early, and held until her attack shows
+    if vz.enraged and not vz.m3_enrage_seen then
+        vz.m3_enrage_seen = v.tick
+        vz.m3_N, vz.m3_sure = v.tick + P.p3_enraged_cadence - 1, false
+    end
+    local N = vz.m3_N
+    if N == nil then return nil, false end
+    local hold = (v.tick > N + 1) or (v.tick >= N - QD.RAID_PLAY_VERZIK_OUT_LEAD and v.tick <= N - 1) or ((not vz.m3_sure) and v.tick >= N - 2)
+    return N, hold
+end
+
+-- ==========================================================================
 -- THE VERZIK PLAN'S DECIDE (PLAY_NOTES.md "Verzik").
 -- ==========================================================================
 function QD.raid._play_verzik_decide(st, v)
@@ -827,6 +1139,27 @@ function QD.raid._play_verzik_decide(st, v)
         -- "players should pray Protect from Missiles"), healed up (W:943).
         intent.want.protectfrommissiles = true
         intent.want.rigour = true
+        if st.mode == "normal" and not vz.loadout then
+            -- raid seam45 play_tob_verzik_melee_follows_blert: the Normal trio
+            -- stays MELEE (Blert verzik_normal_3.json, 20 death-free trio rooms:
+            -- the scythe in P2 and P3 in 16-18 of 20 rooms per role, melee
+            -- 83-92% of attacks): Piety, the super combat potion, and the
+            -- serpentine helm for the Athanatos (W:927 "has to be hit with
+            -- poison or venom")
+            vz.loadout = true
+            vz.rapid = "melee"
+            local drinks = {}
+            local cr, n = QD.inv.count("br_4dose2combat")
+            if cr == "ok" and n > 0 then drinks[1] = "br_4dose2combat" end
+            local items = {}
+            local hr, hn = QD.inv.count("serpentine_helm_charged")
+            if hr == "ok" and hn > 0 then items[1] = "serpentine_helm_charged" end
+            QD.raid._verzik_block(st, v, "melee loadout", items, drinks)
+        end
+        if st.mode == "normal" then
+            intent.want.rigour = nil
+            intent.want.piety = true
+        end
         if not vz.loadout then
             vz.loadout = true
             local drinks = {}
@@ -856,7 +1189,7 @@ function QD.raid._play_verzik_decide(st, v)
 
     elseif phase == "p2" then
         vz.dying = false
-        if vz.held ~= "bow_rapid" then swap_to("bow_rapid") end
+        if st.mode ~= "normal" and vz.held ~= "bow_rapid" then swap_to("bow_rapid") end
         if v.attack ~= nil and v.attack.seq == P.p2_reds then vz.reds_tick = v.attack.tick vz.summon = v.attack.tick end
         -- THE NEXT SUMMON, by counting her attacks (seam31): "DO NOT attack
         -- her while she summons them or immediately after, as any damage
@@ -902,83 +1235,90 @@ function QD.raid._play_verzik_decide(st, v)
         vz.reds_n = #v.reds
         if (vz.reds_tick ~= nil or vz.blood) and not bomb_air then intent.want.protectfrommagic = true else intent.want.protectfrommissiles = true end
         intent.want.rigour = true
-        -- stand two out of her body on the west (W:901; V p2_scan_rule: a
-        -- raider adjacent or inside on T-1 is slammed or stomped, so the floor
-        -- here is 2 or more from her), off any tile something falls on
-        local okp = ok
-        ok = function(x, z) return okp(x, z) and QD.raid._verzik_dist(x, z, b) >= 2 end
-        local home1x, home1z = b.x - 2, b.z + 1
-        local home2x, home2z = b.x - 2, b.z
         if st.mode == "normal" then
-            -- raid seam34v: the trio's three sides (W:904)
-            home1x, home1z = QD.raid._verzik_p2_home(st, b.x, b.z, b.size or 3, 1)
-            home2x, home2z = QD.raid._verzik_p2_home(st, b.x, b.z, b.size or 3, 2)
-        end
-        local tx, tz = home1x, home1z
-        if v.shadows[home1x * 100000 + home1z] then tx, tz = home2x, home2z end
-        go(tx, tz)
-        local crab, cd = nearest(v.crabs)
-        local purple = nearest(v.purples)
-        local red = nearest(v.reds)
-        crab = QD.raid._verzik_crabs(st, v, ok, go)
-        threat = function(h)
-            local t = N.zap
-            -- raid seam34v: a Normal trio takes the zap and an urnbomb in one
-            -- window (s34v _play_verzik t356: the zap 1585 bounced between two
-            -- raiders and landed 26 on one at 26 hitpoints)
-            if st.mode == "normal" then t = t + N.bomb end
-            if cd <= 3 then t = t + N.crab end
-            if vz.reds_tick ~= nil then t = t + N.blood end
-            return t
-        end
-        -- HOLD around the predicted summon: no shot of mine is rolled from
-        -- her slot to the end of the absorb (V verzik.reds_absorb_window 5).
-        -- Engaged on her, the bow repeats on its own every speed ticks, so a
-        -- repeat that would fall in the window is cut by a one-tile step
-        -- (a step clears the attack: DRIVER_NOTES "a click is needed only to
-        -- START the fight or after a step cleared it"), pressed on any tick
-        -- before it; a press on her waits out the window.
-        local hold = false
-        if vz.next_summon ~= nil and v.tick <= vz.next_summon + P.p2_absorb then
-            local S = vz.next_summon
-            local nxt = st.last_swing + st.weapon.speed
-            if v.tick >= S - st.weapon.speed then hold = true end
-            if st.engaged and vz.target_slot == nil and nxt >= S and nxt <= S + P.p2_absorb and v.tick < nxt and intent.walk == nil then
-                local sx, sz = me.x - 1, me.z
-                if not ok(sx, sz) or v.shadows[sx * 100000 + sz] then sx, sz = me.x, me.z + 1 end
-                if not ok(sx, sz) or v.shadows[sx * 100000 + sz] then sx, sz = me.x, me.z - 1 end
-                intent.walk = { x = sx, z = sz }
-                vz.steps = vz.steps + 1
-                vz.holds = (vz.holds or 0) + 1
-                st.engaged = false
+            -- raid seam45: the Normal trio plays P2 MELEE (its own function below)
+            intent.want.rigour = nil
+            intent.want.piety = true
+            threat = QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
+        else
+            -- stand two out of her body on the west (W:901; V p2_scan_rule: a
+            -- raider adjacent or inside on T-1 is slammed or stomped, so the floor
+            -- here is 2 or more from her), off any tile something falls on
+            local okp = ok
+            ok = function(x, z) return okp(x, z) and QD.raid._verzik_dist(x, z, b) >= 2 end
+            local home1x, home1z = b.x - 2, b.z + 1
+            local home2x, home2z = b.x - 2, b.z
+            if st.mode == "normal" then
+                -- raid seam34v: the trio's three sides (W:904)
+                home1x, home1z = QD.raid._verzik_p2_home(st, b.x, b.z, b.size or 3, 1)
+                home2x, home2z = QD.raid._verzik_p2_home(st, b.x, b.z, b.size or 3, 2)
             end
-        end
-        if vz.next_summon ~= nil and v.tick > vz.next_summon + P.p2_absorb then vz.next_summon = nil end
-        -- the Matomenos only while her summon animation plays: "players
-        -- should focus on the Matomenos until this animation ends"
-        -- (W:928; 8117 is 10 ticks, V verzik.av.reds_summon.seq); after it a
-        -- shot on her (about 15 a hit, s31 svd: 790 in 51) beats a shot on a
-        -- red that heals her at most its 20 left (tob_verzik.rs2
-        -- ~tob_verzik_absorb_reds; V verzik.entry_reds_hp_1p)
-        -- raid seam34v: the same rule for the Normal trio.  A red is 150 (V
-        -- verzik.reds_hp_3) and heals her its remaining health at the next
-        -- summon (tob_verzik.rs2 ~tob_verzik_absorb_reds), but a bow shot on
-        -- her is worth nearly twice one on a red (s34v vzn2: 27 a hit on her,
-        -- 15 on a red), and she summons a fresh pair every 36 ticks (V
-        -- verzik.reds_attacks_between): vzn2 shot only reds from the first
-        -- summon on, 528 hits on 30 reds, and P2 never ended
-        if red ~= nil and vz.summon ~= nil and v.tick > vz.summon + P.p2_reds_anim then red = nil end
-        if intent.walk == nil then
-            -- the Athanatos first: it heals her 9-10 every 5 ticks (W:927; V
-            -- p2_purple_heal); then the Matomenos (W:931)
-            local add = crab or purple or red
-            local absorb = hold or (vz.reds_tick ~= nil and v.tick <= vz.reds_tick + P.p2_absorb)
-            if add ~= nil then
-                local idle = v.tick - math.max(st.last_swing, st.engaged_tick) > st.weapon.speed + 2
-                if vz.target_slot ~= add.row.slot or not st.engaged or idle then QD.raid._verzik_press_add(st, v, add) end
-            elseif not absorb then
-                if vz.target_slot ~= nil then st.engaged = false vz.target_slot = nil end
-                intent.attack = true
+            local tx, tz = home1x, home1z
+            if v.shadows[home1x * 100000 + home1z] then tx, tz = home2x, home2z end
+            go(tx, tz)
+            local crab, cd = nearest(v.crabs)
+            local purple = nearest(v.purples)
+            local red = nearest(v.reds)
+            crab = QD.raid._verzik_crabs(st, v, ok, go)
+            threat = function(h)
+                local t = N.zap
+                -- raid seam34v: a Normal trio takes the zap and an urnbomb in one
+                -- window (s34v _play_verzik t356: the zap 1585 bounced between two
+                -- raiders and landed 26 on one at 26 hitpoints)
+                if st.mode == "normal" then t = t + N.bomb end
+                if cd <= 3 then t = t + N.crab end
+                if vz.reds_tick ~= nil then t = t + N.blood end
+                return t
+            end
+            -- HOLD around the predicted summon: no shot of mine is rolled from
+            -- her slot to the end of the absorb (V verzik.reds_absorb_window 5).
+            -- Engaged on her, the bow repeats on its own every speed ticks, so a
+            -- repeat that would fall in the window is cut by a one-tile step
+            -- (a step clears the attack: DRIVER_NOTES "a click is needed only to
+            -- START the fight or after a step cleared it"), pressed on any tick
+            -- before it; a press on her waits out the window.
+            local hold = false
+            if vz.next_summon ~= nil and v.tick <= vz.next_summon + P.p2_absorb then
+                local S = vz.next_summon
+                local nxt = st.last_swing + st.weapon.speed
+                if v.tick >= S - st.weapon.speed then hold = true end
+                if st.engaged and vz.target_slot == nil and nxt >= S and nxt <= S + P.p2_absorb and v.tick < nxt and intent.walk == nil then
+                    local sx, sz = me.x - 1, me.z
+                    if not ok(sx, sz) or v.shadows[sx * 100000 + sz] then sx, sz = me.x, me.z + 1 end
+                    if not ok(sx, sz) or v.shadows[sx * 100000 + sz] then sx, sz = me.x, me.z - 1 end
+                    intent.walk = { x = sx, z = sz }
+                    vz.steps = vz.steps + 1
+                    vz.holds = (vz.holds or 0) + 1
+                    st.engaged = false
+                end
+            end
+            if vz.next_summon ~= nil and v.tick > vz.next_summon + P.p2_absorb then vz.next_summon = nil end
+            -- the Matomenos only while her summon animation plays: "players
+            -- should focus on the Matomenos until this animation ends"
+            -- (W:928; 8117 is 10 ticks, V verzik.av.reds_summon.seq); after it a
+            -- shot on her (about 15 a hit, s31 svd: 790 in 51) beats a shot on a
+            -- red that heals her at most its 20 left (tob_verzik.rs2
+            -- ~tob_verzik_absorb_reds; V verzik.entry_reds_hp_1p)
+            -- raid seam34v: the same rule for the Normal trio.  A red is 150 (V
+            -- verzik.reds_hp_3) and heals her its remaining health at the next
+            -- summon (tob_verzik.rs2 ~tob_verzik_absorb_reds), but a bow shot on
+            -- her is worth nearly twice one on a red (s34v vzn2: 27 a hit on her,
+            -- 15 on a red), and she summons a fresh pair every 36 ticks (V
+            -- verzik.reds_attacks_between): vzn2 shot only reds from the first
+            -- summon on, 528 hits on 30 reds, and P2 never ended
+            if red ~= nil and vz.summon ~= nil and v.tick > vz.summon + P.p2_reds_anim then red = nil end
+            if intent.walk == nil then
+                -- the Athanatos first: it heals her 9-10 every 5 ticks (W:927; V
+                -- p2_purple_heal); then the Matomenos (W:931)
+                local add = crab or purple or red
+                local absorb = hold or (vz.reds_tick ~= nil and v.tick <= vz.reds_tick + P.p2_absorb)
+                if add ~= nil then
+                    local idle = v.tick - math.max(st.last_swing, st.engaged_tick) > st.weapon.speed + 2
+                    if vz.target_slot ~= add.row.slot or not st.engaged or idle then QD.raid._verzik_press_add(st, v, add) end
+                elseif not absorb then
+                    if vz.target_slot ~= nil then st.engaged = false vz.target_slot = nil end
+                    intent.attack = true
+                end
             end
         end
 
@@ -987,11 +1327,16 @@ function QD.raid._play_verzik_decide(st, v)
         -- next phase starts"); the prayers stay up for her first auto
         intent.want.protectfrommissiles = true
         intent.want.rigour = true
+        if st.mode == "normal" then intent.want.rigour = nil intent.want.piety = true end
         threat = function(h) return v.hp_base - 21 end
         vz.reds_tick = nil
 
     elseif phase == "p3" then
-        if vz.held ~= "bow_rapid" then swap_to("bow_rapid") end
+        -- raid seam45: the Normal trio plays P3 MELEE (Blert: the scythe,
+        -- 21-24 swings a role); the clock and the step out are
+        -- QD.raid._verzik_p3_clock's, the rest of the phase is shared
+        local melee = st.mode == "normal"
+        if not melee and vz.held ~= "bow_rapid" then swap_to("bow_rapid") end
         -- her style shows on the attack tick and the protection is read when
         -- it lands (the owner's ruling; V p3_prayer_read: "8125 stomp + 1593,
         -- 8124 crackle + 1594 and the flight is 2-3 ticks"): switch on sight
@@ -1008,6 +1353,7 @@ function QD.raid._play_verzik_decide(st, v)
         end
         intent.want[vz.p3_style] = true
         intent.want.rigour = true
+        if melee then intent.want.rigour = nil intent.want.piety = true end
         if b.health_ratio ~= nil and b.health_scale ~= nil and b.health_scale > 0 and b.health_ratio * 5 <= b.health_scale then vz.enraged = true end
         local cadence = vz.enraged and P.p3_enraged_cadence or P.p3_cadence
         -- the floor: two out of her (W:953 "the primary tank should either
@@ -1015,6 +1361,18 @@ function QD.raid._play_verzik_decide(st, v)
         -- to avoid the melee attack"; V p3_melee_predicate adjacent on T-1)
         local okp = ok
         ok = function(x, z) return okp(x, z) and QD.raid._verzik_dist(x, z, b) >= 2 end
+        -- raid seam45: her clock, read every tick (the ball is in `ball`)
+        local m3_next, m3_hold = nil, false
+        if melee then m3_next, m3_hold = QD.raid._verzik_p3_clock(st, v, ball) end
+        vz.m3 = vz.m3 or { outs = 0, late = 0, holds = 0, dodges = 0, log = {} }
+        if melee and m3_next ~= nil and v.tick == m3_next and d_boss == 1 and vz.m3_sure then vz.m3.late = vz.m3.late + 1 end
+        -- (a member reads no tick log, so it cannot see its own swings stop:
+        -- s45 e13 svaplayverzi p2, engaged by its own count at 6436,97 beside
+        -- her, the server's attack ended at t645 with her web special and no
+        -- swing came for 30 ticks.  A member presses again every 8 ticks.)
+        if melee and not st.log and st.engaged and vz.target_slot == nil and not m3_hold and v.tick - st.engaged_tick >= 8 then st.engaged = false end
+        -- (engaged on her from two out and not moving: press again, as P2)
+        if melee and st.engaged and vz.target_slot == nil and d_boss >= 2 and v.tick - st.engaged_tick >= 2 and st.last_me ~= nil and st.last_me.x == me.x and st.last_me.z == me.z then st.engaged = false end
         -- a yellow pool: stand on one until the blast is over (W:969)
         local pool = nil
         for _, p in ipairs(v.pools) do
@@ -1066,14 +1424,33 @@ function QD.raid._play_verzik_decide(st, v)
         for _, tr in ipairs(v.tornadoes) do
             local e = vz.tor[tr.slot]
             if e == nil or e.rx ~= tr.x or e.rz ~= tr.z then
-                e = { x = tr.x, z = tr.z, rx = tr.x, rz = tr.z, tick = v.tick }
+                e = { x = tr.x, z = tr.z, rx = tr.x, rz = tr.z, tick = v.tick, moved = (e ~= nil) and v.tick or nil }
                 vz.tor[tr.slot] = e
             end
             while e.tick < v.tick do
                 e.tick = e.tick + 1
                 if math.max(math.abs(e.x - me.x), math.abs(e.z - me.z)) > 1 then
-                    if me.x > e.x then e.x = e.x + 1 elseif me.x < e.x then e.x = e.x - 1 end
-                    if me.z > e.z then e.z = e.z + 1 elseif me.z < e.z then e.z = e.z - 1 end
+                    if melee then
+                        -- raid seam45: her body is a wall to it (s45 e8 sva
+                        -- t960-961: from her SW tile 6432,91 toward a raider
+                        -- at 6431,96 its first step was 6431,91, west, not the
+                        -- diagonal past her corner), so it steps as the
+                        -- server's npc_walk does: the diagonal when its tile
+                        -- and both sides are off her, else along x, else z
+                        local sx = (me.x > e.x and 1) or (me.x < e.x and -1) or 0
+                        local sz = (me.z > e.z and 1) or (me.z < e.z and -1) or 0
+                        local function free(x, z) return QD.raid._verzik_dist(x, z, b) > 0 end
+                        if sx ~= 0 and sz ~= 0 and free(e.x + sx, e.z + sz) and free(e.x + sx, e.z) and free(e.x, e.z + sz) then
+                            e.x, e.z = e.x + sx, e.z + sz
+                        elseif sx ~= 0 and free(e.x + sx, e.z) then
+                            e.x = e.x + sx
+                        elseif sz ~= 0 and free(e.x, e.z + sz) then
+                            e.z = e.z + sz
+                        end
+                    else
+                        if me.x > e.x then e.x = e.x + 1 elseif me.x < e.x then e.x = e.x - 1 end
+                        if me.z > e.z then e.z = e.z + 1 elseif me.z < e.z then e.z = e.z - 1 end
+                    end
                 end
             end
             live[tr.slot] = true
@@ -1082,12 +1459,26 @@ function QD.raid._play_verzik_decide(st, v)
             if not live[slot] then vz.tor[slot] = nil end
         end
         local tor, td = nil, 999
+        -- raid seam45: the nearest tornado SEEN moving this tick or last
+        -- (its row changed tile), for the melee dodge: a row that moves is
+        -- what a person sees; the simulated walk is not
+        local seen_tor, seen_td = nil, 999
         for _, e in pairs(vz.tor) do
             local d = math.max(math.abs(e.x - me.x), math.abs(e.z - me.z))
             if d < td then tor, td = e, d end
+            if e.moved ~= nil and v.tick - e.moved <= 1 and d < seen_td then seen_tor, seen_td = e, d end
         end
         local _, cd = nearest(v.crabs)
         local crab = nil
+        -- raid seam45: my tile on her east edge (the side the tornadoes
+        -- cannot reach, below)
+        local n3 = b.size or 1
+        local hx3, hz3 = b.x + n3, b.z + n3 - 1 - 2 * ((st.role - 1) % 3)
+        if melee and vz.enraged and #vz.m3.log < 20 then
+            local rows = {}
+            for _, tr in ipairs(v.tornadoes) do rows[#rows + 1] = tr.x .. "," .. tr.z end
+            vz.m3.log[#vz.m3.log + 1] = v.tick .. "d" .. d_boss .. "@" .. me.x .. "," .. me.z .. (tor and ("T" .. tor.x .. "," .. tor.z .. "/" .. td) or "") .. "r" .. table.concat(rows, ";")
+        end
         -- raid seam34v: where the other raiders stand (the green ball
         -- "bounce[s] ... by being next to another player", W:975, and most
         -- teams "simply take the hit"; a tornado chases its own raider, W:981):
@@ -1124,13 +1515,23 @@ function QD.raid._play_verzik_decide(st, v)
             -- (she walks at her target first: ET 1.1); s34v _play_verzik t579:
             -- the leader ran from its tornado into a corner, she followed and
             -- her melee took its last 51 of a 62
-            if st.mode == "normal" and d_boss <= 2 then t = math.max(t, N.melee) end
+            if st.mode == "normal" and d_boss <= 2 and not (melee and vz.enraged and not ball) then t = math.max(t, N.melee) end
             -- raid seam34v: a nylocas's blast is outside the enrage band
             -- (s34v _play_verzik t652: a magic nylocas took a leader's last 47
             -- of a 55 with the band capping the bite at 45): 63 within 3 of
             -- one (tob.constant ^tob_verzik_p2_nylo_blast_near/_mid/_far 63/26/8, range 3;
             -- the plan reads it from 4, one tile of its walk ahead)
             if st.mode == "normal" and cd <= 4 then t = math.max(t, 63) end
+            -- raid seam45: every nylocas within 4 is its own 63 (s45 e14 svb; the
+            -- blast is rolled 1-63, tob.constant ^tob_verzik_p2_nylo_blast_near)
+            if melee then
+                local near = 0
+                for _, c in ipairs(v.crabs) do
+                    if math.max(math.abs(c.row.x - me.x), math.abs(c.row.z - me.z)) <= 4 then near = near + 1 end
+                end
+                -- (s45 e19 svb p3: two nylocas on arrival, 45 + 50 at 95)
+                if near >= 2 then t = math.max(t, math.min(63 * near, 126)) end
+            end
             return t
         end
         local webbed = false
@@ -1181,7 +1582,50 @@ function QD.raid._play_verzik_decide(st, v)
                 st.engaged = false
                 vz.target_slot = nil
             end
-        elseif tor ~= nil and td <= P.tornado_run and (st.mode ~= "normal" or ball or v.hp > P.enrage_hp_floor + 15) then
+        elseif melee and seen_tor ~= nil and seen_td <= 2 then
+            tor, td = seen_tor, seen_td
+            -- raid seam45: the melee trio DODGES its tornado along her edge
+            -- instead of running from it or tanking it.  In our room a touch
+            -- comes back 16 ticks later (tob.constant
+            -- ^tob_verzik_p3_tornado_respawn) and heals her triple (W:981),
+            -- so three raiders standing still beside her heal her about as
+            -- fast as they hit her (s45 e6 sva: 21 touches, 694 taken, an
+            -- enrage of 230 ticks with every raider running); W:981 "in the
+            -- off chance it damages the player" -- a touch is the exception.
+            -- It walks one tile a tick and a run is two (s30 vz30h), so a
+            -- step of up to two along her edge, to the tile furthest from its
+            -- next tile, keeps it off while the scythe stays in reach; her
+            -- body is a wall to it (s45 e6 sva t738-758: 330 tornado tiles,
+            -- one inside her 7x7, its spawn).
+            local best, bx, bz = nil, nil, nil
+            for dx = -2, 2 do
+                for dz = -2, 2 do
+                    local x, z = me.x + dx, me.z + dz
+                    if (dx ~= 0 or dz ~= 0) and okp(x, z) and not v.shadows[x * 100000 + z] then
+                        local nx, nz = tor.x, tor.z
+                        if x > nx then nx = nx + 1 elseif x < nx then nx = nx - 1 end
+                        if z > nz then nz = nz + 1 elseif z < nz then nz = nz - 1 end
+                        local d = math.max(math.abs(x - nx), math.abs(z - nz))
+                        -- (on a hold tick, two out of her: her melee hits
+                        -- everyone beside her, s45 e7 svb t759-761: a dodge
+                        -- along her edge on T-1 took her 60 and the tornado's 60)
+                        local dd = QD.raid._verzik_dist(x, z, b)
+                        if d >= 2 and (not m3_hold or dd >= 2) then
+                            local edge = (dd == 1) and 0 or 1
+                            local sc = edge * 100 - math.min(d, 4) * 10 + math.max(math.abs(dx), math.abs(dz))
+                            if best == nil or sc < best then best, bx, bz = sc, x, z end
+                        end
+                    end
+                end
+            end
+            if bx ~= nil then
+                intent.walk = { x = bx, z = bz }
+                vz.steps = vz.steps + 1
+                vz.m3.dodges = vz.m3.dodges + 1
+                st.engaged = false
+                vz.target_slot = nil
+            end
+        elseif tor ~= nil and td <= P.tornado_run and (st.mode ~= "normal" or ball or v.hp > P.enrage_hp_floor + 15) and not melee then
             -- raid seam34v, the Normal trio POWERS THROUGH: "Teams with
             -- sufficient experience can simply power through into enrage;
             -- they can either keep their health low so the tornado heals
@@ -1236,12 +1680,52 @@ function QD.raid._play_verzik_decide(st, v)
                 vz.last_run = { bx - me.x, bz - me.z }
             end
             vz.tornado_runs = (vz.tornado_runs or 0) + 1
-        elseif on_me or d_boss < 2 or (st.mode == "normal" and not ok(me.x, me.z)) then
+        elseif melee and cd <= 3 and QD.raid._verzik_crabs(st, v, ok, go) == nil and intent.walk ~= nil then
+            -- raid seam45: a nylocas within 3 is run from before anything
+            -- else (W:925); its blast on arrival is 63 within 1 and two
+            -- arrive together (s45 e14 svb t792-793: 14 + 63 + 18 on the
+            -- leader at 60 beside her east edge)
+            vz.m3.kites = (vz.m3.kites or 0) + 1
+        elseif melee and not on_me and (me.x < b.x or me.z < b.z or d_boss > 2) and okp(hx3, hz3) then
+            -- raid seam45: the melee trio's side of her is the NORTH-EAST:
+            -- the tornadoes rise on her south-west tile (tob_verzik.rs2
+            -- ~tob_verzik_spawn_tornadoes: npc_add at her npc_coord) and
+            -- every step from it toward a raider north and east of that tile
+            -- is into her body, which walls it (s45 e8 sva t960: its first
+            -- step went round her corner, never through her), so a raider on
+            -- her east edge is never reached (W:981 "in the off chance it
+            -- damages the player").  p1 to p3 on her east edge two apart
+            -- (the green ball bounces to a neighbour, W:975), stepping out to
+            -- the east on T-1.
+            -- ROUND her, two out: the server paths a player THROUGH her
+            -- body (s45 e9 sva t558-600: a walk from 6430,87 to her east
+            -- edge stood the leader on 6432,89 inside her 7x7 every other
+            -- tick, the floor rule walked him out, 43 ticks with no swing)
+            local wx, wz = hx3, hz3
+            if me.x < b.x + n3 then
+                if me.z < b.z then
+                    wx, wz = b.x + n3 + 1, math.min(me.z, b.z - 2)
+                elseif me.z >= b.z + n3 then
+                    wx, wz = b.x + n3 + 1, math.max(me.z, b.z + n3 + 1)
+                elseif (me.z - b.z) < (b.z + n3 - 1 - me.z) then
+                    wx, wz = me.x, b.z - 2
+                else
+                    wx, wz = me.x, b.z + n3 + 1
+                end
+                if not okp(wx, wz) then wx, wz = hx3, hz3 end
+            end
+            if st.walk_target == nil or st.walk_target.x ~= wx or st.walk_target.z ~= wz or (st.last_me ~= nil and st.last_me.x == me.x and st.last_me.z == me.z) then
+                intent.walk = { x = wx, z = wz }
+                vz.steps = vz.steps + 1
+                st.engaged = false
+                vz.target_slot = nil
+            end
+        elseif on_me or (not melee and d_boss < 2) or (st.mode == "normal" and not (melee and okp or ok)(me.x, me.z)) then
             -- (raid seam34v: and back onto the floor: s34v _play_verzik
             -- t600-625, the leader stood on 6421,84, a column west of the
             -- floor, pressed Attack every tick and never swung)
             go(me.x, me.z)
-        elseif st.party > 1 and crowd(me.x, me.z) > 0 then
+        elseif st.party > 1 and crowd(me.x, me.z) > 0 and (not melee or ball) then
             -- raid seam34v: a raider beside another steps apart (the ball
             -- bounces to a neighbour, W:975; s34v vzn3: the two members ran
             -- one tile apart and took the ball and both tornadoes together);
@@ -1261,6 +1745,30 @@ function QD.raid._play_verzik_decide(st, v)
             if best ~= nil then go(bx, bz) vz.spreads = (vz.spreads or 0) + 1 end
         end
         if intent.walk == nil and pool == nil then crab = QD.raid._verzik_crabs(st, v, ok, go) end
+        -- raid seam45: melee never swings at a nylocas (its death blasts
+        -- everyone within 3, ~tob_verzik_crab_blast); it is only run from
+        if melee then crab = nil end
+        -- raid seam45: the step out of her reach on the plan's T-1 (ET 1.1; V
+        -- p3_melee_predicate), and no press on a held tick
+        if melee and m3_hold and intent.walk == nil then
+            vz.m3.holds = vz.m3.holds + 1
+            if d_boss == 1 then
+                local sx, sz = QD.raid._verzik_step_out(st, v, okp, mates)
+                if sx ~= nil then
+                    intent.walk = { x = sx, z = sz }
+                    vz.steps = vz.steps + 1
+                    vz.m3.outs = vz.m3.outs + 1
+                    st.engaged = false
+                    vz.target_slot = nil
+                end
+            elseif st.engaged then
+                -- engaged from two out, the server would path the swing in:
+                -- a click on my own tile clears it
+                intent.walk = { x = me.x, z = me.z }
+                st.engaged = false
+                vz.target_slot = nil
+            end
+        end
         -- raid seam35e play_tob_entry_relay: no attack press from the pool in
         -- the blast's last ticks.  The bow's press paths to its own range and
         -- sight line, and from the pool at 6428,207 that path was 6428,209: on
@@ -1284,6 +1792,8 @@ function QD.raid._play_verzik_decide(st, v)
                 -- leader's swing moved it 6422,79 -> 6423,81 the tick before
                 -- the blast, which took its last 51)
                 intent.attack = false
+            elseif melee and m3_hold then
+                intent.attack = false
             else
                 if vz.target_slot ~= nil then st.engaged = false vz.target_slot = nil end
                 intent.attack = true
@@ -1291,9 +1801,46 @@ function QD.raid._play_verzik_decide(st, v)
         end
     end
 
+    -- raid seam45: P3's ticks as the plan read them, from her first web
+    -- special for 20 ticks (the ledger's play.melee_clock row)
+    if phase == "p3" and st.mode == "normal" and vz.m3 ~= nil then
+        if v.attack ~= nil and v.attack.seq == P.p3_webs and vz.m3.w0 == nil then vz.m3.w0 = v.tick end
+        vz.m3.log2 = vz.m3.log2 or {}
+        if vz.m3.w0 ~= nil and v.tick <= vz.m3.w0 + 20 then
+            vz.m3.log2[#vz.m3.log2 + 1] = v.tick .. "B" .. b.x .. "," .. b.z .. "s" .. tostring(b.size) .. "me" .. v.me.x .. "," .. v.me.z .. "N" .. tostring(vz.m3_N) .. (vz.m3_sure and "s" or "u") .. "d" .. QD.raid._verzik_dist(v.me.x, v.me.z, b)
+                .. (v.attack and ("a" .. v.attack.seq) or "") .. (st.engaged and "E" or "") .. (intent.walk and ("W" .. intent.walk.x .. "," .. intent.walk.z) or "") .. (intent.attack and "A" or "")
+        end
+    end
     if intent.want.protectfrommagic then P.walk_prayers[1] = "protectfrommagic"
     elseif intent.want.protectfrommissiles then P.walk_prayers[1] = "protectfrommissiles" end
     intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, threat)
+    -- raid seam45: THE MELEE STATS.  Every brew dose drains Attack and
+    -- Strength (s45 e15 svc: the leader drank 16 brew doses and 12 restore
+    -- doses; in the enrage 43 of 48 splats on her were zeros, 14 damage in a
+    -- hundred ticks).  A melee raider drinks a super restore when its Attack
+    -- is drained and the super combat potion when it has fallen back to its
+    -- base (W:871 Verzik's recommended setup carries both).
+    if st.mode == "normal" and (phase == "p2" or phase == "p3" or phase == "t23") and intent.drink == nil
+        and v.tick - st.last_drink >= QD.RAID_PLAY_DRINK_DELAY then
+        local _, att = QD.skill.read("attack")
+        local level, base = att.level or 99, att.base or att.base_level or 99
+        local pick = nil
+        if level < base - 8 then
+            for _, name in ipairs(QD.RAID_PLAY_RESTORES) do
+                local cr, n = QD.inv.count(name)
+                if pick == nil and cr == "ok" and n > 0 then pick = name end
+            end
+        elseif level < base + 8 then
+            for _, name in ipairs({ "br_1dose2combat", "br_2dose2combat", "br_3dose2combat", "br_4dose2combat" }) do
+                local cr, n = QD.inv.count(name)
+                if pick == nil and cr == "ok" and n > 0 then pick = name end
+            end
+        end
+        if pick ~= nil then
+            intent.drink = pick
+            vz.stat_drinks = (vz.stat_drinks or 0) + 1
+        end
+    end
     intent.attack = QD.raid._play_attack(st, v, intent.attack and intent.walk == nil)
     return intent
 end

@@ -6974,3 +6974,40 @@ imbued heart, 103 a magic potion. Both hearts exist in content
 The alive cap (12 to wave 20, 24 after; Hard 15) is the wiki's and blert's, counted per copy
 until it despawns, tested on the due tick. A room that stalls earlier than Blert is killing
 slower: look at attacks per kill and nulled copies before the spawn loop.
+
+## Verzik melee: step out on either of the plan's T-2 and T-1 (seam45)
+
+The plan's tick and the server's are one apart for an input, either way. A step on the
+plan's T-2 alone stood the raider out at the end of T-2, and its press on T-1 brought him
+back beside her before her scan; a step on T-1 alone was late. Step out on EITHER of the
+plan's T-2 and T-1 (whichever finds the raider beside her), send no press on them, and
+press back in at T (`QD.RAID_PLAY_VERZIK_OUT_LEAD = 2`): 0 body slams in a 273-tick P2. A
+one-tick lead (`= 1`) took 67 slams.
+
+## A melee plan that brews must restore and re-boost (seam45)
+
+Every Saradomin brew dose drains Attack and Strength. After 16 doses, 43 of 48 enrage
+splats on Verzik were zeros (s45 e15). The Verzik plan now drinks a super restore when
+Attack is below base - 8 and a super combat dose when it is below base + 8; with that
+upkeep P2 fell from about 390 ticks to about 270.
+
+## The server paths a player through Verzik's P3 body, but walls her tornadoes (seam45)
+
+A straight walk to her far edge in P3 stood the leader inside her 7x7 every other tick,
+and the floor rule walked him back out: 43 ticks with no swing (s45 e9). Route the walk
+round her, two out. Her tornadoes cannot step through her: they go round her corner.
+
+## A member re-presses after a knockback or her web special (seam45)
+
+Before seam48's `t.raid.own_anim`, a party member read no tick log, so its swings were
+counted, not seen. After a slam's knockback, or when the server ended its attack at her
+web special, it still thought it was engaged. The Verzik plan re-presses when it is
+engaged from two tiles out without moving, and every 8 ticks in P3. With
+`t.raid.own_anim` landed, a member sees its own swings and these two heuristics are
+a fallback.
+
+## Verzik P2 reds for a melee trio: one per role, 10 ticks (seam45)
+
+Each raider takes one red, picked by role in slot order, and only during the 10-tick
+summon animation (W:928). Killing every red took P2 to 307-350 ticks and a 5-tick window
+to 259-335; the 10-tick window gave 270-310, measured on five names.

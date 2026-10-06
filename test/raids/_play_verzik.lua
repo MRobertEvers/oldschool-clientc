@@ -17,13 +17,16 @@
 -- PARTY_RE), and the Entry solo must stay one.
 local role = (QD_PARTY and QD_PARTY.role) or 1
 local size = (QD_PARTY and QD_PARTY.size) or 1
--- The kit.  Worn: ::maxrange (the twisted bow and the Masori a P2/P3 ranger
--- shoots in: W:923 the bow for the nylocas, the plan's P2/P3), insulated boots
--- (the zap 48 -> 25, V p2_zap_max; Entry_Mode.wikitext:94).  Carried: the
--- scythe for P1 (W:891 "weapon1 = Scythe of vitur"; W:881 "players should use
--- their melee weapons"), wielded at the door; a charged serpentine helm (the
--- Athanatos "has to be hit with poison or venom", W:923); brews, restores, a
--- ranging potion, anglerfish.  THE DAWNBRINGER: one per raid, taken from the
+-- The kit (raid seam45 play_tob_verzik_melee_follows_blert: MELEE, as every
+-- recorded Normal trio plays her -- Blert verzik_normal_3.json, 20 death-free
+-- rooms: the scythe in P2 and P3 in 16-18 of 20 rooms per role, melee 83-92%
+-- of attacks).  Worn: ::maxmelee (Torva, the charged scythe: W:891 "weapon1 =
+-- Scythe of vitur"; W:881 "players should use their melee weapons"),
+-- insulated boots (the zap 48 -> 25, V p2_zap_max; Entry_Mode.wikitext:94).
+-- Carried: a charged serpentine helm (the Athanatos "has to be hit with
+-- poison or venom", W:923); four brews, four super restores and two super
+-- combat potions (a brew drains the Attack and Strength the scythe swings
+-- with: the plan restores and re-boosts them), fourteen anglerfish.  THE DAWNBRINGER: one per raid, taken from the
 -- skeleton after Xarpus (tob_xarpus.rs2 [oploc1,tob_skeleton_with_weapon],
 -- [proc,tob_dawnbringer_take]: the searcher's backpack); the room before
 -- Verzik is not played here, so the first raider is handed it as that search
@@ -31,13 +34,13 @@ local size = (QD_PARTY and QD_PARTY.size) or 1
 -- (W:875 "drop the Dawnbringer for the next player (in orb order)").  p2 and
 -- p3 keep one backpack slot free for it.
 local party_kit = {
-    "::clearinv", "::maxrange",
+    "::clearinv", "::maxmelee",
     "::setlevel attack 99", "::setlevel strength 99", "::setlevel prayer 99",
     "::setlevel magic 99", "::setlevel agility 99",
     "::setlevel slayer 37", "::give slayer_boots 1", "::wield slayer_boots",
-    "::fullscythe", "::give serpentine_helm_charged 1",
-    "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 3", "::give br_4doserangerspotion 1",
-    "::give anglerfish 16",
+    "::give serpentine_helm_charged 1",
+    "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 4", "::give br_4dose2combat 2",
+    "::give anglerfish 14",
 }
 if role == 1 then party_kit[#party_kit + 1] = "::give verzik_special_weapon 1" end
 
@@ -49,7 +52,7 @@ local function party_run(t)
     end
     local r, d = t.raid.enter("tob", "verzik", { mode = mode })
     t.check("verzik.enter", r == "ok", "p" .. role .. " " .. tostring(d))
-    t.exec("equip.scythe", t.player.equip, "scythe_of_vitur")
+    -- (the scythe is worn: ::maxmelee wields it charged)
     -- W:871 "All players must have Protect from Magic on before starting the fight."
     t.exec("p1.prayer", t.prayer.set, "protectfrommagic", true)
     if size > 1 then t.expect("party.barrier.ready", t.party.barrier("ready", 300)) end
@@ -86,6 +89,11 @@ local function party_run(t)
         .. "; refusals " .. table.concat(dw.refused or {}, " | ") .. "; hides " .. table.concat(hides, " "))
     t.check("play.measure_raider", true, string.format("p%d: %s; eats %d, drinks %d, swings %d, add presses %s, kites %s, tornado runs %s",
         role, tostring(detail), #rec.eats, #rec.drinks, #rec.swings, tostring(vz.add_presses), tostring(vz.kites), tostring(vz.tornado_runs)))
+    -- raid seam45: the melee clock as the plan read it (P2 and P3)
+    local m2, m3 = vz.m2 or {}, vz.m3 or {}
+    t.check("play.melee_clock", true, string.format("p%d P2 outs %s late %s waits %s add presses %s kites %s; P3 outs %s late %s holds %s; P2 log %s",
+        role, tostring(m2.outs), tostring(m2.late), tostring(m2.waits), tostring(m2.add_presses), tostring(m2.kites),
+        tostring(m3.outs), tostring(m3.late), tostring(m3.holds), table.concat(m2.log or {}, " ")) .. "; P3 dodges " .. tostring(m3.dodges) .. "; enrage log " .. table.concat(m3.log or {}, " ") .. "; webs log " .. table.concat(m3.log2 or {}, " "))
     if role ~= 1 then
         t.expect("party.barrier.done", t.party.barrier("done", 9000))
         t.finish(0)

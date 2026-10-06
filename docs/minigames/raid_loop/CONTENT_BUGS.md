@@ -1707,3 +1707,20 @@ skill_slayer/scripts/imbued_heart.rs2: `[opheld1,imbued_heart]` -> `stat_boost(m
 `[opheld1,saturated_heart]` -> `stat_boost(magic, 4, 10)` (99 -> 112). Blert's 112 is the SATURATED heart
 exactly. OPEN, DRIVER (plan): give the mage seat a saturated heart and invigorate at the door instead of the
 magic potion (103). Not a content row.
+
+### Seen by seam45 (Verzik Normal trio, melee) -- rows to triage, nothing edited
+
+- DRIVER/CLIENT (C, src/plugin): `api_drive.npcs` rows for Verzik's P3 tornadoes (8386) mostly stay on the
+  spawn tile while the server walks them (s45 e8 enrage log: rows "6431,91;6432,91;6432,90" for 10+ ticks
+  while the tick log walked T81 6431,91 -> 6431,98); some rows do move. The plan cannot dodge what it
+  cannot see; it dodges only rows seen moving (raid_play_tob_verzik.lua QD.RAID_PLAY_VERZIK_DODGE note).
+  Same finding as s31 vz31d, still open.
+- CONTENT, unsourced either way: a P2/P3 nylocas blasts on EVERY ending, killed included
+  (tob_verzik.rs2 ~tob_verzik_crab_blast, after Near Reality's onFinish); the wiki sentence quoted there
+  is "explode if they reach their target". A melee raider can never kill one without taking up to 63.
+- CONTENT (spec V verzik.p3_auto_max): a PRAYED P3 auto still deals up to 16-17 to every raider; the
+  melee trio takes 8-12 eats in P3 against Blert's 0-6. If OSRS blocks it fully, hp lost per raider
+  (232-566 here, Blert 69-259) is mostly this and P2's urnbomb/zap.
+- CONTENT: the P3 tornado reaches a raider on her east edge (round her body, 12+ tiles) about every 28
+  ticks per raider (respawn 16, tob.constant ^tob_verzik_p3_tornado_respawn); W:981 calls a touch "the
+  off chance". A ball landing with a touch (74 + 50% of current) is lethal at any hitpoints (e18 svb).

@@ -1180,3 +1180,46 @@ ended (0 of 3). Next: the melee kit (`::maxmelee` exists, cheat_max_gear.rs2:31)
 the out-on-T-1 step against the bounce (V verzik.p2_scan_rule), P3 melee with the under-her step on T-1
 (V verzik.p3_melee_predicate). At HEAD the survey is 2 of 3 (the leader's own name dies in a 407-tick P3),
 where seam34v measured 5 of 5 before the content merge bf3dabef7c.
+
+### Verzik, Normal trio, MELEE as Blert's trios play it (seam45 play_tob_verzik_melee_follows_blert)
+
+Replaces the kit row and the P2/P3 rows of "Verzik, Normal trio" (the ranged plan). Reference:
+`docs/minigames/theater_of_blood/sources/blert_api/reference/verzik_normal_3.json` (20 death-free
+Normal trio rooms, every role melee). Compared with seam42's `verzik/compare_verzik.py`.
+
+| Who / when | Intent | Source |
+|---|---|---|
+| kit | `::maxmelee` (Torva, charged scythe) + insulated boots; carried: serpentine helm, 4 brews, 4 super restores, 2 super combat, 14 anglerfish; p1 the Dawnbringer | Blert: scythe in P2/P3 in 16-18 of 20 rooms per role; W:891; W:923 venom; V p2_zap_max |
+| P1 | unchanged (pillar cover, Dawnbringer shared by specials, scythe between) | W:871-891 |
+| T1->2 | Piety + Protect from Missiles, one super combat dose, serpentine helm on; each to its side two out (p1 W, p2 E, p3 S) | W:904 |
+| P2 | beside her, swinging; on the plan's T-2 or T-1 before her next attack a one-tile step to two out (no press on those ticks), the press back in at T. Clock: +4, the summon 8 after the 7th attack since one, +12 after a summon | V verzik.p2_scan_rule (C); ET 1.1-1.3; V p2_cadence, reds_first_attack_after |
+| P2 adds | Athanatos first (not while a nylocas is within 4 of it); Matomenos split one per role in slot order, only for 10 ticks after a summon; no swing on her across a summon or its 5-tick absorb; a nylocas within 4 is run from, never swung at | W:927-931; Entry_Mode:231; tob_verzik.rs2 ~tob_verzik_crab_blast |
+| P3 | her EAST edge (the tornadoes rise on her SW tile), routed round her two out; step out on the plan's T-2/T-1 when beside her. Clock: auto +7 (+5 enraged) sure; crabs 10, webs 40, yellows 20, ball 12, enrage +4 held until her attack shows | V verzik.p3_melee_predicate (C); W:953 |
+| P3 enrage | powers through (W:983): eats only to the 45 band unless the ball or nylocas; dodges a tornado only when its ROW is seen moving within 2 | W:981, W:983 |
+| stats | a super restore when Attack < base-8 (brews drain it), a super combat dose when < base+8 | e15: 43 of 48 enrage splats zero after 16 brew doses |
+
+Timing, measured: the plan's tick and the server's are one apart for an input, either way. A step on the
+plan's T-2 alone stood the leader out at the end of T-2 and its T-1 press brought him back before the
+scan (slams t181/t197); a step on T-1 alone was late (67 slams, e11). Two ticks out, press at T: 0 slams
+in P2 on the final repeat run (56 attacks, all 8114), 2 melees of 26 P3 attacks.
+
+Members read no tick log: their swings are counted, not seen, so a member re-presses when engaged from
+two out without moving (after a slam's knockback) and every 8 ticks in P3 (the server ended their attack
+at her web special, e13).
+
+Our room vs Blert (final plan, `seed_survey.py _play_verzik --party 3 --names 5`, 5 of 5 green,
+party_repeat 3 runs AGREE):
+
+| Number | Blert median [range] | Ours: _play_verzik / sva / svb / svc / svd (repeat s45vzfin) |
+|---|---|---|
+| room ticks | 438.5 [359-607] | 629 / 634 / 626 / 593 / 605 (626) |
+| P1 ticks | 85.5 [60-152] | 118 / 122 / 123 / 109 / 122 (115) |
+| P2 ticks | 210 [170-261] | 270 / 300 / 278 / 297 / 310 (273) |
+| P3 ticks | 134.5 [122-200] | 241 / 212 / 225 / 187 / 173 (221) |
+| hp lost per raider | 130-173 [69-259] | 232-566; svc 117-176 |
+| swings per role P2 / P3 | 31+6 [25-41 + 2-13] / 24 [21-33] | 43-45 / 31-32 (repeat) |
+| eats per role P2 / P3 | 1.5 [0-4] / 2 [0-6] | 6-10 / 8-12 (repeat) |
+
+Before (ranged, HEAD cf69609bc): 2 of 3 names, room 591-833, P2 289-299, P3 146-407, hp lost 268-715.
+
+Closer seam45, on the tree with seam48's `t.raid.own_anim` built in (src/torirs_seam45_close): the party survey is 4 of 5, not the fixer's 5 of 5 (that run used the older binary). svdplayverzi p2 died at t611 in the enrage: all three raiders stood on ONE yellow pool at 6431,96, two tornadoes walked up column 6431 and touched p2 for 29, and the yellows blast took its last 50. OPEN: one raider per pool in the melee P3, and the hitpoints lost. Entry solo stays 5 of 5.

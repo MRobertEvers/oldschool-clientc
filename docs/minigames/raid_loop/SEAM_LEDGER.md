@@ -1638,3 +1638,25 @@ all clean. No C and no content changed.
 
 - nylocas_waves_and_vasilias_rows: LANDED as docs, no content change. Every suspected number matches its source: the wave cap 12 to wave 20 then 24, Hard 15, counted per copy until despawn (wiki Theatre_of_Blood/Strategies/Nylocas:3 "Before wave 20, the cap is 12 nylocas; afterwards, the cap is doubled to 24."; blert NylocasDataTracker.java:84-92,123); Ischyros def 1 and bonuses 0, big def 20, Vasilias def 50 and hp 1875/2187/2500 (wiki infoboxes, cache_npc_nylocas.txt, tob.npc). The ny40j zeros on greys are nulling after a wrong-style blowpipe swing (wiki Strategies:724), a plan defect. CONTENT_BUGS rows settled; four PROPOSED comment rows in nylocas.tsv; two stale tob.constant line refs there corrected (940 -> 1026, 950 -> 1043). OPEN, driver/plan: equip the colour's weapon before the attack click on a new target; the mage seat should invigorate a saturated heart (Blert 112) instead of a magic potion (103); Vasilias' per-swing gap (24.7 vs about 34) is player-side and no source settles it in content.
 - Closer gates: conformance 395/395 rows PASS (202 verbs, 193 seam rows, no new rows this pass); check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua, test-quest-cheats PASS; spec_check ok; pack rc 0. Quest suite (run.py --all) then gate.py: 115 green + deserttreasure forgettabletale regicide troll red = baseline, with QUEST_HELPER_ROOT=/Users/matthewevers/Documents/git_repos/quest-helper. Without it zombiequeen reads RED in this worktree: helper_coverage.py looks for quest-helper one or two directories above the worktree, and worktrees/raid25 sits three deep, so the cutscene exemptions find no guide. Lint on committed quest files: 34 findings in 11 files, none from this pass (no test file changed).
+
+## matthew-mbp-m4-raid-b1-seam45 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged): Normal Verzik all melee, as Blert's trios play it
+
+- play_tob_verzik_melee_follows_blert: LANDED, but not every number is inside Blert's range.
+  The Normal trio plan is rewritten for melee: ::maxmelee, Piety, the scythe, a super
+  restore and super combat upkeep. P2 has the step out on the plan's T-2/T-1 and the press
+  back in at T. P3 holds her east edge and steps out on T-2/T-1. Each role takes one red
+  during the 10-tick summon. The Entry branch is untouched. Fixer: 5 of 5 on the older
+  binary, and the repeat gate agrees. Closer, on the tree with seam48's own_anim built in:
+  the party survey is 4 of 5 (HEAD was 2 of 3) and Entry solo is 5 of 5.
+  Inside the range: P1 109-123 [60-152], 0 slams in P2, room 593/605 on two names [359-607],
+  P3 173/187 on two names [122-200]. OPEN: P2 270-310 [170-261], because she heals about
+  550-650; P3 212-241 and room 626-639 on three names; hp lost per raider 232-566 [69-259],
+  with 6-12 eats a phase [0-6]. svdplayverzi on the combined tree: p2 dies in the enrage
+  with all three raiders on one yellow pool. The client tornado rows freeze on the spawn
+  tile (C). The content questions are in CONTENT_BUGS.md: the prayed P3 auto still deals
+  16-17, and a killed nylocas blasts.
+- Closer: no conformance row (no verb changed); check-quest-verbs (230 verbs) and
+  check-pt-switch PASS; luac -p clean. The full quest suite was not run: this pass changed
+  only the Verzik plan module and its raid harness, no C, content or shared driver file.
+  The fixer ran cooks_assistant and druid green. seam48's uncommitted C, raid_play.lua,
+  conformance and Bloat content in this tree are seam48's and were not committed here.
