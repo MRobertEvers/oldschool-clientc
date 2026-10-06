@@ -125,6 +125,9 @@ DREAMMENTOR_NPC = CONTENT / "quests/quest_dreammentor/configs/dreammentor.npc"
 SHADOWSTORM_NPC = CONTENT / "quests/quest_shadowstorm/configs/shadowstorm.npc"
 SHADOWSTORM_CONSTANT = CONTENT / "quests/quest_shadowstorm/configs/shadowstorm.constant"
 SHADOWSTORM_RITUAL = CONTENT / "quests/quest_shadowstorm/scripts/shadowstorm_ritual.rs2"
+BETWEENAROCK_NPC = CONTENT / "quests/quest_betweenarock/configs/betweenarock.npc"
+BETWEENAROCK_REALM = CONTENT / "quests/quest_betweenarock/scripts/betweenarock_realm.rs2"
+SCORPION_STATS_NPC = CONTENT / "npc/configs/combat_stats.generated.npc"
 DREAMMENTOR_DREAM = CONTENT / "quests/quest_dreammentor/scripts/dreammentor_dream.rs2"
 ASCENT_NPC = CONTENT / "quests/quest_ascentofarceuus/configs/ascentofarceuus.npc"
 ASCENT_LOCS = CONTENT / "quests/quest_ascentofarceuus/scripts/ascentofarceuus_locs.rs2"
@@ -5036,6 +5039,73 @@ def check_shadow_of_the_storm() -> None:
     )
 
 
+def check_between_a_rock() -> None:
+    """Between a Rock...'s Arzinian Avatar is a real fight (with no block every
+    variant fought on the engine default's 10 hp and died in one hit, b58/b67
+    betweenarock). Wiki Arzinian_Avatar_of_Strength/Ranging/Magic oldids
+    15200005/15200004/15200003; cache all.npc stat1..6 agrees for all nine."""
+    manifest = json.loads(MANIFEST.read_text())
+    rows = [row for row in manifest["encounters"] if row["id"] == "quest-between-a-rock"]
+    require(len(rows) == 1, "manifest: expected exactly one Between a Rock... row")
+    require(rows[0]["implementation_status"] == "implementation-in-progress",
+            "Between a Rock...: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(rows[0][key]), f"Between a Rock...: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in rows[0]["source_audits"]}
+    for revision in (15200005, 15200004, 15200003):
+        require(revision in revisions, f"Between a Rock...: pinned Avatar Wiki audit {revision} drifted")
+    text = BETWEENAROCK_NPC.read_text()
+    # name: (hitpoints, attack, strength, defence, ranged, magic, style, extra lines)
+    avatars = {
+        "dwarf_rock_avatar_warrior": (200, 150, 130, 120, 0, 0, "crush", ()),
+        "dwarf_rock_avatar_warrior_green": (100, 110, 100, 95, 0, 0, "crush", ("param=rangedefence,80",)),
+        "dwarf_rock_avatar_warrior_yellow": (70, 70, 65, 50, 0, 0, "crush", ("param=rangedefence,40",)),
+        "dwarf_rock_avatar_archer": (200, 20, 110, 130, 140, 0, "ranged", ("param=rangebonus_ammo,19",)),
+        "dwarf_rock_avatar_archer_green": (100, 10, 100, 120, 110, 0, "ranged",
+                                           ("param=rangebonus_ammo,10", "param=rangedefence,20")),
+        "dwarf_rock_avatar_archer_yellow": (70, 10, 40, 75, 75, 0, "ranged",
+                                            ("param=rangebonus_ammo,5", "param=rangedefence,15")),
+        "dwarf_rock_avatar_mage": (200, 10, 100, 130, 0, 150, "magic", ("param=magic_maxhit,15",)),
+        "dwarf_rock_avatar_mage_green": (100, 10, 90, 120, 0, 120, "magic",
+                                         ("param=magic_maxhit,13", "param=rangedefence,15")),
+        "dwarf_rock_avatar_mage_yellow": (70, 10, 50, 75, 0, 75, "magic",
+                                          ("param=magic_maxhit,8", "param=rangedefence,10")),
+    }
+    for name, (hp, att, strength, defence, ranged, magic, style, extra) in avatars.items():
+        block = _npc_block(text, name)
+        require(bool(block), f"Between a Rock...: no [{name}] block")
+        hitpoint_lines = [line for line in block if line.startswith("hitpoints=")]
+        require(hitpoint_lines == [f"hitpoints={hp}"],
+                f"Between a Rock...: [{name}] hitpoints {hitpoint_lines} (want {hp})")
+        lines = [f"attack={att}", f"strength={strength}", f"defence={defence}",
+                 f"ranged={ranged}", f"magic={magic}", "huntmode=aggressive",
+                 "param=attackrate,4", f"param=damagetype,^{style}_style",
+                 "param=strengthbonus,0", "param=death_drop,null", *extra]
+        if style != "crush":
+            lines.append("param=attackrange,10")
+        for line in lines:
+            require(line in block, f"Between a Rock...: [{name}] lacks `{line}`")
+    # The Being of Bordanzan is Talk-to only and never fought: no block.
+    require(not _npc_block(text, "dwarf_rock_actual_demon"),
+            "Between a Rock...: the Being of Bordanzan is never fought, it takes no block")
+    scorpion = _npc_block(SCORPION_STATS_NPC.read_text(), "scorpion")
+    require("hitpoints=17" in scorpion, "Between a Rock...: the level-14 scorpion lost its block")
+    realm = BETWEENAROCK_REALM.read_text()
+    needles = ["[proc,dwarfrock_spawn_avatar]", "npc_add(0_37_77_7_25, $dwarfrock_avatar, 1000);",
+               "[label,dwarfrock_avatar_attack]\n~npc_retaliate(0);\n@player_combat_start;",
+               "%varb299_dwarfrock_quest = ^dwarfrock_avatar_defeated;"]
+    for colour in ("", "_green", "_yellow"):
+        needles.append(f"[ai_opplayer2,dwarf_rock_avatar_archer{colour}] ~npc_rangeattack;")
+        needles.append(f"[ai_opplayer2,dwarf_rock_avatar_mage{colour}] ~npc_generic_magicattack;")
+        for kind in ("warrior", "archer", "mage"):
+            needles.append(f"[opnpc2,dwarf_rock_avatar_{kind}{colour}] @dwarfrock_avatar_attack;")
+            needles.append(f"[ai_queue3,dwarf_rock_avatar_{kind}{colour}] ~dwarfrock_avatar_death;")
+    require_text(realm, tuple(needles), "Between a Rock... Avatar fight")
+    require("[ai_opplayer2,dwarf_rock_avatar_warrior" not in realm,
+            "Between a Rock...: the Avatar of Strength is Crush, it stays on the melee default")
+
+
 def check_taleoftherighteous() -> None:
     """Tale of the Righteous' Corrupt Lizardman is a real fight (with no block it
     fought on npc_default.npc's 10 hp). Wiki Corrupt_Lizardman oldid 15200061
@@ -5167,13 +5237,14 @@ def main() -> int:
         check_dreammentor()
         check_taleoftherighteous()
         check_shadow_of_the_storm()
+        check_between_a_rock()
         check_opnpc2_combat_start()
         check_apnpc2_twins()
         check_quest_progress_varps()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact!, Swan Song, Troubled Tortugans, The Ascent of Arceuus, Another Slice of H.A.M., Meat and Greet, Twilight's Promise, The Eyes of Glouphrie, Dream Mentor, Tale of the Righteous and Shadow of the Storm, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact!, Swan Song, Troubled Tortugans, The Ascent of Arceuus, Another Slice of H.A.M., Meat and Greet, Twilight's Promise, The Eyes of Glouphrie, Dream Mentor, Tale of the Righteous, Shadow of the Storm and Between a Rock..., plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
     return 0
 
 
