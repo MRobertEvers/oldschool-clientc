@@ -204,6 +204,21 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
   library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
   pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
+  STATE 2026-10-06 11:40. LANDED AND MERGED since 09:50: seam38 (p_stopaction + 5 ops bound to the
+  script's player; overheal decays; scythe 1x3 arc; salve accuracy; content bb84907f76), the
+  camera lane's seam39 (the ENTRY RELAY 5 of 5 ON THE FIXED CONTENT: the potion row reads the
+  stat against its base, the barrier re-pressed, Verzik re-talked; the NORMAL RELAY harness
+  `_play_normal.lua` built and deterministic, 0 of 3: supplies empty after Maiden, where the trio
+  takes 1050-1429 against 625 in the room harness), the Maiden plan f5144341d (rangers scythe the
+  crabs, stay on her at 30 percent; rows re-sourced to Blert's 26 trio rooms, sources/blert_api/
+  maiden_trio_crabs/). Raid branch c6abc903b. LANES: raid = seam37 (launch service: seams 1-2
+  proved, seam 3 the tab running); raid25 = seam40 (THE PLANS FOLLOW BLERT: reference tool,
+  raid_report --against, Maiden then Nylocas); camera = seam41 (the room-clear restore from the
+  wiki, the supply chest, the last bound-player ops, the kept tests' two wrong rows). Honest
+  state: Entry solo whole raid green 5 of 5; Normal rooms Bloat, Sotetseg, Xarpus, Verzik green;
+  Normal Maiden and Nylocas clear below the real trios' rates; the Normal relay runs but does not
+  clear (supplies). NOTE: the raid worktree's conformance VERB_COUNT lags the launch verbs until
+  seam37's closer lands (verb_list says 202 defined vs 195 asserted while its edits are dirty).
   STATE 2026-10-06 09:50. ENTRY RELAY LANDED (w25 debbf5380, merged 56ae174c9): the whole raid
   Entry solo end to end, 5 of 5 names on content 1c612cdfe3. CONTENT PASS LANDED (9998dec43,
   content 525e8538a9: Verzik reds cycle from 60 Blert streams, salve amulet, br_ brews boost
