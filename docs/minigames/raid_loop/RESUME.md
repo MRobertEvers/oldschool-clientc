@@ -211,6 +211,13 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   doubt (a disagreement between sources, an engine path) and for the plays. The chest points fix
   (per player, 6-13 by individual performance, Chest:20, Strategies:568) is DONE as of bf3dabef7c.
   Put this rule in every content work order from now on.
+  OWNER, 2026-10-06 13:40: "I don't care about the blert entry mode data, we can consider entry
+  mode complete." ENTRY MODE IS COMPLETE: six rooms and the whole raid green on five names through
+  the library; no Entry reference work, no Entry re-measurement against Blert. The Blert bar
+  applies to NORMAL (and later Hard): every room green on five leaders with the lockstep repeat,
+  every outcome number inside the recorded death-free trio range, then the Normal relay.
+  MERGED INTO v3 2026-10-06 13:20 (PR #126 at 97602934a; OSRS-Content PR #50): everything landed
+  through seam40/44; the raid branch continues from there and reaches v3 by further PRs.
   STATE 2026-10-06 11:40. LANDED AND MERGED since 09:50: seam38 (p_stopaction + 5 ops bound to the
   script's player; overheal decays; scythe 1x3 arc; salve accuracy; content bb84907f76), the
   camera lane's seam39 (the ENTRY RELAY 5 of 5 ON THE FIXED CONTENT: the potion row reads the
