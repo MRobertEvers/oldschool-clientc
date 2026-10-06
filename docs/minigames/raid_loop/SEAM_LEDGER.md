@@ -1127,3 +1127,32 @@ all clean. No C and no content changed.
   were not built here and nothing in this close verified them: `run.py --name` honoured or
   refused, the author workflow keeping a room only on a green survey, and the README and
   DRIVER_NOTES rule.
+
+## matthew-mbp-m4-raid-b1-seam25 (2026-10-05; parent a0f479d06 on matthew-mbp-m4-raid-b1-w25, OSRS-Content unchanged): the watch pass -- mouse, camera, starting state
+
+- watched_client_mouse_mapping: LANDED IN PART. The SDL pointer map is one pure function
+  (src/platform/platform_pointer_map.h) shared by MapMouse and the present's game area;
+  `make -C src test-sdl-pointer-map` passes 698 checks at 1x and 2x, pane open and closed. New
+  headless knobs: TORIRS_SIM_SDL_CLICK_AT and TORIRS_SIM_PIXEL_DENSITY. The osrs239-scripts
+  profile now pins the window the owner confirmed (--soft3d --window 765x503, TORIRS_HIDPI=0),
+  so plain `./launch run osrs239-scripts` uses it. OPEN: the cause of "way off" in the default
+  GPU/Retina window was not found, because the dummy driver has no GL3 and no Cocoa pane. A
+  Scripts-tab row and Play pressed through the SDL path are not proved.
+- watched_camera_and_shots: LANDED IN PART. QD.drive.camera_aim is the one camera call. A test
+  run snaps, and its ledgers are byte-identical. A watched client turns, using the arrow keys
+  held through api.drive.camera_turn_toward and api.drive.camera_turn_release. A photograph
+  never moves a watched camera. Conformance rows `drive.camera_aim` and
+  `seam.camera_aim_photograph_refused_when_watched` sit at the end of the plan. OPEN: no
+  watched Play through the tab has turned yet; the forced flag stood in for it. The flicker
+  rate was not measured. The Screenshots toggle needs script_runner.lua. core.lua's
+  watch.account camera put-back is still a direct snap.
+- starting_character_state: LANDED (engine and driver); TAB WIRING NOT MERGED.
+  `::resetcharacter [home | fixture <name>]`, t.session.reset and t.session.held are in;
+  conformance rows `session.held` and `session.reset` are green, and the selftest stanza is
+  green. The six ToB rooms ran on one character with a reset before each, every setup
+  landing. OPEN: the Scripts tab's "Start from" select (snippets in
+  build/seam_state/matthew-mbp-m4-raid-b1-seam25/snippets.starting_character_state.txt:
+  core.lua, torirs_plugin_drive.c, script_runner.lua, prepare_scripts.py) is not merged, so
+  every Play still starts on a fresh account. The closer had no headless tab-Play harness to
+  prove it. Also, snippet 3(f) passes the manifest's script-item path as the fixture name,
+  which the cheat would refuse; pass the basename when it lands.
