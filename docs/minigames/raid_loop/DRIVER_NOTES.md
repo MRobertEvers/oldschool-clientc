@@ -5936,3 +5936,134 @@ summariser over `ticklog.tsv` (consume rows' hp_before and hp_after per item, hi
 npc type, the boss forms' npc_spawn and npc_death) found every seam31 fix without a replay.
 Realised heal, the sum of max(0, hp_after - hp_before) against the item's nominal heal, is
 the waste figure.
+
+## A loadout swap and a special ride the play's send: intent.gear, intent.spec (seam32)
+
+`QD.raid._play_send` takes `intent.gear = { item, ... }`: each item is equipped inside the
+tick's one `t.together` block, after the food and before the step, so a swap rides the same
+tick as the walk that leaves ("the scythe back the same tick"). `intent.spec = true` arms
+the special from the minimap orb (`orbs:specbutton`), never the combat tab's bar, before the
+attack press of the same tick. The send records `st.gear_swaps` and `st.spec_arms`. A plan
+that sets neither sends exactly what it sent before. The orb press is a toggle: a plan that
+re-arms reads `varp301_sa_attack` first and presses only when it reads 0. Prove a special
+fired by the energy it spends (`varp300_sa_energy` falls by the weapon's cost, 500 for the
+Dragon warhammer), not by the first splat. Row: `seam.raid_play_loadout_spec`.
+
+## Bloat's tank block is local x 29..34 (seam32)
+
+The LOS and collision block in Bloat's room is local x 29..34, z 29..34 of the map square
+(6429..6434 x 93..98 in the instance). Every Bloat tick log has raiders on 6428,93..98 and
+none inside that box. The old plan box (28..33) put a hide tile at x 6434, which nobody can
+reach, and the server's route to it ran under a shadow (svcplaybloat t309-311: the walk,
+the hand on the route, the stun, a second hand).
+
+## A supplies threat counts the prayed fly and not a shadow the step leaves (seam32)
+
+With Protect from Missiles lit, one of Bloat's flies lands at most 15 in Normal (W:673
+"reduced by 25%"). A threat that counts 20 for every unhidden tick ahead reads "eat" at 120
+hitpoints, and every Saradomin brew dose drains Attack and Strength by 2 + 10%
+(br_potion.rs2:78-79): downs 2 to 5 dealt a fifth of down 1 (b32n3a). A shadow the tick's
+own step leaves is not a hand that lands (ET 3.4), so it is not counted either. The Bloat
+plan also drinks a super restore when Attack is under its base and re-sips the super
+combat on a walk.
+
+## Party kits need run energy for a 300-tick room (seam32)
+
+Fresh characters run out of run energy by Bloat's fourth walk (svbplaysmoke t346-361), and
+a raider who walks beside a running Bloat takes a fly every tick. Party kits carry
+`::setlevel agility 99` (yt_4i4lv-srJkw.md 0:12:09).
+
+## A party harness declares its party (seam32)
+
+`party_repeat.py` reads the party size from the test file (`party = N,`), and takes no
+`--party`. `seed_survey.py <id> --party 3` works on a file without one. Bloat's Normal trio
+moved to `test/raids/_play_bloat.lua` (`party = 3`); `_play_smoke.lua` is the Entry solo
+harness and asserts a party of one. The Maiden and Nylocas trios run from `_play_maiden.lua`
+and `_play_nylocas.lua` under `--party 3`; their repeats ran on copies that add `party = 3,`
+(build/seam_state/matthew-mbp-m4-raid-b1-seam32/_play_<room>_trio.lua). A red name answers
+DIFFER (exit 1) even when the tick-log shas agree; compare a green name or pass --allow-red.
+
+## api_drive.players' pid is the tick log's pid + 1 (seam32)
+
+`api_drive.players()` counts the `me` pid from 1; the tick log counts from 0. In a party the
+library's `st.my_pid` (`QD.raid._play_state`) therefore names the next raider, and the
+leader counts another raider's swings. The Maiden and Nylocas plans re-read their own log
+pid once, from the `player_tile` row on their own tile. The library is not fixed yet.
+
+## A party member holds no tick log: read its own swings from the experience paid (seam32)
+
+`QD.raid._play_see` records swings only from the leader's tick log, so every member's plan
+is blind to its own swings (s32ny2: p2 and p3 "0 swings" in 933 ticks). The Nylocas plan
+reads a member's swings from Hitpoints or Magic experience rising, checked every decide. On
+the leader the read matched its `player_anim` swings at a lag of 0 or 1 tick. Proved on a
+goblin: three Wind Strikes, each shown by the first Magic experience read at or after it.
+Row: `seam.raid_play_member_swing_xp`. It belongs in `_play_see` when there is no log.
+A manual cast is followed by the player's own melee five ticks later (s32xpswing: seq 422
+at 13 and 21), so with a staff on, a bash on a blue is a wrong-style hit unless another
+press comes inside five ticks.
+
+## Maiden's blackstorm is an overhit settled on her launch tick (seam32)
+
+`tob_maiden.rs2` (`~tob_maiden_blackstorm`) makes the hit lethal when it is at least the
+target's hitpoints at launch (W:590 "cannot be tick-eaten"). A plan holds hitpoints above
+the storm on her attack tick; a bite sent on T-1 is eaten after her scan. The client sees
+her animation a tick late, so judge the launch a tick early. A tank who steps in late does
+not know the current storm (it grows 3.5 per Matomenos that reached her): a person reads
+the old tank's hitsplat, the plan does not yet.
+
+## Matomenos: two lanes, the freeze lands two ticks after the cast (seam32)
+
+Ice Barrage on a Matomenos lands two ticks after the cast (npc_spotanim 369 at cast + 2). A
+walking crab nearer her than gap 4 at the cast reaches her before the ice. The north spawns
+converge on her top row z=97 and the south ones on z=92, four tiles apart in x (spawns x
+6436/6440/6444/6448, z 85/87 and 101/103). They meet only when the lead crab is frozen and
+the followers walk into it, so a barrage on a frozen anchor catches them (W:637). In the log
+a freeze is a crab's `npc_tile` rows stopping (they step every tick); a leak is a crab dying
+at gap 1 or less from her footprint, its absorb blow its remaining hitpoints, healing her
+twice that.
+
+## Vasilias' colour is judged at the swing, not the landing (seam32)
+
+Every `npc_heal` row in s32ny2 sat on a tick a raider swung that was also her `npc_retype`
+tick. Keep every style's swing off the turn tick: hold the press, or step the tick before
+an auto-swing falls there. Projectiles judged by their landing are not enough.
+
+## A copy's age must survive the plan's own long blocks (seam32)
+
+Seam30's "unseen for 2 ticks = new copy" rule reset every age whenever a swap and press
+block ran 3 ticks, so in a party every copy stayed under the flicker settle age and was
+never picked (s32ny6 p2: pick=none with 22-33 present). A copy is new only on a new slot,
+8 unseen ticks, a size change, or a move further than it could walk.
+
+## A weapon swap while engaged swings the old target with the new weapon (seam32)
+
+The player keeps swinging at the old copy with the NEW weapon until the next press lands
+(svcplaynyloc p2 t163-t167: whip pressed on a grey, blowpipe worn, darts on the grey for 0
+and 0). In the Nylocas that is a wrong-style hit. A one-tile step with the swap ends the
+engagement at a tempo cost (the plan's P.swap_stop, off: survey 3 of 5 with it).
+"Your attack has no effect on this Nylocas." (tob_damage.rs2:308-310) is the sign a raider
+is nulled on a copy; the plan strikes its last-swung copy off on that line.
+
+## Seq ids and the blowpipe (seam32)
+
+`drive.symbol` has no `seq` kind. Measure a seq id from `player_anim` rows: the toxic
+blowpipe swing is 5061 (s32ny5). `all.seq`'s header order is not the id (index 5055 is
+snakeboss_blowpipe_attack, id 5061). A blowpipe is loaded the way a player does it:
+`t.player.use_item_on_item('dragon_dart', 'toxic_blowpipe')`, then
+`('snakeboss_scale', 'toxic_blowpipe_loaded')`, then equip `toxic_blowpipe_loaded`. The
+scales need a free backpack slot at `::give` time.
+
+## Iterating without a replay (seam32)
+
+A scratch copy of a harness that wraps the plan's decide function inside `run(t)` and
+writes each leader decision as a `t.ticklog.mark` shows why a tick went the way it did
+(QD is not a global when a test file loads; `t.raid` is QD.raid). Example:
+build/seam_state/matthew-mbp-m4-raid-b1-seam32/scratch_bloat_trace.lua.
+
+## Conformance rows share one tick log and one fight (closer seam32)
+
+The conformance run's tick log carries every earlier row and the server tick restarts
+inside the run, so a row reads its rows `since` its own mark's serial, never "tick >= now".
+A row that fights must end the engagement the row before it left (a one-tile walk, then a
+wait for a dying npc to leave). A boosted stat drops one point on the player's stat restore
+tick, so read a boost on the tick the item is consumed, not a few ticks on.

@@ -9,11 +9,260 @@
 -- UNCHANGED from tob_maiden.lua :1706-1710, :682-691, :1635-1649, :1714-1715;
 -- the reads that feed them are tob_maiden.lua's ANALYSIS, cut to what they use,
 -- with the fight's own record (far moves, flicks, the prayer tick) from the play.
+--
+-- `--party 3` (raid seam32 play_tob_maiden_normal): the NORMAL TRIO, the same
+-- library and plan with the party's roles (PLAY_NOTES.md "Maiden, Normal
+-- trio"): seat 1 the ranger tank (the leader, who holds the tick log), seat 2
+-- the freezer, seat 3 the north ranger.  A party of one runs the Entry solo
+-- harness below unchanged.  `seed_survey.py _play_maiden --party 3`; the
+-- determinism gate reads the party size from the file, so party_repeat.py
+-- runs a copy that declares `party = 3,` (--script).
+local role = (QD_PARTY and QD_PARTY.role) or 1
+local size = (QD_PARTY and QD_PARTY.size) or 1
+-- THE TRIO'S KIT (raid seam32).  Every raider: the Entry harness's combat
+-- levels and its worn ranged set ("Everyone will be ranging in this room",
+-- 10Boot transcripts/yt_4i4lv-srJkw.md 0:07:06; "the twisted bow is highly
+-- effective against her", W:633), Protect from Magic all fight long (10Boot
+-- 0:06:01 "keep it on for the entire fight").  The freezer (seat 2) also
+-- carries the Entry harness's +140 magic set, Ancient Magicks and the runes
+-- of Ice Barrage (W:594 "Ice Barrage is essentially mandatory"; W:603 "in
+-- solo to trio there is one freezer"); the rangers carry food for the tank
+-- seat instead ("The person closest to the boss becomes the tank and will
+-- take the most damage", 10Boot 0:06:33).  Anglerfish as tob_bloat_normal's
+-- party kit; super restores ("stay on top of those super restores",
+-- 10Boot 0:06:33); Saradomin brews as the library's top-up.
+local party_kit = {
+    "::clearinv",
+    "::setlevel attack 99", "::setlevel strength 99", "::setlevel defence 99",
+    "::setlevel ranged 99", "::setlevel hitpoints 99", "::setlevel prayer 99",
+    "::setlevel magic 99",
+    "::give twisted_bow", "::wield twisted_bow",
+    "::give dragon_arrow 1000", "::wield dragon_arrow",
+    "::give masori_mask", "::wield masori_mask",
+    "::give masori_body", "::wield masori_body",
+    "::give masori_chaps", "::wield masori_chaps",
+    "::give avas_assembler", "::wield avas_assembler",
+    "::give eternal_boots", "::wield eternal_boots",
+    "::give magus_ring", "::wield magus_ring",
+}
+if role == 2 then
+    -- 8 slots of magic set and runes, 20 of supplies
+    local more = {
+        "::setvar varb4070_spellbook 1",
+        "::give water_rune 2000", "::give blood_rune 1000", "::give death_rune 1000",
+        "::give ancestral_hat", "::give ancestral_robe_top", "::give ancestral_robe_bottom",
+        "::give kodai_wand", "::give arcane",
+        "::give anglerfish 14", "::give br_4dose2restore 4", "::give br_4dosepotionofsaradomin 2",
+    }
+    for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
+else
+    local more = { "::give anglerfish 20", "::give br_4dose2restore 4", "::give br_4dosepotionofsaradomin 4" }
+    for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
+end
+-- THE TRIO'S RUN (raid seam32): every seat enters Normal, the leader starts
+-- the fight at the barrier and the members follow through it, then ONE call
+-- to the library; the leader reads the world's tick log after the kill.
+local function party_run(t)
+    local mode = "normal"
+    if role == 1 then t.ticklog.start() end
+    local er, ed = t.raid.enter("tob", "maiden", { mode = mode })
+    t.check("play.enter", er == "ok", "p" .. role .. " " .. tostring(ed))
+    t.expect("party.barrier.entrance", t.party.barrier("entrance", 300))
+    if role == 1 then
+        t.exec("play.barrier", t.player.click_loc, "tob_arena_barrier", 1)
+        local mr, md = t.ticklog.mark("room start")
+        t.exec("play.begin", t.chat.play, { "options", "choose:Yes, begin the fight." })
+        t.check("play.mark", mr == "ok", tostring(md))
+        t.expect("party.barrier.started", t.party.barrier("started", 900))
+    else
+        t.expect("party.barrier.started", t.party.barrier("started", 900))
+        local xr, xd = t.player.click_loc("tob_arena_barrier", 1)
+        t.check("play.barrier_cross", xr == "ok", "p" .. role .. " " .. tostring(xd))
+    end
+
+    -- THE FIGHT: the library and the room's plan, nothing else
+    local result, detail, rec = t.raid.play("tob_maiden", { mode = mode, weapon = "twisted_bow", max_ticks = 1400 })
+    t.check("play.fight", result == "ok", "p" .. role .. " " .. tostring(detail))
+    local m = rec.m or {}
+    local casts, nc = "", 0
+    for _, c in ipairs(m.casts or {}) do
+        nc = nc + 1
+        if nc <= 40 then casts = casts .. "[w" .. c.wave .. " t" .. c.tick .. " s" .. c.slot .. " " .. tostring(c.why) .. " " .. c.result .. "]" end
+    end
+    local seen = m.body_seen or {}
+    t.check("play.role", m.role ~= nil, string.sub("p" .. role .. " role " .. tostring(m.role) .. "; her tile " .. tostring(seen.x) .. "," .. tostring(seen.z)
+        .. " (offset " .. tostring(m.ox) .. "," .. tostring(m.oz) .. "); home walks " .. tostring(m.home_walks or 0) .. ", dodges " .. tostring(m.dodges)
+        .. "; eats " .. #rec.eats .. ", drinks " .. #rec.drinks .. ", swings " .. #rec.swings .. ", add presses " .. tostring(m.add_presses)
+        .. "; Ice Barrage casts " .. nc .. " " .. casts, 1, 1800))
+    if role == 2 then
+        t.check("tech.freezer_casts", nc > 0 and m.waves ~= nil and m.waves >= 3, "the freezer's waves " .. tostring(m.waves) .. ", casts " .. nc)
+    end
+    if role ~= 1 then
+        t.expect("party.barrier.done", t.party.barrier("done", 9000))
+        t.finish(0)
+        return
+    end
+
+    -- THE LEADER'S TICK LOG
+    -- her death (8093, 8094) and the room's line take nine ticks (maiden.death_total)
+    t.ticks(16)
+    local wave_text = nil
+    local _, wave_lines = t.msg.last(120)
+    for l = 1, #wave_lines do
+        if string.find(wave_lines[l].text, "Wave 'The Maiden of Sugadinti' (Normal Mode) complete!", 1, true) then wave_text = wave_lines[l].text end
+    end
+    t.check("room.complete_line", wave_text ~= nil, "chat line: " .. tostring(wave_text))
+    local cl_r, cl_state = t.raid.state()
+    t.check("room.cleared", cl_r == "ok" and string.find(tostring(cl_state.line), "cleared=1", 1, true) ~= nil, tostring(cl_state and cl_state.line))
+    local ws = rec.boss_slot
+    local mark_tick = nil
+    local _, mark_rows = t.ticklog.rows({ kind = "mark" })
+    for i = 1, #mark_rows do
+        if mark_rows[i].label == "room start" then mark_tick = mark_rows[i].tick end
+    end
+    t.ticks(1)
+    local _, spawn_rows = t.ticklog.rows({ kind = "npc_spawn" })
+    t.ticks(1)
+    local _, death_rows = t.ticklog.rows({ kind = "npc_death" })
+    t.ticks(1)
+    local _, free_rows = t.ticklog.rows({ kind = "npc_free" })
+    t.ticks(1)
+    local _, retype_rows = t.ticklog.rows({ kind = "npc_retype" })
+    t.ticks(1)
+    local _, ntile_rows = t.ticklog.rows({ kind = "npc_tile" })
+    t.ticks(1)
+    local _, hitp_rows = t.ticklog.rows({ kind = "hit_player" })
+    t.ticks(1)
+    local _, hitn_rows = t.ticklog.rows({ kind = "hit_npc" })
+    t.ticks(1)
+    local _, anim_rows = t.ticklog.rows({ kind = "npc_anim", slot = ws })
+    t.ticks(1)
+    local ids = m.ids or { boss = {}, crab = {}, slug = {} }
+    -- her free tick and her footprint (her npc_tile row; 6x6)
+    local free_tick = nil
+    for _, r in ipairs(free_rows) do
+        if r.slot == ws and (mark_tick == nil or r.tick >= mark_tick) then free_tick = r.tick end
+    end
+    local bx, bz = seen.x, seen.z
+    for _, r in ipairs(ntile_rows) do
+        if r.slot == ws then bx, bz = r.x, r.z end
+    end
+    local function gap(x, z)
+        if bx == nil then return 99 end
+        return math.max(math.max(bx - x, 0, x - (bx + 5)), math.max(bz - z, 0, z - (bz + 5)))
+    end
+    -- the thresholds: her retypes to the 70/50/30 forms
+    local thresholds = {}
+    for _, r in ipairs(retype_rows) do
+        if r.slot == ws and ids.boss[r.to_type] ~= nil and (mark_tick == nil or r.tick >= mark_tick) then
+            thresholds[#thresholds + 1] = { tick = r.tick, symbol = ids.boss[r.to_type], spawned = 0, frozen = 0, reached = 0, killed = 0, heal = 0, alive_end = 0 }
+        end
+    end
+    -- every Matomenos: spawn, tiles, death; frozen = two ticks or more on one
+    -- tile outside her gap (they step every tick, maiden.crab_walk);
+    -- reached = it died at her gap (maiden.crab_arrive_gap 1); the heal is
+    -- twice the absorb's blow (its remaining hitpoints, maiden.leak_heal_multiplier)
+    local crabs = {}
+    for _, r in ipairs(spawn_rows) do
+        if ids.crab[r.type] ~= nil and (mark_tick == nil or r.tick >= mark_tick) then
+            crabs[#crabs + 1] = { slot = r.slot, spawn = r.tick, tiles = {}, death = nil, frozen = false, reached = false }
+        end
+    end
+    for _, c in ipairs(crabs) do
+        for _, r in ipairs(death_rows) do
+            if r.slot == c.slot and r.tick >= c.spawn and c.death == nil then c.death = r.tick end
+        end
+        for _, r in ipairs(ntile_rows) do
+            if r.slot == c.slot and r.tick >= c.spawn and (c.death == nil or r.tick <= c.death) then c.tiles[#c.tiles + 1] = r end
+        end
+        local last_end = c.death or free_tick or (c.tiles[#c.tiles] and c.tiles[#c.tiles].tick) or c.spawn
+        for k = 1, #c.tiles do
+            local nxt = (k < #c.tiles) and c.tiles[k + 1].tick or last_end
+            if nxt - c.tiles[k].tick >= 3 and gap(c.tiles[k].x, c.tiles[k].z) > 1 then c.frozen = true end
+        end
+        local lt = c.tiles[#c.tiles]
+        if c.death ~= nil and lt ~= nil and gap(lt.x, lt.z) <= 1 then
+            c.reached = true
+            for _, r in ipairs(hitn_rows) do
+                if r.slot == c.slot and r.tick == c.death then c.heal = 2 * r.damage end
+            end
+        end
+        local w = nil
+        for k = 1, #thresholds do
+            if c.spawn >= thresholds[k].tick - 1 then w = thresholds[k] end
+        end
+        if w ~= nil then
+            w.spawned = w.spawned + 1
+            if c.frozen then w.frozen = w.frozen + 1 end
+            if c.reached then
+                w.reached = w.reached + 1
+                w.heal = w.heal + (c.heal or 0)
+            elseif c.death ~= nil then
+                w.killed = w.killed + 1
+            else
+                w.alive_end = w.alive_end + 1
+            end
+        end
+    end
+    local wave_text_rows, freeze_ok, reached_total, heal_total = {}, #thresholds == 3, 0, 0
+    for k, w in ipairs(thresholds) do
+        wave_text_rows[#wave_text_rows + 1] = string.format("w%d %s t%d: %d spawned, %d frozen, %d reached her (heal %d), %d killed, %d alive at the end",
+            k, w.symbol, w.tick, w.spawned, w.frozen, w.reached, w.heal, w.killed, w.alive_end)
+        if w.spawned == 0 or w.frozen < w.spawned - 1 then freeze_ok = false end
+        reached_total = reached_total + w.reached
+        heal_total = heal_total + w.heal
+    end
+    t.check("tech.freeze", freeze_ok, "every threshold's Matomenos frozen but at most one (10Boot 0:08:48 the closest north spawn is left to the rangers; W:639-643): "
+        .. table.concat(wave_text_rows, "; "))
+    t.check("tech.crabs_killed", #thresholds == 3 and reached_total <= 3, "Matomenos that reached her " .. reached_total .. " (heals " .. heal_total
+        .. "; W:593 'she will be healed by double the amount of their current Hitpoints'), at most one a threshold")
+    -- who took her blackstorms, and the blood (pools and trails: hitsplat 28 with no npc)
+    -- the log's pid of each seat: the leader's is the plan's own (re-read by
+    -- tile, raid_play_tob_maiden.lua), the freezer's is the one whose
+    -- player_anim rows carry Ice Barrage's cast (seq 1979), the third is the
+    -- remaining one (s32mzn7: a tile match at the end could not tell them)
+    local pid_seat = {}
+    local _, cast_rows = t.ticklog.rows({ kind = "player_anim", seq = 1979 })
+    t.ticks(1)
+    local _, ptile_rows = t.ticklog.rows({ kind = "player_tile" })
+    t.ticks(1)
+    if rec.my_pid ~= nil then pid_seat[rec.my_pid] = 1 end
+    for _, r in ipairs(cast_rows) do
+        if pid_seat[r.pid] == nil then pid_seat[r.pid] = 2 end
+    end
+    for _, r in ipairs(ptile_rows) do
+        if pid_seat[r.pid] == nil then pid_seat[r.pid] = 3 end
+    end
+    local storm_by, blood_by, taken_by = {}, {}, {}
+    for _, r in ipairs(hitp_rows) do
+        local seat = pid_seat[r.pid] or ("_pid" .. tostring(r.pid))
+        if mark_tick == nil or r.tick >= mark_tick then
+            taken_by[seat] = (taken_by[seat] or 0) + r.damage
+            if r.npc_slot == ws then storm_by[seat] = (storm_by[seat] or 0) + 1 end
+            if r.npc_slot == -1 and r.hitsplat == 28 then blood_by[seat] = (blood_by[seat] or 0) + r.damage end
+        end
+    end
+    local function seats(tbl)
+        local parts = {}
+        for k, val in pairs(tbl) do parts[#parts + 1] = "p" .. tostring(k) .. "=" .. tostring(val) end
+        table.sort(parts)
+        return table.concat(parts, " ")
+    end
+    t.check("tech.tank", storm_by[2] == nil, "blackstorm hits by seat: " .. seats(storm_by) .. "; the freezer (p2) never the closest (10Boot 0:06:33 'You don't want your mage to be closest at any time')")
+    local storms, bloods = 0, 0
+    for k = 1, #anim_rows do
+        if anim_rows[k].seq == 8092 then storms = storms + 1 elseif anim_rows[k].seq == 8091 then bloods = bloods + 1 end
+    end
+    t.check("play.measure_party", true, string.format("room %s ticks (mark %s, npc_free %s); her attacks %d blackstorm, %d blood; damage taken by seat %s; blood (pools+trails) by seat %s; pids %s",
+        tostring(free_tick and mark_tick and (free_tick - mark_tick)), tostring(mark_tick), tostring(free_tick), storms, bloods, seats(taken_by), seats(blood_by), seats(pid_seat)))
+    t.expect("party.barrier.done", t.party.barrier("done", 9000))
+    t.finish(0)
+end
 return {
     id = "_play_maiden",
     fixture = "fresh_lumbridge.ini",
     max_frames = 200000,
-    setup = {
+    setup = (size > 1) and party_kit or {
         -- an empty backpack so the food and gear below all fit
         "::clearinv",
         -- combat stats an Entry Mode maiden player brings along
@@ -68,6 +317,10 @@ return {
     },
 
     run = function(t)
+        if size > 1 then
+            party_run(t)
+            return
+        end
         -- (1) the room's entry, as tob_maiden.lua :58-90 does it
         t.check("spec.scope", true, "mode=entry party=1")
         local lr, ld = t.ticklog.start()

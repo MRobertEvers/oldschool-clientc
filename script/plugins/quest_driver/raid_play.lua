@@ -40,8 +40,9 @@
 -- attack press's own path: while a marker is down the player walks to an
 -- unmarked reach tile and presses from there).  A plan sends EVERY move
 -- through them: its own walk, the approach to attack, and a step off a
--- marker that appears under a standing raider.  A loadout swap is the plan's
--- `gear` list in the same t.together (Bloat's plan needs none: PLAY_NOTES).
+-- marker that appears under a standing raider.  A loadout swap is the
+-- intent's `gear` list in the same t.together, and `spec` arms the special
+-- from the orb before the attack press (raid seam32: Bloat Normal's run-by).
 -- ==========================================================================
 
 -- Weapons: attack speed in ticks and the swing animation the player sees.
@@ -507,15 +508,26 @@ function QD.raid._play_send(st, v, intent)
     for _, name in ipairs(st.plan.down_prayers) do all[#all + 1] = name end
     local switches = QD.raid._play_pray(st, v, intent.want, all)
     local eat, drink, walk = intent.eat, intent.drink, intent.walk
+    -- raid seam32 play_tob_bloat_normal: THE LOADOUT.  `intent.gear` is a list
+    -- of worn items to put on in this tick's block (held items, after the
+    -- food, before the step: the block's tab order), so a swap rides the same
+    -- tick as the step that leaves ("the scythe back the same tick").  A plan
+    -- that sets no gear sends exactly what it sent before.
+    local gear = intent.gear or {}
     local n = 0
-    if #switches > 0 or eat ~= nil or drink ~= nil or walk ~= nil then
+    if #switches > 0 or eat ~= nil or drink ~= nil or walk ~= nil or #gear > 0 then
         local r, d = QD.together(function()
             for _, s in ipairs(switches) do QD.prayer.set(s[1], s[2]) end
             if drink ~= nil then QD.player.drink(drink) end
             if eat ~= nil then QD.player.eat(eat) end
+            for _, item in ipairs(gear) do QD.player.equip(item) end
             if walk ~= nil then QD.player.walk_to(walk.x, walk.z, 1) end
         end)
-        n = #switches + (eat and 1 or 0) + (drink and 1 or 0) + (walk and 1 or 0)
+        n = #switches + (eat and 1 or 0) + (drink and 1 or 0) + (walk and 1 or 0) + #gear
+        if #gear > 0 then
+            st.gear_swaps = st.gear_swaps or {}
+            st.gear_swaps[#st.gear_swaps + 1] = { tick = v.tick, items = table.concat(gear, "+"), result = r }
+        end
         st.blocks[r] = (st.blocks[r] or 0) + 1
         if r ~= "ok" and r ~= "split" then
             st.refusals = st.refusals + 1
@@ -533,6 +545,20 @@ function QD.raid._play_send(st, v, intent)
             st.engaged = false
             st.walk_target = walk
         end
+    end
+    if intent.spec then
+        -- raid seam32: THE SPECIAL.  Armed from the minimap orb, never the
+        -- combat tab's bar (DRIVER_NOTES "Bloat: Defence reads 80 of 80 after a
+        -- Dragon warhammer special": the bar pressed while idle does nothing),
+        -- on the tick the plan presses the attack that should carry it.  The
+        -- plan proves it fired by the energy it spends (varp300), never by
+        -- varp301 or the first splat (the same section).
+        local wr, wid = QD.ui.widget("orbs:specbutton")
+        local ir = "no widget"
+        if wr == "ok" then ir = QD.ui.invoke(wid, 1) end
+        n = n + 1
+        st.spec_arms = st.spec_arms or {}
+        st.spec_arms[#st.spec_arms + 1] = { tick = v.tick, result = tostring(ir) }
     end
     if intent.attack then
         -- raid seam31: through the library's press (true answers): an Attack

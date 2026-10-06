@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 182
+-- @seam-count 184
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 194
-local SEAM_COUNT = 182
+local SEAM_COUNT = 184
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -12016,6 +12016,88 @@ return {
                 .. "nothing over the threat; the interlude bandage once at 99)"
         end)
 
+        -- conformance.play_tob_nylocas_normal (raid seam32).  ONE seam row, no verb.
+        -- PLACE: test/quests/_conformance.lua, right after seam("seam.raid_play_nylocas_supplies", ...)
+        -- (it ends at about line 12017 on f54d63893).  SEAM_COUNT +1 (@seam-count).
+        --
+        -- What it proves, on an ordinary npc: the own-swing read the Nylocas plan's
+        -- party MEMBERS use in place of the tick log they do not hold
+        -- (raid_play_tob_nylocas.lua "THE PARTY'S OWN-SWING READ" (2)): every swing
+        -- that lands is paid experience the client reads, and the first read at or
+        -- after the swing's tick shows the rise -- on that tick or the next whenever a
+        -- read was taken then.  Proved first as a scratch script:
+        -- build/seam_state/matthew-mbp-m4-raid-b1-seam32/scratch_xp_swing.lua, run
+        -- s32xpswing (PASS: casts at 8, 17, 25; Magic XP rises read at 10, 17, 25 --
+        -- the first cast's press held the script to tick 10).  The same run showed a
+        -- manual cast followed by the player's own melee five ticks later (seq 422 at
+        -- 13 and 21, a punch at the goblin): noted in DRIVER_NOTES, not asserted.
+        -- raid seam32 play_tob_nylocas_normal: a party member's own swing,
+        -- read off the screen (Magic experience paid on each cast).
+        seam("seam.raid_play_member_swing_xp", function()
+            local G = "goblin_unarmed_melee_1"
+            local goto_tile = verb("player", "goto_tile")
+            local cast = verb("player", "cast")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not cast then return missing("player", "cast") end
+            t.ticklog.start()
+            -- closer seam32: the log is shared with every earlier row and the
+            -- server's tick restarts within a conformance run, so this row's
+            -- casts are the rows after its own mark, never "tick >= now"
+            t.ticklog.mark("seam.raid_play_member_swing_xp")
+            local _, xp_marks = t.ticklog.rows({ kind = "mark" })
+            local xp_since = (xp_marks and #xp_marks > 0) and xp_marks[#xp_marks].serial or 0
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::give airrune 60")
+            setup_cheat("::give mindrune 60")
+            if goto_tile(3229, 3233, 0) ~= "ok" then return "no_subject", "goto the goblin field" end
+            setup_cheat("::spawn " .. G)
+            setup_cheat("::passive " .. G)
+            settle(3)
+            local function xp()
+                local _, m = t.skill.read("magic")
+                return type(m) == "table" and m.experience or -1
+            end
+            local _, start_tick = t.tick()
+            local rises, reads = {}, {}
+            local m0 = xp()
+            for _ = 1, 3 do
+                cast("wind_strike", G, 1, 2, { quick = true })
+                for _ = 1, 6 do
+                    settle(1)
+                    local m1 = xp()
+                    local _, now = t.tick()
+                    reads[#reads + 1] = now
+                    if m1 > m0 then rises[now] = true end
+                    m0 = m1
+                end
+            end
+            setup_cheat("::kill " .. G .. " 12")
+            settle(2)
+            local _, anims = t.ticklog.rows({ kind = "player_anim", since = xp_since })
+            -- Wind Strike's cast is seq 711 (s32xpswing's player_anim rows)
+            local casts = {}
+            for _, r in ipairs(anims or {}) do
+                if r.seq == 711 and r.tick >= start_tick then casts[#casts + 1] = r.tick end
+            end
+            local matched, prompt = 0, 0
+            for _, ct in ipairs(casts) do
+                local first = nil
+                for _, rd in ipairs(reads) do
+                    if first == nil and rd >= ct then first = rd end
+                end
+                if first ~= nil and rises[first] then
+                    matched = matched + 1
+                    if first <= ct + 1 then prompt = prompt + 1 end
+                end
+            end
+            if #casts < 2 or matched ~= #casts or prompt < #casts - 1 then
+                return "fail", "casts " .. table.concat(casts, ",") .. ": " .. matched .. " shown by the first Magic XP read at or after them, "
+                    .. prompt .. " on the tick or the next"
+            end
+            return "ok", #casts .. " Wind Strike casts (player_anim 711 at " .. table.concat(casts, ",") .. "): the first Magic XP read at or after "
+                .. "each showed the rise, " .. prompt .. " of them on the cast's tick or the next"
+        end)
+
         -- seam17 party_run_and_verbs: conformance rows for t.party.* (script/plugins/
         -- quest_driver/raid.lua). PLACE: in _conformance.lua's PLAN directly AFTER
         -- step("raid.leave", ...) (the raid stanza), in this order. VERB_COUNT +12.
@@ -16839,6 +16921,136 @@ return {
                 .. " (attack " .. describe(ar) .. ")"
         end)
 
+        -- PLACE: in _conformance.lua's PLAN right after seam("seam.special_attack_spent", ...)
+        -- (the raw recipe this row drives through the play library).  SEAM_COUNT +1.
+        --
+        -- raid seam32 play_tob_bloat_normal: THE LOADOUT AND THE SPECIAL in the play
+        -- library's SEND (QD.raid._play_send).  `intent.gear` is a list of worn items
+        -- put on inside the tick's one t.together block (after food, before the step),
+        -- so a swap rides the same tick as the walk that leaves ("the scythe back the
+        -- same tick"); `intent.spec` arms the special from the minimap orb on the tick
+        -- of the attack press (DRIVER_NOTES "Bloat: Defence reads 80 of 80 after a
+        -- Dragon warhammer special": never the combat tab's bar).  A plan that sets
+        -- neither sends exactly what it sent before.  Proved on an ordinary npc (a
+        -- passive Man in Lumbridge, as seam.special_attack_spent): (1) a block's gear
+        -- wears the item (backpack count 1 -> 0), (2) a second block swaps the hammer
+        -- in, (3) spec + attack spend 500 energy within 12 ticks, (4) the scimitar back
+        -- in the same block as a two-tile walk: the hammer is in the pack and the
+        -- player moved.  Scratch proof: build/seam_state/matthew-mbp-m4-raid-b1-seam32/
+        -- scratch_loadout_spec.lua, run s32loadout (5 of 5 PASS: energy 1000 -> spent
+        -- on the press tick; swaps t8 rune_scimitar ok | t9 dragon_warhammer ok |
+        -- t11 rune_scimitar ok).
+        seam("seam.raid_play_loadout_spec", function()
+            local state_fn = verb("raid", "_play_state")
+            local see_fn = verb("raid", "_play_see")
+            local send_fn = verb("raid", "_play_send")
+            local nearest = verb("npc", "nearest")
+            local ue = verb("player", "unequip")
+            if not state_fn then return missing("raid", "_play_state") end
+            if not see_fn then return missing("raid", "_play_see") end
+            if not send_fn then return missing("raid", "_play_send") end
+            if not nearest then return missing("npc", "nearest") end
+            setup_cheat("::tobout")
+            setup_cheat("::clearinv")
+            setup_cheat("::tele lumbridge")
+            settle(6)
+            -- closer seam32: seam.special_attack_spent (the row before) leaves the
+            -- player swinging at its Man until it dies (conformance s32 attempt 1:
+            -- punches t4073/t4077, npc_death t4078, this row's press at t4080 found
+            -- only the dying one).  A one-tile walk ends the engagement and the
+            -- wait lets a dead Man leave before this row spawns its own.
+            local _, me0 = t.world.tile()
+            if is_table(me0) then t.player.walk_to(me0.x + 1, me0.z, 1) end
+            settle(8)
+            local _, before_att = t.skill.read("attack")
+            local _, before_str = t.skill.read("strength")
+            local att_level = is_table(before_att) and before_att.base or nil
+            local str_level = is_table(before_str) and before_str.base or nil
+            local function teardown()
+                if ue then ue("dragon_warhammer") ue("rune_scimitar") end
+                if is_number(att_level) then t.cheat("::setlevel attack " .. att_level) end
+                if is_number(str_level) then t.cheat("::setlevel strength " .. str_level) end
+                setup_cheat("::clearinv")
+                settle(2)
+            end
+            t.cheat("::setlevel attack 60")
+            t.cheat("::setlevel strength 60")
+            t.cheat("::give dragon_warhammer 1")
+            t.cheat("::give rune_scimitar 1")
+            t.ticks(2)
+            setup_cheat("::spawn " .. NPC_SYMBOL)
+            setup_cheat("::passive " .. NPC_SYMBOL)
+            settle(2)
+            local nr, row = nearest(NPC_SYMBOL, 8)
+            if nr ~= "ok" or not is_table(row) then
+                teardown()
+                return "no_subject", NPC_SYMBOL .. " is not within eight tiles after ::spawn (" .. describe(nr) .. ")"
+            end
+            t.raid._s32_conf_decide = function() return { want = {} } end
+            local plan = { room = "probe", boss = { entry = NPC_SYMBOL }, modes = { entry = {} },
+                walk_prayers = {}, down_prayers = {}, decide = "_s32_conf_decide" }
+            local st = state_fn(plan, "_s32_conf", "entry", plan.modes.entry, { speed = 6, seqs = {} }, {})
+            -- (1) a block's gear
+            local v = see_fn(st)
+            send_fn(st, v, { want = {}, gear = { "rune_scimitar" } })
+            settle(1)
+            local _, n1 = t.inv.count("rune_scimitar")
+            if n1 ~= 0 then
+                teardown()
+                return "fail", "gear {rune_scimitar}: backpack still holds " .. describe(n1) .. "; block " .. describe(st.gear_swaps)
+            end
+            -- (2) the hammer in
+            v = see_fn(st)
+            send_fn(st, v, { want = {}, gear = { "dragon_warhammer" } })
+            settle(1)
+            local _, n2 = t.inv.count("dragon_warhammer")
+            local _, n3 = t.inv.count("rune_scimitar")
+            if n2 ~= 0 or n3 ~= 1 then
+                teardown()
+                return "fail", "gear {dragon_warhammer}: hammer in pack " .. describe(n2) .. ", scimitar " .. describe(n3)
+            end
+            local _, e0 = t.var.varp("varp300_sa_energy")
+            if not is_number(e0) or e0 < 500 then
+                teardown()
+                return "no_subject", "special energy " .. describe(e0) .. " of 1000, a warhammer special costs 500"
+            end
+            -- (3) the special armed from the orb with the attack press, proved by the energy it spends
+            v = see_fn(st)
+            send_fn(st, v, { want = {}, spec = true, attack = true })
+            local spent, waited = nil, 0
+            while waited <= 12 and spent == nil do
+                local _, en = t.var.varp("varp300_sa_energy")
+                if is_number(en) and en <= e0 - 500 then
+                    local _, tk = t.tick()
+                    spent = tk
+                else
+                    settle(1)
+                    see_fn(st)
+                    waited = waited + 1
+                end
+            end
+            if spent == nil then
+                teardown()
+                return "fail", "spec + attack: energy " .. describe(e0) .. " never fell by 500 in 12 ticks; arms " .. describe(st.spec_arms)
+            end
+            -- (4) the scimitar back in the same block as a two-tile walk
+            local _, me = t.world.tile()
+            v = see_fn(st)
+            send_fn(st, v, { want = {}, gear = { "rune_scimitar" }, walk = { x = me.x + 2, z = me.z } })
+            settle(2)
+            local _, n4 = t.inv.count("dragon_warhammer")
+            local _, me2 = t.world.tile()
+            local list = {}
+            for _, g in ipairs(st.gear_swaps or {}) do list[#list + 1] = "t" .. g.tick .. " " .. g.items .. " " .. tostring(g.result) end
+            teardown()
+            if n4 ~= 1 or (me2.x == me.x and me2.z == me.z) then
+                return "fail", "back with the walk: hammer in pack " .. describe(n4) .. ", tile " .. me.x .. "," .. me.z .. " -> " .. me2.x .. "," .. me2.z
+            end
+            return "ok", "gear blocks " .. table.concat(list, " | ") .. "; special spent on t" .. spent .. " (energy " .. e0
+                .. " -> " .. (e0 - 500) .. " or less), armed " .. #(st.spec_arms or {}) .. " time(s) from the orb; the scimitar went back with a walk "
+                .. me.x .. "," .. me.z .. " -> " .. me2.x .. "," .. me2.z
+        end)
+
         -- seam13 (tob_relay_sotetseg_to_vault), a CONTENT seam: the Entry bandages' Heal.
         -- tob_bandages carried ifop1=Heal in the cache with nothing bound to it, so every press
         -- said "Nothing interesting happens." (CONTENT_BUGS.md).  tob_spectate.rs2 now binds it
@@ -16867,8 +17079,17 @@ return {
             local function lvl(s) local _, r = read(s); return is_table(r) and r.level or -1 end
             local a0, r0, m0 = lvl("attack"), lvl("ranged"), lvl("magic")
             local pressed, press_detail = inv_op("tob_bandages", 1)
-            ticks(3)
+            -- closer seam32: read on the tick the bandage leaves the pack, not
+            -- three ticks on: a boosted stat falls by one on the player's stat
+            -- restore tick, and one landed inside the old three-tick wait
+            -- (conformance s32 attempt 1: 116/111/102, each exactly one under)
             local _, n1 = count("tob_bandages")
+            local waited_b = 0
+            while n1 == n0 and waited_b < 3 do
+                ticks(1)
+                waited_b = waited_b + 1
+                _, n1 = count("tob_bandages")
+            end
             local a1, r1, m1 = lvl("attack"), lvl("ranged"), lvl("magic")
             local _, st = varbit("varb25_stamina_active")
             local detail = "Heal " .. tostring(pressed) .. " " .. describe(press_detail) .. "; bandages " .. tostring(n0) .. " -> " .. tostring(n1)

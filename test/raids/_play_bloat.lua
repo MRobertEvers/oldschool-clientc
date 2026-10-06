@@ -1,49 +1,51 @@
--- _play_smoke: Pestilent Bloat played through the PLAY LIBRARY (t.raid.play,
--- raid seam27 raid_play_by_tick_intent; docs/minigames/raid_loop/PLAY_NOTES.md).
--- An underscore harness, not a kept room: solo it plays Entry and asserts the
--- room's technique rows copied unchanged from test/raids/tob_bloat.lua.  The
--- Normal trio that ran here under `--party 3` (seam27, measured) moved to
--- test/raids/_play_bloat.lua (raid seam32 play_tob_bloat_normal), which
--- declares its own party; a party run of this file is refused below rather
--- than playing a stale plan.  The fight itself is one call: the library plus
--- the room's plan.  Everything after it reads the tick log.
+-- _play_bloat: Pestilent Bloat, NORMAL, a party of three, played through the
+-- PLAY LIBRARY (t.raid.play; docs/minigames/raid_loop/PLAY_NOTES.md "Bloat,
+-- Normal trio").  Moved out of _play_smoke.lua's `--party 3` branch by raid
+-- seam32 play_tob_bloat_normal, so the trio has its own id: run.py reads the
+-- party size from the `party` field (`seed_survey.py _play_bloat` and
+-- `party_repeat.py _play_bloat --runs 3` need no --party), and _play_smoke is
+-- the Entry solo harness again.  The roles are the sources': p1 is the one
+-- raider in the room on the first walk (it crosses when Bloat is on the far
+-- side, hides, and does the Defence-drain run-by: W:687), p2/p3 enter on the
+-- first down (W:689 "As soon as Bloat deactivates, the rest of the team should
+-- enter"); every raider then walks with Bloat behind the tank, attacks every
+-- down and runs from the stomp (W:689).  The fight itself is one call: the
+-- library plus the room's plan.  Everything after it reads the leader's tick log.
 local role = (QD_PARTY and QD_PARTY.role) or 1
 local size = (QD_PARTY and QD_PARTY.size) or 1
-assert(size == 1, "_play_smoke is the Entry solo harness; the Normal trio is test/raids/_play_bloat.lua (raid seam32)")
-local kit
-if size == 1 then
-    -- tob_bloat.lua's own bring-alongs (Entry, solo), unchanged
-    kit = {
-        "::clearinv",
-        "::setlevel attack 99", "::setlevel strength 99", "::setlevel defence 99",
-        "::setlevel hitpoints 99", "::setlevel prayer 99",
-        "::fullscythe", "::wield scythe_of_vitur",
-        "::give shark 18",
-        "::give br_4dose2restore 2",
-        "::give dragon_warhammer 1",
-        "::give 4dose2combat 1",
-        "::give br_4dosepotionofsaradomin 6",
-    }
-else
-    -- tob_bloat_normal.lua's party kit: ::maxmelee (the scythe of vitur, wiki
-    -- "Recommended equipment"), anglerfish ("make sure that you eat your angler",
-    -- transcripts/yt_KF9y2GYTJ-A.md:675), restores, brews, a super combat
-    kit = {
-        "::clearinv", "::maxmelee", "::setlevel prayer 99",
-        "::give anglerfish 14", "::give br_4dose2restore 2", "::give 4dose2combat 1",
-        "::give br_4dosepotionofsaradomin 4",
-    }
-end
+-- tob_bloat_normal.lua's party kit: ::maxmelee (the scythe of vitur, wiki
+-- "Recommended equipment"), anglerfish ("make sure that you eat your angler",
+-- transcripts/yt_KF9y2GYTJ-A.md:675), restores, brews, a super combat
+local kit = {
+    "::clearinv", "::maxmelee", "::setlevel prayer 99",
+    "::give anglerfish 14", "::give br_4dose2restore 2", "::give 4dose2combat 1",
+    "::give br_4dosepotionofsaradomin 4",
+}
+-- raid seam32: the run-by's Dragon warhammer, carried by the raider who is
+-- in the room on the first walk (W:687 "one or two players should do a
+-- run-by on the boss with a Bandos godsword special to lower its Defence";
+-- the BGS is not in this cache, tob_bloat_normal.lua:5; "a dragon
+-- warhammer is basically essential", yt_4i4lv-srJkw.md:45)
+if role == 1 then kit[#kit + 1] = "::give dragon_warhammer 1" end
+-- raid seam32: a raider's Agility.  Every raider hides on the walk and runs
+-- the ring at Bloat's own speed (it RUNS at 40-60%, W:679), and a fresh
+-- character's run energy is spent by the third walk: svbplaysmoke t346-361
+-- the party walked one tile a tick beside a running Bloat and took a fly a
+-- tick each for twenty ticks.  "If you're in a melee role, especially if you
+-- have less than 70 agility, I'd strongly advise buying a stamina potion"
+-- (yt_4i4lv-srJkw.md 0:12:09): the guide's raider has the level.
+kit[#kit + 1] = "::setlevel agility 99"
 
 return {
-    id = "_play_smoke",
+    id = "_play_bloat",
+    party = 3,
     fixture = "fresh_lumbridge.ini",
     max_frames = 120000,
     setup = kit,
 
     run = function(t)
-        local mode = (size == 1) and "entry" or "normal"
-        local boss = (size == 1) and "tob_bloat_story" or "tob_bloat"
+        local mode = "normal"
+        local boss = "tob_bloat"
         if role == 1 then t.ticklog.start() end
         local er, ed = t.raid.enter("tob", "bloat", { mode = mode })
         t.check("play.enter", er == "ok", "p" .. role .. " " .. tostring(ed))
@@ -135,13 +137,23 @@ return {
             end
         end
         t.ticks(1)
-        local fly_ticks, fly_list = {}, {}
+        local fly_ticks, fly_list, fly_at_me = {}, {}, {}
         local _, projectiles = t.ticklog.rows({ kind = "projectile", spotanim = 1568 })
         for i = 1, #projectiles do
             local row = projectiles[i]
             if row.spotanim == 1568 and fly_ticks[row.tick] == nil then
                 fly_ticks[row.tick] = true
                 fly_list[#fly_list + 1] = row.tick
+            end
+            -- raid seam32: in a party a fly flies at EVERY raider Bloat sees and
+            -- spreads between raiders (W:673), so the hide row counts only the
+            -- flies whose landing tile (dst, a packed coord) is the leader's own
+            -- tile that tick or the one before
+            if row.spotanim == 1568 and row.dst ~= nil then
+                local dx, dz = math.floor(row.dst / 16384) % 16384, row.dst % 16384
+                if (px_at[row.tick] == dx and pz_at[row.tick] == dz) or (px_at[row.tick - 1] == dx and pz_at[row.tick - 1] == dz) then
+                    fly_at_me[row.tick] = true
+                end
             end
         end
         t.ticks(1)
@@ -166,6 +178,9 @@ return {
             if lit ~= nil then carried = lit.protectfrommissiles == true end
             shield_filled[tk] = carried
         end
+        -- the most one fly lands unprotected: Entry 8 (tob.constant :752),
+        -- Normal 20 (tob.constant :746; W:673 "up to 20 damage every tick")
+        local fly_max = (mode == "entry") and 8 or 20
         local fly_hits_protected, stomp_hits, hand_hits = {}, {}, {}
         local taken = 0
         local _, player_hits = t.ticklog.rows({ kind = "hit_player", slot = boss_slot })
@@ -181,7 +196,7 @@ return {
                     hand_hits[#hand_hits + 1] = row.damage
                 elseif in_down and row.damage >= 10 then
                     stomp_hits[#stomp_hits + 1] = { tick = row.tick, damage = row.damage }
-                elseif row.damage <= 8 then
+                elseif row.damage <= fly_max then
                     -- raid seam29: the window is the fly's own flight, its launch
                     -- tick to its landing.  The damage is rolled and the prayer read
                     -- AT LAUNCH (tob_bloat.rs2 ~tob_bloat_fly_hit queues
@@ -243,7 +258,7 @@ return {
                     local mirror_z = 2 * oz + 61 - bzf[tk - 1]
                     if math.max(math.abs(pxf[tk - 1] - mirror_x), math.abs(pzf[tk - 1] - mirror_z)) <= 1 then
                         behind_ticks = behind_ticks + 1
-                        if fly_ticks[tk] then behind_flies = behind_flies + 1 end
+                        if (size == 1 and fly_ticks[tk]) or (size > 1 and fly_at_me[tk]) then behind_flies = behind_flies + 1 end
                     end
                 end
             end
@@ -257,7 +272,7 @@ return {
             end
         end
         t.check("tech.hide_behind_tank", behind_ticks > 0 and behind_flies == 0,
-            "Bloat was up on " .. walk_total_ticks .. " ticks and a fly projectile flew on " .. #fly_list .. " of them; on the " .. behind_ticks .. " walking ticks the player stood directly behind the tank " .. behind_flies .. " flies flew")
+            "Bloat was up on " .. walk_total_ticks .. " ticks and a fly projectile flew on " .. #fly_list .. " of them; on the " .. behind_ticks .. " walking ticks the player stood directly behind the tank " .. behind_flies .. " flies flew" .. (size > 1 and " at the player's own tile (a party: flies fly at every raider Bloat sees and spread, W:673)" or ""))
         local on_my_tile, stayed = 0, 0
         for i = 1, #shadows do
             local row = shadows[i]
@@ -268,35 +283,86 @@ return {
         end
         t.check("tech.step_off_shadow", on_my_tile > 0 and (on_my_tile - stayed) * 2 >= on_my_tile,
             on_my_tile .. " falling-flesh shadows appeared on the player's own tile, the player was off it two ticks later for " .. (on_my_tile - stayed) .. " of them, " .. #hand_hits .. " hand hits landed in all")
-        local pre_stomp = {}
-        for i = 1, #rec.downs do
-            if rec.downs[i].pre_stomp ~= nil then pre_stomp[#pre_stomp + 1] = rec.downs[i].pre_stomp end
-        end
-        local lowest = 999
-        for i = 1, #pre_stomp do
-            if pre_stomp[i] < lowest then lowest = pre_stomp[i] end
-        end
-        t.check("tech.eat_before_stomp", #pre_stomp > 0 and lowest > 40,
-            "hitpoints read on the tick before each stomp: " .. table.concat(pre_stomp, ",") .. ", lowest " .. lowest .. " against the Entry stomp maximum of 40")
-        local farther, compared = 0, 0
+        -- NORMAL (raid seam32 play_tob_bloat_normal): the Entry rows above
+        -- assert Entry's numbers and Entry's stay-and-flinch; Normal leaves.
+        -- "Unless the boss is below 3% health, it is recommended to run
+        -- away after the last attack, since stomps and flies have a high
+        -- chance of killing a player" (W:689): no raider takes a stomp on
+        -- any down that reached it (T+29, ET 3.1; a hand's splat tick is
+        -- not a stomp).  Every raider's hit_player row is in the leader's log.
+        local reached, stomp_taken, stomp_list = 0, 0, {}
         for i = 1, #downs do
-            local sx, sz = bxf[downs[i]], bzf[downs[i]]
-            if stomp_tick_of[i] ~= nil and sx ~= nil and px_at[stomp_tick_of[i]] ~= nil and px_at[downs[i] + 33] ~= nil then
-                local d_stomp = math.max(math.max(0, sx - px_at[stomp_tick_of[i]], px_at[stomp_tick_of[i]] - sx - 4), math.max(0, sz - pz_at[stomp_tick_of[i]], pz_at[stomp_tick_of[i]] - sz - 4))
-                local d_rise = math.max(math.max(0, sx - px_at[downs[i] + 33], px_at[downs[i] + 33] - sx - 4), math.max(0, sz - pz_at[downs[i] + 33], pz_at[downs[i] + 33] - sz - 4))
-                compared = compared + 1
-                if d_rise > d_stomp then farther = farther + 1 end
+            if downs[i] + 29 <= end_tick then reached = reached + 1 end
+        end
+        for i = 1, #player_hits do
+            local row = player_hits[i]
+            for k = 1, #downs do
+                if row.tick == downs[k] + 29 and not splat_ticks[row.tick] then
+                    stomp_taken = stomp_taken + 1
+                    stomp_list[#stomp_list + 1] = "p" .. tostring(row.pid) .. " " .. row.damage .. " t" .. row.tick
+                end
             end
         end
-        local flinch_moved = rec.flinches[1] and rec.flinches[1].moved
-        t.check("tech.flinch_back", compared > 0 and farther >= 1 and flinch_moved ~= nil and flinch_moved >= 3,
-            "after the stomp the player clicked back " .. tostring(flinch_moved) .. " tiles from the down Bloat and on the rise tick stood farther from it than on the stomp tick in " .. farther .. " of " .. compared .. " downs")
+        t.check("tech.leave_before_stomp", reached > 0 and stomp_taken == 0,
+            reached .. " downs reached the stomp (T+29) and " .. stomp_taken .. " stomp hits landed on the party" .. (#stomp_list > 0 and (": " .. table.concat(stomp_list, ", ")) or ""))
         local protected_max = 0
         for i = 1, #fly_hits_protected do
             if fly_hits_protected[i] > protected_max then protected_max = fly_hits_protected[i] end
         end
-        t.check("tech.protect_from_missiles", #fly_hits_protected > 0 and protected_max <= 6,
-            #fly_hits_protected .. " fly hits landed with Protect from Missiles lit from the fly's launch to its landing, the largest was " .. protected_max .. " against the unprotected Entry maximum of 8")
+        -- W:673 "up to 20 damage every tick, reduced by 25% if Protect from Missiles are active"
+        t.check("tech.protect_from_missiles", #fly_hits_protected > 0 and protected_max <= 15,
+            #fly_hits_protected .. " fly hits landed with Protect from Missiles lit from the fly's launch to its landing, the largest was " .. protected_max .. " against the protected Normal maximum of 15 (unprotected 20)")
+        -- THE RUN-BY.  The technique row: the special spent on Bloat on the first
+        -- walk, before the first down, and its splat in the log.  Whether it
+        -- DRAINED is the hammer's roll (a 0 drains nothing) and is reported in
+        -- the detail, not asserted.
+        -- W:687 "one or two players should do a run-by on the
+        -- boss with a Bandos godsword special to lower its Defence"): the
+        -- leader is the raider in the room on the first walk.  The special is
+        -- the energy it spent (rec.runby.fired, varp300 down by 500) and its
+        -- splat the boss's hit_npc row within two ticks before that read:
+        -- the Dragon warhammer drains only on a hit above 0 (DRIVER_NOTES
+        -- "Bloat: Defence reads 80 of 80 after a Dragon warhammer special").
+        t.ticks(1)
+        local _, boss_hits = t.ticklog.rows({ kind = "hit_npc", slot = boss_slot })
+        local rb = rec.runby
+        local spec_hit, spec_tick = nil, nil
+        if rb ~= nil and rb.fired ~= nil then
+            for i = 1, #boss_hits do
+                local row = boss_hits[i]
+                if spec_hit == nil and row.tick >= rb.fired - 2 and row.tick <= rb.fired + 1 then spec_hit, spec_tick = row.damage, row.tick end
+            end
+        end
+        local swaps = {}
+        for _, g in ipairs(rec.gear_swaps or {}) do swaps[#swaps + 1] = "t" .. g.tick .. " " .. g.items .. " " .. tostring(g.result) end
+        t.check("tech.runby", rb ~= nil and rb.fired ~= nil and rb.fired < (downs[1] or end_tick) and spec_hit ~= nil,
+            "drained " .. ((spec_hit ~= nil and spec_hit > 0) and "yes" or "no (a 0 drains nothing)") .. "; run-by " .. tostring(rb and rb.stage) .. ": energy " .. tostring(rb and rb.energy0) .. " -> " .. tostring(rb and rb.energy1) .. " read on t" .. tostring(rb and rb.fired)
+            .. ", the special's splat " .. tostring(spec_hit) .. " on t" .. tostring(spec_tick) .. " (halved: Bloat was walking); splats seen " .. table.concat((rb and rb.splats) or {}, ",") .. "; swaps " .. table.concat(swaps, ", ")
+            .. (rb and rb.why and ("; " .. rb.why) or ""))
+        -- the measure per down: dealt, zeros (hit_npc carries no dealer pid,
+        -- so zeros are per down: the first down follows the drain, the
+        -- stomp restores Defence for every later one, W:675)
+        local per_down = {}
+        for i = 1, #downs do
+            local dealt, hits, zeros = 0, 0, 0
+            for k = 1, #boss_hits do
+                local row = boss_hits[k]
+                if row.tick > downs[i] and row.tick <= downs[i] + 33 then
+                    dealt, hits = dealt + row.damage, hits + 1
+                    if row.damage == 0 then zeros = zeros + 1 end
+                end
+            end
+            per_down[#per_down + 1] = string.format("d%d t%d %d in %d hits, %d zeros", i, downs[i], dealt, hits, zeros)
+        end
+        local taken_by, deaths = {}, {}
+        for i = 1, #player_hits do
+            local pid = tostring(player_hits[i].pid)
+            taken_by[pid] = (taken_by[pid] or 0) + player_hits[i].damage
+        end
+        local taken_list = {}
+        for pid, n in pairs(taken_by) do taken_list[#taken_list + 1] = "pid" .. pid .. " " .. n end
+        table.sort(taken_list)
+        t.check("play.measure_party", true, "downs " .. #downs .. " to the kill; " .. table.concat(per_down, "; ") .. "; damage taken by pid: " .. table.concat(taken_list, ", "))
         t.check("bloat.killed", dead and not player_dead, "Bloat's npc_death row on tick " .. tostring(death_tick) .. "; " .. tostring(detail))
 
         -- THE MEASURE (reported against the kept tob_bloat run): duration, damage, supplies, inputs per tick

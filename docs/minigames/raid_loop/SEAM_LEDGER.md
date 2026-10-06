@@ -1262,3 +1262,48 @@ all clean. No C and no content changed.
   `_play_smoke`, `_play_maiden`, `_play_sotetseg`, `_play_xarpus`, `_play_nylocas`,
   `_play_verzik` 5 of 5 each; `_party_smoke` party_repeat 3 runs agree. Honest state: all
   six Entry rooms are green on five names through the library; nothing in Normal is green.
+
+## matthew-mbp-m4-raid-b1-seam32 (2026-10-06; the commit that carries this heading, OSRS-Content fb292a9996 unchanged): the Normal trio plans for Bloat, Maiden and Nylocas
+
+- play_tob_bloat_normal; LANDED. `seed_survey.py _play_bloat --party 3` 5 of 5 (closer
+  re-run), `party_repeat.py _play_bloat --runs 3` AGREE (tick log sha 190b5b65bb97, 403
+  boundaries). The sourced run-by (W:687; Dragon warhammer, the drain this cache has) by
+  p1 on the first walk with the scythe back in the walk's block; the prayed fly (W:673) and
+  the dodged shadow in the supplies threat; restore and super combat on the walk; the tank
+  block corrected to x 29..34; agility 99 for run energy. The trio moved to
+  test/raids/_play_bloat.lua; _play_smoke.lua is Entry solo only. Kills t348-406, no deaths,
+  0 stomp hits. Row: seam.raid_play_loadout_spec (PASS). Open: 3-4 swings a raider a down
+  (W:689 says five), 4-5 downs to the kill; a 0 run-by splat drains nothing and is not
+  retried on the down; zeros per raider cannot be read (hit_npc has no dealer pid);
+  CONTENT_BUGS seam32: the br_ brew drains Defence, no salve bonus.
+- play_tob_maiden_normal; NOT LANDED as green (the plan is committed, measured).
+  `seed_survey.py _play_maiden --party 3` 0 of 5 (closer re-run). The own name kills her
+  (617 ticks, the complete line) with seat 3 dead; the other four lose the tank at t652-672
+  with every food, brew and restore spent. `party_repeat` on a trio copy AGREES (sha
+  2a46ce952018). Entry is unchanged: `_play_maiden` solo 5 of 5, tob_maiden byte-identical.
+  First cause in four of five: supplies run out, because 7-10 Matomenos reach her (the
+  freezer stops 3-4 of 6 a threshold) and the bows deal about 6 a tick. No row (no verb).
+  Open: the sources' opening Defence drain (W:605-626; 10Boot 0:06:33), now possible
+  through intent.spec/intent.gear; the blowpipe for crabs (10Boot 0:08:14); the late tank
+  does not know the storm; the library's pid offset (DRIVER_NOTES seam32).
+- play_tob_nylocas_normal; LANDED on a thin margin. `seed_survey.py _play_nylocas --party 3`
+  5 of 5 (closer re-run), `party_repeat` on a trio copy AGREE (fixer s32nyrep sha
+  db3f4e1f33c7; closer s32cnyrep 3895d5d8949f). Vasilias heals 0, wrong-style hits on her
+  0, nobody died. Seats from the sources (mage, blowpipe ranger, meleer), Normal numbers
+  from the spec rows, members read their swings from the experience paid. Row:
+  seam.raid_play_member_swing_xp (PASS). Open: every green name ends the waves with one
+  support standing (a 6th name 0 of 4, a 7th wiped); wrong-style WAVE swings 7-11 a room
+  (a swap while engaged); 127-147 ticks of wave stall; CONTENT_BUGS seam32 (Vasilias' turn
+  tick, Entry-only freeze stop, Ice Rush refusals).
+- Closer: conformance 378/378 PASS (194 verbs + 184 seam rows; SEAM_COUNT 182 -> 184).
+  The first attempt failed three rows and each was fixed in its row: the swing-xp row read
+  earlier rows' casts (now `since` its own mark), the loadout row pressed at a Man the
+  special row left dying (now a step and a wait), and seam.tob_entry_bandages_heal read one
+  under on a stat restore tick that the new rows' timing moved into its three-tick wait
+  (now read on the tick the bandage is used). check-quest-verbs, check-drive-abi,
+  check-pt-switch, test-plugin-lua, test-quest-cheats PASS. cooks_assistant and druid
+  byte-identical to build/merge17_check; six kept Entry rooms byte-identical;
+  `_play_smoke`, `_play_maiden`, `_play_nylocas` solo 5 of 5; `_party_smoke` party_repeat 3
+  runs AGREE. The full quest suite was not run: outside raid_play*.lua, test/raids/ and docs/
+  only test/quests/_conformance.lua changed, and no quest loads it. Honest state: Bloat and
+  Nylocas Normal trios green on five names; Maiden Normal is not.

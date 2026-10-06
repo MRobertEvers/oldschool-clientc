@@ -22,7 +22,7 @@ QD.raid._play_plan("tob_nylocas", {
     -- Vasilias drops in as the spawning form and turns melee (NB :95-106);
     -- the library follows st.boss_symbol, which the see step below moves to
     -- her current form every tick (maiden's pattern).
-    boss = { entry = "nylocas_boss_spawning_story" },
+    boss = { entry = "nylocas_boss_spawning_story", normal = "nylocas_boss_spawning" },
     modes = {
         -- NT nylocas.max_hit_small_entry 1-5, max_hit_big_entry 1-10,
         -- explosion_entry 1-8 (E :161 "about 8 damage in Entry Mode"),
@@ -31,8 +31,51 @@ QD.raid._play_plan("tob_nylocas", {
         entry = { small_hit = 5, big_hit = 10, explode = 8, boss_hit = 24, prayed_hit = 17, collapse = 40, cadence = 3,
             form = { melee = "nylocas_boss_melee_story", magic = "nylocas_boss_magic_story",
                 ranged = "nylocas_boss_ranged_story", spawning = "nylocas_boss_spawning_story" },
-            suffix = "_story", support = "tob_nylocas_support_story" },
+            suffix = "_story", support = "tob_nylocas_support_story", first_window = 14, window = 15 },
+        -- raid seam32 play_tob_nylocas_normal: NORMAL, a party of three.  NT
+        -- nylocas.max_hit_small 1-17, max_hit_big 1-24 ("a max hit of 17 ...
+        -- a max hit of 24", W :731), explosion_max 18,21 ("small nylocas can
+        -- deal up to 18 damage, while larger ones can deal up to 21", W :746),
+        -- pillar_collapse_max 50 ("deal up to 50 damage to the entire team",
+        -- W :726), vasilias_max_hit 1-70 and the prayed 17 ("can hit up to 70
+        -- off-prayer, and 17 if prayed against (except melee, which is fully
+        -- protected)", W :752); hp small 8, big 16 in a trio (W :731).  Her
+        -- windows: "The boss will change forms every 10 ticks" (W :752), the
+        -- first one a tick shorter (NT vasilias_first_switch 9, switch 10;
+        -- tob.constant ^tob_vasilias_first_switch_ticks 9 / _switch_ticks 10).
+        normal = { small_hit = 17, big_hit = 24, explode = 21, boss_hit = 70, prayed_hit = 17, collapse = 50, cadence = 3,
+            form = { melee = "nylocas_boss_melee", magic = "nylocas_boss_magic",
+                ranged = "nylocas_boss_ranged", spawning = "nylocas_boss_spawning" },
+            suffix = "", support = "tob_nylocas_support", first_window = 9, window = 10 },
     },
+    -- raid seam32: THE TRIO'S ROLES.  "Each player should be assigned a
+    -- style of Nylocas to kill prior to starting the room ... Trio: x1 mager,
+    -- x1 melee, x1 ranger" (W :706-711); the trio guide's three sections are
+    -- "Mage Waves", "Ranger Waves", "Melee Waves" (blert_guides/
+    -- tob_nylocas_trio_content.mdx :51, :196, and the melee one), each killing
+    -- its own colour; and "always be on the attack; if your assigned nylocas
+    -- are not currently near or in the room, switch weapons ... until the
+    -- assigned nylocas return" (W :746).  "Barrages should only be used when
+    -- the fight becomes hectic" (W :719): the mage alone freezes.  Seat 1 (the
+    -- leader) is the mage, seat 2 the ranger, seat 3 the meleer.  A party of
+    -- one has no role (the Entry plan: every colour, every freeze).
+    roles = {
+        { name = "mage", colour = "magic", freeze = true, home = { 31, 24 } },
+        -- "Rangers should use a toxic blowpipe in this room" (W :717): two
+        -- ticks on rapid, an attack range of 5 (wiki Toxic blowpipe), its
+        -- swing seq 5061 (s32ny5 ticklog player_anim, every p2 swing;
+        -- drive.symbol has no seq kind)
+        { name = "ranger", colour = "ranged", freeze = false, home = { 30, 23 },
+            loadout = { ranged = { item = "toxic_blowpipe_loaded", speed = 2, reach = 5, seqs = { [5061] = true } } } },
+        { name = "melee", colour = "melee", freeze = false, home = { 31, 25 } },
+    },
+    -- how much an own-colour copy is preferred over a colour another seat
+    -- owns (score points; a tile of running is 3): another seat's copy is
+    -- taken only when none of the raider's own is worth pressing, or when it
+    -- is an aggro hitting this raider (it costs the raider, whoever owns it)
+    -- (30 at first: the meleer walked the platform for greys, 58 swings in
+    -- 340 wave ticks with 9-17 tick gaps, svaplaynyloc survey4)
+    own_colour_bonus = 12,
     -- the three protection prayers are the only prayers this plan lights:
     -- "always switch protection prayers ... When its form changes, the player
     -- should again switch prayers" (W :752)
@@ -80,13 +123,24 @@ QD.raid._play_plan("tob_nylocas", {
     -- NB :445-464 / tob_nylocas.constant ^tob_vasilias_entry_window_ticks 15:
     -- the first window 14, every later one 15.
     first_window = 14, window = 15,
+    -- raid seam32: no swing on her inside this many ticks before the
+    -- predicted turn (the turn read can trail the server by a tick)
+    turn_margin = 1,
     -- the plan's food order (_play_nylocas_supplies): Shark 20 (wiki Shark),
     -- the Theatre's bandages 20 and a boost (E :151; tob_spectate.rs2)
-    food_waves = { { item = "shark", heal = 20 }, { item = "tob_bandages", heal = 20 } },
-    food_boss = { { item = "tob_bandages", heal = 20 }, { item = "shark", heal = 20 } },
+    -- raid seam32: the Normal party's anglerfish ("make sure that you eat your
+    -- angler", transcripts/yt_KF9y2GYTJ-A.md:114; heals 22 at 99 Hitpoints,
+    -- wiki Anglerfish), counted at its plain heal
+    food_waves = { { item = "shark", heal = 20 }, { item = "anglerfish", heal = 22 }, { item = "tob_bandages", heal = 20 } },
+    food_boss = { { item = "tob_bandages", heal = 20 }, { item = "anglerfish", heal = 22 }, { item = "shark", heal = 20 } },
     decide = "_play_nylocas_decide",
     -- one client.log line a tick while the plan is iterated from the log
     trace = false,
+    -- raid seam32: the same line from one seat of a party only (its own
+    -- client.log), while a trio plan is iterated; nil when kept
+    trace_seat = nil,
+    -- raid seam32: the swap's engagement-ending step (see the press); off
+    swap_stop = false,
 })
 
 -- The ids of the room's npcs, once per play (a symbol is a content name, an id
@@ -137,10 +191,21 @@ function QD.raid._play_nylocas_see(st, v)
         local b = ny.ids.boss[row.npc_id] or ny.ids.boss[row.base_npc_id]
         if w ~= nil then
             local s = ny.seen[row.slot]
-            if s == nil or s.last < v.tick - 2 then
+            -- raid seam32: a copy is NEW when its slot is new, or the slot was
+            -- not seen for 8 ticks, or the size changed, or it stands further
+            -- from where it was last seen than it can have walked.  The seam30
+            -- rule ("not seen for 2 ticks") reset every age whenever the plan's
+            -- own block ran three ticks (a swap and a press), so in a party,
+            -- where blocks run long, every copy stayed "young" for good and
+            -- the flicker guard passed over all of them (s32ny6 p2: pick=none
+            -- with 22-33 copies present, every one filtered as young from
+            -- wave 15), and the blast clock never reached a copy's last ticks.
+            local gap = s ~= nil and (v.tick - s.last) or 0
+            if s == nil or gap > 8 or s.big ~= w.big
+                or math.max(math.abs(row.x - s.x), math.abs(row.z - s.z)) > gap + 2 then
                 local lx, lz = row.x - O.x, row.z - O.z
                 local lane = lx <= 18 or lx >= 45 or lz <= 10
-                s = { first = v.tick, last = v.tick, style = w.style, flicker = false, lane = lane }
+                s = { first = v.tick, last = v.tick, style = w.style, flicker = false, lane = lane, big = w.big, x = row.x, z = row.z }
                 ny.seen[row.slot] = s
                 -- a wave is the tick new copies walk out of the tunnels
                 -- (NT nylocas.lane_tiles); a split appears on the platform
@@ -150,6 +215,7 @@ function QD.raid._play_nylocas_see(st, v)
                 end
             end
             s.last = v.tick
+            s.x, s.z = row.x, row.z
             if s.style ~= w.style then
                 s.flicker = true
                 s.style = w.style
@@ -195,14 +261,22 @@ end
 -- library's own block comes after it (svbplaynyloc t664: her turn seen, the
 -- cast pressed, the library's prayer read lit three ticks later on t667, her
 -- first magic attack on t666 sent through Protect from Melee).
-function QD.raid._play_nylocas_wear(st, v, style, pray)
+function QD.raid._play_nylocas_wear(st, v, style, pray, stop)
     local ny = st.ny
-    local L = style ~= nil and st.plan.loadout[style] or nil
+    local L = style ~= nil and ny.loadout[style] or nil
     local r, d = QD.together(function()
         if pray ~= nil then QD.prayer.set(pray, true) end
+        -- raid seam32: the step that ends the old engagement goes out with
+        -- the swap, before it (P.swap_stop; see the caller)
+        if stop ~= nil then QD.player.walk_to(stop.x, stop.z, 1) end
         if L ~= nil then QD.player.equip(L.item) end
     end)
-    st.inputs[v.tick] = (st.inputs[v.tick] or 0) + (L ~= nil and 1 or 0) + (pray ~= nil and 1 or 0)
+    st.inputs[v.tick] = (st.inputs[v.tick] or 0) + (L ~= nil and 1 or 0) + (pray ~= nil and 1 or 0) + (stop ~= nil and 1 or 0)
+    if stop ~= nil then
+        ny.swap_stops = (ny.swap_stops or 0) + 1
+        st.engaged = false
+        st.walk_target = stop
+    end
     if pray ~= nil then
         -- the library's SEND reads v.lit: what this block lit is lit now
         for _, name in pairs(st.plan.prayer_of) do v.lit[name] = (name == pray) end
@@ -336,7 +410,19 @@ function QD.raid._play_nylocas_decide(st, v)
             swaps = 0, presses = 0, casts = 0, bursts = 0, holds = 0, escapes = 0, homes = 0, target = nil,
             doomed = {}, nulled = {}, frozen = {}, turns = {}, form = nil, next_turn = nil, prayer = nil, prayer_tick = -100,
             swing_seen = 0, flicker_cancels = 0, results = {}, vas_presses = {}, landed = nil }
-        st.weapon = P.loadout.ranged
+        -- raid seam32: the seat's own loadout and reaches (a role may carry
+        -- its own weapon for its colour: the ranger's blowpipe)
+        local seat = (st.party ~= nil and st.party > 1) and P.roles[st.role] or nil
+        st.ny.loadout, st.ny.reach = {}, {}
+        for style, L in pairs(P.loadout) do st.ny.loadout[style] = L end
+        for style, d in pairs(P.reach) do st.ny.reach[style] = d end
+        if seat ~= nil and seat.loadout ~= nil then
+            for style, L in pairs(seat.loadout) do
+                st.ny.loadout[style] = { item = L.item, speed = L.speed, seqs = L.seqs }
+                if L.reach ~= nil then st.ny.reach[style] = L.reach end
+            end
+        end
+        st.weapon = st.ny.loadout.ranged
     end
     local ny = st.ny
     -- (raid seam31 play_library_faults: the seam30 workaround for the
@@ -347,9 +433,69 @@ function QD.raid._play_nylocas_decide(st, v)
     local flight = QD.raid._play_nylocas_flight
     local intent = { want = {}, walk = nil, attack = false }
     local O, me = st.origin, v.me
-    local home = { x = O.x + P.home[1], z = O.z + P.home[2] }
+    -- raid seam32: the raider's role in a party (nil alone: the Entry plan)
+    local R = (st.party ~= nil and st.party > 1) and P.roles[st.role] or nil
+    local home_tile = R ~= nil and R.home or P.home
+    ny.role = R ~= nil and R.name or "solo"
+    local home = { x = O.x + home_tile[1], z = O.z + home_tile[2] }
     local vas = v.vas
 
+    -- raid seam32: THE PARTY'S OWN-SWING READ.
+    -- (1) The leader's own pid in its tick log.  api_drive.players' `me` row
+    -- (the library's st.my_pid) counts from 1 and the log's pid from 0 (the
+    -- maiden seam32 finding, s32mzn1), so in a party the library read the
+    -- ranger's bow swings as the mage's own.  Re-read once: the one log pid
+    -- standing on this raider's tile, alone, at the newest tile tick.
+    if st.party ~= nil and st.party > 1 and st.log and not ny.pid_fixed then
+        local tr, rows = QD.ticklog.rows({ kind = "player_tile", since = ny.tile_serial or 0 })
+        if tr == "ok" and type(rows) == "table" and #rows > 0 then
+            local newest = rows[#rows].tick
+            local mine, others = nil, 0
+            for _, row in ipairs(rows) do
+                ny.tile_serial = math.max(ny.tile_serial or 0, row.serial or 0)
+                if row.tick == newest and row.x == me.x and row.z == me.z then
+                    if mine == nil then mine = row.pid else others = others + 1 end
+                end
+            end
+            if mine ~= nil and others == 0 then
+                ny.pid_was = st.my_pid
+                st.my_pid = mine
+                ny.pid_fixed = true
+                -- the swings read under the wrong pid are not this raider's
+                st.swings, st.last_swing = {}, -1000
+                ny.swing_seen = 0
+            end
+        end
+    end
+    -- (2) A member holds no tick log ("The world's one tick log lives with the
+    -- leader", _party_smoke.lua), so it never read a swing of its own
+    -- (s32ny2: p2 and p3 "0 swings" in 933 ticks) and its turn hold and its
+    -- re-press ran blind.  What its own screen shows on every swing that hits
+    -- is the experience it is paid: Hitpoints with every style, Magic with
+    -- every cast (a person sees the XP drop).  A rise in either is a swing on
+    -- the tick it is read; a 0 pays nothing and goes unread (the plan's
+    -- re-press covers it).
+    if st.party ~= nil and st.party > 1 then
+        local _, hp_read = QD.skill.read("hitpoints")
+        local _, mg_read = QD.skill.read("magic")
+        local hx = type(hp_read) == "table" and hp_read.experience or nil
+        local mx = type(mg_read) == "table" and mg_read.experience or nil
+        if hx ~= nil and mx ~= nil then
+            if ny.xp_hp ~= nil and (hx > ny.xp_hp or mx > ny.xp_mg) then
+                ny.xp_swings = (ny.xp_swings or 0) + 1
+                -- the leader keeps its log read and records the XP read beside
+                -- it (the harness compares the two: note.xp_swing_lag)
+                if st.log then
+                    ny.xp_probe = ny.xp_probe or {}
+                    if #ny.xp_probe < 40 then ny.xp_probe[#ny.xp_probe + 1] = v.tick end
+                elseif v.tick > st.last_swing then
+                    st.last_swing = v.tick
+                    st.swings[#st.swings + 1] = v.tick
+                end
+            end
+            ny.xp_hp, ny.xp_mg = hx, mx
+        end
+    end
     -- my own swings (the library reads them off player_anim): the copy I was
     -- on is doomed until the hit has had time to land (2 or 3 hitpoints, E :161)
     while ny.swing_seen < #st.swings do
@@ -358,10 +504,40 @@ function QD.raid._play_nylocas_decide(st, v)
         local t = ny.target
         if t ~= nil then
             t.swung = tk
+            ny.swung_slot = t.slot
             if not t.vas then
                 ny.doomed[t.slot] = tk + flight(t.style, t.d or 1) + 2
                 for _, s in ipairs(t.also or {}) do ny.doomed[s] = tk + flight(t.style, t.d or 1) + 2 end
             end
+        end
+    end
+
+    -- raid seam32: NULLED, read off the screen.  A raider's hit on a copy it
+    -- is nulled on prints "Your attack has no effect on this Nylocas." (DMG
+    -- :308-310 tob_nylo_no_effect, with the shielded spotanim on the copy).
+    -- The copy the raider last swung at is struck off its list for good
+    -- (s32ny4 p2: an Ice Burst's splash nulled the ranger on a green that
+    -- spawned under it at t191-192, and it then shot that green twelve times
+    -- for 0, t201-234, "tgt 1083" every raider row).
+    local msr, serial = api_drive.message_serial()
+    if msr == "ok" and type(serial) == "number" then
+        if ny.msg_serial == nil then
+            ny.msg_serial = serial
+        elseif serial > ny.msg_serial then
+            local mr, rows = api_drive.messages()
+            if mr == "ok" and type(rows) == "table" then
+                for i = 1, #rows do
+                    if rows[i].serial > ny.msg_serial and string.find(rows[i].text or "", "no effect on this Nylocas", 1, true) ~= nil then
+                        local slot = ny.swung_slot or (ny.target and ny.target.slot)
+                        if slot ~= nil and not ny.nulled[slot] then
+                            ny.nulled[slot] = true
+                            ny.null_reads = (ny.null_reads or 0) + 1
+                            if ny.target ~= nil and ny.target.slot == slot then ny.target = nil end
+                        end
+                    end
+                end
+            end
+            ny.msg_serial = serial
         end
     end
 
@@ -372,10 +548,17 @@ function QD.raid._play_nylocas_decide(st, v)
     if vas ~= nil and vas.form ~= ny.form then
         if ny.form ~= nil and ny.form ~= "spawning" and vas.form ~= "spawning" then
             ny.turns[#ny.turns + 1] = { tick = v.tick, form = vas.form }
-            ny.next_turn = v.tick + P.window
+            ny.next_turn = v.tick + (N.window or P.window)
         elseif vas.form ~= "spawning" then
             ny.landed = v.tick
-            ny.next_turn = v.tick + P.first_window
+            ny.next_turn = v.tick + (N.first_window or P.first_window)
+            -- raid seam32: the supports' bars on the tick she lands (the
+            -- report's "pillars at the boss")
+            local bars = {}
+            for _, s in ipairs(v.supports) do bars[#bars + 1] = string.format("%d,%d:%.2f%s", s.x - st.origin.x, s.z - st.origin.z, s.frac, s.alive and "" or "x") end
+            ny.supports_at_landing = table.concat(bars, " ")
+            ny.supports_alive_at_landing = 0
+            for _, s in ipairs(v.supports) do if s.alive then ny.supports_alive_at_landing = ny.supports_alive_at_landing + 1 end end
         end
         ny.form = vas.form
         ny.target = nil
@@ -524,12 +707,34 @@ function QD.raid._play_nylocas_decide(st, v)
                 and (ny.blocked == nil or (ny.blocked[n.slot] or -1) < v.tick)
                 -- from wave 16 a copy's colour may still turn (NT flicker_*)
                 and (ny.waves < P.flicker_wave - 1 or n.age >= P.settle_age)
+            if P.trace_seat ~= nil then
+                local why = nil
+                if not (ny.doomed[n.slot] == nil or ny.doomed[n.slot] < v.tick) then why = "doom"
+                elseif ny.nulled[n.slot] then why = "null"
+                elseif not (ny.blocked == nil or (ny.blocked[n.slot] or -1) < v.tick) then why = "block"
+                elseif not (ny.waves < P.flicker_wave - 1 or n.age >= P.settle_age) then why = "young"
+                elseif n.style == "melee" and not on_floor then why = "lane"
+                elseif n.style == "melee" and not (n.age < ea - 6 and not unsafe(n.x, n.z, 1)) then why = "blast"
+                elseif n.style ~= "melee" and not (d <= ny.reach[n.style] + 6) then why = "far" end
+                if why ~= nil then ny.why = ny.why or {} ny.why[why] = (ny.why[why] or 0) + 1 end
+            end
             if ok and n.style == "melee" then
                 -- "cannot melee them until they reach said platform" (E :160),
                 -- and never into a blast
                 ok = on_floor and n.age < ea - 6 and not unsafe(n.x, n.z, 1)
             elseif ok then
-                ok = d <= P.reach[n.style] + 6
+                -- raid seam32: a seat goes further for its own colour (the
+                -- trio guide's raiders walk to the lane their colour comes from:
+                -- "Path west and stand 1 tile away from the west barrier",
+                -- ranger waves 8-10)
+                ok = d <= ny.reach[n.style] + ((R ~= nil and n.style == R.colour) and 14 or 6)
+                -- raid seam32: in a party the blues are the mage's ("Trio: x1
+                -- mager", W :711); another seat casts only at a blue aggro
+                -- swinging at it.  A helper's Ice Rush is five ticks against its
+                -- own weapon's two or four, and its press failed half the time
+                -- (s32ny10 p3 t150-200: 13 casts pressed, 3 covered, 4 refused,
+                -- seven swings in fifty ticks)
+                if ok and R ~= nil and n.style == "magic" and R.colour ~= "magic" and not (n.fighting and d <= 8) then ok = false end
             end
             local sp = (not n.fighting) and support_of(n) or nil
             n.support = sp
@@ -537,8 +742,12 @@ function QD.raid._play_nylocas_decide(st, v)
                 -- the cost of the kill in ticks: the run to reach (two tiles a
                 -- tick, wiki Energy: run) and a swap, weighed against what the
                 -- copy costs while it lives
-                local walk = math.max(0, d - P.reach[n.style]) / 2
+                local walk = math.max(0, d - ny.reach[n.style]) / 2
                 local score = walk * 6
+                -- raid seam32: the kill's own time, the weapon's ticks a swing
+                -- (s32ny8 p2: the blowpipe seat cast Ice Rush 16 times in the
+                -- waves, five ticks each, 80 ticks that were 40 blowpipe darts)
+                if R ~= nil then score = score + ny.loadout[n.style].speed * 3 end
                 if n.fighting then
                     -- aggros first: they "must be killed as fast as possible"
                     -- (E :160); the one hitting through the prayer before all
@@ -547,7 +756,14 @@ function QD.raid._play_nylocas_decide(st, v)
                     if hitting and not covered then score = score - 45
                     elseif hitting then score = score - 30
                     else score = score - 20 end
-                elseif sp ~= nil then
+                    -- raid seam32: an aggro is EVERY seat's ("These aggro's
+                    -- should be prioritised first", W :733): no colour penalty,
+                    -- only its weapon's time below.  (A first cut kept another
+                    -- seat's covered aggro for its owner: s32ny5 t389 the ranger
+                    -- stood among 12 live aggros, f=12, and died to them.)
+                end
+                if not n.fighting and R ~= nil and n.style ~= R.colour then score = score + P.own_colour_bonus end
+                if not n.fighting and sp ~= nil then
                     -- a chewer: "keep the pillars alive" (E :155); but "it's best to
                     -- let one that's low die and focus on the other three" (E :171)
                     if sp == lowest and sp.frac < 0.15 and alive_supports > 1 then score = score + 25
@@ -555,12 +771,23 @@ function QD.raid._play_nylocas_decide(st, v)
                 end
                 -- "Focus the green (Ranged) Nylocas first" (E :162)
                 if n.style == "ranged" then score = score - 4 end
-                -- older first: nearer to biting and exploding (W :746
-                -- "always kill newly spawned nylocas after dealing with aggro's,
-                -- prioritising the smaller ones first")
-                score = score - math.min(n.age, 45) * 0.2
+                -- raid seam32: NEWER first, as the source says: "always kill
+                -- newly spawned nylocas after dealing with aggro's, prioritising
+                -- the smaller ones first" (W :746), and "Allow all the existing
+                -- Nylos in the room to auto-pop" (trio guide :24).  A copy's
+                -- worth is the chewing it has left: a new one bites for ~40
+                -- ticks, one near its pop for a few.  (The seam30 line read the
+                -- same quote as "older first"; Entry's pillars forgave it,
+                -- Normal's do not: s32ny5 killed at an average age of 23.6
+                -- ticks, half a life spent chewing.)
+                if R ~= nil then
+                    score = score + math.min(n.age, 45) * 0.3
+                    if not n.fighting and n.age >= ea - 10 then score = score + 20 end
+                else
+                    score = score - math.min(n.age, 45) * 0.2
+                end
                 if n.big then score = score + 2 end
-                if n.style ~= ny.worn then score = score + 5 end
+                if n.style ~= ny.worn then score = score + ((R ~= nil) and 10 or 5) end
                 -- the one already pressed keeps its press unless another is
                 -- clearly worth more (no target flapping, ny30f t328-335)
                 if cur ~= nil and cur.slot == n.slot then score = score - 12 end
@@ -576,8 +803,8 @@ function QD.raid._play_nylocas_decide(st, v)
         for _, n in ipairs(v.nylos) do
             local sp = n.support
             local d = dist(me.x, me.z, n.x, n.z, n.size)
-            if sp ~= nil and sp.frac < 0.7 and not (sp == lowest and sp.frac < 0.15 and alive_supports > 1)
-                and d <= P.reach.magic and (ny.frozen[n.slot] or -1) < v.tick
+            if (R == nil or R.freeze) and sp ~= nil and sp.frac < 0.7 and not (sp == lowest and sp.frac < 0.15 and alive_supports > 1)
+                and d <= ny.reach.magic and (ny.frozen[n.slot] or -1) < v.tick
                 and (ny.waves < P.flicker_wave - 1 or n.age >= P.settle_age) then
                 local clump, blues = {}, 0
                 for _, o in ipairs(v.nylos) do
@@ -605,33 +832,47 @@ function QD.raid._play_nylocas_decide(st, v)
     -- as the old one is doomed, so the next swing is queued on the cooldown.
     local press = false
     if pick ~= nil and intent.walk == nil then
-        local speed = P.loadout[pick.style].speed
+        local speed = ny.loadout[pick.style].speed
         if cur == nil or cur.slot ~= pick.slot or cur.style ~= pick.style then
             press = true
         elseif pick.style == "magic" then
             press = cur.swung ~= nil and cur.swung >= cur.pressed and v.tick >= cur.swung + speed - 2
+            -- raid seam32: a cast that never showed (the press answered
+            -- `timeout` and no cast animation followed) is pressed again, as a
+            -- swing is: the trio's mage stood 13-18 ticks beside a live blue
+            -- holding a dead press (svaplaynyloc... _play_nylocas t113-130)
+            if not press and (cur.swung == nil or cur.swung < cur.pressed) and v.tick - cur.pressed > speed + 2 then press = true end
         elseif v.tick - math.max(cur.pressed, cur.swung or -1000) > speed + 3 then
             press = true
         end
-        -- HER TURN: the turn stops the attack, and a hit of the old colour that
-        -- lands on or after it is reflected and heals her (W :754; NB :176;
-        -- DMG :278).  A projectile that would land within a tick of the
-        -- predicted turn is not sent; a bow already swinging is stopped by a
-        -- step (the library's walk clears the engagement).
-        if pick.vas and ny.next_turn ~= nil and pick.style ~= "melee" then
-            local start = math.max(v.tick + 1, st.last_swing + speed)
-            if cur ~= nil and cur.slot == pick.slot and not press then
-                start = math.max(v.tick + 1, (cur.swung or cur.pressed) + speed)
-            end
-            local lands = start + flight(pick.style, pick.d)
-            if start < ny.next_turn and lands >= ny.next_turn - 1 then
+        -- HER TURN: the turn stops the attack, and a hit of the old colour is
+        -- reflected and heals her (W :754; NB :176; DMG :278).  The colour is
+        -- judged when the swing is MADE, not when it lands ("If player makes an
+        -- attack just before the nylocas changes forms, they will still take
+        -- damage from it", W :733; s32ny2: every npc_heal row on her sat on a
+        -- tick a raider swung, t562 the whip, t572/t632 the bow, none on a
+        -- landing).  So no swing of this colour may fall on the turn tick or
+        -- after it: a press whose first swing would come within `turn_margin`
+        -- of the predicted turn is not sent, and a weapon swinging on its own
+        -- whose next swing falls there is stopped by a step the tick before
+        -- (the library's walk clears the engagement; raid seam32 -- the seam30
+        -- rule held only bows and spells, by their landing tick, and Normal's
+        -- 10-tick window put a whip swing on the turn: s32ny2 t562 HEAL4).
+        if pick.vas and ny.next_turn ~= nil then
+            local stop_at = ny.next_turn - P.turn_margin
+            local first = math.max(v.tick + 1, st.last_swing + speed)
+            if press and first >= stop_at then
                 press = false
                 ny.holds = ny.holds + 1
-                if pick.style == "ranged" and cur ~= nil and cur.slot == pick.slot then
+            end
+            if not press and cur ~= nil and cur.slot == pick.slot and pick.style ~= "magic" then
+                local nxt = math.max(v.tick + 1, (cur.swung or cur.pressed) + speed)
+                if nxt >= stop_at and v.tick + 1 >= nxt - 1 then
                     local sx = me.x + 1
                     if not floor_ok(sx, me.z) then sx = me.x - 1 end
                     intent.walk = { x = sx, z = me.z }
                     ny.target = nil
+                    ny.turn_steps = (ny.turn_steps or 0) + 1
                 end
             end
         end
@@ -651,7 +892,31 @@ function QD.raid._play_nylocas_decide(st, v)
         end
     end
     if press and ny.worn ~= pick.style then
-        QD.raid._play_nylocas_wear(st, v, pick.style, early)
+        -- raid seam32: a swap while the old weapon is still swinging at a
+        -- copy keeps swinging at it WITH THE NEW WEAPON until the next press
+        -- lands: svcplaynyloc p2 pressed a grey with the whip (t163), put the
+        -- blowpipe back on for a green (t164) and darted the grey at t165 and
+        -- t167 (0, 0: nulled on it) before its press on the green went out at
+        -- t167 -- the cause of the trio's 8-11 wrong-style wave swings a
+        -- room.  P.swap_stop sends a one-tile step toward the new copy with
+        -- the swap, which ends the engagement: measured 0-2 wrong-style swings
+        -- a room, but 3 of 5 names green against 5 of 5 without it (the step
+        -- costs the tempo the pillars live on), so it is OFF in the kept plan
+        -- and the next pass's row (PLAY_NOTES "Nylocas, Normal trio").
+        local stop = nil
+        if P.swap_stop and R ~= nil and not pick.vas and ny.worn ~= "magic" and st.engaged then
+            local best = nil
+            for dx = -1, 1 do
+                for dz = -1, 1 do
+                    local x, z = me.x + dx, me.z + dz
+                    if (dx ~= 0 or dz ~= 0) and floor_ok(x, z) and not unsafe(x, z, 0) then
+                        local dd = math.max(math.abs(x - pick.x), math.abs(z - pick.z))
+                        if best == nil or dd < best then best, stop = dd, { x = x, z = z } end
+                    end
+                end
+            end
+        end
+        QD.raid._play_nylocas_wear(st, v, pick.style, early, stop)
     elseif early ~= nil then
         QD.raid._play_nylocas_wear(st, v, nil, early)
     end
@@ -687,7 +952,10 @@ function QD.raid._play_nylocas_decide(st, v)
                             if n.style == "magic" then also[#also + 1] = n.slot else pure = false end
                         end
                     end
-                    if pure and #also > 0 then spell = "ice_burst" ny.bursts = ny.bursts + 1 else also = {} end
+                    -- raid seam32: only the seat that freezes bursts; another
+                    -- seat's burst splashes a copy that walks in under it and
+                    -- nulls that raider on it (s32ny4 p2 t191-192)
+                    if pure and #also > 0 and (R == nil or R.freeze) then spell = "ice_burst" ny.bursts = ny.bursts + 1 else also = {} end
                 end
                 r, d = QD.player.cast(spell, pick.symbol, 1, 2, { slot = pick.slot, quick = true })
                 ny.casts = ny.casts + 1
@@ -696,6 +964,9 @@ function QD.raid._play_nylocas_decide(st, v)
             end
             st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
             ny.presses = ny.presses + 1
+            if R ~= nil and not pick.vas then
+                if pick.style == R.colour then ny.own_presses = (ny.own_presses or 0) + 1 else ny.other_presses = (ny.other_presses or 0) + 1 end
+            end
             ny.results[tostring(r)] = (ny.results[tostring(r)] or 0) + 1
             ny.last_press = tostring(r) .. ":" .. string.sub(tostring(d), 1, 160)
             if r ~= "ok" and r ~= "timeout" and #st.lines < 6 then
@@ -787,7 +1058,7 @@ function QD.raid._play_nylocas_decide(st, v)
             if intent.drink ~= nil then ny.stat_restores = (ny.stat_restores or 0) + 1 end
         end
     end
-    if P.trace then
+    if P.trace or (P.trace_seat ~= nil and st.party ~= nil and st.party > 1 and st.role == P.trace_seat) then
         local nf, w = 0, ""
         if v.tick % 20 == 0 then
             local sp = {}
@@ -800,8 +1071,11 @@ function QD.raid._play_nylocas_decide(st, v)
                 w = w .. string.format(" %s%s%s@%d,%d/a%d", n.fighting and "F" or "i", n.big and "B" or "", string.sub(n.style, 1, 2), n.x - O.x, n.z - O.z, n.age)
             end
         end
-        api_drive.report(string.format("nyplay t=%d me=%d,%d hp=%d n=%d f=%d waves=%d worn=%s pray=%s pick=%s press=%s walk=%s eat=%s drink=%s |%s",
-            v.tick, me.x - O.x, me.z - O.z, v.hp, #v.nylos, nf, ny.waves, ny.worn, tostring(pray_style),
+        local whys = {}
+        for k, c in pairs(ny.why or {}) do whys[#whys + 1] = k .. ":" .. c end
+        ny.why = nil
+        api_drive.report(string.format("nyplay why=%s t=%d me=%d,%d hp=%d n=%d f=%d waves=%d worn=%s pray=%s pick=%s press=%s walk=%s eat=%s drink=%s |%s",
+            table.concat(whys, ","), v.tick, me.x - O.x, me.z - O.z, v.hp, #v.nylos, nf, ny.waves, ny.worn, tostring(pray_style),
             pick and (pick.style .. "/" .. pick.slot .. "/d" .. pick.d) or "none", tostring(press),
             intent.walk and (intent.walk.x - O.x .. "," .. intent.walk.z - O.z) or "-", tostring(intent.eat), tostring(intent.drink), w .. (press and (" PRESS " .. tostring(ny.last_press)) or "")))
     end

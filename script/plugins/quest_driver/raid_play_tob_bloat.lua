@@ -19,7 +19,16 @@ QD.raid._play_plan("tob_bloat", {
     -- `mirror`: the tile straight behind the tank from Bloat's centre is
     -- (mirror.x - bx, mirror.z - bz) for Bloat's south-west tile bx,bz
     -- (tob_bloat.lua :1206, 12859 - bx and 189 - bz).
-    floor = { 24, 25, 37, 38 }, tank = { 28, 29, 33, 34 }, mirror = { 59, 61 },
+    --
+    -- raid seam32: the TANK is x 29..34, not 28..33.  Every Bloat tick log of
+    -- this pass (b32n3*, sv*playbloat, _play_bloat: player_tile rows) has
+    -- raiders standing on 6428,93..98 (16-142 ticks each) and never on any of
+    -- 6429..6434 x 93..98; the old box called the west column tank and the
+    -- east column floor, so a hide tile at x 6434 was unreachable and the
+    -- server's route to it ran round through 6435,92 under a shadow
+    -- (svcplaybloat t309-311: walk sent to 6434,97, the hand landed on the
+    -- route, the stun held all three raiders for the next hand).
+    floor = { 24, 25, 37, 38 }, tank = { 29, 29, 34, 34 }, mirror = { 59, 61 },
     ring = { 23, 24, 34, 35 },
     modes = {
         -- tob.constant :752 entry flies 8, :760 entry stomp 40,
@@ -30,8 +39,33 @@ QD.raid._play_plan("tob_bloat", {
         -- tob.constant :746 flies 20, :756 stomp 80, :762 hand 50.  Normal:
         -- "Unless the boss is below 3% health, it is recommended to run
         -- away after the last attack" (wiki :689).
-        normal = { fly = 20, stomp = 80, hand = 50, stomp_plan = "leave" },
-        hard = { fly = 20, stomp = 80, hand = 50, stomp_plan = "leave" },
+        --
+        -- raid seam32 play_tob_bloat_normal, the trio's three additions:
+        --   fly_prayed  "up to 20 damage every tick, reduced by 25% if Protect
+        --               from Missiles are active" (W:673): 15 is the most one
+        --               fly lands while the raider reads the prayer lit.  The
+        --               supplies' threat used 20 for every unhidden tick ahead,
+        --               so a raider at 120 still read "eat" (b32n3a: 99 doses
+        --               and bites, most at 120 hitpoints).
+        --   runby       W:687 "one or two players should do a run-by on the
+        --               boss with a Bandos godsword special to lower its
+        --               Defence"; the BGS is not in this cache
+        --               (tob_bloat_normal.lua:5), the Dragon warhammer is the
+        --               drain the trio carries (yt_4i4lv-srJkw.md:45 "a dragon
+        --               warhammer is basically essential").  Done by the one
+        --               raider in the room on the first walk (W:687-689: the
+        --               rest enter on the first down).
+        --   hand_dodge  a shadow the tick's own step leaves is not counted as
+        --               a hand that lands (ET 3.4; the threat function).
+        --   offence_pots a brew drains Attack and Strength (wiki Saradomin
+        --               brew :56, sara_brew.rs2:6-14); a super restore puts
+        --               them back (wiki Super restore) and the super combat is
+        --               re-sipped on the walk (yt_4i4lv-srJkw.md:47 "three
+        --               super combats" for the raid).
+        normal = { fly = 20, stomp = 80, hand = 50, stomp_plan = "leave",
+            fly_prayed = 15, runby = "dragon_warhammer", offence_pots = true, hand_dodge = true },
+        hard = { fly = 20, stomp = 80, hand = 50, stomp_plan = "leave",
+            fly_prayed = 15, runby = "dragon_warhammer", offence_pots = true, hand_dodge = true },
     },
     -- wiki :673 "reduced by 25% if Protect from Missiles are active":
     -- lit on every tick Bloat is up (the flies are sent every tick).
@@ -90,18 +124,30 @@ function QD.raid._play_bloat_decide(st, v)
     local hidden = math.max(math.abs(v.me.x - hide_x), math.abs(v.me.z - hide_z)) <= 1
     local on_shadow = v.shadows[v.me.x * 100000 + v.me.z] == true
     local leave_age = P.stomp_age - 1 - math.ceil((P.stomp_range + 1) / QD.RAID_PLAY_RUN_TILES)
+    -- raid seam32: the most one fly lands with Protect from Missiles (W:673).
+    -- The plan lights it on every walking tick and from T+32, the tick before
+    -- the first fly of a rise (walk_prayers; the `list` below), so every fly
+    -- the threat counts lands on a prayed raider while any prayer is left.
+    -- Entry carries no fly_prayed and reads N.fly as before.
+    local fly = N.fly
+    if N.fly_prayed ~= nil and v.prayer > 0 then fly = N.fly_prayed end
     local function threat(h)
         local total = 0
         for k = 1, h do
             if phase == "walk" then
-                if not hidden then total = total + N.fly end
+                if not hidden then total = total + fly end
             else
                 local a = age + k
                 if a == P.stomp_age and (N.stomp_plan == "stay" or in_stomp) then total = total + N.stomp end
-                if a >= P.up_age then total = total + N.fly end
+                if a >= P.up_age then total = total + fly end
             end
         end
-        if on_shadow then total = total + N.hand end
+        -- raid seam32 (N.hand_dodge): a hand is judged on the tile the raider
+        -- ends the tick before its impact on (ET 3.4), so a shadow this tick's
+        -- step leaves is not a hand that lands; counting it ate a bite and a
+        -- brew at 99-115 hitpoints on every shadow (b32n3b t152, t189)
+        local leaving = N.hand_dodge and intent.walk ~= nil and (intent.walk.x ~= v.me.x or intent.walk.z ~= v.me.z)
+        if on_shadow and not leaving then total = total + N.hand end
         return total
     end
     -- prayers for the NEXT tick: down prayers through the attackable window,
@@ -109,8 +155,12 @@ function QD.raid._play_bloat_decide(st, v)
     local list = P.walk_prayers
     if phase == "down" and age < P.up_age - 1 then list = P.down_prayers end
     for _, name in ipairs(list) do intent.want[name] = true end
+    -- raid seam32: THE RUN-BY (W:687), the first walk, the raider in the room.
+    local runby = QD.raid._play_bloat_runby(st, v, phase, intent)
     local target_x, target_z = nil, nil
-    if phase == "walk" then
+    if runby then
+        -- the spec is being swung: no hide walk, the attack press paths in
+    elseif phase == "walk" then
         target_x, target_z = hide_x, hide_z
     elseif N.stomp_plan == "stay" then
         intent.attack = age < P.stomp_age
@@ -156,7 +206,176 @@ function QD.raid._play_bloat_decide(st, v)
             end
         end
     end
-    intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, threat)
+    -- raid seam32: while the run-by's special is being swung a bite costs the
+    -- swing 3 ticks (wiki Food, consume_shared.rs2:28-49), and on a free tick
+    -- the library looks six ticks ahead, so a raider standing in the flies ate
+    -- every other tick and never swung (_play_bloat t67-92: 25 ticks targeted,
+    -- no swing).  The run-by is a few ticks in the flies by design (W:687), so
+    -- it eats only for what can land in the next RUNBY_EAT_TICKS ticks.
+    local supplies_threat = threat
+    if runby then
+        supplies_threat = function(h) return threat(math.min(h, QD.RAID_PLAY_BLOAT_RUNBY_EAT_TICKS)) end
+    end
+    intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, supplies_threat)
+    if N.offence_pots and intent.drink == nil then
+        intent.drink = QD.raid._play_bloat_offence(st, v, phase)
+    end
     intent.attack = QD.raid._play_attack(st, v, intent.attack and intent.walk == nil)
     return intent
+end
+
+-- raid seam32 play_tob_bloat_normal: THE RUN-BY.  W:687 "While optional, one
+-- or two players should do a run-by on the boss with a Bandos godsword special
+-- to lower its Defence"; the Dragon warhammer is the drain this cache has
+-- (N.runby; tob_bloat_normal.lua:5) and drains 30% of the current Defence when
+-- its hit is above 0 (DRIVER_NOTES "Bloat: Defence reads 80 of 80 after a
+-- Dragon warhammer special").  Who: the one raider in the room before the
+-- first down (W:687-689: the rest enter on the down), on the first walk.
+-- The kit goes on in one block, the special is armed from the orb with the
+-- attack press the next tick, and the swing is SEEN as the energy it spends
+-- (varp300, the special orb's own number).  The hammer stays on until the
+-- special's splat shows on Bloat (a 0 drains nothing and is swung again while
+-- the energy lasts); on that tick the scythe goes back on in the same block as
+-- the walk back to the hide tile ("the scythe back the same tick").  The stomp restores Defence (W:675), so the drain serves
+-- the first down.  Returns true while the run-by owns the tick (no hide walk;
+-- the attack press is the approach).  st.runby is the record.
+QD.RAID_PLAY_BLOAT_SPEC_COST = 500      -- the Dragon warhammer's special (DRIVER_NOTES seam10: "falls by 500 (DWH)")
+QD.RAID_PLAY_BLOAT_RUNBY_GIVE_UP = 24   -- ticks from the arm with no energy spent (the seam's bound: four DWH swings)
+-- Specials one run-by may spend.  1000 energy is two hammer specials, but a
+-- second swing on a 0 kept the raider in the flies for 26 ticks, eating every
+-- other tick and never swinging (_play_bloat t65-91, hitpoints 18-47): one.
+QD.RAID_PLAY_BLOAT_RUNBY_TRIES = 1
+QD.RAID_PLAY_BLOAT_RUNBY_EAT_TICKS = 3  -- the run-by's supplies horizon (the seam's choice: three flies, 45 with the prayer)
+function QD.raid._play_bloat_runby(st, v, phase, intent)
+    local N = st.numbers
+    if N.runby == nil or st.party <= 1 or st.role ~= 1 then
+        return false
+    end
+    local rb = st.runby
+    if rb == nil then
+        rb = { stage = "wait", weapon = N.runby, splats = {} }
+        st.runby = rb
+    end
+    if rb.stage == "done" or rb.stage == "gave_up" then
+        return false
+    end
+    local _, energy = QD.var.varp("varp300_sa_energy")
+    energy = tonumber(energy) or 0
+    if rb.stage == "wait" then
+        -- the first walk, with the energy for one special and the hitpoints
+        -- to stand in the flies while it is swung
+        if phase ~= "walk" or #st.downs > 0 then
+            rb.stage = "gave_up"
+            rb.why = "the first down came first"
+            return false
+        end
+        if energy < QD.RAID_PLAY_BLOAT_SPEC_COST or v.hp < 70 then
+            return false
+        end
+        rb.stage = "equip"
+        rb.equip_tick = v.tick
+        rb.energy0 = energy
+        intent.gear = { rb.weapon }
+        intent.want.piety = true
+        return true
+    end
+    intent.want.piety = true
+    if rb.stage == "equip" then
+        rb.stage = "swing"
+        rb.arm_tick = v.tick
+        intent.spec = true
+        intent.attack = true
+        st.engaged = false
+        return true
+    end
+    -- "fired": the hammer stays on until the special's own splat shows on
+    -- Bloat (the npc row's latest hitsplat, what a person sees: one tick after
+    -- the swing).  A 0 drains nothing (DRIVER_NOTES seam10 "A 0 splat drains
+    -- nothing: try again ... while energy is 500 or more"): with the energy
+    -- for another and the walk still on, the special is armed again.  Any
+    -- other splat, or none in three ticks, ends the run-by: the scythe goes
+    -- back on in the same block as the walk back to the hide tile.
+    if rb.stage == "fired" then
+        local seen = v.boss ~= nil and v.boss.hit_cycle ~= nil and rb.cycle_at_fire ~= nil and v.boss.hit_cycle > rb.cycle_at_fire
+        if seen then
+            rb.splat = v.boss.hit_damage
+            rb.splats[#rb.splats + 1] = tostring(v.boss.hit_damage) .. "@t" .. v.tick
+        end
+        if seen and rb.splat == 0 and energy >= QD.RAID_PLAY_BLOAT_SPEC_COST and phase == "walk"
+            and #rb.splats < QD.RAID_PLAY_BLOAT_RUNBY_TRIES then
+            rb.stage = "swing"
+            rb.arm_tick = v.tick
+            rb.energy0 = energy
+            intent.spec = true
+            intent.attack = true
+            st.engaged = false
+            return true
+        end
+        if seen or v.tick - rb.fired >= 3 or phase ~= "walk" then
+            rb.stage = "done"
+            intent.gear = { "scythe_of_vitur" }
+            intent.want.piety = nil
+            return false
+        end
+        return true
+    end
+    -- "swing": the special is spent when the orb's energy falls by its cost
+    if energy <= rb.energy0 - QD.RAID_PLAY_BLOAT_SPEC_COST then
+        rb.stage = "fired"
+        rb.fired = v.tick
+        rb.energy1 = energy
+        rb.cycle_at_fire = v.boss ~= nil and v.boss.hit_cycle or nil
+        return true
+    end
+    if v.tick - rb.arm_tick > QD.RAID_PLAY_BLOAT_RUNBY_GIVE_UP or phase ~= "walk" then
+        rb.stage = "gave_up"
+        rb.why = "no energy spent in " .. (v.tick - rb.arm_tick) .. " ticks (phase " .. phase .. ")"
+        intent.gear = { "scythe_of_vitur" }
+        intent.want.piety = nil
+        return false
+    end
+    -- re-arm if the orb reads unarmed two ticks on and nothing was spent
+    local _, armed = QD.var.varp("varp301_sa_attack")
+    if tonumber(armed) == 0 and v.tick - rb.arm_tick >= 2 and (rb.rearm or 0) < 3 then
+        rb.rearm = (rb.rearm or 0) + 1
+        rb.arm_tick_last = v.tick
+        intent.spec = true
+    end
+    intent.attack = true
+    return true
+end
+
+-- raid seam32: THE OFFENCE POTIONS (N.offence_pots).  A Saradomin brew drains
+-- Attack and Strength (wiki Saradomin brew :56; br_potion.rs2:78-79), a
+-- super restore brings them back to base (wiki Super restore; br_potion.rs2
+-- :93-94), and the super combat's boost is re-sipped on a walk when it has
+-- worn down (yt_4i4lv-srJkw.md:47).  Read from the raider's own skills (what a
+-- person sees in the stats tab).  Returns a potion name or nil.
+QD.RAID_PLAY_COMBAT_POTS = { "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" }
+function QD.raid._play_bloat_offence(st, v, phase)
+    if v.tick - st.last_drink < QD.RAID_PLAY_DRINK_DELAY then
+        return nil
+    end
+    local ar, att = QD.skill.read("attack")
+    if ar ~= "ok" then
+        return nil
+    end
+    local base = att.base or att.base_level or 99
+    local list = nil
+    if att.level < base then
+        list = QD.RAID_PLAY_RESTORES
+    elseif phase == "walk" and att.level < base + 10 then
+        list = QD.RAID_PLAY_COMBAT_POTS
+    end
+    if list == nil then
+        return nil
+    end
+    for _, name in ipairs(list) do
+        local cr, n = QD.inv.count(name)
+        if cr == "ok" and n > 0 then
+            st.offence_pots = (st.offence_pots or 0) + 1
+            return name
+        end
+    end
+    return nil
 end

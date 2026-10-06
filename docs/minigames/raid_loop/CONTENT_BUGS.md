@@ -1099,3 +1099,37 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   reads "P2 attacks between Matomenos summons 7" (Blert, grade B). Either Blert counts the
   summon as one of the seven, or the content is one attack short. A row for the next spec
   pass; the plan holds for both readings. Found by the seam31 play_tob_verzik_green fixer.
+
+## From seam32's Normal trio plans (matthew-mbp-m4-raid-b1-seam32, 2026-10-06; filed by the closer)
+
+- CONTENT: the `br_` Saradomin brew DRAINS Defence. br_potion.rs2:76-80
+  (`[br_4dosepotionofsaradomin ...]`: `stat_drain(defence, 2, 10)` beside the Attack,
+  Strength, Magic and Ranged drains). wiki_Saradomin_brew.wikitext:56: "raises Hitpoints by
+  15% + 2 and Defence by 20% + 2", and the owner's ruling "the Saradomin brew raises
+  Defence". sara_brew.rs2 was fixed in seam18; this copy, which the party kits and the ToB
+  chest hand out, was not. Every brew dose in the Maiden and Bloat trios lowers the
+  raider's Defence. Not edited (no seam row named it). Found by the seam32
+  play_tob_bloat_normal fixer.
+- CONTENT: no salve amulet bonus against undead anywhere (no `salve` in skill_combat/*.rs2
+  or src/torirsserver/*.c). W:670: "Being undead, the salve amulet is very powerful
+  against Bloat ... make sure to equip the salve amulet". The Bloat kit wears
+  amulet_of_rancour (`::maxmelee`). Found by the seam32 play_tob_bloat_normal fixer.
+- CONTENT: a swing due ON Vasilias' turn tick lands and is judged against the new form.
+  wiki_Theatre_of_Blood_Strategies.wikitext:752: "The player will stop attacking when
+  Vasilias changes forms"; tob_nylocas_boss.rs2 `tob_vasilias_act` calls p_stopaction
+  ("cancels every player's attack if she has just turned"), and npcs act before players
+  (ENCOUNTER_TIMING 1.1). Yet s32ny2 has player_anim and npc_heal on the npc_retype tick
+  (t562 whip heal 4; t572 bow heal 1+3; t632 bow heal 5+3; 34 heals, 342 hitpoints). The
+  plan no longer swings on the turn tick, which hides it. Found by the seam32
+  play_tob_nylocas_normal fixer.
+- CONTENT: a frozen nylocas stops biting a pillar only in Entry.
+  wiki_Theatre_of_Blood_Strategies.wikitext:719: "Frozen nylocas will usually stop
+  attacking a pillar for a short time"; tob_nylocas.rs2:985-996 stops the bite in Entry
+  only, so in Normal a freeze buys nothing (grade D reading of "usually"). The trio plan
+  does not rely on freezes. Found by the seam32 play_tob_nylocas_normal fixer.
+- DRIVER: Ice Rush presses answer `refused` about a third of the time for a helper seat
+  (s32ny7 p2: 15 of 41; spell.lua `QD.player._select_row_is_held`), each a lost tick and a
+  3-tick block of that copy. Found by the seam32 play_tob_nylocas_normal fixer.
+- DRIVER: the Maiden rangers' add Attack on a walking Matomenos answers `timeout` on most
+  presses (every leader's play.fight detail) though the hits land. Not read yet. Found by
+  the seam32 play_tob_maiden_normal fixer.
