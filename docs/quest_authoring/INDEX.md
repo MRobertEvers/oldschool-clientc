@@ -76,7 +76,7 @@ topic file with one line added here.
 - `walk_to ... stalled at ... -- locs with an op beside the stop: <loc>`; a walk that stops before a rock bridge, stepping stone or log -> verbs-pointer: A walk stops at an obstacle (seam34); seam-facts: Seam pass 34 (b)
 - Eadgar's Ruse / Troll Stronghold: a `walk_to` from the first `troll_climbingrocks` toward the secret entrance (2827,3646) stops short; a second rock pair at 2833-2834,3628 -> gaps-world: Troll Stronghold approach
 - a ship trip lands in the sea (2831,3334,0); `useGangPlank` has no menu row; the Entrana monks' ferry -> seam-facts: Seam pass 34 (g) (FIXED); docs/quests/ladders/deviousminds.notes.md
-- Rum Deal: Pete says "take a boat over" but nothing takes you to Braindeath Island; the goto from the Port Phasmatys dock is the only way -> gaps-world: Rum Deal: Pete says "take a boat over"
+- Rum Deal: Pete says "take a boat over" but nothing takes you to Braindeath Island (FIXED b67-seam1: Pete ferries you; the goto from the dock is a cheat now) -> gaps-world: Rum Deal: Pete says "take a boat over"; seam-facts: Seam pass matthew-mbp-m4-b67-seam1 (b)
 - Underground Pass: `walk_to` from the fall landing 2485,9649 never moves ("sealed by collision"); `I can't reach that!` on `upass_swampbubbles1` from 2482,9715 -> gaps-world: Underground Pass: the fall pocket is left over five rockslides and a rock pile
 - an npc's tile one behind when read right at the script's `mes()` line; an npc's `slot` changed after a teleport out of view and back -> seam-facts: Seam pass matthew-mbp-m4-b52-seam1 (b), (c)
 - a goto from an underground room to a tile far beyond its wall reads FULL; the wall is a multiloc `Hole`/`Squeeze-through` (Lost Tribe cellar, Wanted! dk); a goto leaves a castle/base it walked into -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (a), (b)
@@ -97,6 +97,11 @@ topic file with one line added here.
 - Golem: the Uzer portal lands in an empty square 3544,4952,0 and the throne room's exit portal loops back into it; the ruin stairs land on their own footprint 3493,3090 (FIXED b65-seam1: throne room 2720,4884,2, out to 2721,4911,0; stairs 3491,3090,0 <-> 2721,4886,0) -> seam-facts: Seam pass matthew-mbp-m4-b65-seam1 (a)
 - a `ladder_from_cellar` Climb-up stands you on level 1 of the same dungeon tile (Clock Tower's white ladder 2575,9655; the Asgarnian Ice Dungeon ladder 3008,9550) (FIXED b66-seam1: a rowless copy lands -6400, out of the dungeon; climb it, never goto out) -> seam-facts: Seam pass matthew-mbp-m4-b66-seam1 (b)
 - Tears of Guthix: the climbing rocks from Juna's side land on 3243, never the ledge; "Nothing interesting happens." from the mine-side rocks' east tile (FIXED b66-seam1: they land on their maplink row, 3239 <-> 3241 at the ledge) -> seam-facts: Seam pass matthew-mbp-m4-b66-seam1 (c)
+- `cross_gate`/`click_loc` on the Khazard stronghold door from inside lands back on 2502,3251; a Camelot Teleport out of the stronghold (FIXED b67-seam1: the door lets you out onto 2502,3250) -> seam-facts: Seam pass matthew-mbp-m4-b67-seam1 (a)
+- Rum Deal: Pete's accept ends "What diversion?" and the player wakes at 2144,5108,1; "Want a lift to Braindeath Island?" / "Want a lift to Port Phasmatys?"; random pages around Pete's lift (b67-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b67-seam1 (b)
+- Braindeath Island stairs: `teleport: 2149,5089,1 -> 2149,5089,0` and a walk stalled in a sealed pocket after a climb (FIXED b67-seam1: rumdeal_maplink.dbrow; the up landing is x/x+1,5089,1, the down x/x+1,5087,0) -> seam-facts: Seam pass matthew-mbp-m4-b67-seam1 (c)
+- Witch's House: "Nothing of interest happens." from the basement ladder; the front door opens from outside without the key and wants the key to leave (FIXED b67-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b67-seam1 (d)
+- an "any furnace" step reached past the Port Phasmatys toll ("You need 2 ecto-tokens to pay the toll."); a teletab_fenk landing that reach.py calls "start tile solid" -> seam-facts: Seam pass matthew-mbp-m4-b67-seam1 (h)
 
 ## Pressing and clicking
 
@@ -313,6 +318,7 @@ topic file with one line added here.
 - a stationary attacker reads `You dodge out of the way of Brutus's charge.`; a sidestep never dodges a telegraphed special (FIXED b62-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (d); gaps-combat: A margin row reads full hp
 - "I can't reach that!" right after a teleport out of a fight (crest's Varrock Teleport after Chronozon respawned): Auto Retaliate, LostCity-faithful -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (f)
 - the player died inside a re-attack or re-engage press while hp fell and no food was eaten; `inside an attack press`, `made by the fast path because hp was under` in a fight row (b63-seam1: `t.player.attack` takes `opts.eat`) -> verbs-combat: Eating inside an attack press and a re-engagement
+- `hp no bar -> 24/30` after one ordinary hit on a high-level quest boss; a boss dead in a handful of ticks (Evil spirit, Solus FIXED b67-seam1) -> gaps-combat: A quest boss with no `hitpoints=` fights on the engine's 10
 
 ## Completion and rewards
 
@@ -395,6 +401,7 @@ topic file with one line added here.
 - a staged Magic or combat level hides an npc's low-combat dialogue branch (druid's Kaqemeex, Prying Times): OPEN owner question -> verbs-pointer: `t.player.teleport_cast(spell, landing, opts)` (the owner question under it)
 - helper_coverage "ledger row N 'x' names <loc>, but names it at <tile>, not the copy within 2 tiles of the guide's x,z,l" (or "reports no tile; the player stood at ..."); UNMATCHED "line N uses it on <npc>, not the step's <npc>"; a use step read DRIVEN off a same-named npc (questscorpiona/b/c) (b66-seam1) -> coverage-and-gate: A step credited to a same-named npc, or to another copy of its loc
 - `attempt to compare ... s.current` / a stat check that reads nil: `t.skill.read` has `.level` (current) and `.base_level` (max), no `current` -> verbs-state-and-vars: the "a stat" bullet (b66-seam1)
+- helper_coverage UNMATCHED "below the block at line N: the run stopped there, and the step's own lines ... never ran"; a CHEAT for a setup give that only shares a word with the step; "lands past the <gate>" on a goto that stayed on the near side (b67-seam1) -> coverage-and-gate: A step below the block graded CHEAT
 
 ## Harness and runs
 
@@ -423,6 +430,7 @@ topic file with one line added here.
 - proving the PRE-fix content behaviour (a baseline) without reverting the shared tree: a symlink farm with the one file at HEAD, compiled privately -> seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (i)
 - a regression run rewrote `selftest/quests/<dir>/play`; `gate.py <id>` read another worker's ledger; proving content BEFORE a fix -> running: Regression runs inside a seam pass
 - `run.py: error: unrecognized arguments: druid` (one quest id per call); `TORIRS_QUEST_NO_PUBLISH` -> running: Regression runs inside a seam pass
+- a scratch A/B against HEAD content still reads the working tree's `.dbrow` rows: set TORIRSSERVER_CONTENT and TORIRSSERVER_SCRIPTS together (b67-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b67-seam1 (i)
 
 ## Sea and session
 
@@ -559,6 +567,7 @@ topic file with one line added here.
 - Veldaban's HQ stair (or any Keldagrim stair) lands in the Laughing Miner's brewery; a quest name binding on a shared staircase (FIXED b62-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (c)
 - Crandor's rope or Karamja exit called "deferred"/missing because a LostCity loc name is absent (the OSRS locs exist) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (e); gaps-world: Crandor
 - Zogre Flesh Eaters' tomb doors land on 2480,9446,0 from either side; no walk out after Slash Bash (FIXED b62-seam1: the doors walk through) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (g)
+- "You manage to mine some 'perfect' gold." at a goldrock2 outside Witchaven (Dondakan's mine) (FIXED b67-seam1: perfect gold is by zone, the Witchaven room only) -> seam-facts: Seam pass matthew-mbp-m4-b67-seam1 (e)
 
 
 ## Citations: resolving a number or a name

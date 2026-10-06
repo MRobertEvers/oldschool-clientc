@@ -2583,3 +2583,107 @@ coverage-and-gate: A step credited to a same-named npc, or to another copy of it
 (f) **OPEN OWNER QUESTION, unchanged: a staged level is a stat change** -- verbs-pointer:
 teleport_cast. Squire's staged Magic 31 (for the Lumbridge Teleport out of the Ice Dungeon) goes
 away once its re-author leaves by the ladder ((b) above); druid and pryingtimes still stage.
+
+## Seam pass matthew-mbp-m4-b67-seam1 (2026-10-06, batch matthew-mbp-m4-b67)
+
+(a) **The Khazard stronghold door lets the player out from inside** (khazard_stronghold_door_pressed_
+from_inside_runs_the_entering_half_and_puts_the_player_back_inside). `[oploc1,khazard_stronghold_door]`
+(quest_tree_locs.rs2) ran the entering half for every press from the north, so a player inside at
+2502,3251 was put back on 2502,3251 (`timeout settle_after_click; landed 2502,3251,0`). It now
+computes `$entering = ~check_axis(coord, loc_coord, loc_angle)` and keeps `$dest = loc_coord`
+unless `$entering`, as LostCity `quest_tree.rs2:32-36` passes it to `~open_and_close_door`
+(`doors/scripts/open_and_close_doors.rs2:20-35`; our `door_procs.rs2:112 [proc,check_axis]`). The
+door is a one-way walk-through out: pressed from inside it lands on the door tile 2502,3250,0;
+from the south it still refuses with "The door is locked from the inside." (the mesbox once
+treequest >= finding_trackers). Drive the exit with `t.player.cross_gate{loc="khazard_stronghold_door",
+at={2502,3250,0}, near={2502,3251}, far_ok=<z <= 3250>}` then `walk_to 2502,3249`, never a teleport
+out. Probe `khazard_door_probe_b67b` 7/7; a tree copy so driven 103/0, helper_coverage FULL. The
+loc_1532 swing is still deferred.
+
+(b) **Pirate Pete ferries to Braindeath Island and back** (rumdeal_no_travel_to_or_from_braindeath_
+island; supersedes gaps-world "Rum Deal: Pete says 'take a boat over'"). The accept now ends with
+Pete's lines from wiki Transcript:Rum_Deal oldid 15359833 ("Wonderful! Just pick up your diversion
+and we'll leave!" / "What diversion?"), sets the stage to started and runs `[proc,deal_pete_knockout]`:
+"Ow!", a fade, and a landing at 2144,5108,1 in Captain Braindeath's room, narrated by one mesbox
+("Pirate Pete knocks you out with a bottle..."; no `cam_*`, so no cutscene row is required). Once the
+stage is >= started, `deal_pete` (dock) and `deal_island_pete` (island) both run
+`[proc,deal_pete_standard]`, Pete's "Standard dialogue" verbatim from wiki Transcript:Pirate_Pete
+oldid 15079272: "Want a lift to Braindeath Island?" / "Want a lift to Port Phasmatys?", options
+Okay! / Not now / two questions. Okay! plays one of 5 random distractions, the knockout, and lands
+2162,5114,1 or 3680,3536,0 (boats.tsv:6-8); the far Pete speaks one of 4 random excuses. To drive a
+lift: `chat.play` up to `choose:Okay!`/`player:Okay!`, `chat.drain{max_pages=10}` (it ends at the
+fade: no page shows for about 4 ticks), await the landing tile AND a mounted page, then
+`chat.play{"player:Ooooh... my head", "npc:Are you ok? You, errr"}` and drain. Proof
+`b67s1_rumdeal_lift` 29/0. Still the port's paraphrase: the pre-start talk, whose "take the cash"
+branch starts the quest (the transcript's ends the talk); parity work for docs/quests/rum_deal.md.
+
+(c) **Braindeath Island's staircases have maplink rows** (braindeath_island_staircases_have_no_
+maplink_rows_and_climb_into_sealed_pockets). New `quest_rumdeal/configs/rumdeal_maplink.dbrow`, 28
+rows: `deal_stairs_bottom` 2137/2149/2163,5088 r1 climb up from every approach tile (south side
+x..x+2,5087 and both ends) to x/x+1,5089,1, the top's only open side; `deal_stairs_top` climbs down
+to x/x+1,5087,0. The 2129 pair runs west <-> east (2128,5094-5096 <-> 2130,5095/5096,1). The client
+presses an r1 bottom from its EAST end (x+3,5088, forceapproach). A `t.player.climb` on these stairs
+grades dest x/x+1,5089,1 (up) or x/x+1,5087,0 (down), slack 1. 2151,5109 r3 is unrouted: every tile
+round its bottom is a sealed pocket and the quest never uses it. The stairs are the wiki's
+(Rum Deal oldid 15315444, "Leave the building by the southernmost stairway") and Quest Helper's
+(RumDeal.java goUpFromBottom/goDownstairs 2150,5088, goDownForWater 2138,5088); the landing tiles
+are each stair's open sides read off this map (no transport source has 10136/10137). Probe
+`bdstairs_b67s1` 20/20. Pattern: a stair whose bottom and top footprints differ (3 vs 2), or whose
+floors join on opposite sides, needs one maplink row per approach tile (dir +1/-1), in a
+quest-owned `<quest>_maplink.dbrow` (ladders_stairs `maplink.dbrow` is generated).
+
+(d) **Witch's House: the basement ladder climbs, and the front door is keyed from outside**
+(witch_house_ladders_shadowed_by_grim_tales_and_front_door_checks_the_key_from_the_wrong_side).
+`grim_witch_ladder_down/up` are name bindings that shadow the `climb_*_ladder` categories for every
+player; down answered "Nothing of interest happens." and up p_teleported to a chair tile
+(2904,3470) while Grim Tales was unstarted, though Grim Tales needs Witch's House complete. Now
+both fall through to `~climb_ladder(-1/1)` (maplink 2906,3476 <-> 2906,9876) while
+`%varb2783_grim_quest = 0`; the Grim Tales branch is unchanged (unsourced). `witchhousedoor`
+(2900,3473 s0 r2) sits on the east edge of the OUTSIDE tile, so `~check_axis` is true for the
+outside player: the opposite of LostCity's placement (2901,3473 r0), whose `$leaving` name the
+port had kept, inverting the key check. The value is now `$entering`; the key (or using
+`witches_doorkey` on the door) is needed only to get in, and "It would be rude to break into this
+house." fires only when entering a never-started quest. Source: wiki Witch's House oldid 15168391.
+Probe `witchseam_s2` 24/25 (the miss is the expected non-key refusal); a ball copy past the old
+block 113/0, FULL.
+
+(e) **goldrock2 is ordinary gold; 'perfect' gold is by zone** (goldrock2_pays_perfect_gold_ore_
+everywhere_not_just_in_the_witchaven_room). `[perfect_gold_rock_table]` keyed on goldrock2 paid
+perfect_gold_ore at all 140 goldrock2 placements, 33 of them in Dondakan's mine. goldrock2 is back
+in `[gold_rock_table]` (LostCity mine.dbrow), and `[proc,mining_crest_perfect_gold]` (mining.rs2,
+both output sites) swaps a gold rock's ore for perfect_gold_ore only inside
+`^crest_perfect_mine_lower_bound/upper_bound` (quest_crest.constant, 2728-2747 x 9676-9701: the
+Witchaven room behind famcrest_doori2h1, re-measured on this map; LostCity's 2004 numbers hold none
+of this map's four rocks), as LostCity `mining.rs2 get_ore_normal` does. The Witchaven message is
+now "You manage to mine some gold." (LostCity's single gold row; the OSRS line is NOT CONFIRMED).
+Sources: wiki 'perfect' gold ore oldid 15302221, Dondakan's mine ("Gold ore"), Quest Helper
+FamilyCrest.java:265. crest_selftest checks the row, the four rocks in the zone and the realm
+outside it. crest 165/0 and betweenarock 207/0 stay green.
+
+(f) **Rum Deal's Evil spirit and Wanted!'s Solus fight on their own stats** (quest_bosses_fight_on_
+engine_default_stats_...) -- gaps-combat: A quest boss with no `hitpoints=` fights on the engine's 10.
+New `quest_rumdeal/configs/rumdeal.npc [deal_evil_spirit]` (wiki Evil_spirit oldid 15199641; cache
+all.npc:16097 agrees) and a `[solus]` block in `wanted.npc` (wiki Solus_Dellagar oldid 15204754;
+all.npc:140108). Both are AUDITED_OVERRIDES in `tools/generate_quest_combat_manifest.py` and checked
+by `tools/check_quest_combat_contract.py`. Proof: spirit 16 -> 56 ticks to kill (`hp no bar ->
+27/30, hitsplat 7`); wanted 204/0 green, Solus 8 -> 36 ticks.
+
+(g) **The grader** -- coverage-and-gate: A step below the block graded CHEAT; a setup give charged
+for a shared word; a goto charged on its near side.
+
+(h) **Fenkenstrain's lightning conductor without the Port Phasmatys toll** (fenkenstrain_pays_the_
+port_phasmatys_toll_with_setup_ectotokens_the_guide_never_has_you_obtain; test-side only). Falador's
+furnace (`fai_falador_furnace` 2976,3368) is a plain walk from the Falador Teleport landing
+2965,3378 (reach REACH closed-doors, 18 tiles; stand 2974,3369, `use_on at={2976,3368,0}`), so any
+"any furnace" step can avoid the ecto-token toll. Back by `teletab_fenk`: `t.player.inv_op(item, 1)`
+lands 3550,3530,0; `teleport_tablet.rs2` requires the spell's Magic level (48) for a tablet, so stage
+Magic with it (a staged level: the open owner question, verbs-pointer teleport_cast). The landing
+reads "start tile solid" to reach.py: walk off it, never goto from it. A fenkenstrain copy so driven
+201/0, FULL.
+
+(i) **A scratch A/B against HEAD content** needs both env vars: the server reads `.dbrow`/`.param`
+configs from `TORIRSSERVER_CONTENT/server/scripts` at run time, not only from script.dat. Point
+`TORIRSSERVER_CONTENT` at a scratch copy of the tree (other top-level dirs symlinked) AND
+`TORIRSSERVER_SCRIPTS` at a script.dat compiled from it (`sscompile --src <copy>/server/scripts
+--content-root <copy>`). That never touches the shared tree (running.md, "To show a content seam's
+behaviour BEFORE the fix").

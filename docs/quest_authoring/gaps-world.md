@@ -968,7 +968,11 @@ to the entrance. Check every `walk_to` result and the tile it reached; a stalled
 the row by itself. If you place a press from `t.world.loc_near`, read `tile_x`/`tile_z` from its
 table. It has no `x`/`z` fields (verbs-pointer).
 
-## Rum Deal: Pete says "take a boat over" and no boat goes to Braindeath Island (matthew-mbp-m4-b51 sample)
+## Rum Deal: Pete says "take a boat over" and no boat goes to Braindeath Island (matthew-mbp-m4-b51 sample; FIXED b67-seam1)
+
+**FIXED in seam pass matthew-mbp-m4-b67-seam1 (seam-facts (b)):** Pete knocks you out at the accept
+and you wake in Captain Braindeath's room (2144,5108,1); after that `deal_pete` and `deal_island_pete`
+offer the lift both ways. The goto from the dock below is now a cheat: drive the talk.
 
 *Origin: the matthew-mbp-m4-b51 round-2 sampler read rumdeal be4d36b9e row 6 `braindeath.goto1`, a
 goto from Port Phasmatys (3680,3536,0) to Captain Braindeath (2144,5109,1).*

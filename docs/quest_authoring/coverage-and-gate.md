@@ -1108,3 +1108,36 @@ Re-grading the 68 green rows against their published ledgers moved no verdict: c
 grail goUpStairsBrokenCastle, misc_astrid goUpstairsToAstrid and runemysteries
 goF1ToF0LumbridgeCastle went DRIVEN -> TRAVEL (each was credited to another copy of a stair).
 `--calibrate` 11/39 -> 12/39 (scorpcatcher now agrees with the audit's TEST_GAP).
+
+### A step below the block graded CHEAT; a setup give charged for a shared word; a goto charged on its near side (matthew-mbp-m4-b67-seam1)
+
+Seam `helper_coverage_credits_by_a_shared_word_and_charges_steps_below_a_block_by_proximity`. Three
+rules in `tools/quest_gate/helper_coverage.py`, each behind a `Grader` switch:
+
+- **Below the block (`BELOW_BLOCK`).** On a ledger with a BLOCKED row, a step whose own lines (rows
+  named after it, and action lines naming its targets) all sit below the `t.blocked` call the run
+  stopped at grades UNMATCHED `below the block at line N: the run stopped there, and the step's own
+  lines ... never ran`. Such a step is never graded CHEAT, CONTENT_GAP or DRIVEN off a line that
+  never ran. The block line is found by the `t.blocked` reason's literal prefix (or the only call).
+  Rum Deal's useBucketOnTap and Witch's House's enterGate/useCheeseOnHole read CHEAT before, off
+  lines past the block.
+- **A setup give charges only its own step (`CHEAT_BY_OWN_ITEM`).** A setup `::give` charges a step
+  only for the step's own item: an obj target, its family, an ItemStep's requirement. A prose-only
+  step still matches by word, minus the quest's words and its dominant symbol prefix (`deal` in
+  `deal_slayer_gloves` vs `deal_brewvat_tap`), and never charges the step's INPUT item (the bucket a
+  "Fill a bucket" step fills). A bring-along given as one of its guide alternates is a bring-along.
+- **A goto past a gate is charged on its far side only (`GOTO_FAR_SIDE`).** "lands past the <gate>
+  the guide names" now fires only for a goto landing in the loc's own map frame and level (across
+  it, for a climb) whose ledger departure does NOT reach the landing with every door shut
+  (goto_table's `REACH closed-doors`, margins 30/100/250). A goto with no ledger row is judged on its
+  landing alone; one whose line never ran is not charged.
+
+Still by design: on a FULL run, an action line naming the step's target is fallback DRIVEN evidence
+even with no row of the step's own; on a BLOCKED run it can credit a step from a line ABOVE the
+block (ball's returnToBoy off the opening talkToBoy). Neither run is green. Known quirk, not fixed:
+`Test.action_lines` binds a table field `{ loc = "x" }` to the identifier `loc`, which then matches
+the string literal `"loc"` in `t.player.by_symbol("loc", ...)`.
+
+Proof: `helper_coverage_use_item_test.py` 29/29 (6 b67 cases on the real guides and walls, 4 rule-off
+cases reproducing the old CHEAT readings, 3 real-fixture cases). `--all-green`: 77/77 FULL before and
+after, no step class moved; `--calibrate` 11/39 before and after, row by row.
