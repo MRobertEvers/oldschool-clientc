@@ -42,24 +42,33 @@ local size = (QD_PARTY and QD_PARTY.size) or 1
 -- and three anglers", 10Boot 0:04:23; the slots the melee switches would take
 -- hold anglerfish here; two more restores for Rigour's prayer, 10Boot
 -- 0:02:45 "77 prayer for rigour").
+-- raid seam40 play_tob_maiden_follows_blert: THE REAL TRIO'S KIT.  The
+-- reference (docs/minigames/theater_of_blood/sources/blert_api/reference/
+-- maiden_normal_3.json, 24 death-free Normal scale-3 rooms) has the two dps
+-- on her with the SCYTHE in every phase (dps1 18/24 rooms, dps2 23/24;
+-- role.dps*.melee_pct 88.9 / 89.3) from her north-east corner, and the
+-- freezer on the twisted bow plus Ice Barrage (barrage_pct 42.4).  So seats
+-- 1 and 3 wear ::maxmelee (the scythe, torva; cheat_max_gear.rs2) and seat 2
+-- keeps the ranged set and the magic switch.  Every seat still opens with the
+-- Dragon warhammer (10Boot 0:06:33; Blert HAMMER in dps1|100, 4 rooms).
 local party_kit = {
     "::clearinv",
     "::setlevel attack 99", "::setlevel strength 99", "::setlevel defence 99",
     "::setlevel ranged 99", "::setlevel hitpoints 99", "::setlevel prayer 99",
     "::setlevel magic 99",
-    "::give twisted_bow", "::wield twisted_bow",
-    "::give dragon_arrow 1000", "::wield dragon_arrow",
-    "::give masori_mask", "::wield masori_mask",
-    "::give masori_body", "::wield masori_body",
-    "::give masori_chaps", "::wield masori_chaps",
-    "::give avas_assembler", "::wield avas_assembler",
-    "::give eternal_boots", "::wield eternal_boots",
-    "::give magus_ring", "::wield magus_ring",
-    "::give dragon_warhammer",
 }
 if role == 2 then
     -- 8 slots of magic set and runes, 20 of supplies
     local more = {
+        "::give twisted_bow", "::wield twisted_bow",
+        "::give dragon_arrow 1000", "::wield dragon_arrow",
+        "::give masori_mask", "::wield masori_mask",
+        "::give masori_body", "::wield masori_body",
+        "::give masori_chaps", "::wield masori_chaps",
+        "::give avas_assembler", "::wield avas_assembler",
+        "::give eternal_boots", "::wield eternal_boots",
+        "::give magus_ring", "::wield magus_ring",
+        "::give dragon_warhammer",
         "::setvar varb4070_spellbook 1",
         "::give water_rune 2000", "::give blood_rune 1000", "::give death_rune 1000",
         "::give ancestral_hat", "::give ancestral_robe_top", "::give ancestral_robe_bottom",
@@ -68,11 +77,16 @@ if role == 2 then
     }
     for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
 else
-    -- The real trios' crab weapon is the scythe (Blert, 26 Regular trio rooms:
-    -- sources/blert_api/maiden_trio_crabs/README.md); the pipe stays as the plan's
-    -- fallback and for strays out of melee reach.
-    local more = { "::blowpipe dragon_dart 2000 2000", "::fullscythe",
-        "::give br_4dosepotionofsaradomin 8", "::give br_4dose2restore 5", "::give anglerfish 12" }
+    -- the scythe worn (::maxmelee charges it), the hammer for the opener,
+    -- the 10Boot supplies (brews over anglerfish, restores)
+    -- raid seam40: the twisted bow worn at the door for the first shot on the
+    -- run in (Blert: TWISTED_BOW in dps1|100 19/24 rooms, dps2|100 22/24,
+    -- one attack each; every real raider's first attack at tick 5-6 from
+    -- 8 tiles out), the scythe carried for the rest
+    local more = { "::maxmelee", "::give twisted_bow", "::wield twisted_bow",
+        "::give dragon_arrow 1000", "::wield dragon_arrow", "::give dragon_warhammer",
+        "::give br_4dosepotionofsaradomin 8", "::give br_4dose2restore 5", "::give anglerfish 10",
+        "::give 4dose2combat 2" }
     for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
 end
 -- THE TRIO'S RUN (raid seam32): every seat enters Normal, the leader starts
@@ -93,13 +107,17 @@ local function party_run(t)
     local _, style_read = t.var.varp("varp43_com_mode")
     t.check("setup.rapid", style_widget_result == "ok" and style_press_result == "ok" and style_read == 1,
         "p" .. role .. " style slot 1: widget " .. tostring(style_widget_result) .. ", press " .. tostring(style_press_result) .. ", varp43_com_mode " .. tostring(style_read))
-    if role ~= 2 then
-        local bpr, bp = t.inv.blowpipe()
-        t.check("setup.blowpipe", bpr == "ok" and type(bp) == "table" and bp.darts == 2000 and bp.scales == 2000,
-            "p" .. role .. " " .. tostring(bpr) .. " " .. tostring(type(bp) == "table" and bp.line or bp))
-    end
     local er, ed = t.raid.enter("tob", "maiden", { mode = mode })
     t.check("play.enter", er == "ok", "p" .. role .. " " .. tostring(ed))
+    if role ~= 2 then
+        -- raid seam40: a scythe seat's super combat at the door (_play_bloat.lua's
+        -- press; the real dps's swings average about 45 on her, the reference's
+        -- output.phase.50.boss_hp_per_tick 15.2 over 13.5 attacks in 40 ticks)
+        local pr = t.player.inv_op("4dose2combat", 1, { quick = true })
+        t.ticks(1)
+        local ar2, att2 = t.skill.read("strength")
+        t.check("play.potion", ar2 == "ok" and att2.level > 99, "p" .. role .. " super combat before the barrier: strength " .. tostring(att2.level) .. " (" .. tostring(pr) .. ")")
+    end
     t.expect("party.barrier.entrance", t.party.barrier("entrance", 300))
     if role == 1 then
         t.exec("play.barrier", t.player.click_loc, "tob_arena_barrier", 1)
@@ -114,7 +132,9 @@ local function party_run(t)
     end
 
     -- THE FIGHT: the library and the room's plan, nothing else
-    local result, detail, rec = t.raid.play("tob_maiden", { mode = mode, weapon = "twisted_bow", max_ticks = 1400 })
+    -- raid seam40: the dps seats swing the scythe (the library's cadence row)
+    local weapon = (role == 2) and "twisted_bow" or "scythe_of_vitur"
+    local result, detail, rec = t.raid.play("tob_maiden", { mode = mode, weapon = weapon, max_ticks = 1400 })
     t.check("play.fight", result == "ok", "p" .. role .. " " .. tostring(detail))
     local m = rec.m or {}
     local casts, nc = "", 0
@@ -128,7 +148,15 @@ local function party_run(t)
         .. "; eats " .. #rec.eats .. ", drinks " .. #rec.drinks .. ", swings " .. #rec.swings .. ", add presses " .. tostring(m.add_presses)
         .. "; Ice Barrage casts " .. nc .. " " .. casts, 1, 1800))
     if role == 2 then
-        t.check("tech.freezer_casts", nc > 0 and m.waves ~= nil and m.waves >= 3, "the freezer's waves " .. tostring(m.waves) .. ", casts " .. nc)
+        -- raid seam40: the thresholds the casts were made in (the reference's
+        -- freezer attacks adds in every crab phase: role.freezer.phase.70/50/30
+        -- .attacks_add 4 [2-7] / 5 [3-8] / 4 [2-7], reference/maiden_normal_3.json)
+        local forms_cast = {}
+        local nforms = 0
+        for _, c in ipairs(m.casts or {}) do
+            if c.form ~= nil and not forms_cast[c.form] then forms_cast[c.form] = true nforms = nforms + 1 end
+        end
+        t.check("tech.freezer_casts", nc > 0 and nforms >= 3, "the freezer cast in " .. nforms .. " of her 3 thresholds (counter waves " .. tostring(m.waves) .. "), casts " .. nc)
         -- raid seam35m: what the freezer's plan said each wave could be frozen
         -- (raid_play_tob_maiden.lua _play_maiden_ice_plan, its first cast)
         local plans = {}
@@ -270,8 +298,27 @@ local function party_run(t)
     end
     t.check("tech.freeze", freeze_ok, "every threshold's Matomenos frozen at the real trios' rate, at least 3 of 6 a wave (Blert 26 Regular trio rooms, median 5/3/4 of 6; W:639-643; 10Boot 0:08:48): "
         .. table.concat(wave_text_rows, "; "))
-    t.check("tech.crabs_killed", #thresholds == 3 and reached_total <= 5, "Matomenos that reached her " .. reached_total .. " (heals " .. heal_total
-        .. "; W:593 'she will be healed by double the amount of their current Hitpoints'), at most 5 a room: the real trios' median leak count (Blert 26 rooms: median 5, only 1 room with none)")
+    -- raid seam40: the bar is the reference's RANGE, not its median
+    -- (docs/minigames/theater_of_blood/sources/blert_api/reference/
+    -- maiden_normal_3.json, 24 death-free Normal scale-3 rooms:
+    -- outcome.leaks 5 [0-13], outcome.boss_heal 223.5 [0-821])
+    t.check("tech.crabs_killed", #thresholds == 3 and reached_total <= 13 and heal_total <= 821, "Matomenos that reached her " .. reached_total .. " (heals " .. heal_total
+        .. "; W:593 'she will be healed by double the amount of their current Hitpoints'); the reference (reference/maiden_normal_3.json): leaks 5 [0-13], heal 223.5 [0-821]")
+    -- raid seam40 THE REFERENCE'S CLOCK: her death and her first threshold
+    -- from the room's start (the mark), the reference's outcome.room_ticks
+    -- 157.5 [132-204] and outcome.phase.100.ticks 42 [32-52]
+    -- (reference/maiden_normal_3.json; raid_report.py --against reads the same
+    -- two from this tick log)
+    local death_tick = nil
+    for _, r in ipairs(death_rows) do
+        if r.slot == ws and (mark_tick == nil or r.tick >= mark_tick) and death_tick == nil then death_tick = r.tick end
+    end
+    local room_ticks = (death_tick and mark_tick) and (death_tick - mark_tick) or nil
+    t.check("ref.room_ticks", room_ticks ~= nil and room_ticks >= 132 and room_ticks <= 204,
+        "her death " .. tostring(room_ticks) .. " ticks after the room's start (mark " .. tostring(mark_tick) .. ", death " .. tostring(death_tick) .. "); reference/maiden_normal_3.json outcome.room_ticks 157.5 [132-204]")
+    local p100 = (thresholds[1] and mark_tick) and (thresholds[1].tick - mark_tick) or nil
+    t.check("ref.phase_100_ticks", p100 ~= nil and p100 >= 32 and p100 <= 52,
+        "her 70 percent form " .. tostring(p100) .. " ticks after the room's start; reference/maiden_normal_3.json outcome.phase.100.ticks 42 [32-52]")
     -- who took her blackstorms, and the blood (pools and trails: hitsplat 28 with no npc)
     -- the log's pid of each seat: the leader's is the plan's own (re-read by
     -- tile, raid_play_tob_maiden.lua), the freezer's is the one whose
@@ -304,6 +351,17 @@ local function party_run(t)
         table.sort(parts)
         return table.concat(parts, " ")
     end
+    -- raid seam40: the two scythe seats share her storms (the leader's step
+    -- out on every other attack, raid_play_tob_maiden.lua THE SHARED TANK);
+    -- the reference's role.dps1.boss_targeted_pct 38 [5.6-58.8] and dps2
+    -- 41.45 [18.8-64.3] (reference/maiden_normal_3.json): each seat's share
+    -- of all her storms inside [5.6, 64.3]
+    local storm_all = 0
+    for _, n in pairs(storm_by) do storm_all = storm_all + n end
+    local share1 = storm_all > 0 and math.floor(100 * (storm_by[1] or 0) / storm_all + 0.5) or 0
+    local share3 = storm_all > 0 and math.floor(100 * (storm_by[3] or 0) / storm_all + 0.5) or 0
+    t.check("ref.storm_share", storm_all > 0 and share1 >= 5.6 and share1 <= 64.3 and share3 >= 5.6 and share3 <= 64.3,
+        "her storms by seat " .. seats(storm_by) .. ": seat 1 " .. share1 .. "%, seat 3 " .. share3 .. "%; reference/maiden_normal_3.json dps boss_targeted_pct 38 [5.6-58.8] / 41.45 [18.8-64.3]")
     t.check("tech.tank", storm_by[2] == nil, "blackstorm hits by seat: " .. seats(storm_by) .. "; the freezer (p2) never the closest (10Boot 0:06:33 'You don't want your mage to be closest at any time')")
     local storms, bloods = 0, 0
     for k = 1, #anim_rows do
@@ -363,7 +421,11 @@ return {
         "::give magus_ring",
         "::wield magus_ring",
         -- food for the blackstorm and pool damage (10 sharks and six brews: the pack's other slots hold the magic set and runes)
-        "::give shark 10",
+        "::give shark 9",
+        -- raid seam40: the scythe the solo puts on once its technique rows are
+        -- measured (reference/maiden_entry_1.json: the real Entry solo is
+        -- melee, SCYTHE in every phase), one shark's slot
+        "::fullscythe",
         -- two Saradomin brews: more healing, and the room's debug kit adds none of its own when the pack holds one
         "::give br_4dosepotionofsaradomin 6",
         -- three prayer restores: Protect from Magic drains through the fight and the pools drain more
