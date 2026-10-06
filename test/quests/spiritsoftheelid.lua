@@ -23,11 +23,13 @@
 --     which is exactly what t.player.press's fourth outcome (content line,
 --     "it said '...' and did not move") is for.
 -- Weapon styles (configs/all.npc + skill_combat/configs/combat.dbrow default
--- %com_mode=0 per category): bronze_dagger (category 25, weapon_stab_sword,
--- mode0=stab) for the White Golem (stabdefence=1); bronze_scimitar (category
+-- %com_mode=0 per category): rune_sword (category 25, weapon_stab_sword,
+-- mode0=stab) for the White Golem (stabdefence=1); rune_scimitar (category
 -- 21, weapon_slash_sword, mode0=slash) for the Grey Golem (slashdefence=1);
--- bronze_mace (category 39, weapon_spiked, mode0=crush) for the Black Golem
--- (crushdefence=1) -- same "equip and attack, no combat-tab switch" pattern
+-- rune_mace (category 39, weapon_spiked, mode0=crush) for the Black Golem
+-- (crushdefence=1) -- quest-helper's own display items for stabWep/slashWep/
+-- crushWep (SpiritsOfTheElid.java:140-145) -- same "equip and attack, no
+-- combat-tab switch" pattern
 -- hero.lua's rune_mace uses against the Ice Queen. Shortbow+bronze_arrow
 -- (weapon_bow_table, mode0=ranged_style) satisfy elid_ranging_attack_gate's
 -- `%damagetype = ^ranged_style | ^magic_style` check -- gathered from the
@@ -63,6 +65,7 @@
 return {
     id = "spiritsoftheelid",
     fixture = "fresh_lumbridge.ini",
+    max_frames = 240000, -- three real 80-hp golem fights (b68-seam1/seam2), each on a 400-tick budget
     setup = {
         "::clearinv", -- fourteen tutorial slots, so a requirement fits
         -- Bring-along items quest-helper's getItemRequirements() lists with
@@ -79,16 +82,22 @@ return {
         "::give rope 1", -- never consumed (elid_dungeon.rs2/elid_genie.rs2 read inv_total only)
         "::give lit_candle 1", -- light source: elid_has_light reads inv/worn state directly
         "::give bronze_pickaxe 1", -- ~pickaxe_checker: any held/worn pickaxe
-        "::give bronze_dagger 1", -- stab -- White Golem
-        "::give bronze_scimitar 1", -- slash -- Grey Golem
-        "::give bronze_mace 1", -- crush -- Black Golem
+        -- The golems (spiritsoftheelid.npc, wiki oldids 15338923/25/22): 80 hp,
+        -- defence 80, one weak style each. quest-helper's displayed weapons
+        -- (SpiritsOfTheElid.java:140-145), Attack 40 staged below:
+        "::give rune_sword 1", -- stab -- White Golem
+        "::give rune_scimitar 1", -- slash -- Grey Golem
+        "::give rune_mace 1", -- crush -- Black Golem
         -- Recommended (quest-helper getItemRecommended: waterskins, Shantay
         -- passes / coins, food): 5 coins buy the Shantay pass
         -- (shantay.rs2), waterskins hold off desert_heat.rs2's timer, and
         -- lobsters are the golem fights' food.
         "::give coins 5",
         "::give water_skin4 3",
-        "::give lobster 6",
+        -- 10, not more: the pack holds 18 other items at its fullest (the
+        -- torn robes, key, bow and arrows join it; run 2 with 12 lobsters
+        -- and the sword carried filled it before the torn robes).
+        "::give lobster 10",
         -- Requirement levels, all boostable (elid_qualifies uses stat()):
         "::setlevel magic 33",
         "::setlevel ranged 37",
@@ -101,6 +110,14 @@ return {
         "::setlevel defence 50",
         "::setlevel attack 40",
         "::setlevel strength 40",
+        -- quest-helper's combatGear (SpiritsOfTheElid.java:176): a worn rune
+        -- full helm and kiteshield (Defence 40, staged above). Not body or
+        -- legs: the robe door needs the Robes of Elidinis WORN in those slots.
+        "::give rune_full_helm 1",
+        "::wield rune_full_helm",
+        "::give rune_kiteshield 1",
+        "::wield rune_kiteshield",
+        "::wield rune_sword", -- worn from the start: one backpack slot back
     },
 
     run = function(t)
@@ -174,7 +191,7 @@ return {
             low, base = tonumber(low), tonumber(base)
             local fr, food = t.inv.count("lobster")
             t.check(name, low ~= nil and base ~= nil and low * 4 >= base and fr == "ok" and (food or 0) >= 1,
-                fight .. ": lowest hp " .. tostring(low) .. "/" .. tostring(base) .. ", lobsters staged 6, left "
+                fight .. ": lowest hp " .. tostring(low) .. "/" .. tostring(base) .. ", lobsters staged 10, left "
                     .. tostring(food) .. " (" .. tostring(fr) .. ") (margin: lowest hp >= a quarter of max AND food left)")
         end
         local EAT = { eat = { item = "lobster", below = 30 } }
@@ -413,13 +430,16 @@ return {
 
         -- One golem: through its door, the fight, the channel, back out.
         local function golem_room(g)
-            t.exec("equip-" .. g.weapon, t.player.equip, g.weapon)
+            if not g.worn then
+                t.exec("equip-" .. g.weapon, t.player.equip, g.weapon)
+            end
             hop("walk-" .. g.door_row, g.near[1], g.near[2], 40)
             t.exec(g.door_row, t.player.pass_door, { closed = g.door, open = "elid_underground_inactive_door", at = g.at,
                 near = g.near, far = g.far })
             t.exec(g.door_row .. ".msg", t.msg.expect, g.lumbers)
-            t.exec(g.attack_row, t.player.attack, g.npc, 2, 20)
-            local dr, dd = t.npc.await_dead_engaged(120, 8, EAT)
+            t.exec(g.attack_row, t.player.attack, g.npc, 2, 20, EAT)
+            -- 80 hp at defence 80 (b68-seam1/seam2): a 400-tick budget.
+            local dr, dd = t.npc.await_dead_engaged(400, 8, EAT)
             t.check(g.dead_row, dr == "ok", tostring(dr) .. " " .. tostring(dd))
             margin_row(g.dead_row .. ".margin", g.fight, dd)
             g.channel()
@@ -428,7 +448,7 @@ return {
         end
 
         golem_room({
-            weapon = "bronze_dagger", door = "elid_whitegolem_door", at = { 3365, 9542, 0 },
+            weapon = "rune_sword", worn = true, door = "elid_whitegolem_door", at = { 3365, 9542, 0 },
             near = { 3365, 9543 }, far = { 3365, 9541 }, door_row = "openStabDoor",
             lumbers = "White Golem lumbers out", npc = "elid_golem_white", attack_row = "attackWhiteGolem",
             dead_row = "whiteGolem.dead", fight = "White Golem (level 75, stab-weak)", leave_row = "leaveStabRoom",
@@ -438,7 +458,7 @@ return {
             end,
         })
         golem_room({
-            weapon = "bronze_scimitar", door = "elid_greygolem_door", at = { 3374, 9547, 0 },
+            weapon = "rune_scimitar", door = "elid_greygolem_door", at = { 3374, 9547, 0 },
             near = { 3373, 9547 }, far = { 3375, 9547 }, door_row = "openSlashDoor",
             lumbers = "Grey Golem lumbers out", npc = "elid_golem_grey", attack_row = "attackGreyGolem",
             dead_row = "greyGolem.dead", fight = "Grey Golem (level 75, slash-weak)", leave_row = "leaveSlashRoom",
@@ -448,7 +468,7 @@ return {
             end,
         })
         golem_room({
-            weapon = "bronze_mace", door = "elid_blackgolem_door", at = { 3372, 9556, 0 },
+            weapon = "rune_mace", door = "elid_blackgolem_door", at = { 3372, 9556, 0 },
             near = { 3371, 9556 }, far = { 3373, 9556 }, door_row = "openCrushDoor",
             lumbers = "Black Golem lumbers out", npc = "elid_golem_black", attack_row = "attackBlackGolem",
             dead_row = "blackGolem.dead", fight = "Black Golem (level 75, crush-weak)", leave_row = "leaveCrushRoom",

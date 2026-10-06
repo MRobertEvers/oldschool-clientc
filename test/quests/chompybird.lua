@@ -31,6 +31,33 @@ return {
     },
 
     run = function(t)
+        -- open ground on the swamp's west edge (reach.py REACH closed-doors from the cave mouth,
+        -- Rantz and the bait clearing; see fillBellows)
+        local SWAMP_X, SWAMP_Z = 2600, 2969
+        -- The swamp's east edge is wolf ground: aggressive level-64 wolves (combat_stats.generated.npc
+        -- [wolf]: hitpoints=69, huntmode=aggressive, huntrange 5; m40_46.spawn 2605,2963 / 2607,2967 /
+        -- 2610,2958-2965 / 2602,2955) attack a player catching toads there (a b68 probe read 60 -> 14
+        -- hp inside one catch). Hitpoints are sampled after every hunt row and a lobster is eaten
+        -- below EAT_BELOW, as a player would; hunt.margin grades the lowest sample.
+        local EAT_BELOW = 40
+        local hunt_low, hunt_eaten = nil, 0
+        local function vitals(where)
+            local hr, hp = t.skill.read("hitpoints")
+            if hr ~= "ok" or type(hp) ~= "table" or hp.level == nil then
+                return
+            end
+            if hunt_low == nil or hp.level < hunt_low then
+                hunt_low = hp.level
+            end
+            if hp.level < EAT_BELOW then
+                local er, ed = t.player.inv_op("lobster", 1)
+                if er == "ok" then
+                    hunt_eaten = hunt_eaten + 1
+                end
+                t.note("vitals after " .. where .. ": hp " .. hp.level .. " < " .. EAT_BELOW .. ", ate lobster -> " .. tostring(er) .. " " .. tostring(ed))
+                t.ticks(3)
+            end
+        end
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp293_chompybird",
             constants = {
@@ -49,6 +76,18 @@ return {
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
         -- ---- talkToRantz: the start menu, every looping branch, then accept ----
+        -- Door rule for the first goto (owner 2026-10-05): from the Lumbridge fixture every walk to
+        -- the Feldip Hills goes through the Taverley members' gate membergater 2933,3320 (reach.py
+        -- 3206,3233 -> 2630,2984: UNREACHABLE at 30/80/160; helper_coverage's fewest-door walk at 400
+        -- opens that gate). So: travel to the open ground SOUTH of the gate (reach.py 3206,3233 ->
+        -- 2933,3318: REACH closed-doors len=388 at 30/80/160), press the walk-through gate by its
+        -- verb (gates.rs2 [label,member_fencegate_try]; as currentaffairs.lua), then the overland walk
+        -- to Rantz (reach.py 2933,3322 -> 2630,2984: REACH closed-doors len=1207 at margin 250 --
+        -- no door, no gate). No teleport, so no Magic level is staged.
+        t.exec("goto-memberGate", t.player.goto_tile, 2933, 3318, 0)
+        t.exec("talkToRantz.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+            near = { 2933, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2933) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320", far = { 2933, 3322 } })
         t.exec("goto-rantz", t.player.goto_tile, 2630, 2984, 0)
         t.exec("talkToRantz", t.player.talk_to, "rantz", 1)
         t.exec("talkToRantz.dialog.questions", t.chat.play, {
@@ -167,13 +206,19 @@ return {
         t.check("useArrowsOnRantz.six_taken", (arrows_left or 0) == (arrows or 0) - 6, "ogre_arrow " .. tostring(arrows) .. " -> " .. tostring(arrows_left))
 
         -- ---- enterCave, getBellow (the chest sticks: a strength roll) ----
+        -- The cave is entered by its op and left by its op on every visit (door rule): the entrance
+        -- rantzogrecaveentrance 2629,2998 (op1 Enter) p_teleports to 2647,9379,0 and the exit
+        -- rantzogrecaveexitl 2647,9377 (op1 Walk through) to 2630,2997,0 (chompy_caves.rs2:9-18) -- the
+        -- same level in another map frame (z // 6400), so each is a graded climb, and the in-cave hops
+        -- depart from the climb's landing (one cave passage: reach.py REACH closed-doors).
         t.exec("goto-cave", t.player.goto_tile, 2630, 2997, 0)
-        t.exec("enterCave", t.player.click_loc, "rantzogrecaveentrance", 1)
-        t.ticks(3)
+        t.exec("enterCave", t.player.climb, { loc = "rantzogrecaveentrance", op = 1, op_name = "Enter",
+            at = { 2629, 2998, 0 }, dest = { 2647, 9379, 0 } })
         t.exec("goto-chest", t.player.goto_tile, 2638, 9396, 0)
         local rock_attempt = 0
         for i = 1, 12 do
-            t.player.click_loc("chompybird_chest", 1)
+            local cr, cd = t.player.click_loc("chompybird_chest", 1)
+            t.note("getBellow.rock press " .. i .. ": click_loc(chompybird_chest) -> " .. tostring(cr) .. " " .. tostring(cd))
             t.ticks(6)
             t.chat.close()
             local _, st = t.var.server("varp293_chompybird")
@@ -187,21 +232,27 @@ return {
 
         -- ---- leaveCave ----
         t.exec("goto-caveexit", t.player.goto_tile, 2647, 9379, 0)
-        t.exec("leaveCave", t.player.click_loc, "rantzogrecaveexitl", 1)
-        t.ticks(3)
+        t.exec("leaveCave", t.player.climb, { loc = "rantzogrecaveexitl", op = 1, op_name = "Walk through",
+            at = { 2647, 9377, 0 }, dest = { 2630, 2997, 0 } })
 
         -- ---- fillBellows on the swamp bubbles, inflateToad x3 ----
-        t.exec("goto-bubbles", t.player.goto_tile, 2603, 2967, 0)
+        -- The swamp (swampbubbles 2595-2601 x 2963-2967) is worked from its WEST edge: the
+        -- aggressive level-64 wolves (m40_46.spawn: 2605,2963 / 2607,2967 / 2610,2958-2965,
+        -- huntrange 5) stand on its east edge, and the old east tile 2603,2967 had them take the
+        -- player from 60 hp to 14 inside one toad catch (b68 scratch probe).
+        t.exec("goto-bubbles", t.player.goto_tile, SWAMP_X, SWAMP_Z, 0)
         local bubbles = t.player.by_symbol("loc", "swampbubbles")
         t.exec("fillBellows", t.player.use_on, "empty_ogre_bellows", bubbles)
         t.exec("fillBellows.inv", t.inv.await, "filled_ogre_bellow3", 1, 10)
         t.exec("fillBellows.mes", t.msg.expect, "You collect some gas from the swamp.")
+        vitals("fillBellows")
         for i = 1, 3 do
             local toad = t.player.by_symbol("npc", "toad")
             local bellow = ({ "filled_ogre_bellow3", "filled_ogre_bellow2", "filled_ogre_bellow1" })[i]
             t.exec("inflateToad." .. i, t.player.use_on, bellow, toad)
             t.exec("inflateToad.inv." .. i, t.inv.await, "bloated_toad", i, 15)
             t.exec("inflateToad.mes." .. i, t.msg.expect, "You manage to catch the toad and inflate it with the swamp gas.")
+            vitals("inflateToad." .. i)
         end
 
         -- ---- talkToRantzWithToad ----
@@ -233,15 +284,17 @@ return {
         for round = 1, 8 do
             local _, held = t.inv.count("bloated_toad")
             if (held or 0) == 0 then
-                t.exec("fillBellows.goto." .. round, t.player.goto_tile, 2603, 2967, 0)
+                t.exec("fillBellows.goto." .. round, t.player.goto_tile, SWAMP_X, SWAMP_Z, 0)
                 local swamp = t.player.by_symbol("loc", "swampbubbles")
                 t.exec("fillBellows." .. round, t.player.use_on, "empty_ogre_bellows", swamp)
                 t.exec("fillBellows.inv." .. round, t.inv.await, "filled_ogre_bellow3", 1, 10)
+                vitals("fillBellows." .. round)
                 for i = 1, 3 do
                     local toad = t.player.by_symbol("npc", "toad")
                     local bellow = ({ "filled_ogre_bellow3", "filled_ogre_bellow2", "filled_ogre_bellow1" })[i]
                     t.exec("inflateToad." .. round .. "." .. i, t.player.use_on, bellow, toad)
                     t.exec("inflateToad.inv." .. round .. "." .. i, t.inv.await, "bloated_toad", i, 15)
+                    vitals("inflateToad." .. round .. "." .. i)
                 end
             end
             t.exec("dropToad.goto." .. round, t.player.goto_tile, 2634, 2965, 0)
@@ -274,8 +327,9 @@ return {
                 local _, st = t.var.server("varp293_chompybird")
                 if st >= 40 then spawned = true; break end
                 t.ticks(5)
+                vitals("waitForChompy." .. round)
             end
-            t.check("waitForChompy.round." .. round, true, "spawned=" .. tostring(spawned))
+            t.note("waitForChompy.round." .. round .. ": spawned=" .. tostring(spawned))
             if spawned then break end
         end
         if not spawned then
@@ -331,15 +385,17 @@ return {
         for round = 1, 10 do
             local _, held = t.inv.count("bloated_toad")
             if (held or 0) == 0 then
-                t.exec("placeAnotherToad.fill.goto." .. round, t.player.goto_tile, 2603, 2967, 0)
+                t.exec("placeAnotherToad.fill.goto." .. round, t.player.goto_tile, SWAMP_X, SWAMP_Z, 0)
                 local swamp = t.player.by_symbol("loc", "swampbubbles")
                 t.exec("placeAnotherToad.fill." .. round, t.player.use_on, "empty_ogre_bellows", swamp)
                 t.exec("placeAnotherToad.fill.inv." .. round, t.inv.await, "filled_ogre_bellow3", 1, 10)
+                vitals("placeAnotherToad.fill." .. round)
                 for i = 1, 3 do
                     local toad = t.player.by_symbol("npc", "toad")
                     local bellow = ({ "filled_ogre_bellow3", "filled_ogre_bellow2", "filled_ogre_bellow1" })[i]
                     t.exec("placeAnotherToad.inflate." .. round .. "." .. i, t.player.use_on, bellow, toad)
                     t.exec("placeAnotherToad.inflate.inv." .. round .. "." .. i, t.inv.await, "bloated_toad", i, 15)
+                    vitals("placeAnotherToad.inflate." .. round .. "." .. i)
                 end
             end
             t.exec("placeAnotherToad.goto." .. round, t.player.goto_tile, 2634, 2965, 0)
@@ -349,8 +405,9 @@ return {
             for wait = 1, 26 do
                 local r = t.npc.await_present("chompybird", 20, 5)
                 if r == "ok" then present = true; break end
+                vitals("placeAnotherToad.wait." .. round)
             end
-            t.check("placeAnotherToad.round." .. round, true, "chompy present=" .. tostring(present))
+            t.note("placeAnotherToad.round." .. round .. ": chompy present=" .. tostring(present))
             if present then break end
         end
         if not present then
@@ -358,24 +415,52 @@ return {
             return
         end
 
+        -- The hunt's margin (wolves, exploding toads): the lowest hp sampled after every hunt row is at
+        -- least a quarter of the maximum, AND food is left.
+        vitals("placeAnotherToad")
+        local hunt_food_result, hunt_food_left = t.inv.count("lobster")
+        t.check("hunt.margin", hunt_low ~= nil and hunt_low * 4 >= 60 and hunt_food_result == "ok" and (hunt_food_left or 0) >= 1,
+            "lowest hp sampled through the toad hunt " .. tostring(hunt_low) .. "/60, lobsters eaten " .. hunt_eaten
+                .. ", left " .. tostring(hunt_food_left) .. " (margin: lowest hp >= 15, a quarter of 60, AND food left)")
+
         -- refusals on the way to a real ranged kill
-        t.player.attack("chompybird", 5, 1)
+        -- Each refused press is an attempt (a note); the refusal's own message is the graded outcome.
+        local function refused_press(name)
+            local ar, ad = t.player.attack("chompybird", 5, 1)
+            t.note(name .. " press: attack(chompybird, op5) -> " .. tostring(ar) .. " " .. tostring(ad))
+        end
+        refused_press("killChompy.unarmed")
         t.exec("killChompy.unarmed", t.msg.expect, "You'll need a weapon to try and attack this beast.")
         t.exec("killChompy.equip.axe", t.player.equip, "bronze_axe")
-        t.player.attack("chompybird", 5, 1)
+        refused_press("killChompy.melee")
         t.exec("killChompy.melee", t.msg.expect, "The Chompy Bird is too quick for your melee weapon.")
         t.exec("killChompy.equip.ogrebow", t.player.equip, "ogre_bow")
-        t.player.attack("chompybird", 5, 1)
+        refused_press("killChompy.noammo")
         t.exec("killChompy.noammo", t.msg.expect, "There is no ammo left in your quiver")
         t.exec("killChompy.equip.ogrearrow", t.player.equip, "ogre_arrow")
+        local hp_read, hp_before = t.skill.read("hitpoints")
+        local hp_at_attack = (hp_read == "ok" and type(hp_before) == "table") and hp_before.level or nil
         local attack_result, attack_detail
         for _ = 1, 4 do
-            attack_result, attack_detail = t.player.attack("chompybird", 5, 15)
+            attack_result, attack_detail = t.player.attack("chompybird", 5, 15, { eat = { item = "lobster", below = 40 } })
             if attack_result == "ok" then break end
             t.ticks(2)
         end
         t.check("killChompy.attack", attack_result == "ok", tostring(attack_result) .. " " .. tostring(attack_detail))
-        t.exec("killChompy", t.npc.await_dead_engaged, 120, 40, { eat = { item = "lobster", below = 40 } })
+        local _, chompy_dead_detail = t.exec("killChompy", t.npc.await_dead_engaged, 120, 40, { eat = { item = "lobster", below = 40 } })
+        -- Margin (chompybird: quest_chompybird.npc:5, hitpoints=10, a real block): the lowest hp the
+        -- kill wait's eater read, and the read before the attack, is at least a quarter of the
+        -- maximum, AND food is left.
+        local low_text, base_text = string.match(tostring(chompy_dead_detail), "lowest hp (%d+)/(%d+)")
+        local low, base = tonumber(low_text), tonumber(base_text)
+        if low ~= nil and hp_at_attack ~= nil and hp_at_attack < low then
+            low = hp_at_attack
+        end
+        local food_result, food_left = t.inv.count("lobster")
+        t.check("killChompy.margin",
+            low ~= nil and base ~= nil and low * 4 >= base and food_result == "ok" and (food_left or 0) >= 1,
+            "lowest hp " .. tostring(low) .. "/" .. tostring(base) .. " (hp before the attack " .. tostring(hp_at_attack)
+                .. "), lobsters left " .. tostring(food_left) .. " of 10 (margin: lowest hp >= a quarter of max AND food left)")
         t.ticks(3)
         t.exec("killChompy.corpse", t.npc.await_present, "chompybird_dead", 10, 3)
         t.expect("quest.stage.player_killed_chompy", t.quest.expect_stage("player_killed_chompy"))
@@ -412,8 +497,8 @@ return {
 
         -- ---- enterCaveAgain, talkToBugs, talkToFycie, leaveCaveAgain ----
         t.exec("goto-cave2", t.player.goto_tile, 2630, 2997, 0)
-        t.exec("enterCaveAgain", t.player.click_loc, "rantzogrecaveentrance", 1)
-        t.ticks(3)
+        t.exec("enterCaveAgain", t.player.climb, { loc = "rantzogrecaveentrance", op = 1, op_name = "Enter",
+            at = { 2629, 2998, 0 }, dest = { 2647, 9379, 0 } })
         t.exec("goto-bugs", t.player.goto_tile, 2641, 9389, 0)
         t.exec("talkToBugs", t.player.talk_to, "bugs", 1)
         t.exec("talkToBugs.dialog", t.chat.play, { "npc:Dad say's you's making da chompy", "end" })
@@ -426,8 +511,8 @@ return {
         t.check("flavour.rolled", bugs_flavour >= 1 and bugs_flavour <= 2 and fycie_flavour >= 1 and fycie_flavour <= 2,
             "kills=" .. tostring(kv1) .. " rantz=" .. rantz_flavour .. " bugs=" .. bugs_flavour .. " fycie=" .. fycie_flavour)
         t.exec("goto-caveexit2", t.player.goto_tile, 2647, 9379, 0)
-        t.exec("leaveCaveAgain", t.player.click_loc, "rantzogrecaveexitl", 1)
-        t.ticks(3)
+        t.exec("leaveCaveAgain", t.player.climb, { loc = "rantzogrecaveexitl", op = 1, op_name = "Walk through",
+            at = { 2647, 9377, 0 }, dest = { 2630, 2997, 0 } })
 
         -- ---- getIngredients: the three flavours, by clicking ----
         if rantz_flavour == 0 then

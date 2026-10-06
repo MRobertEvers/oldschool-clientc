@@ -2,6 +2,26 @@
 -- Route facts: quest_druidspirit/scripts/{quest_druidspirit,filliman,druidspirit_drezel,ghast,swamp_decay}.rs2.
 -- Brought along (guide getItemRequirements): amulet of ghostspeak and a silver sickle. The
 -- rest -- pies, mirror, journal, bloom scroll, mushroom, pouch, blessed sickle -- is obtained in play.
+--
+-- WALLS (door rule, owner 2026-10-03/05; re-driven in b68). Every goto departs from and lands on an
+-- open tile outside; every crossing is pressed by its verb on every visit (static tools, --root b63):
+--   * the fixture stands in Lumbridge (3206,3233); the only walk east is through the Varrock members'
+--     gate fai_varrock_member_gatel 3319,3468 (3206,3233 -> 3318,3468 REACH closed-doors len=389), by
+--     pass_door, then 3321,3468 -> 3405,3506 beside the Paterdomus trapdoor (REACH len=122);
+--   * the trapdoor (open, climb), the two mausoleum gates and the holy barrier (p_telejump out at
+--     3423,3485, mausoleum_interactions.rs2:26-30) by their verbs; the east trapdoor pipeastsidetrapdoor
+--     3422,3485 (p_telejump 3440,9887, mausoleum_interactions.rs2:50-59) by climb;
+--   * Mort Myre's north gate mortmyre_metalgateclosed_l 3444,3458 (a walk-through p_teleport,
+--     quest_druidspirit.rs2:13-48) by cross_gate, in and out (3423,3485 -> 3444,3460 REACH len=46;
+--     3444,3458 -> 3422,3484 REACH len=48);
+--   * the Grotto stands on an ISLAND (comp.py: 68 tiles, z 3331-3342) whose only way on or off is the
+--     bridge druidjump_loc 'Jump' (ground decor on raw level 1 at 3440-3441 x 3329/3331,
+--     quest_druidspirit.rs2:50-74). Every trip is the jump by cross_gate; on the island the player
+--     walks. A failed Agility roll still lands on the far bank (north 3438,3332, south 3438,3327, 2-7
+--     damage), so the verdict is the bank (far_ok), not one tile. Swamp hops to and from the south bank
+--     3441,3328 are open swamp (from 3444,3457 len=186, 3440,3348 len=49, 3414,3360 len=65);
+--   * the Grotto door grotto_door_druidicspirit 3440,3337 from stage 60 p_teleports to 3442,9734
+--     (frame 1), and underground_rootwall_door 3442,9733 back to 3440,3337: both by climb.
 return {
     id = "druidspirit",
     fixture = "fresh_lumbridge.ini",
@@ -42,25 +62,92 @@ return {
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
         t.exec("amulet.equip", t.player.equip, "amulet_of_ghostspeak")
 
-        -- goDownToDrezel / talkToDrezel: the temple trapdoor, the two mausoleum gates, Drezel
+        -- The crossings, each one row graded on the tiles (see WALLS above).
+        local function holy_barrier(step)
+            t.exec(step, t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
+                at = { 3440, 9886, 0 }, near = { 3440, 9887 },
+                far_ok = function(tile) return tile.x == 3423 and tile.z == 3485 end,
+                far_desc = "east of the Salve at 3423,3485 (mausoleum_interactions.rs2:28 p_telejump(0_53_54_31_29))" })
+        end
+        -- Mort Myre's north gate: in from 3444,3459 (lands 3444,3457), out from 3444,3457 (lands on the gate
+        -- tile 3444,3458: [label,open_mortmyre_gate] p_teleport($door)).
+        local function swamp_in(step)
+            t.exec("goto-" .. step, t.player.goto_tile, 3444, 3460, 0)
+            t.exec(step, t.player.cross_gate, { loc = "mortmyre_metalgateclosed_l", at = { 3444, 3458, 0 },
+                near = { 3444, 3459 }, far_ok = function(tile) return tile.z <= 3457 end,
+                far_desc = "inside Mort Myre, z <= 3457" })
+        end
+        local function swamp_out(step)
+            t.exec("goto-" .. step, t.player.goto_tile, 3444, 3456, 0)
+            t.exec(step, t.player.cross_gate, { loc = "mortmyre_metalgateclosed_l", at = { 3444, 3458, 0 },
+                near = { 3444, 3457 }, far_ok = function(tile) return tile.z >= 3458 end,
+                far_desc = "out of Mort Myre, z >= 3458" })
+        end
+        -- A failed jump costs 2-7 hitpoints (quest_druidspirit.rs2:70): eat a lobster between trips when low.
+        local function patch_up(step)
+            -- a jump that lands holds the player 3 ticks (~agility_exactmove p_delay(3)): an eat pressed
+            -- inside that hold is dropped, so let it run out first
+            t.ticks(3)
+            local hp_result, hp = t.skill.read("hitpoints")
+            local have_result, have = t.inv.count("lobster")
+            if hp_result == "ok" and type(hp) == "table" and hp.level ~= nil and hp.level < 25
+                and have_result == "ok" and (have or 0) > 0 then
+                -- graded on the lobster leaving the pack (an eat's press can answer timeout settle_after_click)
+                local eat_result, eat_detail = t.player.inv_op("lobster", 1)
+                t.await({
+                    level = function()
+                        local r, n = t.inv.count("lobster")
+                        return r == "ok" and n ~= nil and n < have
+                    end,
+                    note = step .. ": the lobster is eaten",
+                }, 4)
+                local after_result, after = t.inv.count("lobster")
+                t.check(step .. ".eat", after_result == "ok" and after == have - 1,
+                    "hp " .. hp.level .. " < 25: lobsters " .. have .. " -> " .. tostring(after) .. " (want one eaten); press -> "
+                        .. tostring(eat_result) .. " " .. tostring(eat_detail))
+            end
+        end
+        -- The bridge to the Grotto's island, from the south bank (3441,3328, open swamp) and back.
+        local function island_in(step)
+            t.exec("goto-" .. step, t.player.goto_tile, 3441, 3328, 0)
+            t.exec(step, t.player.cross_gate, { loc = "druidjump_loc", at = { 3441, 3329, 0 }, loc_level = 1,
+                near = { 3441, 3328 }, far_ok = function(tile) return tile.z >= 3331 and tile.z <= 3342 end,
+                far_desc = "on the Grotto's island, z 3331-3342 (the jump lands 3440,3331; a failed one 3438,3332)" })
+            patch_up(step)
+        end
+        local function island_out(step)
+            t.exec(step, t.player.cross_gate, { loc = "druidjump_loc", at = { 3440, 3331, 0 }, loc_level = 1,
+                near = { 3440, 3332 }, far_ok = function(tile) return tile.z <= 3329 end,
+                far_desc = "on the swamp's south bank, z <= 3329 (the jump lands 3441,3329; a failed one 3438,3327)" })
+            patch_up(step)
+        end
+
+        -- goDownToDrezel / talkToDrezel: the members' gate, the temple trapdoor, the two mausoleum gates, Drezel
+        t.exec("goto-goDownToDrezel.varrockGate", t.player.goto_tile, 3318, 3468, 0)
+        t.exec("goDownToDrezel.varrockGate", t.player.pass_door, { closed = "fai_varrock_member_gatel",
+            open = "fai_varrock_member_gatel_open", at = { 3319, 3468, 0 }, near = { 3318, 3468 }, far = { 3321, 3468 } })
         t.exec("goto-goDownToDrezel", t.player.goto_tile, 3405, 3506, 0)
-        t.exec("goDownToDrezel", t.player.click_loc, "trapdoor", 1, { at = { 3405, 3507, 0 } })
-        t.ticks(2)
-        t.exec("goDownToDrezel-descend", t.player.click_loc, "trapdoor_open", 1, { at = { 3405, 3507, 0 } })
-        t.ticks(3)
-        local _, down = t.world.tile()
-        t.check("goDownToDrezel-underground", down.z > 6400, "landed at " .. down.x .. "," .. down.z .. "," .. down.level)
-        t.exec("goDownToDrezel-gate1", t.player.click_loc, "pip_underground_door1", 1)
-        t.ticks(2)
-        local _, g1 = t.world.tile()
-        t.check("goDownToDrezel-gate1-through", g1.z < 9895, "past the gate at " .. g1.x .. "," .. g1.z .. "," .. g1.level)
-        t.player.walk_to(3430, 9897, 40)
-        local _, w2 = t.world.tile()
-        t.check("goDownToDrezel-walk-gate2", w2.x >= 3428 and w2.x <= 3431, "walked to " .. w2.x .. "," .. w2.z .. "," .. w2.level)
-        t.exec("goDownToDrezel-gate2", t.player.click_loc, "pip_underground_door2", 1)
-        t.ticks(2)
-        local _, g2 = t.world.tile()
-        t.check("goDownToDrezel-gate2-through", g2.x > 3431, "past the gate at " .. g2.x .. "," .. g2.z .. "," .. g2.level)
+        t.exec("goDownToDrezel.openTrapdoor", t.player.click_loc, "trapdoor", 1, { at = { 3405, 3507, 0 } })
+        t.await({
+            level = function()
+                return t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } }) == "ok"
+            end,
+            note = "goDownToDrezel: the trapdoor opens",
+        }, 6)
+        local tdo_r, tdo = t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } })
+        local tdc_r = t.world.loc_near("trapdoor", 3, { at = { 3405, 3507, 0 } })
+        t.check("goDownToDrezel.trapdoorOpen", tdo_r == "ok" and tdc_r ~= "ok",
+            "trapdoor_open on 3405,3507,0 -> " .. tostring(tdo_r) .. " "
+                .. (tdo_r == "ok" and (tdo.tile_x .. "," .. tdo.tile_z .. "," .. tdo.level) or tostring(tdo))
+                .. "; closed trapdoor there -> " .. tostring(tdc_r) .. " (want the open leaf and no closed one)")
+        t.exec("goDownToDrezel", t.player.climb, { loc = "trapdoor_open", op = 1, op_name = "Climb-down",
+            at = { 3405, 3507, 0 }, src = { 3405, 3506 }, dest = { 3405, 9906, 0 }, slack = 1 })
+        t.exec("goDownToDrezel.gate1", t.player.cross_gate, { loc = "pip_underground_door1", at = { 3405, 9895, 0 },
+            near = { 3405, 9896 }, far_ok = function(tile) return tile.z > 6400 and tile.z <= 9894 end,
+            far_desc = "south of the golden-key gate, z <= 9894", ticks = 30 })
+        t.exec("goDownToDrezel.gate2", t.player.cross_gate, { loc = "pip_underground_door2", at = { 3431, 9897, 0 },
+            near = { 3430, 9897 }, far_ok = function(tile) return tile.z > 6400 and tile.x >= 3432 end,
+            far_desc = "Drezel's side of the second gate, x >= 3432", ticks = 60 })
         -- Priest in Peril's farewell advice (LostCity drezel.rs2:138-147): 60 -> 61, the barrier opens
         t.exec("talkToDrezel-advice", t.player.talk_to, "priestperiltrappedmonk2", 1)
         t.exec("talkToDrezel-advice-dialog", t.chat.play, {
@@ -105,19 +192,17 @@ return {
         })
         t.chat.close()
 
-        -- leaveDrezel: through the holy barrier (mausoleum_interactions.rs2:26), out east of the Salve
-        t.exec("leaveDrezel", t.player.click_loc, "pip_underground_wall_side_withportal", 1)
+        -- leaveDrezel: through the holy barrier, out east of the Salve
+        holy_barrier("leaveDrezel")
         t.exec("leaveDrezel-msg", t.msg.expect, "You pass through the holy barrier")
-        local _, out = t.world.tile()
-        t.check("leaveDrezel-surface", out.z < 6400, "out at " .. out.x .. "," .. out.z .. "," .. out.level)
         -- enterSwamp: the north gate of Mort Myre, 5 -> 10
-        t.exec("goto-enterSwamp", t.player.goto_tile, 3444, 3460, 0)
-        t.exec("enterSwamp", t.player.click_loc, "mortmyre_metalgateclosed_l", 1)
+        swamp_in("enterSwamp")
         t.exec("enterSwamp-msg", t.msg.expect, "gloomy atmosphere of Mort Myre", 8)
         t.expect("quest.stage.entered_swamp", t.quest.expect_stage("entered_swamp"))
 
         -- tryToEnterGrotto / talkToFilliman: with the amulet worn Filliman answers, 10 -> 20
-        t.exec("goto-tryToEnterGrotto", t.player.goto_tile, 3440, 3334, 0)
+        island_in("tryToEnterGrotto.bridge")
+        t.exec("walk-tryToEnterGrotto", t.player.walk_to, 3440, 3334)
         t.exec("tryToEnterGrotto", t.player.click_loc, "grotto_door_druidicspirit", 1)
         t.exec("talkToFilliman", t.chat.play, {
             "mesbox:A shifting apparition appears in front of you.",
@@ -135,7 +220,7 @@ return {
         t.expect("quest.stage.spoken_filliman", t.quest.expect_stage("spoken_filliman"))
 
         -- takeWashingBowl / takeMirror: the mirror is under the washing bowl
-        t.exec("goto-takeWashingBowl", t.player.goto_tile, 3437, 3336, 0)
+        t.exec("walk-takeWashingBowl", t.player.walk_to, 3437, 3336)
         local bowl_result, bowl_detail = t.player.click_obj("bowl_empty_filliman", 3)
         t.ticks(2)
         t.exec("takeWashingBowl-inv", t.inv.await, "bowl_empty_filliman", 1, 8)
@@ -147,7 +232,7 @@ return {
         t.exec("takeMirror-inv", t.inv.await, "mirror", 1, 8)
 
         -- useMirrorOnFilliman: 20 -> 25
-        t.exec("goto-useMirrorOnFilliman", t.player.goto_tile, 3440, 3334, 0)
+        t.exec("walk-useMirrorOnFilliman", t.player.walk_to, 3440, 3334)
         t.exec("useMirrorOnFilliman-door", t.player.click_loc, "grotto_door_druidicspirit", 1)
         t.chat.close()
         local fil = t.player.by_symbol("npc", "filliman_tarlock_spirit")
@@ -165,13 +250,14 @@ return {
         t.chat.close()
         t.expect("quest.stage.shown_mirror", t.quest.expect_stage("shown_mirror"))
 
-        -- searchGrotto: the journal in the knot hole, then useJournalOnFilliman: 25 -> 30 -> 35
-        t.exec("goto-searchGrotto", t.player.goto_tile, 3440, 3339, 0)
+        -- searchGrotto: the journal in the knot hole (the tree is 3x3 at 3439-3441,3338-3340: searched from
+        -- the open tile 3438,3339 beside it), then useJournalOnFilliman: 25 -> 30 -> 35
+        t.exec("walk-searchGrotto", t.player.walk_to, 3438, 3339)
         t.exec("searchGrotto", t.player.click_loc, "grotto_druidicspirit", 2)
         t.exec("searchGrotto-text", t.chat.expect_text, "Tarlock")
         t.chat.close()
         t.exec("searchGrotto-inv", t.inv.await, "filliman_journal", 1, 8)
-        t.exec("goto-useJournalOnFilliman", t.player.goto_tile, 3440, 3334, 0)
+        t.exec("walk-useJournalOnFilliman", t.player.walk_to, 3440, 3334)
         t.exec("useJournalOnFilliman-door", t.player.click_loc, "grotto_door_druidicspirit", 1)
         t.chat.close()
         fil = t.player.by_symbol("npc", "filliman_tarlock_spirit")
@@ -201,17 +287,28 @@ return {
         t.expect("quest.stage.received_spell", t.quest.expect_stage("received_spell"))
         t.exec("useJournalOnFilliman-spell", t.inv.await, "bloom_spell", 1, 8)
 
-        -- goBackDownToDrezel / talkToDrezelForBlessing: out of the swamp's north gate, the east trapdoor, 35 -> 40
-        t.exec("goto-leaveSwamp", t.player.goto_tile, 3444, 3457, 0)
-        t.exec("leaveSwamp", t.player.click_loc, "mortmyre_metalgateclosed_l", 1)
-        t.exec("leaveSwamp-msg", t.msg.expect, "You skip gladly out of murky Mort Myre")
+        -- goBackDownToDrezel / talkToDrezelForBlessing: off the island, out of the swamp's north gate, the
+        -- east trapdoor, 35 -> 40
+        island_out("goBackDownToDrezel.bridge")
+        swamp_out("goBackDownToDrezel.swampGate")
+        t.exec("goBackDownToDrezel-leaveMsg", t.msg.expect, "You skip gladly out of murky Mort Myre")
         t.exec("goto-goBackDownToDrezel", t.player.goto_tile, 3422, 3484, 0)
-        t.exec("goBackDownToDrezel", t.player.click_loc, "pipeastsidetrapdoor", 1, { at = { 3422, 3485, 0 } })
-        t.ticks(2)
-        t.exec("goBackDownToDrezel-descend", t.player.click_loc, "pipeastsidetrapdoor_open", 1, { at = { 3422, 3485, 0 } })
-        t.ticks(3)
-        local _, back = t.world.tile()
-        t.check("goBackDownToDrezel-underground", back.z > 6400, "landed at " .. back.x .. "," .. back.z .. "," .. back.level)
+        t.exec("goBackDownToDrezel.openTrapdoor", t.player.click_loc, "pipeastsidetrapdoor", 1, { at = { 3422, 3485, 0 } })
+        t.await({
+            level = function()
+                return t.world.loc_near("pipeastsidetrapdoor_open", 3, { at = { 3422, 3485, 0 } }) == "ok"
+            end,
+            note = "goBackDownToDrezel: the east trapdoor opens",
+        }, 6)
+        local edo_r = t.world.loc_near("pipeastsidetrapdoor_open", 3, { at = { 3422, 3485, 0 } })
+        local edc_r = t.world.loc_near("pipeastsidetrapdoor", 3, { at = { 3422, 3485, 0 } })
+        t.check("goBackDownToDrezel.trapdoorOpen", edo_r == "ok" and edc_r ~= "ok",
+            "pipeastsidetrapdoor_open on 3422,3485,0 -> " .. tostring(edo_r) .. "; closed trapdoor there -> "
+                .. tostring(edc_r) .. " (want the open leaf and no closed one)")
+        t.exec("goBackDownToDrezel", t.player.climb, { loc = "pipeastsidetrapdoor_open", op = 1, op_name = "Climb-down",
+            at = { 3422, 3485, 0 }, src = { 3422, 3484 }, dest = { 3440, 9887, 0 }, slack = 1 })
+        -- the climb lands the tick the scene is rebuilt: Drezel enters the client's pool a few ticks later
+        t.exec("talkToDrezelForBlessing.present", t.npc.await_present, "priestperiltrappedmonk2", 15, 12)
         t.exec("talkToDrezelForBlessing", t.player.talk_to, "priestperiltrappedmonk2", 1)
         t.exec("talkToDrezelForBlessing-dialog", t.chat.play, {
             "player:Hello again! I'm helping Filliman",
@@ -229,11 +326,8 @@ return {
         t.expect("quest.stage.blessed", t.quest.expect_stage("blessed"))
 
         -- back to the swamp the way Drezel's room lets out: the holy barrier, then the north gate
-        t.exec("leaveDrezel2", t.player.click_loc, "pip_underground_wall_side_withportal", 1)
-        t.exec("leaveDrezel2-msg", t.msg.expect, "You pass through the holy barrier")
-        t.exec("goto-reenterSwamp", t.player.goto_tile, 3444, 3460, 0)
-        t.exec("reenterSwamp", t.player.click_loc, "mortmyre_metalgateclosed_l", 1)
-        t.exec("reenterSwamp-msg", t.msg.expect, "You walk into the gloomy atmosphere of Mort Myre")
+        holy_barrier("leaveDrezel2")
+        swamp_in("reenterSwamp")
 
         -- castSpellAndGetMushroom: cast the scroll beside the rotting log, pick the fungus, 40 -> 45 -> 50
         t.exec("goto-castSpellAndGetMushroom", t.player.goto_tile, 3440, 3348, 0)
@@ -248,7 +342,8 @@ return {
         t.expect("quest.stage.picked_fungi", t.quest.expect_stage("picked_fungi"))
 
         -- show the fungus (50 -> 55) and take a second bloom scroll
-        t.exec("goto-showFungus", t.player.goto_tile, 3440, 3334, 0)
+        island_in("showFungus.bridge")
+        t.exec("walk-showFungus", t.player.walk_to, 3440, 3334)
         t.exec("showFungus-door", t.player.click_loc, "grotto_door_druidicspirit", 1)
         t.exec("showFungus-dialog", t.chat.play, {
             "npc:Did you manage to get something from nature?",
@@ -277,7 +372,7 @@ return {
         t.expect("quest.stage.spoken_filliman2", t.quest.expect_stage("spoken_filliman2"))
 
         -- useMushroom / useSpellCard: the two stones outside the grotto
-        t.exec("goto-useMushroom", t.player.goto_tile, 3440, 3334, 0)
+        t.exec("walk-useMushroom", t.player.walk_to, 3440, 3334)
         t.exec("useMushroom", t.player.use_on, "mortmyremushroom", t.player.by_symbol("loc", "stonedisc_ds_nature"))
         t.exec("useMushroom-msg", t.msg.expect, "The stone seems to absorb the fungus.")
         t.exec("useMushroom-bit", t.var.await_server, "varp6200_druidspirit_bits", 1, 10)
@@ -292,7 +387,7 @@ return {
         -- (seam32: takeMirror went 26 -> 1 tick and that copy expired at tick ~190, one row short).
         t.exec("tellFillimanToCast-door", t.player.click_loc, "grotto_door_druidicspirit", 1)
         t.chat.close()
-        t.exec("goto-standOnOrange", t.player.goto_tile, 3440, 3335, 0)
+        t.exec("walk-standOnOrange", t.player.walk_to, 3440, 3335)
         t.ticks(2)
         local tile_result, tile = t.world.tile()
         t.check("standOnOrange", tile_result == "ok" and tile.x == 3440 and tile.z == 3335, "standing on the orange stone at " .. tostring(tile and tile.x) .. "," .. tostring(tile and tile.z))
@@ -314,9 +409,10 @@ return {
         t.chat.close()
         t.expect("quest.stage.performed_ritual", t.quest.expect_stage("performed_ritual"))
 
-        -- enterGrotto: 60 -> 65
-        t.exec("enterGrotto", t.player.click_loc, "grotto_door_druidicspirit", 1)
-        t.ticks(3)
+        -- enterGrotto: 60 -> 65 (the door p_teleports into the grotto, 3442,9734 in frame 1)
+        t.exec("enterGrotto", t.player.climb, { loc = "grotto_door_druidicspirit", op = 1, op_name = "Enter",
+            at = { 3440, 3337, 0 }, dest = { 3442, 9734, 0 } })
+        t.ticks(1)
         t.expect("quest.stage.entered_grotto", t.quest.expect_stage("entered_grotto"))
 
         -- talkToFillimanInGrotto: the altar, Filliman transforms, 65 -> 70
@@ -379,9 +475,11 @@ return {
         t.exec("fillPouches-early-text", t.chat.play, { "mesbox:You've not been told how to use this item yet." })
         t.chat.close()
 
-        -- fillPouches: bloom the swamp with the blessed sickle, pick three, fill the pouch, 75 -> 90
-        t.exec("leaveGrotto", t.player.click_loc, "underground_rootwall_door", 1)
-        t.ticks(3)
+        -- fillPouches: out of the grotto, off the island, bloom the swamp with the blessed sickle, pick
+        -- three, fill the pouch, 75 -> 90
+        t.exec("leaveGrotto", t.player.climb, { loc = "underground_rootwall_door", op = 1, op_name = "Exit",
+            at = { 3442, 9733, 0 }, dest = { 3440, 3337, 0 } })
+        island_out("fillPouches.bridge")
         t.exec("goto-fillPouches", t.player.goto_tile, 3414, 3360, 0)
         t.ticks(2)
         local casts = 0
@@ -471,18 +569,31 @@ return {
                 t.ticks(4)
             end
             t.check("killGhasts-attack" .. k, attack_result == "ok", tostring(attack_result) .. ": " .. tostring(attack_detail))
-            t.exec("killGhasts-dead" .. k, t.npc.await_dead_engaged, 300, 4, { eat = { item = "lobster", below = 20 } })
+            local dead_result, dead_detail = t.npc.await_dead_engaged(300, 4, { eat = { item = "lobster", below = 20 } })
+            t.step("killGhasts-dead" .. k, dead_result == "ok" and "PASS" or "FAIL", tostring(dead_result) .. " " .. tostring(dead_detail))
+            -- the fight's margin: lowest hp at least a quarter of the maximum AND food left
+            local lowest = tonumber(tostring(dead_detail):match("lowest hp (%d+)/") or "")
+            local _, hitpoints = t.skill.read("hitpoints")
+            local max_hp = type(hitpoints) == "table" and hitpoints.base_level or nil
+            local food_result, food_left = t.inv.count("lobster")
+            t.check("killGhasts-dead" .. k .. ".margin", lowest ~= nil and max_hp ~= nil and food_result == "ok"
+                and lowest * 4 >= max_hp and (food_left or 0) >= 1,
+                "lowest hp " .. tostring(lowest) .. "/" .. tostring(max_hp) .. ", lobsters left " .. tostring(food_left)
+                    .. " of 12 staged (margin: lowest hp >= a quarter of max AND at least one lobster left)")
             t.ticks(4)
             t.expect("quest.stage." .. stages[k], t.quest.expect_stage(stages[k]))
             t.ticks(8)
         end
 
-        -- enterGrottoAgain / talkToNatureSpiritToFinish
+        -- enterGrottoAgain / talkToNatureSpiritToFinish: back over the bridge, into the grotto. The xp
+        -- snapshot is taken on the island, after the walk through the swamp (a ghast met on the way
+        -- would add combat xp of its own).
+        island_in("enterGrottoAgain.bridge")
+        t.exec("walk-enterGrottoAgain", t.player.walk_to, 3440, 3334)
         local snap_result, snapshot = t.skill.snapshot()
         t.step("reward.snapshot", snap_result == "ok" and "PASS" or "FAIL", "skill.snapshot before the hand-in -> " .. tostring(snap_result))
-        t.exec("goto-enterGrottoAgain", t.player.goto_tile, 3440, 3334, 0)
-        t.exec("enterGrottoAgain", t.player.click_loc, "grotto_door_druidicspirit", 1)
-        t.ticks(3)
+        t.exec("enterGrottoAgain", t.player.climb, { loc = "grotto_door_druidicspirit", op = 1, op_name = "Enter",
+            at = { 3440, 3337, 0 }, dest = { 3442, 9734, 0 } })
         t.exec("talkToNatureSpiritToFinish", t.player.click_loc, "druidic_spirit_grotto", 1)
         t.exec("talkToNatureSpiritToFinish-dialog", t.chat.play, {
             "npc:Hello again my friend, have you defeated three Ghasts",

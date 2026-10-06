@@ -42,6 +42,16 @@ return {
         "::give iron_bar 1",
         "::give bread 10",
         "::give trout 10",
+        -- The trip out of Lumbridge is a real Falador Teleport (magic_spells.dbrow
+        -- [magic_spell_teleport_falador]: level 37, waterrune 1 + airrune 3 + lawrune 1,
+        -- tele_coord 0_46_52_21_50 = 2965,3378): Burthorpe lies past the members' gate
+        -- membergater 2935,3450, the only walk on foot (reach.py NEEDS-DOOR at 30/80/160).
+        -- Magic 37 makes the player combat 20; no quest_death dialogue branches on combat level
+        -- (grep "combat" over quest_death/scripts finds only death_archer_combat.rs2).
+        "::setlevel magic 37",
+        "::give waterrune 1",
+        "::give airrune 3",
+        "::give lawrune 1",
     },
 
     run = function(t)
@@ -151,6 +161,18 @@ return {
         end
 
         ---------------------------------------------------------------- 0: Denulth
+        -- Lumbridge -> Burthorpe: Falador Teleport, overland to the open ground east of the
+        -- members' east gate (reach.py 2965,3378 -> 2938,3450 REACH closed-doors len 99), the gate
+        -- by its press, then overland inside (reach.py 2934,3450 -> 2896,3531 REACH len 127).
+        t.player.teleport_cast("falador_teleport", { 2965, 3378, 0 }, { name = "talkToDenulth1.faladorTeleport",
+            runes = { { "waterrune", 1 }, { "airrune", 3 }, { "lawrune", 1 } },
+            where = "Falador square, tele_coord 0_46_52_21_50" })
+        t.exec("goto-talkToDenulth1.memberGate", t.player.goto_tile, 2938, 3450, 0)
+        -- membergater 2935,3450 (gates.rs2 [label,member_fencegate_try], a walk-through, rot 2:
+        -- Taverley is x <= 2935).
+        t.exec("talkToDenulth1.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 },
+            near = { 2936, 3450 }, far_ok = function(tile) return tile.x <= 2935 end,
+            far_desc = "inside Taverley, x <= 2935" })
         t.exec("goto-talkToDenulth1", t.player.goto_tile, 2896, 3531, 0)
         t.exec("talkToDenulth1", t.player.talk_to, "death_ig_commander", 1)
         t.exec("talkToDenulth1-dialog", t.chat.play, {
@@ -373,11 +395,15 @@ return {
 
         ---------------------------------------------------------------- 70: Saba
         castle_out("enterSabaCave")
+        -- Saba's cave is a separate map area on the same level and frame: the Cave Entrance
+        -- (2857,3578) p_teleports to 2269,4752,0 and the Cave Exit (2268,4750) to 2858,3577,0
+        -- (death_locs.rs2:11-17; maplink.dbrow maplink_0_44_55_41_57 / maplink_0_35_74_29_16).
         t.exec("goto-enterSabaCave", t.player.goto_tile, 2857, 3576, 0)
-        cr, cd = t.player.click_loc("death_hermitcave_entrance", 1)
+        t.exec("enterSabaCave", t.player.climb, { loc = "death_hermitcave_entrance", op = 1, op_name = "Enter",
+            at = { 2857, 3578, 0 }, dest = { 2269, 4752, 0 },
+            same_level = "death_locs.rs2:13 p_teleport(0_35_74_29_16)" })
+        -- climb answers on the landing tick; Saba reaches the client's entity pool a few ticks later.
         t.ticks(4)
-        lr, lv = t.world.tile()
-        t.check("enterSabaCave", type(lv) == "table" and tonumber(lv.x) < 2400, "click_loc(death_hermitcave_entrance) -> " .. tostring(cr) .. " " .. tostring(cd) .. "; tile " .. (type(lv) == "table" and (lv.x .. "," .. lv.z) or tostring(lv)))
         t.exec("talkToSaba", t.player.talk_to, "death_hermit", 1)
         t.exec("talkToSaba-dialog", t.chat.play, {
             "player:Hello!",
@@ -388,10 +414,9 @@ return {
         t.ticks(2)
         mr, mv = t.var.server("varp5767_death_map")
         t.check("talkToSaba-map", tonumber(mv) == 1, "death_map = " .. tostring(mv) .. " (want 1 spoken_saba)")
-        cr, cd = t.player.click_loc("death_hermitcave_exit", 1)
-        t.ticks(4)
-        lr, lv = t.world.tile()
-        t.check("leaveSabaCave", type(lv) == "table" and tonumber(lv.x) > 2800, "click_loc(death_hermitcave_exit) -> " .. tostring(cr) .. " " .. tostring(cd) .. "; tile " .. (type(lv) == "table" and (lv.x .. "," .. lv.z) or tostring(lv)))
+        t.exec("leaveSabaCave", t.player.climb, { loc = "death_hermitcave_exit", op = 1, op_name = "Exit",
+            at = { 2268, 4750, 0 }, dest = { 2858, 3577, 0 },
+            same_level = "death_locs.rs2:17 p_teleport(0_44_55_42_57)" })
 
         ---------------------------------------------------------------- 70: Tenzing
         tenzing_in("talkToTenzing1", true)

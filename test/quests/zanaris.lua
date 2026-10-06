@@ -59,7 +59,33 @@ return {
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-        t.exec("goto-talkToWarrior", t.player.goto_tile, 3149, 3207, 0)
+        local function tile_text(r, tt)
+            if r ~= "ok" or type(tt) ~= "table" then
+                return tostring(r)
+            end
+            return tt.x .. "," .. tt.z .. "," .. tt.level
+        end
+
+        -- A real fight's margin: the lowest hp at least a quarter of the
+        -- staged 99 AND sharks left (never OR). `lowest` comes from the
+        -- kill verb's own "lowest hp N/M" reading.
+        local function margin_row(name, what, lowest, max_hp)
+            local sr, sharks = t.inv.count("shark")
+            local ok = lowest ~= nil and max_hp ~= nil and lowest * 4 >= max_hp and sr == "ok" and sharks > 0
+            t.check(name, ok, what .. ": lowest hp " .. tostring(lowest) .. "/" .. tostring(max_hp)
+                .. " (want >= a quarter), sharks left " .. tostring(sharks) .. " of 20 staged (" .. tostring(sr) .. ")")
+        end
+
+        -- No dialogue on this route branches on the combat level
+        -- (zanaris_camp.rs2, shamus.rs2, monk_of_entrana.rs2, cave_monk.rs2
+        -- read no combat level), so the staged 99s and Magic 31 see the
+        -- quest's only branch.
+        --
+        -- The fixture's tile 3206,3233,0 is Lumbridge's open courtyard; the
+        -- warriors' camp in the swamp is open ground (reach.py, every door
+        -- shut: 96 tiles). Land beside the hollow log 3149,3207 (a solid
+        -- loc), on the open tile south of it.
+        t.exec("goto-talkToWarrior", t.player.goto_tile, 3149, 3206, 0)
         t.exec("talkToWarrior", t.player.talk_to, "warrioradventurerpg", 1)
         t.exec("talkToWarrior-dialog", t.chat.play, {
             "npc:Hello there traveller.",
@@ -85,9 +111,11 @@ return {
         t.ticks(2)
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
+        -- chopTree: the press can answer `timeout settle_after_click` (the
+        -- tree speaks nothing); the outcome is Shamus appearing.
         t.exec("goto-chopTree", t.player.goto_tile, 3140, 3213, 0)
         local chop_result, chop_detail = t.player.click_loc("leprechauntree", 1)
-        t.check("chopTree-swing", chop_result == "ok" or chop_result == "timeout", "click_loc leprechauntree -> " .. tostring(chop_result) .. " " .. tostring(chop_detail))
+        t.note("click_loc leprechauntree -> " .. tostring(chop_result) .. " " .. tostring(chop_detail))
         t.exec("chopTree", t.npc.await_present, "zanarisleprechaun", 15, 10)
         t.exec("talkToShamus", t.player.talk_to, "zanarisleprechaun", 1)
         t.exec("talkToShamus-dialog", t.chat.play, {
@@ -111,6 +139,8 @@ return {
         -- Bank the axe (the guide banks weapons before Entrana): dropped here, the zombies give one back.
         t.exec("goToEntrana-bankAxe", t.player.drop, "bronze_axe")
         t.ticks(2)
+        -- An overland hop from the swamp to Port Sarim's jetty (reach.py,
+        -- every door shut: 211 tiles at margin 80).
         t.exec("goto-goToEntrana", t.player.goto_tile, 3049, 3236, 0)
         t.exec("goToEntrana", t.player.talk_to, "shipmonk1_c", 1)
         t.exec("goToEntrana-dialog", t.chat.play, {
@@ -120,32 +150,65 @@ return {
             "npc:Very well. One moment please.",
             "mesbox:The monk quickly searches you.",
         })
-        t.ticks(3)
-        local _, boat_tile = t.world.tile()
-        t.check("goToEntrana-landed", boat_tile.x < 2900 and boat_tile.z < 3500, "tile after boat: " .. boat_tile.x .. "," .. boat_tile.z)
-        t.exec("goto-goDownHole", t.player.goto_tile, 2820, 3374, 0)
-        t.exec("goDownHole", t.player.click_loc, "entranaladdertop", 1)
-        t.exec("goDownHole-dialog", t.chat.play, {
-            "npc:Be careful going in there!",
-            "npc:so our prayers seem",
-            "npc:The only exit from the caves",
-            "choose:Well that is a risk I will have to take.",
-            "player:Well that is a risk I will have to take.",
-        })
-        t.ticks(3)
-        local _, cave_tile = t.world.tile()
-        t.check("goDownHole-landed", cave_tile.z > 9000, "tile after ladder: " .. cave_tile.x .. "," .. cave_tile.z)
+        -- The crossing ends on the ship's deck (monk_of_entrana.rs2:
+        -- p_telejump(1_44_52_18_3) = 2834,3331,1); the gangplank
+        -- ship_from_entrana_off (2834,3333,1; gangplank.rs2 ~gangplank_disembark)
+        -- is the way ashore, 2834,3335,0.
+        t.await({ level = function()
+            local r, tt = t.world.tile()
+            return r == "ok" and tt.level == 1 and tt.x < 2900
+        end, note = "goToEntrana: the sail to Entrana's deck" }, 12)
+        local deck_r, deck = t.world.tile()
+        t.check("goToEntrana-onDeck", deck_r == "ok" and deck.level == 1
+                and math.abs(deck.x - 2834) <= 2 and math.abs(deck.z - 3331) <= 2,
+            "t.world.tile() -> " .. tile_text(deck_r, deck) .. " (want the deck, p_telejump(1_44_52_18_3) = 2834,3331,1: the search passed)")
+        t.exec("goToEntrana-gangplank", t.player.climb, { loc = "ship_from_entrana_off", op_name = "Cross",
+            at = { 2834, 3333, 1 }, dest = { 2834, 3335, 0 }, slack = 1 })
+
+        -- goDownHole: an overland hop across Entrana to the open tile south
+        -- of the ladder (reach.py 2834,3335 -> 2820,3373, every door shut:
+        -- 104 tiles), then the ladder by its verb. The cave monk beside it
+        -- (cave_monk 2822,3374, wanderrange 0) speaks before the climb
+        -- (entrana_dungeon.rs2:10 -> cave_monk.rs2 @cave_monk_chat), whose
+        -- p_telejump(0_44_152_6_46) lands 2822,9774,0: level 0 in the
+        -- dungeon's map frame. The ladder is one-way.
+        t.exec("goto-goDownHole", t.player.goto_tile, 2820, 3373, 0)
+        t.exec("goDownHole", t.player.climb, { loc = "entranaladdertop", op = 1, op_name = "Climb-down",
+            at = { 2820, 3374, 0 }, src = { 2820, 3373 }, dest = { 2822, 9774, 0 },
+            chat = {
+                "npc:Be careful going in there!",
+                "npc:so our prayers seem",
+                "npc:The only exit from the caves",
+                "choose:Well that is a risk I will have to take.",
+                "player:Well that is a risk I will have to take.",
+            } })
+
+        -- The dungeon's scene is built on the landing; its npcs reach the
+        -- client's pool a few ticks later.
+        t.ticks(4)
 
         -- getAxe: kill zombies until one drops a bronze axe (50/128 per kill).
         local zombies = { "zombie_entranan", "zombie_entranan2", "zombie_entranan3", "zombie_entranan4", "zombie_entranan5" }
         local axe_found = false
         local hunt_log = {}
+        local kills = 0
+        local hunt_lowest, hunt_max = nil, nil
         for attempt = 1, 14 do
             local zombie = zombies[((attempt - 1) % 5) + 1]
             local attack_result, attack_detail = t.player.attack(zombie, 2, 20)
             if attack_result == "ok" then
                 local kill_result, kill_detail = t.npc.await_dead_engaged(150, 8, { eat = { item = "shark", below = 30 } })
-                hunt_log[#hunt_log + 1] = zombie .. ":" .. kill_result
+                hunt_log[#hunt_log + 1] = zombie .. ":" .. tostring(kill_result)
+                if kill_result == "ok" then
+                    kills = kills + 1
+                end
+                local lo, mx = tostring(kill_detail):match("lowest hp (%d+)/(%d+)")
+                if lo then
+                    lo, mx = tonumber(lo), tonumber(mx)
+                    if hunt_lowest == nil or lo < hunt_lowest then
+                        hunt_lowest, hunt_max = lo, mx
+                    end
+                end
                 t.ticks(3)
                 local obj_result = t.world.obj_near("bronze_axe", 8)
                 if obj_result == "ok" then
@@ -153,29 +216,41 @@ return {
                     break
                 end
             else
-                hunt_log[#hunt_log + 1] = zombie .. ":attack " .. attack_result .. " " .. tostring(attack_detail)
+                hunt_log[#hunt_log + 1] = zombie .. ":attack " .. tostring(attack_result) .. " " .. tostring(attack_detail)
+                t.ticks(2)
             end
         end
-        t.check("getAxe-hunt", axe_found, "hunt: " .. table.concat(hunt_log, "; "))
+        t.check("getAxe-hunt", axe_found and kills > 0, "killed " .. kills .. ", axe on the ground " .. tostring(axe_found)
+            .. "; hunt: " .. table.concat(hunt_log, "; "))
+        margin_row("getAxe-margin", "zombie hunt, unarmed (Entrana)", hunt_lowest, hunt_max)
         t.exec("pickupAxe", t.player.click_obj, "bronze_axe", 3)
         t.exec("pickupAxe-count", t.inv.await, "bronze_axe", 1, 10)
 
+        -- One dungeon passage, no door (reach.py from the ladder's landing
+        -- 2822,9774: 83 tiles, every door shut).
         t.exec("goto-attemptToCutDramen", t.player.goto_tile, 2862, 9733, 0)
         local dramen_result, dramen_detail = t.player.click_loc("dramentree", 1)
-        t.check("attemptToCutDramen-swing", dramen_result == "ok" or dramen_result == "timeout", "click_loc dramentree -> " .. tostring(dramen_result) .. " " .. tostring(dramen_detail))
+        t.note("click_loc dramentree -> " .. tostring(dramen_result) .. " " .. tostring(dramen_detail))
         t.exec("attemptToCutDramen", t.npc.await_present, "tree_spirit", 15, 10)
         t.exec("killDramenSpirit-attack", t.player.attack, "tree_spirit", 2, 20)
-        t.exec("killDramenSpirit", t.npc.await_dead_engaged, 400, 12, { eat = { item = "shark", below = 35 } })
+        local spirit_ok, spirit_detail = t.exec("killDramenSpirit", t.npc.await_dead_engaged, 400, 12, { eat = { item = "shark", below = 35 } })
+        local spirit_lo, spirit_mx = tostring(spirit_detail):match("lowest hp (%d+)/(%d+)")
+        margin_row("killDramenSpirit-margin", "tree spirit (level 101), unarmed", tonumber(spirit_lo), tonumber(spirit_mx))
         t.ticks(3)
         t.exec("killDramenSpirit-dialog", t.chat.drain, { max_pages = 8 })
         t.expect("quest.stage.spirit_defeated", t.quest.expect_stage("spirit_defeated"))
 
         local cut_result, cut_detail = t.player.click_loc("dramentree", 1)
-        t.check("cutDramenBranch-swing", cut_result == "ok" or cut_result == "timeout", "click_loc dramentree -> " .. tostring(cut_result) .. " " .. tostring(cut_detail))
+        t.note("click_loc dramentree -> " .. tostring(cut_result) .. " " .. tostring(cut_detail))
         t.exec("cutDramenBranch", t.inv.await, "dramen_branch", 1, 15)
         t.expect("quest.stage.tree_chopped", t.quest.expect_stage("tree_chopped"))
 
-        t.exec("cast-teleportAway", t.player.cast, "lumbridge_teleport")
+        -- teleportAway: the only way out of the dungeon (the cave monk:
+        -- "The only exit from the caves below is a portal..."); Lumbridge
+        -- Teleport (magic_spells.dbrow magic_spell_teleport_lumbridge:
+        -- Magic 31, earth 1, air 3, law 1, tele_coord 0_50_50_21_18).
+        t.player.teleport_cast("lumbridge_teleport", { 3221, 3218, 0 }, { name = "teleportAway",
+            runes = { { "earthrune", 1 }, { "airrune", 3 }, { "lawrune", 1 } }, where = "Lumbridge" })
         t.ticks(3)
         t.exec("craftBranch", t.player.use_item_on_item, "knife", "dramen_branch")
         t.exec("craftBranch-count", t.inv.await, "dramen_staff", 1, 10)
@@ -183,12 +258,17 @@ return {
         t.exec("craftBranch-equip", t.player.equip, "dramen_staff")
         t.ticks(2)
 
-        t.exec("goto-enterZanaris", t.player.goto_tile, 3202, 3171, 0)
-        local door_result, door_detail = t.player.click_loc("zanarisdoor", 1)
-        t.check("enterZanaris", door_result == "ok" or door_result == "timeout", "click_loc zanarisdoor -> " .. tostring(door_result) .. " " .. tostring(door_detail))
-        t.ticks(6)
-        local _, zanaris_tile = t.world.tile()
-        t.check("enterZanaris-landed", zanaris_tile.x < 2600, "tile after the shed door: " .. zanaris_tile.x .. "," .. zanaris_tile.z)
+        -- enterZanaris: an overland hop from the teleport's landing to the
+        -- open ground west of the swamp shed (reach.py 3221,3218 ->
+        -- 3201,3169, every door shut: 121 tiles), then the shed door by its
+        -- verb: outside it, wielding the staff, the door carries the player
+        -- to Zanaris (leprechaun_tree.rs2:116 [oploc1,zanarisdoor]:
+        -- ~player_teleport_normal(0_38_69_20_56) = 2452,4472,0).
+        t.exec("goto-enterZanaris", t.player.goto_tile, 3201, 3169, 0)
+        t.exec("enterZanaris", t.player.cross_gate, { loc = "zanarisdoor", at = { 3202, 3169, 0 },
+            near = { 3201, 3169 }, far_ok = function(tile) return tile.x < 2600 and tile.z > 4000 and tile.z < 6400 end,
+            far_desc = "in Zanaris (2452,4472,0)" })
+        t.ticks(3)
         t.quest.expect_complete()
         t.finish(0)
         return

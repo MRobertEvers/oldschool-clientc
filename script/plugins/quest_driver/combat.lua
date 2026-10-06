@@ -194,8 +194,80 @@ end
 -- two consecutive vouched absences is also the most the conformance harness's
 -- `seam.no_row_is_not_a_kill` row can see inside its one-tick wait (the head
 -- read plus one loop poll), so it grades this rule rather than a looser one.
+--
+-- SEAM await_dead_engaged_grades_a_despawn_as_a_kill_by_absence (b68-seam2):
+-- AN ABSENCE IS A KILL ONLY FROM A LOW BAR.  The vouched absence above says
+-- the slot really left the pool; it never said WHY, and three things take a
+-- live npc out of it with its bar high: an `npc_add` whose duration runs out,
+-- an `npc_del`, and a teleport whose re-add the watch did not see (or the
+-- player himself walking off).  Spirits of the Elid's door golems are
+-- npc_add'ed for 50 ticks (elid_dungeon.rs2 :91/:142/:213) and an 80-hp golem
+-- outlives that: `whiteGolem.dead PASS ... dead after 48 tick(s) ... last hp
+-- 29/30 ... corroborated by ABSENCE` (build/quest_gate/spiritsoftheelid row
+-- 56; rows 66, 76 the same at 24/30 and 30/30) -- a kill credited on an npc
+-- that took one point of damage, and the quest's next row then failed for a
+-- channel the golem never let it clear.  Measured with no content in it
+-- (build/quest_gate/s2abs_before row 6): a Hill Giant hit once to 29/30, the
+-- player ::goto'd 70 tiles away, `ok ... dead after 3 tick(s) ... corroborated
+-- by ABSENCE` -- and row 8 found the giant standing there on the way back.
+--
+-- So the watch keeps the LAST BAR it (or the stamp it was opened from) read --
+-- `last_ratio`/`last_scale` -- and the absence arm asks it: a last bar at most
+-- a quarter of its width (ratio x 4 <= scale) is a kill, as before, because a
+-- real death reaches the corpse's zero bar fast and a poll can miss those few
+-- ticks (an attack's settle that ended on the killing splat, a wait that
+-- started after the release); a last bar ABOVE a quarter is answered with the
+-- kind `despawned`, and the verbs return that word, never `ok`.  A watch that
+-- never knew a bar at all (no hit ever sent one) keeps the old rule: the
+-- absence is a kill, because there is nothing to ask.  The kill verbs write
+-- the bar back to the stamp, so a later wait on the same engagement starts
+-- from the newest reading and not the attack's.
 QD.COMBAT_ABSENT_POLLS = 2
 QD.COMBAT_POOL_CAP = 64 -- lua_drive_npcs's DRIVE_UI_POOL_CAP
+
+-- "<ratio>/<scale>" (with or without " (stale)") -> ratio, scale; else nil.
+-- "no bar", "gone", "no reading" and nil all answer nil: no bar is known.
+function QD._combat_bar_parse(text)
+    if type(text) ~= "string" then
+        return nil, nil
+    end
+    local ratio, scale = string.match(text, "^(%d+)/(%d+)")
+    if ratio == nil then
+        return nil, nil
+    end
+    ratio, scale = tonumber(ratio), tonumber(scale)
+    if scale == nil or scale <= 0 then
+        return nil, nil
+    end
+    return ratio, scale
+end
+
+-- Whether a watch's last known bar lets an absence be a kill: true at most a
+-- quarter of the bar's width (or no bar ever known), false above it.
+function QD._combat_bar_allows_kill(watch)
+    if watch.last_ratio == nil or watch.last_scale == nil or watch.last_scale <= 0 then
+        return true
+    end
+    return watch.last_ratio * 4 <= watch.last_scale
+end
+
+-- "29/30 (the attack's own reading)" or "none ever known", for the verdicts.
+function QD._combat_bar_text(watch)
+    if watch.last_ratio == nil or watch.last_scale == nil then
+        return "none ever known"
+    end
+    return tostring(watch.last_ratio) .. "/" .. tostring(watch.last_scale)
+        .. (watch.last_bar_from and (" (" .. watch.last_bar_from .. ")") or "")
+end
+
+-- Writes the watch's last bar back to `stamp` (QD._combat_last), so a later
+-- wait on the same engagement starts from the newest reading.
+function QD._combat_watch_stamp_bar(watch, stamp)
+    if type(stamp) == "table" and watch.last_ratio ~= nil and watch.last_scale ~= nil then
+        stamp.last_ratio = watch.last_ratio
+        stamp.last_scale = watch.last_scale
+    end
+end
 
 -- THE CORPSE GRACE.  A zero bar read inside the caller's deadline is a fight
 -- that may already be won and has not been RELEASED yet: the death sequence
@@ -227,7 +299,11 @@ function QD._combat_grace_text(elapsed, ticks)
         .. "-tick deadline (the corpse grace: a zero bar was read inside it)"
 end
 
-function QD._combat_watch_new(stamp_health)
+-- `stamp` (optional) is the engagement stamp the wait holds
+-- (QD._combat_last): its written-back `last_ratio`/`last_scale` seed the
+-- watch's last bar, else its `health`, else its `health_before` -- the last
+-- bar this driver read on that npc, newest first (b68-seam2).
+function QD._combat_watch_new(stamp_health, stamp)
     local watch = {
         absent = 0,          -- consecutive polls with the slot missing
         zero_tick = nil,     -- tick the bar first read 0 (nil: not at 0 now)
@@ -235,7 +311,28 @@ function QD._combat_watch_new(stamp_health)
         last_tile = nil,     -- {x, z} the slot last stood on
         uncovered = 0,       -- absent polls on which the pool could NOT vouch
         pool_text = "",      -- the latest "the pool held N rows" sentence
+        last_ratio = nil,    -- the last bar known (b68-seam2): its fill ...
+        last_scale = nil,    -- ... and its width; nil: no bar ever known
+        last_bar_from = nil, -- where it was read, for the verdict sentence
     }
+    if type(stamp) == "table" then
+        if type(stamp.last_ratio) == "number" and type(stamp.last_scale) == "number"
+            and stamp.last_scale > 0 then
+            watch.last_ratio, watch.last_scale = stamp.last_ratio, stamp.last_scale
+            watch.last_bar_from = "an earlier wait on this engagement"
+        else
+            local ratio, scale = QD._combat_bar_parse(stamp.health)
+            local from = "the attack's own reading"
+            if ratio == nil then
+                ratio, scale = QD._combat_bar_parse(stamp.health_before)
+                from = "the reading before the attack's press"
+            end
+            if ratio ~= nil then
+                watch.last_ratio, watch.last_scale = ratio, scale
+                watch.last_bar_from = from
+            end
+        end
+    end
     -- The attack's own settle may already have read the zero bar (a
     -- re-press on a dying npc reads "hp 0/30 -> 0/30"): that reading is this
     -- fight's, so it counts.
@@ -278,10 +375,15 @@ function QD._combat_pool_covers(watch, count, rows)
         count, far_distance, reach - 2 * watch.absent, 2 * watch.absent)
 end
 
--- One poll of `slot` through `watch`.  Returns (result, row, verdict):
--- `verdict` is nil while the fight is not over, else the corroboration
--- sentence a kill detail must carry.  `result`/`row` are the pool read's own,
--- so the caller's health/hitsplat/re-engagement logic is unchanged.
+-- One poll of `slot` through `watch`.  Returns (result, row, verdict, reslot,
+-- reslot_text, kind): `verdict` is nil while the fight is not over, else the
+-- sentence the answer's detail must carry, and `kind` says what it is --
+-- "kill" (the zero bar, or a vouched absence from a last bar at most a
+-- quarter, or with no bar ever known) or "despawned" (a vouched absence from
+-- a last bar ABOVE a quarter: the npc left, nothing killed it -- b68-seam2,
+-- the banner over QD.COMBAT_ABSENT_POLLS).  `result`/`row` are the pool
+-- read's own, so the caller's health/hitsplat/re-engagement logic is
+-- unchanged.
 -- SEAM covered_press_and_timed_lift_without_drive_op (seam35) -- A TELEPORT
 -- IS NOT A DEATH.  The server names an npc to each client by a per-observer
 -- slot, and `npc_tele` RELEASES that slot and re-adds the npc under a new one
@@ -341,6 +443,12 @@ function QD._combat_watch_read(watch, slot)
         watch.absent = 0
         watch.uncovered = 0
         watch.last_tile = { x = row.x, z = row.z }
+        if row.health_ratio >= 0 and row.health_scale ~= nil and row.health_scale > 0 then
+            -- The last bar known (b68-seam2): what the absence arm asks.
+            watch.last_ratio = row.health_ratio
+            watch.last_scale = row.health_scale
+            watch.last_bar_from = "read at tick " .. tostring(api_drive.tick())
+        end
         if row.health_ratio == 0 then
             if not watch.zero_tick then
                 watch.zero_tick = api_drive.tick()
@@ -362,7 +470,7 @@ function QD._combat_watch_read(watch, slot)
     if watch.zero_tick then
         return result, nil, "corroborated by the ZERO BAR: slot " .. tostring(slot)
             .. " read " .. tostring(watch.zero_text) .. " at tick " .. tostring(watch.zero_tick)
-            .. " and then left the npc pool (the corpse was released)"
+            .. " and then left the npc pool (the corpse was released)", nil, nil, "kill"
     end
     if watch.absent == 1 then
         local moved = QD._combat_watch_reslot(watch, rows)
@@ -387,9 +495,23 @@ function QD._combat_watch_read(watch, slot)
         return result, nil, nil
     end
     if watch.absent - watch.uncovered >= QD.COMBAT_ABSENT_POLLS then
+        -- b68-seam2: the vouched absence says the slot left; the last bar
+        -- says whether that was a death.
+        if not QD._combat_bar_allows_kill(watch) then
+            return result, nil, "NOT A KILL: slot " .. tostring(slot)
+                .. " left the npc pool for " .. tostring(watch.absent)
+                .. " consecutive poll(s) with its last bar at " .. QD._combat_bar_text(watch)
+                .. ", above a quarter, and no zero bar read -- a death holds the corpse's"
+                .. " zero bar for ticks before the release, so this npc was taken away alive"
+                .. " (an npc_add duration running out, an npc_del, a teleport with no re-add"
+                .. " seen, or the player leaving it) -- " .. sentence, nil, nil, "despawned"
+        end
         return result, nil, "corroborated by ABSENCE: slot " .. tostring(slot)
             .. " missing from the npc pool for " .. tostring(watch.absent)
-            .. " consecutive poll(s) and never back, with no zero bar read -- " .. sentence
+            .. " consecutive poll(s) and never back, with no zero bar read, last bar "
+            .. QD._combat_bar_text(watch)
+            .. (watch.last_ratio ~= nil and ", at most a quarter" or "")
+            .. " -- " .. sentence, nil, nil, "kill"
     end
     return result, nil, nil
 end
@@ -965,7 +1087,14 @@ end
 -- ------------------------------------------------------------------ await_dead
 
 -- t.npc.await_dead(npc_symbol, ticks, radius, attempts) -> `ok` `timeout`
--- `not_found`.
+-- `not_found` `despawned` `refused`.
+--
+-- `despawned` (b68-seam2): the slot left the pool -- vouched, as a kill is --
+-- with its last bar ABOVE a quarter and no zero bar read, so the npc was taken
+-- away alive (an npc_add duration running out, an npc_del, a teleport with no
+-- re-add seen, the player leaving it).  Never a kill; the detail names the
+-- last bar.  The death fence runs first, and a stamp naming the slot is
+-- consumed.  The banner over QD.COMBAT_ABSENT_POLLS is the rule.
 --
 -- Resolves when the npc we started fighting has LEFT THE POOL with a
 -- corroboration the detail names (QD._combat_watch_read: its bar read 0 first,
@@ -1291,11 +1420,25 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
     local elapsed = 0
     -- The kill verdict (QD._combat_watch_read): absence with a named
     -- corroboration, never a zero bar on its own.  The start row is this
-    -- watch's first reading.
-    local watch = QD._combat_watch_new(nil)
+    -- watch's first reading.  b68-seam2: the last bar known seeds from the
+    -- engagement stamp when it names this very slot (a t.player.attack just
+    -- before this wait), and the start row's own bar, when it has one, wins.
+    local stamp_of = function(at_slot)
+        local stamp = QD._combat_last
+        if stamp ~= nil and not stamp.consumed and stamp.slot == at_slot then
+            return stamp
+        end
+        return nil
+    end
+    local watch = QD._combat_watch_new(nil, stamp_of(slot))
     local progress = QD._combat_progress_new("await_dead " .. tostring(npc_symbol) .. " slot "
         .. tostring(slot))
     watch.last_tile = { x = start_row.x, z = start_row.z }
+    if start_row.health_ratio >= 0 and start_row.health_scale ~= nil and start_row.health_scale > 0 then
+        watch.last_ratio = start_row.health_ratio
+        watch.last_scale = start_row.health_scale
+        watch.last_bar_from = "read at the head of the wait"
+    end
     if start_row.health_ratio == 0 then
         watch.zero_tick = started
         watch.zero_text = health
@@ -1323,11 +1466,17 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
         QD._combat_eat_tick(eater)
         QD._combat_progress_step(progress, elapsed, last, reengaged, eater)
 
-        local result, row, verdict, reslot, reslot_text = QD._combat_watch_read(watch, slot)
+        local result, row, verdict, reslot, reslot_text, kind = QD._combat_watch_read(watch, slot)
+        -- b68-seam2: the newest bar goes back to a stamp that names this slot.
+        QD._combat_watch_stamp_bar(watch, stamp_of(slot))
         if reslot then
             -- seam35: a teleport re-added the npc under a new slot (the
             -- banner over QD._combat_watch_read); the fight goes on there.
+            local stamp = stamp_of(slot)
             slot = reslot
+            if stamp ~= nil then
+                stamp.slot = reslot
+            end
             QD.note("await_dead: " .. tostring(reslot_text))
             -- A re-added npc is a new client entity: its hit cycle and bar
             -- start over, so the readings compared against are its own.
@@ -1344,6 +1493,19 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
                     .. ", when slot " .. tostring(slot) .. " left the npc pool "
                     .. tostring(elapsed) .. " tick(s) in") then
                 return "refused", QD.player._death_text(QD._death)
+            end
+            if kind == "despawned" then
+                -- b68-seam2: the npc LEFT with its bar above a quarter -- a
+                -- despawn, never a kill.  A stamp naming it is consumed: the
+                -- engagement is over either way.
+                local stamp = stamp_of(slot)
+                if stamp ~= nil then
+                    stamp.consumed = true
+                end
+                return "despawned", "await_dead " .. tostring(npc_symbol) .. ": slot "
+                    .. tostring(slot) .. " gone after " .. tostring(elapsed) .. " tick(s), "
+                    .. tostring(reengaged) .. " re-engagement(s), last hp " .. last .. " -- "
+                    .. verdict .. QD._combat_eat_text(eater) .. QD._combat_progress_text(progress)
             end
             return "ok", "await_dead " .. tostring(npc_symbol) .. ": slot " .. tostring(slot)
                 .. " dead after " .. tostring(elapsed) .. " tick(s)"
@@ -1707,7 +1869,16 @@ function QD._combat_form_text(row)
 end
 
 -- t.npc.await_dead_engaged(ticks, attempts) -> `ok` `timeout` `no_row`
--- `refused`.
+-- `refused` `despawned`.
+--
+-- `despawned` (b68-seam2): the held slot left the pool -- vouched, as a kill
+-- is -- with its last bar ABOVE a quarter and no zero bar read: the npc was
+-- taken away alive (an npc_add duration running out, an npc_del, a teleport
+-- with no re-add seen, the player leaving it).  Never a kill; the detail names
+-- the last bar and where it was read.  The death fence runs first and the
+-- stamp is consumed, as on a kill.  Spirits of the Elid's 50-tick golems read
+-- `ok ... last hp 29/30 ... corroborated by ABSENCE` until this; the banner
+-- over QD.COMBAT_ABSENT_POLLS is the rule.
 --
 -- Takes no target at all, and that is the point: it holds the SLOT the last
 -- t.player.attack pressed an Attack row on (QD._combat_last, stamped there),
@@ -1793,10 +1964,15 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
     -- The kill verdict (QD._combat_watch_read): absence with a named
     -- corroboration.  A zero bar at the head of the wait is NOT the answer
     -- any more -- it is recorded, and the loop waits for the corpse to leave.
-    local watch = QD._combat_watch_new(engaged.health)
+    -- b68-seam2: the stamp seeds the watch's last bar (an earlier wait's
+    -- written-back reading, else the attack's), and every read writes the
+    -- newest one back, so an absence is asked about the bar it left from.
+    local watch = QD._combat_watch_new(engaged.health, engaged)
     local progress = QD._combat_progress_new("await_dead_engaged slot " .. tostring(slot)
         .. " " .. opened)
-    local entry_result, entry_row, entry_verdict = QD._combat_watch_read(watch, slot)
+    local entry_result, entry_row, entry_verdict, _, _, entry_kind =
+        QD._combat_watch_read(watch, slot)
+    QD._combat_watch_stamp_bar(watch, engaged)
     local absent_at_entry = entry_result == "no_row"
     if absent_at_entry then
         -- A SLOT THAT IS SIMPLY NOT IN THE POOL IS NOT A CORPSE, and this is
@@ -1833,6 +2009,11 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
                 return "refused", QD.player._death_text(QD._death)
             end
             engaged.consumed = true
+            if entry_kind == "despawned" then
+                return "despawned", "await_dead_engaged: slot " .. tostring(slot) .. " ("
+                    .. opened .. ") was already gone when the wait started -- " .. entry_verdict
+                    .. QD._combat_prior_text(engaged.symbol)
+            end
             return "ok", "await_dead_engaged: slot " .. tostring(slot) .. " (" .. opened
                 .. ") was already dead when the wait started -- " .. entry_verdict
                 .. QD._combat_prior_text(engaged.symbol)
@@ -1863,7 +2044,8 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
         QD._combat_eat_tick(eater)
         QD._combat_progress_step(progress, elapsed, last, reengaged, eater)
 
-        local result, row, verdict, reslot, reslot_text = QD._combat_watch_read(watch, slot)
+        local result, row, verdict, reslot, reslot_text, kind = QD._combat_watch_read(watch, slot)
+        QD._combat_watch_stamp_bar(watch, engaged)
         if reslot then
             -- seam35: a teleport re-added the npc under a new slot (the
             -- banner over QD._combat_watch_read); the stamp follows it, so a
@@ -1890,6 +2072,17 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
                 return "refused", QD.player._death_text(QD._death)
             end
             engaged.consumed = true
+            if kind == "despawned" then
+                -- b68-seam2: gone from a bar above a quarter -- the npc was
+                -- taken away alive, and the caller is told so, never `ok`.
+                return "despawned", "await_dead_engaged: slot " .. tostring(slot) .. " gone after "
+                    .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged)
+                    .. " re-engagement(s)" .. (quick and " (fast path re-presses)" or "")
+                    .. ", last hp " .. last .. "; held " .. forms
+                    .. (absent_at_entry and "; already absent at the head of the wait" or "")
+                    .. " -- " .. verdict .. QD._combat_eat_text(eater)
+                    .. QD._combat_progress_text(progress)
+            end
             return "ok", "await_dead_engaged: slot " .. tostring(slot) .. " dead after "
                 .. tostring(elapsed) .. " tick(s)" .. QD._combat_grace_text(elapsed, ticks)
                 .. ", " .. tostring(reengaged)
