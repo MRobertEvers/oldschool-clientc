@@ -755,7 +755,7 @@ The fight is then a real one, and a full-hp margin row is evidence and not an ar
 staging. Spirits of the Elid's golems read 60/60 at Defence 50 for the same reason. A probe at
 Defence 1 showed them landing hits.
 
-## A quest boss with no `hitpoints=` fights on the engine's 10: `hp no bar -> 24/30` after one hit on a "level-150" (matthew-mbp-m4-b67-seam1)
+## A quest boss with no `hitpoints=` fights on the engine's 10: `hp no bar -> 24/30` after one hit on a "level-150" (matthew-mbp-m4-b67-seam1, b68-seam1)
 
 *Origin: the b67 triage of Rum Deal's Evil spirit and Wanted!'s Solus Dellagar.*
 
@@ -769,12 +769,26 @@ reads `27/30, hitsplat 7` after the first hit and dies in 56 ticks (was 16); Sol
 
 A page max hit above what the sourced stats roll through `~npc_melee_maxhit` (the Evil spirit's 28
 against 16) is a sourced disagreement, not a reason to invent a strength bonus: the fix is the
-boss's own swing rolling a constant (Swan Song's `ssq_queen_melee` pattern), still OPEN for the
-spirit (`deal_combat.rs2`, recorded in the combat manifest's known_gaps). Until then the Rum Deal
-fight passes on 99 Defence and sharks; with the real swing, pray (the test stages Prayer 47).
+boss's own swing rolling a constant (Swan Song's `ssq_queen_melee` pattern). **FIXED for the spirit
+in matthew-mbp-m4-b68-seam1:** `[ai_opplayer2,deal_evil_spirit]` (`deal_combat.rs2`) rolls
+`^deal_evil_spirit_melee_maxhit = 28` (`rumdeal.constant`) with the spirit's own crush accuracy and
+lands through `~playerhit_n_melee`. A scratch fight at Defence 1 read one-tick hp drops of
+`26,26,16,16,24,24,...,27` (largest 27; the default roll could never pass 16). The committed Rum
+Deal fight on 99 Defence then ate all 10 sharks (`killSpirit.margin` lowest 44/99, sharks left 0,
+and `killSpider.margin` has none left): pray Protect from Melee for it (the test stages Prayer 47;
+the page and `docs/quests/rum_deal.md` section 4 say it negates the swing).
 
-Twenty-nine more test-fought npcs still have no block. Their sourced drafts (pinned wiki oldids,
-compared with the cache, target file named) are in
-`build/seam_state/matthew-mbp-m4-b67-seam1/bossfix/needs_blocks.npc.txt` and
-`bossfix/wiki_audit.json`; adding one to a GREEN quest (the Elid golems, the Feud tough guys, the
-Mourners, Sir Leye, the drink troll) moves that quest's fight and needs a re-run.
+**The other 29 test-fought npcs FIXED in matthew-mbp-m4-b68-seam1**, one quest-local block each
+(wiki oldid and `configs/all.npc` line in the block's header; `tools/check_quest_combat_contract.py`
+`check_test_fought_npc_blocks` pins every line and the manifest row pins the oldid): the Elid golems
+(`spiritsoftheelid.npc`), the Feud's Tough Guy and Bandit champion (`thefeud.npc`), both Mourners on
+their multinpc ROOT records (`area_ardougne_west/configs/mourner.npc` `mournerstew2`, `mend1.npc`
+`mourning_overpass_mourner`), Sir Leye, the drink troll, the Ancient Guardian, Cuthbert, the Sand
+Snake, Ulfric, the Sourhog, A Soul's Bane's ten (`soulbane_confu_creeper` is cache id 1067, the page's
+version 2, STAB; the four fakes are version 1, crush), Twig and Berry (merged into the existing
+awake sections of `quest_troll.npc`) and Nazastarool's three forms. Real stats move these fights:
+a green test that goes red on one is fixed in the TEST (wait budget, food, a protection prayer),
+never by weakening the npc. Two page max hits are still not what the stats roll: the Sourhog's
+melee 6 against 4 (its `[ai_opplayer2]` already throws the 20-30 spit), and the hybrid Tolna and
+Hopeless creature swing melee only; both are in the combat manifest's known_gaps (those rows stay
+`audit-pending`: only the stat blocks were audited, not the encounters' triggers and loot).

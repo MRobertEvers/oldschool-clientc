@@ -102,6 +102,8 @@ topic file with one line added here.
 - Braindeath Island stairs: `teleport: 2149,5089,1 -> 2149,5089,0` and a walk stalled in a sealed pocket after a climb (FIXED b67-seam1: rumdeal_maplink.dbrow; the up landing is x/x+1,5089,1, the down x/x+1,5087,0) -> seam-facts: Seam pass matthew-mbp-m4-b67-seam1 (c)
 - Witch's House: "Nothing of interest happens." from the basement ladder; the front door opens from outside without the key and wants the key to leave (FIXED b67-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b67-seam1 (d)
 - an "any furnace" step reached past the Port Phasmatys toll ("You need 2 ecto-tokens to pay the toll."); a teletab_fenk landing that reach.py calls "start tile solid" -> seam-facts: Seam pass matthew-mbp-m4-b67-seam1 (h)
+- "Your Magic level is not high enough to use this tablet."; a test staging Magic only for a teleport tablet (FIXED b68-seam1: tablets need no Magic level) -> seam-facts: Seam pass matthew-mbp-m4-b68-seam1 (a)
+- a BEFORE run on the pre-edit script pack with no worktree (`TORIRSSERVER_SCRIPTS` + `TORIRSSERVER_ALLOW_STALE_SCRIPTS=1`) -> seam-facts: Seam pass matthew-mbp-m4-b68-seam1 (b)
 
 ## Pressing and clicking
 
@@ -318,7 +320,10 @@ topic file with one line added here.
 - a stationary attacker reads `You dodge out of the way of Brutus's charge.`; a sidestep never dodges a telegraphed special (FIXED b62-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (d); gaps-combat: A margin row reads full hp
 - "I can't reach that!" right after a teleport out of a fight (crest's Varrock Teleport after Chronozon respawned): Auto Retaliate, LostCity-faithful -> seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (f)
 - the player died inside a re-attack or re-engage press while hp fell and no food was eaten; `inside an attack press`, `made by the fast path because hp was under` in a fight row (b63-seam1: `t.player.attack` takes `opts.eat`) -> verbs-combat: Eating inside an attack press and a re-engagement
-- `hp no bar -> 24/30` after one ordinary hit on a high-level quest boss; a boss dead in a handful of ticks (Evil spirit, Solus FIXED b67-seam1) -> gaps-combat: A quest boss with no `hitpoints=` fights on the engine's 10
+- `hp no bar -> 24/30` after one ordinary hit on a high-level quest boss; a boss dead in a handful of ticks (Evil spirit, Solus FIXED b67-seam1; the 29 test-fought npcs and the spirit's max hit 28 FIXED b68-seam1) -> gaps-combat: A quest boss with no `hitpoints=` fights on the engine's 10
+- a green fight goes red after a seam gave the npc its real stat block (food runs out, `sharks left 0`, a longer kill): fix the TEST (prayer, food, budget), never weaken the npc; Rum Deal's spirit needs Protect from Melee -> seam-facts: Seam pass matthew-mbp-m4-b68-seam1 (c)
+- `await_dead_engaged` answers `ok ... corroborated by ABSENCE` with a high `last hp` (29/30), then the quest's next row fails: the npc despawned (an `npc_add` duration), it was not killed -> seam-facts: Seam pass matthew-mbp-m4-b68-seam1 (d); verbs-combat: `t.npc.await_dead`
+- proving a batch of npc stat blocks landed without spawning them: `t.npc.record(symbol, {need='server'})` -> seam-facts: Seam pass matthew-mbp-m4-b68-seam1 (e)
 
 ## Completion and rewards
 

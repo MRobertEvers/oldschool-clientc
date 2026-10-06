@@ -272,7 +272,9 @@ only after it (conflicts with the ban on mid-run cheats); (c) a second account r
 the run passes for a combat-level branch and say in a comment which branch the staged player sees. b66-seam1
 added squire (staged Magic 31, NOT CONFIRMED live, no dialogue on its route reads the level); its
 staging goes away when its re-author leaves the Ice Dungeon by the ladder (seam-facts b66-seam1 (b),
-(f)).
+(f)). The b68-seam1 triage re-raised it unchanged (druid, pryingtimes, squire, ball, grimtales,
+rumdeal) with the Grim Tales ladder tiles and Braindeath's unrouted 2151,5109 stairs; fenkenstrain's
+Magic 48 is no longer needed (tablets carry no level gate, seam-facts b68-seam1 (a)).
 
 ### `t.player.climb(spec)` -- a staircase, ladder or trapdoor, graded on the level and the landing (b60-seam1)
 

@@ -2676,8 +2676,8 @@ port_phasmatys_toll_with_setup_ectotokens_the_guide_never_has_you_obtain; test-s
 furnace (`fai_falador_furnace` 2976,3368) is a plain walk from the Falador Teleport landing
 2965,3378 (reach REACH closed-doors, 18 tiles; stand 2974,3369, `use_on at={2976,3368,0}`), so any
 "any furnace" step can avoid the ecto-token toll. Back by `teletab_fenk`: `t.player.inv_op(item, 1)`
-lands 3550,3530,0; `teleport_tablet.rs2` requires the spell's Magic level (48) for a tablet, so stage
-Magic with it (a staged level: the open owner question, verbs-pointer teleport_cast). The landing
+lands 3550,3530,0. (The tablet's Magic level gate, 48 here, is FIXED in b68-seam1: a tablet needs no
+Magic level, Seam pass matthew-mbp-m4-b68-seam1 (a); stage only what the guide's own spell needs.) The landing
 reads "start tile solid" to reach.py: walk off it, never goto from it. A fenkenstrain copy so driven
 201/0, FULL.
 
@@ -2687,3 +2687,53 @@ configs from `TORIRSSERVER_CONTENT/server/scripts` at run time, not only from sc
 `TORIRSSERVER_SCRIPTS` at a script.dat compiled from it (`sscompile --src <copy>/server/scripts
 --content-root <copy>`). That never touches the shared tree (running.md, "To show a content seam's
 behaviour BEFORE the fix").
+
+## Seam pass matthew-mbp-m4-b68-seam1 (2026-10-06, batch matthew-mbp-m4-b68)
+
+(a) **A teleport tablet needs no Magic level** (teleport_tablets_refuse_below_the_spells_magic_level).
+`[label,use_teleport_tablet]` (`skill_magic/scripts/spells/teleport_tablet.rs2`) refused a tablet
+below the spell's Magic level ("Your Magic level is not high enough to use this tablet."). The wiki
+says otherwise: "Magic tablet" oldid 15359329 ("Using one has no level requirements.") and
+"Fenkenstrain's castle teleport (tablet)" oldid 15187520 ("The player does not need to have the
+relevant Magic level to use the tablet"). The refusal is gone; the spell row is still read for its
+`tele_coord`, and the wilderness/teleblock gate (`~magic_teleport_gate(20)`) and Biohazard's West
+Ardougne gate stay. Proof: a scratch at Magic 1 breaking `teletab_fenk` from Lumbridge, BEFORE on
+the pre-edit pack `landed 3206,3233,0; teletab_fenk 1 -> 1` (refused), AFTER `landed 3550,3530,0;
+teletab_fenk 1 -> 0`; a fenkenstrain copy staging Magic 37 (the Falador spell's own level) 201/0.
+A test breaking a tablet stages no Magic level for it. Still open: the Fenkenstrain tablet page also
+names Priest in Peril + Drezel's warning; no varp source for the warning was found, so it is not
+gated.
+
+(b) **A before-run on the pre-edit pack without a worktree.** Copy
+`OSRS-Content/osrs239-content/server/scripts/build/script.{dat,idx}` aside BEFORE rebuilding, then
+run with `TORIRSSERVER_SCRIPTS=<copy> TORIRSSERVER_ALLOW_STALE_SCRIPTS=1` (configs read at run time
+still come from the tree: see b67-seam1 (i) for a config A/B).
+
+(c) **Twenty-nine test-fought npcs fought on the engine default, and the Evil spirit rolled 16, not
+its page's 28** (test_fought_npcs_fight_on_engine_default_stats_and_the_evil_spirit_rolls_16_not_its_page_28).
+None of these records had a block with `hitpoints=` in any `.npc` section (`npc_def_seed_from_cache`
+copies only the cache's bonus params and attackrate), so each fought at `npc_default.npc`'s 10 hp
+and 1/1/1. Each now has a quest-local block from its wiki Infobox Monster at a pinned oldid,
+compared with its `configs/all.npc` record (both cited in the block header);
+`tools/check_quest_combat_contract.py` `check_test_fought_npc_blocks` pins every line and the
+combat manifest row pins the oldid. The full list and the spirit's `[ai_opplayer2,deal_evil_spirit]`
+are in gaps-combat "A quest boss with no `hitpoints=`". Real stats move the fights: thefeud,
+biohazard, mourningsendparti, recruitmentdrive and pryingtimes stayed green with longer kills
+(Sir Leye 16 -> 52 ticks, ending at 8/20 hp bare-handed: a thin margin); rumdeal's spirit ate all
+10 sharks on 99 Defence (reopened: pray Protect from Melee, proved 160/160); spiritsoftheelid went
+red (below, (d)). A green test that reddens on a real stat block is fixed in the TEST, never by
+weakening the npc.
+
+(d) **An `npc_add` duration shorter than the fight is a silent despawn, and `await_dead_engaged`
+grades it a kill by ABSENCE.** `elid_dungeon.rs2` npc_adds each Elid golem for 50 ticks (a port
+invention: docs/quests/spirits_of_the_elid.md section 4; the wiki names no timer). At the page's 80
+hitpoints the golem outlived it: `whiteGolem.dead` read `dead after 48 tick(s) ... last hp 29/30
+... corroborated by ABSENCE`, and only the next quest row (`clearChannel.msg`, "disarm the spike
+trap") caught it. A kill wait that answers by ABSENCE with a high last bar is a despawn: read the
+last hp in the detail, and grade the kill by the quest's own outcome row after it. Content fix
+pending (a duration long enough to be no timer); the test then needs stronger offence than bronze
+at unstaged levels and a longer budget.
+
+(e) **`t.npc.record(symbol, {need='server'})` proves a whole stat table cheaply**: it reads the
+server's content block by symbol with no live copy, so one scratch file with a row per npc
+(hp, levels, aggression, attackrate, damagetype, bonuses) proves every block landed in the pack.
