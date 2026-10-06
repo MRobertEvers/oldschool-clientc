@@ -204,6 +204,18 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
   library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
   pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
+  STATE 2026-10-06 09:05. Normal Verzik LANDED (camera lane e17f5f9db, merged 3134c8804): 5 of 5
+  leaders, repeat AGREE, Dawnbringer shared by drop-and-take. Normal Xarpus LANDED (w25 e98866545,
+  merged d29386f06). Normal green: Bloat, Sotetseg, Xarpus, Verzik. RUNNING: raid lane seam36 (the
+  content rows, closing), raid25 lane seam35e (the Entry relay; its closer found the content
+  checkout STALE at fb292a9996 and re-proves on 1c612cdfe3), camera lane seam35m (Normal Maiden
+  rows + Nylocas supports; its content checkout was ALSO stale until 09:00 -- the orchestrator
+  fast-forwarded it; the Maiden result was measured on stale content and must be RE-RUN after the
+  merge). LESSON: after merging a parent branch into a lane, ALWAYS `git -C <lane>/OSRS-Content
+  merge --ff-only <the parent's gitlink>` (the content worktree does not follow the gitlink).
+  NEXT in the raid lane after seam36 lands: SEAM37 = `SEAM_TRIAGE_2026-10-06j.md` (the owner's
+  launch service: the embedded IO server spawns and manages party members; three seams; owner:
+  "Ok implement it."). THEN the Normal relay (06f's last section) once Maiden and Nylocas land.
   OWNER, 2026-10-06 07:00: "You need to speed this up. I expect full clearance in 5 hours." THREE
   LANES NOW (the classifier refused creating new worktrees, so the two idle ones are reused):
   worktrees/raid (seam33 closing, then SEAM35 = `SEAM_TRIAGE_2026-10-06f.md`: Normal Maiden's rows,
