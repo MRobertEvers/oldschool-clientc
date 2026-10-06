@@ -211,7 +211,7 @@ the bounce tick (Plank2g quote, ET 1.3), with Protect from Missiles up when the 
 attack (Granddad Jad, ET 1.3), webs and yellows by position, and the green ball passed.
 Protection prayer on hit is the pinned exception.
 
-## Nylocas, Entry solo (`tob_nylocas`, mode `entry`), measured, NOT green on five names
+## Nylocas, Entry solo (`tob_nylocas`, mode `entry`), proved (raid seam31 play_tob_nylocas_green)
 
 Plan file `raid_play_tob_nylocas.lua` (raid seam30). `E` is
 `sources/wiki_Theatre_of_Blood_Entry_Mode.wikitext` (its Nylocas "Solo strategy"), `W` the
@@ -231,21 +231,27 @@ Strategies page, `NT` `encounters/nylocas.tsv`, `NB`/`NR`/`DMG` the room's own s
 | Wave prayer | the colour with the most weight among aggros in reach (big 2, grey only within 2), held until another is 2 heavier | kept tob_nylocas.lua technique (tech.prayer row) |
 | Vasilias prayer | by her form from the tick it is seen (spawning = melee), sent FIRST in the plan's own block | W:752; NB:136-150 first attack +2/+3 after a turn |
 | Vasilias style | her form's weapon; after a turn re-press (the turn stops attacks); no arrow/spell that would land within a tick of the predicted turn (14 then 15 ticks) | W:752 "The player will stop attacking when Vasilias changes forms"; NB:176 p_stopaction; NB:436-464; DMG:278 reflect + heal |
-| Supplies | library `_play_supplies`; threat = 2 big max hits floor + unprayed aggros + blasts + 17 a swing through her magic/ranged prayer + 40 when a support is under 25%; heal up in the interlude; a super restore when Ranged or Magic < 88 | NB:370-383 (^tob_vasilias_prayed_max 17); W:750 "heal up and boost"; E:171 "30+ damage" |
+| Vasilias magic form | Ice Burst, not Ice Rush, on her (same 5 ticks, max 22 against 18); her row is fought while it is there, whatever her bar reads (at 4 of 360 it reads 0) | wiki Ice burst / Ice rush; svhplaynyloc 2026-10-06 (bar 0 from t861, the plan dropped her and died at t1237) |
+| Supplies | the plan's own `_play_nylocas_supplies`, the library's rule with two guards: a food only when at least half its heal lands under the base, a brew only when at least half its dose lands UNDER THE BASE (this server does not hold a brew's overheal); the drink goes first in the block, so a combo's food is judged after the brew; threat unchanged (2 big max hits floor + unprayed aggros + blasts + 17 a swing through her magic/ranged prayer + 40 a support under 25%) | E:171; NB:370-383; svaplaynyloc t532-538 (brew 99 -> 115, raider row 99 the same tick); svdplaynyloc t401 (brew first, the shark after it healed 0) |
+| Kit: bandages and the Entry set | 7 Theatre bandages in place of the 6 sharks and one restore (sharks first in the waves, bandages first from the interlude, one bandage eaten in the interlude: "heal up and boost"); the Entry page's recommended Entry equipment worn (void melee helm, glory, elite void top/robe, void gloves, dragon boots, berserker ring (i)) | E:151 "After defeating the Pestilent Bloat ... 10 bandages"; E:33 bandages make combat/ranging potions unnecessary after the first two bosses; W:750 "heal up and boost"; E:78-91 {{Recommended equipment|style = Entry mode}} |
 
-Two library faults met here, both worked around IN THE PLAN (raid_play.lua untouched):
-1. `_play_pray` sends "on new" then "off old" for the three protection prayers; they exclude
-   each other and a press is a toggle, so the off re-lit the old one (ny30d: Missiles held
-   t67-362). The plan keeps the lit protection prayer in `want` and, since ny30k, presses its
-   prayer itself.
-2. The loop's boss-death read starts at serial 0; Vasilias takes a slot a wave nylocas died
-   in, so the room "ended" on her spawn tick (ny30h t644). The plan advances
-   `st.death_serial` until her slot is known.
+Library faults met in seam30 (protection toggle, death serial) are fixed in raid_play.lua by
+raid seam31 play_library_faults; the plan's workarounds are removed.
 
-Measured (2026-10-05, headless, seed_survey): survey2 2 of 5 (own name, svc), the current
-plan 1 of 5 (svb: room 819 ticks mark to death, taken 409). Every red name ran out of
-supplies at Vasilias (her prayed magic/ranged hits 17) or after pillar collapses (77-119 a
-run); svd's loop stopped "boss gone" at t793 with no npc_death row for her (npc_free t801).
+Measured (2026-10-06, headless, seed_survey `_play_nylocas`): 5 of 5 on the final tree and
+10 of 10 with `--names 10` (results under build/seam_state/matthew-mbp-m4-raid-b1-seam31/
+ny31_final_results.tsv and ny31_s4_results.tsv). Own name: room 706 ticks mark to her death,
+taken 177 (seam30's ny30i 707 / 427; the kept room 945 / 650), 6 bandages (the interlude one
+at t633), 2 brew doses, lowest 51, her fight 123 ticks in 31 hits, 0 npc_heal rows on her.
+Ten names: room 641-765 ticks, taken 136-282, her fight 114-194 ticks, 0 heals on her in
+every name, 8-18 of the 47 heals carried used. What moved it, each measured on the five
+names: the supply guards alone 1 -> 3 of 5 (svd still died in the waves, sva at her with
+supplies spent); with the bandage kit and the Entry set 5 of 5, wave damage 94-238 (was
+227-424); the brew cap at the base cut the drinks from 40 doses to 2-18. Still open: 2-3
+support collapses a run (77-118 damage, now the largest source); bites 1290-1360 a run,
+about 85% from SMALL chewers (greys 10774 most, about 600 bite animations a run; bigs about
+200); freezing clumps on any support (not only under 70%) was measured (c1: support deaths
+1,2,3,3,2 against 3,2,3,3,2) and not kept (taken 1116 against 961 on the same names).
 
 ## Sotetseg, Entry solo (`tob_sotetseg`, mode `entry`), proved
 
@@ -329,7 +335,7 @@ attacks; inputs per tick 1 on 44-50 ticks, 2 on 9-16, 3+ on 0; 0 retaliation. Ke
 ticks, 251 taken (3 retaliations), 9 eats, about 27 ticks with no attack, 5 missed attacks. The
 2026-10-05 survey: 228/263/232/223 ticks, taken 161/259/193/201, eats 7/13/8/10.
 
-## Verzik, Entry solo (`tob_verzik`, mode `entry`), measured, 4 of 5 names green
+## Verzik, Entry solo (`tob_verzik`, mode `entry`), proved (raid seam30 play_tob_verzik, seam31 play_tob_verzik_green)
 
 raid seam30 play_tob_verzik: plan `raid_play_tob_verzik.lua`, harness `test/raids/_play_verzik.lua`.
 
@@ -349,22 +355,25 @@ wiki_Theatre_of_Blood_Strategies.wikitext, V = encounters/verzik.tsv.
 | T12 | One block: bow + ranging potion; then the serpentine helm; rapid style; Rigour + Protect from Missiles; heal up; walk two out of her P2 body on the west. | W:899, W:901, W:927 venom, W:943 |
 | P2 | Stand two out of her 3x3 (survey3: 20-66 attacks per name with the raider two or more out on T-1, 0 slams; sva and svd were adjacent once each, a crab run, and slammed that once). Step off any tile an urnbomb, an Athanatos or a web is falling on (the projectile's destination). | W:909, W:911; V p2_scan_rule |
 | P2 | Prayer: Missiles; Magic once the reds phase is SEEN (a Matomenos on the floor or a blood spell 1591 in the air; the 8117 summon is not read off her row reliably); back to Missiles while an urnbomb is in the air (read at landing, the owner's ruling). | W:931; V p2_bomb_prayer_read_tick |
-| P2 | Targets: a ranged nylocas only from 4+ tiles, the Athanatos (one venom hit kills it: 30 dealt), the Matomenos, then her; hold fire on her for 5 ticks after a summon. A nylocas within 3 is run from: it blasts on arrival AND on death (63/26/8 by band; s30 vz30c took 62 killing one beside it). | W:925, W:927, W:931; tob.constant :2504-2509 |
+| P2 | (NEW, seam31) The next summon by COUNTING her attacks: after a summon, six 8114/8116 attacks, and her next slot (+4) may be the summon (each later slot too until it comes). From her slot minus the bow's speed to the end of the absorb (+5) nothing of mine is rolled on her: a press waits, and a bow repeat that would fall in [S, S+5] is cut by a one-tile step. The bow's own repeat was rolled ON the summon tick four times in s31's red svd (t297 29, t333 46, t369 12, t405 24: 111 healed, `~tob_prepare_player_hit` rolls at the swing); 0 on every name after. | Entry_Mode.wikitext:231/:235 "DO NOT attack her while she summons them or immediately after"; V verzik.reds_first_attack_after 12, p2_cadence 4, reds_attacks_between 7 (B), reds_absorb_window 5 |
+| P2 | Targets: a ranged nylocas only from 4+ tiles, the Athanatos, then the Matomenos ONLY while her summon animation plays (summon + 10), then her: a shot on her (about 15 a hit) beats a shot on a red that heals her at most the 20 it has left at the next summon. | W:928 "focus on the Matomenos until this animation ends"; V verzik.av.reds_summon.seq 8117 10.00 ticks; tob_verzik.rs2 ~tob_verzik_absorb_reds; V verzik.entry_reds_hp_1p 20 |
 | P3 | Switch protection on sight of her animation/projectile (8124/1594 Magic, 8125/1593 Missiles; the green ball 1598 is not prayed, eaten for). Read on hit, the owner's ruling. | W:951; V p3_prayer_read |
 | P3 | Two or more out of her (no melee on T-1). Stand on the nearest yellow pool while any is down. Nylocas as in P2. | W:953, W:969, W:948 |
-| P3 enraged | Run from a tornado within 5 (two tiles a tick against its one), the wall weighed like a tile so the run does not corner; keep hitpoints in the 50-60 band (no bite above 45 unless the ball is in the air). | W:981 "keep health around 50-60"; s30 survey2 |
+| P3 | (NEW, seam31) A yellow pool counts for 14 ticks from its first sight, and only while its graphic has cycles left: the client still lists 1595 after the blast, and s31 vz31a stood on a dead pool from the yellows to its death 51 ticks later, never running from either tornado. | V verzik.p3_yellow_pool_lifetime 14 (B) |
+| P3 enraged | Run from a tornado within 5. Its tile is DEAD-RECKONED: the client's npc row for 10846 stays on the spawn tile (vz31d: 6431,91 for nine ticks while the server's npc_tile rows walked it 6431..6424), so the plan walks it one tile a tick straight at the raider from where it appeared (content: `npc_walk` to the raider every tick, touch at range 1), and believes the row whenever it does move. The run scores each tile within 2 by its distance from the tornado AFTER the tornado's step toward it (npcs move first), plus the wall (cap 3) and a carry term for the last run direction; the walk goes out directly. An offline chase of this rule (20x20 floor, 1 tile a tick against 2) was touched 0 times in 600 ticks; vz31e without the carry turned back out of the 6422,79 corner and was touched 11 times. | W:981 "tracks them down"; Entry_Mode "continually moving around the room"; tob_verzik.rs2 ~tob_verzik_tornado_tick |
 
-Measured (survey3, five names, from the mark to her npc_death): own 480 ticks, sva 631, svb 438,
-svc 327 green; svd red (died t788). Damage taken 376/570/248/162/565; food 11/16/9/4/16;
-drinks 13/18/7/5/18; about 28/35/27/19/31 ticks with no attack landing. Kept tob_verzik: 679
-ticks, 615 taken, about 256 ticks with no attack; the 2026-10-05 survey: 208-276.
+Measured (seam31 final survey, five names, from the mark to her npc_death): own 423 ticks, sva
+488, svb 426, svc 397, svd 570, all green. Damage taken 213/289/224/158/378; food 6/10/9/5/12;
+drinks 9/10/7/6/15. Tornado touches 1/1/1/1/2 (26, 37, 29, 29, 33+57). Absorb heals (damage
+dealt in the summon window) 0 on every name. svd's P2: t168-334 (seam30: t168-538). Kept
+tob_verzik: 679 ticks, 615 taken; seam30's best single run vz30i: 355 ticks, 211 taken.
 
-Open: (1) svd's P2 reds phase lasts 273 ticks (8 summons; 305 healed by blood spells and two
-Matomenos that reached her), so P3 starts on spent supplies and its enrage kills (tornado 171 in
-6, prayer 0 at the end). (2) The tornado is still landed on most names (6-12 hits on the reds);
-it is not seen walking in the tick log (no npc_tile rows for 10846), so its speed is inferred
-(spawn to hit 5 ticks). (3) The cap row's 10 melee needs 10+ punches; the bow shots are there for
-the kept row only.
+Open: (1) the client's npc row does not follow the tornado's walk (api_drive.npcs grid_position
+stays on its spawn tile); an engine row, and a visual check for later (does the tornado model
+move on screen?). (2) Our server summons the reds in her 7th slot after six attacks (36 ticks a
+cycle); V verzik.reds_attacks_between says 7 attacks BETWEEN summons (Blert): the plan holds for
+both readings. (3) The cap row's 10 melee needs 10+ punches; the bow shots are there for the kept
+row only.
 
 ## Open rows (found is not fixed)
 

@@ -281,10 +281,11 @@ return {
         for _, f in ipairs(vz.forms or {}) do forms[#forms + 1] = f.symbol .. "@" .. f.tick end
         local specs = {}
         for _, s in ipairs(vz.specs or {}) do specs[#specs + 1] = s.tick .. ":" .. s.bar .. "/" .. s.press end
-        t.check("play.measure", true, string.format("room %s ticks (mark %s, death %s); damage taken %d; food %d, drinks %d; swings %d (fists %s, bow %s, dawnbringer %s, rapid %s); specials %s; add presses %s; inputs per tick: 1 on %d, 2 on %d, 3 on %d, 4+ on %d; forms %s",
+        t.check("play.measure", true, string.format("room %s ticks (mark %s, death %s); damage taken %d; food %d, drinks %d; swings %d (fists %s, bow %s, dawnbringer %s, rapid %s); specials %s; add presses %s; inputs per tick: 1 on %d, 2 on %d, 3 on %d, 4+ on %d; forms %s; summons %s, holds %s, tornado runs %s, tornadoes seen %s",
             tostring(death_tick and (death_tick - M)), tostring(M), tostring(death_tick), taken, #rec.eats, #rec.drinks, #rec.swings,
             tostring(vz.n and vz.n.fists), tostring(vz.n and vz.n.bow_accurate), tostring(vz.n and vz.n.dawnbringer), tostring(vz.n and vz.n.bow_rapid),
-            table.concat(specs, ","), tostring(vz.add_presses), hist[1], hist[2], hist[3], hist[4], table.concat(forms, " ")))
+            table.concat(specs, ","), tostring(vz.add_presses), hist[1], hist[2], hist[3], hist[4], table.concat(forms, " "),
+            tostring(vz.summons), tostring(vz.holds), tostring(vz.tornado_runs), tostring(vz.tornado_seen)))
         t.finish(0)
     end,
 }

@@ -80,6 +80,10 @@ QD.raid._play_plan("tob_nylocas", {
     -- NB :445-464 / tob_nylocas.constant ^tob_vasilias_entry_window_ticks 15:
     -- the first window 14, every later one 15.
     first_window = 14, window = 15,
+    -- the plan's food order (_play_nylocas_supplies): Shark 20 (wiki Shark),
+    -- the Theatre's bandages 20 and a boost (E :151; tob_spectate.rs2)
+    food_waves = { { item = "shark", heal = 20 }, { item = "tob_bandages", heal = 20 } },
+    food_boss = { { item = "tob_bandages", heal = 20 }, { item = "shark", heal = 20 } },
     decide = "_play_nylocas_decide",
     -- one client.log line a tick while the plan is iterated from the log
     trace = false,
@@ -155,7 +159,12 @@ function QD.raid._play_nylocas_see(st, v)
                 v.nylos[#v.nylos + 1] = { row = row, slot = row.slot, x = row.x, z = row.z, style = w.style, big = w.big,
                     fighting = w.fighting, symbol = w.symbol, size = w.big and 2 or 1, age = v.tick - s.first, seen = s }
             end
-        elseif b ~= nil and alive then
+        elseif b ~= nil then
+            -- HER bar is no death sign: at 4 of 360 hitpoints it reads 0 of 30
+            -- (svhplaynyloc, 2026-10-06: her bar read 0 from t861, the plan
+            -- took her for gone, never prayed her melee form nor pressed her
+            -- again, and died at t1237 with her alive at 4).  She is fought
+            -- while her row is there; her npc_death row ends the play (library).
             v.vas = { row = row, slot = row.slot, x = row.x, z = row.z, form = b.form, symbol = b.symbol }
             if st.plan.trace and ny.vas_id_seen ~= tostring(row.npc_id) .. "/" .. tostring(row.base_npc_id) then
                 ny.vas_id_seen = tostring(row.npc_id) .. "/" .. tostring(row.base_npc_id)
@@ -223,6 +232,102 @@ function QD.raid._play_nylocas_flight(style, d)
     return 0
 end
 
+-- THE PLAN'S OWN SUPPLIES (raid seam31 play_tob_nylocas_green).  The
+-- library's _play_supplies (raid_play.lua) eats and drinks whenever the
+-- hitpoints are at or under the threat, and this room's threat (aggros in
+-- reach, a support under a quarter, her prayed max) stays over the brew's
+-- ceiling for hundreds of ticks: svaplaynyloc drank seven brew doses at 115
+-- of 115 (t583-604) and ate six sharks at 82-99 around one collapse
+-- (t406-418); 89-214 of the 760 healing carried were never realised in the
+-- five 2026-10-06 runs, and every red name had drunk its last dose by t606-621
+-- with Vasilias still to fight.  So the same rule, with two guards: a food is
+-- eaten only when at least half its heal lands (it heals to the base), a brew
+-- only when at least half its dose lands (it heals to base + 16, wiki
+-- Saradomin brew).  And the chest's bandages (E :151 "After defeating the
+-- Pestilent Bloat ... During Entry Mode this will always contain 10
+-- bandages"; E :33 "Due to these bandages boosting the player's stats, combat
+-- potions and ranging potions are not necessary except for the first two
+-- bosses"): a food that heals 20 and boosts Attack/Strength/Defence 4+15%,
+-- Ranged 4+10%, Magic 4 (tob_spectate.rs2 [opheld1,tob_bandages]).  The
+-- sharks go first during the waves; from the interlude on the bandages go
+-- first, and the interlude itself eats one ("During this brief interlude, the
+-- team should heal up and boost", W :750) so she is fought boosted.
+function QD.raid._play_nylocas_supplies(st, v, threat, interlude)
+    local P = st.plan
+    local boss_phase = interlude or v.vas ~= nil or st.ny.landed ~= nil
+    local food, heal = nil, 0
+    local order = boss_phase and P.food_boss or P.food_waves
+    for _, row in ipairs(order) do
+        local cr, n = QD.inv.count(row.item)
+        if food == nil and cr == "ok" and n > 0 then food, heal = row.item, row.heal end
+    end
+    local brew = nil
+    for _, name in ipairs(QD.RAID_PLAY_BREWS) do
+        local cr, n = QD.inv.count(name)
+        if brew == nil and cr == "ok" and n > 0 then brew = name end
+    end
+    local next_swing = QD.raid._play_next_swing(st, v)
+    local free = (not st.engaged) or next_swing <= v.tick
+    local eat_ready = v.tick - st.last_eat >= QD.RAID_PLAY_EAT_DELAY
+    local drink_ready = v.tick - st.last_drink >= QD.RAID_PLAY_DRINK_DELAY
+    -- the library's horizon, unchanged (raid_play.lua _play_supplies)
+    local horizon = 2
+    if free then
+        horizon = (st.engaged and st.weapon.speed or QD.RAID_PLAY_EAT_DELAY) + QD.TOGETHER_CONFIRM_TICKS + 1
+    end
+    local need = threat(horizon)
+    -- what each lands: the SERVER takes the library's block drink first, then
+    -- the food (_play_send sends the drink before the eat; svdplaynyloc t401:
+    -- brew 87 -> 103, then the shark at 103 healed 0), so a food in a combo
+    -- lands only what the brew left under the base.
+    -- A brew's overheal is not counted: on this server the boost over the
+    -- base does not hold (svaplaynyloc t532-538, 2026-10-06: each brew read
+    -- 99 -> 115 in its consume row and the raider row read 99 again the same
+    -- tick and every tick after, with no hit landing; 30 doses went that way).
+    -- That is the engine's stat snap-back (RAID_ORCHESTRATOR.md section 4,
+    -- torirs_server_combat.c), not the game: a brew heals to the base here.
+    local brew_heal = QD.RAID_PLAY_BREW_HEAL
+    local food_alone = math.min(heal, v.hp_base - v.hp)
+    local brew_alone = math.min(brew_heal, v.hp_base - v.hp)
+    local eat, drink = nil, nil
+    if v.hp <= need then
+        if eat_ready and food ~= nil and food_alone * 2 >= heal then eat = food end
+        if drink_ready and brew ~= nil and brew_alone * 2 >= brew_heal then
+            if eat == nil then
+                drink = brew
+            elseif v.hp + food_alone <= need then
+                local food_after = math.min(heal, v.hp_base - v.hp - brew_alone)
+                if food_after * 2 >= heal then
+                    drink = brew
+                elseif brew_alone > food_alone then
+                    eat, drink = nil, brew
+                end
+            end
+        end
+    end
+    -- THE INTERLUDE: heal up and boost with a bandage (W :750), once
+    if interlude and eat == nil and eat_ready and not st.ny.boosted then
+        local cr, n = QD.inv.count("tob_bandages")
+        if cr == "ok" and n > 0 then
+            eat = "tob_bandages"
+            st.ny.boosted = v.tick
+        end
+    end
+    if eat ~= nil or drink ~= nil then
+        st.ny.supply_need = need
+    end
+    if drink == nil and drink_ready then
+        local missing = v.prayer_base - v.prayer
+        if missing >= QD.RAID_PLAY_RESTORE_AMOUNT or v.prayer <= 2 then
+            for _, name in ipairs(QD.RAID_PLAY_RESTORES) do
+                local cr, n = QD.inv.count(name)
+                if drink == nil and cr == "ok" and n > 0 then drink = name end
+            end
+        end
+    end
+    return eat, drink, need
+end
+
 -- THE NYLOCAS PLAN'S DECIDE (PLAY_NOTES.md "Nylocas, Entry solo").
 function QD.raid._play_nylocas_decide(st, v)
     local P, N = st.plan, st.numbers
@@ -234,18 +339,9 @@ function QD.raid._play_nylocas_decide(st, v)
         st.weapon = P.loadout.ranged
     end
     local ny = st.ny
-    -- LIBRARY FAULT, worked around here (raid seam30, ny30h): the loop stops on
-    -- the first npc_death row of the boss's slot `since` st.death_serial, and
-    -- that serial starts at 0.  Vasilias takes a slot a wave nylocas died in
-    -- (slot 1079: npc_spawn 10786 on t644, the loop answered `ok` on t644), so
-    -- the room "ended" the tick she landed.  Until her slot is known the
-    -- serial follows the log, so only a death after she is seen can count.
-    if st.log and st.boss_slot == nil then
-        local dr, drows = QD.ticklog.rows({ kind = "npc_death", since = st.death_serial })
-        if dr == "ok" then
-            for _, row in ipairs(drows) do st.death_serial = math.max(st.death_serial, row.serial) end
-        end
-    end
+    -- (raid seam31 play_library_faults: the seam30 workaround for the
+    -- library's death_serial starting at 0 is gone -- the library seeds it
+    -- when the boss slot is first resolved, raid_play.lua _play_tick FAULT 2.)
     QD.raid._play_nylocas_see(st, v)
     local dist = QD.raid._play_nylocas_dist
     local flight = QD.raid._play_nylocas_flight
@@ -322,14 +418,10 @@ function QD.raid._play_nylocas_decide(st, v)
     end
     if pray_style ~= nil then
         intent.want[P.prayer_of[pray_style]] = true
-        -- The protection prayers exclude each other: lighting one puts the
-        -- other out on the server, and a press is a TOGGLE, so the library's
-        -- "off" for the old one (_play_pray) after the new one's "on" lit the
-        -- old one again (ny30d: Protect from Missiles held t67-362 while the
-        -- plan asked for Magic 7 times).  The old one is left to the server.
-        for _, name in pairs(P.prayer_of) do
-            if v.lit[name] == true then intent.want[name] = true end
-        end
+        -- (raid seam31 play_library_faults: the old one is left to the server
+        -- by the library now -- _play_pray sends no "off" for a prayer that
+        -- shares an exclusion group with the one it lights, FAULT 1; the
+        -- seam30 workaround that kept the lit one wanted is gone.)
     end
 
     -- THE BLAST.  A copy explodes 51 ticks after it appears (52 a big), within
@@ -575,7 +667,14 @@ function QD.raid._play_nylocas_decide(st, v)
                 -- Nylocas means you will no longer be able to do damage to them"
                 -- (E :164); a lone blue gets Ice Rush
                 local spell, pure = "ice_rush", true
-                if pick.spell ~= nil then
+                if pick.vas then
+                    -- HER magic form: Ice Burst, the same five ticks as Ice
+                    -- Rush and a max of 22 against 18 (wiki Ice burst, Ice
+                    -- rush); "the boss is immune to damage of the wrong combat
+                    -- style" (W :756) and there is nothing else on the floor,
+                    -- so its area freezes nothing the plan still needs.
+                    spell = "ice_burst"
+                elseif pick.spell ~= nil then
                     spell = pick.spell
                     ny.freezes = (ny.freezes or 0) + 1
                     for _, o in ipairs(pick.clump) do
@@ -672,7 +771,7 @@ function QD.raid._play_nylocas_decide(st, v)
         end
         return total
     end
-    intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, threat)
+    intent.eat, intent.drink, intent.need = QD.raid._play_nylocas_supplies(st, v, threat, vas == nil and #v.nylos == 0 and ny.waves >= 31)
     -- a brew drains the attack stats; a super restore puts them back ("undo
     -- the brews' stat drain", tob_nylocas.lua :35; maiden's plan does the same
     -- for its bow): a 2-hitpoint nylocas missed is a nylocas left biting

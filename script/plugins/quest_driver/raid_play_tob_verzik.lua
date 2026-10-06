@@ -69,6 +69,10 @@ QD.raid._play_plan("tob_verzik", {
     pillar_reach = 2,                      -- V verzik.pillar_collapse_range
     -- P2 (V): 8114 cast, 8116 slam/stomp, every 4 ticks; her 3x3 is hard.
     p2_cast = 8114, p2_slam = 8116, p2_reds = 8117, p2_death = 8118, p2_absorb = 5,
+    -- the reds clock (V verzik.p2_cadence 4, verzik.reds_attacks_between 7,
+    -- both B) and the summon animation 8117's length (V
+    -- verzik.av.reds_summon.seq: 10.00 ticks)
+    p2_cadence = 4, p2_attacks_between = 7, p2_reds_anim = 10,
     bomb_proj = 1583, zap_proj = 1585, purple_proj = 1586, blood_proj = 1591,
     -- P3 (V): autos every 7 (5 enraged); 8125 ranged (1593) or the green ball
     -- (1598), 8124 magic (1594), 8123 melee; specials 14406 crabs, 8127 webs
@@ -76,6 +80,7 @@ QD.raid._play_plan("tob_verzik", {
     p3_ranged = 8125, p3_magic = 8124, p3_melee = 8123, p3_crabs = 14406, p3_webs = 8127, p3_yellows = 8126,
     p3_ranged_proj = 1593, p3_magic_proj = 1594, ball_proj = 1598, web_proj = 1601, pool_gfx = 1595,
     p3_cadence = 7, p3_enraged_cadence = 5,
+    pool_life = 14,                        -- V verzik.p3_yellow_pool_lifetime (B)
     -- run from a tornado nearer than this (its walk: one tile a tick, s30 vz30h)
     tornado_run = 5,
     -- the enraged hitpoints band's floor (W:981 "keep health around 50-60")
@@ -161,8 +166,9 @@ function QD.raid._verzik_see(st, v)
                 v.reds[#v.reds + 1] = { row = row, symbol = vz.ids.red[id] }
             elseif vz.ids.web[id] then
                 v.webs[#v.webs + 1] = { row = row, symbol = vz.ids.web[id] }
-            elseif id == P.tornado_id then
+            elseif id == P.tornado_id or row.base_npc_id == P.tornado_id then
                 v.tornadoes[#v.tornadoes + 1] = row
+                vz.tornado_seen = (vz.tornado_seen or 0) + 1
             elseif id == P.pillar_id then
                 v.pillars[#v.pillars + 1] = row
             end
@@ -204,9 +210,16 @@ function QD.raid._verzik_see(st, v)
     local sr, spots = QD.world.spotanims(0)
     if sr == "ok" then
         for _, s in ipairs(spots) do
-            if s.spotanim_id == P.pool_gfx then v.pools[#v.pools + 1] = { x = s.x, z = s.z } end
+            if s.spotanim_id == P.pool_gfx and (s.cycles_left == nil or s.cycles_left > 0) then v.pools[#v.pools + 1] = { x = s.x, z = s.z } end
         end
     end
+    -- a pool lasts 14 ticks (V verzik.p3_yellow_pool_lifetime, B) from the
+    -- first one seen; a graphic the client still lists after that is not a
+    -- pool (s31 vz31a: the plan stood on 6424,90 from the yellows at t488 to
+    -- its death at t539 and never ran from either tornado)
+    if #v.pools > 0 and not vz.pools_prev then vz.pool_first = v.tick end
+    vz.pools_prev = #v.pools > 0
+    if vz.pool_first ~= nil and v.tick > vz.pool_first + P.pool_life then v.pools = {} end
     -- a web is a hard tile, and so is her body in P2 and P3 (W:957 "she turns
     -- into a hard NPC"; her 3x3 in P2, K 6431..6433 x 89..91)
     for _, w in ipairs(v.webs) do v.shadows[w.row.x * 100000 + w.row.z] = true end
@@ -511,7 +524,26 @@ function QD.raid._play_verzik_decide(st, v)
     elseif phase == "p2" then
         vz.dying = false
         if vz.held ~= "bow_rapid" then swap_to("bow_rapid") end
-        if v.attack ~= nil and v.attack.seq == P.p2_reds then vz.reds_tick = v.attack.tick end
+        if v.attack ~= nil and v.attack.seq == P.p2_reds then vz.reds_tick = v.attack.tick vz.summon = v.attack.tick end
+        -- THE NEXT SUMMON, by counting her attacks (seam31): "DO NOT attack
+        -- her while she summons them or immediately after, as any damage
+        -- dealt will instead heal her" (Entry_Mode.wikitext:231, :235).  The
+        -- summon takes an attack slot of hers: the first attack 12 ticks
+        -- after it (V verzik.reds_first_attack_after, B), then one every 4
+        -- (V verzik.p2_cadence, B), the summon in the slot after the count (V
+        -- verzik.reds_attacks_between 7, B).  So once six attacks are seen
+        -- after a summon, her next slot (the last one + 4) may be the summon,
+        -- and so is each slot after it until it comes.  s31 svd (seam31
+        -- triage survey): the bow's own repeat shot was rolled ON the summon
+        -- tick four times (t297 29, t333 46, t369 12, t405 24: 111 healed,
+        -- tob_damage.rs2 ~tob_prepare_player_hit rolls at the swing).
+        if v.attack ~= nil and (v.attack.seq == P.p2_cast or v.attack.seq == P.p2_slam) and vz.summon ~= nil and v.attack.tick > vz.summon then
+            if v.attack.tick ~= vz.p2_last then
+                vz.p2_last = v.attack.tick
+                vz.p2_count = (vz.p2_count or 0) + 1
+            end
+            if vz.p2_count >= P.p2_attacks_between - 1 then vz.next_summon = v.attack.tick + P.p2_cadence end
+        end
         -- prayers: Protect from Missiles (W:899), Protect from Magic once the
         -- Matomenos are summoned (W:931), back to Missiles while an urnbomb is
         -- in the air: the bomb reads it at its LANDING (the owner's ruling,
@@ -527,6 +559,13 @@ function QD.raid._play_verzik_decide(st, v)
         -- a fresh pair of Matomenos on the floor is a summon (W:929)
         if #v.reds > 0 and (vz.reds_tick == nil or (vz.reds_n or 0) == 0) then vz.reds_tick = vz.reds_tick or v.tick end
         if #v.reds > 0 and (vz.reds_n or 0) == 0 and vz.reds_tick ~= nil and v.tick - vz.reds_tick > 20 then vz.reds_tick = v.tick end
+        -- a fresh red with no 8117 read is the summon too (s30 vz30d: 8117
+        -- was not always read off her row); the count restarts from it
+        if #v.reds > 0 and (vz.reds_n or 0) == 0 and (vz.summon == nil or v.tick - vz.summon > 20) then vz.summon = v.tick end
+        if vz.summon ~= nil and vz.summon ~= vz.counted_from then
+            vz.counted_from, vz.p2_count, vz.next_summon = vz.summon, 0, nil
+            vz.summons = (vz.summons or 0) + 1
+        end
         vz.reds_n = #v.reds
         if (vz.reds_tick ~= nil or vz.blood) and not bomb_air then intent.want.protectfrommagic = true else intent.want.protectfrommissiles = true end
         intent.want.rigour = true
@@ -550,11 +589,41 @@ function QD.raid._play_verzik_decide(st, v)
             if vz.reds_tick ~= nil then t = t + N.blood end
             return t
         end
+        -- HOLD around the predicted summon: no shot of mine is rolled from
+        -- her slot to the end of the absorb (V verzik.reds_absorb_window 5).
+        -- Engaged on her, the bow repeats on its own every speed ticks, so a
+        -- repeat that would fall in the window is cut by a one-tile step
+        -- (a step clears the attack: DRIVER_NOTES "a click is needed only to
+        -- START the fight or after a step cleared it"), pressed on any tick
+        -- before it; a press on her waits out the window.
+        local hold = false
+        if vz.next_summon ~= nil and v.tick <= vz.next_summon + P.p2_absorb then
+            local S = vz.next_summon
+            local nxt = st.last_swing + st.weapon.speed
+            if v.tick >= S - st.weapon.speed then hold = true end
+            if st.engaged and vz.target_slot == nil and nxt >= S and nxt <= S + P.p2_absorb and v.tick < nxt and intent.walk == nil then
+                local sx, sz = me.x - 1, me.z
+                if not ok(sx, sz) or v.shadows[sx * 100000 + sz] then sx, sz = me.x, me.z + 1 end
+                if not ok(sx, sz) or v.shadows[sx * 100000 + sz] then sx, sz = me.x, me.z - 1 end
+                intent.walk = { x = sx, z = sz }
+                vz.steps = vz.steps + 1
+                vz.holds = (vz.holds or 0) + 1
+                st.engaged = false
+            end
+        end
+        if vz.next_summon ~= nil and v.tick > vz.next_summon + P.p2_absorb then vz.next_summon = nil end
+        -- the Matomenos only while her summon animation plays: "players
+        -- should focus on the Matomenos until this animation ends"
+        -- (W:928; 8117 is 10 ticks, V verzik.av.reds_summon.seq); after it a
+        -- shot on her (about 15 a hit, s31 svd: 790 in 51) beats a shot on a
+        -- red that heals her at most its 20 left (tob_verzik.rs2
+        -- ~tob_verzik_absorb_reds; V verzik.entry_reds_hp_1p)
+        if red ~= nil and vz.summon ~= nil and v.tick > vz.summon + P.p2_reds_anim then red = nil end
         if intent.walk == nil then
             -- the Athanatos first: it heals her 9-10 every 5 ticks (W:927; V
             -- p2_purple_heal); then the Matomenos (W:931)
             local add = crab or purple or red
-            local absorb = vz.reds_tick ~= nil and v.tick <= vz.reds_tick + P.p2_absorb
+            local absorb = hold or (vz.reds_tick ~= nil and v.tick <= vz.reds_tick + P.p2_absorb)
             if add ~= nil then
                 local idle = v.tick - math.max(st.last_swing, st.engaged_tick) > st.weapon.speed + 2
                 if vz.target_slot ~= add.row.slot or not st.engaged or idle then QD.raid._verzik_press_add(st, v, add) end
@@ -606,10 +675,37 @@ function QD.raid._play_verzik_decide(st, v)
         local on_pool = pool ~= nil and pool.d == 0
         -- a tornado that is near: away from it (W:986 "tracks them down";
         -- 50% of the current hitpoints and triple that healed)
-        local tor, td = nil, 999
+        -- WHERE IT IS NOW.  The client's row for the tornado stays on its
+        -- spawn tile (s31 vz31d: api_drive.npcs gave 6431,91 for nine ticks
+        -- while the server's npc_tile rows walked it 6431..6424, one a tick),
+        -- so the plan walks it itself from what it saw appear: one tile a tick
+        -- straight at its raider (tob_verzik.rs2 ~tob_verzik_tornado_tick,
+        -- npc_walk to the raider's tile every tick; W:981 "tracks them down"),
+        -- touching at range 1.  A row that does move is believed instead.
+        vz.tor = vz.tor or {}
+        local live = {}
         for _, tr in ipairs(v.tornadoes) do
-            local d = math.max(math.abs(tr.x - me.x), math.abs(tr.z - me.z))
-            if d < td then tor, td = tr, d end
+            local e = vz.tor[tr.slot]
+            if e == nil or e.rx ~= tr.x or e.rz ~= tr.z then
+                e = { x = tr.x, z = tr.z, rx = tr.x, rz = tr.z, tick = v.tick }
+                vz.tor[tr.slot] = e
+            end
+            while e.tick < v.tick do
+                e.tick = e.tick + 1
+                if math.max(math.abs(e.x - me.x), math.abs(e.z - me.z)) > 1 then
+                    if me.x > e.x then e.x = e.x + 1 elseif me.x < e.x then e.x = e.x - 1 end
+                    if me.z > e.z then e.z = e.z + 1 elseif me.z < e.z then e.z = e.z - 1 end
+                end
+            end
+            live[tr.slot] = true
+        end
+        for slot, _ in pairs(vz.tor) do
+            if not live[slot] then vz.tor[slot] = nil end
+        end
+        local tor, td = nil, 999
+        for _, e in pairs(vz.tor) do
+            local d = math.max(math.abs(e.x - me.x), math.abs(e.z - me.z))
+            if d < td then tor, td = e, d end
         end
         local _, cd = nearest(v.crabs)
         local crab = nil
@@ -648,16 +744,30 @@ function QD.raid._play_verzik_decide(st, v)
                 for dz = -2, 2 do
                     local x, z = me.x + dx, me.z + dz
                     if ok(x, z) and not v.shadows[x * 100000 + z] then
-                        local d = math.max(math.abs(x - tor.x), math.abs(z - tor.z))
+                        -- the distance after ITS step toward the tile (it moves
+                        -- first: ET 1.1, npcs before players)
+                        local nx, nz = tor.x, tor.z
+                        if x > nx then nx = nx + 1 elseif x < nx then nx = nx - 1 end
+                        if z > nz then nz = nz + 1 elseif z < nz then nz = nz - 1 end
+                        local d = math.max(math.abs(x - nx), math.abs(z - nz))
                         local wall = math.min(x - (O.x + F[1]), (O.x + F[3]) - x, z - (O.z + F[2]), (O.z + F[4]) - z, 3)
                         -- (s30 survey2 sva: a pure run ended in the 6422,95 corner and
                         -- the tornado landed 12 of 12; the wall weighs as much as a tile)
-                        local score = d * 10 + wall * 10
-                        if best == nil or score > best then best, bx, bz = score, x, z end
+                        -- and keep going the way it went (s31 vz31e: the run turned
+                        -- back into the 6422,79 corner and was touched 11 times; an
+                        -- offline chase of the same rule, 20x20 floor, one tile a tick
+                        -- after two, was touched 0 times in 600 ticks with the carry)
+                        local lr = vz.last_run or { 0, 0 }
+                        local score = d * 10 + wall * 10 + (dx * lr[1] + dz * lr[2]) * 2
+                        if (dx ~= 0 or dz ~= 0) and (best == nil or score > best) then best, bx, bz = score, x, z end
                     end
                 end
             end
-            if bx ~= me.x or bz ~= me.z then go(bx, bz) end
+            if bx ~= me.x or bz ~= me.z then
+                intent.walk = { x = bx, z = bz }
+                vz.steps = vz.steps + 1
+                vz.last_run = { bx - me.x, bz - me.z }
+            end
             vz.tornado_runs = (vz.tornado_runs or 0) + 1
         elseif on_me or d_boss < 2 then
             go(me.x, me.z)

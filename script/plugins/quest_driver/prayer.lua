@@ -100,6 +100,63 @@ QD.prayer.TABLE = {
     { "preserve",            "prayerbook:prayer29", "varb5466_prayer_preserve" },
 }
 
+-- THE EXCLUSION GROUPS (raid seam31 play_library_faults).  "Two prayers that
+-- share a group cannot be up together: switching one on switches the other
+-- off" (skill_prayer/configs/prayers.constant:69-70); each prayer's groups are
+-- its `data=group` lines in skill_prayer/configs/prayers.dbrow, copied here
+-- in the same order, and the server applies them in `[proc,prayer_toggle]` ->
+-- `~prayer_deactivate_conflicting` (prayer.rs2:309-318) BEFORE it lights the
+-- new one.  A press is a toggle, so a caller lighting X must never also send
+-- an "off" for a prayer X shares a group with: the server has already put it
+-- out, and the "off" press lights it again (raid seam30 ny30d: Protect from
+-- Missiles held t67-362 while Protect from Magic was asked seven times).
+-- The four with no group (rapidrestore, rapidheal, protectitem, preserve)
+-- conflict with nothing.
+QD.prayer.GROUPS = {
+    thickskin = { "defence" }, rockskin = { "defence" }, steelskin = { "defence" },
+    burstofstrength = { "strength" }, superhumanstrength = { "strength" }, ultimatestrength = { "strength" },
+    clarityofthought = { "attack" }, improvedreflexes = { "attack" }, incrediblereflexes = { "attack" },
+    sharpeye = { "ranged", "attack", "strength", "magic" },
+    hawkeye = { "ranged", "attack", "strength", "magic" },
+    eagleeye = { "ranged", "attack", "strength", "magic" },
+    mysticwill = { "magic", "attack", "strength", "ranged" },
+    mysticlore = { "magic", "attack", "strength", "ranged" },
+    mysticmight = { "magic", "attack", "strength", "ranged" },
+    protectfrommagic = { "overhead" }, protectfrommissiles = { "overhead" }, protectfrommelee = { "overhead" },
+    retribution = { "overhead" }, redemption = { "overhead" }, smite = { "overhead" },
+    chivalry = { "attack", "strength", "defence", "ranged", "magic" },
+    piety = { "attack", "strength", "defence", "ranged", "magic" },
+    rigour = { "attack", "strength", "defence", "ranged", "magic" },
+    augury = { "attack", "strength", "defence", "ranged", "magic" },
+    rapidrestore = {}, rapidheal = {}, protectitem = {}, preserve = {},
+}
+
+-- QD.prayer.conflicts(a, b) -> true when lighting `a` puts `b` out on the
+-- server (they share an exclusion group, prayers.dbrow; a prayer never
+-- conflicts with itself).  Both names in the content spelling of
+-- QD.prayer.TABLE; a name with no row there is a caller's bug and raises.
+function QD.prayer.conflicts(a, b)
+    local ea, why_a = QD.prayer._entry(a)
+    assert(ea, why_a)
+    local eb, why_b = QD.prayer._entry(b)
+    assert(eb, why_b)
+    if ea[1] == eb[1] then
+        return false
+    end
+    local ga = QD.prayer.GROUPS[ea[1]]
+    local gb = QD.prayer.GROUPS[eb[1]]
+    assert(ga, "prayer.conflicts: no group row for " .. ea[1])
+    assert(gb, "prayer.conflicts: no group row for " .. eb[1])
+    for i = 1, #ga do
+        for j = 1, #gb do
+            if ga[i] == gb[j] then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 -- The server's refusal sentences, prayer.rs2 `prayer_checks` (:94, :98, :103)
 -- and the drain-out line (`[timer,prayer_drain]`).  Matched as plain
 -- substrings against lines NEWER than the press.

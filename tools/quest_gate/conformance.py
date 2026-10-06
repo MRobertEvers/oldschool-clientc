@@ -67,8 +67,12 @@ USER = "qdconform"
 # it had outgrown it a fourth time: with 146 seam rows (raid seam10 added five,
 # the Verzik yellow-pool row alone ~330 ticks) a run drew exactly 120000 frames
 # (6118 drawn, 113882 skipped) and ended at tick 3984 inside the last row
-# (seam.special_attack_spent).
-MAX_FRAMES = "160000"
+# (seam.special_attack_spent).  At 160000 it had outgrown it a fifth time:
+# with 182 seam rows (raid seam31 added the goblin stop-and-press row, ~50
+# ticks, and three pure rows) a run reached the cap at tick 5325 inside
+# seam.raid_enter_party_branch_solo_unchanged and the last seven rows
+# ERRORed on the frame cap.
+MAX_FRAMES = "200000"
 # Render skip, as run.py: on unless --render-every-frame (run.py's RENDER_SKIP
 # banner). The harness proves the quest runs' own mode, and its render.* rows
 # switch it themselves either way.

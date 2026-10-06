@@ -1228,3 +1228,37 @@ all clean. No C and no content changed.
 - Library faults found and NOT fixed (worked around in the plans): `_play_pray` re-lights the
   old protection; `st.death_serial` starts at 0. See DRIVER_NOTES "Protection prayers" and
   "death_serial".
+
+## matthew-mbp-m4-raid-b1-seam31 (2026-10-06; the commit that carries this heading, OSRS-Content fb292a9996 unchanged): the library's faults, Nylocas and Verzik to five names
+
+- play_library_faults; LANDED. `_play_pray` no longer sends an "off" for a prayer that shares
+  an exclusion group with one it lights (new verb `t.prayer.conflicts`, `QD.prayer.GROUPS`
+  from prayers.dbrow); `death_serial` is seeded past the boss slot's earlier deaths; the play
+  ends only on the boss's npc_death row (or a plan's `room_cleared`), never on a retype;
+  `QD.raid._play_press` answers ok / pressed / unconfirmed / refused with a reason. The
+  seam30 workarounds in the Nylocas plan are gone. Rows: prayer.conflicts,
+  seam.raid_play_pray_exclusion, seam.raid_play_stop_and_press (PASS). Open: the room plans
+  still press through `t.player.attack`/`cast` directly (raw `timeout` answers); `covered`
+  is not fixed at the pointer level; `_play_supplies` still counts a brew's overheal.
+- play_tob_nylocas_green; LANDED. `seed_survey.py _play_nylocas` 5 of 5 (the fixer: 10 of
+  10 wide). The plan's own supply guards, the Bloat chest's bandages, the Entry page's
+  Entry set, Ice Burst on her magic form, and her row fought whatever her bar reads. Own
+  name 706 ticks, 177 taken (ny30i 707/427; kept room 945/650). Row:
+  seam.raid_play_nylocas_supplies (PASS). Open: 2-3 support collapses a run (npc -1 is the
+  largest damage source), the brew-overheal engine row (CONTENT_BUGS seam31).
+- play_tob_verzik_green; LANDED. `seed_survey.py _play_verzik` 5 of 5. The reds summon
+  predicted by counting her attacks and a bow repeat cut by a step (absorb heals 0 on
+  every name), reds shot only during the summon animation, the yellow pool's 14-tick life,
+  the tornado dead-reckoned (the client row stays on its spawn tile) and a run with a
+  carry term. No conformance row (no verb changed). Open: the client's tornado row
+  (CONTENT_BUGS seam31); the reds-attacks-between count (spec row); the carry weight and
+  wall cap come from an offline chase model, not a source; Normal and Hard unproved.
+- vasilias_entry_prayed_max; NOT LANDED (unsourced, nothing changed). No Entry source states
+  her prayed max; the 17 is Normal's (Strategies :752). CONTENT_BUGS seam31 row with the
+  sources searched and two candidate derivations for an owner ruling.
+- Closer: conformance 376/376 PASS after raising `tools/quest_gate/conformance.py`
+  MAX_FRAMES 160000 -> 200000 (the run hit the cap at tick 5325 and cut the last seven
+  rows; with the raise it ends at tick 5350). Six kept Entry rooms byte-identical;
+  `_play_smoke`, `_play_maiden`, `_play_sotetseg`, `_play_xarpus`, `_play_nylocas`,
+  `_play_verzik` 5 of 5 each; `_party_smoke` party_repeat 3 runs agree. Honest state: all
+  six Entry rooms are green on five names through the library; nothing in Normal is green.

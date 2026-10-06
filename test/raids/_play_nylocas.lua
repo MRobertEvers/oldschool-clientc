@@ -20,6 +20,20 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
+        -- the Entry page's recommended Entry-mode equipment, worn (no backpack
+        -- slot): "Void melee helm, Amulet of glory, Elite void top, Elite void
+        -- robe, Void knight gloves, Dragon boots, Berserker ring (i)" (Entry page
+        -- :78-91 {{Recommended equipment|style = Entry mode}}; its dragon
+        -- defender is left out: the shortbow is two-handed, and its imbued god
+        -- cape needs the Mage Arena).  The kept test wore nothing.  Given and worn
+        -- first, while the backpack has room.
+        "::give game_pest_melee_helm 1", "::wield game_pest_melee_helm",
+        "::give amulet_of_glory 1", "::wield amulet_of_glory",
+        "::give elite_void_knight_top 1", "::wield elite_void_knight_top",
+        "::give elite_void_knight_robes 1", "::wield elite_void_knight_robes",
+        "::give pest_void_knight_gloves 1", "::wield pest_void_knight_gloves",
+        "::give dragon_boots 1", "::wield dragon_boots",
+        "::give nzone_berzerker_ring 1", "::wield nzone_berzerker_ring",
         "::give abyssal_whip 1",
         "::give magic_shortbow 1",
         "::give rune_arrow 800",
@@ -28,11 +42,21 @@ return {
         "::give water_rune 2000",
         "::give chaos_rune 1000",
         "::give death_rune 1000",
-        -- the library's supplies (raid_play.lua QD.RAID_PLAY_FOOD / BREWS /
-        -- RESTORES: the Theatre's own brew and restore): 28 slots with the above
+        -- the library's supplies (raid_play.lua QD.RAID_PLAY_BREWS / RESTORES:
+        -- the Theatre's own brew and restore): 28 slots with the above
         "::give br_4dosepotionofsaradomin 10",
-        "::give shark 6",
-        "::give br_4dose2restore 5",
+        "::give br_4dose2restore 4",
+        -- (raid seam31 play_tob_nylocas_green) the Bloat chest's bandages in
+        -- place of the sharks: "After defeating the Pestilent Bloat, players
+        -- will have access to the first supply chest. During Entry Mode this
+        -- will always contain 10 bandages" and "Due to these bandages boosting
+        -- the player's stats, combat potions and ranging potions are not
+        -- necessary except for the first two bosses" (Entry page, sources/
+        -- wiki_Theatre_of_Blood_Entry_Mode.wikitext :151, :33); the chest hands
+        -- over as many as the backpack holds (tob_chest.rs2 tob_chest_bandages).
+        -- Heals 20 like the shark it replaces, and boosts (tob_spectate.rs2
+        -- [opheld1,tob_bandages]); the plan eats them (_play_nylocas_supplies).
+        "::give tob_bandages 7",
     },
     run = function(t)
         t.check("spec.scope", true, "mode=entry party=1")
@@ -148,7 +172,11 @@ return {
             end
         end
         local eaten, brews, lowest = 0, 0, 99
-        for _, e in ipairs(rec.eats) do eaten = eaten + 1 end
+        local bandages = 0
+        for _, e in ipairs(rec.eats) do
+            eaten = eaten + 1
+            if e.item == "tob_bandages" then bandages = bandages + 1 end
+        end
         for _, d in ipairs(rec.drinks) do
             if string.find(d.item, "saradomin", 1, true) ~= nil then brews = brews + 1 end
         end
@@ -247,7 +275,7 @@ return {
         local kinds = {}
         for k, d in pairs(by_kind) do kinds[#kinds + 1] = k .. ":" .. d end
         table.sort(kinds)
-        t.check("note.damage", true, "taken " .. taken .. " (by npc type " .. table.concat(kinds, " ") .. "), sharks " .. eaten .. ", brew doses " .. brews
+        t.check("note.damage", true, "taken " .. taken .. " (by npc type " .. table.concat(kinds, " ") .. "), food eaten " .. eaten .. " (bandages " .. bandages .. ", the interlude one at tick " .. tostring(ny.boosted) .. "), brew doses " .. brews
             .. ", lowest " .. lowest .. ", room " .. tostring(boss.death and (boss.death - tick0) or "none") .. " ticks from the mark to her death")
         end)()
     end,

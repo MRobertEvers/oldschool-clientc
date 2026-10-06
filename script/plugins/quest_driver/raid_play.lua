@@ -207,6 +207,8 @@ function QD.raid._play_see(st)
         if lit_now then on[#on + 1] = name end
     end
     st.prayer_at[now] = v.lit
+    -- raid seam31: a pressed press answers on the tick its effect shows
+    QD.raid._play_press_confirm(st, v)
     return v
 end
 
@@ -253,15 +255,42 @@ end
 -- NEXT tick (a prayer pressed between ticks T-1 and T is in force for T:
 -- DRIVER_NOTES "Several inputs in one tick", varbit read back +0).  Returns
 -- the switches to send: { {name, on}, ... }.
+--
+-- raid seam31 play_library_faults, FAULT 1: a press is a TOGGLE and the
+-- server puts out every prayer that shares an exclusion group with the one
+-- it lights (prayer.rs2:309-318 ~prayer_deactivate_conflicting, before the
+-- new one is set; QD.prayer.GROUPS).  So an "off" for a prayer that
+-- conflicts with one this tick lights is never sent: the server already put
+-- it out, and the press would light it again and put the new one out (raid
+-- seam30 ny30d: "on magic" + "off missiles" held Protect from Missiles
+-- t67-362 while Magic was asked seven times).
 function QD.raid._play_pray(st, v, want, all)
     local out = {}
     if v.prayer <= 0 then
         return out
     end
+    local lighting = {}
+    for _, name in ipairs(all) do
+        if want[name] == true and v.lit[name] ~= true then
+            lighting[#lighting + 1] = name
+        end
+    end
     for _, name in ipairs(all) do
         local on = want[name] == true
         if (v.lit[name] == true) ~= on then
-            out[#out + 1] = { name, on }
+            local put_out_by = nil
+            if not on then
+                for _, lit_name in ipairs(lighting) do
+                    if put_out_by == nil and QD.prayer.conflicts(lit_name, name) then
+                        put_out_by = lit_name
+                    end
+                end
+            end
+            if put_out_by == nil then
+                out[#out + 1] = { name, on }
+            else
+                st.pray_skips = (st.pray_skips or 0) + 1
+            end
         end
     end
     return out
@@ -506,18 +535,194 @@ function QD.raid._play_send(st, v, intent)
         end
     end
     if intent.attack then
-        local ar = QD.player.attack(st.boss_symbol, 2, 1, { quick = true })
+        -- raid seam31: through the library's press (true answers): an Attack
+        -- row that landed is engaged whether or not its hit showed inside the
+        -- one-tick settle ("pressed"), so it is not pressed again next tick.
+        local ar, why = QD.raid._play_press(st, v, { symbol = st.boss_symbol, op = 2 })
         n = n + 1
         st.attack_presses = (st.attack_presses or 0) + 1
-        if ar == "ok" then
+        if ar == "ok" or ar == "pressed" then
             st.engaged = true
             st.engaged_tick = v.tick
             st.walk_target = nil
         elseif #st.lines < 6 then
-            st.lines[#st.lines + 1] = "t" .. v.tick .. " attack " .. tostring(ar)
+            st.lines[#st.lines + 1] = "t" .. v.tick .. " attack " .. tostring(ar) .. ": " .. tostring(why)
         end
     end
     st.inputs[v.tick] = (st.inputs[v.tick] or 0) + n
+end
+
+-- ==========================================================================
+-- raid seam31 play_library_faults, (3): THE PRESS AND ITS TRUE ANSWER.
+--
+--   QD.raid._play_press(st, v, spec) -> answer, reason, raw_result, raw_detail
+--   spec = { symbol = <npc symbol>, slot = <client slot or nil>, op = 2,
+--            spell = <spell symbol or nil> }
+--
+-- One quick press (t.player.attack / t.player.cast with `quick = true` and a
+-- one-tick settle: combat.lua QD._combat_press_quick, spell.lua
+-- QD.player._cast_press, pointer.lua QD.drive._press_quick).  What those
+-- verbs answer, read (seam30 Nylocas: presses "timeout" 125-159 a run and
+-- still landing, "refused" up to 38):
+--   * `timeout` is "the row WAS pressed and no hit showed inside the ONE tick
+--     the settle waits" (combat.lua t.player.attack banner: "A `timeout` is
+--     NOT the click failed").  A bow or a spell cannot hit inside one tick
+--     (the projectile's flight), so for a ranged or magic press it is the
+--     ordinary answer to a press that landed.  Here it is `pressed`, and the
+--     press is WATCHED: it answers `ok` on the tick its effect shows (a new
+--     hitsplat on the copy pressed, or the copy leaving the pool), or
+--     `unconfirmed` when nothing showed in QD.RAID_PLAY_PRESS_CONFIRM ticks.
+--   * `refused` carries a one-line reason, the first thing that said no:
+--     the server's own sentence ("server: That target is already frozen."),
+--     the row pressed when it was not the Attack row, or "the spell was not
+--     armed when the menu opened" (pointer.lua _select_row_is_held).  It is
+--     counted by reason (st.press_reasons) and never re-pressed here: the
+--     plan decides what to press next.
+--   * everything else (`covered`, `not_visible`, `no_row`, `no_runes`) is
+--     the verb's own word and its first clause.
+-- st.press_answers counts the FINAL answers (ok / unconfirmed / refused / ...),
+-- st.press_log keeps the first 40 presses (tick, answer, effect tick).
+-- ==========================================================================
+-- Ticks a pressed press may take to show its effect: the slowest weapon the
+-- plans carry is 5 ticks (the scythe; wiki Attack speed) and the longest
+-- flight in a room is 4-5 ticks (ENCOUNTER_TIMING.md 1.2: f = cycles / 30),
+-- plus the press's own tick.
+QD.RAID_PLAY_PRESS_CONFIRM = 10
+
+-- (answer, reason) for one raw verb answer.  Pure: no reads.
+function QD.raid._play_press_answer(r, d)
+    local text = tostring(d)
+    if r == "ok" then
+        return "ok", nil
+    end
+    if r == "timeout" then
+        local row = string.match(text, "%[(.-)%]")
+        return "pressed", "row '" .. tostring(row) .. "' pressed; its hit had not shown inside the one-tick settle"
+    end
+    if r == "refused" then
+        local who, said = string.match(text, "the SERVER refused the (%a+): '([^']*)'")
+        if said ~= nil then
+            return "refused", "server refused the " .. who .. ": " .. said
+        end
+        local other = string.match(text, "pressed '([^']*)', which is not an Attack row")
+        if other ~= nil then
+            return "refused", "pressed a row that is not Attack: " .. other
+        end
+        local ordinary = string.match(text, "pressed '([^']*)', an ordinary op row and not the held%-item row")
+        if ordinary ~= nil then
+            return "refused", "the spell was not armed when the menu opened (pressed " .. ordinary .. ")"
+        end
+        return "refused", string.sub(text, 1, 140)
+    end
+    local first = string.match(text, "^(.-) %-%- ") or text
+    return tostring(r), string.sub(first, 1, 140)
+end
+
+function QD.raid._play_press(st, v, spec)
+    assert(type(spec) == "table", "raid._play_press: spec must be a table")
+    assert(type(spec.symbol) == "string", "raid._play_press: spec.symbol must be an npc symbol")
+    local opts = { quick = true }
+    if spec.slot ~= nil then
+        opts.slot = spec.slot
+    end
+    local r, d
+    if spec.spell ~= nil then
+        r, d = QD.player.cast(spec.spell, spec.symbol, 1, spec.op or 2, opts)
+    else
+        r, d = QD.player.attack(spec.symbol, spec.op or 2, 1, opts)
+    end
+    local answer, reason = QD.raid._play_press_answer(r, d)
+    st.press_answers = st.press_answers or {}
+    st.press_reasons = st.press_reasons or {}
+    st.press_log = st.press_log or {}
+    st.press_pending = st.press_pending or {}
+    local entry = { tick = v.tick, answer = answer, spell = spec.spell }
+    if answer == "pressed" then
+        local slot = spec.slot or tonumber(string.match(tostring(d), "watching slot (%-?%d+)"))
+        local hit = nil
+        if slot ~= nil then
+            local rr, row = QD._combat_row_by_slot(slot)
+            if rr == "ok" and row ~= nil then
+                hit = row.hit_cycle
+            end
+        end
+        entry.slot = slot
+        entry.hit_cycle = hit
+        st.press_pending[#st.press_pending + 1] = entry
+    else
+        st.press_answers[answer] = (st.press_answers[answer] or 0) + 1
+        if answer ~= "ok" and reason ~= nil then
+            local key = answer .. ": " .. reason
+            st.press_reasons[key] = (st.press_reasons[key] or 0) + 1
+        end
+        entry.effect = (answer == "ok") and v.tick or nil
+    end
+    if #st.press_log < 40 then
+        st.press_log[#st.press_log + 1] = entry
+    end
+    return answer, reason, r, d
+end
+
+-- Called by the SEE step every tick: a pressed press answers `ok` on the tick
+-- its effect shows (a new hitsplat on the copy pressed, or the copy gone from
+-- the pool: what a person at the screen sees), `unconfirmed` after
+-- QD.RAID_PLAY_PRESS_CONFIRM ticks of nothing.
+function QD.raid._play_press_confirm(st, v)
+    if st.press_pending == nil or #st.press_pending == 0 then
+        return
+    end
+    local nr, rows = api_drive.npcs(0)
+    if nr ~= "ok" then
+        return
+    end
+    local by_slot = {}
+    for _, row in ipairs(rows) do
+        by_slot[row.slot] = row
+    end
+    local keep = {}
+    for _, p in ipairs(st.press_pending) do
+        local row = p.slot ~= nil and by_slot[p.slot] or nil
+        local done = nil
+        if p.slot ~= nil and row == nil then
+            done = "ok"
+            p.gone = true
+        elseif row ~= nil and p.hit_cycle ~= nil and row.hit_cycle > p.hit_cycle then
+            done = "ok"
+        elseif v.tick - p.tick >= QD.RAID_PLAY_PRESS_CONFIRM then
+            done = "unconfirmed"
+        end
+        if done ~= nil then
+            p.answer = done
+            if done == "ok" then p.effect = v.tick end
+            st.press_answers[done] = (st.press_answers[done] or 0) + 1
+            if done == "ok" then
+                st.press_lag = st.press_lag or {}
+                local lag = v.tick - p.tick
+                st.press_lag[lag] = (st.press_lag[lag] or 0) + 1
+            end
+        else
+            keep[#keep + 1] = p
+        end
+    end
+    st.press_pending = keep
+end
+
+-- One clause: the final answers, the effect lag histogram, the refusal reasons.
+function QD.raid._play_press_text(st)
+    local a = {}
+    for k, c in pairs(st.press_answers or {}) do a[#a + 1] = k .. " " .. c end
+    table.sort(a)
+    local lag = {}
+    for k, c in pairs(st.press_lag or {}) do lag[#lag + 1] = { k, c } end
+    table.sort(lag, function(x, y) return x[1] < y[1] end)
+    local lt = {}
+    for _, e in ipairs(lag) do lt[#lt + 1] = "+" .. e[1] .. "x" .. e[2] end
+    local rs = {}
+    for k, c in pairs(st.press_reasons or {}) do rs[#rs + 1] = k .. " x" .. c end
+    table.sort(rs)
+    while #rs > 4 do table.remove(rs) end
+    return "[" .. table.concat(a, ", ") .. "] effect lag [" .. table.concat(lt, " ") .. "] pending "
+        .. tostring(#(st.press_pending or {})) .. (#rs > 0 and (" reasons {" .. table.concat(rs, " | ") .. "}") or "")
 end
 
 -- One turn of the loop: SEE, stop if the room is over, DECIDE, SEND, then
@@ -548,7 +753,21 @@ function QD.raid._play_tick(st)
         st.boss_gone = 0
         if st.log and st.boss_slot == nil then
             local sr, slot = QD.ticklog.slot(v.boss)
-            if sr == "ok" then st.boss_slot = slot end
+            if sr == "ok" then
+                st.boss_slot = slot
+                -- raid seam31 play_library_faults, FAULT 2: a server slot is
+                -- reused, so a death row already on it is an EARLIER npc's
+                -- (raid seam30 ny30h: Vasilias took slot 1079, where a wave
+                -- nylocas had died, and the play ended on her spawn tick
+                -- t644).  Only a death after the boss was first seen counts.
+                local dr, rows = QD.ticklog.rows({ kind = "npc_death", slot = slot, since = st.death_serial })
+                if dr == "ok" then
+                    for _, row in ipairs(rows) do
+                        st.death_serial = math.max(st.death_serial, row.serial)
+                    end
+                    st.death_serial_seeded = { tick = v.tick, serial = st.death_serial, earlier = #rows }
+                end
+            end
         end
     elseif st.boss_seen then
         st.boss_gone = st.boss_gone + 1
@@ -558,12 +777,39 @@ function QD.raid._play_tick(st)
         if dr == "ok" and #rows > 0 then
             st.death_tick = rows[1].tick
             st.end_tick = v.tick
+            st.stop = "npc_death of slot " .. st.boss_slot .. " on t" .. st.death_tick
             return "ok"
         end
     end
-    if st.boss_gone >= 3 then
+    -- The room's own cleared state, when the plan reads one a person sees
+    -- (the room's "complete!" line, the barrier dropping): optional.
+    if st.plan.room_cleared ~= nil and QD.raid[st.plan.room_cleared](st, v) then
         st.end_tick = v.tick
+        st.stop = "room cleared (" .. st.plan.room_cleared .. ") on t" .. v.tick
         return "ok"
+    end
+    -- raid seam31 play_library_faults, FAULT 4: "the boss is gone" is NOT
+    -- "the boss is dead".  A retype changes the symbol the SEE step looks up
+    -- (svdplaynyloc: Vasilias retyped t792 and kept attacking t795, t799; the
+    -- loop answered ok on t793 with no npc_death row and the room never
+    -- completed).  With the tick log and her slot known, only the death row
+    -- (or the plan's room_cleared) ends the play; a gone boss is recorded and
+    -- the plan plays on.  A member with no tick log, or a boss whose slot was
+    -- never resolved, still ends on 3 ticks gone, and the stop says so.
+    if st.boss_gone >= 3 then
+        if st.log and st.boss_slot ~= nil then
+            if st.boss_gone == 3 then
+                st.gone_without_death = (st.gone_without_death or 0) + 1
+                if #st.lines < 6 then
+                    st.lines[#st.lines + 1] = "t" .. v.tick .. " boss " .. tostring(st.boss_symbol)
+                        .. " gone 3 ticks with no npc_death on slot " .. st.boss_slot .. ": played on"
+                end
+            end
+        else
+            st.end_tick = v.tick
+            st.stop = "boss gone 3 ticks, no tick log or no slot (not proved dead)"
+            return "ok"
+        end
     end
     local intent = QD.raid[st.plan.decide](st, v)
     QD.raid._play_send(st, v, intent)
@@ -598,4 +844,26 @@ function QD.raid._play_summary(st)
         st.start_tick, tostring(st.end_tick), #st.downs, #st.swings, #st.eats, #st.drinks, st.dodges, flinch,
         ticks, hist[1], hist[2], hist[3], hist[4], st.attack_presses or 0, table.concat(blocks, ", "),
         #st.lines > 0 and table.concat(st.lines, " | ") or "no refusals")
+        .. QD.raid._play_summary_seam31(st)
+end
+
+-- raid seam31 play_library_faults: the stop's reason, the prayer offs the
+-- exclusion rule kept back, and the press answers (QD.raid._play_press).
+-- Appended so every line the summary printed before keeps its bytes.
+function QD.raid._play_summary_seam31(st)
+    local parts = {}
+    if st.stop ~= nil then parts[#parts + 1] = "stop: " .. st.stop end
+    if (st.pray_skips or 0) > 0 then
+        parts[#parts + 1] = "prayer offs kept back (the server put them out) " .. st.pray_skips
+    end
+    if (st.gone_without_death or 0) > 0 then
+        parts[#parts + 1] = "boss gone with no death row " .. st.gone_without_death .. " time(s)"
+    end
+    if st.press_answers ~= nil then
+        parts[#parts + 1] = "presses " .. QD.raid._play_press_text(st)
+    end
+    if #parts == 0 then
+        return ""
+    end
+    return "; " .. table.concat(parts, "; ")
 end

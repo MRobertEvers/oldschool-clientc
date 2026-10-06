@@ -1042,3 +1042,60 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   W:752's "17 if prayed against" is the Normal sentence. If Entry scales it down, this is
   the number that makes the red _play_nylocas names run out of supplies at Vasilias.
   Open: find an Entry source before filing it as a bug.
+
+## From seam31 vasilias_entry_prayed_max (matthew-mbp-m4-raid-b1-seam31, 2026-10-06)
+
+- ToB, Nylocas Entry: Vasilias' prayed max is UNSOURCED for Entry (settles the seam30 row
+  above: no Entry source exists here; nothing changed). Ours: `[proc,tob_vasilias_damage]`
+  (tob_nylocas_boss.rs2:383) returns `randominc(^tob_vasilias_prayed_max)` = 1..17
+  (tob.constant:1306, not tob_nylocas.constant) for a magic or ranged swing through the
+  matching protection in EVERY mode, while the off-prayer max is per mode, 24 / 70 / 105
+  (tob.constant:1303-1305). Sources searched, none states an Entry prayed figure:
+  the Vasilias infobox has per-version off-prayer max hits only ("|max hit1 = 24",
+  "|max hit2 = 70", "|max hit3 = 105", wiki_Nylocas_Vasilias.wikitext:23-25) and its
+  Entry section (:88-94) gives no number; the Entry Mode page's Vasilias section
+  (wiki_Theatre_of_Blood_Entry_Mode.wikitext:184) gives none; its one damage line is
+  generic, "the bosses have reduced stats and deal ~50% less damage than in normal mode"
+  (:20), and her own infobox contradicts a flat 50% (24 of 70 is 66% less), so it fixes no
+  number; the 17 is the Normal sentence, "can hit up to 70 off-prayer, and 17 if prayed
+  against (except melee, which is fully protected)" (wiki_Theatre_of_Blood_Strategies
+  .wikitext:752; 70 = max hit2); the 2021 New Modes post's Story Nylocas changes
+  (newsposts/wiki_Update_Theatre_of_Blood_New_Modes.wikitext:32-37) name none; the cache
+  record nylocas_boss_magic_story (cache_npc_nylocas.txt:754) carries no max-hit param;
+  the one Entry blert stream (b093b327, scale 4, 429 events, build/spec_state/
+  matthew-mbp-m4-raid-b1-spec-tob/blert_nylo_raw) has player rows with prayerSet and
+  equipment only, no hitpoints or hitsplats, so it cannot measure one. Hard's 17 is the
+  same open question (row "applied in Entry ... and Hard" above). Measured (ny31_final
+  survey, the 5-of-5 green tree, raid_report): Vasilias took 42 of 177 (_play_nylocas),
+  42 of 136 (sva), 85 of 202 (svb), 28 of 282 from her magic form (svc), 42 of 164 (svd);
+  largest 17 magic, 12 ranged. It no longer reds the room. To settle: an Entry
+  hitsplat recording (a player's own damage-taken log in Entry), or an owner ruling on a
+  derived figure (17 x 24/70 = 6, or 17 halved = 8 by E:20), filed as grade E
+  `nylocas.vasilias_prayed_max_entry`. Found by the seam30 Nylocas fixer; checked by the
+  seam31 vasilias_entry_prayed_max fixer.
+
+## From seam31's room seams (matthew-mbp-m4-raid-b1-seam31, 2026-10-06; filed by the closer)
+
+- ENGINE: a Saradomin brew's overheal does not hold. svaplaynyloc t532-538 (Nylocas
+  survey, 2026-10-06): the consume row reads hitpoints 99 -> 115, and the raider row reads
+  99 on the same tick and every tick after, with no hit landing; 30 doses went that way in
+  one run. The wiki's Saradomin brew heals over the base (to base + 16) and the boost
+  decays one point a minute. This looks like the stat snap-back RAID_ORCHESTRATOR.md
+  section 4 already names (torirs_server_combat.c), here on a BOOSTED stat. The bandage's
+  own boost (tob_spectate.rs2 [opheld1,tob_bandages], stat_boost on the combat stats) is
+  probably cancelled the same way; not measured. The Nylocas plan caps a brew at the base
+  (raid_play_tob_nylocas.lua _play_nylocas_supplies); the library's _play_supplies still
+  counts the overheal. Found by the seam31 play_tob_nylocas_green fixer.
+- CLIENT: the client's npc row for the Verzik tornado (10846) never follows its walk.
+  api_drive.npcs x,z (WorldEntity grid_position; DriveUi_Npcs, torirs_plugin_drive_ui.c
+  ~582) stays on the spawn tile for its whole life (vz31d: 6431,91 for nine ticks) while
+  the server's npc_tile rows walk it one tile a tick (tob_verzik.rs2
+  ~tob_verzik_tornado_tick, npc_walk). Other walkers (crabs, Matomenos) are read moving.
+  Not investigated. The Verzik plan dead-reckons the tornado from its spawn tile and
+  believes the row whenever it moves. Visual check for later: does the tornado's model
+  move on screen? Found by the seam31 play_tob_verzik_green fixer.
+- SPEC: our server summons the Matomenos in Verzik P2's 7th attack slot after six
+  attacks (a 36-tick cycle in every survey log), while `verzik.reds_attacks_between`
+  reads "P2 attacks between Matomenos summons 7" (Blert, grade B). Either Blert counts the
+  summon as one of the seven, or the content is one attack short. A row for the next spec
+  pass; the plan holds for both readings. Found by the seam31 play_tob_verzik_green fixer.

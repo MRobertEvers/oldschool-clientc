@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 193
+-- @verb-count 194
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 179
+-- @seam-count 182
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 193
-local SEAM_COUNT = 179
+local VERB_COUNT = 194
+local SEAM_COUNT = 182
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -11792,6 +11792,228 @@ return {
             end
             if #bad > 0 then return "fail", "QD.raid._verzik_dist: " .. table.concat(bad, "; ") end
             return "ok", "QD.raid._verzik_dist: 9 tiles against her P2 3x3 at 6431,89 and a 1x1 row (under 0, adjacent 1, two out 2) all as the slam, melee, pillar-fall and blast rules read them"
+        end)
+
+        -- raid seam31 play_library_faults (merged by the seam31 closer): one verb
+        -- (t.prayer.conflicts, prayer.lua: VERB_COUNT 193 -> 194) and two seam rows
+        -- (the prayer exclusion rule of QD.raid._play_pray; the boss stop and the
+        -- true-answer press on Lumbridge goblins).  Proved as scratches in
+        -- build/quest_gate/s31lib_b and s31conf_b.  SEAM_COUNT +2.
+        -- t.prayer.conflicts(a, b): lighting `a` puts `b` out on the server
+        -- (they share a prayers.dbrow exclusion group; QD.prayer.GROUPS).
+        step("prayer.conflicts", function()
+            local fn = verb("prayer", "conflicts")
+            if not fn then return missing("prayer", "conflicts") end
+            local cases = {
+                { "protectfrommagic", "protectfrommissiles", true }, { "protectfrommelee", "smite", true },
+                { "piety", "rigour", true }, { "eagleeye", "mysticmight", true }, { "thickskin", "steelskin", true },
+                { "piety", "protectfrommelee", false }, { "protectitem", "piety", false },
+                { "rapidheal", "rapidrestore", false }, { "protectfrommagic", "protectfrommagic", false },
+                { "clarityofthought", "burstofstrength", false },
+            }
+            local bad = {}
+            for _, c in ipairs(cases) do
+                if fn(c[1], c[2]) ~= c[3] then bad[#bad + 1] = c[1] .. "/" .. c[2] .. " want " .. tostring(c[3]) end
+            end
+            if #bad > 0 then return "fail", "prayer.conflicts: " .. table.concat(bad, "; ") end
+            return "ok", "prayer.conflicts: 10 pairs as prayers.dbrow's groups say (overheads exclude each other, "
+                .. "piety/rigour share every lane, protect item and the restores conflict with nothing)"
+        end)
+
+        -- raid seam31 FAULT 1: QD.raid._play_pray never sends an "off" for a
+        -- prayer the one it lights shares a group with (a press is a toggle;
+        -- the server already put it out: prayer.rs2:309-318).  Pure, no press.
+        seam("seam.raid_play_pray_exclusion", function()
+            local pray = verb("raid", "_play_pray")
+            if not pray then return missing("raid", "_play_pray") end
+            local PR = { "protectfrommagic", "protectfrommissiles", "protectfrommelee", "rigour" }
+            local st = {}
+            local function sends(lit, want)
+                local out = pray(st, { prayer = 50, lit = lit }, want, PR)
+                local parts = {}
+                for _, s in ipairs(out) do parts[#parts + 1] = s[1] .. "=" .. tostring(s[2]) end
+                return table.concat(parts, ",")
+            end
+            local a = sends({ protectfrommissiles = true }, { protectfrommagic = true })
+            local b = sends({ protectfrommissiles = true, rigour = true }, { protectfrommelee = true })
+            local c = sends({ protectfrommissiles = true }, {})
+            local d = sends({ protectfrommagic = true }, { protectfrommagic = true, rigour = true })
+            if a ~= "protectfrommagic=true" or b ~= "protectfrommelee=true,rigour=false" or c ~= "protectfrommissiles=false"
+                or d ~= "rigour=true" then
+                return "fail", "switches: missiles->magic [" .. a .. "], missiles+rigour->melee [" .. b .. "], missiles->none ["
+                    .. c .. "], magic->magic+rigour [" .. d .. "]"
+            end
+            return "ok", "missiles->magic sends only magic on (the off kept back " .. tostring(st.pray_skips)
+                .. "x); rigour off still sent beside melee on (no shared group); an off with nothing lit is sent"
+        end)
+
+        -- raid seam31 FAULTS 2 and 4, and (3) the press answers, on goblins.
+        --   2: a goblin dies in world slot S, another spawns into S; a play
+        --      whose boss is the second must NOT stop on its first tick (the
+        --      earlier death row is seeded past: st.death_serial_seeded).
+        --   4: the boss lookup failing for 4 ticks (what a retype does to the
+        --      SEE step) with the log and the slot known plays on
+        --      (gone_without_death 1); its real death (::kill) ends it `ok`.
+        --   3: a Wind Strike through QD.raid._play_press answers `pressed` or
+        --      `ok`, and every pressed one answers `ok` on the tick its hit
+        --      shows; the canned refusals read as one-line reasons.
+        seam("seam.raid_play_stop_and_press", function()
+            local state_fn = verb("raid", "_play_state")
+            local tick_fn = verb("raid", "_play_tick")
+            local see_fn = verb("raid", "_play_see")
+            local press_fn = verb("raid", "_play_press")
+            local answer_fn = verb("raid", "_play_press_answer")
+            local goto_tile = verb("player", "goto_tile")
+            if not state_fn then return missing("raid", "_play_state") end
+            if not tick_fn then return missing("raid", "_play_tick") end
+            if not see_fn then return missing("raid", "_play_see") end
+            if not press_fn then return missing("raid", "_play_press") end
+            if not answer_fn then return missing("raid", "_play_press_answer") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            -- the canned answers first (pure)
+            local canned = {
+                { "timeout", "attack x op2 [Attack @yel@Goblin] in 1 press(es)", "pressed" },
+                { "refused", "cast bind [Cast Bind] -- the SERVER refused the cast: 'That target is already frozen.' (x)",
+                    "refused", "server refused the cast: That target is already frozen." },
+                { "refused", "attack x op2: pressed 'Talk-to Goblin', which is not an Attack row -- y", "refused",
+                    "pressed a row that is not Attack: Talk-to Goblin" },
+                { "covered", "attack x op2: element 5 at 1,2: pickset held=true -- fast path: z", "covered" },
+            }
+            for _, c in ipairs(canned) do
+                local a, why = answer_fn(c[1], c[2])
+                if a ~= c[3] or (c[4] ~= nil and why ~= c[4]) then
+                    return "fail", "_play_press_answer(" .. c[1] .. ") -> " .. describe(a) .. " / " .. describe(why)
+                end
+            end
+            local G = "goblin_unarmed_melee_1"
+            t.ticklog.start()
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::give airrune 50")
+            setup_cheat("::give mindrune 50")
+            local function teardown()
+                setup_cheat("::kill " .. G .. " 12")
+                settle(2)
+            end
+            t.raid._s31_conf_decide = function(st, v) return { want = {}, attack = false } end
+            local function new_st()
+                local plan = { room = "probe", boss = { entry = G }, modes = { entry = {} },
+                    walk_prayers = {}, down_prayers = {}, decide = "_s31_conf_decide" }
+                return state_fn(plan, "_s31_conf", "entry", plan.modes.entry, { speed = 4, seqs = {} }, {})
+            end
+            if goto_tile(3229, 3233, 0) ~= "ok" then return "no_subject", "goto the goblin field" end
+            -- a goblin whose world slot already carries an npc_death row: spawn
+            -- one, kill, spawn again (the server hands a freed slot back), at
+            -- most three rounds; the precondition is read, never assumed
+            local s2, earlier, tried = nil, 0, {}
+            for _ = 1, 3 do
+                setup_cheat("::spawn " .. G)
+                settle(3)
+                setup_cheat("::kill " .. G .. " 12")
+                settle(8)
+                setup_cheat("::spawn " .. G)
+                setup_cheat("::passive " .. G)
+                settle(3)
+                local r2, row2 = t.npc.nearest(G, 6)
+                if r2 == "ok" then
+                    local _, slot = t.ticklog.slot(row2)
+                    local dr, rows = t.ticklog.rows({ kind = "npc_death", slot = slot or -1, since = 0 })
+                    tried[#tried + 1] = describe(slot) .. ":" .. (dr == "ok" and #rows or -1)
+                    if dr == "ok" and #rows >= 1 then
+                        s2, earlier = slot, #rows
+                        break
+                    end
+                end
+            end
+            if s2 == nil then
+                teardown()
+                return "no_subject", "no goblin spawned into a slot with an earlier death row (slot:deaths " .. table.concat(tried, " ") .. ")"
+            end
+            local st = new_st()
+            local first = tick_fn(st)
+            if first ~= nil or st.death_serial_seeded == nil or st.death_serial_seeded.earlier < 1 then
+                teardown()
+                return "fail", "FAULT 2: the play's first tick on a reused slot answered " .. describe(first) .. "; seeded "
+                    .. describe(st.death_serial_seeded)
+            end
+            local real = st.boss_symbol
+            st.boss_symbol = "goblin_unarmed_melee_2"
+            local outs = {}
+            for _ = 1, 4 do outs[#outs + 1] = describe(tick_fn(st)) end
+            st.boss_symbol = real
+            if table.concat(outs, ",") ~= "nil,nil,nil,nil" or st.gone_without_death ~= 1 then
+                teardown()
+                return "fail", "FAULT 4: 4 ticks of a failing boss lookup answered " .. table.concat(outs, ",")
+                    .. "; gone_without_death " .. describe(st.gone_without_death)
+            end
+            -- (3) the press, live
+            local st3 = new_st()
+            local firsts = {}
+            for _ = 1, 3 do
+                local v = see_fn(st3)
+                local a = press_fn(st3, v, { symbol = G, op = 2, spell = "wind_strike" })
+                firsts[#firsts + 1] = a
+                for _ = 1, 6 do settle(1) see_fn(st3) end
+            end
+            for _ = 1, 10 do settle(1) see_fn(st3) end
+            local ok3 = (st3.press_answers and st3.press_answers.ok) or 0
+            if ok3 < 2 or #(st3.press_pending or {}) > 0 then
+                teardown()
+                return "fail", "press: wind strike first answers " .. table.concat(firsts, ",") .. "; final "
+                    .. t.raid._play_press_text(st3)
+            end
+            setup_cheat("::kill " .. G .. " 12")
+            local final = nil
+            for _ = 1, 12 do
+                final = tick_fn(st)
+                if final ~= nil then break end
+            end
+            teardown()
+            if final ~= "ok" or st.death_tick == nil then
+                return "fail", "FAULT 4: the boss's real death answered " .. describe(final) .. " (" .. describe(st.stop) .. ")"
+            end
+            return "ok", "reused world slot " .. s2 .. " (" .. st.death_serial_seeded.earlier .. " earlier death row) did not stop the play; "
+                .. "4 ticks of a failing lookup played on; its death stopped it (" .. tostring(st.stop) .. "); wind strike "
+                .. table.concat(firsts, ",") .. " -> " .. t.raid._play_press_text(st3)
+        end)
+
+        -- raid seam31 play_tob_nylocas_green (merged by the seam31 closer): the
+        -- Nylocas plan's supply guards.  No npc.  SEAM_COUNT +1.
+        seam("seam.raid_play_nylocas_supplies", function()
+            local sup = verb("raid", "_play_nylocas_supplies")
+            if not sup then return missing("raid", "_play_nylocas_supplies") end
+            setup_cheat("::give shark 1")
+            setup_cheat("::give br_4dosepotionofsaradomin 1")
+            setup_cheat("::give tob_bandages 1")
+            settle(3)
+            local food = { { item = "shark", heal = 20 }, { item = "tob_bandages", heal = 20 } }
+            local function run(hp, need, interlude)
+                local st = { plan = { food_waves = food, food_boss = food }, ny = {}, engaged = false,
+                    last_eat = -1000, last_drink = -1000, last_swing = -1000, weapon = { speed = 4 }, swings = {} }
+                local v = { tick = 100, hp = hp, hp_base = 99, prayer = 99, prayer_base = 99, vas = nil }
+                local eat, drink = sup(st, v, function() return need end, interlude)
+                return tostring(eat) .. "/" .. tostring(drink), st
+            end
+            local cases = {
+                -- hp, threat, interlude, want (eat/drink)
+                { 99, 200, false, "nil/nil" },                          -- sva t583: nothing lands at the base
+                { 92, 200, false, "nil/nil" },                          -- 7 of 20 and 7 of 16: under half
+                { 88, 200, false, "shark/nil" },                        -- 11 of 20 lands; a brew first would leave the shark 0
+                { 85, 200, false, "shark/nil" },
+                { 50, 200, false, "shark/br_4dosepotionofsaradomin" },  -- brew 16 then shark 20: both land
+                { 50, 30, false, "nil/nil" },                           -- over the threat: nothing
+            }
+            local bad = {}
+            for _, c in ipairs(cases) do
+                local got = run(c[1], c[2], c[3])
+                if got ~= c[4] then bad[#bad + 1] = "hp " .. c[1] .. " need " .. c[2] .. " gave " .. got .. " want " .. c[4] end
+            end
+            local boost, st = run(99, 30, true)
+            if boost ~= "tob_bandages/nil" or st.ny.boosted ~= 100 then
+                bad[#bad + 1] = "interlude at 99 gave " .. boost .. " boosted " .. tostring(st.ny.boosted) .. " want tob_bandages/nil at 100"
+            end
+            if #bad > 0 then return "fail", "QD.raid._play_nylocas_supplies: " .. table.concat(bad, "; ") end
+            return "ok", "QD.raid._play_nylocas_supplies: 7 of 7 (nothing at 99 or 92 under a threat of 200; the shark alone at 88 and 85; brew and shark at 50; "
+                .. "nothing over the threat; the interlude bandage once at 99)"
         end)
 
         -- seam17 party_run_and_verbs: conformance rows for t.party.* (script/plugins/

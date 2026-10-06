@@ -5832,3 +5832,107 @@ minute. Iterate from `raid_report.py --mistakes`, not from replays. Note: `raid_
 counts every Xarpus poison hit and every Sotetseg melee through Protect from Melee as a
 `prayer` mistake. In both rooms that is the content's rule (protection has no effect at
 Xarpus, E:201; Sotetseg's prayed melee max is 10), not a play error.
+
+## Lighting a prayer puts out its group: never send the "off" (seam31)
+
+A prayer press is a toggle. When the server lights prayer X it first puts out every prayer
+that shares an exclusion group with X (`prayers.dbrow` `data=group` lines;
+`~prayer_deactivate_conflicting`, prayer.rs2:309-318). So an "off" for such a prayer, sent in
+the same block, lights it again and puts X out (seam30 ny30d: Protect from Missiles held
+t67-362 while Magic was asked seven times). `QD.raid._play_pray` keeps those offs back for you
+(`st.pray_skips` counts them; the summary says "prayer offs kept back N").
+`t.prayer.conflicts(a, b)` answers the question, and `QD.prayer.GROUPS` is the table. The
+three protections, retribution, redemption and smite share `overhead`; piety, chivalry,
+rigour and augury share every combat lane; protect item and the two restores conflict with
+nothing.
+
+## The play ends on the boss's death row, not on "boss gone" (seam31)
+
+`t.raid.play` answers `ok` only on an `npc_death` row for the boss's world slot that came
+after the boss was first seen, or on the plan's optional `room_cleared` hook
+(`plan.room_cleared = "<QD.raid function name>"`, called as `f(st, v) -> boolean`). A server
+slot is reused, so `st.death_serial` is seeded past that slot's earlier deaths when the slot
+first resolves (seam30 ny30h: Vasilias took a wave nylocas' slot and the play ended on her
+spawn tick). With the tick log on, a boss the SEE step cannot find (a retype changes its
+symbol) is counted as "boss gone with no death row" and the play goes on. Only a member with
+no tick log still stops after 3 ticks gone, and its stop says "not proved dead". The record
+carries `st.stop`.
+
+## A boss's health bar is no death sign (seam31)
+
+Vasilias at 4 of 360 hitpoints reads ratio 0 of 30. A plan that took ratio 0 as dead
+dropped a live boss and died to her (svhplaynyloc t861-1237). Fight a row while it is there,
+and end on the `npc_death` row (the library does).
+
+## The true-answer press: QD.raid._play_press (seam31)
+
+`QD.raid._play_press(st, v, {symbol=, slot=, op=2, spell=})` is the library's quick press.
+It answers:
+
+- `ok`: the hit showed inside the settle.
+- `pressed`: the row landed. The SEE step turns it into `ok` on the tick a new hitsplat shows
+  on that copy (or the copy leaves the pool), or into `unconfirmed` after
+  `QD.RAID_PLAY_PRESS_CONFIRM` (10) ticks.
+- `refused` with a one-line reason: the server's own sentence ("server refused the cast:
+  That target is already frozen."), a pressed row that was not Attack, or "the spell was not
+  armed when the menu opened".
+- the verb's own `covered`, `not_visible`, `no_row` or `no_runes`, with its first clause.
+
+A raw quick-press `timeout` from `t.player.attack` or `t.player.cast` with a one-tick settle
+means "pressed, no hit inside one tick", never "missed". Measured effect lag on goblins: Wind
+Strike +2..+6, bow +3. The summary clause reads
+`presses [ok N, unconfirmed M] effect lag [+3xK ...] pending P reasons {...}`. The room
+plans (Nylocas, Verzik, the Maiden adds) still call `t.player.attack` and `t.player.cast`
+directly, so their own histograms still say `timeout`. `covered` presses are not fixed at
+the pointer level.
+
+## A Saradomin brew's overheal does not hold on this server (seam31)
+
+The consume row reads 99 -> 115 and the raider row reads 99 again the same tick
+(svaplaynyloc t532-538; CONTENT_BUGS seam31). A plan whose threat stays at or above the base
+otherwise drinks every 3 ticks for nothing. The library's `_play_send` also sends the drink
+before the eat, so in a combo the food lands after the brew: judge the food on hp + brew,
+never on hp. The Nylocas plan's `_play_nylocas_supplies` does both. The library's
+`_play_supplies`, which the other rooms use, still counts the overheal.
+
+## The client's npc row can lag the server's walk (seam31)
+
+For Verzik's tornado (10846), `api_drive.npcs` gives the spawn tile on every tick while the
+server's `npc_tile` rows move it one tile a tick (CONTENT_BUGS seam31). Before trusting a
+row's x,z for something that chases, compare it once against the tick log's `npc_tile` rows
+(`raid_report.py --timeline`). A plan that cannot see the walk dead-reckons from the
+content's own walk rule, and still believes the row whenever the row moves.
+
+## A map spotanim is listed after it has played (seam31)
+
+The yellow pool graphic 1595 stayed in `QD.world.spotanims` 51 ticks after its blast. Filter
+on `cycles_left > 0` and on the hazard's sourced lifetime from its first sight. Never treat
+"listed" as "on the floor".
+
+## An auto-attack keeps rolling after the plan stops wanting it (seam31)
+
+An engaged weapon repeats on its own. A damage-to-heal window (Verzik's reds summon;
+tob_damage.rs2 rolls at the swing) needs the repeat cut by a one-tile step before the window,
+not just no new press. Predict the window from what a player can count on screen (her
+attacks since the last summon), not from a timer.
+
+## Entry kit after Bloat: bandages and the Entry set (seam31)
+
+The Bloat chest's `tob_bandages` (Entry page :151, "will always contain 10 bandages"; heal 20
+plus a boost, tob_spectate.rs2) replace sharks, and the Entry page's recommended Entry
+equipment (:78-91) is worn. In the Nylocas harness this cut wave damage from 227-424 to
+94-238 and took the room from 1-3 of 5 to 5 of 5. Vasilias' prayed max is still Normal's 17
+in every mode: only the Normal figure is sourced (Strategies :752; CONTENT_BUGS seam31).
+The Entry blert stream has no player hitpoints or hitsplats, so blert cannot measure damage
+taken in Entry.
+
+## Scratch and regression runs: pass --no-publish (seam31)
+
+`tools/raid_gate/run.py` and `tools/quest_gate/run.py` publish a passing non-underscore
+run's ledger and shots into OSRS-Content's selftest directories unless `--no-publish` is
+passed (`seed_survey.py` passes it). A regression run of a kept room or a quest inside a
+seam pass dirties the content submodule that way. Iterating from the log: a small
+summariser over `ticklog.tsv` (consume rows' hp_before and hp_after per item, hit_player by
+npc type, the boss forms' npc_spawn and npc_death) found every seam31 fix without a replay.
+Realised heal, the sum of max(0, hp_after - hp_before) against the item's nominal heal, is
+the waste figure.
