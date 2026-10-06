@@ -204,6 +204,17 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
   library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
   pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
+  OWNER, 2026-10-06 07:00: "You need to speed this up. I expect full clearance in 5 hours." THREE
+  LANES NOW (the classifier refused creating new worktrees, so the two idle ones are reused):
+  worktrees/raid (seam33 closing, then SEAM35 = `SEAM_TRIAGE_2026-10-06f.md`: Normal Maiden's rows,
+  Normal Nylocas' supports, the ENTRY SOLO RELAY `_play_entry.lua`, the NORMAL TRIO RELAY
+  `_play_normal.lua`); worktrees/raid25 on branch matthew-mbp-m4-raid-b1-w25 (pass seam34x:
+  Normal Xarpus, `SEAM_TRIAGE_2026-10-06d.md`); worktrees/camera on branch matthew-mbp-m4-camera-b1
+  (pass seam34v: Normal Verzik with the Dawnbringer, `SEAM_TRIAGE_2026-10-06e.md`). The lane
+  closers run only conformance, cooks and their own surveys; THE ORCHESTRATOR gates each merge
+  into the raid branch with cooks+druid, conformance and the harness surveys, then pushes. Bars
+  for speed: iterate on three names, five names and the repeat gate on the final plan; the relays
+  on three names. FULL CLEARANCE = `_play_entry` (solo) and `_play_normal` (trio) green end to end.
   STATE 2026-10-06 ~04:30. SEAM32 LANDED 328d7ec9b (pushed): NORMAL TRIO BLOAT GREEN (five leaders,
   lockstep repeat AGREE; 267-332 room ticks, 4-5 downs, no deaths); Normal Nylocas kept on a THIN
   margin (one support left at 1-11 percent; names 6 and 7 fail); Normal Maiden 0 of 5 (supplies).
