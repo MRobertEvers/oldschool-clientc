@@ -631,6 +631,104 @@ add_qualified_alias(
     add_alias_at(index, qualified, kind, source, NULL);
 }
 
+/*
+ * A config value, as the packer reads it (3rd/rscache/tools/cachepack/cp_text.c):
+ * everything after `=` up to an unescaped `//` (a comment), less its unescaped
+ * trailing blanks and the line's CR.
+ *
+ * Every block states every key of its type, so `name=default` says the record
+ * has NO name, and `column=empty` that a table declares no columns: those two
+ * words are markers, not values. A string that really is one of them is
+ * written `\default` / `\empty`.
+ */
+static int
+config_char_escaped(const char* start, const char* at)
+{
+    int run = 0;
+
+    while( at - run > start && at[-1 - run] == '\\' )
+        run++;
+    return run & 1;
+}
+
+/** End of the value that starts at `value` on a line ending at `end`. */
+static const char*
+config_value_end(const char* value, const char* end)
+{
+    const char* cut = value;
+
+    for( ; cut < end; cut++ )
+    {
+        if( *cut == '\\' && cut + 1 < end )
+        {
+            cut++;
+            continue;
+        }
+        if( cut[0] == '/' && cut + 1 < end && cut[1] == '/' )
+            break;
+    }
+    while( cut > value && (cut[-1] == ' ' || cut[-1] == '\t' || cut[-1] == '\r') &&
+           !config_char_escaped(value, cut - 1) )
+        cut--;
+    return cut;
+}
+
+/** `value..value_end` is the bare `default` or `empty` marker. */
+static int
+config_value_is_marker(const char* value, const char* value_end)
+{
+    size_t length = (size_t)(value_end - value);
+
+    return (length == 7 && memcmp(value, "default", 7) == 0) ||
+           (length == 5 && memcmp(value, "empty", 5) == 0);
+}
+
+/** The value with its escapes undone (`\default` -> `default`, `\,` -> `,`). */
+static char*
+config_value_dup(const char* value, const char* value_end)
+{
+    char* out = Str_DupN(value, (size_t)(value_end - value));
+    char* write = out;
+    const char* read = out;
+
+    assert(out);
+    while( *read )
+    {
+        char c = *read++;
+
+        if( c == '\\' && *read )
+        {
+            c = *read++;
+            if( c == 'n' )
+                c = '\n';
+            else if( c == 'r' )
+                c = '\r';
+        }
+        *write++ = c;
+    }
+    *write = '\0';
+    return out;
+}
+
+/** A `.dbtable` `column=<name>,ABSENT` is a hole in the numbering, not a column. */
+static int
+config_column_is_hole(const char* value, const char* value_end)
+{
+    const char* word = value;
+
+    while( word < value_end )
+    {
+        const char* word_end = word;
+
+        while( word_end < value_end && *word_end != ',' )
+            word_end++;
+        if( word > value && word_end - word == 6 && memcmp(word, "ABSENT", 6) == 0 )
+            return 1;
+        word = word_end + 1;
+    }
+    return 0;
+}
+
 /**
  * Scan one declaration file.
  *
@@ -832,32 +930,37 @@ scan_config_file(
                 /* A record's `name=` is what a human calls it; carrying it as
                  * the symbol's detail is what makes hovering `molanisk` say
                  * "Molanisk" rather than repeating the id. */
+                /* `name=default` is a record WITHOUT a name, not one called
+                 * "default"; `name=\default` is one called "default". */
                 if( record_index >= 0 && strcmp(key, "name") == 0 &&
                     !index->symbols[record_index].detail )
                 {
                     const char* value = left_end + 1;
-                    const char* value_end = end;
+                    const char* value_end = config_value_end(value, end);
 
-                    while( value_end > value && value_end[-1] == '\r' )
-                        value_end--;
-                    index->symbols[record_index].detail =
-                        Str_DupN(value, (size_t)(value_end - value));
+                    if( !config_value_is_marker(value, value_end) )
+                        index->symbols[record_index].detail =
+                            config_value_dup(value, value_end);
                 }
 
                 /* `column=product,namedobj,int` inside `[fletching_table]` is
                  * the declaration of `fletching_table:product` — the qualified
                  * spelling a script writes and the only one it can be found
-                 * by, because `product` on its own names nothing. */
+                 * by, because `product` on its own names nothing. A
+                 * `column=default` / `column=empty` table has no columns, and
+                 * `column=version,ABSENT` is a hole: neither declares one. */
                 if( member_key && record_name[0] && strcmp(key, member_key) == 0 )
                 {
                     const char* value = left_end + 1;
+                    const char* types_end = config_value_end(value, end);
                     const char* value_end = value;
                     char qualified[SS_RECORD_NAME_MAX * 2];
                     struct RS_Symbol* member;
 
-                    while( value_end < end && *value_end != ',' && *value_end != '\r' )
+                    while( value_end < types_end && *value_end != ',' )
                         value_end++;
-                    if( value_end > value )
+                    if( value_end > value && !config_value_is_marker(value, types_end) &&
+                        !config_column_is_hole(value, types_end) )
                     {
                         snprintf(qualified, sizeof(qualified), "%s:%.*s", record_name,
                                  (int)(value_end - value), value);
@@ -872,8 +975,8 @@ scan_config_file(
                             member->end_character = (uint32_t)(value_end - start);
                             /* The rest of the line is the column's type list —
                              * `namedobj,int` — which is what a hover wants. */
-                            member->detail = Str_DupN(left_end + 1,
-                                                      (size_t)(end - (left_end + 1)));
+                            member->detail = Str_DupN(value,
+                                                      (size_t)(types_end - value));
                             member->doc = doc_above(text, line_starts, line_count, line);
                         }
                     }

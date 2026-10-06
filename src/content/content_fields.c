@@ -1,20 +1,17 @@
 /*
- * The field register. See content_fields.h.
+ * The server's view of the field register. See content_fields.h.
  */
 
 #include "content_fields.h"
+
 #include <assert.h>
-
-#include "content_register.h"
-
-#include "3rd/ini/ini.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 /*
- * The defaults, transcribed rather than designed.
+ * The defaults, transcribed rather than designed, and written as register text so
+ * they go through the same parser as a tree's own file.
  *
  * Two tables already held most of the answer, which is what made this tractable
  * (docs/CONTENT_PACK_PLAN.md §5.2):
@@ -23,10 +20,6 @@
  *                       strength, defence, magic, ranged, respawnrate, wanderrange,
  *                       moverestrict, huntmode
  *   the `param:` column `torirs_server_pack.c`'s `BakedParam` table, verbatim
- *
- * The two key sets overlap on exactly `name` and `param`, so the union is nearly
- * disjoint and unifying them was additive on both sides rather than a conflict to
- * resolve.
  *
  * The fields the client's own record carries *are* listed, as
  * `scope = client, client = native`, and that is not a second copy of `cp_npc.c`'s
@@ -40,21 +33,14 @@
  * Only the ones a config might plausibly carry are listed. The full 43 keys
  * `cp_npc.c` emits are the encoder's business; a field nobody has written in a
  * config has nothing to declare.
+ *
+ * **No default carries `server = opcode:...`.** The band is the tree's to declare
+ * (its numbers are ours and live in data, `fields/<type>.ini`), and a default opcode
+ * would be a band field the server reads that cachepack, reading the file alone,
+ * never writes.
  */
 
-struct FieldDefault
-{
-    const char* type;
-    const char* name;
-    enum ContentFieldScope scope;
-    enum ContentFieldClient client;
-    const char* param_name;
-    /** `ref`, as `fields/<type>.ini` spells it. "" for a decimal-only field,
-     *  which is every row here but the one door pairing. */
-    const char* ref;
-};
-
-static const struct FieldDefault k_defaults[] = {
+static const char k_npc_defaults[] =
     /*
      * npc combat, as `ToriRSServer_Pack --cache-out` has always baked it.
      *
@@ -62,18 +48,18 @@ static const struct FieldDefault k_defaults[] = {
      * `attackrate`, which is param 14 — a param the *cache* defines, so an npc's
      * attack rate lands where a client reading the cache alone would look for it.
      */
-    { "npc", "hitpoints",      CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "hitpoints",      "" },
-    { "npc", "attack",         CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "attacklevel",    "" },
-    { "npc", "strength",       CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "strengthlevel",  "" },
-    { "npc", "defence",        CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "defencelevel",   "" },
-    { "npc", "respawnrate",    CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "respawnrate",    "" },
-    { "npc", "wanderrange",    CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "wanderrange",    "" },
-    { "npc", "huntrange",      CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "huntrange",      "" },
-    { "npc", "attackrate",     CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "attackrate",     "" },
-    { "npc", "death_drop",     CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "death_drop",     "" },
-    { "npc", "attack_anim",    CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "attack_anim",    "" },
-    { "npc", "defend_anim",    CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "defend_anim",    "" },
-    { "npc", "death_anim",     CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "death_anim",     "" },
+    "[npc.hitpoints]\n"   "scope = server\n" "client = param:hitpoints\n"
+    "[npc.attack]\n"      "scope = server\n" "client = param:attacklevel\n"
+    "[npc.strength]\n"    "scope = server\n" "client = param:strengthlevel\n"
+    "[npc.defence]\n"     "scope = server\n" "client = param:defencelevel\n"
+    "[npc.respawnrate]\n" "scope = server\n" "client = param:respawnrate\n"
+    "[npc.wanderrange]\n" "scope = server\n" "client = param:wanderrange\n"
+    "[npc.huntrange]\n"   "scope = server\n" "client = param:huntrange\n"
+    "[npc.attackrate]\n"  "scope = server\n" "client = param:attackrate\n"
+    "[npc.death_drop]\n"  "scope = server\n" "client = param:death_drop\n"
+    "[npc.attack_anim]\n" "scope = server\n" "client = param:attack_anim\n"
+    "[npc.defend_anim]\n" "scope = server\n" "client = param:defend_anim\n"
+    "[npc.death_anim]\n"  "scope = server\n" "client = param:death_anim\n"
     /*
      * Authored, and deliberately not projected.
      *
@@ -82,29 +68,29 @@ static const struct FieldDefault k_defaults[] = {
      * number nobody agreed on. `huntmode` and `nomove` are behaviour the server
      * decides and the client never asks about.
      */
-    { "npc", "magic",          CONTENT_SCOPE_SERVER, CONTENT_CLIENT_DROP,   "",               "" },
-    { "npc", "ranged",         CONTENT_SCOPE_SERVER, CONTENT_CLIENT_DROP,   "",               "" },
-    { "npc", "huntmode",       CONTENT_SCOPE_SERVER, CONTENT_CLIENT_DROP,   "",               "" },
-    { "npc", "nomove",         CONTENT_SCOPE_SERVER, CONTENT_CLIENT_DROP,   "",               "" },
-
+    "[npc.magic]\n"       "scope = server\n" "client = drop\n"
+    "[npc.ranged]\n"      "scope = server\n" "client = drop\n"
+    "[npc.huntmode]\n"    "scope = server\n" "client = drop\n"
+    "[npc.nomove]\n"      "scope = server\n" "client = drop\n"
     /*
      * Stated by the client's own record, so an overlay that repeats one is patching
-     * the cache rather than adding to it — which the loader now says out loud
-     * instead of silently accepting.
+     * the cache rather than adding to it — which the loader says out loud instead
+     * of silently accepting.
      */
-    { "npc", "name",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "npc", "desc",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "npc", "vislevel",       CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "npc", "size",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "npc", "category",       CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "npc", "walkanim",       CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "npc", "readyanim",      CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "npc", "op1",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "npc", "op2",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "npc", "op3",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "npc", "op4",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "npc", "op5",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    "[npc.name]\n"        "scope = client\n" "client = native\n"
+    "[npc.desc]\n"        "scope = client\n" "client = native\n"
+    "[npc.vislevel]\n"    "scope = client\n" "client = native\n"
+    "[npc.size]\n"        "scope = client\n" "client = native\n"
+    "[npc.category]\n"    "scope = client\n" "client = native\n"
+    "[npc.walkanim]\n"    "scope = client\n" "client = native\n"
+    "[npc.readyanim]\n"   "scope = client\n" "client = native\n"
+    "[npc.op1]\n"         "scope = client\n" "client = native\n"
+    "[npc.op2]\n"         "scope = client\n" "client = native\n"
+    "[npc.op3]\n"         "scope = client\n" "client = native\n"
+    "[npc.op4]\n"         "scope = client\n" "client = native\n"
+    "[npc.op5]\n"         "scope = client\n" "client = native\n";
 
+static const char k_loc_defaults[] =
     /*
      * A door's other half.
      *
@@ -113,133 +99,63 @@ static const struct FieldDefault k_defaults[] = {
      * as a param and so does this, which is what lets the engine's door handler be
      * one generic rule.
      */
-    { "loc", "next_loc_stage", CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "next_loc_stage", "loc" },
-
+    "[loc.next_loc_stage]\n" "scope = server\n" "client = param:next_loc_stage\n" "ref = loc\n"
     /* As above: stated by the client's own record, so an overlay repeating one is
      * patching the cache. */
-    { "loc", "name",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "loc", "desc",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "loc", "op1",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "loc", "op2",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "loc", "op3",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "loc", "op4",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-    { "loc", "op5",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
-};
+    "[loc.name]\n"        "scope = client\n" "client = native\n"
+    "[loc.desc]\n"        "scope = client\n" "client = native\n"
+    "[loc.op1]\n"         "scope = client\n" "client = native\n"
+    "[loc.op2]\n"         "scope = client\n" "client = native\n"
+    "[loc.op3]\n"         "scope = client\n" "client = native\n"
+    "[loc.op4]\n"         "scope = client\n" "client = native\n"
+    "[loc.op5]\n"         "scope = client\n" "client = native\n";
 
-static void
-push(
-    struct ContentFields* fields,
-    const struct FieldDefault* row)
+const char*
+ContentFields_DefaultsText(const char* type)
 {
-    struct ContentField* entry;
-
-    if( fields->count >= CONTENT_FIELDS_MAX )
-        return;
-    entry = &fields->entries[fields->count++];
-    memset(entry, 0, sizeof(*entry));
-    snprintf(entry->name, sizeof(entry->name), "%s", row->name);
-    entry->scope = row->scope;
-    entry->client = row->client;
-    snprintf(entry->param_name, sizeof(entry->param_name), "%s", row->param_name);
-    /* Most rows state no `ref` and leave the member NULL; "" is what the
-     * parsed-from-file path produces for the same absence. */
-    snprintf(entry->ref, sizeof(entry->ref), "%s", row->ref ? row->ref : "");
+    assert(type);
+    if( strcmp(type, "npc") == 0 )
+        return k_npc_defaults;
+    if( strcmp(type, "loc") == 0 )
+        return k_loc_defaults;
+    return "";
 }
 
 int
 ContentFields_Defaults(
-    struct ContentFields* fields,
+    struct RSCache_Register* fields,
     const char* type)
 {
-    memset(fields, 0, sizeof(*fields));
-    for( size_t i = 0; i < sizeof(k_defaults) / sizeof(k_defaults[0]); i++ )
-    {
-        if( strcmp(k_defaults[i].type, type) == 0 )
-            push(fields, &k_defaults[i]);
-    }
-    return fields->count;
-}
+    const char* text;
 
-const struct ContentField*
-ContentFields_Find(
-    const struct ContentFields* fields,
-    const char* name)
-{
-    assert(name);
-    for( int i = 0; i < fields->count; i++ )
-    {
-        if( strcmp(fields->entries[i].name, name) == 0 )
-            return &fields->entries[i];
-    }
-    return NULL;
-}
-
-static enum ContentFieldScope
-parse_scope(
-    const char* value,
-    enum ContentFieldScope fallback)
-{
-    if( strcmp(value, "server") == 0 )
-        return CONTENT_SCOPE_SERVER;
-    if( strcmp(value, "client") == 0 )
-        return CONTENT_SCOPE_CLIENT;
-    return fallback;
-}
-
-/** `native` | `drop` | `error` | `param:<name>`. */
-static enum ContentFieldClient
-parse_client(
-    const char* value,
-    char* out_param,
-    size_t out_param_size,
-    enum ContentFieldClient fallback)
-{
-    if( strcmp(value, "native") == 0 )
-        return CONTENT_CLIENT_NATIVE;
-    if( strcmp(value, "drop") == 0 )
-        return CONTENT_CLIENT_DROP;
-    if( strcmp(value, "error") == 0 )
-        return CONTENT_CLIENT_ERROR;
-    if( strncmp(value, "param:", 6) == 0 && value[6] )
-    {
-        const char* param = value + 6;
-
-        if( strlen(param) >= out_param_size )
-            fprintf(stderr,
-                    "fields: client param \"%s\" is %zu bytes, truncating to %zu\n",
-                    param, strlen(param), out_param_size - 1);
-        /* Precision caps the copy at out_param_size-1 so this is provably
-         * in-bounds regardless of value's declared size. */
-        snprintf(out_param, out_param_size, "%.*s", (int)out_param_size - 1, param);
-        return CONTENT_CLIENT_PARAM;
-    }
-    return fallback;
+    assert(fields);
+    assert(type);
+    text = ContentFields_DefaultsText(type);
+    return RSCache_RegisterParse(fields, type, text, strlen(text));
 }
 
 int
 ContentFields_Load(
-    struct ContentFields* fields,
+    struct RSCache_Register* fields,
     const char* dir,
     const char* type)
 {
+    const char* defaults;
+    size_t defaults_size;
     char path[1024];
-    char prefix[64];
     FILE* file;
     long size;
-    uint8_t* data;
-    struct INIReader reader;
-    struct INIElement element;
-    struct ContentField* current = NULL;
+    char* text;
+    size_t text_size;
 
-    /* Defaults first, then the file *overlays* them — the same rule the namespace
-     * register follows, and for the same reason: a tree that declares only the one
-     * field it invented still gets the twelve that already worked. */
-    ContentFields_Defaults(fields, type);
+    assert(fields);
+    assert(dir);
+    assert(type);
 
     snprintf(path, sizeof(path), "%s/fields/%s.ini", dir, type);
     file = fopen(path, "rb");
     if( !file )
-        return fields->count;
+        return ContentFields_Defaults(fields, type);
 
     fseek(file, 0, SEEK_END);
     size = ftell(file);
@@ -247,158 +163,32 @@ ContentFields_Load(
     if( size <= 0 )
     {
         fclose(file);
-        return fields->count;
+        return ContentFields_Defaults(fields, type);
     }
-    data = (uint8_t*)malloc((size_t)size);
-    assert(data);
-    if( fread(data, 1, (size_t)size, file) != (size_t)size )
+
+    /* The defaults, a line break, then the file: one text, so the grammar's own
+     * section merge is the overlay (content_fields.h). */
+    defaults = ContentFields_DefaultsText(type);
+    defaults_size = strlen(defaults);
+    text = malloc(defaults_size + 1 + (size_t)size);
+    assert(text);
+    memcpy(text, defaults, defaults_size);
+    text[defaults_size] = '\n';
+    text_size = defaults_size + 1;
+    if( fread(text + text_size, 1, (size_t)size, file) != (size_t)size )
     {
-        free(data);
+        fprintf(stderr, "%s: short read\n", path);
         fclose(file);
+        free(text);
+        ContentFields_Defaults(fields, type);
+        fields->rejected++;
         return fields->count;
     }
     fclose(file);
+    text_size += (size_t)size;
 
-    /* `[npc.hitpoints]`, so one file could describe several types without the
-     * sections colliding. */
-    snprintf(prefix, sizeof(prefix), "%s.", type);
-
-    ini_reader_init(&reader);
-    while( ini_reader_next(&reader, data, (uint32_t)size, &element) == TORI_INI_ERR_OK )
-    {
-        if( element.kind == INI_ELEMENT_SECTION )
-        {
-            const char* name = element._section.name;
-
-            ContentIni_Trim(element._section.name);
-            current = NULL;
-            if( strncmp(name, prefix, strlen(prefix)) != 0 )
-                continue;
-            name += strlen(prefix);
-
-            for( int i = 0; i < fields->count; i++ )
-            {
-                if( strcmp(fields->entries[i].name, name) == 0 )
-                {
-                    current = &fields->entries[i];
-                    break;
-                }
-            }
-            if( !current && fields->count < CONTENT_FIELDS_MAX )
-            {
-                current = &fields->entries[fields->count++];
-                memset(current, 0, sizeof(*current));
-                if( strlen(name) >= sizeof(current->name) )
-                    fprintf(stderr,
-                            "fields/%s.ini: field \"%s\" is %zu bytes, truncating to "
-                            "%zu\n",
-                            type, name, strlen(name), sizeof(current->name) - 1);
-                /* Precision caps the copy at sizeof(name)-1 so this is provably
-                 * in-bounds regardless of the section header's declared size. */
-                snprintf(current->name, sizeof(current->name), "%.*s",
-                         (int)sizeof(current->name) - 1, name);
-            }
-            continue;
-        }
-
-        if( element.kind != INI_ELEMENT_KEYVAL || !current )
-            continue;
-
-        ContentIni_Trim(element._keyval.name);
-        ContentIni_Trim(element._keyval.value);
-
-        if( strcmp(element._keyval.name, "scope") == 0 )
-            current->scope = parse_scope(element._keyval.value, current->scope);
-        /*
-         * `server = opcode:<n>:<wire>` — the field's home in the server pack.
-         *
-         * Parsed here rather than compiled in because these opcodes are ours to
-         * choose: nothing outside this project reads a server pack, so a tree may
-         * renumber them. `<n>` below 64 is refused, since that band belongs to
-         * client records and overlapping it would make the two indistinguishable.
-         */
-        else if( strcmp(element._keyval.name, "server") == 0 )
-        {
-            const char* v = element._keyval.value;
-
-            if( strncmp(v, "opcode:", 7) == 0 )
-            {
-                char wire[16] = "u1";
-                int opcode = 0;
-
-                if( sscanf(v + 7, "%d:%15s", &opcode, wire) >= 1 )
-                {
-                    if( opcode < 64 || opcode > 255 )
-                    {
-                        fprintf(stderr,
-                                "fields/%s.ini: [%s.%s] server opcode %d is outside "
-                                "64..255 — below 64 is the client band\n",
-                                type, type, current->name, opcode);
-                    }
-                    else
-                    {
-                        current->server = CONTENT_SERVER_OPCODE;
-                        current->opcode = opcode;
-                        current->wire = strcmp(wire, "u2") == 0   ? CONTENT_WIRE_U2
-                                        : strcmp(wire, "u4") == 0 ? CONTENT_WIRE_U4
-                                        : strcmp(wire, "string") == 0
-                                            ? CONTENT_WIRE_STRING
-                                            : CONTENT_WIRE_U1;
-                    }
-                }
-            }
-            else if( strcmp(v, "drop") == 0 )
-            {
-                current->server = CONTENT_SERVER_DROP;
-            }
-        }
-        else if( strcmp(element._keyval.name, "client") == 0 )
-            current->client = parse_client(element._keyval.value, current->param_name,
-                                           sizeof(current->param_name), current->client);
-        /*
-         * `param = <name>` — the field's *runtime* param binding, with no client
-         * projection. `client = param:<name>` used to carry both facts at once:
-         * which param the authored key maps to in the in-memory def, and that
-         * the packer folds it into the client-cache record. The projections are
-         * retired (the client never read them), but the runtime mapping is real
-         * — `lc_param($loc, next_loc_stage)` reaches the row this name binds —
-         * so it gets its own key. cachepack's cp_fields.c skips unknown keys by
-         * design and never sees this one.
-         */
-        else if( strcmp(element._keyval.name, "param") == 0 )
-        {
-            if( strlen(element._keyval.value) >= sizeof(current->param_name) )
-                fprintf(stderr,
-                        "fields/%s.ini: [%s.%s] param \"%s\" is %zu bytes, "
-                        "truncating to %zu\n",
-                        type, type, current->name, element._keyval.value,
-                        strlen(element._keyval.value), sizeof(current->param_name) - 1);
-            /* Precision caps the copy at sizeof(param_name)-1 so this is
-             * provably in-bounds regardless of the ini value's length. */
-            snprintf(current->param_name, sizeof(current->param_name), "%.*s",
-                     (int)sizeof(current->param_name) - 1, element._keyval.value);
-        }
-        /*
-         * `ref = <namespace>` — which pack a symbolic value resolves against.
-         *
-         * The same line `cp_fields.c` already had; this parser simply stopped
-         * skipping it. Both programs read one file, so a key only one of them
-         * understands is a fact the register states and half the tree acts on.
-         */
-        else if( strcmp(element._keyval.name, "ref") == 0 )
-        {
-            if( strlen(element._keyval.value) >= sizeof(current->ref) )
-                fprintf(stderr,
-                        "fields/%s.ini: [%s.%s] ref \"%s\" is %zu bytes, "
-                        "truncating to %zu\n",
-                        type, type, current->name, element._keyval.value,
-                        strlen(element._keyval.value), sizeof(current->ref) - 1);
-            snprintf(current->ref, sizeof(current->ref), "%.*s",
-                     (int)sizeof(current->ref) - 1, element._keyval.value);
-        }
-    }
-
-    free(data);
+    RSCache_RegisterParse(fields, type, text, text_size);
     fields->from_file = 1;
+    free(text);
     return fields->count;
 }

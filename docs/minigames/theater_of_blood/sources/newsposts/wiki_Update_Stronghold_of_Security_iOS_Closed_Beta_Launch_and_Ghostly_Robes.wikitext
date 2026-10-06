@@ -1,0 +1,72 @@
+{{Update|date=30 August 2018|link=http://services.runescape.com/m=news/stronghold-of-security-ios-closed-beta-launch-and-ghostly-robes?oldschool=1|category=game}}
+[[File:Stronghold of Security, iOS Closed Beta Launch and Ghostly Robes newspost.png|right]]
+
+{{clear}}
+<center>''This week's update brings the results of the Stronghold of Security competition, launch of the iOS Closed Beta and changes to the Ghostly robes. We're also running a master clue reward design competition.''</center>
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Stronghold of Security Changes}}
+
+As part of account security week, Player Support held a competition asking players to write updated questions for the Stronghold of Security. The best entries of the competition have been chosen and the Stronghold has been updated to include the new questions. This update should help new players secure their accounts and avoid notable current security risks.
+
+[[File:Stronghold of Security, iOS Closed Beta Launch and Ghostly Robes (1).png|center]]
+
+<center>''A sign can be found on the final level of the Stronghold near the Cradle of life thanking the players whose questions were selected.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Ghostly Robes}}
+
+You are now able to re-obtain all pieces of the Ghostly robe set from any of the ghosts after Curse of the Empty Lord is completed. As a result, any number of each piece can be reclaimed. Talking to any of the ghosts will bring up the interface below allowing you to choose how many of each piece you'd like to receive.
+
+[[File:Stronghold of Security, iOS Closed Beta Launch and Ghostly Robes (2).png|center]]
+
+{{Horizontal Line}}
+
+{{Headline|22|OSRS Mobile}}
+
+'''iOS Closed Beta'''
+
+The iOS closed beta test will go live later this after noon at approximately 2pm BST. For those that have been invited, you should have already received your message from us via email and the Message Center detailing your invitation (if you haven’t heard from us by now then unfortunately you haven’t been invited to this test). To mark the iOS closed beta test going live you will receive an email directly from Apple’s TestFlight service. This will be sent to the same email you provided when signing up for the beta. Currently, there is no planned end date for the iOS beta.
+
+Thank you to everyone that has registered their interest and we look forward to hearing your feedback for those invited.
+
+'''Optimisation Changes'''
+
+The size of the sidestones has been increased slightly to match the size of the interface and improve accessibility.
+
+[[File:Stronghold of Security, iOS Closed Beta Launch and Ghostly Robes (3).png|center]]
+
+Chat options have been optimised to be a more similar size, overall this has increased the size of most options.
+
+{{Horizontal Line}}
+
+{{Headline|22|Master Clue Scroll Reward Competition}}
+
+As mentioned in last week's Q&A stream, we're hosting a reward design competition. The design is for a cosmetic item to be rewarded to players upon completion of 100 master level clue scrolls. This can be an item for any equipment slot or a whole outfit - whichever you prefer! Email your entries to our community mailbox; OldSchoolCommunity@Jagex.com attached as a JPEG file, including your RuneScape display name (the name of your character in-game) and using the subject line '''Master Clue Reward Competition.'''
+
+[[File:Stronghold of Security, iOS Closed Beta Launch and Ghostly Robes (4).png|center|100px]]
+
+Be aware that if you include any icons or symbols in the design to keep them simple! Also bear in mind that items or outfits may appear darker in game. We'll accept entries until '''September 10th''' and then choose three designs to be polled. The winning design will be chosen by the community based on which one receives the most votes. The winning entry will be put into game with further possible prizes to be confirmed. Make sure to read our competition [http://services.runescape.com/m=forum/forums.ws?42,43,216,65795503 terms and conditions] before entering and good luck!
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+*The Scythe of Vitur can no longer be taken to Entrana.
+*The amulet of Avarice will no longer maintain the skull timer in Free to Play worlds as it is a members item
+*All fishing spots beside the Lumbridge fishing tutor can now be reached.
+*You can no longer attempt to ignite jogre bones on the ground on F2P worlds.
+*The clue requiring the lumberjack outfit is no longer available in Deadman Mode because the outfit is not obtainable.
+*Thammaron's Sceptre has had its defend animation changed to make it interfere less with walking and other combat animations.
+*You will now need to have your PIN unlocked before you can withdraw cash from the servant's money bag in your player-owned house.
+*Players will no longer be able to use their special attacks on their opponents whilst in single-way combat areas if their opponent has been hit by a special attack from a different player within the last 10.8 seconds as a way to prevent teams of players from dumping special attacks on a single player as this is unfair. This is equal to 18 game ticks - an increase from the original proposal which was not enough to function as intended.
+*An opinion poll on Holiday Events is currently live! - this is just to gain information and anything mentioned will not be changed unless it passes a further in game poll with the usual 75% pass rate.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,509,66039414 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''''Mods Archie, Ash, Ayiza, Bruno, Curse, Ed, Gambit, Ghost, Jed, Kieren, Lenny, Lottie, Mat K, Maz, Munro, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

@@ -1057,8 +1057,8 @@ panel_refresh(
      * of which tool acts.
      */
     int const latched = panel->sel_kind != EDITOR_SELECTION_NONE;
-    int const probe_x = latched ? panel->sel_scene_x : app->world_hover_tile_x;
-    int const probe_z = latched ? panel->sel_scene_z : app->world_hover_tile_z;
+    int const probe_x = latched ? panel->sel_scene_x : app->frame_view->world_hover_tile_x;
+    int const probe_z = latched ? panel->sel_scene_z : app->frame_view->world_hover_tile_z;
     int level = latched ? panel->sel_level : Editor_PanelEditLevel(panel, app);
 
     snprintf(
@@ -1624,7 +1624,7 @@ Editor_PanelEditLevel(
 {
     if( panel->edit_level >= 0 )
         return panel->edit_level;
-    return app->world ? app->world_hover_tile_level : 0;
+    return app->world ? app->frame_view->world_hover_tile_level : 0;
 }
 
 /** Record one loc add/remove against the document. Returns 1 if it stuck. */

@@ -1,0 +1,354 @@
+{{Update|date=28 April 2021|rev=29 April 2021|link=https://secure.runescape.com/m=news/arceuus-spellbook-beta-and-a-kingdom-divided-preparation-?oldschool=1|category=game}}
+[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation newspost.png|right]]
+{{clear}}
+<center>''Though we do say it ourselves, we reckon this update is truly spellbinding! We've opened a special Beta world for members to try out the new Arceuus Spellbook before the release of A Kingdom Divided and made some main game changes that set the stage for this exciting new chapter. We've also tweaked Below Ice Mountain, rebalanced some equipment and launched more 20th anniversary merch! Abracadabra, let's be 'aving ya...''</center>
+{{ToC}}
+==Issues and Hotfixes (April 28th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Issues Raised
+!Current Progress
+|-
+|'''(11:50 BST)''' Arceuus Teleport spells are showing the incorrect icons in the Portal Nexus. || '''(14:30 BST)''' This issue will fixed with today's coldfix.
+|-
+|'''(11:52 BST)''' The book on Tempoross in the PoH bookcase is currently displaying the wrong name. || '''(12:17 BST)''' [FIXED] You should now see the correct name for the book.
+|-
+|'''(12:05 BST)''' The Theatre of Blood Rewards Chest is not showing up in it's usual spot. || '''(12:10 BST)''' [FIXED] The chest has returned and been told to book official time off before disappearing again.
+|-
+|'''(12:15 BST)''' Players can create female body with male heads. || '''(12:40 BST)''' [FIXED] This issue has been resolved.
+|-
+|'''(12:22 BST)''' Players are not receiving clue steps from Radimus. || '''(12:40 BST)''' [FIXED] Clue steps can be received once again from Rasimus Erkle.
+|-
+|'''(12:22 BST)''' Players would like to have easy access to bones to test out Sinister Offering. || '''(12:40 BST)''' [FIXED] 1,000 of each type of Bone can be found inside your bank in the Beta Worlds.
+|-
+|'''(13:25 BST)''' The interface for Hot Air Balloon travel cutscenes is missing. || '''(14:30 BST)''' This issue will fixed with today's coldfix.
+|-
+|'''(14:30 BST)''' The Granite Hammer and Tzhaar-ket-em are now too strong. || '''(14:30 BST)''' We've opted to revert both of these changes as they had an impact on the current meta that we didn't quite anticipate. We'll potentially revisit this again with the other upcoming Equipment Rebalance Changes, but we'll make sure to reach out to various communities first and present any potential changes in a future blog.
+|-
+|'''(15:40 BST)''' Players are reporting delays in movements when music tracks end. || '''(16:00 BST)''' [FIXED] Music tracks ending will no longer cause delays.
+|-
+|'''(April 29th - 11:00 BST)''' Combat experience in the PoH is giving less XP than normal. || '''(April 29th - 11:00 BST)''' Last night we released a hotfix that reduces experience gained within the PoH by 90%.<br>
+This is a temporary solution whilst we look into current methods being used to gain accelerated amounts of combat experience.
+|}
+
+==A Kingdom Divided: Beta==
+[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (1).png|centre|600px]]
+
+
+The next chapter of the Great Kourend storyline is on the horizon – A Kingdom Divided. Ahead of its release, we've been working hard on one of the additional rewards for completing this continuation. Introducing: the Arceuus Spellbook!
+
+We're giving you the chance to experience the reworked book and try out all of the new spells across Gielinor. As of today, members will be able to log-in to the special Beta-worlds and test all the new additions and changes!
+
+===How do I access the Beta worlds?===
+Only members can access the Beta. When the game has loaded, you can find the beta worlds '''W400 (US), W407 (UK) and W412 (AUS)''', which will be highlighted in '''blue''' within the World Selection screen.
+
+===What happens when I log in?===
+Choosing any of these worlds will load a separate profile to your main account. Once you've logged-in, you'll find yourself within Ferox Enclave, with max skills and suitable gear, along with an Inventory full of Runes! If you're wanting to try out some other gear or experiment with different stats, head to the rooms next to the Castle Wars and Free-For-All portals, and rummage in the Supply Chests on the tables. Here you can select your gear and set your stats accordingly.
+
+===What can I do in the Beta?===
+You’ll be able to take part in any content you could find on the main game worlds, apart from the Inferno.
+
+==Existing Spells==
+So, what's cookin' in the new spellbook? First, let's cast a glance over the already existing spells and any changes that may come with them:
+
+===Reanimation Spells===
+In the current Arceuus Spellbook, there is a reanimation spell for each relevant creature, making a grand total of 22 spells. With the rework, these will be replaced by four new reanimation spells. No changes will be made to the amount of experience granted from reanimating creatures.
+
+[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (2).png|thumb|centre|600px|''Spooky scary skeletons!'']]
+
+
+With this update, these changes to reanimation spells will also be available in the main game.
+
+{|class=wikitable style="text-align:center; width:750px;"
+!Icon || Spell Name || Magic Requirement || Runes Needed || Magic Exp || Description
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (3).png]] || Basic Reanimation || 16 || 4 Body & 2 Nature || 32 || Can be used to reanimate the ensouled heads of '''Goblins''', ''' Monkeys''', ''' Imps''', ''' Minotaurs''', ''' Scorpions''', ''' Bears''' and '''Unicorns'''.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (4).png]] || Adept Reanimation || 41 || 4 Body''', ''' 3 Nature & 1 Soul || 80 || Can be used to reanimate the ensouled heads of '''Dogs''', ''' Chaos Druids''', ''' Ogres''', ''' Giants''', ''' Elves''', ''' Trolls and Horrors.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (5).png]] || Expert Reanimation || 72 || 1 Blood''', ''' 3 Nature & 2 Soul || 138 || Can be used to reanimate the ensouled heads of '''Kalphites''', ''' Dagannoth''', ''' Bloodvelds''', ''' TzHaar''' and '''Demons'''.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (6).png]] || Master Reanimation || 90 || 2 Blood''', ''' 4 Nature & 4 Soul || 170 || Can be used to reanimate the ensouled heads of '''Aviansie''', ''' Abyssal Creatures''' and '''Dragons'''.
+|}
+
+===Teleport Spells===
+Most of the teleport spells will be unchanged with this rework. However, the teleport to the Lumbridge Graveyard has been replaced with an Arceuus Library teleport. Handy!
+
+[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (7).png|thumb|centre|600px|''Moving and grooving!'']]
+
+
+For any players currently with Lumbridge Graveyard Teleport Tablets, these will be changed into Arceuus Library Teleport Tablets.
+
+With this update, the change to teleport spells will also be available in the main game.
+
+{|class=wikitable style="text-align:center; width:750px;"
+!Icon || Spell Name || Magic Requirement || Runes Needed || Magic Exp || Description
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (8).png]] || Arceuus Home Teleport || 1 || None || 0 || Teleports to the '''Dark Altar in Great Kourend'''.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (9).png]] || Arceuus Library || 6 || 2 Earth & 1 Law || 9 || Teleports '''north of the Grand Library in Arceuus''' (''replaces the teleport to Lumbridge Graveyard'').
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (10).png]] || Draynor Manor || 17 || 1 Earth, 1 Water & 1 Law || 16 || Teleports to '''Draynor Manor'''.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (11).png]] || Battlefront || 23 || 1 Earth, 1 Fire & 1 Law || 19 || Teleports to the '''tomb north-west of the Kebos battlefront'''.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (12).png]] || Mind Altar || 28 || 1 Law & 2 Mind || 22 || Teleports to the '''Mind Altar'''.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (13).png]] || Respawn || 34 || 1 Law & 1 Soul || 27 || Teleports to the '''player's respawn location'''.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (14).png]] || Salve Graveyard || 40 || 1 Law & 2 Soul || 30 || Teleports to the '''Salve graveyard'''.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (15).png]] || Fenkenstrain's Castle || 48 || 1 Earth, 1 Law & 1 Soul || 50 || Teleports to '''Fenkenstrain's Castle'''
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (16).png]] || West Ardougne || 61 || 2 Law & 2 Soul || 68 || Teleports to '''West Ardougne'''
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (17).png]] || Harmony Island || 65 || 1 Law, 1 Nature & 1 Soul || 74 || Teleports to '''Harmony Island'''
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (18).png]] || Cemetery || 71 || 1 Blood, 1 Law & 1 Soul || 82 || Teleports to the '''Forgotten Cemetery in the Wilderness'''.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (19).png]] || Barrows || 83 || 1 Blood, 2 Law & 2 Soul || 90 || Teleports to the '''Barrows'''.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (20).png]] || Ape Atoll || 90 || 2 Blood, 2 Law & 2 Soul || 100 || Teleports to the '''Ape Atoll Dungeon''' ''(Requires completion of Monkey Madness I)''.
+|}
+
+==New Spells==
+And for our next trick... brand shiny ''new'' spells! To use these you will have to complete all of A Kingdom Divided, apart from Ghostly Grasp and Inferior Demonbane. Demonic Offering is the only spell we've left out from the Beta, as we've not added the Demonic Ash item yet. Other than that, you'll be free to wreak havoc with these excellent enchantments:
+
+[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (21).png|thumb|centre|600px|''It's Degrime time!'']]
+
+
+{|class=wikitable style="text-align:center; width:750px;"
+!Icon || Spell Name || Magic Requirement || Type || Runes Needed || Magic Exp || Base Max Hit || Description
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (22).png]] || Ghostly Grasp || 35 || Combat || 1 Chaos & 4 Air || 22.5+ Damage || 12 || 10% chance to stop the enemy from moving for two ticks.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (23).png]] || Resurrect Ghost || 38 || Resurrection || 5 Mind,10 Air & 1 Cosmic || 55 || - || Resurrects a Ghost that will attack your enemies with magic damage at the cost of 2 Prayer points.<br>
+It will remain alive a cycle for every Magic level the player had at the time and has a max hit of 1.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (24).png]] || Inferior Demonbane || 44 || Combat || 1 Chaos & 4 Fire || 27+ Damage || 16 || Only works against demonic foes.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (25).png]] || Shadow Veil || 47 || Skilling || 5 Earth, 5 Fire & 5 Cosmic || 58 || - || 15% chance to avoid Stun damage while thieving.<br>
+It will remain active at one cycle for every Magic level the player has at the time ''(stacks with Dodgy Necklace)''.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (26).png]] || Dark Lure || 50 || Skilling || 1 Death & 1 Nature || 60 || - || Attracts an enemy towards you and prevents fleeing. Doesn't work on foes who can't move.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (27).png]] || Skeletal Grasp || 56 || Combat || 1 Death & 8 Earth || 33+ Damage || 18 || 25% chance to stop the enemy from moving for four ticks.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (28).png]] || Resurrect Skeleton || 57 || Resurrection || 5 Death, 10 Earth & 1 Cosmic || 70 || - || Resurrects a Skeleton that will attack your enemies with Ranged Damage at the cost of 4 prayer points.<br>
+It will remain alive a cycle for every Magic level the player had at the time and has a max hit of 2.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (29).png]] || Mark of Darkness || 59 || Support || 1 Soul & 1 Cosmic || 70 || - || An enemy with this spell cast upon them suffers an array of debuffs:
+* Corruption occurs twice as often.
+* Your grasping spells are twice as effective (both success % chance and the duration are doubled)
+* Demonbane spells deal an additional 25% damage against demonic enemies.
+* Demonbane spells have additional 25% accuracy against demonic enemies.
+
+This spell will last a cycle for every Magic level the player has at the time.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (30).png]] || Superior Demonbane || 62 || Combat || 1 Soul & 8 Fire || 36+ Damage || 23 || Only works against demonic foes.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (31).png]] || Lesser Corruption || 64 || Support || 1 Death & 2 Soul || 75 || - || 33% chance to inflict corruption upon your target with your next damaging hit.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (32).png]] || Vile Vigour || 66 || Prayer || 1 Soul & 3 Air || 76 || - || Converts all Prayer points into run energy.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (33).png]] || Degrime || 70 || Skilling || 4 Earth & 2 Nature || 83 || - || Cleans all herbs in the Inventory ''(half the Herblore experience is given)''.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (34).png]] || Ward of Arceuus || 73 || Support || 4 Soul, 2 Nature & 1 Cosmic || 85 || - || When this is cast, the player gains an array of buffs:
+* Immune to corruption.
+* Grasp spells only last for 0.6 seconds.
+* Damage from demonic foes is reduced by 10%.
+
+This spell will last one cycle for every Magic level the player has at the time.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (35).png]] || Resurrect Zombie || 76 || Resurrection || 5 Blood, 10 Fire & 1 Cosmic || 88 || - || Resurrects a Zombie that will attack your enemies with melee damage at the cost of 6 Prayer points.<br>
+It will remain alive one cycle for every Magic level the player had at the time and has a max hit of 3.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (36).png]] || Undead Grasp || 79 || Combat || 1 Blood & 12 Fire || 46.5+ Damage || 24 || 50% chance to stop the enemy from moving for four ticks.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (37).png]] || Death Charge || 80 || Support || 1 Death, 1 Blood & 1 Soul || 90 || - || When cast the next Slayer creature that the caster kills will recharge 15% of their special attack energy.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (38).png]] || Dark Demonbane || 82 || Combat || 2 Soul & 12 Fire || 43.5+ Damage || 30 || Only works against demonic foes.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (39).png]] || Greater Corruption || 85 || Support || 1 Blood & 3 Soul || 95 || - || 66% chance to inflict corruption upon your target with your next damaging hit.
+|-
+|[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (40).png]] || Sinister Offering || 92 || Prayer || 1 Blood & 1 Wrath || 180 || - || Converts up to 3 sets of bones into Prayer points and gives 3 times the base experience.
+|}
+==New Mechanics==
+===Combat Spells===
+Some items can be used to auto-cast spells:
+* Slayer's Staff
+* Skull Sceptre (which has had its Attack bonus increased from +4 to +10)
+** ''With this update, the above change will also be available in the main game.''
+* Ahrim's Staff
+* Staff of the Dead
+* Kodai Wand
+The following spells from the Arceuus Spellbook can be auto-casted:
+* Inferior Demonbane
+* Superior Demonbane
+* Dark Demonbane
+* Ghostly Grasp
+* Skeletal Grasp
+* Undead Grasp
+
+[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (41).png|frame|centre|''Arceuus Spellbook auto-cast spells.'']]
+
+===Corruption===
+When a player is corrupted, they will start to lose Prayer points over a short amount of time. After six seconds, 1 Prayer point is drained. After another six seconds, 2 Prayer points are drained. After a final six seconds, 3 Prayer points are drained. If a Mark of Darkness has also been cast, corruption will occur every three seconds instead. This new type of damage will be reflected with a new type of hitsplat icon.
+
+[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (42).png|thumb|centre|600px|''The animation for casting Greater Corruption.'']]
+
+
+Naturally, Corruption spells can only be cast on a player who is not already corrupted. However, there is no cooldown between Corruption expiring and a new Corruption spell being cast. It is not possible to stack multiple Corruption spells on a single player, even within multi-combat zones.
+
+===Resurrection===
+To perform a Resurrection spell, players will need to equip the Book of the Dead. This new magic book will be obtained as a reward from A Kingdom Divided, acting as an upgrade to the completed Kharedst's Memoirs!
+
+[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (43).png|thumb|centre|600px|''Much nicer than the Necronomicon!'']]
+
+
+The Book of the Dead would provide '''+6 Magic attack''' and '''+3 Prayer bonus'''. Completion of A Kingdom Divided is required to equip the book.
+
+Drawing upon the power of defeated creatures, Resurrection spells bring to life an undead thrall that will aid you in battle. Yikes! This will require runes and Prayer points, and only 1 thrall can exist at a time. Thralls will remain active for one game cycle (0.6 seconds) for every Magic level the caster has. For example, if a thrall is resurrected when your Magic level is 60, it will last for 36 seconds before dying. Hey, maths can be fun - and violent!
+
+A resurrected thrall will not act like a typical follower. They will wander the area where they were created and attack anything the player attacks, provided the target is within range.
+
+It's possible to resurrect a thrall throughout most of Gielinor, even if the undead creature being dragged from its grave is not present in that area at the time. Certain exceptions to this will apply where the aid of a thrall will not be possible – much like how setting up the Dwarf Multicannon is not possible in specific areas.
+
+All resurrected thralls will attack at a rate of four game cycles (one attack every 2.4 seconds). Thralls cannot be damaged and their attacks ignore accuracy checks, but it will still be possible for them to hit 0 at times. While their damage ignores accuracy checks, Protection Prayers will reduce their damage accordingly.
+
+'''Thralls will not aid you in PvP situations.'''
+
+==Main Game Changes==
+Along with this lovely new Beta, we've also made some changes to the main game. Some of these are made to allow for the Beta. Others are A Kingdom Divided-relevant changes we're intentionally launching early to help ensure the main release goes smoothly! The following changes will go live with this update:
+
+===Hitsplats===
+We've updated the appearance of some of the more unique hitsplats in the game, as the ones we had were not suitable for colour blind players. This doesn't impact the iconic hitsplats for things such as damage and poison, but lesser used ones for shields, armour, healing, charging and discharging.
+
+===Spell Filtering===
+With the slate of new spells being added to your Spellbook today, we've included an option to filter out the ones that you don't meet the requirements for yet. We're also planning to poll a visual indicator for these spells as part of Poll 75.
+
+===X Marks the Spot===
+From a timeline standpoint, X Marks The Spot is the first quest in the Great Kourend storyline. However, it actually came out long after the next quest in the series, Client of Kourend, and was not required for it. We want to make sure anyone new to the series has a clear understanding of the order of events, so we've made X Marks the Spot a requirement for Client of Kourend. For anyone who's already started Client of Kourend, X Marks the Spot will instead become a requirement for the Five House quests. If you've already started all five of those, X Marks the Spot will be a requirement for A Kingdom Divided when it launches.
+
+What can we say? We're just maintaining lore and order...
+
+===Music===
+Listen up beat fiends, because we've made some behind the scenes improvements to our music system.
+
+First, music tracks should now loop more reliably, rather than stopping half way through. Looping should occur even when music stops for a jingle or because it's been muted/unmuted.
+
+Second, because we now have a better idea of when a music track ends, we're able to randomise the playing order! It will take a while for us to roll this out across the entire game, so we've started with the free-to-play area. Rather than the same track looping and then abruptly changing, music will now shuffle between suitable tracks when moving from one area to another.
+
+The music in Old School is of course iconic, especially in the free-to-play area, so the track shuffling isn't totally random. Instead, different parts of the map have different sets of tracks assigned to them. This ensures each area of the world retains its musical identity. For example, there are six tracks that play in the Lumbridge area. Previously, each of these tracks would only play in a small part of Lumbridge. Now, they can play anywhere in and around the town. Once one finishes, a different Lumbridge track will kick in. Most importantly, the first track for any new arrival in Lumbridge will always be Harmony. Ahh, memories.
+
+And that's it! We'll be keeping a close eye on your feedback over the Beta period and we look forward to hearing what you all think.
+
+==Equipment Rebalance: Part One – Feedback==
+Some items were missed in last week's first batch. They've now been added:
+
+The Gilded Spear and Gilded Hasta have increased attack rate from 5 to 4, to match their Rune equivalents.
+
+Guthan's, Verac's, Dharok's and Torag's legwear now have -11 ranged attack instead of -7 ranged attack, to match the change we made to other plate legwear.
+
+The Granite Hammer now requires 50 Strength to wield instead of 50 Attack and Strength. Its stats have also increased to be more in-line with the Warhammer changes of the previous week. If players no longer meet the requirements, this item will be un-equipped to your Inventory (if not full), failing that your Bank (if not full), and failing that it will drop to the floor. Players will receive an in-game message if this occurs.
+
+The Obsidian Mace (Tzhaar-ket-em) has an increased attack rate, from 5 to 4.
+
+==Below Ice Mountain==
+Players can now exchange excess items for Barronite Shards:
+* Barronite Head - 100
+* Barronite Handle - 100
+* Barronite Guard - 100
+* Barronite Mace - 500
+* Imcando Hammer (Broken) - 350
+* Imcando Hammer - 500
+
+Simply show the item to Ramarno and he'll offer to convert them into shards. Remember, any relics you find in the ruins can be traded at the Varrock Museum for extra change!
+
+We've made some changes to the Vault beneath Ice Mountain:
+* The entry fee has been decreased to 750 Barronite Shards.
+* The drop table has been rebalanced, to reflect the difficulty/time spent.
+
+Players can now interact directly with the forge to add/remove/check the amount of Barronite they have collected.
+
+The Imcando Hammer has been updated to include some of the original Hammer's functions that were missing.
+
+You can now store the Imcando Hammer in your Player Owned House.
+
+Players looking for some extra Kudos will now see the Camdozaal Relics appear on the Kudos list in the Varrock Museum.
+
+When preparing and offering fish in Camdozaal, the menu is now context-sensitive to which fish you have in your inventory.
+
+One for the gym bunnies here: players can now replay Altas's workout cutscene (for a fee) and even keep track of how many times they do it.
+
+The Barronite Mace now has a Strength bonus of +40 and an anti-Golem bonus of 15%, as mentioned in the original newspost.
+
+==Fishing Skill Boss==
+We're thrilled to see so many of you battling against the newly awakened Spirit of the Sea, Tempoross! We've made some small QoL changes to make an even bigger splash:
+
+A new overlay has been added to the lobby and the surrounding area. This will show how many players are waiting in the lobby, and indicate how long until the next encounter.
+
+Your Personal Bests and Time Taken stats are now displayed after successfully defeating the boss. They've also been added to the stats board in the Ruins of Unkah.
+
+A quick-climb option has been added to the Tempoross lobby ladder, as well as a water pump aboard the ship.
+
+UI on both mobile and PC has been moved to create more space on the screen.
+
+==Merch==
+We've added even more new lines to celebrate the [https://osrs.game/NewMerch 20th Anniversary year of RuneScape]! You may have already spotted these in the Anniversary packs we sent out to content creators - well, now they're coming to the merch store for everyone to get their hands on!
+* Special Black and Gold Map of Gielinor Print
+* Commemorative Black and Gold Map of Gielinor Tee (with 20th Anniversary logo in neck)
+
+[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (44).png|centre|600px]]
+
+
+The RuneScape anniversary is not the only milestone we're celebrating. Angels Scapes has now designed a whopping 200 official pins and keyrings for the merch store! You can grab the special commemorative Fire Cape, alongside other designs celebrating content over the past 20 years:
+* Angels Fire Cape - 200th Design Limited Edition Keyring
+* Void Seal Pin
+* Thieving Skillcape Keyring
+
+Restocks of Ice and Blood Barrage Pins and the popular Agility, Ranged, Firemaking Skillcape keyrings are also available.
+
+[[File:Arceuus Spellbook Beta and A Kingdom Divided Preparation (45).png|centre|600px]]
+==Other News==
+===It's Raining Cats and Dogs!===
+This one should make your tail wag: you can now interact with several cats and dogs across Gielinor! Address your pats and strokes to:
+* The Myths' Guild dog
+* The dog in the Falador chicken coop
+* The dog in the Museum Camp
+* Mark (Grace's dog, Rogues' Den)
+* The cat in the Farming Guild
+
+===PvP World Rota===
+The PvP rota has moved to Period B:
+* The host for the High-Risk PvP world will be W337 (US East)
+* The host for the Standard PvP world will be W325 (UK)
+* The host for the free-to-play PvP world will be W371 (UK)
+* The members-only LMS world will be W492 (US East)
+* The free-to-play LMS world will be W326 (UK)
+
+===Extras===
+* The trawler is now leakier when more players are on it. Stands to reason, right? However, more than one player can now fix a trawler railing at a time. Problem solved!
+* The stock of Swamp Paste in the Port Khazard general store has been increased. It also restocks faster.
+* Players will be prevented from accidentally clicking on Inventory items while using the Deposit Box or entering a Bank PIN.
+* Gravestone payment messages have been added to the game.
+* The Theatre of Blood is now a safe zone on PvP worlds.
+* The Serpentine Helm will no longer ask the player how many Scales you want to add to it, as long as no other Scale-using items are in the Inventory. This is in-line with similar items.
+* The Soul Wars shop has been updated to include a 'buy X' option for the XP rewards. We will look to do the same to other tabs of the shop at a later date.
+* Dragon Slayer II notes can now be combined into a book!
+* The Fight Cave leave timer has been reduced to three minutes.
+* Some new counters have been added to the Collection Log, including the number of Tempoross Reward Permits claimed, and Spoils Of War opened in Soul Wars!
+* Radimus Erkle's clone has been removed, meaning he will no longer appear in two places at once!
+* A toggle for the border setting has been added to the Settings menu.
+* The 20th Anniversary Cape no longer clips when you're carrying an Ale Of The Gods. Cheers to that!
+* Clearer messaging is now provided for players who are attempting to fight the Thermonuclear Smoke Devil off-task for the Achievement Diary but aren't yet at the required Slayer level.
+* Death in the Clan Wars free-for-all arena no longer removes PK skulls, for consistency with Clan Wars challenge battles.
+* The bankers in Mos Le'Harmless now face west by default.
+* Items no longer vanish when dropped at the top of some stairs in Dorgesh-Kaan.
+
+That's everything for this week's game update! We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums.ws?380,381,715,66213254 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+----
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Gee, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

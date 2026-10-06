@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Perfect Crondis
+|image = [[File:Path of Crondis - Palm of Resourcefulness.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Crondis room without letting a crocodile get to the tree, without anyone losing water from their container and in under one minute.
+|tier = Elite
+|monster = Tombs of Amascut
+|type = Perfection
+|id = 438
+|leagueRegion = Desert
+}}
+'''Perfect Crondis''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to complete the [[Path of Crondis]] [[Tombs of Amascut/Strategies#Challenge room|challenge room]] without letting a [[crocodile (Tombs of Amascut)|crocodile]] get to the [[Palm of Resourcefulness|tree]], without anyone losing water from their [[water container (Tombs of Amascut)|container]] and in under one minute, at raid level 150 or above.
+
+==Strategy==
+Since deaths restart this task, one (except hardcore iron men) may save a few ticks by entering the puzzle room just to get the water container, then dying to restart the task, as it will appear in the inventory after death. Also, in case one fails, a [[Locator orb]] or [[Dwarven rock cake]] may be used to reset the task faster. 
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

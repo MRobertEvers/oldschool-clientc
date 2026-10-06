@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Tomb Looter
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut 25 times.
+|tier = Master
+|monster = Tombs of Amascut
+|type = Kill Count
+|id = 466
+|leagueRegion = Desert
+}}
+'''Tomb Looter''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete the [[Tombs of Amascut]] raid 25 times, at level 150 or above.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

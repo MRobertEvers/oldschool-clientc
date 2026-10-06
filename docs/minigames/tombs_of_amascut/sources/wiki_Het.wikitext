@@ -1,0 +1,52 @@
+{{External|rs}}
+{{Infobox NPC
+|version1 = Freed
+|version2 = Imprisoned
+|name = Het
+|image1 = [[File:Het.png|120px]]
+|image2 = [[File:Het (imprisoned).png|230px|class=notpageimage]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|race = [[Human]]
+|quest = [[Into the Tombs]]
+|location = [[Jaltevas Pyramid]]
+|gender = Male
+|options1 = Talk-to
+|options2 = None
+|examine = Tumeken's avatar of health.
+|map = No
+|id1 = 11687,11688
+|id2 = 11686
+|leagueRegion = Desert
+}}
+[[File:Het chathead.png|left]]
+'''Het''' is the lesser [[Gods|god]] of health and one of the four [[Avatars of Tumeken]], which are minor gods of the [[Menaphite Pantheon]], a collection of deities worshipped in the [[Kharidian Desert]]. According to a legend from the [[Book of Light and Day]], he was created from one of the four dreams that the main god [[Tumeken]] once had over four days.{{CiteText|text=Book of Light and Day|quote=The Book of Light and Day says that Tumeken once fell into a deep sleep and dreamt for four days and four nights. With each night, his dreams took form. Those four forms became the lesser deities of the pantheon, with Scabaras being the last of them.}} He has the head of a human, unlike the rest of the Pantheon, whose members sport animal heads.
+
+Associated to health both mental and physical, he is worshiped mainly by soldiers as well as orators and such, being especially popular with soldiers in [[Al Kharid]].{{CiteNPC|npc=Jex|quote=Het is the god of health, both in mind and body. He is quite popular amongst soldiers as a result, especially up in Al Kharid. [...] Many great orators also look to him for guidance. I imagine his teachings help with some of their strenuous speeches.}} When the plagues of Sophanem broke out, a heated debate ensued amongst Het's followers as to the nature of the plagues in relation to the god.{{CiteNPC|npc=Jex|quote=With many arguments. They really couldn't decide whether it was a punishment from Het, or an affront to him. I stayed out of that debate.}}
+
+A [[Apparition#Het|manifestation]] of him can be encountered during [[Icthlarin's Little Helper]]. If the player picks up the human-headed [[canopic jar]] containing the liver, the player can fight the manifestation. However, fighting him is not necessary to finish the quest.
+
+During [[Beneath Cursed Sands]] it is revealed that he, alongside [[Apmeken]], [[Crondis]], and [[Scabaras]], had been captured. Amascut captured Het after discovering [[Akkha]], a former follower of Het that was on the verge of life and death after his poison failed to work properly during a sacrificial ritual. Het was lured by Amascut to confront her, well aware that it was a trap but only went because he wanted to help his former follower. However, he instead faced a vengeful Akkha, who distracted him long enough that Amascut was able to successfully capture him. They have all been taken to the [[Jaltevas Pyramid]], the tomb of [[Osmumten]], where Amascut plans to use two ancient weapons against them to steal their divine energy and ascend from a demi-goddess to a true [[god]]dess. However, an adventurer would free them, and they returned to their roles as Avatars of Tumeken, promising that they will be there to help face Amascut when the time comes.
+
+==Dialogue==
+{{Hastranscript|speaksin}}
+
+==Gallery==
+<gallery>
+File:Het (monster).png|The [[Apparition#Het|apparition]] of Het appearing during [[Icthlarin's Little Helper]].
+File:Statue (Het).png|A statue of Het found in the [[Tombs of Amascut]].
+File:Het statue.png|A statue of Het found in the [[Uzer Mastaba]].
+File:Mural (Het).png|A mural depicting [[Amascut]] and [[Akkha]] conspiring against Het.
+File:Human emblem detail.png|A [[human emblem]] dedicated to Het.
+File:Canopic jar (Het) detail.png|A [[Canopic jar#Het|canopic jar]] containing a liver bearing the visage of Het.
+File:Menaphite Pantheon lesser gods concept art.png|Concept art of the Avatars of Tumeken, by Mod Jerv.
+File:Het symbol.png|The symbol representing Het as seen in the [[Tombs of Amascut]]
+</gallery>
+
+==References==
+{{reflist}}
+
+{{Gods}}
+{{Into the Tombs}}
+{{Tombs of Amascut}}

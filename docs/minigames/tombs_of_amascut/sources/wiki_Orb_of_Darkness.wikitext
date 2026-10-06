@@ -1,0 +1,23 @@
+{{Infobox NPC
+|version1 = Path of Het
+|version2 = Akkha
+|name = Orb of Darkness
+|image1 = [[File:Orb of Darkness (Path of Het).png|200px]]
+|image2 = [[File:Orb of Darkness (Akkha).png|200px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|examine = A magical orb.
+|map = No
+|id1 = 11708
+|id2 = 11801
+|leagueRegion = Desert
+}}
+'''Orbs of Darkness''' are objects that appear in the [[Path of Het]] challenge room in the [[Tombs of Amascut]], where they move in a straight line to the other end of the room. Running into these orbs will deal moderate damage to the player. On rare occasions it is possible for the orbs to spawn in stacked, appearing as a single orb but actually being multiple orbs on the same tile.
+
+A different variant appears during the fight with [[Akkha]], where they appear if he unleashes his Trailing Orbs attack, and the player moves whilst in the north-east quadrant. It will deal low, but rapid damage on the player if they walk into one. 
+
+The orb found in the Path of Het challenge room also appears in the awakened fight for [[Duke Sucellus]] upon reaching 33% of his health; getting hit by it will deal up to 27 damage, as well as draining Attack, Strength and Defence by 10 levels and all other stats by 8.
+
+{{Tombs of Amascut}}

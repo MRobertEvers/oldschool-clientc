@@ -415,7 +415,7 @@ return {
         -- on the control aggressive, and a protection prayer is read on its
         -- attack animation tick, so it must already be lit when it first
         -- swings. Points first: the quest's Prayer 47 must be there to spend.
-        local bp_r, bp_d, bp = t.prayer.points()
+        local bp_r, bp, bp_d = t.prayer.points()
         t.check("killSpirit.prayerPoints",
             bp_r == "ok" and type(bp) == "table" and bp.base_level >= 43 and bp.level >= 40,
             tostring(bp_d) .. " (Protect from Melee needs Prayer 43; want >= 40 points to spend)")
@@ -443,7 +443,7 @@ return {
         -- The prayer lasted the fight: still lit, points left (prayer will
         -- not regenerate; the guide stages no prayer potion).
         local sl_r, sl_d, sl_set = t.prayer.read()
-        local sp_r, sp_d, sp = t.prayer.points()
+        local sp_r, sp, sp_d = t.prayer.points()
         t.check("killSpirit.prayerLasted",
             sl_r == "ok" and type(sl_set) == "table" and sl_set.protectfrommelee == true
                 and sp_r == "ok" and type(sp) == "table" and sp.level >= 1,

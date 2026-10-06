@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Perfect Scabaras
+|image = [[File:Path of Scabaras - puzzle 4.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Scabaras room in less than a minute without anyone taking any damage from puzzles.
+|tier = Master
+|monster = Tombs of Amascut
+|type = Perfection
+|id = 441
+|leagueRegion = Desert
+}}
+'''Perfect Scabaras''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete the [[Path of Scabaras]] [[Tombs of Amascut/Strategies#Challenge room 2|challenge room]] in less than a minute without anyone taking any damage from puzzles, at raid level 150 or above.
+
+==Strategy==
+The achievement is best done in a solo encounter while avoiding the pillars room, since this room is a guessing game and can take a while to solve. The last puzzle is incapable of damaging players. A fast way to reattempt the combat achievement is to log out of the raid and start a new raid.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

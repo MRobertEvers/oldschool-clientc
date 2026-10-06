@@ -1,0 +1,28 @@
+{{Infobox Combat Achievement
+|name = Shayzien Specialist
+|image = [[File:Lizardman shaman (1).png|150px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Receive kill-credit for a Lizardman Shaman without taking damage from any shamans in the room.
+|tier = Elite
+|monster = Chambers of Xeric
+|type = Perfection
+|id = 314
+|leagueRegion = Kourend
+}}
+'''Shayzien Specialist''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to receive kill-credit for a [[Lizardman shaman (Chambers of Xeric)|lizardman shaman]] without taking any damage from them. Poison damage does not fail the task.
+
+==Strategy==
+Only one shaman needs to be killed to complete the achievement.
+
+The simplest strategy is to use Ranged with [[Protect from Missiles]], staying out of melee range while running around to avoid their attacks. Players should run from their previous position whenever a shaman jumps (move at least 2 tiles), shoots a green poison blob (move at least 3-4 tiles), and whenever the shamans' purple spawns get near. Bring a [[superantipoison]] and a [[stamina potion]]. This can be made easier in a solo by waiting until one of the two shamans is on the farthest side of the room as it may not aggro onto the player for a while, allowing the other one to be killed on its own.
+
+Alternatively, safespots can be used to kill the shamans without them being able to retaliate back. However, they will often need to be engaged first and one of the three potential layouts has very poor safespotting that will likely result in both shamans aggro'ing a player in the process. Manipulate the shamans into performing their jump attack (3x3 AoE centred on the target at the time of the mechanic) at the designated area; once the shaman has been lured, use a weapon with a range of 10 to kill them off.
+
+As the raid does not need to be completed, the player can choose to reload the raid until Shamans appear as the first room and use a full set of [[Shayzien armour (tier 5)|Shayzien armour]] while praying Protect from Missiles in order to trivialize this combat achievement.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

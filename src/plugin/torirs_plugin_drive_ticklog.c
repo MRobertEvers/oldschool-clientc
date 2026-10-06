@@ -112,7 +112,7 @@ drive_ticklog_push_row(
     struct lua_State* L,
     const struct ToriRSServerTicklogRow* row)
 {
-    lua_createtable(L, 0, 10);
+    lua_createtable(L, 0, 11);
     lua_pushinteger(L, (lua_Integer)row->serial);
     lua_setfield(L, -2, "serial");
     lua_pushinteger(L, (lua_Integer)row->tick);
@@ -131,6 +131,10 @@ drive_ticklog_push_row(
     lua_setfield(L, -2, "e");
     lua_pushinteger(L, (lua_Integer)row->f);
     lua_setfield(L, -2, "f");
+    /* The seventh field: HIT_PLAYER's raw (torirs_server.h, RAW DAMAGE),
+     * 0 on every other kind. ticklog.lua names it through _RAW[7]. */
+    lua_pushinteger(L, (lua_Integer)row->g);
+    lua_setfield(L, -2, "g");
     if( row->label[0] )
     {
         lua_pushstring(L, row->label);
@@ -141,7 +145,7 @@ drive_ticklog_push_row(
 /* api.drive.ticklog([after_serial], [max], [kind], [slot]) -> "ok", {rows...,
  * next_serial, serial, tick} | "refused", nil (the log is off) |
  * "unsupported", nil.
- * Rows are raw {serial, tick, kind, a..f, label}; ticklog.lua names the
+ * Rows are raw {serial, tick, kind, a..g, label}; ticklog.lua names the
  * fields per kind. `kind` (a row kind's name) and `slot` (an npc world slot)
  * filter in C: a Lumbridge run logs ten thousand npc_tile rows in two hundred
  * ticks, and turning each into a Lua table to throw it away spent the

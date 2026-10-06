@@ -8,6 +8,7 @@ import re
 from collections import deque
 from pathlib import Path
 
+import config_text
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / "OSRS-Content/osrs239-content"
@@ -25,8 +26,8 @@ REWARDS = (GAUNTLET / "scripts/gauntlet_rewards.rs2").read_text()
 PROGRESS = (GAUNTLET / "scripts/gauntlet_progress.rs2").read_text()
 LOBBY = (GAUNTLET / "scripts/gauntlet_lobby.rs2").read_text()
 MAP_STATE = (GAUNTLET / "scripts/gauntlet_map_state.rs2").read_text()
-NPC_CONFIG = (GAUNTLET / "configs/gauntlet_monsters.npc").read_text()
-INV_CONFIG = (GAUNTLET / "configs/gauntlet.inv").read_text()
+NPC_CONFIG = config_text.read_text(GAUNTLET / "configs/gauntlet_monsters.npc")
+INV_CONFIG = config_text.read_text(GAUNTLET / "configs/gauntlet.inv")
 RECIPE_INTERFACE = (BASE / "interfaces/gauntlet_recipes.if").read_text()
 COSTUME_ROOM = (
     BASE / "server/scripts/skill_construction/scripts/poh_costume_room.rs2"

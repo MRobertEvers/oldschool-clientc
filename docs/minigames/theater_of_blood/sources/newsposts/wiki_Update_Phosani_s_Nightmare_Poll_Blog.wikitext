@@ -1,0 +1,167 @@
+{{Update|date=4 May 2021|rev=6 May 2021|link=https://secure.runescape.com/m=news/a=13/phosanis-nightmare-poll-blog?oldschool=1|category=dev blog}}
+[[File:Phosani's Nightmare- Poll Blog newspost.png|right]]
+{{clear}}
+
+{{ToC}}
+==Player Feedback Changes (May 6th & May 10th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Player Feedback || Our Response
+|-
+|You feel like the teleport should not be available on the regular Nightmare of Ashihama, and instead should be exclusive to Phosani's Nightmare. || We've changed the blog to reflect that the teleport would only be available from Phosani's Nightmare.
+|-
+M|any of you would prefer that teleport use should not be tied to Drakan's Medallion, especially as it is related to a quest that is not required to fight the boss. || We've added an additional poll question that offers a choice between the teleport being obtained via an upgrade to Drakan's Medallion or as an untradeable teleport scroll, similar to those that drop from Cerberus.
+|-
+|Some of you would prefer the teleport location to be the graveyard in Slepe, rather than the proposed Sisterhood Sanctuary. || We've added an additional poll question that offers an alternate teleport location.
+|-
+|Some of you think Drakan's Medallion should be mountable in the Player Owned House. || This is not something we're able to offer at the moment, but we'll consider it for the future. It is likely that any additional mounted amulets would require you to choose between which mounted amulet you have active, rather than adding additional hotspots.
+|-
+|Some players are unhappy that Phosani's Nightmare will be a solo-only boss. || The Nightmare of Ashihama and Phosani's Nightmare are both very different encounters in how they play out. Balancing of both the mechanics and drops for Phosani's Nightmare is based around the encounter being solo-only. The Nightmare of Ashihama will remain as a group viable alternative for those not wanting to take on the more demanding Phosani's Nightmare encounter. In addition to this, lower geared and levelled players will likely continue fighting against the regular Nightmare in a group.
+|-
+|You have suggested we make these changes to the regular Nightmare of Ashihama, given they solve a lot of the problems with the encounter. || We've added an additional poll question that offers changes to the rotations and damage through Protection Prayers for The Nightmare of Ashihama.
+|-
+|<s>While not related to Phosani's Nightmare, in Poll 75 we offered a cosmetic upgrade to The Scythe of Vitur as a potential reward from Theatre of Blood Hard Mode.</s> || <s>The poll question to add this into the game has passed, but we know not everyone was happy with the proposed design. We've added an additional poll question that allows you to choose your preferred design from a variety of options.</s>
+|-
+|'''May 10th 2021:''' Some players are still not happy with our approach to the costmetic kit for the Scythe of Vitur. || Following feedback received regarding the Scythe of Vitur cosmetic variations, we have opted to remove these and instead offer an entirely alternate design based on a popular player suggestion as an additional option.
+|-
+|'''May 10th 2021:''' Some players were confused about the changes to Resurrection spells and summoned Thralls offered with Poll Question #12. || Additional information has been added to the blog to help further explain the proposed changes.
+|}
+
+==Phosani's Nightmare==
+Who remembers Phosani's Nightmare? Temporarily released in early 2020 to support the Nightmare of Ashihama launch, this was a more difficult version of the encounter for those of you who actually ''like'' waking up in a cold sweat! It was a pretty neat idea in theory, but as it could only be tackled as a solo encounter for one week, and with minimal differences from normal mode, it wasn't providing long-lasting, repeatable content.
+
+Now, we know that many of you have been dreaming of new end-game content. We have some exciting plans in the works to address this, but in the meantime we thought the return of Phosani’s Nightmare could provide a worthy challenge for those of you who have grown accustomed to current PvM content!
+
+As with the recent [https://secure.runescape.com/m=news/a-night-at-the-theatre?oldschool=1 A Night At The Theatre additions], this is us adapting our schedule to add new challenges that will tide you over while we work on bigger changes. This isn’t our magic solution to the lack of end-game content, but it's something we can whip up within a short timeframe while working on the major updates we'll be announcing this summer.
+
+With a more punishing encounter that includes harder to execute mechanics, brand new phases, more attack combos, new metas and a new loot table, Phosani's Nightmare is back for real, and she’s stronger than ever!
+
+Now, close your eyes... Don't be scared...
+
+==The Changes==
+Phosani’s Nightmare is a solo-only encounter and will require at least one completion of The Nightmare of Ashihama.
+
+We want this encounter to be faster paced, with more variation per fight, and more things happening simultaneously to keep the player engaged. We also want a significantly speedier kill than a regular Nightmare solo kill. Currently, it can feel like quite a drawn-out fight – more a test of stamina than skill!
+
+This new encounter will be different from The Nightmare of Ashihama in all sorts of ways. We don’t want to reveal the full extent of the changes, as we’d like for some of them to come as a surprise. But here's a taste of what to expect this time around:
+* Increased damage dealt to players using incorrect Protection Prayers...
+** ...But reduced damaged for those that use their Prayers correctly (Amen!)
+* Additional Shield and Totem phases...
+** ...But with reduced Hitpoints of each phase.
+* Additional special attack combinations.
+* An increased rate of special attacks.
+* Changes to existing special attack mechanics.
+* Randomised phase rotations, making each fight feel a little different (and less predictable)!
+* A brand new phase that will overwhelm any unprepared adventurer. You have been warned...
+
+{{News Poll|1|Should Phosani’s Nightmare, a vastly different solo-only version of The Nightmare of Ashihama encounter, be added to the game? The boss fight mechanics would be updated to make the encounter more challenging and engaging. The rewards would be improved to match these changes.}}
+
+{{News Poll|2|Should the proposed randomised phase rotations and Protection Prayer changes for Phosani's Nightmare also be made for The Nightmare of Ashihama?}}
+
+==The Rewards==
+What would an additional challenge be without additional reward? Yeah, a bit of a swizz. Fortunately, we have plenty of extra goodies in store.
+
+Very rare drops are okay. Low-value regular loot is okay. Long walks back after resupplying are... hmm, okay. But with The Nightmare of Ashihama you've got all three, and we understand the frustrations some players have. With Phosani's Nightmare, we're not looking to drastically change the available loot, but we think we can improve it.
+
+===Parasite Pet Metamorphosis===
+First up is a metamorphosis. Similar to Chambers of Xeric Challenge Mode, completing Phosani’s Nightmare would give a chance at an item that can be used on the Little Nightmare to unlock a Parasite variation of the pet. Creepy!
+
+[[File:Phosani's Nightmare- Poll Blog (1).png|thumb|center|300px|''We’re not sure why you’d want to have this thing following you around, but here it is anyway.'']]
+
+{{News Poll|3|If Phosani’s Nightmare is added to the game, should there be a chance to receive an item that transforms the Little Nightmare pet into a Parasite version?}}
+
+===Slepe Teleport===
+Sometimes in life, it's about the journey, not the destination. Yeah, we can get philosophical too, y'know.
+
+But when it comes to The Nightmare, the trip back after resupplying is kind of long and arduous. It can even cause you to lose your world, or force you to use alternate accounts to resupply between kills. This extended schlep was an intentional design choice, and one we made quite clear leading up to the release, but the comments we've received have shown that this wasn't necessarily the best approach. We'd like to take this opportunity to improve the situation.
+
+What if we allow players to teleport to Slepe via an upgrade to Drakan’s Medallion, the necklace rewarded after completion of A Taste of Hope? This upgrade would be made via an untradeable tablet that would be obtainable from both The Nightmare of Ashihama and Phosani’s Nightmare, with a higher chance of receiving it from the latter encounter.
+
+The upgraded Drakan's Medallion would teleport players to the Sisterhood Sanctuary as shown below:
+
+[[File:Phosani's Nightmare- Poll Blog (2).png|frame|center|''The proposed teleport location for the upgraded Drakan's Medallion.'']]
+
+
+Alternatively an untradeable teleport scroll could be added to the potential loot from Phosani's Nightmare, similar to the Key Master teleport from Cerberus. These stackable scrolls would teleport players to the same location as the Drakan's Medallion and could be added to the Master Scroll Book.
+
+{{News Poll|4|If Phosani's Nightmare is added to the game, should defeating her have a chance at dropping an item that allow players to teleport closer to the encounter? You can vote on how this teleport item works in the next two questions.}}
+
+{{News Poll|5|If Poll Question #4 passes and the teleport item is added to the game, how should this item be introduced? The highest voted option will win and be implemented into the game.
+
+Option 1: The teleport should implemented via an upgrade to Drakan’s Medallion.
+
+Option 2: The teleport should be implemented via untradeable teleport scrolls that drop from the encounter, similar to Key Master teleport from Cerberus.}}
+
+{{News Poll|6|If untradeable teleport scrolls are the preferred option in Poll Question #5, where should they take you? The highest voted option will win and be implemented into the game.
+
+Option 1: The teleport location should be the Sisterhood Sanctuary as shown in the blog.
+
+Option 2: The teleport location should be near the Slepe Graveyard.}}
+
+===Better Regular Loot===
+Given the increased difficulty of Phosani's Nightmare, we reckon it’s fitting to improve the regular loot you can swipe after each successful kill.
+
+We propose to increase the quantity of normal loot drops from this particular encounter by 50% (when compared to the standard Nightmare of Ashihama).
+
+Alongside this base increase in quantity, we’d also replace some of the less desirable drops from the loot table, such as Adamant arrows. With these changes, plus an increase in the kills per hour, this should not only increase the value from each kill, but also help offset the hefty resource cost of facing against this harder encounter in the long run.
+
+''This change will be made if Poll Question #1 passes, which can be seen earlier in this blog. We think these changes could be well suited to the regular Nightmare of Ashihama too, so we're polling that separately with the below question.''
+
+{{News Poll|7|If Phosani’s Nightmare is added to the game, should we also replace some of the less useful drops from The Nightmare of Ashihama loot table, such as Adamant arrows, with more desirable items?}}
+
+===Different Unique Chances===
+Finally, we’d like to make sure that the chance of obtaining a unique item correctly reflects the increased difficulty and duration of the encounter.
+
+Obtaining uniques from Phosani's Nightmare will be around 20% faster than regular efficient Nightmare of Ashihama. This will take into account the faster kills per hour you'd expect to achieve, as well as the lessened downtime you'd incur after each fight, because of that lovely teleport we mentioned earlier.
+
+This should make fighting Phosani’s Nightmare a viable and faster-paced alternative to The Nightmare of Ashihama, albeit one that will require more focus, and less reliance on potential teammates!
+
+{{News Poll|8|Should the chance of obtaining a unique item be adjusted for Phosani's Nightmare to reflect the increased difficulty and duration of the encounter?}}
+
+We’re really excited to hear what you think about this new and improved encounter with The Nightmare! With a teleport to reduce your resupply commute, an overall buff to the rate at which you can obtain unique items, and slight buffs to the regular loot, chasing these uniques should be much more enjoyable.
+
+==Additional Changes==
+===A Night at the Theatre - Scythe of Vitur===
+While not related to Phosani's Nightmare, in the [https://secure.runescape.com/m=news/a-night-at-the-theatre?oldschool=1 A Night At The Theatre blog] we offered a cosmetic upgrade to The Scythe of Vitur as a potential reward from Theatre of Blood Hard Mode. The poll question to add this into the game has passed, but we know not everyone was happy with the proposed design.
+
+As a team we always enjoy your concepts for weapons. It's enlightening to see what items resonate for players, especially when they've been brought to life by others in the community!
+
+In this blog we previously offered a variety of designs alongside the Phosani's Nightmare poll, giving you an opportunity to select your favourite. However, based on your feedback, we'd like to instead offer an entirely different design. This was created by FoxcRS and gained a huge amount of support within the community, following a much darker and bloodier theme compared to the Saradomin version that has already passed the polls.
+
+[[File:Phosani's Nightmare- Poll Blog (3).png|center|600px]]
+
+[[File:Phosani's Nightmare- Poll Blog (4).png|thumb|center|600px|''A bloodier version of the Scythe of Vitur, created by FoxcRS.'']]
+
+
+Should this design be added to the game, it would be in addition to the existing Saradomin-themed Scythe of Vitur, which we also plan to make some small tweaks to! Mod Grub has been working on altering the existing design based on your feedback - check it out below and let us know what you think of the newer design!
+
+[[File:Phosani's Nightmare- Poll Blog (5).png|thumb|center|600px|''Updated concept art for the Saradomin-themed Scythe of Vitur, a reward available from Theatre of Blood Hard Mode.'']]
+
+{{News Poll|9|Should it be possible to obtain the bloodier Scythe of Vitur cosmetic kit alongside the Saradomin themed kit from the Theatre of Blood Hard Mode?}}
+
+{{News Poll|10|If the bloodier Scythe of Vitur cosmetic kit is added to the game, how should it be implemented? The highest voted option will win and be added to the game.
+
+Option 1: The bloodier kit should be a separate drop that is added to the Theatre of Blood Hard Mode loot table in addition to the Saradomin-themed kit.
+
+Option 2: The bloodier kit should be obtained by converting a Saradomin themed kit, preventing an additional item being added to the Theatre of Blood Hard Mode loot table.}}
+
+===A Kingdom Divided & Arceuus Spellbook Rework===
+Following the recent Arceuus Spellbook rework beta, there are some additional changes that we'd like to make based on your feedback. We've included these questions in this poll to ensure we avoid any delay in development!
+
+{{News Poll|11|Should it be possible for the Master Wand to autocast the new spells coming alongside the Arceuus spellbook rework?}}
+
+With the introduction of Resurrection spells, players will be able to summon Thralls to aid them while in Combat against non-player characters. These Thralls are currently set to release as three different tiers, each with their own Combat style.
+* Resurrect Ghost: Resurrects a Ghost that will attack your enemies with Magic damage. Has a max hit of 1 and requires 38 Magic to cast.
+* Resurrect Skeleton: Resurrects a Skeleton that will attack your enemies with ranged damage. Has a max hit of 2 and requires 57 Magic to cast.
+* Resurrect Zombie: Resurrects a Zombie that will attack your enemies with melee damage. Has a max hit of 3 and requires 76 Magic to cast.
+
+We propose a change to how resurrection spells work by giving each tier three individual spells instead. All previous stats and requirements for these spells would remain unchanged, but it would give players the ability to choose between summoning either a Magic, Melee or Ranged version of the specific Thrall at each tier instead.
+
+{{News Poll|12|Should the Resurrection spells coming alongside the Arceuus spellbook rework be changed so that each tier of the spell has three individual spells instead? This would give players the ability to choose between summoning either a Magic, Melee or Ranged Thrall at each tier.}}
+
+----
+
+As always, please share your feedback with us via the [http://services.runescape.com/m=forum/forums.ws?380,381,716,66214172 official forums], on the [https://www.reddit.com/r/2007scape/comments/n6czoa/phosanis_nightmare_poll_blog_updated/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

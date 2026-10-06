@@ -415,10 +415,12 @@ decode_sequence_rs2(
                 def->frame_ids[i] = g2(buffer);
             for( int i = 0; i < count; i++ )
                 def->frame_ids[i] += g2(buffer) << 16;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAMES);
             break;
         }
         case 2:
             def->frame_step = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAME_STEP);
             break;
         case 3:
         {
@@ -427,31 +429,40 @@ decode_sequence_rs2(
             for( int i = 0; i < count; i++ )
                 def->interleave_leave[i] = g1(buffer);
             def->interleave_leave[count] = 9999999;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_INTERLEAVE);
             break;
         }
         case 4:
             def->stretches = true;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_STRETCHES);
             break;
         case 5:
             def->forced_priority = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FORCED_PRIORITY);
             break;
         case 6:
             def->left_hand_item = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_LEFT_HAND);
             break;
         case 7:
             def->right_hand_item = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_RIGHT_HAND);
             break;
         case 8:
             def->max_loops = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_MAX_LOOPS);
             break;
         case 9:
             def->precedence_animating = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_PRECEDENCE);
             break;
         case 10:
             def->priority = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_PRIORITY);
             break;
         case 11:
             def->reply_mode = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_REPLY_MODE);
             break;
         case 12:
         {
@@ -462,6 +473,7 @@ decode_sequence_rs2(
                 def->chat_frame_ids[i] = g2(buffer);
             for( int i = 0; i < count; i++ )
                 def->chat_frame_ids[i] += g2(buffer) << 16;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_CHAT_FRAMES);
             break;
         }
         case 13:
@@ -497,25 +509,30 @@ decode_sequence_rs2(
                         add_frame_sound(&def->frame_sounds, frame, alternative);
                 }
             }
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAME_SOUNDS);
             break;
         }
         case 14:
             def->rs2_530_sound_flag = true;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_RS2_530_SOUND_FLAG);
             break;
         case 15:
             if( !late_preeoc )
                 goto unknown_opcode;
             def->rs2_727_tweened = true;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_RS2_727_TWEENED);
             break;
         case 16:
             if( !late_preeoc )
                 goto unknown_opcode;
             def->rs2_727_unknown16 = true;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_RS2_727_UNKNOWN16);
             break;
         case 18:
             if( !late_preeoc )
                 goto unknown_opcode;
             def->rs2_727_vorbis_sounds = true;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_RS2_727_VORBIS_SOUNDS);
             break;
         case 19:
             if( !late_preeoc )
@@ -608,10 +625,12 @@ decode_sequence_v1(
             {
                 def->frame_ids[var4] += g2(buffer) << 16;
             }
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAMES);
             break;
         }
         case 2:
             def->frame_step = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAME_STEP);
             break;
         case 3:
         {
@@ -623,31 +642,40 @@ decode_sequence_v1(
                 def->interleave_leave[var4] = g1(buffer);
             }
             def->interleave_leave[var3] = 9999999;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_INTERLEAVE);
             break;
         }
         case 4:
             def->stretches = true;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_STRETCHES);
             break;
         case 5:
             def->forced_priority = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FORCED_PRIORITY);
             break;
         case 6:
             def->left_hand_item = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_LEFT_HAND);
             break;
         case 7:
             def->right_hand_item = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_RIGHT_HAND);
             break;
         case 8:
             def->max_loops = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_MAX_LOOPS);
             break;
         case 9:
             def->precedence_animating = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_PRECEDENCE);
             break;
         case 10:
             def->priority = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_PRIORITY);
             break;
         case 11:
             def->reply_mode = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_REPLY_MODE);
             break;
         case 12:
         {
@@ -663,21 +691,26 @@ decode_sequence_v1(
             {
                 def->chat_frame_ids[var4] += g2(buffer) << 16;
             }
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_CHAT_FRAMES);
             break;
         }
         case 13:
             handle_frame_sounds_pre_220(def, buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAME_SOUNDS);
             break;
         case 14:
             def->anim_maya_id = g4(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_MAYA_ID);
             break;
         case 15:
             /* Framed list (u16 count + explicit frame) with v1's packed record. */
             handle_frame_sounds_framed(def, buffer, decode_frame_sound_v1);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAME_SOUNDS);
             break;
         case 16:
             def->anim_maya_start = g2(buffer);
             def->anim_maya_end = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_MAYA_RANGE);
             break;
         case 17:
         {
@@ -687,13 +720,16 @@ decode_sequence_v1(
             {
                 def->anim_maya_masks[g1(buffer)] = true;
             }
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_MAYA_MASKS);
             break;
         }
         case 18:
             def->debug_name = gcstring(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_DEBUG_NAME);
             break;
         case 19:
             def->sounds_cross_world_view = true;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_CROSS_WORLD_SOUNDS);
             break;
         default:
             printf("Unrecognized opcode %d\n", opcode);
@@ -745,10 +781,12 @@ decode_sequence_v2(
             {
                 def->frame_ids[var4] += g2(buffer) << 16;
             }
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAMES);
             break;
         }
         case 2:
             def->frame_step = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAME_STEP);
             break;
         case 3:
         {
@@ -760,31 +798,40 @@ decode_sequence_v2(
                 def->interleave_leave[var4] = g1(buffer);
             }
             def->interleave_leave[var3] = 9999999;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_INTERLEAVE);
             break;
         }
         case 4:
             def->stretches = true;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_STRETCHES);
             break;
         case 5:
             def->forced_priority = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FORCED_PRIORITY);
             break;
         case 6:
             def->left_hand_item = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_LEFT_HAND);
             break;
         case 7:
             def->right_hand_item = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_RIGHT_HAND);
             break;
         case 8:
             def->max_loops = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_MAX_LOOPS);
             break;
         case 9:
             def->precedence_animating = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_PRECEDENCE);
             break;
         case 10:
             def->priority = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_PRIORITY);
             break;
         case 11:
             def->reply_mode = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_REPLY_MODE);
             break;
         case 12:
         {
@@ -800,21 +847,26 @@ decode_sequence_v2(
             {
                 def->chat_frame_ids[var4] += g2(buffer) << 16;
             }
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_CHAT_FRAMES);
             break;
         }
         case 13:
             handle_frame_sounds_220_226(def, buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAME_SOUNDS);
             break;
         case 14:
             def->anim_maya_id = g4(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_MAYA_ID);
             break;
         case 15:
             /* Framed list (u16 count + explicit frame) with v2's record. */
             handle_frame_sounds_framed(def, buffer, decode_frame_sound_v2);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAME_SOUNDS);
             break;
         case 16:
             def->anim_maya_start = g2(buffer);
             def->anim_maya_end = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_MAYA_RANGE);
             break;
         case 17:
         {
@@ -824,13 +876,16 @@ decode_sequence_v2(
             {
                 def->anim_maya_masks[g1(buffer)] = true;
             }
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_MAYA_MASKS);
             break;
         }
         case 18:
             def->debug_name = gcstring(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_DEBUG_NAME);
             break;
         case 19:
             def->sounds_cross_world_view = true;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_CROSS_WORLD_SOUNDS);
             break;
         default:
             printf("Unrecognized opcode %d\n", opcode);
@@ -882,10 +937,12 @@ decode_sequence_v3(
             {
                 def->frame_ids[var4] += g2(buffer) << 16;
             }
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAMES);
             break;
         }
         case 2:
             def->frame_step = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAME_STEP);
             break;
         case 3:
         {
@@ -897,31 +954,40 @@ decode_sequence_v3(
                 def->interleave_leave[var4] = g1(buffer);
             }
             def->interleave_leave[var3] = 9999999;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_INTERLEAVE);
             break;
         }
         case 4:
             def->stretches = true;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_STRETCHES);
             break;
         case 5:
             def->forced_priority = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FORCED_PRIORITY);
             break;
         case 6:
             def->left_hand_item = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_LEFT_HAND);
             break;
         case 7:
             def->right_hand_item = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_RIGHT_HAND);
             break;
         case 8:
             def->max_loops = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_MAX_LOOPS);
             break;
         case 9:
             def->precedence_animating = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_PRECEDENCE);
             break;
         case 10:
             def->priority = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_PRIORITY);
             break;
         case 11:
             def->reply_mode = g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_REPLY_MODE);
             break;
         case 12:
         {
@@ -937,21 +1003,26 @@ decode_sequence_v3(
             {
                 def->chat_frame_ids[var4] += g2(buffer) << 16;
             }
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_CHAT_FRAMES);
             break;
         }
         case 13:
             def->anim_maya_id = g4(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_MAYA_ID);
             break;
         case 14:
             handle_frame_sounds_226_plus(def, buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_FRAME_SOUNDS);
             break;
         case 15:
             def->anim_maya_start = g2(buffer);
             def->anim_maya_end = g2(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_MAYA_RANGE);
             break;
         case 16:
             /* rev226+: vertical offset (single signed byte). RuneLite/xrsps SeqType. */
             def->vertical_offset = (int8_t)g1(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_VERTICAL_OFFSET);
             break;
         case 17:
         {
@@ -961,13 +1032,16 @@ decode_sequence_v3(
             {
                 def->anim_maya_masks[g1(buffer)] = true;
             }
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_MAYA_MASKS);
             break;
         }
         case 18:
             def->debug_name = gcstring(buffer);
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_DEBUG_NAME);
             break;
         case 19:
             def->sounds_cross_world_view = true;
+            RSCache_PresenceSet(&def->present, RSCACHE_SEQ_FIELD_CROSS_WORLD_SOUNDS);
             break;
         case 100:
         {
@@ -1039,8 +1113,8 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !def || !out )
-        return 0;
+    assert(def);
+    assert(out);
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
@@ -1066,7 +1140,7 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
     int opcode_sounds = is_v3 ? 14 : 13;
     int opcode_maya_range = is_v3 ? 15 : 16;
 
-    if( def->frame_count > 0 )
+    if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_FRAMES) )
     {
         p1(&buffer, 1);
         p2(&buffer, def->frame_count);
@@ -1079,14 +1153,15 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
             p2(&buffer, (def->frame_ids[i] >> 16) & 0xFFFF);
     }
 
-    if( def->frame_step != -1 )
+    if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_FRAME_STEP) )
     {
         p1(&buffer, 2);
         p2(&buffer, def->frame_step);
     }
 
-    if( def->interleave_leave )
+    if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_INTERLEAVE) )
     {
+        assert(def->interleave_leave);
         /* The decoder appends a 9999999 sentinel, so the wire count is the number
          * of entries before it. */
         int count = 0;
@@ -1099,45 +1174,45 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
             p1(&buffer, def->interleave_leave[i]);
     }
 
-    if( def->stretches )
+    if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_STRETCHES) )
         p1(&buffer, 4);
-    if( def->forced_priority != 5 )
+    if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_FORCED_PRIORITY) )
     {
         p1(&buffer, 5);
         p1(&buffer, def->forced_priority);
     }
-    if( def->left_hand_item != -1 )
+    if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_LEFT_HAND) )
     {
         p1(&buffer, 6);
         p2(&buffer, def->left_hand_item);
     }
-    if( def->right_hand_item != -1 )
+    if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_RIGHT_HAND) )
     {
         p1(&buffer, 7);
         p2(&buffer, def->right_hand_item);
     }
-    if( def->max_loops != 99 )
+    if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_MAX_LOOPS) )
     {
         p1(&buffer, 8);
         p1(&buffer, def->max_loops);
     }
-    if( def->precedence_animating != -1 )
+    if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_PRECEDENCE) )
     {
         p1(&buffer, 9);
         p1(&buffer, def->precedence_animating);
     }
-    if( def->priority != -1 )
+    if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_PRIORITY) )
     {
         p1(&buffer, 10);
         p1(&buffer, def->priority);
     }
-    if( def->reply_mode != 2 )
+    if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_REPLY_MODE) )
     {
         p1(&buffer, 11);
         p1(&buffer, def->reply_mode);
     }
 
-    if( def->chat_frame_ids && def->chat_frame_id_count > 0 )
+    if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_CHAT_FRAMES) )
     {
         p1(&buffer, 12);
         p1(&buffer, def->chat_frame_id_count);
@@ -1148,13 +1223,13 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
             p2(&buffer, (def->chat_frame_ids[i] >> 16) & 0xFFFF);
     }
 
-    if( !is_rs2_sequence && def->anim_maya_id != 0 )
+    if( !is_rs2_sequence && RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_MAYA_ID) )
     {
         p1(&buffer, opcode_maya_id);
         p4(&buffer, def->anim_maya_id);
     }
 
-    if( def->frame_sounds.count > 0 )
+    if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_FRAME_SOUNDS) )
     {
         p1(&buffer, opcode_sounds);
 
@@ -1237,7 +1312,7 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
         }
     }
 
-    if( !is_rs2_sequence && (def->anim_maya_start != 0 || def->anim_maya_end != 0) )
+    if( !is_rs2_sequence && RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_MAYA_RANGE) )
     {
         p1(&buffer, opcode_maya_range);
         p2(&buffer, def->anim_maya_start);
@@ -1246,14 +1321,15 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
 
     /* Opcode 16 is the vertical offset only in v3; in v1/v2 that number is the maya
      * range, already written above. */
-    if( is_v3 && def->vertical_offset != 0 )
+    if( is_v3 && RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_VERTICAL_OFFSET) )
     {
         p1(&buffer, 16);
         p1b(&buffer, def->vertical_offset);
     }
 
-    if( !is_rs2_sequence && def->anim_maya_masks )
+    if( !is_rs2_sequence && RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_MAYA_MASKS) )
     {
+        assert(def->anim_maya_masks);
         int count = 0;
         for( int i = 0; i < 256; i++ )
         {
@@ -1270,25 +1346,26 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
         }
     }
 
-    if( !is_rs2_sequence && def->debug_name )
+    if( !is_rs2_sequence && RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_DEBUG_NAME) )
     {
         p1(&buffer, 18);
         pjstr(&buffer, def->debug_name, RSCACHE_JSTR_TERMINATOR_NULL);
     }
 
-    if( is_v3 && def->sounds_cross_world_view )
+    /* Every OldSchool era's decoder reads 19, so every era writes it back. */
+    if( !is_rs2_sequence && RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_CROSS_WORLD_SOUNDS) )
         p1(&buffer, 19);
-    if( is_rs2_530 && def->rs2_530_sound_flag )
+    if( is_rs2_530 && RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_RS2_530_SOUND_FLAG) )
         p1(&buffer, 14);
     if( is_rs2_727 )
     {
-        if( def->rs2_530_sound_flag )
+        if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_RS2_530_SOUND_FLAG) )
             p1(&buffer, 14);
-        if( def->rs2_727_tweened )
+        if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_RS2_727_TWEENED) )
             p1(&buffer, 15);
-        if( def->rs2_727_unknown16 )
+        if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_RS2_727_UNKNOWN16) )
             p1(&buffer, 16);
-        if( def->rs2_727_vorbis_sounds )
+        if( RSCache_PresenceHas(&def->present, RSCACHE_SEQ_FIELD_RS2_727_VORBIS_SOUNDS) )
             p1(&buffer, 18);
     }
 
@@ -1413,7 +1490,9 @@ void
 RSCache_Dat2ConfigSequenceSetDefaults(struct RSCache_Dat2ConfigSequence* sequence)
 {
     assert(sequence);
-    /* RuneLite SequenceDefinition field defaults. Opportunistic opcodes overwrite. */
+    /* RuneLite SequenceDefinition field defaults. Opportunistic opcodes overwrite,
+     * and say so in `present`; a field left at its default here was not stated. */
+    RSCache_PresenceReset(&sequence->present);
     sequence->frame_step = -1;
     sequence->forced_priority = 5;
     sequence->left_hand_item = -1;

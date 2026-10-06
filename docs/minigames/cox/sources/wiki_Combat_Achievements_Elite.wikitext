@@ -1,0 +1,79 @@
+{{External|rs=Combat Mastery - Elite}}
+{{DISPLAYTITLE:Elite Combat Achievements}}
+[[File:Combat Achievements - elite tier icon.png|left]]
+'''Elite [[Combat Achievements]]''' tasks require the player to have high combat levels, having high-level equipment available, as well as good knowledge of dealing with boss mechanics in addition to doing so under difficult restrictions to complete. Speed-based tasks and tasks for [[raids]] begin to appear as well.
+
+Non-boss monsters may also have elite tasks, but these are fairly easy tasks, such as killing them for the first time or taking advantage of simple mechanics.
+
+__TOC__
+==Requirements==
+{{Sync}}
+<div class="qc-active">
+; Items
+{{Checklist|
+*Any [[demonbane weapon]]
+*{{plink|Dragon halberd}} or {{plink|crystal halberd}}
+*{{plink|Hespori seed}} for every successful kill at [[Hespori]]
+*{{plink|Rune thrownaxe}}
+*{{plink|Salve amulet}}
+*{{plink|Verac's flail}}<ref group="a">Verac's flail is not strictly required, as the appropriate task can be completed with the use of [[thrall]]s.</ref>
+}}
+
+<references group="a"/>
+; Skills
+{{Checklist|
+*{{SCP|Farming|65|link=yes}} to defeat [[Hespori]]{{Boostable|yes}}
+*{{SCP|Magic|94|link=yes}} for [[Ice Barrage]] and [[Vengeance]]{{Boostable|yes}}
+*{{SCP|Mining|85|link=yes}} to one-down [[Het's Seal]] in [[Tombs of Amascut]]{{Boostable|yes}}
+*{{SCP|Slayer|95|link=yes}}{{Boostable|no}}
+}}
+; Quests
+</div>{{Checklist|smallindent=yes|notoggleparent=yes|
+*[[A Kingdom Divided]]
+*[[The Blood Moon Rises]] to access the [[Maggot King]]
+*[[Desert Treasure II - The Fallen Empire]]
+*[[The Final Dawn]]
+*[[The Frozen Door]]
+*[[Beneath Cursed Sands]]
+*[[Dragon Slayer II]]
+*[[Fallen From Grace]]
+*[[The Fremennik Exiles]]
+*[[Haunted Mine]]
+*[[The Heart of Darkness]] to access [[Amoxliatl]]
+*[[The Ides of Milk]] to access [[Brutus]]
+*[[Monkey Madness II]]
+*[[Perilous Moons]] to access the [[Moons of Peril]]
+*[[Secrets of the North]]
+*[[Song of the Elves]]
+*[[While Guthix Sleeps]]
+}}
+
+==Tasks==
+<onlyinclude>There are a total of {{Globals|ca elite tasks}} elite-tier tasks for the [[Combat Achievements]] system. Each elite task gives 4 combat achievement points.
+
+{{Sync}}
+{| class="wikitable sortable music-tracks sticky-header" style="width:100%;"
+{{Combat Achievements list|elite}}
+
+</onlyinclude>
+
+==Rewards==
+Players with {{Globals|ca elite points}} Combat Achievement points may claim the elite tier rewards by speaking to [[Ghommal]] or [[Laidee Gnonock]] by the entrance to the [[Warriors' Guild]]. These points do not necessarily have to be earned from tasks listed on this page, and can be earned from completing tasks from another tier.
+* An [[Antique lamp (Elite Combat Achievements)|antique lamp]] worth 25,000 experience in any skill above 50
+* A 5% increased chance to receive an [[elite clue scroll]] from all sources (excluding [[impling]]s)
+* [[Ghommal's hilt 4]]
+** Three daily teleports to [[Mor Ul Rek]] (within the inner city)
+* [[Like a boss]] slayer unlock will now allow players to have up to 55 boss kills (a +20 increase) when assigned a boss task
+* [[God Wars Dungeon]] benefits:
+** God Wars Dungeon boss entrances now require 30 follower kill count to enter instead of 35
+** [[Ecumenical key]] drop rate is now increased from 1/55 to 1/50
+** Coin cost for God Wars Dungeon private instances is reduced from 150,000 to 125,000 coins
+* Ability to create a [[dragon hunter crossbow (t)]] by combining it with [[Vorkath's head]]
+* [[Tztok slayer helmet]] cosmetic variant is unlocked, obtainable by speaking to either [[Ghommal]] or [[Laidee Gnonock]]
+* [[Bracelets of slaughter]] and [[expeditious bracelet]]s have a 10% chance to fully recharge instead of breaking
+* [[Superior slayer monsters|Superior slayer monster]] spawn rate increased 33% from 1/200 to 1/150 (Note: despite the in-game statement that this is a 25% increase, it’s actually a 33% increase)
+* The [[dwarven multicannon]] can hold up to 60 [[steel cannonball]]s
+
+{{Combat Achievements}}
+[[Category:Combat Achievements|*4]]
+[[Category:Elite Combat Achievements tasks|*]]

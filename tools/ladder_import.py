@@ -63,6 +63,8 @@ import os
 import re
 import sys
 
+import config_text
+
 CLIMB_VERBS = ("Climb-up", "Climb-down", "Climb")
 
 # group name -> the set of distinct climb verbs that defines it
@@ -235,7 +237,7 @@ def read_other_overlays(content, mine):
                 continue
             block = None
             with open(path) as handle:
-                for line in handle:
+                for line in config_text.filter_lines(handle):
                     line = line.strip()
                     match = re.match(r"^\[([^\]]+)\]$", line)
                     if match:
@@ -276,7 +278,7 @@ def read_configs(path):
     records = {}
     current = None
     with open(path) as handle:
-        for raw in handle:
+        for raw in config_text.filter_lines(handle):
             line = raw.rstrip("\n")
             match = re.match(r"^\[([^\]]+)\]$", line)
             if match:

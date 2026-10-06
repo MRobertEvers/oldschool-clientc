@@ -1,0 +1,57 @@
+{{Infobox Scenery
+|name = Scoreboard
+|image = [[File:Scoreboard (Tombs of Amascut).png|250x250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Tombs of Amascut]] lobby
+|options = Read
+|examine = Check your performance here.
+|map = {{Map|3355,9115|mapID=-1|mtype=pin}}
+|id = 46071
+}}
+A '''scoreboard''' can be found inside the [[Tombs of Amascut]]'s lobby. It shows several personal stats related to the tombs, including attempts, completions, deaths, as well as their corresponding global statistics, and fastest completion times for teams of 1-8 players.
+
+As of [[1 October]] [[2026]], the following table shows the global attempts, completions, and deaths for all modes of the Tombs of Amascut.
+
+{| class="wikitable"
+|-
+! Global !! Entry !! Normal !! Expert
+|-
+| Attempts || 4,546,795 || 28,386,235 || 46,288,722
+|-
+| Completions || 1,991,033 || 14,579,376 || 22,323,423
+|-
+| Deaths || 6,492,369 || 31,381,387 || 48,730,451
+|}
+
+As of [[1 October]] [[2026]], the following table shows the global best times achieved in each mode of the Tombs of Amascut. '''Challenge''' time is the time spent actually fighting bosses, while '''Overall''' time is the full time from entering the raid to dealing the finishing blow to the [[Warden]].
+
+{| class="wikitable"
+|-
+! !! colspan="2" | Entry !! colspan="2" | Normal !!  colspan="2" | Expert
+|-
+! Best Time !! Challenge !! Overall !! Challenge !! Overall !! Challenge !! Overall
+|-
+| 1 player || 9:52.20 || 11:26.40 || 12:03.60 || 13:35.40 || 14:17.40 || 15:52.80
+|-
+| 2 players || 9:30.60 || 11:09.60 || 11:30.00 || 13:10.80 || 14:04.20 || 15:42.60
+|-
+| 3 players || 9:34.80 || 11:16.80 || 11:21.00 || 13:03.60 || 13:54.60 || 15:37.80
+|-
+| 4 players || 9:21.60 || 11:08.40 || 10:43.80 || 12:28.80 || 12:57.00 || 14:36.00
+|-
+| 5 players || 9:49.80 || 11:34.20 || 10:24.60 || 12:09.00 || 12:27.00 || 14:06.00
+|-
+| 6 players || 9:46.20 || 11:43.20 || 10:04.80 || 11:43.80 || 13:43.20 || 15:29.40
+|-
+| 7 players || 9:12.00 || 11:01.80 || 9:45.60 || 11:31.20 || 13:58.20 || 15:51.00
+|-
+| 8 players || 8:31.20 || 10:28.20 || 9:35.40 || 11:20.40 || 11:44.40 || 13:24.00
+|}
+
+[[File:Tombs of Amascut scoreboard.png|thumb|left|Reading the normal mode scoreboard]]
+
+{{Tombs of Amascut}}
+{{Global scoreboard}}

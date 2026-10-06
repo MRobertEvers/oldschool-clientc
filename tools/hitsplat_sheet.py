@@ -17,6 +17,8 @@ said to be unnamed, rather than given a colour word and left to look identified.
 import io, os, struct, sys
 from PIL import Image, ImageDraw, ImageFont
 
+import config_text
+
 # ---- reading what the tree already holds ---------------------------------
 SPRITES = 'OSRS-Content/osrs239-content/sprites'
 CONFIG  = 'OSRS-Content/osrs239-content/configs/all.hitsplat'
@@ -59,7 +61,7 @@ def sprite_ids():
 
 def records():
     recs, order, cur = {}, [], None
-    for line in io.open(CONFIG, encoding='utf-8'):
+    for line in config_text.filter_lines(io.open(CONFIG, encoding='utf-8')):
         line = line.strip()
         if line.startswith('['):
             cur = line[1:-1]; recs[cur] = {}; order.append(cur)

@@ -1,0 +1,186 @@
+{{Update|date=4 August 2021|link=https://secure.runescape.com/m=news/new-client-features-milestone-2?oldschool=1|category=game}}
+[[File:New Client Features- Milestone 2 newspost.png|right]]
+{{clear}}
+{{ToC}}
+==Issues and Hotfixes (August 4th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Issues Raised
+!Current Progress
+|-
+|'''(11:45 BST)''' We've received reports of some KC tasks aren't autocompleting. || '''(12:13 BST)''' [FIXED] KC tasks should now complete correctly upon opening the Combat Achievements Log.
+|}
+
+''The second batch of new client features arrive this week, bringing enhancements to core gameplay elements such as minimap management and, excitingly, improved draw distances! Combat Achievers and patrons of the Theatre of Blood have plenty to get their teeth into, too, and some lovely new merch hits the store!''
+
+==New Client Features: Milestone Two==
+We hope you’ve been enjoying the new client features '''introduced in back in June'''. Today we’re delighted to announce a number of new features heading to the game as part of our second milestone for this ongoing project!
+
+This week’s batch focuses on priority helpers and indicators, and we're confident these new additions will really improve your core Old School experience.
+
+As a reminder, these features can currently '''only be used on the C++ client through Steam''' – we are still working on bringing them to mobile. Stay tuned to our socials for updates as the project develops.
+
+Here’s what we've got for you:
+
+===Settings Menu Re-organisation===
+Your main Settings menu sits at the heart of your gaming experience. It’s where you make the essential tweaks and nudges that shape the gameplay to your liking. As such, we want the process for toggling between options to be as smooth as possible.
+
+With that in mind, we've added three new categories in the form of 'Activities', 'Interfaces' and 'Warnings', which should make some of these key settings easier to find.
+
+[[File:New Client Features- Milestone 2 (1).png|thumb|centre|600px|''Left: Previous Settings Menu, Right: New Settings Menu.'']]
+
+
+Additionally, the 'Keybinds' section has been removed – you'll now find those settings within the 'Controls' section.
+
+Finally, 'Collection Log Popup' and 'Chat Notification Functionality' have been separated, and you now have options to turn them on individually. You can find them in 'Interfaces' and 'Chat' respectively.
+
+===Agility Helpers===
+Training Agility has just gotten that little bit smoother with this update! We've included visual identifiers for obstacle courses across Gielinor, including the new Shayzien course. Along with your path through a course, any Marks of Grace will also be highlighted. This setting will be OFF as default, so remember to switch it on for the extra assistance.
+
+[[File:New Client Features- Milestone 2 (2).png|thumb|centre|600px|''Marks for the Marks!'']]
+
+{{Collapsed section|18|Full List of Courses - click here for more...}}
+* Gnome Stronghold
+* Draynor
+* Al Kharid
+* Varrock
+* Canifis
+* Falador
+* Seers Village
+* Pollnivneach
+* Rellekka
+* Ardougne
+* Prifddinas
+* Wilderness
+* Skullball
+* Werewolf
+* Agility Pyramid
+* Ape Atoll
+* Barbarian Outpost
+* Brimhaven Agility Arena
+* Penguin Course
+* Shayzien
+{{Collapsed section end}}
+
+If you’re in a hurry, you also have the option to highlight the many shortcuts within the Agility skill guide. Again, this is '''OFF''' by default.
+
+[[File:New Client Features- Milestone 2 (3).png|thumb|centre|600px|''Shortcuts are little more obvious now!'']]
+
+
+We’ve also included a nifty little Infobox that will display the name of the course, track the number of laps you've completed, your laps per hour and the number of laps needed for your next Agility level. Courses with their own unique twist like the Brimhaven Agility Arena will have additional course-specific information.
+
+The Infobox is '''ON''' by default.
+
+===Draw Distance===
+Like Gielinor itself, we're very old and can barely recall the days when we enjoyed 2020 vision… but now you can see further than ever before with this update! You'll now be able to increase the draw distance of objects around the player using a bar within the Display tab in Settings. By default this will be on its lowest setting. Note that changing this will not affect the distance at which you can see other players or NPCs.
+
+[[File:New Client Features- Milestone 2 (4).png|centre|600px]]
+
+
+[[File:New Client Features- Milestone 2 (5).png|thumb|centre|600px|''Image 1: Minimal Draw Distance, Image 2: Maximum Draw Distance.'']]
+
+===Minimap Improvements===
+Eagle-eyed players would have spotted this new feature with last week's update. Yup, you can now zoom in and out of the Minimap! Hover your mouse over it and get scrolling to increase or decrease the size - it’s perfect for scoping out your next destination.
+
+[[File:New Client Features- Milestone 2 (6).png|thumb|centre|600px|''Left: Completely Zoomed In, Right: Completely Zoomed Out.'']]
+
+
+But what if you don't ''like'' the Minimap? What if you think it simply gets in the way of all that beautiful scenery?! OK, fine. In the resizeable mode you can now right-click on the globe icon and minimise it. Just don’t blame us if you get lost.
+
+[[File:New Client Features- Milestone 2 (7).png|thumb|centre|200px|''Putting the 'Mini' in Minimap!'']]
+
+===Tile Indicators===
+We're also bringing you three new types of tile indicators, which can be found within the new Activities section of the Settings menu. You now have indicators for your current position, your destination tile and any tiles you mouseover.
+
+Each of these new indicators can be given different colours. Their default setting is '''OFF'''.
+
+[[File:New Client Features- Milestone 2 (8).png|thumb|centre|600px|''Blue = Current Tile, Green = Target Tile, Red = Hovered-Over Tile.'']]
+
+===Buff Bar: Ammo Display===
+Check what ammo you’ve equipped and how much you have left on your Buff Bar! When you have more than one type of ammo equipped (e.g. darts and arrows), the ammo in the weapons slot will take priority.
+
+[[File:New Client Features- Milestone 2 (9).png|centre|600px]]
+
+
+[[File:New Client Features- Milestone 2 (10).png|thumb|centre|600px|''Image 1: With Blowpipe & Ammo, Image 2: Without Blowpipe.'']]
+
+===Extras===
+Stat boost timers will now appear instantly if any boosts are active when logging into the game.
+
+We’ve also made the text colour for stat boost timers more readable.
+
+[[File:New Client Features- Milestone 2 (11).png|thumb|centre|600px|''It's the smaller details that makes the biggest difference.'']]
+
+
+UI scaling has become more flexible, too - you can now choose between nearest-neighbour, linear and bicubic filtering.
+
+[[File:New Client Features- Milestone 2 (12).png|thumb|centre|600px|''Smooth out those zoomed in edges!'']]
+
+
+Certain elements such as stat boosts, helpers, opponent information and more will be hidden during cutscenes, leaning into a more cinematic experience.
+
+==Combat Achievements==
+We're continuing to refine the Combat Achievements experience. Here are the latest tweaks:
+* As long as it's bounced to another player, the ‘Perfect Verzik’ task will no longer fail if you take damage from Verzik's green ball attack.
+* The RPG will now count as a melee weapon for completing Combat Achievement tasks.
+* The Fight Caves will now save progress correctly upon logging out, in relation to complete Combat Achievements tasks.
+* The counter page of your Player Owned House Achievement Log will now display on a different scroll, ensuring that high achievers can see their stats too.
+* Nightmare tasks should now be working as intended.
+* Performing the Scythe + Serp combo will once again have 100% chance to poison the Purple Crab in Theatre of Blood.
+
+We've adjusted some of the tasks’ difficulty tiers:
+* ‘Sleep Tight’: Moved from Master tier to Elite tier
+* ‘Nightmare (Solo) Speed-Trialist’: Moved from Elite tier to Master tier
+
+Following your feedback, we've tweaked some of the kill count tasks:
+* Kill Bryophyta 10 times -> 5 times (Medium)
+* Kill Obor 10 times -> 5 times (Medium)
+* Kill Callisto 150 times -> 100 times (Elite)
+* Kill Venenatis 150 times -> 100 times (Elite)
+* Kill Vet'ion 150 times -> 100 times (Elite)
+* Kill Cerberus 250 times -> 150 times (Elite)
+* Kill Cerberus 500 times -> 250 times (Master)
+* Kill Alchemical Hydra 250 times -> 150 times (Elite)
+* Kill Alchemical Hydra 500 times -> 250 times (Master)
+* Kill Corporeal Beast 100 times -> 50 times (Elite)
+* Kill Corporeal Beast 250 times -> 150 times (Master)
+* Kill Zulrah 250 times -> 150 times (Elite)
+* Kill Zulrah 500 times -> 250 times (Master)
+* Defeat the Corrupted Gauntlet 50 times -> 10 times (Elite)
+* Defeat the Corrupted Gauntlet 100 times -> 50 times (Master)
+* Defeat the Corrupted Gauntlet 200 times -> 150 times (Grandmaster)
+* Defeat the Gauntlet 50 times -> 100 times (Master)
+
+==Theatre of Blood - Poll 75 Changes==
+* A filter has been added to the Theatre of Blood Party Board to help you find their friends and Clanmates.
+* Players can now use Verzik's crystal shards on their party members to activate them, allowing you to teleport them out of the raid in an instant! To enable this, right-click a crystal and select ‘Toggle’. Both players must have a crystal for this to work, and both crystals will be consumed in the process. Hopefully that’s as clear as a transparent precious mineral.
+
+==PvP World Rota==
+The PvP rota has moved to Period B:
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-play PvP World
+* 580 - (US) - LMS Competitive
+
+==Merch==
+Check out the new Limited Edition pins from Angels Scapes, available now on the Official Merch Store! Dazzle your friends with the Lunar Pin, a shiny set of ceremonial Moon Clan armour on coloured enamel with 2.5D anodized rainbow metal detailing, or stand out from the crowd with the Berty Pin – the craziest house you ever did see, now in pin form!
+
+By popular demand, we have also added Cooking and Farming to the Skillcape keyring range.
+
+[[File:New Client Features- Milestone 2 (13).png|centre|600px]]
+
+
+Visit the store to grab your pins while stocks last!
+
+==Other News==
+* The Sinister Offering spell can now be performed without interrupting your actions.
+* Story Mode has been renamed Entry Mode in the Combat Achievements menu, Collection Log and Theatre of Blood scoreboard.
+* A typo within the A Night at the Theatre dialogue has been fixed.
+* A grammatical error in the description for the Combat Achievement ‘Shayzien Protector’ has been fixed.
+
+----
+
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums?380,381,745,66224160 official forums], on the [http://reddit.com/r/2007scape/comments/oxpfxq/new_client_features_milestone_2_weekly_game/ 2007Scape Reddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums] or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Grub, Halo, Havik, Husky, Jerv, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Skylark, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko.'''
+
+''The Old School Team''

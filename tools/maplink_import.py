@@ -94,6 +94,8 @@ import os
 import re
 import sys
 
+import config_text
+
 # Every menu verb that changes the player's plane, and BY HOW MANY planes.
 #
 # The magnitude matters as much as the sign, and it is the whole reason this
@@ -173,7 +175,7 @@ def read_configs(path):
     records = {}
     current = None
     with open(path, encoding="utf-8", errors="ignore") as handle:
-        for raw in handle:
+        for raw in config_text.filter_lines(handle):
             line = raw.rstrip("\n")
             match = re.match(r"^\[([^\]]+)\]$", line)
             if match:
@@ -230,7 +232,7 @@ def read_other_loc_categories(content, exclude_paths):
                 continue
             block = None
             with open(path, encoding="utf-8", errors="ignore") as handle:
-                for line in handle:
+                for line in config_text.filter_lines(handle):
                     line = line.strip()
                     match = re.match(r"^\[([^\]]+)\]$", line)
                     if match:
@@ -1227,6 +1229,7 @@ def main():
         (agility_loc_path, agility_loc_text),
     )
 
+    outputs = tuple((path, config_text.completed(path, want)) for path, want in outputs)
     if args.check:
         for path, want in outputs:
             try:

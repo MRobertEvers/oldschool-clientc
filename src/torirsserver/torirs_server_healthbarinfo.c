@@ -26,6 +26,7 @@
  * stake in this record is the denominator.
  */
 
+#include "torirs_server_servpack.h"
 #include "torirs_server.h"
 
 #include <assert.h>
@@ -63,13 +64,10 @@ ToriRSServer_HealthbarInfoCount(void)
 }
 
 int
-ToriRSServer_HealthbarInfoLoad(const char* cache_dir)
+ToriRSServer_HealthbarInfoLoad(struct RSCache_ServerPack* pack)
 {
     struct RSCache profile = RSCache_ProfileZero();
-    struct RSCache_Dat2Disk* disk;
-    struct RSCache_Dat2DiskArchive* archive;
-    struct RSCache_FileList* files;
-    int table;
+    struct ToriRSServerKindRecords records;
     int highest = -1;
 
     ToriRSServer_HealthbarInfoFree();
@@ -78,54 +76,21 @@ ToriRSServer_HealthbarInfoLoad(const char* cache_dir)
     profile.epoch = RSCACHE_EPOCH_DAT2;
     profile.revision = TORIRSSERVER_CACHE_REVISION;
 
-    disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
-    if( !disk )
-    {
-        /* Run from src/ as well as from the repo root, like objinfo. */
-        char fallback[512];
-
-        snprintf(fallback, sizeof(fallback), "../%s", cache_dir);
-        disk = RSCache_Dat2DiskNewFromDirectory(fallback);
-    }
-    if( !disk )
-    {
-        fprintf(stderr, "torirsserver: no healthbar metadata (cache '%s' not found)\n", cache_dir);
-        return 0;
-    }
-
-    RSCache_Dat2DiskSetProfile(disk, &profile);
-    table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_HEALTHBAR);
-    if( !archive )
-    {
-        /* Not an error: the type is OldSchool-only, and every id then reports
-         * the constructor default, which is what the server sent before this
-         * table existed. */
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
-    RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
-
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
-    if( !files )
-    {
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
+    /* The server pack's client records: the merge of the tree, encoded by the
+     * codec this decoder reads. */
+    if( !ToriRSServer_ServPackKindLoad(pack, RSCACHE_DAT2_CONFIG_KIND_HEALTHBAR, &records) )
+        return -1;
 
     /* File ids are sparse, so the table is sized from the largest id rather
      * than from the file count. */
-    for( int i = 0; i < archive->file_count; i++ )
+    for( int i = 0; i < records.count; i++ )
     {
-        if( archive->file_ids[i] > highest )
-            highest = archive->file_ids[i];
+        if( records.ids[i] > highest )
+            highest = records.ids[i];
     }
     if( highest < 0 )
     {
-        RSCache_FileListFree(files);
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
+        ToriRSServer_ServPackKindFree(&records);
         return 0;
     }
 
@@ -135,23 +100,21 @@ ToriRSServer_HealthbarInfoLoad(const char* cache_dir)
     for( int i = 0; i < g_healthbar_count; i++ )
         g_healthbar_widths[i] = TORIRSSERVER_HEALTHBAR_DEFAULT_WIDTH;
 
-    for( int i = 0; i < archive->file_count; i++ )
+    for( int i = 0; i < records.count; i++ )
     {
-        int id = archive->file_ids[i];
+        int id = records.ids[i];
         struct RSCache_Dat2ConfigHealthbar entry;
 
-        if( id < 0 || id >= g_healthbar_count || files->file_sizes[i] <= 0 )
+        if( id < 0 || id >= g_healthbar_count || (int)records.sizes[i] <= 0 )
             continue;
         memset(&entry, 0, sizeof(entry));
-        RSCache_Dat2ConfigHealthbarDecodeInplace(&entry, files->files[i], files->file_sizes[i]);
+        RSCache_Dat2ConfigHealthbarDecodeInplace(&entry, (char*)records.files[i], (int)records.sizes[i]);
         /* Presence, not value: an absent opcode 14 must keep the default, and
          * the decoder leaves the field at 0 either way. */
         if( entry.has_width && entry.width > 0 )
             g_healthbar_widths[id] = entry.width;
     }
 
-    RSCache_FileListFree(files);
-    RSCache_Dat2DiskArchiveFree(archive);
-    RSCache_Dat2DiskFree(disk);
+    ToriRSServer_ServPackKindFree(&records);
     return g_healthbar_count;
 }

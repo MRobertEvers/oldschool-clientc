@@ -1413,7 +1413,7 @@ struct RS_CS2Host
     bool client_scale_dirty;
 
     /** Backing SIDEBAR_CLEARWIDTH. There is no setter opcode and no live link yet from
-     *  this host to the render-side camera (app->world_camera.yaw, reached via
+     *  this host to the render-side camera (app->frame_view->world_camera.yaw, reached via
      *  the separate UITree host bus RS_CS2Host cannot see) — 0 (facing north)
      *  until something wires the real value in. */
     int cam_yaw;

@@ -1,0 +1,136 @@
+{{Update|date=10 January 2024|rev=11 January 2024|url=https://secure.runescape.com/m=news/varlamore-part-one---reward-changes?oldschool=1|category=devblog}}
+[[File:Varlamore- Part One - Reward Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+==Blog Update - Thursday, January 11th==
+We're back with a brief update on some of the bits within this poll blog!
+
+For starters, we're delaying the poll, which will now take place between Monday, January 15th and Friday, January 19th. Our reasoning for this is to give us a little breathing room for you to process the information in here, but to still make sure the poll wraps up before our Winter Summit, since we'll be following the Summit up with our usual Summit Greenlight Poll and need the Poll system clear. 
+
+The main reason for today's blog update is that we're going to be shelving the Bladed Moon again. We'd done this once before and said we'd re-surface it after making our intentions for the Scythe of Vitur and Osmumten's Fang clear, which we did, and it's clearly still not hitting the mark for many of you. That's the long and short of it, but we'll go into a little more detail on why we've made this decision in case you'd like a bit of light reading!
+
+First up - and perhaps the most widespread from the feedback we saw yesterday - is that the Bladed Moon just isn't resonating with many of you, including the people it's aimed at. While it seems many of you understand what the Moon is trying to achieve, it feels like the actual execution and numbers behind it aren't hitting the mark even in light of a newer context. Some of this concern stems from how well the Moon keeps pace with the Avernic Defender and that its power is disproportionally high for an item rewarded from content we've branded as 'around Barrows-tier'.
+
+While we've seen some players suggest that the Avernic Defender could be improved to create a larger space between itself and the Dragon Defender (which could be filled by a weaker Bladed Moon), we feel this is a separate topic and slightly beyond the scope of what we're looking to achieve with Perilous Moons. This means many of you have concerns about weakening the appeal of the Theatre of Blood, since many of the rewards from Old School's second raid have been powercrept by newer offerings, and that offering a more obtainable alternative to the Avernic Defender might diminish the raid's appeal - which isn't something we'd like to do, especially with Perilous Moons' intent being to pipeline more people into learning about PvM and hopefully aspiring to become ToB enjoyers themselves!
+
+On top of this, some feedback felt that pairing the Blade of Saeldor with the Bladed Moon resulted in a damage output that's equivalent-to or (in some cases) better-than the current combination of Osmumten's Fang and the Avernic Defender. This undermines some of our efforts to make the Scythe stand sufficiently clear of second-best options at some content and we believe it's a valid point that's been well-argued by many of you.
+
+Those are perhaps the two most widespread sentiments we've seen in responses, but we've had players reach out to us about concerns that aren't as immediately obvious while still being impactful in ways we hadn't initially intended. The first of these relates to pairing the Bladed Moon with a Dragon Dagger and resulting in the iconic dagger becoming a more potent Special Attack option than the equally iconic Dragon Claws in a number of scenarios - given their difference in availability and cost, this is actually a pretty substantial point around an issue we hadn't anticipated, since we're not looking to shake up the Special Attack DPS meta with this off-hand offering.
+
+The second of these relates to imbalancing PvP at some brackets, where builds with 65+ Defence (generally 70/75 Defence 'Med' builds) gain a huge increase in offensive potential against builds with lower Defence (typically 45 Defence 'Zerk' builds or 1 Defence 'Pure' builds). While we know this won't be a dealbreaker for some of you, we feel it's important to support builds like these since they tend to be easy-to-build while serving as solid entry-points for aspiring PvPers and would sooner improve the ability of these account types to punch up than see even more people trend towards these higher-level builds - it's a delicate balance that we're not looking to upset further at this point, and is a side-effect that we hadn't intended from our initial design.
+
+Alongside all of the above, there was a sense of uncertainty about where the Bladed Moon might sit after you've got more information on Project Rebalance, which meant some of you felt uncomfortable with voting on such an impactful item without knowing what the surrounding context might be later in the year. We completely understand and don't want you as players to feel like you're voting based on changes we might end up making down the line, since it detracts from your ability to make an informed vote.
+
+To sum all of the above up into a convenient tldr:
+
+* Execution of 'big accuracy number' isn't easy to understand at a glance for players in terms of how it stacks up against other options.
+* Competes too closely with the Avernic Defender, hurting its position in the game and thus ToB's loot table.
+* Results in situations where other Slash weapons powercreep on the Scythe of Vitur, which also hurts ToB's loot table.
+* Perhaps too strong when paired with the Dragon Dagger's Special Attack, has the potential to displace Dragon Claws.
+* Results in significant imbalances in PvP, which is not at all our intent with this addition.
+Taking all of the above into account, we made the decision to not move forward with the Bladed Moon at this time. This doesn't mean we're not open to exploring a healthier means of achieving that 'mid-game, Slash upgrade' with another piece of content in the future, as well as taking a look at Crush progression (since this is something else many of you have been talking about since we first released the blog). 
+
+Perilous Moons still boasts three really cool armour sets that you can grab for yourself or to sell on for GP, and without giving too much away we'd like to say that the fights themselves are just ''fun''. We'll likely look to replace the Bladed Moon with an untradeable that ties directly in to quality-of-life when interacting with Varlamore or Perilous Moons specifically, something like a convenient teleport offering or some other buff to the content itself, but ultimately feel like the content itself is still in a really healthy spot and can't wait to see you all get stuck in when it releases later this year!
+
+Before we sign off, we'd like to reiterate that for the questions surrounding the Glaive of Ralos and Echo Crystals, if those questions '''don't''' pass, then the pre-existing iterations will still be implemented, meaning the weaker Glaive of Ralos and Echo Crystals pairing with Guardian Boots, since they've already passed!
+
+That's all we've got for you today, thanks for reading, make sure to get voting next week and we can't wait to see you in Varlamore - go and complete Children of the Sun already, and we'll know if you've spacebarred it...
+
+----
+
+Back in November 2023, we shared a [https://secure.runescape.com/m=news/a=97/poll-blog-fortis-colosseum-x-perilous-moons?oldschool=1 poll blog] which included rewards for the upcoming Fortis Colosseum and Perilous Moons activities.
+
+With the first batch of Varlamore content right around the corner, we’re reviewing some of those rewards. Although everything passed the poll, we feel that there’s still room for a few small improvements – accordingly, we want to present you with the opportunity to vote these improvements into the game.
+
+===The Audio Read===
+[[File:Varlamore- Part One - Reward Changes narration.mp3]]
+
+==The Glaive of Ralos==
+[[File:Varlamore- Part One - Reward Changes (1).png|400px|center]]
+
+The Glaive of Ralos is a thrown weapon that, when charged, deals two attacks, each of which deals between 0 and 50% of your max hit.
+
+That’s pretty cool in itself, but the Glaive also has a groovy Special Attack, which reduces a target’s Defence by a percentage of their Magic level on hit. This slots in beside other Defence reduction options like the Dragon Warhammer, the Bandos Godsword, and the oft-forgotten Dorgeshuun weapons.
+
+Normally these funky effects come with a trade-off in terms of raw damage. However, the Glaive as polled doesn’t actually do much damage at all. Remember how we said that each attack rolls between 0% and 50% of your max hit? Well, that’s actually not as awesome as it sounds. In Old School RuneScape, when you go to hit something, your attack can hit or it can miss. However, it can also hit and roll for 0 damage. When the successful hit is rolling between 0 and 50%, it actually increases your chances to roll 0 damage – not exactly the badass feeling we were going for!
+
+Additionally, the effectiveness of the Special Attack is based on how many hits connect – and when both hits have a decent chance to appear as 0 hitsplats, it’s really difficult to figure out how much Defence you’ve shaved off your opponent!
+
+With all this in mind, we’re proposing a change where the Glaive now rolls between 0 and 75% of your max hit. We’ll also boost its Ranged Strength from 45 to 55. In tandem, these changes will make the Glaive’s damage output feel a lot better, without outpacing other Special Attack weapons.
+
+{{News Poll|1|Should we adjust the Glaive of Ralos, as described in the blog? This means increasing its Ranged Strength from 45 to 55 and clamping its damage at 75% of your max hit, up from 50%.}}
+
+==Echo Crystals==
+If all that maths didn’t make you recoil, this next suggestion definitely will! Get it? Recoil! Oh, we have fun.
+
+Anyway, Echo Crystals were pitched as a consumable item that could be socketed into a pair of Guardian Boots to give the wearer AoE recoil. While the effect itself passed the poll with ease, some of you have pointed out that ‘boots’ aren’t necessarily the most intuitive item to stick a recoil effect on.
+
+Our combat team have scoured the land, Prince Charming-style, for a beautiful item that fits the Echo Crystals perfectly – and lo and behold, they have a match!
+
+We reckon that the Toktz-ket-xil (and its ugly stepsisters, the Odium and Malediction Wards) are a perfect fit for the Echo Crystals. They’re about the right level bracket, they’re already part of many player builds, and they’re shields, not shoes.
+
+The Crystals themselves have also received a bibbity-bobbity boost, and now provide +2 Prayer bonus on top of that cheeky recoil effect.
+
+All together, these changes mean that these iconic off-hand offerings are an even better pickup for low-intensity Slayer shenanigans. They shall go to the poll!
+
+{{News Poll|2|Should we allow Echo Crystals to be used on the Toktz-ket-xil, Malediction Ward and Odium Ward instead of the Guardian Boots? Combining the Echo Crystals with these shields would add a 3x3 AoE recoil effect, consume a charge for each recoil activation, and add a +2 Prayer bonus.}}
+
+To be clear, if this change passes the poll Echo Crystals will no longer be used to upgrade Guardian Boots – just the three shields listed above.
+
+==Sunfire Runes==
+We’re taking a brief break from poll questions to clarify a few points about Sunfire Runes. These powerful spell catalysts were made from Sunfire Dust, found within the Fortis Colosseum, and could be used to imbue your Fire spells with the concentrated power of the SUN.
+
+Again, this reward passed the poll with flying colours – but we felt that these awesome items could be better integrated with both Varlamore and the art of Runecraft.
+
+The first change we’ve made is to rename ‘Sunfire Dust’ to ‘Sunfire Splinters’. You’ll combine this with Rune Essence (Pure or Daeyalt, to taste) and regular Fire Runes at the new Sunfire Altar, found in Varlamore.
+
+The Sunfire Altar is visually distinct from the Rune Altars you’re used to, and reflects the unique way Varlamorians and players alike will interact with it.
+
+Lastly, the number of Sunfire Runes crafted per Essence will now scale with your Runecraft level, in much the same way as crafting multiple Runes at once does currently.
+
+We’ll be implementing similar upgrades for other Runes in future Varlamore batches – adding minimum hits to standard spells is a reward space we’re keen to explore further (especially considering Project Rebalance) and we’re also excited to reveal more of Varlamore’s unique relationship to Runecraft. Stay tuned!
+
+==The Bladed Moon==
+Right, back to the polls!
+
+The Bladed Moon was initially pitched as an untradeable off-hand weapon with a hefty buff to Slash Accuracy in exchange for poor defensive capabilities and a lower Strength bonus than the Dragon Defender. Unfortunately, due to concerns about the impact this reward would have on Osmumten’s Fang and the Scythe of Vitur, we decided to pull it from the poll with a promise to re-poll it at a later date.
+
+That ‘later date’ is ''today''!
+
+Now that we’ve published the Project Rebalance blog<!-- Unsupported tag: link -->, our intentions for both Osmumten’s Fang and the Scythe of Vitur are clear – so we’d like to jog your memories regarding the Bladed Moon and tell you about an exciting new change which we hope will make it more appealing.
+
+Our goal with the Bladed Moon was to create an off-hand suitable for mid-game players - our target audience for the Perilous Moons activity. It’s an upgrade to the Dragon Defender in certain scenarios, and also fills the gap between Dragon and Avernic Defenders, or between the Blade of Saeldor and the Scythe of Vitur.
+
+One of the most common questions we saw last year was: “Why isn’t this a Crush-boosting weapon?”, which is a valid point to make. Ultimately, Crush Accuracy is best paired with the Dragon Warhammer and the Inquisitor’s Mace, which see more use at high levels than middle ones. For that reason, we don’t think it’s the right fit for the Bladed Moon.
+
+We also saw concerns about where the Bladed Moon would fit into the meta. Currently, the most powerful Slash weapon is the two-handed Scythe of Vitur – and since it’s two-handed, it can’t possibly be used with the off-hand Bladed Moon. This neatly confines this reward to players who don’t yet have a Scythe… but you know what they might have? The good ol’ Blade of Saeldor, which has historically underperformed against weapons of a similar tier in other combat styles.
+
+The Bladed Moon also shines when paired with one of our most iconic mid-tier weapons ever – the Abyssal Whip. In this way, the Bladed Moon becomes a worthwhile goal for any mid-level adventurer who isn’t yet able to spend the requisite millions to get their hands on a spendy Scythe of Vitur.
+
+We’ve also made a small change to ensure that the Bladed Moon fits in nicely beside the Avernic Defender. Previously, the concern was that the Avernic Defender’s Slash Accuracy was significantly lower than that of the Bladed Moon, considering that they only had a +3 Strength Bonus between them.
+
+With that in mind, we’ve lowered the Bladed Moon’s Strength Bonus from +5 to +4, which means that the Avernic Defender’s whopping +8 should almost always result in better max hits. To reiterate, Slash Accuracy in an off-hand isn’t especially desirable in existing high-level metas, so the Bladed Moon is unlikely to devalue your hard-earned end-game upgrades.
+
+When you combine all this with the Project Rebalance changes – including changes to the Fang’s Slash potency, the prevalence of Defence Reduction in end-game, and our intent to develop low-Defence bosses where the Scythe of Vitur can shine – the Bladed Moon suddenly has much more potential. We believe it’s just right for mid-level players without reliable access to Defence reduction methods – and thanks to these changes, it won’t shake things up for players who are already facing greater foes.
+
+Here are the updated stats:
+
+[[File:Varlamore- Part One - Reward Changes (2).png|400px|center]]
+
+{{News Poll|3|Should we add the Bladed Moon as an untradeable reward from Perilous Moons, as described in the blog? The Bladed Moon is a mid-tier off-hand that boosts Slash accuracy.}}
+
+
+As a small extra for this poll, we'll be including a question to include Mod Ash's Rune Pouch changes as stated in the most recent Game Jam, so if you want some more information check out [https://secure.runescape.com/m=news/game-jam-iv-overview---october-2023?oldschool=1#pouch newspost]!
+
+{{News Poll|4|Should we add the option to freely interchange the Runes in your Rune Pouch, while the bank menu is open? This will include four loadout options for you to customise.}}
+
+We can’t wait to explore Varlamore with you, and we hope that this mini-poll addresses some of those lingering questions about the rewards. The poll booths will open for voting very soon – onwards, to adventure!
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/comments/193bsav/varlamore_part_one_reward_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Blossom, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

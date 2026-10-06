@@ -1,0 +1,31 @@
+{{Infobox Combat Achievement
+|name = Tomb Raider
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut 50 times.
+|tier = Master
+|monster = Tombs of Amascut
+|type = Kill Count
+|id = 467
+|leagueRegion = Desert
+}}
+{{Confuse|Tomb Raider (music track)}}
+'''Tomb Raider''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete the [[Tombs of Amascut]] raid 50 times, at raid level 150 or above.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 December 2022
+|update = Quest Speedrunning: Batch 3 & More
+|change = 
+* The amount of raid completions required to complete the "Tomb Raider" task has been reduced from 100 to 50.
+* The task is now a master-tier task instead of a grandmaster-tier task.
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

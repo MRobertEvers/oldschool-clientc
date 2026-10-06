@@ -1,0 +1,404 @@
+{{Update|date=28 February 2022|link=https://secure.runescape.com/m=news/gielinor-gazette---february-2022?oldschool=1|category=community}}
+[[File:Gielinor Gazette - February 2022 newspost.png|right]]
+{{clear}}
+
+February is the shortest month of the year, but we packed it with some great updates, including Land of the Goblins, Wilderness changes and our 9th Birthday Event!
+
+
+We’re super excited about what’s to come over the next few months. Our teams are now all hands on deck, working hard to deliver you all the new content we promised in December. So, without further ado, let’s get stuck in!
+{{ToC}}
+==Project Status Update==
+===Released Content===
+====Leagues III: Shattered Relics====
+It’s almost time to close the curtain on Leagues III: Shattered Relics, but thanks to your feedback we already have some great ideas for next time, alongside some quality-of-life changes that’ll make every League going forward an even better experience.
+
+
+This month we also revealed the awesome Shattered Relics Medals, which we’ll be handing out to certain players for their accomplishments in the League. For more info, check the [https://secure.runescape.com/m=news/a=12/land-of-the-goblins?oldschool=1 blog]!
+
+====New Client Features and Android Open Beta====
+The Android Open Beta has launched, and we’ll be keeping a close eye on how you’re getting along with the latest features on mobile.
+
+We’re still aiming for an iOS Beta in the near future. Stay tuned for more news on that front!
+
+We’ve already started working on the next batch of new client features, where we’ll be getting clued up on… Clues! See what we did there?
+
+====Land of the Goblins====
+Lastly, February saw the release of the penultimate quest in the Dorgeshuun storyline, which let us all finally equip the ultimate fashionscape accessory, Goblin Mail.
+
+As our first-ever quest port, Land of the Goblins has spurred a lot of interesting conversations about porting other quests. Keep scrolling to see our thoughts on that!
+
+===Upcoming Content===
+[[File:Gielinor Gazette - February 2022 (1).png|centre|600px]]
+
+====Guardians of the Rift====
+We’ve been toiling away to bring you Guardians of the Rift and the accompanying quest, Temple of the Eye, and we’re happy to report that it’s all coming together!
+
+The minigame has some complex NPC behaviour that’s taken some time to get working. Abyssal Creatures are invading, and the Guardians are fighting back – we want this battle to feel genuinely epic, with real stakes.
+
+Once that’s done, the only thing left to do will be to balance the XP and reward rates, finish a couple of rewards, and spice up the environment with some finishing touches.
+
+Speaking of which – you’ll get to see the hard work our artists have done very soon! If all goes according to plan, we’ll launch Guardians of the Rift and Temple of the Eye on '''March 23rd'''.
+
+<u>Agility Shortcut</u>
+When we polled Guardians of the Rift we also talked about adding an Agility shortcut near the exit to Ivandis' Tomb for easier access to the True Blood Altar, and that the altar would be inaccessible via The Abyss.
+
+However, we've since decided that it wouldn't make sense to put the shortcut near the Tomb given the surrounding environment. We also considered adding shortcuts in the Meiyerditch Laboratories, but this meant that Blood Runecraft wouldn't hit the XP rate we wanted. With this in mind, we have another solution.
+
+We'd like to propose two shortcuts, one requiring 74 Agility (similar to our initial proposal) which will make Blood Runecraft XP rates viable but not amazing. We'd then like to propose a second shortcut, which can be found in a tunnel below the Hair of the Dog pub in Canifis. This second shortcut would require 93 Agility and 78 Mining as a one-time requirement to open the shortcut. It would take players significantly closer to the Blood Altar, as you can see in the image below. We'd also propose allowing access to the True Blood Altar through The Abyss so that there are multiple viable methods to craft Blood Runes to suit a range of skills, account builds and playstyles. Here's what it'll look like:
+
+[[File:Gielinor Gazette - February 2022 (2).png|centre|600px|thumb|''A look at the proposed Agility Shorcut.'']]
+
+Based on our testing, the 93 Agility shortcut would be the most viable method, followed by The Abyss, followed by the 74 Agility shortcut. The difference between The Abyss and the 93 Agility shortcut is a slight increase while using the Achievement Diary Cape to speed up Abyss Runecraft and a moderate increase without the Cape.
+
+Let us know what you think!
+
+====Beneath Cursed Sands====
+Beneath Cursed Sands, the next quest in the Desert storyline, is due in April and will bring with it a new area of the desert for you to explore.
+
+Today we’ve got a sneak peek at the work we’ve been doing on this quest and a first look at how the World Map will change once it’s been released. Bear in mind that this stuff is work in progress and may not be final.
+
+For more previews, check out [https://secure.runescape.com/m=news/a=12/gielinor-gazette---january-2022?oldschool=1 last month’s Gazette]!
+
+[[File:Gielinor Gazette - February 2022 (3).png|centre|600px|thumb|''A new piece of the map! - A Concept for the Khardian Desert.'']]
+[[File:Gielinor Gazette - February 2022 (4).png|centre|600px]]
+[[File:Gielinor Gazette - February 2022 (5).png|centre|600px]]
+[[File:Gielinor Gazette - February 2022 (6).png|centre|600px|thumb|''Art and Enviromental Concepts for Beneath Cursed Sands.'']]
+
+====Tombs of Amascut====
+Work on the Tombs of Amascut, our third raid, is in full swing! We’ve got working prototypes for the myriad challenges you’ll face in the raid and soon they’ll be shaped into proper encounters.
+
+In other Tombs of Amascut news, we recently released our [https://secure.runescape.com/m=news/a=12/tombs-of-amascut-raid-rewards-v2?oldschool=1 revised Rewards Blog]. Be sure to have a look and let us know what you think!
+
+Lastly, here’s a quick look at the WIP art for one of the NPCs you’ll meet during your time in the Tombs. Who could it be?
+
+<center>[[File:Gielinor Gazette - February 2022 (7).png|344px]][[File:Gielinor Gazette - February 2022 (8).png|250px]]<div class=thumbcaption style="width:100%;max-width:594px;">A Character Concept for Tombs of Amascut.''</div></center>
+
+====The PvP Arena====
+We recently released our updated version of our Concept & Reward newspost which you should definitely check out if you haven't already! As for when you can get your hands on the PvP Arena, you can expect a public Beta of the rewards in late March.
+
+====New Player Experience====
+In a game as open-ended as Old School RuneScape, it’s easy to become overwhelmed when deciding what to do next, especially when you’ve missed a few updates.
+
+It’s early days yet, but we’ve been looking at improvements for returning players, including the following:
+
+<u>Returning Player Recap</u>
+
+When players return to the game, the first thing they do is figure out what they were up to the last time they played. In a game as large and open as ours, this can take a while, and sometimes players might just walk away instead of trying to work it out.
+
+Our solution is the Player Recap, which provides returners with context about what they were doing before they stopped playing. This would include things like skills trained, quests started, progressed or completed, bosses fought, and equipment earned – all useful bits of information for players looking to pick up where they left off!
+
+<u>Goal Setting and Discovery</u>
+
+A big part of the game is setting personal goals, but it’s hard to do that when you don’t know what’s available or relevant to you. Fairy Rings, for example, make it much easier to travel but their importance is hidden away – even examining one gives you no clues as to what it actually does.
+
+You could always look things up on the fantastic [[osrsw:|Old School RuneScape Wiki]] - but you have to know what you’re looking for. That’s our goal here: to help players understand what they want to do next.
+
+This could mean more information in the Quest Journal, or ways to filter and sort quests, like the soon-to-be-added feature Mod Ed’s been showing off on Twitter.
+
+Or perhaps the Skill Guides should provide more details about upcoming milestones to help players understand what they’re unlocking and why it’s useful to them? How about a system that pulls together useful upcoming milestones from different Skills and Quests? You could see at a glance exactly what you have to do to wield the Rune Pickaxe or use the Gnome Gliders.
+
+The key takeaway here is that we want to provide more relevant content to players without telling them what to do or taking away their ability to choose their next goal.
+
+Although we’re currently focussing on new and returning players, there’s the possibility of expanding these features to everyone.
+
+As always, if you have any thoughts or suggestions, we’d love to hear them!
+
+====Skilling Update and Community Support====
+The Irregulars have been kept fairly busy with feedback since the launch of Leagues III, but they’ve also jumped onto their next project.
+
+If you recall, the 2022 Roadmap promised two projects at the start of the year: community event support and a skilling update. The latter is what we’re tackling first.
+
+It always feels great to design a piece of content that makes you wonder why it wasn’t in the game already – and we think we’ve done just that!
+
+We looked at which skills have the toughest player journeys. As you know, Guardians of the Rift will soon be arriving to help with Runecraft, so we’ve investigated another skill with similar issues.
+
+Mod Dylan is a wizard when it comes to interesting gameplay mechanics, and he’s concocted something awesome for the update. As part of this, he's also been working on responsive interfaces that scale nicely to different screen sizes. In future, we’d like to roll it out to other interfaces – especially the League ones. Here’s looking at you, Task menu…
+
+Oh, go on then, we’ll leave you with one last clue: the skilling update we’re working on is called the Giant’s Foundry. That’s all the info you’re getting out of us for now!
+
+====Deadman Re-Run====
+In our last Gazette we mentioned how the team working on our anti-DDoS protection had been impacted due to the recent vulnerabilities with Java and exploits with Log4j.
+
+We've now completed the work on these vulnerabilities, and the team are once again focusing on the anti-DDoS protection needed for the re-run.
+
+Good progress has been made and we expect this to be completed in March. The next step after this will be to organise a beta to ensure everything works as intended, then its on to the official re-run!
+
+Once again we'd like to reiterate that we're committed to re-running the event, but we want to make sure we can confidently deliver a smooth event, so you can experience the final you deserve.
+
+Thank you for your continued patience. Once this work has been completed we'll have much more news to share regarding a re-run and date for the beta.
+
+====Poll 76====
+Poll 76 has wrapped, and everything passed! You can expect changes to Elite Clue Scrolls, pet insurance, Combat Achievements and much more to arrive soon. [https://secure.runescape.com/m=news/poll-76-game-improvements-blog?oldschool=1 Learn more on the blog!]
+
+==Team Ins and Outs==
+We’d like to introduce you to '''Mod Soffan''', a character artist from RuneScape who’s just joined the Old School Team! Let’s give her a warm welcome!
+
+<i>Hey, Yamers!
+
+I'm Soffan (some people call me Yoffan), and I’ve worked at Jagex for a year as an artist for RS3. Some of my projects there included the models for TzKal-Zuk and the Armadyl Staff!
+
+Recently I’ve decided to rewind time from 2022 to 2007 and join Old School as a character artist. The team has been incredibly welcoming and I can't wait to try something new and take game graphics back to basics.
+
+I started my art career in 2015 and have previously made art for Battlerite and the Tales of Runeterra cinematics. Now it's time to work for the game I love!
+
+I played OSRS a lot growing up and the game helped me during rough times in school and all that other stuff you experience as a kid. Now I want to give back to the game that gave me so much growing up.</i>
+
+==Quest Porting==
+
+<center>''by Mod Ed''</center>
+
+===Introduction===
+We’d like to get you all involved with an interesting discussion we’ve been having about quests. They’re a core part of Old School RuneScape, but with the exception of the Elf storyline, all our quest series have been going since 2007, and most will need multiple new entries to set up a satisfying conclusion. In fact, we estimate that resolving all our current storylines will require more than 50 quests!
+
+While 50 quests does sound exciting, it’s also pretty problematic. Even if we doubled our quest production rate, it would still take between five and 10 years to conclude every storyline. As such, we’ve been thinking about ways to increase our quest output without compromising on quality. One option is quest porting.
+
+Between the 2007 backup we used to create Old School RuneScape and the end of 2011, 56 quests were released, mostly continuations of older storylines. With the partial 2012 backup used to create Soul Wars and Nex and improvements in our GFX development tools, we can port these older quests to Old School RuneScape.
+
+The clear benefit is that backporting requires far less work than building a quest from scratch, which would allow us to release more quests a year.
+
+There are, of course, downsides. Backported quests may generate less interest, since players have already experienced the story – and while some of them are iconic, others are completely unsuitable for Old School, either because they were poorly received or because we’ve already taken the story in another direction.
+
+So where does this leave us? We’ve reviewed all 56 quests and found a few that, with a bit of polish, could work in Old School. In fact, you’ve already experienced the first one! Land of the Goblins should give you a good idea of what we’re aiming for with these proposed backports – a quest that stays true to the original with minor tweaks and enhancements where needed.
+
+You’re about to get a closer look at some of the quests we think have backport potential, but before we jump in, please remember that this proposal is in the very early stages. There are no active plans to backport any of these quests. Our goal here is to gather your feedback, so we can decide whether or not to move forward. We also want to make it clear that we’re still committed to creating new and unique quests in Old School RuneScape – this proposal is something to fit alongside new quests, not replace them.
+
+===The Path of Glouphrie===
+[[File:Gielinor Gazette - February 2022 (9).png|centre|600px|thumb|''The Path of Glouphire | Source: RuneHQ'']]
+
+Released in September 2007, The Path of Glouphrie was an Experienced tier continuation of the Gnome storyline.
+
+We think this quest would make for a great addition to Old School. It's a fun quest that continues a mostly untouched questline. However, we'd want to make some changes to the Slayer creatures found after the quest, as they weren’t very popular in the original release. For a port of this quest we'd actually be able to use our original 2007 backup since it released about the same time.
+
+===The Chosen Commander===
+[[File:Gielinor Gazette - February 2022 (10).png|centre|600px|thumb|''The Chosen Commander | Source: RuneHQ'']]
+
+Released in March 2009, The Chosen Commander was the Experienced tier finale to the Dorgeshuun Storyline.
+
+Even today it remains a hugely loved quest and backporting it would let us conclude another storyline. We’d likely make a few small changes, such as increasing the difficulty to make it a Master tier quest, but on the whole we think it works perfectly as-is.
+
+===Defender of Varrock and The Curse of Arrav===
+[[File:Gielinor Gazette - February 2022 (11).png|centre|600px|thumb|''Defender of Varrock | Source: RuneHQ'']]
+
+These continuations of the Mahjarrat storyline were released in September 2008 and July 2009 respectively. Defender of Varrock was Experienced tier and The Curse of Arrav was Master tier.
+
+We’ve been thinking about possible directions for the Mahjarrat in Old School, and we don’t think backporting this quest would contradict our own ideas – in fact, it may enhance them! Both quests were lacking in the rewards department, so we’d consider adding a little something extra even if it’s just more XP. We’d also need to make some changes to account for the events of Below Ice Mountain.
+
+===Rocking Out and A Clockwork Syringe===
+[[File:Gielinor Gazette - February 2022 (12).png|centre|600px|thumb|''Rocking Out | Source: RuneHQ'']]
+
+This pair of Master tier quests continued the Pirate storyline, released in June 2008 and March 2011 respectively.
+
+So far we haven’t done much with the Pirate storyline, so backporting these quests could be a great opportunity to change that. Rocking Out would likely work well with only minor changes, but we’d need to remove the Dungeoneering element from A Clockwork Syringe for it to work in Old School. As with Defender of Varrock and The Curse of Arrav, we may also consider additional rewards.
+
+===Forgiveness of a Chaos Dwarf and King of the Dwarves===
+[[File:Gielinor Gazette - February 2022 (13).png|centre|600px|thumb|''Forgiveness of a Chaos Dwarf | Source: RuneHQ'']]
+
+These two Master tier quests continued the Red Axe storyline. Forgiveness of a Chaos Dwarf was released in September 2009 and King of the Dwarves was released in January 2011.
+
+The Red Axe storyline is another that hasn't been touched in Old School, so these quests could make for great additions. We'd probably want to reconsider the difficulty, however, as neither really felt like proper Master tier quests. We’d also need to rethink the rewards, since some of them have already been used in other Old School content.
+
+===Nomad's Requiem===
+[[File:Gielinor Gazette - February 2022 (14).png|centre|600px|thumb|''Nomad's Requiem | Source: RuneHQ'']]
+
+Even all these years later, the name Nomad still fills a Quest Cape holder with fear. This Grandmaster quest was released in January 2010 and was forever remembered for its notoriously tough boss fight.
+
+Having already ported Soul Wars into Old School, we think that Nomad's Requiem would sit nicely alongside it. There's also a few fun things we'd like to do with Nomad as part of our existing storylines, and backporting this quest would enable that.
+
+We'd want to retain the iconic difficulty of the boss fight while also ensuring it reflects a game without Summoning, which was one of the common strategies to beat it. Reward wise, we’d like to take the opportunity to offer an upgrade for the Soul Cape.
+
+===While Guthix Sleeps===
+[[File:Gielinor Gazette - February 2022 (15).png|centre|600px|thumb|''While Guthix Sleeps | Source: RuneHQ'']]
+
+Let's not beat around the bush. While Guthix Sleeps is widely considered to be the greatest quest ever released into RuneScape. When it came out back in November 2008, this Grandmaster quest in the Mahjarrat storyline changed everything you thought you knew about questing.
+
+If we were to move forward with backports of The Path of Glouphrie and Defender of Varrock, we'd also unlock the ability to backport While Guthix Sleeps. As with Defender of Varrock and The Curse of Arrav, we think we'd be able to release this quest without contradicting our own plans for the Mahjarrat.
+
+However, we would need to rethink the elements involving Summoning and the rewards as once again they’ve found their way into other pieces of Old School content.
+
+===Conclusion===
+We’re keen to hear your thoughts. Is quest backporting a direction you’d like to go in? What do you think of the quests we’ve selected? Although there are other pieces of content from that period like Dungoneering which we've seen plenty of discussions around, we have no current plans to add anything outside of quests.
+
+As always, you can share your thoughts with us on social media, but we've also put together a quick survey to gather your opinions. You can find that survey here.
+
+==Postbag from the Hedge==
+Hello everyone! I’ve been run off my feet this month – was it really necessary to send Nieve and Konar all those Valentines? Not to speak of the ones you sent to that poor Bloodveld! Luckily there were a few normal letters mixed in there, and what do you know? We’ve got some replies!
+
+To [[Dad]]
+{{Letter|Dear Dad,
+
+We all know how trolls get their names, and I admire your sense of hunger. But was your father named 'Dad'? Was he named for his father? This begs the question, how far back does the line of Dads go? Where does the family 'tradition' start?
+
+Yours,
+
+Breastmilk}}
+
+Hello!
+
+Dad line go back very far – we famed for toothy troll babies! But tradition end with me. After Dad fight tiny human, me realise that fighting really caused by toxic masculinity. Is rampant in troll culture! Baby troll need father figure. So son named ‘Mam’ instead.
+
+Bye!
+
+Dad
+
+----
+
+To [[Archmage Sedridor|Sedridor]]
+
+{{Letter|For the eyes of the Wizards' Tower's Chief of Research only.
+
+Hello Sedridor, it has been a while since we've spoken and in the long time since, I've become Aubury's equal in the art of Runecraft. How time flies!
+
+Whilst news of a [[Wrath rune|new type of rune]] has hopefully reached your ears, I write this letter to you in hopes of finding some information about some runes that appear to have been lost to this world.
+
+Ancient caches of times past appear to refer to the existence of a man known as 'Mage Gower', who discovered what he called 'master runes' that not even I have heard of. Namely, the [[classicrsw:Life-Rune|life]], [[classicrsw:Illusion-Rune|illusion]], [[classicrsw:Reality-Rune|reality]], and [[classicrsw:Time-Rune|time runes]]. I believe if information about these runes were to be re-discovered, it could push forward our knowledge of magic and perhaps change our perspective on the history of magic as well.
+
+However, if the properties of these master runes are indeed what they claim to be, it may be wise for them to remain hidden away; you could even say that their power is the reason that knowledge of it was sealed away by this Mage Gower.
+
+Best regards,
+
+Spineweilder}}
+
+Hello there Spineweilder,
+
+I’m glad to hear your pursuit of Runecraft is coming along nicely! It seems like only yesterday you were handing me your first Talisman, and now look at you! Very impressive.
+
+I had heard of these so-called ‘Wrath Runes’, although I didn’t know what to make of the rumours. They’re not referenced in any of the ancient texts I’ve studied, so I’ll confess until you mentioned them just now, I assumed they were a myth.
+
+Once upon a time I’d have said the same of those other runes, but now I’m not so sure. It does beg the question: how many more runes are out there, waiting to be discovered? What hitherto unknown magics await us? An exciting concept, to be sure! Although you won’t catch me slaying any dragons. I’ll leave the firsthand research to you adventurers.
+
+Yours,
+
+Sedridor
+
+----
+
+To [[Cow31337Killer]] and [[Unicorn1337Kilr]]
+
+{{Letter|Dear Cow31337Killer and Unicorn1337Kilr,
+
+Have either of you ever encountered the mythical Unicow? More importantly, which one of you would be responsible for killing it?
+
+Yours, etc.
+
+Hlwys}}
+
+Hello Hlwys!
+
+Wow! Until now, neither of us knew there was an adventurer out there with similar hobbies. It’s important to make human connections in this wild, cow-infested world.
+
+We’ve had a frank discussion on this and decided that should either of us ever encounter such a beast, we’ll call the other up and tackle it together. As the more 31337 killer, I’ve actually slain a unicorn before – but the moral toll was a bit much to handle. With Unicorn1337Kilr at my side, though, I feel like there’s nothing I can’t do!
+
+Thanks again for bringing us together, Hlwys. Hope you’ve overcome your chicken trouble!
+
+Peace,
+
+Cow31337Killer
+
+----
+
+To [[Jonathan]]
+
+{{Letter|Dear Jonathan,
+
+I was referred to you by one of the more helpful staff in the Arceuus Library, as you are the historian specialising in the history of Hosidius.
+
+During one of my adventures in distant lands across the Western Sea, I visited a massive library, one far larger than even the one in Arceuus, and came across [[Bloody diary|a certain diary]] written by an adventurer originating from Hosidius.
+
+Most of the pages are stained with blood and have become illegible, but readable entries of the diary appear to have been written during the 33rd decade, which according to Imerominia, should be dated around 200 years ago after the War of the Five Houses.
+
+The adventurer appears to have perished by the hands of Skotizo, the dark demon beneath the Catacombs, who I've had a close encounter with. As the expert in the history of Hosidius, do you know the name of this adventurer and the details behind the events they were involved in?
+
+I should probably send this diary to you in hopes that you may find someone who can recover the entries stained by blood.}}
+
+Dear Sgt_Henno_Garvie,
+
+A fascinating find! I wonder how it ended up all the way on the mainland?
+
+Yes, all that blood does make it a bit difficult to read. I think this text is from the 124th decade, rather than the 33rd. You can tell by the archaic date format. In the old days, we used to count the days first, then the decade. Highly confusing, but that's how we know this text is authentic! Fantastic work tracking it down.
+
+Unfortunately, records from this time are somewhat sparse. It seems the unlucky adventurer’s parents were humble farmers, which means they would have been spared the worst of the war – and been absent from any military rolls. Sadly, the census conducted by Kharedst the Builder contains countless records of mothers without sons or husbands, so I’m afraid it would be nigh-impossible to track down the exact family from this document alone.
+
+That’s not to say it’s useless for our purposes, though! It provides fascinating insight into life before and after the War of the Five Houses. It’s no wonder this adventurer’s parents weren’t so keen on his travels – King Agata IV’s mismanagement left the kingdom ravaged by famine, and they could’ve used all the help they could get to keep the farm running. That said, I’m glad he didn’t stick around. Most young men and women were drafted into the houses’ personal armies during the war, and Hosidius did ''not'' fare well.
+
+You’ll find this interesting – I had a look through the archives and it seems that, post-war, reports of abductions were flowing in from all five houses. You do expect a level of chaos following any conflict, but the records show constant disappearances, once or twice a night for almost a year before they suddenly stop completely. Very odd indeed. One might surmise that the demons were somehow cowed by an even greater power – not anyone I’d like to meet!
+
+I’ve passed the diary on to my contacts in Arceuus House. Hopefully they have a way to clean it up. Perhaps we’ll learn more about this adventurer yet!
+
+Thank you,
+
+Jonathan
+
+----
+
+To [[Freja]]
+
+{{Letter|Dear Freja,
+
+I recall when we first met, you mentioned that you were planning an expedition to the Isle of Garmr and Acheron. I believe you said that you didn’t want me to help you kill that boar of yours because you wanted adventuring partners with more experience under their belts. But as it’s been a few years since then, would you consider taking me along on your expedition sometime soon?
+
+Regards,
+
+FursonaHaver}}
+
+Well met, FursonaHaver!
+
+You are indeed an accomplished warrior. But make no mistake, so too were the companions I lost in Acheron. That dread place holds more dangers than oversized boars – take it from one who’s been there and lived to tell the tale. I’m looking for adventurers with more than muscle and grit. I need people who’ve stared terror in the face and come out swinging. Countless warriors have applied and run off with their tails between their legs when they discover the horrors we’ll face on the Isle. Perhaps you’re different? Should I ever assemble a decent-sized crew, I’ll be sure to call you up.
+
+Farewell,
+
+Freja
+
+----
+
+To [[Barlak]]
+
+{{Letter|Dear Barlak,
+
+I hear that people bring you bones and giant shells, and that the Dorgeshuun use the bones to prop up the mine shafts and to make other temporary structures.
+
+What do the Dorgeshuun use snail and tortoise shells for?
+
+Regards,
+
+Sedridor}}
+
+Hello again!
+
+I’ve been using those shells you bring me for all sorts of things! I especially like the swirly ones, they make lovely hats… although I’m sorry to say the fashion hasn’t quite caught on.
+
+The bigger ones – from ‘Tortoises’, did you say? – are lovely and shiny once you polish them. I’ve turned them into little beads, pins, and even new frames for Ur-tag’s glasses. I think he liked them!
+
+Hope to see you again soon,
+
+Barlak
+
+==Player Showcase Gallery==
+We're back with another batch of your biggest and best pieces of creative work! Everyone featured in the Gazette will receive 3 Months of Free Membership as thanks for their superb efforts, so keep an eye on the linked social accounts Inbox for more details on how to grab your reward!
+
+If you want to be featured in the next Gazette then make sure to submit your creations through our [https://osrs.game/Player-Showcase-Gallery-Form Player Showcase Gallery Form] and state which Gazette you’d like it to feature in. We look forward to seeing more of your incredible talents!
+
+{|class=wikitable style="text-align:center;margin:auto;"
+|[[File:Gielinor Gazette - February 2022 (16).jpg|195x210px|centre]]
+|[[File:Gielinor Gazette - February 2022 (17).png|195x210px|centre]]
+|[[File:Gielinor Gazette - February 2022 (18).png|195x210px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/slw9q7/friend_made_me_a_wooden_thurgo_head_he_gives_me/ u/croxy0]
+|[https://twitter.com/Cherrycake4 Cherrycake4]
+|[https://twitter.com/Cherrycake4 u/WaveDZN]
+|-
+|[[File:Gielinor Gazette - February 2022 (19).jpg|195x210px|centre]]
+|[[File:Gielinor Gazette - February 2022 (20).jpg|195x210px|centre]]
+|[[File:Gielinor Gazette - February 2022 (21).jpg|195x210px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/sscx0r/made_some_coasters_over_the_weekend/ u/Hardwork_BF]
+|[https://www.reddit.com/r/2007scape/comments/sxuyx4/i_made_a_board_game_based_off_the_hallowed/ u/Worms_Tofu_Crackers]
+|[https://www.reddit.com/r/2007scape/comments/spbs06/crocheted_a_purple_party_hat/ u/Knitlifts]
+|}
+
+----
+
+That's your lot! We'd love to hear your feedback on the newest edition and, as with everything else, if you’ve got any ideas about the sorts of things you’d like to see in upcoming editions of the Gielinor Gazette, then please do let us know via our [http://services.runescape.com/m=forum/forums?380,381,793,66247518 official forums], on the [https://www.reddit.com/r/2007scape/comments/t3izpw/gielinor_gazette_february_2022/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord]. For reference on any of the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team.''

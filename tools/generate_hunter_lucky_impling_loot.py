@@ -23,6 +23,8 @@ import re
 import urllib.parse
 import urllib.request
 
+import config_text
+
 
 TIERS = ("easy", "medium", "hard", "elite", "master")
 EXPECTED = {
@@ -157,7 +159,7 @@ def cache_objects(path: Path) -> list[dict[str, str]]:
     records: list[dict[str, str]] = []
     record: dict[str, str] | None = None
     with path.open(encoding="latin1") as stream:
-        for line in stream:
+        for line in config_text.filter_lines(stream):
             section = re.fullmatch(r"\[([^]]+)\]\n?", line)
             if section:
                 if record is not None:
@@ -273,7 +275,7 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
-    args.output.write_text(generate(args.objects), encoding="utf-8")
+    config_text.write_config(args.output, generate(args.objects), encoding="utf-8")
 
 
 if __name__ == "__main__":

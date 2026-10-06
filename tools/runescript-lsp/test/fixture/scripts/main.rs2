@@ -11,3 +11,5 @@ db_getfield($count, fletching_table:product, 0);
 ~missing_proc($count);
 mes(^no_such_constant);
 $undeclared = 1;
+def_obj $blank = blank_name;
+def_obj $named = called_default;

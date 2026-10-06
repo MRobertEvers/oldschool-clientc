@@ -1,0 +1,96 @@
+{{Update|date=8 March 2018|link=http://services.runescape.com/m=news/tournament-worlds-theatre-of-blood-rewards?oldschool=1|category=game}}
+[[File:Tournament Worlds- Theatre of Blood rewards newspost.png|right]]
+{{clear}}
+
+<center>''Yesterday's Theatre of Blood announcement saw a number of rewards proposed. Today's game update offers you the opportunity to get to grips with them, albeit in pink placeholder form. The Deadman Spring Finals kick off tomorrow. Plus more offerings from QoL Month!''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Theatre of Blood Rewards Testing: Tournament Worlds}}
+
+
+'''Theare of Blood'''
+
+In yesterday's [http://services.runescape.com/m=news/dev-blog-theatre-of-blood?oldschool=1 Theatre of Blood Dev Blog], we proposed a number of rewards to come from the Theatre of Blood raid encounter. The raid itself, along with the rewards, are naturally subject to polling. To aid your decision making we're launching some Tournament worlds which will allow you access to the weapons and armours. You'll find that you're able to try the rewards anywhere you'd like, rather than with recent Tournament world offerings which were limited to PvP. '''Please note that you can only access the proposed weapons and armours. The proposed prayer and potions do not yet exist and cannot be accessed.'''
+
+[[File:Tournament Worlds- Theatre of Blood rewards (1).png|center|300px]]<center>''Proposed raids rewards have been added to the Tournament Supplies chests on Tournament worlds. Currently they utilise placeholder models in a fetching bubblegum pink. Should the rewards pass the poll then unique assets will be created. The equipment in the chests have the stats and effects pitched in the above dev blog.''</center>
+
+For a full overview of the Theatre of Blood, its rewards, and its accompanying quest, make sure you read the [http://services.runescape.com/m=news/dev-blog-theatre-of-blood?oldschool=1 Theatre of Blood Dev Blog]. Your feedback is essential in creating the best content possible. Your feedback is best received on the [http://services.runescape.com/m=forum/forums.ws?380,381,466,65995386 Theatre of Blood Announcements thread on our Forums], or Reddit ([https://www.reddit.com/r/2007scape/ /r/2007scape/] and [https://www.reddit.com/r/oldschoolrs/ /r/oldschoolrs/]).
+
+'''Other Tournament World Information'''
+
+The chests contain Ecumenical keys to allow you to skip God Wars kill count requirements.
+
+Players are able to get unlimited slayer tasks in these worlds. Slayer masters will offer a new task even if you still have a task assigned.
+
+A multitude of teleports have been added to the chests to allow ease of transport to various encounters.
+
+{{Horizontal Line}}
+
+{{Headline|22|Deadman Spring Finals}}
+
+The Spring Finals will begin at approximately '''12pm GMT''' on '''Friday 9th March'''! The Finals will run until Saturday 17th, culminating in the ''Permadeath Stage'' beginning at '''7pm GMT'''. We'll be live from '''7pm GMT''', Saturday 17th March, on [https://www.twitch.tv/oldschoolrs twitch.tv/oldschoolrs], make sure you tune in to see who will take home the $20,000 grand-prize!
+
+
+
+Last week saw another Deadman Permadeath beta playthrough. Following your feedback, and observations of our own, we've made a small number of changes. For a full overview of content be sure to visit the [https://www.runescape.com/oldschool/deadman/tournament Deadman Spring Finals]
+
+page. The changelog at the head of the page details any changes made specifically to the Spring Finals.
+
+[[File:Tournament Worlds- Theatre of Blood rewards (2).png|center|600px]]<center>''The Deadman Finals stream will feature the above spectator display. Changes have been made to its appearance following your recent feedback.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Quality of Life Month Updates}}
+
+The spinning wheel interface has been updated to use the new Make-all interface.
+
+Tears of Guthix streams will now last a minimum of 9 seconds before moving.
+
+Players may now store Buckets, Compost, Super compost, Ultra compost, and Plant cure with Leprechauns with noted versions of the items.
+
+The amount of XP you receive when splashing with the Entangle spell has been slightly reduced so you know when the bind has been applied.
+
+The Dark core pet no longer has sounds attached to its animations.
+
+Another data orb has been added beside the minimap to display your current special attack energy. The orb is display only, and cannot be clicked to use the special attack.
+
+[[File:Tournament Worlds- Theatre of Blood rewards (3).png|center]]
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+Godsword shards have been repositioned in the inventory to fix graphical issues.
+
+Disabling the wilderness teleport warning now works via the Ghorrock teleport.
+
+All incorrect references of ''demon'' have now been replaced with ''magical being'' in the Mage Arena II mini-quest journal.
+
+The Zamorakian mjolnir has had its head centred a little better on its pole.
+
+The unlock hints for the two music tracks called ''Lament'' have been switched round.
+
+Left-clicking a furnace while carrying Steel bars, and no ore, is now interpreted as a request to make cannonballs, similarly to how it already works for crafting Gold and Silver jewellery.
+
+Various supplies inside Barbarian Assault can now be destroyed by shift+clicking them.
+
+The Spirit tree chathead now has an animation when attempting to teleport to the Spirit tree you're already at.
+
+The Enchant Crossbow Bolt (Ruby) spell now requires the correct Magic level of 49 to cast.
+
+There is now a delay before being able to travel via the Lovekengj cart system in Deadman Mode. This applies to Permanent Deadman, the Deadman Finals, and the Deadman Season. Changelogs for both the Finals and Season have been updated to reflect this change.
+
+{{Horizontal Line}}
+
+{{Headline|22|New Old School URLs}}
+
+This might not interest many of you, but it should satisfy the more security-orientated among you. We’ve listened to your feedback on how much you dislike bit.ly links and other link shorterners, which are commonly associated with phishing scams. To combat this, and to make our links easily identifiable, we’ll now be using '''osrs.game/''' links in the future! These new links will enable us to make our links shorter as well as combat phishing attempts.
+
+From Friday 9th March '''all''' links from our social channels will move to being a osrs.game link.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,467,65995672 forums].
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

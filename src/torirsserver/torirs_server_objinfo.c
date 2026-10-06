@@ -13,6 +13,7 @@
  * The whole obj table decodes in about 0.1 s, so it is read once at startup
  * rather than lazily per id.
  */
+#include "torirs_server_servpack.h"
 #include "torirs_server.h"
 #include <assert.h>
 
@@ -539,69 +540,26 @@ record(
 }
 
 int
-ToriRSServer_ObjInfoLoad(const char* cache_dir)
+ToriRSServer_ObjInfoLoad(struct RSCache_ServerPack* pack)
 {
     struct RSCache profile = RSCache_ProfileZero();
-    struct RSCache_Dat2Disk* disk;
-    struct RSCache_Dat2DiskArchive* archive;
-    struct RSCache_FileList* files;
-    int table;
+    struct ToriRSServerKindRecords records;
     int loaded = 0;
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
     profile.revision = TORIRSSERVER_CACHE_REVISION;
 
-    disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
-    if( !disk )
-    {
-        /* Also try one directory up, so running the binary from src/ (where
-         * make leaves it) finds the repo-root cache. Without the cache every
-         * item reports wearpos -1 and nothing can be equipped, which reads as
-         * a logic bug rather than a missing file. */
-        char parent[512];
-        snprintf(parent, sizeof(parent), "../%s", cache_dir);
-        disk = RSCache_Dat2DiskNewFromDirectory(parent);
-        if( disk )
-            cache_dir = parent;
-    }
-    if( !disk )
-    {
-        fprintf(
-            stderr,
-            "torirsserver: no cache at %s — equipment slots unavailable (items stay unwearable)\n",
-            cache_dir);
-        return 0;
-    }
-    RSCache_Dat2DiskSetProfile(disk, &profile);
-
-    table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_OBJECT);
-    if( !archive || !RSCache_Dat2DiskArchiveInitMetadata(disk, archive) ||
-        archive->file_count <= 0 )
-    {
-        fprintf(stderr, "torirsserver: obj config archive missing from %s\n", cache_dir);
-        if( archive )
-            RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
-
-    RSCache_ProfileSetGroupRevision(&profile, RSCACHE_TYPE_OBJ, archive->revision);
-
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
-    if( !files )
-    {
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
+    /* The server pack's client records: the merge of the tree, encoded by the
+     * codec this decoder reads. */
+    if( !ToriRSServer_ServPackKindLoad(pack, RSCACHE_DAT2_CONFIG_KIND_OBJECT, &records) )
+        return -1;
 
     /* file_ids are sparse, so size the table from the largest one rather than
      * from the file count. */
-    for( int i = 0; i < files->file_count; i++ )
+    for( int i = 0; i < records.count; i++ )
     {
-        int file_id = (archive->file_ids && i < archive->file_count) ? archive->file_ids[i] : i;
+        int file_id = records.ids[i];
         if( file_id + 1 > g_obj_count )
             g_obj_count = file_id + 1;
     }
@@ -622,14 +580,14 @@ ToriRSServer_ObjInfoLoad(const char* cache_dir)
         g_objs[i].placeholder_template = -1;
     }
 
-    for( int i = 0; i < files->file_count; i++ )
+    for( int i = 0; i < records.count; i++ )
     {
         struct RSCache_Dat2ConfigObj* obj;
-        int file_id = (archive->file_ids && i < archive->file_count) ? archive->file_ids[i] : i;
-        if( files->file_sizes[i] <= 0 )
+        int file_id = records.ids[i];
+        if( (int)records.sizes[i] <= 0 )
             continue;
         obj = RSCache_Dat2ConfigObjNewDecodeProfile(
-            &profile, files->files[i], files->file_sizes[i]);
+            &profile, (char*)records.files[i], (int)records.sizes[i]);
         if( !obj )
             continue;
         record(file_id, obj);
@@ -679,12 +637,10 @@ ToriRSServer_ObjInfoLoad(const char* cache_dir)
             g_objs[id].desc = strdup(g_objs[real].desc);
     }
 
-    RSCache_FileListFree(files);
-    RSCache_Dat2DiskArchiveFree(archive);
-    RSCache_Dat2DiskFree(disk);
+    ToriRSServer_ServPackKindFree(&records);
     fprintf(stderr,
             "torirsserver: obj metadata loaded (%d records from %s, %d params in %zu KB)\n",
-            loaded, cache_dir, g_obj_param_count,
+            loaded, pack->dir, g_obj_param_count,
             ((size_t)g_obj_param_count * sizeof(struct ObjParam)) / 1024);
     return loaded;
 }

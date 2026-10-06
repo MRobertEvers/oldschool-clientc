@@ -1,0 +1,39 @@
+{{External|rs}}
+'''Magical melee''' (also known as '''magic-based melee''') attacks are attacks which roll for accuracy against your magic defensive bonuses but are fully protected against by the [[Protect from Melee]] prayer instead of the [[Protect from Magic]] prayer.
+
+{| class="wikitable"
+!
+!Using Prayer [[File:Prayer icon.png]]
+!Using Defence and armour [[File:Defence icon.png]]
+|-
+!Attack acts like
+|Melee [[File:Attack icon.png]][[File:Strength icon.png]] → [[Protect from Melee]]
+|Magic [[File:Magic icon.png]] → Defend against [[magic]], with e.g., [[Dragonhide armour|Dragonhide]] ([[File:Black d'hide body.png]])
+|-
+!More info
+|Having a high Prayer bonus will help
+|Magical Defence is based on 70% of your [[Magic]] level and 30% on your Defence<br/>[[File:Magic_defence icon.png]] = 70%[[File:Magic icon.png]] & 30% [[File:Defence icon.png]]
+|}
+
+'''Note: '''Certain [[special attack]]s of melee weapons can deal a magical-melee attack (the [[Saradomin sword]] for example).
+
+==List of monsters that use magical-melee==
+
+*[[Banshee]], [[Screaming banshee|Screaming Banshee]], [[Twisted Banshee]], and [[Screaming twisted banshee|Screaming Twisted Banshee]]
+*[[Icefiend]], [[Pyrefiend]], [[Pyrelord]], [[Infernal pyrelord]], and [[Flaming pyrelord]]
+*[[Bloodveld]], [[Insatiable Bloodveld]], [[Mutated Bloodveld]], [[Insatiable Mutated Bloodveld]], and [[Reanimated bloodveld|Reanimated Bloodveld]].
+*[[Zygomite]] and [[Ancient Zygomite]]
+*[[Cave horror]] and [[Cave abomination]]
+*[[Jelly]], [[Vitreous Jelly]], [[Chilled jelly|Chilled Jelly]], [[Vitreous Chilled Jelly]], [[Warped Jelly]], and [[Vitreous warped Jelly|Vitreous Warped Jelly]]
+*[[Moss Guardian]]
+
+==See also==
+*[[Magical ranged]]
+*[[Ranged magic]]
+*[[Ranged melee]]
+
+[[Category:Combat]]
+[[Category:Defence]]
+[[Category:Mechanics]]
+
+{{Combat Mechanics}}

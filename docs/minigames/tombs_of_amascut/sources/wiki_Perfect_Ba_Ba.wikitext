@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Perfect Ba-Ba
+|image = [[File:Tombs of Amascut - Fighting Ba-Ba.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat Ba-Ba in a group of two or more, without anyone taking any damage from the following: Ba-Ba's Attacks off-prayer, Ba-Ba's slam, rolling boulders, rubble attack or falling rocks. No sarcophagi may be opened. You must have all Ba-Ba invocations activated.
+|tier = Master
+|monster = Tombs of Amascut
+|type = Perfection
+|id = 436
+|leagueRegion = Desert
+}}
+'''Perfect Ba-Ba''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to defeat [[Ba-Ba]] in a group of two or more, at raid level 150 or above, without anyone taking any damage from the following: Ba-Ba's Attacks off-prayer, Ba-Ba's slam, rolling boulders, rubble attack or falling rocks. No sarcophagi may be opened. The player must have all Ba-Ba invocations activated.
+
+* This Combat achievement '''CAN''' be re-attempted by wiping.
+* This combat achievement is not failed if a player is struck by bananas.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

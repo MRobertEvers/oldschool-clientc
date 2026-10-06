@@ -36,6 +36,8 @@ import os
 import re
 import sys
 
+import config_text
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 ALL_OBJ = os.path.join(CONTENT, "configs", "all.obj")
@@ -62,7 +64,7 @@ def parse_all_obj(path):
             order.append(name)
 
     with open(path, encoding="cp1252", errors="replace") as f:
-        for raw in f:
+        for raw in config_text.filter_lines(f):
             line = raw.rstrip("\n")
             if line.startswith("//") or not line.strip():
                 continue
@@ -74,9 +76,8 @@ def parse_all_obj(path):
                 params = []
                 continue
             if line.startswith("param="):
-                parts = line[len("param="):].split(",", 2)
-                if len(parts) == 3:
-                    params.append(tuple(parts))
+                # `param=<name>,<value>`: (name, value text).
+                params.append(config_text.split_param(line[len("param="):]))
                 continue
             if "=" in line:
                 k, _, v = line.partition("=")

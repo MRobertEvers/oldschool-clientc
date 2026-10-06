@@ -47,13 +47,35 @@ import re
 import sys
 from collections import defaultdict, OrderedDict
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import config_text  # noqa: E402  (tools/config_text.py)
+
 # ---------------------------------------------------------------------------
 # Readers. Each returns line numbers so every record can be cited.
 # ---------------------------------------------------------------------------
 
+# cachepack config text (`[name]` blocks of key=value): configs/all.<type> and
+# the server's own configs/*.<type>.
+CONFIG_SUFFIXES = {"npc", "obj", "loc", "seq", "spotanim", "enum", "param", "varp",
+                   "varbit", "varc", "inv", "struct", "dbrow", "dbtable", "idk",
+                   "underlay", "overlay", "hitsplat", "healthbar", "mapelement"}
+
 
 def read_text(p):
     return p.read_text(encoding="cp1252", errors="replace").splitlines()
+
+
+def config_lines(p):
+    """[(line number, text)] of a config file with every `key=default` /
+    `key=empty` line dropped (config_text.filter_line), so a field the record
+    does not set reads as absent. Kept lines keep their own numbers, so a
+    citation still points at the file."""
+    out = []
+    for n, line in enumerate(read_text(p), 1):
+        kept = config_text.filter_line(line)
+        if kept is not None:
+            out.append((n, kept))
+    return out
 
 
 def compack(content, kind):
@@ -83,7 +105,7 @@ def records(content, kind):
     if not p.exists():
         return out
     cur, start, buf = None, 0, []
-    for n, line in enumerate(read_text(p), 1):
+    for n, line in config_lines(p):
         m = re.match(r"^\[([^\]]+)\]\s*$", line)
         if m:
             if cur is not None:
@@ -184,7 +206,11 @@ def name_match(game, sym):
 def code_lines(path):
     """[(line, text)] of non-comment code (// and /* */ removed)."""
     out, in_block = [], False
-    for n, line in enumerate(read_text(path), 1):
+    if path.suffix[1:] in CONFIG_SUFFIXES:
+        numbered = config_lines(path)
+    else:
+        numbered = enumerate(read_text(path), 1)
+    for n, line in numbered:
         s = line
         if in_block:
             if "*/" in s:
@@ -217,23 +243,50 @@ CONTEXT_KIND = [
 ]
 
 
-# param type letter (configs/all.param `type=`) -> record kind
-PARAM_KIND = {"g": "enum", "J": "struct", "o": "obj", "O": "obj", "A": "seq",
-              "t": "spotanim", "n": "npc", "l": "loc", "P": "sound"}
+# param type word (configs/all.param `type=`) -> record kind
+PARAM_KIND = {"enum": "enum", "struct": "struct", "obj": "obj", "namedobj": "obj",
+              "seq": "seq", "spotanim": "spotanim", "npc": "npc", "loc": "loc",
+              "synth": "sound"}
 # the output type an enum() call names -> record kind
 CS2_KIND = {"struct": "struct", "obj": "obj", "namedobj": "obj", "enum": "enum",
             "npc": "npc", "seq": "seq", "loc": "loc", "spotanim": "spotanim",
             "synth": "sound"}
 
 
+def struct_params(fl):
+    """{param name: value text} of a record's `param=<name>,<value>` lines."""
+    return dict(config_text.split_param(v) for _, k, v in fl if k == "param")
+
+
 def param_types(content):
     out, cur = {}, None
-    for line in read_text(content / "configs" / "all.param"):
+    for _, line in config_lines(content / "configs" / "all.param"):
         m = re.match(r"^\[([^\]]+)\]", line)
         if m:
             cur = m.group(1)
         elif cur and line.startswith("type="):
-            out[cur] = line[5:].strip()
+            out[cur] = config_text.type_word(line[5:].strip())
+    return out
+
+
+def enum_int_values(rec, id_of):
+    """[(line, value id)] of an enum record's `val=` lines, each value read
+    through the record's declared `outputtype` (a name -> its id, `null` -> -1);
+    [] for a string enum. configs/all.enum spells a value by its type."""
+    out_type = None
+    for _, k, v in fields(rec):
+        if k == "outputtype" and config_text.marker(v) is None:
+            out_type = config_text.type_word(v)
+    if out_type == "string":
+        return []
+    out = []
+    for n, k, v in fields(rec):
+        if k != "val" or config_text.marker(v) is not None:
+            continue
+        try:
+            out.append((n, config_text.value_int(out_type, v.split(",", 1)[1], id_of)))
+        except (KeyError, ValueError):
+            continue
     return out
 
 
@@ -246,6 +299,7 @@ def data_bind(game, content, S, ids, names, recs, cscripts, bound_structs, enum_
     namedobj, $e, $i)`). A struct's params are followed by the param's
     declared type (configs/all.param). Returns the CS2 suite's lines."""
     ptype = param_types(content)
+    id_of = config_text.Names(content)
     texts, by_param, types = {}, defaultdict(set), defaultdict(set)
     for i, (sym, n) in cscripts.items():
         p = content / "scripts" / f"{sym}.cs2"
@@ -270,15 +324,14 @@ def data_bind(game, content, S, ids, names, recs, cscripts, bound_structs, enum_
             if k == "basevar" and v in sel_varps and sym in names["varbit"]:
                 S.add("varbit", names["varbit"][sym], "data", f"basevar {v} (configs/all.varbit:{n})")
     for sym, rec in recs["struct"].items():
-        params = {v.split(",")[0]: v.split(",", 2)[-1] for _, k, v in fields(rec) if k == "param"}
+        params = struct_params(fields(rec))
         why = game["struct_select"](params)
         if why:
             bound_structs[sym] = why
     npc_ids = set(S.sel["npc"])
     for sym, rec in recs["enum"].items():
-        vals = [v.split(",", 1)[1] for _, k, v in fields(rec) if k == "val"]
-        if len(vals) >= 2 and all(x.lstrip("-").isdigit() and int(x) in npc_ids for x in vals) \
-                and sym in names["enum"]:
+        vals = [x for _, x in enum_int_values(rec, id_of)]
+        if len(vals) >= 2 and all(x in npc_ids for x in vals) and sym in names["enum"]:
             S.add("enum", names["enum"][sym], "data",
                   f"every value ({len(vals)}) is a selected npc id")
     for i, (sym, n) in cscripts.items():
@@ -311,24 +364,26 @@ def data_bind(game, content, S, ids, names, recs, cscripts, bound_structs, enum_
             for n, k, v in fields(recs["struct"][sym]):
                 if k != "param":
                     continue
-                pname, _, val = v.split(",", 2)
+                pname, val = config_text.split_param(v)
                 kind = PARAM_KIND.get(ptype.get(pname, ""))
-                if not kind or not val.lstrip("-").isdigit() or int(val) < 0 \
-                        or pname in game.get("struct_param_skip", ()):
+                if not kind or pname in game.get("struct_param_skip", ()):
+                    continue
+                # A reference-typed value is the record's name (`null` = -1).
+                val = config_text.param_int(ptype.get(pname), val, id_of)
+                if val < 0:
                     continue
                 if kind == "enum" and pname in by_param:
-                    types[int(val)].update(by_param[pname])
-                changed |= take(kind, int(val), f"{pname} of {sym} (configs/all.struct:{n})")
+                    types[val].update(by_param[pname])
+                changed |= take(kind, val, f"{pname} of {sym} (configs/all.struct:{n})")
         for i in list(S.sel["enum"]):
             outs = {CS2_KIND.get(t) for t in types.get(i, ())} - {None}
             if len(outs) != 1 or ids["enum"].get(i) not in recs["enum"]:
                 continue
             kind = outs.pop()
-            for n, k, v in fields(recs["enum"][ids["enum"][i]]):
-                val = v.split(",", 1)[-1]
-                if k != "val" or not val.lstrip("-").isdigit() or int(val) < 0:
+            for n, val in enum_int_values(recs["enum"][ids["enum"][i]], id_of):
+                if val < 0:
                     continue
-                changed |= take(kind, int(val), f"value of enum_{i} read as "
+                changed |= take(kind, val, f"value of enum_{i} read as "
                                 f"{'/'.join(sorted(types[i]))} (configs/all.enum:{n})")
     enum_types.update({i: sorted(t) for i, t in types.items()})
     return texts
@@ -387,7 +442,7 @@ def run(game_name, content, out, index_path):
             if i in ids[k] and not S.has(k, i):
                 S.add(k, i, "block", why)
     # the cache's own sound browser: a `synth` dbrow menu lists sounds
-    # (column 2, `name,id`) and sub-menus (column 1, dbrow ids)
+    # (column `synth`, `name,id`) and sub-menus (column `sub_menu`, dbrow names)
     synth_menu_of = {}   # sound id -> menu symbol
     for top in game.get("synth_menus", []):
         todo = [(top, top)]
@@ -398,15 +453,19 @@ def run(game_name, content, out, index_path):
                 continue
             S.add("dbrow", names["dbrow"][sym], "synth", path)
             for n, key, v in fields(rec):
-                m = re.match(r"1:\d+:(\d+)$", v) if key == "values" else None
-                if m and int(m.group(1)) in ids["dbrow"]:
-                    sub = ids["dbrow"][int(m.group(1))]
-                    todo.append((sub, f"{path} > {sub}"))
-                m = re.match(r"2:\d+:[^,]*,(\d+)$", v) if key == "values" else None
-                if m:
-                    sid = int(m.group(1))
-                    synth_menu_of.setdefault(sid, sym)
-                    S.add("sound", sid, "synth", f"{sym} (configs/all.dbrow:{n})")
+                if key != "data":
+                    continue
+                column = config_text.db_head(v)
+                if column == "sub_menu":
+                    sub = config_text.db_split(v, 1)[1][0]
+                    if sub in names["dbrow"]:
+                        todo.append((sub, f"{path} > {sub}"))
+                elif column == "synth":
+                    sid_text = config_text.db_split(v, 2)[1][-1]
+                    if re.match(r"\d+$", sid_text):
+                        sid = int(sid_text)
+                        synth_menu_of.setdefault(sid, sym)
+                        S.add("sound", sid, "synth", f"{sym} (configs/all.dbrow:{n})")
 
     # ---- rule 3: by map -------------------------------------------------
     placements = defaultdict(list)
@@ -833,7 +892,7 @@ def run(game_name, content, out, index_path):
     struct_rows = []
     for sym, rec in recs["struct"].items():
         fl = fields(rec)
-        params = {v.split(",")[0]: v.split(",", 2)[-1] for _, k, v in fl if k == "param"}
+        params = struct_params(fl)
         why = game["struct_select"](params) or bound_structs.get(sym)
         if why:
             tail = sym.split("_")[-1]

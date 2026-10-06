@@ -1,0 +1,157 @@
+{{Update|date=3 May 2023|url=https://secure.runescape.com/m=news/points-based-combat-achievements?oldschool=1|category=game}}
+[[File:Points-Based Combat Achievements newspost.png|right]]
+{{clear}}
+''This week in Old School RuneScape, we’re introducing points-based Combat Achievements!''
+__TOC__
+
+==Points-Based Combat Achievements==
+[[File:Points-Based Combat Achievements (1).png|centre|600px]]
+
+It’s the update you’ve been waiting for! Many of you have been holding off on completing your Combat Achievements until the promised rework from Poll 79 launches – well, today’s the day, so you’ve got no excuses now!
+
+Under the new points-based system, tasks are worth a number of points equal to their tier. Every task you complete will contribute to your point total. Naturally, the harder the task, the more points you’ll receive!
+
+This provides a number of benefits, the main one being that all the awesome rewards available from Combat Achievements can now be unlocked with any combination of said Achievements, instead of having to complete an entire tier!
+
+We hope the new system will encourage players to try out harder tasks earlier in their account progress, instead of feeling like there was no point trying until they were ready to complete the entire tier.
+
+Since it’s been a while since the Poll 79 blog, here’s a refresher on how the new system works:
+
+===Step One===
+[[File:Points-Based Combat Achievements (2).png|centre|600px]]
+
+Complete a task and earn points. You can see how many points each task is worth beneath the task on the interface. You’ll also see a progress bar, which tells you how close you are to your next unlock!
+
+Check out the table below to see how many points each task tier is worth:
+
+<center>
+{| class="wikitable"
+|-
+! Combat Achievement Tier !! No. of Tasks !! Points per Task !! Rewards Threshold
+|-
+| Easy || 33 || 1 || 33 Points
+|-
+| Medium || 41 || 2 || 115 Points
+|-
+| Hard || 63 || 3 || 304 Points
+|-
+| Elite || 129 || 4 || 820 Points
+|-
+| Master || 129 || 5 || 1465 Points
+|-
+| Grandmaster || 90 || 6 || 2005 Points
+|}
+</center>
+
+===Step Two===
+[[File:Points-Based Combat Achievements (3).png|centre|600px]]
+
+When you’ve earned enough points to fill the green progress bar, you’ll unlock a new reward!
+
+This interface works similarly to the ones found in Leagues modes – and just like Leagues, you can plan ahead and get a sneak peek at unlocks beyond your current tier!
+
+===Step Three===
+
+Reap your rewards! It’s really that simple!
+
+You’ll also notice the following improvements to the Combat Achievements interface:
+
+* Tier icons have changed size from 32 to 24px.
+* Boss models will now spin when they’re supposed to!
+
+==Further Poll 79 Changes==
+
+Although our new Combat Achievements system gets its own special section, we haven’t forgotten about the other changes you voted for in Poll 79! Let’s take a look at the improvements we’ve made this week…
+
+'''Abyssal Lantern'''
+
+While developing our new Runecraft minigame, Guardians of the Rift, we decided that it would be more thematically appropriate for players to obtain the Abyssal Lantern from the Reward Rift, rather than having to buy it from Saradominist wizards.
+
+However, this meant that the reward was totally reliant on RNG, which isn’t particularly fair, especially considering that we originally polled the Lantern as a reward from the shop.
+
+In this week’s update, we’re allowing players to purchase the Abyssal Lantern for the first time. While it won’t be available in the Reward Shop for the aforementioned lore reasons, players can purchase it directly from Felix for 1,500 Abyssal Pearls. In the course of this conversation, Felix will explain how the wizards got hold of this unholy artefact… to learn more, go and have a chat with him!
+
+'''Looting Bag'''
+
+Players can now purchase the Looting Bag from any Slayer master for 10 Slayer Points. This should be a welcome change for Ultimate Iron players, as it means the Looting Bag is now obtainable without having to engage in PvP content if they do not wish to.
+
+'''Trouver Parchments'''
+
+The Wilderness Slayer loot table has been adjusted such that two Trouver Parchments will now drop at a time, instead of just one.
+
+==Other Changes==
+[[File:Points-Based Combat Achievements (4).png|centre|600px]]
+
+'''Chambers of Xeric'''
+
+We’ve added a storage chest in the Chambers of Xeric lobby which functions as a Bank! Now it’s easier than ever to swap gear before diving into the raid.
+
+While we’re at it, we’ve also added two storage units to the Great Olm’s antechamber, meaning last-minute gearing up and restocking can happen without anyone having to clamber up a rope!
+
+Please note that you can only use the Bank interface before the raid begins – once it’s started, the interface will close.
+
+'''Here’s this week’s smaller changes:'''
+
+* Wilderness Weapons and the Bracelet of Ethereum now have a ‘Add-X’ function when charging.
+* Expanded Activity HiScores from a minimum KC of 20 to a new minimum of 15. You know the drill by now; players currently in the 15-19 KC range should find their scores are added gradually over their next few gaming sessions. This change is part of a long-term project to expand the HiScores, which we’re undertaking in small steps to relieve the load on the system.
+* The ‘Check’ option on charged weapons from the Wilderness Boss Rework no longer displays when the Bank is open, meaning they can now be equipped more conveniently.
+* Fixed a typo in the Rune Mysteries quest.
+* Players may once again automatically remove permanently muted or banned players from their Ignore list. The removal process runs roughly once each day, rather than continuously, to reduce the load on our systems.
+* Reduced the active area of the Minimap where it overlaps with the Wiki button. Players who have the Wiki button enabled while using the fixed-size display mode on desktop devices will find that clicking it no longer triggers Minimap walk requests.
+* Disabled the Party Room in Quest Speedrunning worlds.
+* Adjusted the Quest Speedrunning Diamond Trophy for Dragon Slayer 2 from 70 minutes to 60 minutes.
+* Fixed a bug where Quick Prayers were not turning off consistently in PvP.
+* Fixed a bug with a Falador Easy Achievement Diary task following the recent makeover changes.
+
+'''Easter Event'''
+
+The Easter event has now been removed. We hope you had a wonderful time experiencing Mod Manked's first ever project!
+
+==Discord Stages==
+[[File:Points-Based Combat Achievements (5).png|centre|600px]]
+
+Join us for a Discord Stages discussion '''today''' with the development team working on Old School RuneScape's first new skill!
+
+We'll be chatting podcast-style to hear dev thoughts following community feedback on the refinement survey for Sailing. It's a great chance to submit your questions live and get more insight from the Old School team. Plus, who doesn't love talking statistics?
+
+[http://osrs.game/Discord-Server-Invite The New Skill Player Council Discord] is open to everyone, so make sure you're in the server to keep up with our smaller updates throughout the next few months. Be sure to [https://discord.com/events/1063151172246044752/1103244373942083605 register your interest here]. We'll see you there at 16:00 BST!
+
+==PvP Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+==Free Comic Book Day==
+[[File:Points-Based Combat Achievements (6).png|centre|600px]]
+
+This Saturday, May 6th, you can celebrate Free Comic Book Day (FCBD) with a special RuneScape comic available totally free from participating shops. You’ll get hold of some Fr33 ST00f while supporting your local comic book store – it’s a win-win!
+
+[[File:Points-Based Combat Achievements (7).png|centre|600px]]
+
+Use the [https://freecomicbookday.com/StoreLocator Official Free Comic Book Day Store Locator] to see where you can get your mitts on a copy. Simply input your postcode (or zip code) and hit enter, and the Locator will generate a list of participating shops near you. Then all you need to do is pick a friendly local comic shop from the list and show up on May 6th to get your free comic!
+
+[[File:Points-Based Combat Achievements (8).jpg|centre|600px]]
+
+This is a special 12-page RuneScape comic which shares early details of the four-part ''Untold Tales of the God Wars'' series, slated to release later this year – and a Graphic Novel is on the way in 2024!
+
+Keep your eyes peeled for more details about the full series and some special cover artists soon – and don’t miss your free sneak preview on the 6th!
+
+==Crack the Clue==
+Woox has provided us all with another cryptic clue this week. This hint is related to the clue obtained by the Chemist!
+
+[[File:Points-Based Combat Achievements (9).png|centre]]
+
+----
+
+You can also discuss this update on our [https://secure.runescape.com/m=forum/forums official forums], on the [https://www.reddit.com/r/2007scape/comments/136futd/pointsbased_combat_achievements_weekly_game/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Pumpkin, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

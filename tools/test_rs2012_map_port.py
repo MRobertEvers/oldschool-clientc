@@ -14,6 +14,8 @@ import csv
 import re
 from pathlib import Path
 
+import config_text
+
 
 SQUARES = (
     "22_99",
@@ -233,7 +235,7 @@ def config_fields(path: Path) -> dict[str, dict[str, str]]:
     """Every `[name]` block's key=value pairs. Last value wins, as the packer reads it."""
     blocks: dict[str, dict[str, str]] = {}
     current: dict[str, str] | None = None
-    for raw in path.read_text().splitlines():
+    for raw in config_text.read_lines(path):
         line = raw.split("//", 1)[0].strip()
         if not line:
             continue

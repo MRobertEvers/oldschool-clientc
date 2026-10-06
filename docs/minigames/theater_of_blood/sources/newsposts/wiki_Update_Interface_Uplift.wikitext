@@ -1,0 +1,182 @@
+{{Update|date=24 September 2025|rev=1 October 2025|url=https://secure.runescape.com/m=news/interface-uplift?oldschool=1|category=game}}
+[[File:Interface Uplift newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+| We’re aware that the Bounty Hunter worlds did not rotate as expected this week. Apologies for the mix-up! They will revert to their correct rotation in next week’s update, switching over to the expected Rotation B.
+| Coldfixed.
+|-
+| We’re aware that the new Set Effect bonus isn’t fully working for Virtus.
+| Coldfixed.
+|}
+
+''The first batch of Interface Uplift hits this week - Smarter cannonballs, better alerts, and easier world hopping for activities.''
+
+==Changelog September 24th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Interface Uplift Changes'''
+
+* You can now set a custom amount of cannonballs to load into your Dwarven multicannon with a new 'Load-X' option, helping you avoid waste while grinding. This value can be customised in the settings menu.
+* When your prayer is drained at Barrows, a chat message will now appear alongside the floating face effect to make it clearer what’s happening.
+* Chugging barrels can now pull potions directly from both your bank and potion storage when loading, with a new bank setting to control this behaviour.
+* Added a 'Bank all' button to the Theatre of Blood death chest.
+* Added a toggleable setting to toggle a warning when depositing high-value seeds into a birdhouse on Fossil Island.
+* The Set Effects menu now shows bonuses from each piece of an outfit, as well as the full set bonus.
+* Converted the Grouping tab's 'Suggested world' section into a button so that players can easily hop to the suggested world for a given activity.
+
+'''Other Changes'''
+
+* Fire and Infernal capes will now keep their fiery textures when teleporting, instead of briefly swapping to a static version.
+* Fixed the Slayer cape perk so players can now get back-to-back Zuk tasks as intended.
+* Fixed some blocked ground near Taverley that was stopping players from walking through.
+* The four bandana eyepatches can now be used for a clue that requires a bandana.
+* Bandana eyepatches once again have the correct colour inventory icon.
+* The ring of stone, and similar items, no longer break you out of being tethered to scenery at Tempoross.
+* The new icon that denotes mobile users is now automatically hidden in the Bounty Hunter lobby area.
+
+'''PSA''': We’re aware that the Bounty Hunter worlds did not rotate as expected this week. Apologies for the mix-up! They will revert to their correct rotation in next week’s update, switching over to the expected Rotation B.
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''activated''' with this rota.
+
+The PvP Arena is using ''''1 Def Pure'''' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Interface Uplift Changes==
+This week brings in the first batch of changes from our [https://secure.runescape.com/m=news/interface-uplift---ui-qol-coming-soon?oldschool=1 Interface Uplift blog]. Let's take a look!
+
+
+===Chugging Barrel Improvements===
+Tired of jumping back and forth between your Bank and Potion Storage just to top up your Chugging Barrel? We hear you. Now, when you hit the 'Load' button, your barrel can snatch potions from both your Bank and Potion Storage at the same time - no interface gymnastics required.
+
+
+[[File:Interface Uplift (1).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-24/chug.jpg here]!'']]
+
+
+There’s even a new bank setting so you can decide whether your barrel raids both storages or just the one you’ve got open. To keep things crystal clear, chat messages will tell you exactly how many doses came from each spot - so more potions, less clicking!
+
+
+[[File:Interface Uplift (2).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-24/chugset.jpg here]!'']]
+
+
+===Multi Cannon===
+Ever wish you could load your Dwarven Multicannon with just the right number of cannonballs without wasting a single one? Now you can! The new 'Load-X' option lets you pick exactly how many cannonballs to feed your cannon, so you can go full-on siege mode, or just tickle a few mobs.
+
+
+[[File:Interface Uplift (3).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-24/can.jpg here]!'']]
+
+
+Want to change your default load? No problem - the amount can be customised right in the settings menu. Boom.
+
+
+[[File:Interface Uplift (4).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-24/canset.jpg here]!'']]
+
+
+===Barrows Prayer===
+Nothing ruins a Barrows run faster than not noticing your Prayer getting sapped by those spooky brothers. To save you from accidentally running dry, we’ve added a chat message that pops up whenever your Prayer is drained - right alongside the classic floating face effect.
+
+
+[[File:Interface Uplift (5).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-24/Barrow.jpg here]!'']]
+
+
+Now it’s crystal clear when your Prayer’s taking a hit, so you can react faster and keep that HP from falling.
+
+
+===Bank All Your Shame at ToB===
+Dying in the Theatre of Blood is never fun, but reclaiming your loot just got a little less soul-crushing. The ToB death chest now has a Bank all button.
+
+Simply unlock your chest, hit the button, and all items will be sent straight to your bank in one click. Perfect for when you want to rage quit with feeling.
+
+
+[[File:Interface Uplift (6).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-24/tob.jpg here]!'']]
+
+
+===Birdhouse Seed Warning===
+Accidentally chucking high-value seeds into your Fossil Island birdhouses? Ouch. To save your GP from flying away, we’ve added a toggleable warning when depositing seeds above a value you choose. Head into the settings menu to turn the warning on and set your personal threshold.
+
+
+[[File:Interface Uplift (7).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-24/birdwarn.jpg here]!'']]
+
+
+When you try to plonk in a pricey seed, a friendly chat message will pop up, making sure you’re really, really sure before you commit. 
+
+
+[[File:Interface Uplift (8).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-24/bird.jpg here]!'']]
+
+
+Now your birdhouses can stay full without your bank taking a hit!
+
+
+===See Every Bonus, Big or Small===
+Ever worn a piece of Inquisitor’s armour and wondered if that tiny 0.5% damage and accuracy boost was really doing anything? Or if your Graceful boots were actually helping with run energy? We’ve fixed that.
+
+The Set Effects menu now shows the bonuses from each individual piece of an outfit, as well as the full set bonus if you’ve got the whole thing equipped. Whether you’re rocking partial Inquisitor’s, Graceful, or one of the many skilling or combat outfits with tiered bonuses, you can now see exactly what each piece is contributing.
+
+
+[[File:Interface Uplift (9).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-24/1.jpg here]!'']]
+
+
+No more guessing - your stats window now tells the whole story. Equip your gear, check your boosts, and feel smug about every little bonus you earn.
+
+
+===Suggested Worlds Made Clickable===
+Tired of manually switching worlds for your favourite minigames? Now, on the Grouping tab, the suggested world for each activity is a clickable button.
+
+
+[[File:Interface Uplift (10).png|thumb|250px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-09-24/world.jpg here]!'']]
+
+
+Click it, confirm the prompt, and you’re in the recommended world without any extra fiddling. Whether you’re heading to Fishing Trawler, Barbarian Assault, or any other activity with a suggested world, hop to it! 
+
+
+==Other Changes==
+
+* Fire and Infernal capes will now keep their fiery textures when teleporting, instead of briefly swapping to a static version.
+* Fixed the Slayer cape perk so players can now get back-to-back Zuk tasks as intended.
+* Fixed some blocked ground near Taverley that was stopping players from walking through.
+* The four bandana eyepatches can now be used for a clue that requires a bandana.
+* Bandana eyepatches once again have the correct colour inventory icon.
+* The ring of stone, and similar items, no longer break you out of being tethered to scenery at Tempoross.
+* The new icon that denotes mobile users is now automatically hidden in the Bounty Hunter lobby area.
+
+==PvP World Rota==
+
+'''PSA''': We’re aware that the Bounty Hunter worlds did not rotate as expected this week. Apologies for the mix-up! They will revert to their correct rotation in next week’s update, switching over to the expected Rotation B.
+
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''activated''' with this rota.
+
+The PvP Arena is using ''''1 Def Pure'''' loadouts in Ranked Duels and Tournaments this week.
+
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blighted, Blossom, Boko, Bruno, Chilly, Criminal, Curse, Daizong, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

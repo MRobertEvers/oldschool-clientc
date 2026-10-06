@@ -3196,7 +3196,7 @@ exec_mec(
 
 /*
  * MINIMENU_* (7100..7110): mouseover / right-click-menu queries. The live model
- * lives in the app layer (app->interact.minimenu, plus the hover-text target)
+ * lives in the app layer (app->frame_view->minimenu, plus the hover-text target)
  * behind the UITree host bus, which the CS2 host cannot reach -- so the App
  * publishes a per-frame snapshot into host->clientop instead, the same one the
  * `_67xx / _68xx / _69xx` target getters read.

@@ -1,0 +1,15 @@
+{{Infobox NPC
+|name = Frozen Orb
+|image = [[File:Frozen Orb.png|200px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|examine = A magical orb.
+|map = No
+|id = 11803
+|leagueRegion = Desert
+}}
+'''Frozen Orbs''' are objects that appear during the fight with [[Akkha]] in the [[Tombs of Amascut]], where they appear if he unleashes his Trailing Orbs attack, and the player moves whilst in the south-west quadrant. It will damage and temporarily slow players' attack speed by 1 tick if they walk into one.
+
+{{Tombs of Amascut}}

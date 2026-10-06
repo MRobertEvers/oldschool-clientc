@@ -16,12 +16,36 @@
  * **A `data=` line with the wrong arity is rejected, not truncated.** The values
  * are stored flat and the tuple count is derived by division, so one short line
  * would silently reinterpret every tuple after it in that column.
+ *
+ * **One grammar, read the way LostCity and cachepack read it.** The authored
+ * files under `server/scripts` and cachepack's rank-0 `configs/all.dbtable` are
+ * the same grammar (3rd/rscache/tools/cachepack/config/cp_db.c is the reference):
+ *
+ *   - a column's id is its POSITION among the block's `column=` lines, and a hole
+ *     in the numbering is a line of its own, `column=<name>,ABSENT`;
+ *   - `null` is -1 for every int-like type, not only the reference types;
+ *   - a boolean is `true` / `false`;
+ *   - an int is a decimal; a coord is `level_mx_mz_lx_lz`;
+ *   - a tuple's last field takes the rest of the line, commas and all, and an
+ *     earlier one escapes its commas `\,`; `\\`, `\ ` (a trailing blank), `/\/`
+ *     (not a comment) and `\^` (not a constant) escape what the line cleaner or
+ *     the constant expansion would otherwise take;
+ *   - `default=<column>,<v>...` on a table is the tuple a row that does not state
+ *     the column inherits, one line per tuple.
+ *
+ * This reader used to take `true` and `null` in an int/boolean/coord column as
+ * `atoi` does — both 0 — on 221 authored rows, with nothing reported.
  */
 
 #include "torirs_server_db.h"
+#include "rscache_valuetype.h"
+
+#include "content/content_value.h"
 
 #include <assert.h>
 #include <dirent.h>
+#include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,7 +77,10 @@ db_grow(
         return array;
     *capacity = *capacity ? *capacity * 2 : 32;
     grown = realloc(array, (size_t)*capacity * element);
-    return grown ? grown : array;
+    /* Not `grown ? grown : array`: that kept the old array and let the caller
+     * write past its end. */
+    assert(grown);
+    return grown;
 }
 
 /* The row's store for `col_id`, created on first write. Not db_grow: its
@@ -92,54 +119,8 @@ db_row_cell_ensure(
 /* Value types                                                         */
 /* ------------------------------------------------------------------ */
 
-/*
- * A tuple position's declared type, mapped onto how to read it.
- *
- * `LIST`, `INDEXED` and `REQUIRED` are *flags* on the column, not types, and the
- * reference writes them in the same comma-separated list. They are recognised by
- * being upper-case, which is the discriminator the format actually offers.
- */
-static int
-db_type_is_flag(const char* text)
-{
-    for( const char* scan = text; *scan; scan++ )
-    {
-        if( *scan >= 'a' && *scan <= 'z' )
-            return 0;
-    }
-    return *text != '\0';
-}
-
-/*
- * The type words that carry no symbol: the value is read as itself.
- *
- * Stated as a list rather than inferred from "db_kind_for_type said COUNT",
- * because those are two different answers and collapsing them is a silent
- * default. `int` resolves against no pack; `synth` resolves against a pack this
- * runtime does not load — and both used to reach `atoi()`, so a column declared
- * `synth` turned every sound *name* in it into 0 without a word. LostCity's
- * `consume.dbtable` has one, its `prayers.dbtable` has one, and 340 of its dbrows
- * name a sound or a music track; the tree's `pack/4_soundeffects.pack` is 12,010
- * lines of `synth_<id>` filler, so not one of those names could ever have
- * resolved. Reading them as zero is triage §13 bar 1 exactly — an unresolved name
- * answered with a default.
- *
- * So an unrecognised type word is a load error naming the word. The fix for
- * `synth`/`midi` is to name the sound and music namespaces and give this runtime
- * their packs, not to widen this list.
- */
-static int
-db_type_is_literal(const char* name)
-{
-    static const char* const k_literals[] = { "int", "string", "boolean", "coord" };
-
-    for( size_t i = 0; i < sizeof(k_literals) / sizeof(k_literals[0]); i++ )
-    {
-        if( strcmp(name, k_literals[i]) == 0 )
-            return 1;
-    }
-    return 0;
-}
+/** The property that makes a `column=` line a hole in the column numbering. */
+#define DB_ABSENT "ABSENT"
 
 /** The pack a declared type resolves against, or TORIRSSERVER_PACK_COUNT for a
  *  literal. Mirrors torirs_server_content.c's `.enum` type table — same question. */
@@ -171,69 +152,57 @@ db_kind_for_type(const char* name)
     return TORIRSSERVER_PACK_COUNT;
 }
 
-/*
- * A coord literal: `level_mx_mz_lx_lz`.
- *
- * Packed exactly as ssc_lex.c packs it — `(level << 28) | ((mx * 64 + lx) << 14)
- * | (mz * 64 + lz)` — because the compiler and this reader hand the same number
- * to the same host commands. Two packings would put a script's literal and a
- * config's literal in different places on the map, which reads as a content bug
- * rather than a decoder one.
- */
-static int
-db_parse_coord(
-    const char* text,
-    int* out_ok)
+/** Set tuple position `position` of `column` from its type word. */
+static void
+db_column_type(
+    struct ToriRSServerDbColumn* column,
+    int position,
+    const char* word)
 {
-    int parts[5];
-    int count = 0;
-    const char* scan = text;
+    assert(column);
+    assert(position >= 0);
+    assert(position < TORIRSSERVER_DB_TUPLE_MAX);
+    assert(word);
 
-    *out_ok = 0;
-    while( count < 5 )
-    {
-        int value = 0;
-        int digits = 0;
+    /* `coord` resolves against no pack (kind COUNT) and reads its own spelling. */
+    column->kind[position] = db_kind_for_type(word);
+    if( strcmp(word, "boolean") == 0 )
+        column->literal[position] = TORIRSSERVER_DB_LITERAL_BOOLEAN;
+    else if( strcmp(word, "coord") == 0 )
+        column->literal[position] = TORIRSSERVER_DB_LITERAL_COORD;
+    else
+        column->literal[position] = TORIRSSERVER_DB_LITERAL_INT;
+}
 
-        while( *scan >= '0' && *scan <= '9' )
-        {
-            value = value * 10 + (*scan - '0');
-            scan++;
-            digits++;
-        }
-        if( !digits )
-            return 0;
-        parts[count++] = value;
-        if( *scan == '_' )
-        {
-            scan++;
-            continue;
-        }
-        break;
-    }
-    if( count != 5 || *scan != '\0' )
-        return 0;
-    *out_ok = 1;
-    return (int)(((unsigned)parts[0] << 28) |
-                 ((unsigned)((parts[1] * 64) + parts[3]) << 14) |
-                 (unsigned)((parts[2] * 64) + parts[4]));
+void
+ToriRSServer_DbColumnTypeCode(
+    struct ToriRSServerDbColumn* column,
+    int position,
+    int type_code)
+{
+    const struct RSCache_ValueType* type = RSCache_ValueTypeOfId(type_code);
+
+    assert(column);
+    db_column_type(column, position, type ? type->word : "int");
+}
+
+void
+ToriRSServer_DbColumnNameSet(
+    struct ToriRSServerDbTable* table,
+    int index,
+    const char* name)
+{
+    assert(table);
+    assert(name);
+    if( index < 0 || index >= table->column_count || table->columns[index].type_count <= 0 )
+        return;
+    free((void*)table->columns[index].name);
+    table->columns[index].name = strdup(name);
+    assert(table->columns[index].name);
 }
 
 /* ------------------------------------------------------------------ */
 /* Lookups                                                             */
-/* ------------------------------------------------------------------ */
-
-static struct ToriRSServerDbTable*
-table_by_symbol(const char* symbol)
-{
-    for( int i = 0; i < g_table_count; i++ )
-    {
-        if( g_tables[i].symbol && strcmp(g_tables[i].symbol, symbol) == 0 )
-            return &g_tables[i];
-    }
-    return NULL;
-}
-
 const struct ToriRSServerDbTable*
 ToriRSServer_DbTable(int table_id)
 {
@@ -430,522 +399,37 @@ ToriRSServer_DbRowInTable(
 }
 
 /* ------------------------------------------------------------------ */
+/* Line text: the grammar's escapes                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The escapes are cachepack's (`db_append_field` in cp_db.c writes them, and its
+ * `db_clean_value` / `db_unescape` / `db_split` read them); these are the same
+ * three steps, so a line means one thing to both programs.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Values                                                              */
+/* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
 /* .dbtable                                                            */
 /* ------------------------------------------------------------------ */
 
-static void
-load_dbtable_file(const char* path)
+/** A table's `default=` lines, read once the block's columns all are: a
+ *  default may name a column declared below it. */
+struct DbPendingDefaults
 {
-    FILE* file = fopen(path, "rb");
-    char raw[1024];
-    struct ToriRSServerDbTable* table = NULL;
-    int line_number = 0;
-
-    if( !file )
-        return;
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        char* header;
-        char* value;
-
-        line_number++;
-        if( !*line )
-            continue;
-
-        header = ToriRSServer_ContentSectionHeader(line);
-        if( header )
-        {
-            g_tables = db_grow(g_tables, &g_table_capacity, g_table_count,
-                               sizeof(*g_tables));
-            table = &g_tables[g_table_count++];
-            memset(table, 0, sizeof(*table));
-            table->symbol = strdup(header);
-            table->table_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_DBTABLE, header);
-            if( table->table_id < 0 )
-                DB_ERROR("%s:%d: dbtable `%s` has no id — run tools/ss_allocate.py\n",
-                         path, line_number, header);
-            continue;
-        }
-
-        value = ToriRSServer_ContentSplitKeyValue(line);
-        if( !value || !table )
-        {
-            DB_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
-                     line_number);
-            continue;
-        }
-        if( strcmp(line, "column") != 0 )
-            continue;
-
-        {
-            struct ToriRSServerDbColumn* column;
-            char* cursor = value;
-            char* comma;
-
-            if( table->column_count >= TORIRSSERVER_DB_COLUMN_MAX )
-            {
-                DB_ERROR("%s:%d: more than %d columns in one dbtable\n", path,
-                         line_number, TORIRSSERVER_DB_COLUMN_MAX);
-                continue;
-            }
-            column = &table->columns[table->column_count];
-            memset(column, 0, sizeof(*column));
-
-            comma = strchr(cursor, ',');
-            if( !comma )
-            {
-                DB_ERROR("%s:%d: column needs `name,type[,type...]`\n", path,
-                         line_number);
-                continue;
-            }
-            *comma = '\0';
-            column->name = strdup(cursor);
-            cursor = comma + 1;
-
-            while( *cursor )
-            {
-                char* end = strchr(cursor, ',');
-
-                if( end )
-                    *end = '\0';
-                if( db_type_is_flag(cursor) )
-                {
-                    /* LIST / INDEXED / REQUIRED. Only LIST changes behaviour and
-                     * it changes it for the *content*, not for us: every column
-                     * here is read as a list of tuples, and a non-LIST column is
-                     * simply one whose rows only ever declare one. */
-                }
-                else if( column->type_count >= TORIRSSERVER_DB_TUPLE_MAX )
-                {
-                    DB_ERROR("%s:%d: more than %d types in column `%s`\n", path,
-                             line_number, TORIRSSERVER_DB_TUPLE_MAX, column->name);
-                }
-                else if( db_kind_for_type(cursor) == TORIRSSERVER_PACK_COUNT &&
-                         !db_type_is_literal(cursor) )
-                {
-                    DB_ERROR("%s:%d: column `%s` declares type `%s`, which nothing "
-                             "here resolves — a name in it would be read as 0\n",
-                             path, line_number, column->name, cursor);
-                }
-                else
-                {
-                    column->is_string[column->type_count] =
-                        strcmp(cursor, "string") == 0;
-                    column->kind[column->type_count] = db_kind_for_type(cursor);
-                    /* `coord` needs its own parse and resolves against no pack;
-                     * remembered by kind staying COUNT plus the name, which the
-                     * row reader re-derives. Storing the type name per position
-                     * would be the alternative and is not worth the bytes for one
-                     * special case. */
-                    if( strcmp(cursor, "coord") == 0 )
-                        column->kind[column->type_count] = TORIRSSERVER_PACK_COUNT;
-                    column->type_count++;
-                }
-                if( !end )
-                    break;
-                cursor = end + 1;
-            }
-
-            if( column->type_count == 0 )
-            {
-                DB_ERROR("%s:%d: column `%s` declares no types\n", path,
-                         line_number, column->name);
-                continue;
-            }
-            table->column_count++;
-        }
-    }
-    fclose(file);
-}
+    char** lines;
+    int* line_numbers;
+    int count;
+    int capacity;
+};
 
 /* ------------------------------------------------------------------ */
 /* .dbrow                                                              */
 /* ------------------------------------------------------------------ */
-
-/** Read one `data=` value against its declared tuple position. */
-static struct ToriRSServerDbValue
-row_value(
-    const struct ToriRSServerDbColumn* column,
-    int position,
-    const char* text,
-    int* out_ok)
-{
-    struct ToriRSServerDbValue out = { { 0 } };
-    const char* expanded = text;
-
-    *out_ok = 1;
-    if( *text == '^' )
-    {
-        expanded = ToriRSServer_ContentConstant(text);
-        if( !expanded )
-        {
-            *out_ok = 0;
-            return out;
-        }
-    }
-
-    if( column->is_string[position] )
-    {
-        out.text = strdup(expanded);
-        return out;
-    }
-    if( column->kind[position] != TORIRSSERVER_PACK_COUNT )
-    {
-        /* `null` is a real answer (id -1), not a miss — same rule as
-         * ToriRSServer_ContentSymbolChecked / param=death_drop,null. */
-        if( !ToriRSServer_ContentSymbolChecked(column->kind[position], expanded,
-                                            &out.value) )
-            *out_ok = 0;
-        return out;
-    }
-    /*
-     * A literal. A coord is written `0_40_52_35_23`, so try that first — atoi()
-     * on one silently yields the level and every zone test then compares against
-     * tile 0.
-     */
-    {
-        int coord_ok = 0;
-        int coord = db_parse_coord(expanded, &coord_ok);
-
-        if( coord_ok )
-        {
-            out.value = coord;
-            return out;
-        }
-    }
-    out.value = atoi(expanded);
-    return out;
-}
-
-static void
-load_dbrow_file(const char* path)
-{
-    FILE* file = fopen(path, "rb");
-    char raw[2048];
-    struct ToriRSServerDbRow* row = NULL;
-    const struct ToriRSServerDbTable* table = NULL;
-    int line_number = 0;
-
-    if( !file )
-        return;
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        char* header;
-        char* value;
-
-        line_number++;
-        if( !*line )
-            continue;
-
-        header = ToriRSServer_ContentSectionHeader(line);
-        if( header )
-        {
-            g_rows = db_grow(g_rows, &g_row_capacity, g_row_count, sizeof(*g_rows));
-            row = &g_rows[g_row_count++];
-            memset(row, 0, sizeof(*row));
-            row->symbol = strdup(header);
-            row->row_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_DBROW, header);
-            row->table_id = -1;
-            table = NULL;
-            if( row->row_id < 0 )
-                DB_ERROR("%s:%d: dbrow `%s` has no id — run tools/ss_allocate.py\n",
-                         path, line_number, header);
-            continue;
-        }
-
-        value = ToriRSServer_ContentSplitKeyValue(line);
-        if( !value || !row )
-        {
-            DB_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
-                     line_number);
-            continue;
-        }
-
-        if( strcmp(line, "table") == 0 )
-        {
-            table = table_by_symbol(value);
-            if( !table )
-            {
-                DB_ERROR("%s:%d: dbrow `%s` names unknown table `%s`\n", path,
-                         line_number, row->symbol, value);
-                continue;
-            }
-            row->table_id = table->table_id;
-            continue;
-        }
-        if( strcmp(line, "data") != 0 )
-            continue;
-
-        if( !table )
-        {
-            DB_ERROR("%s:%d: `data=` before `table=` in dbrow `%s`\n", path,
-                     line_number, row->symbol);
-            continue;
-        }
-
-        {
-            char* comma = strchr(value, ',');
-            const struct ToriRSServerDbColumn* column;
-            struct ToriRSServerDbRowColumn* store;
-            struct ToriRSServerDbValue tuple[TORIRSSERVER_DB_TUPLE_MAX];
-            int filled = 0;
-            int index;
-            int resolved = 1;
-            char* cursor;
-
-            if( !comma )
-            {
-                DB_ERROR("%s:%d: data needs `column,value[,value...]`\n", path,
-                         line_number);
-                continue;
-            }
-            *comma = '\0';
-            index = ToriRSServer_DbColumnIndex(table, value);
-            if( index < 0 )
-            {
-                DB_ERROR("%s:%d: table `%s` has no column `%s`\n", path,
-                         line_number, table->symbol, value);
-                continue;
-            }
-            column = &table->columns[index];
-            cursor = comma + 1;
-
-            while( *cursor && filled < column->type_count )
-            {
-                char* end = strchr(cursor, ',');
-                int value_ok = 0;
-
-                /* The last declared position takes the rest of the line, commas
-                 * and all. Only a trailing `string` can contain one, and the
-                 * reference's grammar has no escape — so this is the only reading
-                 * that does not lose text. */
-                if( end && filled + 1 < column->type_count )
-                    *end = '\0';
-                else
-                    end = NULL;
-
-                tuple[filled] = row_value(column, filled, cursor, &value_ok);
-                if( !value_ok )
-                {
-                    DB_ERROR("%s:%d: `%s` does not resolve\n", path, line_number,
-                             cursor);
-                    resolved = 0;
-                }
-                filled++;
-                if( !end )
-                    break;
-                cursor = end + 1;
-            }
-
-            /*
-             * Arity is a hard error. The values are stored flat and the tuple
-             * count is `count / type_count`, so appending a short tuple would
-             * shift every later tuple in this column by one position — a
-             * coord-pair list would start pairing the end of one zone with the
-             * start of the next, and nothing would report it.
-             */
-            if( filled != column->type_count )
-            {
-                DB_ERROR("%s:%d: column `%s` takes %d value(s), got %d\n", path,
-                         line_number, column->name, column->type_count, filled);
-                continue;
-            }
-            if( !resolved )
-                continue;
-
-            store = db_row_cell_ensure(row, index);
-            for( int i = 0; i < filled; i++ )
-            {
-                store->values = db_grow(store->values, &store->capacity,
-                                        store->count, sizeof(*store->values));
-                store->values[store->count++] = tuple[i];
-            }
-        }
-    }
-    fclose(file);
-}
-
-/* ------------------------------------------------------------------ */
 /* Loading                                                             */
-/* ------------------------------------------------------------------ */
-
-static void
-walk_suffix(
-    const char* dir,
-    const char* suffix,
-    void (*handler)(const char*))
-{
-    DIR* handle = opendir(dir);
-    struct dirent* entry;
-
-    if( !handle )
-        return;
-    while( (entry = readdir(handle)) != NULL )
-    {
-        char path[1024];
-        struct stat info;
-        size_t name_length;
-        size_t suffix_length = strlen(suffix);
-
-        if( entry->d_name[0] == '.' )
-            continue;
-        snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        if( stat(path, &info) != 0 )
-            continue;
-        if( S_ISDIR(info.st_mode) )
-        {
-            walk_suffix(path, suffix, handler);
-            continue;
-        }
-        name_length = strlen(entry->d_name);
-        if( name_length >= suffix_length &&
-            strcmp(entry->d_name + name_length - suffix_length, suffix) == 0 )
-        {
-            /* Machine exports — see ToriRSServer_DbLoad. */
-            if( strcmp(entry->d_name, "all.dbtable") == 0 ||
-                strcmp(entry->d_name, "all.dbrow") == 0 )
-                continue;
-            handler(path);
-        }
-    }
-    closedir(handle);
-}
-
-/*
- * Put the cache's own column NAMES on the cache's own tables.
- *
- * A dat2 DBTABLE record carries column types and defaults and no names at all —
- * the names live in `configs/all.dbtable`, the unpacked text, which is where
- * `sscompile` reads them to compile `poh_hotspot:builddata` into a column id.
- * The runtime had no such reader, so every cache table arrived with
- * `column->name == NULL` and an authored `.dbrow` extending one could not name
- * its column: 82 `table has no column` lines for the Construction workbench's
- * four flatpack category rows, and a workbench that offers nothing.
- *
- * Names only. Types, arity and defaults stay the binary's, and a table the tree
- * defines itself is untouched — this runs before the authored `.dbtable` walk
- * and only fills a column that already exists and is still unnamed.
- */
-static void
-name_cache_table_columns(const char* content_dir)
-{
-    char path[1024];
-    FILE* file;
-    char raw[1024];
-    struct ToriRSServerDbTable* table = NULL;
-
-    snprintf(path, sizeof(path), "%s/configs/all.dbtable", content_dir);
-    file = fopen(path, "rb");
-    if( !file )
-        return;
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        char* value;
-        char* comma;
-        int col_id;
-        int table_id;
-
-        if( !*line )
-            continue;
-        {
-            char* header = ToriRSServer_ContentSectionHeader(line);
-
-            if( header )
-            {
-                table = NULL;
-                table_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_DBTABLE, header);
-                if( table_id >= 0 )
-                {
-                    for( int i = 0; i < g_table_count; i++ )
-                    {
-                        if( g_tables[i].table_id == table_id )
-                        {
-                            table = &g_tables[i];
-                            break;
-                        }
-                    }
-                }
-                continue;
-            }
-        }
-        value = ToriRSServer_ContentSplitKeyValue(line);
-        if( !value || !table || strcmp(line, "columndef") != 0 )
-            continue;
-        /* `columndef=<id>:<name>,<type>[,<type>...]` */
-        col_id = atoi(value);
-        value = strchr(value, ':');
-        if( !value )
-            continue;
-        value++;
-        comma = strchr(value, ',');
-        if( comma )
-            *comma = '\0';
-        if( col_id < 0 || col_id >= TORIRSSERVER_DB_COLUMN_MAX )
-            continue;
-        if( table->columns[col_id].type_count <= 0 || table->columns[col_id].name )
-            continue;
-        table->columns[col_id].name = strdup(value);
-        assert(table->columns[col_id].name);
-        if( col_id + 1 > table->column_count )
-            table->column_count = col_id + 1;
-        /* The type words the binary could not carry either. Positions must line
-         * up with the arity the record already declared; a disagreement is the
-         * text and the binary describing different tables, so say nothing rather
-         * than name half a tuple's namespaces wrongly. */
-        if( comma )
-        {
-            struct ToriRSServerDbColumn* column = &table->columns[col_id];
-            char* cursor = comma + 1;
-            int position = 0;
-
-            while( *cursor && position < column->type_count )
-            {
-                char* end = strchr(cursor, ',');
-
-                if( end )
-                    *end = '\0';
-                column->kind[position] = db_kind_for_type(cursor);
-                if( strcmp(cursor, "coord") == 0 )
-                    column->kind[position] = TORIRSSERVER_PACK_COUNT;
-                position++;
-                if( !end )
-                    break;
-                cursor = end + 1;
-            }
-        }
-    }
-    fclose(file);
-}
-
-void
-ToriRSServer_DbLoad(const char* dir)
-{
-    char scripts[1024];
-
-    /*
-     * Deliberately NOT `ToriRSServer_DbFree()` first.
-     *
-     * The cache's DBTABLE schemas are installed *before* this call (see
-     * torirs_server_boot.c step 3), because an authored `.dbrow` may name a cache
-     * table — `poh_hotspot` — and cannot resolve one that is not loaded. A free
-     * here threw those 246 schemas away again and the 82 flatpack rows went on
-     * reporting `names unknown table`. Callers that reload rather than boot
-     * call `ToriRSServer_DbFree` themselves.
-     */
-    /* Server DB source has exactly one root. Client cache exports and flagged
-     * client lanes use a different grammar (`columndef=` / `values=`), and the
-     * binary loader below is their route into this runtime. Walking the whole
-     * content tree made a feature-only client dbrow look like malformed server
-     * content before its valid cache record was loaded. */
-    name_cache_table_columns(dir);
-    snprintf(scripts, sizeof(scripts), "%s/server/scripts", dir);
-    walk_suffix(scripts, ".dbtable", load_dbtable_file);
-    walk_suffix(scripts, ".dbrow", load_dbrow_file);
-}
-
 void
 ToriRSServer_DbFree(void)
 {
@@ -1128,7 +612,10 @@ ToriRSServer_DbColumnDefine(
      * to say until then.
      */
     for( int i = 0; i < TORIRSSERVER_DB_TUPLE_MAX; i++ )
+    {
         column->kind[i] = TORIRSSERVER_PACK_COUNT;
+        column->literal[i] = TORIRSSERVER_DB_LITERAL_INT;
+    }
     for( int i = type_count; i < TORIRSSERVER_DB_TUPLE_MAX; i++ )
         column->is_string[i] = 0;
     if( col_id + 1 > table->column_count )

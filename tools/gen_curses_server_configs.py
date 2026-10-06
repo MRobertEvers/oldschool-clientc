@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import os
+import sys
 """Generate the Ancient Curses server-side configs from the rev558 book table.
 
 Names, levels and book order come from
@@ -27,6 +29,9 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import config_text  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 BOOK = ROOT / "docs/rs558_ancient_curses/tables/curses_book.csv"
@@ -148,7 +153,7 @@ def main() -> int:
             for name, icon in sorted(HEADICON.items(), key=lambda kv: kv[1])]
     (LANE / "configs/curses.constant").write_text("\n".join(out) + "\n")
 
-    (LANE / "configs/curses.dbtable").write_text(
+    config_text.write_config(LANE / "configs/curses.dbtable", 
         GENERATED +
         "//\n"
         "// Mirrors skill_prayer/configs/prayers.dbtable. `bit` and `curse` hold the\n"
@@ -181,7 +186,7 @@ def main() -> int:
                  f"data=headicon,{('^headicon_curse_' + s) if name in HEADICON else -1}"]
         body += [f"data=group,{g}" for g in GROUPS[name]]
         body.append("")
-    (LANE / "configs/curses.dbrow").write_text("\n".join(body) + "\n")
+    config_text.write_config(LANE / "configs/curses.dbrow", "\n".join(body) + "\n")
 
     print(f"wrote curses.constant / .dbtable / .dbrow for {len(rows)} curses")
     return 0

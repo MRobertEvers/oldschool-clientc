@@ -1,0 +1,40 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	wear-whip	PASS	11	001-wear-whip	equip abyssal_whip: worn 0 -> more
+2	s7v.enter	PASS	6	002-s7v.enter	in tob verzik (entry) at 6432,84,0; boss present (verzik_initial slot 54 at 6430,99); handle 1, started 0, fight 6432,84,0
+3	s7v.talk	PASS	6	003-s7v.talk	map_flag: dialogue npc is up
+4	s7v.begin	PASS	2	004-npc-p1,005-options-p2,006-options-p3,007-s7v.begin	3 page(s): npc:So, you wish to entertain me? , options:options, options:choose:Yes, begin the fight.
+5	s7v.prayer	PASS	0	008-s7v.prayer	protectfrommagic on: pressed prayerbook:prayer13 (component 35454997) on drive tick 25; varb4116_prayer_protectfrommagic 0 -> 1 (server) read on drive tick 25 (+0)
+6	s7v.verzik_dead	PASS	88	009-s7v.verzik_dead	The throne collapses, revealing a staircase. | <col=ffd700>A new personal best! | <col=8f0000>Verzik Vitur has fallen. | tobvzskip spent=600 | You eat the Shark. | You eat the Shark. | You eat the Shark. | <col=8f0000>Verzik Vitur sheds her shell again! | You eat the Shark. | You eat the Shark. | tobvzskip spent=400 | <col=8f0000>Verzik Vitur sheds her shell. | tobvzskip spent=300
+7	s7v.backpack_untouched	PASS	2	010-s7v.backpack_untouched	coins 0 deathrune 0 bloodrune 0 vial_blood 0
+8	s7v.loot_flag_set	PASS	0	011-s7v.loot_flag_set	varb11958_tob_should_have_loot 1
+9	s7v.still_in_raid	PASS	0	012-s7v.still_in_raid	varp5893_tob_active 1
+10	s7v.trapdoor_wait	PASS	1	013-s7v.trapdoor_wait	transforming throne at hand-off: ok; ok
+11	s7v.trapdoor	PASS	0	014-s7v.trapdoor	ok ?,? id 32738
+12	s7v.throne_gone	PASS	0	015-s7v.throne_gone	tob_dungeon_verzik_throne_visible: not_found
+13	s7v.trapdoor_enter	PASS	0	016-s7v.trapdoor_room,017-s7v.trapdoor_enter	chat_message
+14	s7v.in_vault	PASS	3	018-s7v.in_vault	from 6430,98 to 6437,147,0
+15	s7v.chest_varbit	PASS	1	019-s7v.chest_varbit	varb6450 2 (2 = mine_standard), varb6451 0; tobvault slot=0 rare=0 room=7 handle=2 | tobvault chests=2,0,0,0,0 | tobvault items=[ 0:565x186 1:995x130110] flag=1
+16	s7v.chest0_placed	PASS	0		ok ?,? [frame unchanged]
+17	s7v.chest1_absent_solo	PASS	0		tob_treasureroom_chest_loc1: not_found [frame unchanged]
+18	s7v.crystal_placed	PASS	0		ok ?,? [frame unchanged]
+19	s7v.chest_open	PASS	19	020-s7v.vault_arrival,021-s7v.chest_open	modal tob_chests
+20	s7v.chest_interface	PASS	0	022-s7v.chest_interface	tob_chests open (group 23)
+21	s7v.chest_contents	PASS	3	023-s7v.chest_contents	tobvault slot=0 rare=0 room=7 handle=2 | tobvault chests=2,0,0,0,0 | tobvault items=[ 0:565x186 1:995x130110] flag=1
+22	s7v.chest_opened_loc	PASS	0	024-s7v.chest_interface,025-s7v.chest_opened_loc	tob_treasureroom_chest_open: ok
+23	s7v.take_one	PASS	4	026-s7v.take_one	widget ok 1553881; invoke ok nil; chest now tobvault slot=0 rare=0 room=7 handle=2 | tobvault chests=2,0,0,0,0 | tobvault items=[ 1:995x130110] flag=1; backpack slots 1-3 nilx186, nilx0, nilx0
+24	s7v.chest_front	PASS	4	027-s7v.chest_front	opened from local 34,41 (chest 0 spans 33..35 x 42..44; its south face is z41)
+25	s7v.loot_flag_after_take	PASS	0		varb11958 1 with chest tobvault slot=0 rare=0 room=7 handle=2 | tobvault chests=2,0,0,0,0 | tobvault items=[ 1:995x130110] flag=1 [frame unchanged]
+26	s7v.war_table	FAIL	86	028-s7v.war_table,029-s7v.war_table-FAIL	reach_failed: I can't reach that! -- and from 4 of its 5 approach tiles: 6432,169 (walked to (asked 6432,166, ended 6432,169)) -> refused I can't reach that!; 6433,162 (walked to (asked 6433,165, ended 6433,162)) -> refused I can't reach that!; 6429,165 (walked to (asked 6431,165, ended 6429,165)) -> refused I can't reach that!; 6432,162 (walked to (asked 6432,164, ended 6432,162)) -> refused I can't reach that!; tried and not pressed from: 6432,165 (the loc's own square: the walk ended 6429,165; not stood on with ::goto -- stand_on_square not set) -- the loc's own square(s) were not stood on with ::goto: pass { stand_on_square = true } beside a -- GUIDE-GAP marker only when no route can end on a square that serves it -- reach retry 1: pressed from 6432,169 (walked to (asked 6432,166, ended 6432,169)) -> refused; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 2: pressed from 6433,162 (walked to (asked 6433,165, ended 6433,162)) -> refused; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 3: pressed from 6429,165 (walked to (asked 6431,165, ended 6429,165)) -> refused; reach: the press answered ok (map_flag) and the engine refused the reach a tick later; reach retry 4: pressed from 6432,162 (walked to (asked 6432,164, ended 6432,162)) -> refused; reach retry: the loc's own square 6432,165 -- the walk ended 6429,165; not stood on with ::goto -- stand_on_square not set -- not pressed
+27	s7v.war_table_said	PASS	3	030-s7v.war_table_said	I can't reach that! | I can't reach that! | I can't reach that! | I can't reach that! | I can't reach that!
+28	s7v.strategy_table	PASS	25	031-s7v.strategy_table	map_flag
+29	s7v.strategy_table_said	PASS	3	032-s7v.strategy_table_said	chat: ; mounted interface text probe tob_performancedetails:mvp is not in the tree (no_row): its interface is not open, or the symbol is not a component
+30	s7v.vault_messages	PASS	0	033-s7v.vault_messages	I can't reach that! | I can't reach that! | I can't reach that! | I can't reach that! | I can't reach that! | tobvault slot=0 rare=0 room=7 handle=2 | tobvault chests=2,0,0,0,0 | tobvault items=[ 1:995x130110] flag=1 | tobvault slot=0 rare=0 room=7 handle=2 | tobvault chests=2,0,0,0,0 | tobvault items=[ 0:565x186 1:995x130110] flag=1 | tobvault slot=0 rare=0 room=7 handle=2 | tobvault chests=2,0,0,0,0 | tobvault items=[ 0:565x186 1:995x130110] flag=1 [frame unchanged]
+31	s7v.vault_all	PASS	6	034-s7v.vault_all	tobvaultall 5
+32	s7v.crystal	PASS	7	035-s7v.vault_all,036-s7v.crystal	map_flag
+33	s7v.left	PASS	4	037-s7v.left	at 3677,3219,0; varb11958 1
+34	s7v.chest_varbits_cleared	PASS	0		varb6450 after leaving 0 [frame unchanged]
+35	s7v.lobby_chest	PASS	0		ok ?,? [frame unchanged]
+36	s7v.lobby_claim	PASS	14	038-s7v.lobby_claim	map_flag
+37	s7v.lobby_take_all	PASS	7	039-s7v.lobby_interface,040-s7v.lobby_take_all	open ok; before tobvault chests=0,0,0,0,0 | tobvault items=[ 1:995x130110] flag=1; take-all ok nil; after tobvault chests=0,0,0,0,0 | tobvault items=[] flag=0; varb11958 0; closed ok
+SUMMARY	37	FAIL	305	exit=0	pass=36 fail=1

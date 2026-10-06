@@ -18,6 +18,8 @@ import os
 import re
 import sys
 
+import config_text
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG = os.path.join(
     ROOT, "OSRS-Content", "osrs239-content", "server", "scripts", "minigames",
@@ -37,7 +39,7 @@ KINGS = {
 
 
 def config_blocks():
-    text = open(CONFIG, encoding="utf-8").read()
+    text = config_text.read_text(CONFIG, encoding="utf-8")
     out = {}
     for block in re.split(r"\n(?=\[)", text):
         head = re.match(r"\[([^\]]+)\]", block)

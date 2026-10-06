@@ -1,0 +1,99 @@
+{{Update|date=21 September 2022|link=https://secure.runescape.com/m=news/tombs-of-amascut-changes--beta-tweaks?oldschool=1|category=game}}
+[[File:Tombs of Amascut Changes & Beta Tweaks newspost.png|right]]
+{{clear}}
+''This week's game update sees us make a handful of tweaks to Tombs of Amascut and the ongoing betas!''
+
+Last week, we made some changes to Tombs of Amascut and activated beta worlds for Quest Speedrunning, Poison Dynamite and the Wilderness Boss Rework rewards.
+
+Since then, a bunch of you have gotten in touch with suggestions that we've included in this week's update!
+__TOC__
+==Tombs Of Amascut Tweaks==
+After a few weeks of dragging sand through the office, we feel like Tombs of Amascut is in a really great spot!
+
+Our last set of changes included a handful of tweaks to Invocations, with a couple of unintended side effects.
+
+Players using 'Need Less Help' noticed that the number of supplies being offered by mid-raid loot was lower than expected. This was an unintentional error on our end and has been fixed in today’s update.
+
+Keen-eyed players noticed that the Summary screen in the Raid Setup interface wasn't accurately reflecting the Deadly Prayers Invocation. The Summary screen now accurately displays Prayer effectiveness in line with the removal of Silent Prayers and the addition of Deadly Prayers.
+
+The crocodile spawns on the Path of Crondis were a little inconsistent, meaning that even tick-perfect players were occasionally having to make an extra run for water. We've improved the consistency of these spawns so players with a need for speed should find the room a little less frustrating.
+
+The max hit threshold when mining the pillar on the Path of Het has been reduced from 102 Mining to 100 Mining. This should alleviate the need for players to keep track of boost timers and lead to more consistency on this Path.
+
+The 'cascading X' attack during Wardens Phase 2 no longer does damage if a Warden is downed, in line with their other attacks.
+
+Finally, Zebak was having trouble sinking his teeth in to players on certain tiles. The colossal croc is now able to melee players stood on the corners of the rocks in his lair.
+
+==Quest Speed Running Tweaks==
+We’ve really enjoyed watching you all zoom through our first offering of iconic quest speedruns. You’ve sent in lots of great ideas about how to make the experience even more enjoyable, and so we made a handful of hotfixes for you to get up to speed on:
+
+* Dropped items such as food or untradeables now follow the player between worlds while Quest Speedrunning.
+* Items dropped by the player during an active speedrun are now correctly deleted when the speedrun is abandoned. We plan to have items dropped by NPCs work the same way by launch.
+* Players are now able to abandon their current speedrun while in the Wilderness and should find themselves teleported back to Lumbridge as expected.
+* Ironman chat icons now display correctly on Quest Speedrunning worlds.
+* Players keybinds and other settings no longer reset when starting a new speedrun.
+
+While not strictly speedrun related, we've also disabled the 'Switch View' button for Achievement Diary journals. Players should now be able to enjoy the fancy new Quest 'scroll' interface without any confusion as to what this button does.
+
+==Wilderness Boss Rework Tweaks==
+We’ve been carefully watching what you’ve been up to with the proposed rewards for the Wilderness Boss Rework and will be making changes accordingly.
+
+It looks as though the upgraded Revenant weapons slot neatly into their role as 'anti-PK' weapons, helping PvMers fight back a little more vigorously against any would-be PKers.
+
+In the Wilderness Boss Rework [https://secure.runescape.com/m=news/a=97/wilderness-boss-rework-design-blog?oldschool=1 Design Blog], we made an amendment following early feedback that we would allow both Thamarron's and the Accursed Sceptre to autocast. We've adjusted these items on the Beta worlds so that players can properly experiment with them as Wilderness Slayer powerhouses.
+
+We also spoke about the Voidwaker and our intent for it to be a best-in-slot non-degradeable Strength training option for 75 Attack builds, while still being outclassed in terms of DPS by staples like the Abyssal Whip. After experimenting, some players still feel the Voidwaker is a little lacklustre when compared to the Abyssal Bludgeon, so we've bumped its Melee Strength bonus from +75 to +80 on the Beta worlds.
+
+It's worth remembering that this is still only a beta and that if players feel any of the rewards could use some further balancing, make sure to let us know!
+
+==A Mysterious Message...==
+Last week, we shared a [https://secure.runescape.com/m=news/a=97/a-mysterious-message?oldschool=1 post] from Postie Pete about a mysterious message he'd received from a hooded stranger.
+
+We've had our most inquisitive J-Mods figuring out what it means and will be sharing what we know later today.
+
+Keep an eye on our social channels for more information...
+
+==Other Changes==
+Rounding off the week are a few smaller changes, let's take a look:
+
+* The Corporeal Beast's 'drain' attack will no longer hit players after they leave its lair.
+* A quiet audio cue is now played to adjacent players when a Barronite vein depletes in Camdozaal.
+* The Ancient Godsword's Special Attack effect is now cleared upon teleporting or leaving an instance by any means.
+* The Beta World supply chests now offer Menaphite Remedy potions.
+* The chat message for the Keris Partisan's special combat effect has had its wording adjusted.
+
+==Merch Store Varrock Pins & Keyrings Part 1==
+Get ready to relive your earliest visits to Misthalin with the first of a two-part pin and keyring set celebrating the iconic city of Varrock!
+
+[[File:Tombs of Amascut Changes & Beta Tweaks (1).png|centre|600px]]
+
+
+First up, we have the Limited Edition Grey Stray Dog Pin. It’s about time he got a forever home, isn’t it?
+
+Next, meet the Varrock Starter Pack Mini Pin Set, including the Grand Exchange Icon, a Kitten from Gertrude, Rune Essence, a Cadava Potion, and your very own Digsite Pendant.
+
+No visit to Varrock is complete without a trip to the Blue Moon Inn, and now you can bring the party home with a functioning Blue Moon Bottle Opener Keyring!
+
+Last up, we have the Champion’s Cape Keyring. Let Misthalin’s most prestigious guild watch over your keys!
+
+See the rest of the Angels Scapes Cities of RuneScape range on the <u>[https://runescape.backstreetmerch.com/ Official Merch Store!]</u>
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '''1 Defence Pure''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,838,66262734 official forums], on the [https://www.reddit.com/r/2007scape/comments/xk0d0j/toa_changes_beta_tweaks 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Chilly, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Shaun, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Steve W, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

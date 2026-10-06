@@ -1,0 +1,22 @@
+{{external|rs=Undead|rsc=Undead|dw=Undead}}
+'''Undead''' is an [[Monster attribute|attribute]] assigned to monsters weak to the effects of [[salve amulet]] and the [[Crumble Undead]] spell. Many monsters with the [[Spectral (attribute)|spectral attribute]] also classify as undead, with several exceptions, as listed below.
+
+==Effects==
+*The [[salve amulet]] will provide the player with a 16.67% boost to [[Attack]] and [[Strength]]. The [[salve amulet(i)|imbued]] version will additionally provide a 16.67% boost to [[Ranged]] and a 15% boost to [[Magic]]. This does not stack with the [[Slayer helmet]].
+*The [[salve amulet (e)]] will provide the player with a 20% boost to [[Attack]] and [[Strength]]. The [[salve amulet(ei)|imbued]] version will additionally provide a 20% boost to [[Ranged]] and [[Magic]]. This does not stack with the [[Slayer helmet]].
+*The [[Crumble Undead]] spell may only be used against monsters with the undead attribute. Requiring level 39 [[Magic]], it has a max hit of 15 and costs 1 [[chaos rune]], 2 [[Air rune|air runes]], and 2 [[Earth rune|earth runes]] to cast.
+
+==List of monsters==
+{{Bestiarytable|fromletter=A|toletter=Z|levelselect=no|levelsort=no|attribute=undead}}
+
+==Excluded monsters==
+Despite appearing to be ghosts, many creatures with the spectral attribute do not have the undead attribute, including all [[wight]]s (such as the [[Barrows brothers]]), the [[barbarian spirit]]s in the [[Ancient Cavern]], [[ghast]]s, [[spiritual creature]]s, and reanimated creatures from [[ensouled head]]s.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/856458661308379136|date=24 April 2017|quote=No, reanimated creatures don't count as undead. The Barrows brothers are a fairly good comparison.|archiveurl=https://web.archive.org/web/20200430154805/https://twitter.com/JagexAsh/status/856458661308379136|archivedate=April 30 2020}}
+
+Other non-spectral exceptions include [[ghoul]]s, [[Ba-Ba]] and her undead [[baboon]]s, [[skeletal wyverns]] (as they are simply reanimated bones), and [[vampyre]]s (although they are often portrayed as undead in other media, they are not undead in ''RuneScape'').
+
+==References==
+{{Reflist}}
+
+{{Monster attribute}}
+{{Attribute_affinities}}
+[[Category:Undead]]

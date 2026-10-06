@@ -1,0 +1,642 @@
+{
+ "kind": "blert-reference-v1",
+ "room": "maiden",
+ "mode": "entry",
+ "mode_code": 10,
+ "scale": 1,
+ "stage": 10,
+ "harvested": "2026-10-06",
+ "selection": {
+  "candidates": 1,
+  "death_free": 1,
+  "used": 1,
+  "used_with_deaths": 0,
+  "uuids": [
+   "6ae3d9f8-c1aa-4e19-9f23-eacc3515b6d0"
+  ],
+  "listing": {
+   "pages": 0,
+   "challenges": 0,
+   "completed_room": 0
+  }
+ },
+ "role_sets": [
+  {
+   "roles": [
+    "solo"
+   ],
+   "rooms": 1
+  }
+ ],
+ "numbers": {
+  "boss.attacks.maiden_auto": {
+   "median": 7,
+   "min": 7,
+   "max": 7,
+   "n": 1
+  },
+  "boss.cadence": {
+   "median": 10.0,
+   "min": 10.0,
+   "max": 10.0,
+   "n": 1
+  },
+  "boss.first_attack": {
+   "median": 10,
+   "min": 10,
+   "max": 10,
+   "n": 1
+  },
+  "outcome.boss_death_tick": {
+   "median": 82,
+   "min": 82,
+   "max": 82,
+   "n": 1
+  },
+  "outcome.boss_heal": {
+   "median": 6,
+   "min": 6,
+   "max": 6,
+   "n": 1
+  },
+  "outcome.deaths": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 1
+  },
+  "outcome.leaks": {
+   "median": 2,
+   "min": 2,
+   "max": 2,
+   "n": 1
+  },
+  "outcome.phase.100.boss_heal": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 1
+  },
+  "outcome.phase.100.leaks": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 1
+  },
+  "outcome.phase.100.start": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 1
+  },
+  "outcome.phase.100.ticks": {
+   "median": 26,
+   "min": 26,
+   "max": 26,
+   "n": 1
+  },
+  "outcome.phase.30.boss_heal": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 1
+  },
+  "outcome.phase.30.leaks": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 1
+  },
+  "outcome.phase.30.start": {
+   "median": 61,
+   "min": 61,
+   "max": 61,
+   "n": 1
+  },
+  "outcome.phase.30.ticks": {
+   "median": 21,
+   "min": 21,
+   "max": 21,
+   "n": 1
+  },
+  "outcome.phase.50.boss_heal": {
+   "median": 6,
+   "min": 6,
+   "max": 6,
+   "n": 1
+  },
+  "outcome.phase.50.leaks": {
+   "median": 1,
+   "min": 1,
+   "max": 1,
+   "n": 1
+  },
+  "outcome.phase.50.start": {
+   "median": 41,
+   "min": 41,
+   "max": 41,
+   "n": 1
+  },
+  "outcome.phase.50.ticks": {
+   "median": 20,
+   "min": 20,
+   "max": 20,
+   "n": 1
+  },
+  "outcome.phase.70.boss_heal": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 1
+  },
+  "outcome.phase.70.leaks": {
+   "median": 1,
+   "min": 1,
+   "max": 1,
+   "n": 1
+  },
+  "outcome.phase.70.start": {
+   "median": 26,
+   "min": 26,
+   "max": 26,
+   "n": 1
+  },
+  "outcome.phase.70.ticks": {
+   "median": 15,
+   "min": 15,
+   "max": 15,
+   "n": 1
+  },
+  "outcome.room_ticks": {
+   "median": 82,
+   "min": 82,
+   "max": 82,
+   "n": 1
+  },
+  "output.phase.100.boss_hp_per_tick": {
+   "median": 4.96,
+   "min": 4.96,
+   "max": 4.96,
+   "n": 1
+  },
+  "output.phase.100.boss_pct_per_tick": {
+   "median": 0.992,
+   "min": 0.992,
+   "max": 0.992,
+   "n": 1
+  },
+  "output.phase.30.boss_hp_per_tick": {
+   "median": 7.76,
+   "min": 7.76,
+   "max": 7.76,
+   "n": 1
+  },
+  "output.phase.30.boss_pct_per_tick": {
+   "median": 1.552,
+   "min": 1.552,
+   "max": 1.552,
+   "n": 1
+  },
+  "output.phase.50.boss_hp_per_tick": {
+   "median": 7.15,
+   "min": 7.15,
+   "max": 7.15,
+   "n": 1
+  },
+  "output.phase.50.boss_pct_per_tick": {
+   "median": 1.43,
+   "min": 1.43,
+   "max": 1.43,
+   "n": 1
+  },
+  "output.phase.70.boss_hp_per_tick": {
+   "median": 4.73,
+   "min": 4.73,
+   "max": 4.73,
+   "n": 1
+  },
+  "output.phase.70.boss_pct_per_tick": {
+   "median": 0.947,
+   "min": 0.947,
+   "max": 0.947,
+   "n": 1
+  },
+  "react.boss.maiden_auto.solo.prayer": {
+   "median": 10.0,
+   "min": 10.0,
+   "max": 10.0,
+   "n": 1
+  },
+  "react.boss.maiden_auto.solo.step": {
+   "median": 1,
+   "min": 1,
+   "max": 1,
+   "n": 1
+  },
+  "react.phase.30.solo.attack": {
+   "median": 4,
+   "min": 4,
+   "max": 4,
+   "n": 1
+  },
+  "react.phase.30.solo.step": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 1
+  },
+  "react.phase.30.solo.swap": {
+   "median": 1,
+   "min": 1,
+   "max": 1,
+   "n": 1
+  },
+  "react.phase.50.solo.attack": {
+   "median": 4,
+   "min": 4,
+   "max": 4,
+   "n": 1
+  },
+  "react.phase.50.solo.attack_add": {
+   "median": 4,
+   "min": 4,
+   "max": 4,
+   "n": 1
+  },
+  "react.phase.50.solo.step": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 1
+  },
+  "react.phase.70.solo.attack": {
+   "median": 4,
+   "min": 4,
+   "max": 4,
+   "n": 1
+  },
+  "react.phase.70.solo.attack_add": {
+   "median": 9,
+   "min": 9,
+   "max": 9,
+   "n": 1
+  },
+  "react.phase.70.solo.step": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 1
+  },
+  "role.solo.barrage_pct": {
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "n": 1
+  },
+  "role.solo.cadence": {
+   "median": 5,
+   "min": 5,
+   "max": 5,
+   "n": 1
+  },
+  "role.solo.cadence.25739": {
+   "median": 5.0,
+   "min": 5.0,
+   "max": 5.0,
+   "n": 1
+  },
+  "role.solo.cadence.28039": {
+   "median": 4,
+   "min": 4,
+   "max": 4,
+   "n": 1
+  },
+  "role.solo.magic_pct": {
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "n": 1
+  },
+  "role.solo.melee_pct": {
+   "median": 100.0,
+   "min": 100.0,
+   "max": 100.0,
+   "n": 1
+  },
+  "role.solo.phase.100.attacks_add": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 1
+  },
+  "role.solo.phase.100.attacks_boss": {
+   "median": 4,
+   "min": 4,
+   "max": 4,
+   "n": 1
+  },
+  "role.solo.phase.100.dist_boss": {
+   "median": 3,
+   "min": 3,
+   "max": 3,
+   "n": 1
+  },
+  "role.solo.phase.30.attacks_add": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 1
+  },
+  "role.solo.phase.30.attacks_boss": {
+   "median": 3,
+   "min": 3,
+   "max": 3,
+   "n": 1
+  },
+  "role.solo.phase.30.dist_boss": {
+   "median": 1,
+   "min": 1,
+   "max": 1,
+   "n": 1
+  },
+  "role.solo.phase.50.attacks_add": {
+   "median": 1,
+   "min": 1,
+   "max": 1,
+   "n": 1
+  },
+  "role.solo.phase.50.attacks_boss": {
+   "median": 3,
+   "min": 3,
+   "max": 3,
+   "n": 1
+  },
+  "role.solo.phase.50.dist_boss": {
+   "median": 1.0,
+   "min": 1.0,
+   "max": 1.0,
+   "n": 1
+  },
+  "role.solo.phase.70.attacks_add": {
+   "median": 1,
+   "min": 1,
+   "max": 1,
+   "n": 1
+  },
+  "role.solo.phase.70.attacks_boss": {
+   "median": 2,
+   "min": 2,
+   "max": 2,
+   "n": 1
+  },
+  "role.solo.phase.70.dist_boss": {
+   "median": 1,
+   "min": 1,
+   "max": 1,
+   "n": 1
+  },
+  "role.solo.prayer.maiden_auto.lit_ticks": {
+   "median": 35,
+   "min": 35,
+   "max": 35,
+   "n": 1
+  },
+  "role.solo.prayer.maiden_auto.right_pct": {
+   "median": 100.0,
+   "min": 100.0,
+   "max": 100.0,
+   "n": 1
+  },
+  "role.solo.ranged_pct": {
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "n": 1
+  }
+ },
+ "weapons": {
+  "solo|100": {
+   "SCYTHE": {
+    "rooms": 1,
+    "count": {
+     "median": 4,
+     "min": 4,
+     "max": 4,
+     "n": 1
+    }
+   }
+  },
+  "solo|30": {
+   "CLAW": {
+    "rooms": 1,
+    "count": {
+     "median": 2,
+     "min": 2,
+     "max": 2,
+     "n": 1
+    }
+   },
+   "SCYTHE": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   }
+  },
+  "solo|50": {
+   "SCYTHE": {
+    "rooms": 1,
+    "count": {
+     "median": 4,
+     "min": 4,
+     "max": 4,
+     "n": 1
+    }
+   }
+  },
+  "solo|70": {
+   "SCYTHE": {
+    "rooms": 1,
+    "count": {
+     "median": 3,
+     "min": 3,
+     "max": 3,
+     "n": 1
+    }
+   }
+  }
+ },
+ "positions": {
+  "solo|100": [
+   {
+    "offset": "5,6",
+    "ticks": 3,
+    "share": 0.12
+   },
+   {
+    "offset": "0,8",
+    "ticks": 3,
+    "share": 0.12
+   },
+   {
+    "offset": "22,1",
+    "ticks": 2,
+    "share": 0.08
+   },
+   {
+    "offset": "2,7",
+    "ticks": 2,
+    "share": 0.08
+   },
+   {
+    "offset": "0,6",
+    "ticks": 2,
+    "share": 0.08
+   },
+   {
+    "offset": "20,1",
+    "ticks": 1,
+    "share": 0.04
+   },
+   {
+    "offset": "18,1",
+    "ticks": 1,
+    "share": 0.04
+   },
+   {
+    "offset": "16,1",
+    "ticks": 1,
+    "share": 0.04
+   }
+  ],
+  "solo|30": [
+   {
+    "offset": "6,5",
+    "ticks": 4,
+    "share": 0.19
+   },
+   {
+    "offset": "6,3",
+    "ticks": 4,
+    "share": 0.19
+   },
+   {
+    "offset": "5,6",
+    "ticks": 2,
+    "share": 0.095
+   },
+   {
+    "offset": "8,3",
+    "ticks": 2,
+    "share": 0.095
+   },
+   {
+    "offset": "6,0",
+    "ticks": 1,
+    "share": 0.048
+   },
+   {
+    "offset": "6,2",
+    "ticks": 1,
+    "share": 0.048
+   },
+   {
+    "offset": "6,4",
+    "ticks": 1,
+    "share": 0.048
+   },
+   {
+    "offset": "6,6",
+    "ticks": 1,
+    "share": 0.048
+   }
+  ],
+  "solo|50": [
+   {
+    "offset": "6,5",
+    "ticks": 5,
+    "share": 0.25
+   },
+   {
+    "offset": "6,3",
+    "ticks": 3,
+    "share": 0.15
+   },
+   {
+    "offset": "6,1",
+    "ticks": 2,
+    "share": 0.1
+   },
+   {
+    "offset": "6,4",
+    "ticks": 1,
+    "share": 0.05
+   },
+   {
+    "offset": "6,2",
+    "ticks": 1,
+    "share": 0.05
+   },
+   {
+    "offset": "6,0",
+    "ticks": 1,
+    "share": 0.05
+   },
+   {
+    "offset": "7,-2",
+    "ticks": 1,
+    "share": 0.05
+   },
+   {
+    "offset": "7,0",
+    "ticks": 1,
+    "share": 0.05
+   }
+  ],
+  "solo|70": [
+   {
+    "offset": "5,6",
+    "ticks": 3,
+    "share": 0.2
+   },
+   {
+    "offset": "6,5",
+    "ticks": 3,
+    "share": 0.2
+   },
+   {
+    "offset": "6,4",
+    "ticks": 2,
+    "share": 0.133
+   },
+   {
+    "offset": "2,8",
+    "ticks": 1,
+    "share": 0.067
+   },
+   {
+    "offset": "4,6",
+    "ticks": 1,
+    "share": 0.067
+   },
+   {
+    "offset": "6,3",
+    "ticks": 1,
+    "share": 0.067
+   },
+   {
+    "offset": "7,1",
+    "ticks": 1,
+    "share": 0.067
+   },
+   {
+    "offset": "6,1",
+    "ticks": 1,
+    "share": 0.067
+   }
+  ]
+ }
+}

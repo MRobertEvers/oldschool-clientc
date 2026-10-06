@@ -1,0 +1,224 @@
+{{Update|date=9 December 2021|link=https://secure.runescape.com/m=news/grand-exchange-tax--item-sink?oldschool=1|category=game}}
+[[File:Grand Exchange Tax & Item Sink newspost.png|right]]
+{{Clear|right}}
+{{ToC}}
+==Issues and Hotfixes (December 9th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Issues Raised
+!Current Progress
+|-
+|'''(11:45 BST) -''' Reports of making certain items faster than regularly intended.
+|'''(14:15 BST) - [FIXED]''' The Game Worlds are now back online and this issue has now been resolved.
+Thank you for your patience.
+|}
+----
+
+<center>''This week we’re implementing the Grand Exchange Tax and adding some long-awaited PvP changes! In other news, we've got a range of exciting, Christmassy things in the Official Merch Store - so you'll learn all about those, too.''</center>
+
+==Grand Exchange Tax & Item Sink==
+[[File:Grand Exchange Tax & Item Sink (1).png|centre|600px]]
+With this update we're introducing the Grand Exchange Tax and Item Sink discussed last week.
+
+===Grand Exchange Tax===
+We've added a 1% tax for all sales on the Grand Exchange. Any item sold through the Grand Exchange will be subject to the tax which will be deducted from the initial sale price. This tax is applied on a per item basis, so if selling multiple items, the tax is applied per item sold, rather than the total received.
+
+The Grand Exchange interface has also been updated to clearly show how much tax you will pay when selling an item. This can also be tracked when viewing the offer status for any sale, so as a seller, you will always be able to see your bottom line - so don't worry about hidden costs!
+
+Any item sold for under 100 GP will not have tax applied, therefore any sales under this threshold will show that no tax has been applied in the interface. Along with this, any item sold for over 499,999,999 GP has a capped tax of 5,000,000 GP, which will show in the interface.
+
+[[File:Grand Exchange Tax & Item Sink (2).png|centre|thumb|484px|<i>From Top to Bottom:<br/>
+
+Status of an existing offer where tax is charged, below the 5m cap.<br/>
+
+Setting up a new offer where tax is charged, below the 5m cap.<br/>
+
+Setting up a new offer, where tax is charged, above the 5m cap.</i>]]
+
+We’ve also updated the player-to-player Trade menus, preventing the ‘Accept’ button from being pushed for a few seconds after either player changes the items in the trade. This should give buyers and sellers the chance to spot any scams, but if you need to trade quickly – such as in certain PvM situations – or if you’re confident taking the risk, you can opt out of the delay completely.
+
+In case you missed it in last week’s post, here are some examples of how the tax shakes out in different trades:
+
+{{Collapsed section|18|Sample Cases - click here to expand...}}
+'''Simple case:'''
+
+
+Ram0ceanFan is selling 100 Cooked Shark for 975 GP each and is matched against a buyer offering the same amount.
+
+The 1% fee charged for each item is 9.75 coins, which the game rounds down to 9 coins per Shark.
+
+Thus, Ram0ceanFan receives 96,600 GP, which is 97,500 minus the 900 GP fee.
+
+
+'''Expensive item:'''
+
+
+OlmRaider73 is selling a Twisted Bow for 870,000,000 GP and is matched against a buyer offering the same amount.
+
+The 1% fee charged for each item is 8,700,000 GP, capped at 5,000,000 GP.
+
+Thus OlmRaider73 receives 865,000,000 GP, which is 870,000,000 minus the 5,000,000 GP fee.
+
+If OlmRaider73 preferred to spend time finding a buyer for a direct player-to-player trade, rather than spending that 5,000,000 fee, that’s totally fair.
+
+
+'''Cheap item:'''
+
+
+Newb5caper is selling 100 Guam Leaves for 29 GP each and is matched against a buyer offering the same amount.
+
+The 1% fee charged for each item rounds down to zero.
+
+Thus, Newb5caper receives the full 2,900 GP.
+
+
+'''More complex case:'''
+
+
+BigDealerDel is selling 1,000 Tin Ore for 99 GP each.
+
+* 500 of them are bought by a player who was offering the same amount. The 1% fee charged on each 99 GP item rounds down to zero, so BigDealerDel receives 49,500 GP for those 500 items.
+* The other 500 are bought by a player who was offering 101 GP per item. The 1% fee charged on each 101 GP item is 1.01 GP, which the game rounds down to 1 GP per item. BigDealerDel therefore receives 50,000 GP for those 500 items, which is 50,500 minus the 500 GP fee.
+Overall, BigDealerDel has sold their 1,000 Tin Ore for 99,500 GP.
+{{Collapsed section end}}
+
+[[File:Grand Exchange Tax & Item Sink (3).png|centre|thumb|484px|''A shark-cessful transaction.'']]
+
+Here's a list of items exempt from the tax. Most of these are tools used by new players, as such we'd prefer not to inhibit trade on such items:
+* Chisel
+* Dibber
+* Gardening Trowel
+* Glassblowing Pipe
+* Hammer
+* Needle
+* Pestle and Mortar
+* Rake
+* Saw
+* Secateurs
+* Shears
+* Spade
+* Watering Can (0)
+
+Bonds are also exempt from the tax since they already charge a fee when they’re converted from non-tradeable to tradeable. The Grand Exchange menus will clarify which items have fees.
+
+===Item Sink===
+We’ve also implemented the previously-mentioned Item Sink system, which will help with inflation by using the tax collected from sales to purchase various expensive items from sellers, then delete those items once the trade is complete. Here’s how that works in detail!
+
+When a taxed trade takes place through the Grand Exchange, part of the taxes paid will be consigned to a virtual coffer. An automatic system will then use those funds to purchase specific items, chosen by us. The system decides which items to buy based on the estimated quantity of the item entering the game per day and the amount we’d like it reduced by.
+
+Various things can happen when a player creates a Sell offer for one of these items:
+* If the virtual coffer’s funds are below a specified item’s value, the system doesn’t interfere because it can’t afford the item. The player’s Sell offer is created as normal on the Grand Exchange.
+* If we’ve already hit the daily quota for an item, the system doesn’t interfere because we don’t want to create supply issues. Again, the player’s Sell offer is created as normal on the Grand Exchange.
+* If the virtual coffer has enough funds and we haven’t hit the day’s quota, then the system immediately pays the seller the cost of the item (minus tax) and then removes the item from the game.
+
+While we agree that lots of items would benefit from a reduced supply, we want to start small. A shorter list lets us monitor exactly how much money is coming in and out of the game, and how player behaviour changes in response.
+
+For now, here are the eligible items:
+
+* Abyssal Bludgeon
+* Arcane & Spectral Shields
+* Armadyl Armour
+* Bandos Armour
+* Dark Bow
+* Dinh's Bulwark
+* Elder Maul
+* God Swords (Armadyl, Bandos, Saradomin, Zamorak)
+* Kodai Insignia
+* Kraken Tentacle
+* Nightmare Staff and Orbs (Eldritch, Harmonised, Volatile)
+* Occult Necklace
+* Prayer Reward Scrolls (Arcane, Dexterous, Torn)
+* Saradomin Sword
+* Scythe of Vitur
+* Smoke Battlestaff
+* Toxic Blowpipe
+* Trident of the Seas
+* Twisted Bow
+* Zamorakian Spear
+
+The team will actively monitor the markets and your feedback with a view to adding more items to this list in future.
+
+==PvP Changes: Skulling & Luring==
+[[File:Grand Exchange Tax & Item Sink (4).png|centre|600px]]
+
+For those unfamiliar with PvP, when attacking another player you receive a PK Skull marker which lasts for 30 minutes. In this time, it’s possible to get into a fight with someone with 29 minutes and 30 seconds left, causing the marker to disappear during combat. This means that in addition to losing your Skull, there’s a chance your opponent will receive a Skull from hitting you – negating your own risk and adding to theirs. To fix this, we’ve made it so that PvP Skulls no longer time out while in PvP combat.
+
+We’re also addressing the issue of Skulltricking. Skulltricking takes various different forms, but ultimately, the end goal is the same – to trick an unsuspecting victim into attacking another player and gaining a Skull. This week’s update adds a new setting in the Control Settings interface which restricts attacking other players if that action would result in you getting Skulled.
+
+[[File:Grand Exchange Tax & Item Sink (5).png|centre|204px]]
+
+Please note that this setting is always disabled on DMM worlds.
+
+We’ve also added some additional safe areas in PvP worlds to tackle combat luring:
+* Ape Atoll Bank area
+* Barbarian Outpost
+* Blast Mine Bank Chests
+* Duel Arena entrance
+* Fossil Island - North Island Bank
+* Soul Wars Lobby
+* The Kourend Castle building (all floors)
+* Volcanic Mine Bank area
+* Xeric’s Glade - Grape Vines
+
+Lastly, the Looting Bag can now be used in Ferox Enclave.
+
+==New Client Features Improvements==
+We’ve also made a bunch of changes to the New Client Features!
+* Removed the ‘Reset XP’ function from the XP Tracker and replaced it with an ‘XP Goals’ function. You can now set a target for either level or XP amount. Those chasing 200million XP can also set virtual levels!
+* Commas have been added to high numbers in the XP Tracker for ease of reading.
+* Added a new setting to show how many options a clickable object has. This setting can be changed in the Interfaces category and is off by default.
+* Players can now search for Headers in the Settings menu, with all applicable options displayed under that Header.
+* Agility Course Highlights will apply as soon as players complete their first obstacle after logging in.
+* The colour black (#000000) can now be used for Tile Highlights.
+* The Agility Shortcuts Helper has a new option to display skill requirements as an overlay on Shortcuts.
+* Increased the text size in the Agility Overlay for ease of reading.
+* The Desert Heat effect has been added to the Buff Bar.
+* Added messaging to inform the player that their Venom Resistance is about to expire and, once it has expired, that they no longer have Venom resistance but Poison Resistance.
+* Fixed a bug which prevented skills from being tracked properly.
+* Coal Ore in Miscellania will now display respawn timers on the Steam client.
+* Fixed a bug which made regular messages appear highlighted as though they contained a link.
+* Made tweaks and subtle improvements to areas that display chat.
+
+==Other Changes==
+* All recorded times for the Hallowed Sepulchre have now been reset due to bug abuse. You can learn more from last week’s [https://secure.runescape.com/m=news/pj-timer-beta--chat-changes?oldschool=1 game update newspost].
+* Lowered the minimum kill-count to appear on the HiScores for Skotizo, Chambers of Xeric Challenge Mode, Hespori, Obor, Bryophyta, Jad and the Corrupted Gauntlet to 5. We’ve also raised the required kill count for the Mimic to 1. The HiScores will update upon next login.
+* Additional options have been added to the Settings menu under ‘Ctrl+Click to invert run mode’:
+** NEVER: Holding Ctrl while clicking will never invert your currently selected run mode.
+** WALK -> RUN: Holding Ctrl whilst clicking will invert your run mode only if you have run toggled OFF.
+** RUN -> WALK: Holding Ctrl whilst clicking will invert your run mode only if you have run toggled ON.
+** ALWAYS: Holding Ctrl whilst clicking will invert your run mode regardless of whether you have run toggled on (as long as you have sufficient Run Energy).
+* Messages sent to a Chat Channel can now start with the following characters: ! # “ $ % & ‘ ( ) * + , - or .
+* Bones to Peaches will now appear locked on the Spellbook if you haven’t unlocked it from the Mage Training Arena.
+* The Bandos Godsword (or) now shows its ornamentation correctly when wielded by female characters.
+* Ultimate Iron players may now pick up an empty Bolt Pouch from their death piles instead of having to return to the shop to replace it – provided they don’t already have a spare Bolt Pouch stored elsewhere.
+* Watering Cans will now remain in place in the Backpack when used to water seedlings.
+* Fixed clipping issues with the Banana Hat.
+
+==Official Merch Store==
+[[File:Grand Exchange Tax & Item Sink (6).png|centre|600px]]
+
+===RuneScape: The First 20 Years Digital Release===
+Rejoice, e-bookworms: RuneScape: the First 20 Years is now available for your e-reader! Grab a copy from Amazon, Apple Books and other digital book platforms.
+
+Keeping it old school? You can still get a physical version of the book on the [https://runescape.backstreetmerch.com/artist/runescape-pre-orders/standard-books/runescape-the-first-20-years Merch Store] right now (and of course, from all good bookstores and online retailers)
+
+===Christmas Gifting===
+The last of our Elvarg Xmas Jumpers are selling fast. Order now to get yours in time for Christmas!
+
+Other gift ideas include the Fancy Socks or Map of Gielinor Jigsaw – but make sure Santa knows the last shipping dates for international orders from the UK. You can find them on the [https://www.royalmail.com/christmas/last-posting-dates Royal Mail website]!
+
+==PvP World Rota==
+The PvP rota has moved to Period B:
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been de-activated with this rota.
+
+----
+
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums?380,381,773,66238607 official forums], on the [https://www.reddit.com/r/2007scape/comments/rcfdxc/grand_exchange_tax_item_sink_weekly_game_update/ 2007Scape Reddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums] or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Con, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Ellie, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, KT, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Sova, Squid, Steve W, Tide, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

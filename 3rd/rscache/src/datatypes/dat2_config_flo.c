@@ -92,28 +92,35 @@ RSCache_Dat2ConfigOverlayDecodeInplaceFlags(
         {
             int color = g3(&buffer);
             overlay->rgb_color = color;
+            RSCache_PresenceSet(&overlay->present, RSCACHE_OVERLAY_FIELD_COLOUR);
         }
         else if( opcode == 2 )
         {
             int texture = g1(&buffer);
             overlay->texture = texture;
+            RSCache_PresenceSet(&overlay->present, RSCACHE_OVERLAY_FIELD_TEXTURE);
         }
         else if( opcode == 3 && !(flags & RSCACHE_CONFIG_FLO_DECODE_RS2) )
         {
             overlay->flotype_overlay = true;
+            RSCache_PresenceSet(&overlay->present, RSCACHE_OVERLAY_FIELD_FLOTYPE);
         }
         else if( opcode == 5 )
         {
             overlay->hide_underlay = false;
+            RSCache_PresenceSet(&overlay->present, RSCACHE_OVERLAY_FIELD_SHOW_UNDERLAY);
         }
         else if( opcode == 6 && !(flags & RSCACHE_CONFIG_FLO_DECODE_RS2) )
         {
+            free(overlay->flotype_name);
             overlay->flotype_name = gstringnewline(&buffer);
+            RSCache_PresenceSet(&overlay->present, RSCACHE_OVERLAY_FIELD_FLOTYPE_NAME);
         }
         else if( opcode == 7 )
         {
             int secondary_color = g3(&buffer);
             overlay->secondary_rgb_color = secondary_color;
+            RSCache_PresenceSet(&overlay->present, RSCACHE_OVERLAY_FIELD_BLEND_COLOUR);
         }
         else if( flags & RSCACHE_CONFIG_FLO_DECODE_RS2 )
         {
@@ -130,6 +137,7 @@ RSCache_Dat2ConfigOverlayDecodeInplaceFlags(
             {
                 int texture = g2(&buffer);
                 overlay->texture = texture == 65535 ? -1 : texture;
+                RSCache_PresenceSet(&overlay->present, RSCACHE_OVERLAY_FIELD_TEXTURE);
                 break;
             }
             case 8:  /* flag, no operand */
@@ -138,25 +146,32 @@ RSCache_Dat2ConfigOverlayDecodeInplaceFlags(
                 break;
             case 9:
                 overlay->rs2_scale = g2(&buffer) << 2;
+                RSCache_PresenceSet(&overlay->present, RSCACHE_OVERLAY_FIELD_RS2_SCALE);
                 break;
             case 11:
                 overlay->rs2_opcode_11 = g1(&buffer);
+                RSCache_PresenceSet(&overlay->present, RSCACHE_OVERLAY_FIELD_RS2_OPCODE_11);
                 break;
             case 13:
                 overlay->rs2_water_colour = g3(&buffer);
+                RSCache_PresenceSet(&overlay->present, RSCACHE_OVERLAY_FIELD_RS2_WATER_COLOUR);
                 break;
             case 14:
                 overlay->rs2_water_scale = g1(&buffer) << 2;
+                RSCache_PresenceSet(&overlay->present, RSCACHE_OVERLAY_FIELD_RS2_WATER_SCALE);
                 break;
             case 15:
             {
                 /* secondaryTextureId — must be consumed so later opcodes stay aligned. */
                 int texture = g2(&buffer);
                 overlay->rs2_secondary_texture = texture == 65535 ? -1 : texture;
+                RSCache_PresenceSet(&overlay->present,
+                                    RSCACHE_OVERLAY_FIELD_RS2_SECONDARY_TEXTURE);
                 break;
             }
             case 16:
                 overlay->rs2_water_intensity = g1(&buffer);
+                RSCache_PresenceSet(&overlay->present, RSCACHE_OVERLAY_FIELD_RS2_WATER_INTENSITY);
                 break;
             default:
                 /* Unknown width: stop rather than misalign the rest. */
@@ -179,38 +194,43 @@ RSCache_Dat2ConfigOverlayEncode(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !overlay || !out )
-        return 0;
+    assert(overlay);
+    assert(out);
+    assert(out_capacity >= RSCache_Dat2ConfigOverlayEncodeBound(overlay));
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
 
-    struct RSCache_Dat2ConfigOverlay defaults;
-    init_overlay(&defaults);
-
-    if( overlay->rgb_color != defaults.rgb_color )
+    /* Stated, not inferred: this used to compare each field with its decode
+     * default, so a record that stated colour 0 lost its opcode 1. The order is a
+     * fixed one; the cache's own varies record to record (author order), which is
+     * the `same-len` column of `cachepack verify`. */
+    if( RSCache_PresenceHas(&overlay->present, RSCACHE_OVERLAY_FIELD_COLOUR) )
     {
         p1(&buffer, 1);
         p3(&buffer, overlay->rgb_color);
     }
-    if( overlay->texture != defaults.texture )
+    if( RSCache_PresenceHas(&overlay->present, RSCACHE_OVERLAY_FIELD_TEXTURE) )
     {
+        assert(overlay->texture >= 0);
+        assert(overlay->texture <= 255);
         p1(&buffer, 2);
         p1(&buffer, overlay->texture);
     }
     /* Opcodes 3 and 5 are payload-free flags. hide_underlay defaults to true, so
      * opcode 5 is what clears it. */
-    if( overlay->flotype_overlay )
+    if( RSCache_PresenceHas(&overlay->present, RSCACHE_OVERLAY_FIELD_FLOTYPE) )
         p1(&buffer, 3);
-    if( !overlay->hide_underlay )
+    if( RSCache_PresenceHas(&overlay->present, RSCACHE_OVERLAY_FIELD_SHOW_UNDERLAY) )
         p1(&buffer, 5);
-    if( overlay->flotype_name )
+    if( RSCache_PresenceHas(&overlay->present, RSCACHE_OVERLAY_FIELD_FLOTYPE_NAME) )
     {
+        assert(overlay->flotype_name);
         p1(&buffer, 6);
         /* dat1-era field: newline terminated, matching gstringnewline. */
         pjstr(&buffer, overlay->flotype_name, RSCACHE_JSTR_TERMINATOR_NEWLINE);
     }
-    if( overlay->secondary_rgb_color != defaults.secondary_rgb_color )
+    if( RSCache_PresenceHas(&overlay->present, RSCACHE_OVERLAY_FIELD_BLEND_COLOUR) )
     {
         p1(&buffer, 7);
         p3(&buffer, overlay->secondary_rgb_color);
@@ -226,16 +246,17 @@ RSCache_Dat2ConfigUnderlayEncode(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !underlay || !out )
-        return 0;
+    assert(underlay);
+    assert(out);
+    assert(out_capacity >= RSCache_Dat2ConfigUnderlayEncodeBound(underlay));
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
 
-    /* An underlay is a single colour. Colour 0 is a legitimate value (black), but
-     * it is also the zeroed default, so a record whose colour is 0 encodes as a
-     * bare terminator — which decodes back to 0. */
-    if( underlay->rgb_color != 0 )
+    /* An underlay is a single colour. Colour 0 is a legitimate value (black) that
+     * one osrs239 record states explicitly; testing the value instead of presence
+     * wrote that record as a bare terminator. */
+    if( RSCache_PresenceHas(&underlay->present, RSCACHE_UNDERLAY_FIELD_COLOUR) )
     {
         p1(&buffer, 1);
         p3(&buffer, underlay->rgb_color);
@@ -311,6 +332,7 @@ RSCache_Dat2ConfigUnderlayDecodeInplaceFlags(
         {
             int color = g3(&buffer);
             underlay->rgb_color = color;
+            RSCache_PresenceSet(&underlay->present, RSCACHE_UNDERLAY_FIELD_COLOUR);
         }
         else if( flags & RSCACHE_CONFIG_FLO_DECODE_RS2 )
         {
@@ -323,10 +345,12 @@ RSCache_Dat2ConfigUnderlayDecodeInplaceFlags(
             {
                 int texture = g2(&buffer);
                 underlay->rs2_texture = texture == 65535 ? -1 : texture;
+                RSCache_PresenceSet(&underlay->present, RSCACHE_UNDERLAY_FIELD_RS2_TEXTURE);
                 break;
             }
             case 3:
                 underlay->rs2_scale = g2(&buffer) << 2;
+                RSCache_PresenceSet(&underlay->present, RSCACHE_UNDERLAY_FIELD_RS2_SCALE);
                 break;
             case 4: /* flag: blockShadow = false */
             case 5: /* flag */
@@ -364,8 +388,7 @@ RSCache_Dat2ConfigOverlayEncodeBound(const struct RSCache_Dat2ConfigOverlay* ove
      * terminator rather than a NUL — same length either way. */
     uint32_t need = 64u;
 
-    if( !overlay )
-        return need;
+    assert(overlay);
     if( overlay->flotype_name )
         need += (uint32_t)strlen(overlay->flotype_name) + 2u;
     return need;

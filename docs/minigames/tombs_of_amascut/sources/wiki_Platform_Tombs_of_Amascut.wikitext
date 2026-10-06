@@ -1,0 +1,17 @@
+{{Infobox Scenery
+|version = Platform
+|name = Platform
+|image = [[File:Platform (Tombs of Amascut).png|250x250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Path of Scabaras]]
+|options = Jump-to
+|examine = Looks sturdy enough.
+|id = 45396
+|map = No
+}}
+'''Platforms''' can be found in the [[Path of Scabaras]] puzzle room in the [[Tombs of Amascut]] raid. They are used to travel across the gap that runs through the middle of the two puzzle paths.
+
+{{Tombs of Amascut}}

@@ -42,6 +42,8 @@
  * decoded data at run time.
  */
 
+#include "servpack_test_group.h"
+#include "torirs_server_boot.h"
 #include "torirs_server.h"
 #include "torirs_server_content.h"
 #include "torirs_server_paramtable.h"
@@ -140,21 +142,14 @@ loc_group_open(
         return 0;
     RSCache_Dat2DiskSetProfile(group->disk, &group->profile);
     table = RSCache_Dat2DiskTableId(group->disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    group->archive =
-        RSCache_Dat2DiskArchiveNewLoad(group->disk, table, RSCACHE_DAT2_CONFIG_KIND_LOCS);
+    group->archive = test_pack_group(RSCACHE_DAT2_CONFIG_KIND_LOCS, &group->files);
     if( !group->archive )
     {
         RSCache_Dat2DiskFree(group->disk);
         group->disk = NULL;
         return 0;
     }
-    RSCache_Dat2DiskArchiveInitMetadata(group->disk, group->archive);
-    /* The loc decoder branches on the group revision, exactly as
-     * torirs_server_locinfo.c and torirs_server_scene.c do before decoding this archive. */
-    RSCache_ProfileSetGroupRevision(&group->profile, RSCACHE_TYPE_LOC,
-                                    group->archive->revision);
-    group->files = RSCache_FileListNewFromDecode(
-        group->archive->data, group->archive->data_size, group->archive->file_count);
+    /* group->files: test_pack_group filled it */
     return group->files != NULL;
 }
 
@@ -779,10 +774,13 @@ main(void)
 
     /* The declared param types, which decide which stack `loc_param`'s result
      * lands on. Without them every param falls back to its stored kind. */
-    ToriRSServer_ContentLoad(content_dir);
-
-    if( !ToriRSServer_LocInfoLoad(cache_dir) )
-        CHECK(0, "loc configs loaded");
+    /* Everything from the server pack, by the server's own load. */
+    ToriRSServer_ServPackDir(content_dir, cache_dir, g_test_pack_dir, sizeof(g_test_pack_dir));
+    if( ToriRSServer_BootLoadContent(content_dir, cache_dir) != 0 )
+    {
+        CHECK(0, "the server pack loaded");
+        return 1;
+    }
 
     audit_loc_fields(cache_dir);
     test_ops(cache_dir);

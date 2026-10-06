@@ -74,6 +74,8 @@ import re
 import sys
 from collections import Counter, defaultdict
 
+import config_text
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 DEFAULT_REF = os.path.expanduser("~/Documents/git_repos/LostCity_Server")
@@ -126,9 +128,13 @@ def read_pack(path):
     return by_name, by_id
 
 
-def read_config(path, into=None):
+def read_config(path, into=None, full_key=False):
     """`[name]` sections of `key=value`. A repeated key becomes a list so
-    `frame=` can be counted."""
+    `frame=` can be counted.
+
+    `full_key` is this tree's config text, where an unset key is written
+    `key=default`/`key=empty`: those lines are dropped (config_text) so they
+    read as the absent key they mean. LostCity's text has no markers."""
     records = into if into is not None else {}
     try:
         handle = open(path, "r", encoding="utf-8", errors="replace")
@@ -136,7 +142,7 @@ def read_config(path, into=None):
         return records
     current = None
     with handle:
-        for raw in handle:
+        for raw in (config_text.filter_lines(handle) if full_key else handle):
             line = raw.split("//")[0].strip()
             if not line:
                 continue
@@ -208,7 +214,7 @@ class Trees(object):
             self.here_name[ns].update(alloc_name)
             self.here_id[ns].update(alloc_id)
             self.here_rec[ns] = read_config(
-                os.path.join(tree, "configs", "all.%s" % ns))
+                os.path.join(tree, "configs", "all.%s" % ns), full_key=True)
             # This tree's own authored overlays can name a record too.
             for base, dirs, files in os.walk(os.path.join(tree, "server", "scripts")):
                 dirs[:] = [d for d in dirs if d not in SKIP_DIRS]

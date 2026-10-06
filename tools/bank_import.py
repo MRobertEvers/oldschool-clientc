@@ -55,6 +55,8 @@ import os
 import re
 import sys
 
+import config_text
+
 # The cache menu verb the engine used to answer. It is spelled here, in the
 # tool that reads the cache, and nowhere in C — that is the whole point of the
 # move.
@@ -101,7 +103,7 @@ def read_configs(path):
     records = {}
     current = None
     with open(path) as handle:
-        for raw in handle:
+        for raw in config_text.filter_lines(handle):
             line = raw.rstrip("\n")
             match = re.match(r"^\[([^\]]+)\]$", line)
             if match:

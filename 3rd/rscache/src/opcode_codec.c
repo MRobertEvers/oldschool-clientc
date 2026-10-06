@@ -420,10 +420,11 @@ WRAP_DECODE_OP(
     idk,
     struct RSCache_Dat2ConfigIdk,
     RSCache_Dat2ConfigIdkDecodeOp)
-WRAP_ENCODE(
+/* Profile-aware: from rev 237 the model ids are written in their u32 forms. */
+WRAP_ENCODE_PROFILE(
     idk,
     struct RSCache_Dat2ConfigIdk,
-    RSCache_Dat2ConfigIdkEncode)
+    RSCache_Dat2ConfigIdkEncodeProfile)
 WRAP_BOUND(
     idk,
     struct RSCache_Dat2ConfigIdk,

@@ -1,0 +1,28 @@
+{{Infobox Combat Achievement
+|name = Perfect Apmeken
+|image = [[File:Path of Apmeken - Apmeken's Sight.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Apmeken room in a group of two or more, without anyone allowing any dangers to trigger, standing in venom or being hit by a volatile baboon. You must complete this room in less than three minutes.
+|tier = Elite
+|monster = Tombs of Amascut
+|type = Perfection
+|id = 435
+|leagueRegion = Desert
+}}
+'''Perfect Apmeken''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to complete the [[Path of Apmeken]] [[Tombs of Amascut/Strategies#Challenge room 4|challenge room]] in a group of two or more without allowing any dangers to trigger, standing in venom, or being hit by a [[Volatile Baboon|volatile baboon]], while completing the room within three minutes, at raid level 150 or above.
+
+==Strategy==
+[[Hammer]]s and [[Neutralising potion]] are provided in crates in the room before the challenge can start.
+
+When the first player enters the challenge area, they will obtain Apmeken's Sight, which allows them to identify dangers and resolve them before they damage the team. If the pillars have an issue, call out '''P'''; if the vents have an issue, call '''V'''. If corruption is spreading, death-dot (in larger groups) or use the potion on the corrupted player (smaller groups).
+
+Freeze any [[Cursed Baboon]]s and immediately kill them to avoid spreading venom. Volatile Baboons can be easily avoided as their explosion is a 3x3 AoE centered around them; they can also be killed, but it is not required. 
+
+Following the [[29 May]] [[2024]] update to the Path of Apmeken, this achievement is significantly easier as the baboons have very little health and can be easily killed in one or a few hits.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

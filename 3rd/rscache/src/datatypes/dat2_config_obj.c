@@ -21,6 +21,10 @@ RSCache_Dat2ConfigObjInit(struct RSCache_Dat2ConfigObj* object);
  */
 #define REV_OBJ_RS2_VARUINT_MODELS 670
 
+/** Record that the stream stated `field` (see RSCACHE_OBJ_FIELD_*). */
+#define OBJ_SET(field) RSCache_PresenceSet(&object->present, RSCACHE_OBJ_FIELD_##field)
+#define OBJ_SET_AT(first, index) RSCache_PresenceSet(&object->present, RSCACHE_OBJ_FIELD_##first + (index))
+
 int
 RSCache_Dat2ConfigObjCodecVersion(const struct RSCache* cache)
 {
@@ -92,6 +96,31 @@ RSCache_Dat2ConfigObjEncodeProfile(
         object, RSCache_Dat2ConfigObjFlags(cache), out, out_capacity);
 }
 
+/*
+ * A model id: the int form when the codec has one (rev 237+ packs every model
+ * that way) or the id does not fit a u16, the u16 form otherwise. `offset` is
+ * the trailing byte of the worn-model opcodes (23/45, 25/48), -1 for none.
+ */
+static void
+obj_put_model(
+    struct RSCache_Buffer* buffer,
+    int flags,
+    int narrow_opcode,
+    int wide_opcode,
+    int value,
+    int offset)
+{
+    bool wide = (flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) || value > 0xFFFF;
+
+    p1(buffer, wide ? wide_opcode : narrow_opcode);
+    if( wide )
+        p4(buffer, value);
+    else
+        p2(buffer, value);
+    if( offset >= 0 )
+        p1(buffer, offset);
+}
+
 uint32_t
 RSCache_Dat2ConfigObjEncodeFlags(
     const struct RSCache_Dat2ConfigObj* object,
@@ -99,346 +128,197 @@ RSCache_Dat2ConfigObjEncodeFlags(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !object || !out )
-        return 0;
+    assert(object);
+    assert(out);
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
 
-    /* Compare against the decode defaults so a field the packer omitted stays
-     * omitted. Opcodes are written in ascending order, which is how the packer
-     * emits them, so most records come back byte-exact. */
-    struct RSCache_Dat2ConfigObj defaults;
-    RSCache_Dat2ConfigObjInit(&defaults);
+    const struct RSCache_Presence* has = &object->present;
 
-#define OBJ_P_IF(condition, opcode_value, write_body)                                              \
+    /* Exactly the fields the record states (see `present`), whatever their
+     * values: a field explicitly stated with the client's default is still
+     * written, and one left at a non-default value by hand without its bit is a
+     * caller bug, not something to guess at. */
+#define OBJ_HAS(field) RSCache_PresenceHas(has, RSCACHE_OBJ_FIELD_##field)
+#define OBJ_P_IF(field, opcode_value, write_body)                                                  \
     do                                                                                             \
     {                                                                                              \
-        if( condition )                                                                            \
+        if( OBJ_HAS(field) )                                                                       \
         {                                                                                          \
             p1(&buffer, (opcode_value));                                                           \
             write_body;                                                                            \
         }                                                                                          \
     } while( 0 )
 
-    {
-        bool inv_int = object->inventory_model_id > 0xFFFF;
-        if( inv_int )
-        {
-            p1(&buffer, 44);
-            p4(&buffer, object->inventory_model_id);
-        }
-        else if( object->inventory_model_id != defaults.inventory_model_id )
-        {
-            p1(&buffer, 1);
-            p2(&buffer, object->inventory_model_id);
-        }
-    }
+    if( OBJ_HAS(MODEL) )
+        obj_put_model(&buffer, flags, 1, 44, object->inventory_model_id, -1);
 
-    /* The default name is the literal "null"; a record that carries that name is
-     * indistinguishable from one that omitted opcode 2. */
-    if( object->name && strcmp(object->name, "null") != 0 )
+    if( OBJ_HAS(NAME) )
     {
+        assert(object->name);
         p1(&buffer, 2);
         pjstr(&buffer, object->name, RSCACHE_JSTR_TERMINATOR_NULL);
     }
-    if( object->examine )
+    if( OBJ_HAS(DESC) )
     {
+        assert(object->examine);
         p1(&buffer, 3);
         pjstr(&buffer, object->examine, RSCACHE_JSTR_TERMINATOR_NULL);
     }
 
-    OBJ_P_IF(object->zoom2d != defaults.zoom2d, 4, p2(&buffer, object->zoom2d));
-    OBJ_P_IF(object->xan2d != defaults.xan2d, 5, p2(&buffer, object->xan2d));
-    OBJ_P_IF(object->yan2d != defaults.yan2d, 6, p2(&buffer, object->yan2d));
-    OBJ_P_IF(object->offset_x2d != defaults.offset_x2d, 7, p2b(&buffer, object->offset_x2d));
-    OBJ_P_IF(object->offset_y2d != defaults.offset_y2d, 8, p2b(&buffer, object->offset_y2d));
+    OBJ_P_IF(ZOOM2D, 4, p2(&buffer, object->zoom2d));
+    OBJ_P_IF(XAN2D, 5, p2(&buffer, object->xan2d));
+    OBJ_P_IF(YAN2D, 6, p2(&buffer, object->yan2d));
+    OBJ_P_IF(XOF2D, 7, p2b(&buffer, object->offset_x2d));
+    OBJ_P_IF(YOF2D, 8, p2b(&buffer, object->offset_y2d));
     /* Opcode 9 is a string the decoder discards, so it cannot be reproduced. */
-    if( object->stacking_behaviour == 1 )
+    /* Stackable is one field with two opcodes: 11 says 1, 160 (below) says 2. An
+     * RS2 0xA5 ("never stackable", 0) has no OldSchool opcode. */
+    if( OBJ_HAS(STACKABLE) && object->stacking_behaviour == 1 )
         p1(&buffer, 11);
-    OBJ_P_IF(object->cost != defaults.cost, 12, p4(&buffer, object->cost));
-    OBJ_P_IF(object->wearpos_1 != defaults.wearpos_1, 13, p1b(&buffer, object->wearpos_1));
-    OBJ_P_IF(object->wearpos_2 != defaults.wearpos_2, 14, p1b(&buffer, object->wearpos_2));
-    if( (flags & RSCACHE_CONFIG_OBJ_DECODE_REV238_UNTRADEABLE) && !object->tradeable )
+    OBJ_P_IF(COST, 12, p4(&buffer, object->cost));
+    OBJ_P_IF(WEARPOS, 13, p1b(&buffer, object->wearpos_1));
+    OBJ_P_IF(WEARPOS2, 14, p1b(&buffer, object->wearpos_2));
+    if( (flags & RSCACHE_CONFIG_OBJ_DECODE_REV238_UNTRADEABLE) && OBJ_HAS(UNTRADEABLE) )
         p1(&buffer, 15);
-    if( object->is_members )
+    if( OBJ_HAS(MEMBERS) )
         p1(&buffer, 16);
 
-    /* Opcode 23 carries the model *and* its offset as one record, so it has to be
-     * emitted when either differs from the default. Prefer int forms (45+) when
-     * any related model id exceeds u16. */
+    if( OBJ_HAS(MANWEAR) )
+        obj_put_model(&buffer, flags, 23, 45, object->male_model_0, object->male_offset);
+    if( OBJ_HAS(MANWEAR2) )
+        obj_put_model(&buffer, flags, 24, 46, object->male_model_1, -1);
+    if( OBJ_HAS(WOMANWEAR) )
+        obj_put_model(&buffer, flags, 25, 48, object->female_model_0, object->female_offset);
+    if( OBJ_HAS(WOMANWEAR2) )
+        obj_put_model(&buffer, flags, 26, 49, object->female_model_1, -1);
+    OBJ_P_IF(WEARPOS3, 27, p1(&buffer, object->wearpos_3));
+
+    /* A hidden op reads NULL; the stream's own spelling of it is written back. */
+    for( int i = 0; i < 5; i++ )
     {
-        bool male0_int = object->male_model_0 > 0xFFFF;
-        bool male1_int = object->male_model_1 > 0xFFFF;
-        bool male2_int = object->male_model_2 > 0xFFFF;
-        bool female0_int = object->female_model_0 > 0xFFFF;
-        bool female1_int = object->female_model_1 > 0xFFFF;
-        bool female2_int = object->female_model_2 > 0xFFFF;
-        bool mhead_int = object->male_head_model > 0xFFFF;
-        bool mhead2_int = object->male_head_model_2 > 0xFFFF;
-        bool fhead_int = object->female_head_model > 0xFFFF;
-        bool fhead2_int = object->female_head_model_2 > 0xFFFF;
-
-        if( male0_int ||
-            (object->male_model_0 != defaults.male_model_0 ||
-             object->male_offset != defaults.male_offset) )
-        {
-            if( male0_int )
-            {
-                p1(&buffer, 45);
-                p4(&buffer, object->male_model_0);
-                p1(&buffer, object->male_offset);
-            }
-            else
-            {
-                p1(&buffer, 23);
-                p2(&buffer, object->male_model_0);
-                p1(&buffer, object->male_offset);
-            }
-        }
-        if( male1_int || object->male_model_1 != defaults.male_model_1 )
-        {
-            if( male1_int )
-            {
-                p1(&buffer, 46);
-                p4(&buffer, object->male_model_1);
-            }
-            else
-            {
-                p1(&buffer, 24);
-                p2(&buffer, object->male_model_1);
-            }
-        }
-        if( female0_int ||
-            (object->female_model_0 != defaults.female_model_0 ||
-             object->female_offset != defaults.female_offset) )
-        {
-            if( female0_int )
-            {
-                p1(&buffer, 48);
-                p4(&buffer, object->female_model_0);
-                p1(&buffer, object->female_offset);
-            }
-            else
-            {
-                p1(&buffer, 25);
-                p2(&buffer, object->female_model_0);
-                p1(&buffer, object->female_offset);
-            }
-        }
-        if( female1_int || object->female_model_1 != defaults.female_model_1 )
-        {
-            if( female1_int )
-            {
-                p1(&buffer, 49);
-                p4(&buffer, object->female_model_1);
-            }
-            else
-            {
-                p1(&buffer, 26);
-                p2(&buffer, object->female_model_1);
-            }
-        }
-        OBJ_P_IF(object->wearpos_3 != defaults.wearpos_3, 27, p1(&buffer, object->wearpos_3));
-
-        /* A NULL action is either an absent opcode or the literal "Hidden", which the
-         * decoder normalises to NULL. Both re-encode as absent. */
-        for( int i = 0; i < 5; i++ )
-        {
-            if( object->actions[i] )
-            {
-                p1(&buffer, 30 + i);
-                pjstr(&buffer, object->actions[i], RSCACHE_JSTR_TERMINATOR_NULL);
-            }
-        }
-        for( int i = 0; i < 5; i++ )
-        {
-            if( object->if_actions[i] )
-            {
-                p1(&buffer, 35 + i);
-                pjstr(&buffer, object->if_actions[i], RSCACHE_JSTR_TERMINATOR_NULL);
-            }
-        }
-
-        if( object->recolor_count > 0 )
-        {
-            p1(&buffer, 40);
-            p1(&buffer, object->recolor_count);
-            for( int i = 0; i < object->recolor_count; i++ )
-            {
-                p2(&buffer, object->recolors_from[i]);
-                p2(&buffer, object->recolors_to[i]);
-            }
-        }
-        if( object->retexture_count > 0 )
-        {
-            p1(&buffer, 41);
-            p1(&buffer, object->retexture_count);
-            for( int i = 0; i < object->retexture_count; i++ )
-            {
-                p2(&buffer, object->retextures_from[i]);
-                p2(&buffer, object->retextures_to[i]);
-            }
-        }
-
-        OBJ_P_IF(
-            object->shift_click_drop_index != defaults.shift_click_drop_index,
-            42,
-            p1b(&buffer, object->shift_click_drop_index));
-
-        /* Opcode 43: sub-action lists, each terminated by a zero index. */
-        for( int action = 0; action < 5; action++ )
-        {
-            if( !object->sub_actions[action] )
-                continue;
-
-            int highest = -1;
-            for( int sub = 0; sub < 20; sub++ )
-            {
-                if( object->sub_actions[action][sub] )
-                    highest = sub;
-            }
-            if( highest < 0 )
-                continue;
-
-            p1(&buffer, 43);
-            p1(&buffer, action);
-            for( int sub = 0; sub <= highest; sub++ )
-            {
-                if( !object->sub_actions[action][sub] )
-                    continue;
-                /* Indices are stored one-based; zero terminates the list. */
-                p1(&buffer, sub + 1);
-                pjstr(&buffer, object->sub_actions[action][sub], RSCACHE_JSTR_TERMINATOR_NULL);
-            }
-            p1(&buffer, 0);
-        }
-
-        /* Int model opcodes 47/50-54 when needed (45/46/48/49 already above). */
-        if( male2_int )
-        {
-            p1(&buffer, 47);
-            p4(&buffer, object->male_model_2);
-        }
-        if( female2_int )
-        {
-            p1(&buffer, 50);
-            p4(&buffer, object->female_model_2);
-        }
-        if( mhead_int )
-        {
-            p1(&buffer, 51);
-            p4(&buffer, object->male_head_model);
-        }
-        if( mhead2_int )
-        {
-            p1(&buffer, 52);
-            p4(&buffer, object->male_head_model_2);
-        }
-        if( fhead_int )
-        {
-            p1(&buffer, 53);
-            p4(&buffer, object->female_head_model);
-        }
-        if( fhead2_int )
-        {
-            p1(&buffer, 54);
-            p4(&buffer, object->female_head_model_2);
-        }
-
-        if( object->ge_tradeable )
-            p1(&buffer, 65);
-        OBJ_P_IF(object->weight != defaults.weight, 75, p2b(&buffer, object->weight));
-
-        if( !male2_int )
-            OBJ_P_IF(
-                object->male_model_2 != defaults.male_model_2, 78, p2(&buffer, object->male_model_2));
-        if( !female2_int )
-            OBJ_P_IF(
-                object->female_model_2 != defaults.female_model_2,
-                79,
-                p2(&buffer, object->female_model_2));
-        if( !mhead_int )
-            OBJ_P_IF(
-                object->male_head_model != defaults.male_head_model,
-                90,
-                p2(&buffer, object->male_head_model));
-        if( !fhead_int )
-            OBJ_P_IF(
-                object->female_head_model != defaults.female_head_model,
-                91,
-                p2(&buffer, object->female_head_model));
-        if( !mhead2_int )
-            OBJ_P_IF(
-                object->male_head_model_2 != defaults.male_head_model_2,
-                92,
-                p2(&buffer, object->male_head_model_2));
-        if( !fhead2_int )
-            OBJ_P_IF(
-                object->female_head_model_2 != defaults.female_head_model_2,
-                93,
-                p2(&buffer, object->female_head_model_2));
+        if( !RSCache_PresenceHas(has, RSCACHE_OBJ_FIELD_OP1 + i) )
+            continue;
+        const char* text = object->actions[i] ? object->actions[i] : object->hidden_actions[i];
+        assert(text);
+        p1(&buffer, 30 + i);
+        pjstr(&buffer, text, RSCACHE_JSTR_TERMINATOR_NULL);
+    }
+    for( int i = 0; i < 5; i++ )
+    {
+        if( !RSCache_PresenceHas(has, RSCACHE_OBJ_FIELD_IOP1 + i) )
+            continue;
+        assert(object->if_actions[i]);
+        p1(&buffer, 35 + i);
+        pjstr(&buffer, object->if_actions[i], RSCACHE_JSTR_TERMINATOR_NULL);
     }
 
-    OBJ_P_IF(object->category != defaults.category, 94, p2(&buffer, object->category));
-    OBJ_P_IF(object->zan2d != defaults.zan2d, 95, p2(&buffer, object->zan2d));
-    OBJ_P_IF(object->noted_id != defaults.noted_id, 97, p2(&buffer, object->noted_id));
-    OBJ_P_IF(
-        object->noted_template != defaults.noted_template, 98, p2(&buffer, object->noted_template));
+    if( OBJ_HAS(RECOL) )
+    {
+        p1(&buffer, 40);
+        p1(&buffer, object->recolor_count);
+        for( int i = 0; i < object->recolor_count; i++ )
+        {
+            p2(&buffer, object->recolors_from[i]);
+            p2(&buffer, object->recolors_to[i]);
+        }
+    }
+    if( OBJ_HAS(RETEX) )
+    {
+        p1(&buffer, 41);
+        p1(&buffer, object->retexture_count);
+        for( int i = 0; i < object->retexture_count; i++ )
+        {
+            p2(&buffer, object->retextures_from[i]);
+            p2(&buffer, object->retextures_to[i]);
+        }
+    }
+
+    OBJ_P_IF(SHIFT_CLICK_DROP, 42, p1b(&buffer, object->shift_click_drop_index));
+
+    /* Opcode 43: one sub-op list per ground op it names, each terminated by a
+     * zero index. A stated list may be empty. */
+    for( int action = 0; action < 5; action++ )
+    {
+        if( !RSCache_PresenceHas(has, RSCACHE_OBJ_FIELD_SUBOP1 + action) )
+            continue;
+        p1(&buffer, 43);
+        p1(&buffer, action);
+        for( int sub = 0; object->sub_actions[action] && sub < 20; sub++ )
+        {
+            if( !object->sub_actions[action][sub] )
+                continue;
+            /* Indices are stored one-based; zero terminates the list. */
+            p1(&buffer, sub + 1);
+            pjstr(&buffer, object->sub_actions[action][sub], RSCACHE_JSTR_TERMINATOR_NULL);
+        }
+        p1(&buffer, 0);
+    }
+
+    OBJ_P_IF(GE_TRADEABLE, 65, (void)0);
+    OBJ_P_IF(WEIGHT, 75, p2b(&buffer, object->weight));
+
+    if( OBJ_HAS(MANWEAR3) )
+        obj_put_model(&buffer, flags, 78, 47, object->male_model_2, -1);
+    if( OBJ_HAS(WOMANWEAR3) )
+        obj_put_model(&buffer, flags, 79, 50, object->female_model_2, -1);
+    if( OBJ_HAS(MANHEAD) )
+        obj_put_model(&buffer, flags, 90, 51, object->male_head_model, -1);
+    if( OBJ_HAS(WOMANHEAD) )
+        obj_put_model(&buffer, flags, 91, 53, object->female_head_model, -1);
+    if( OBJ_HAS(MANHEAD2) )
+        obj_put_model(&buffer, flags, 92, 52, object->male_head_model_2, -1);
+    if( OBJ_HAS(WOMANHEAD2) )
+        obj_put_model(&buffer, flags, 93, 54, object->female_head_model_2, -1);
+
+    OBJ_P_IF(CATEGORY, 94, p2(&buffer, object->category));
+    OBJ_P_IF(ZAN2D, 95, p2(&buffer, object->zan2d));
+    OBJ_P_IF(CERTLINK, 97, p2(&buffer, object->noted_id));
+    OBJ_P_IF(CERTTEMPLATE, 98, p2(&buffer, object->noted_template));
 
     for( int i = 0; i < 10; i++ )
     {
-        if( object->count_obj[i] != 0 || object->count_co[i] != 0 )
-        {
-            p1(&buffer, 100 + i);
-            p2(&buffer, object->count_obj[i]);
-            p2(&buffer, object->count_co[i]);
-        }
+        if( !RSCache_PresenceHas(has, RSCACHE_OBJ_FIELD_COUNTOBJ1 + i) )
+            continue;
+        p1(&buffer, 100 + i);
+        p2(&buffer, object->count_obj[i]);
+        p2(&buffer, object->count_co[i]);
     }
 
-    OBJ_P_IF(object->resize_x != defaults.resize_x, 110, p2(&buffer, object->resize_x));
-    OBJ_P_IF(object->resize_y != defaults.resize_y, 111, p2(&buffer, object->resize_y));
-    OBJ_P_IF(object->resize_z != defaults.resize_z, 112, p2(&buffer, object->resize_z));
-    OBJ_P_IF(object->ambient != defaults.ambient, 113, p1b(&buffer, object->ambient));
+    OBJ_P_IF(RESIZEX, 110, p2(&buffer, object->resize_x));
+    OBJ_P_IF(RESIZEY, 111, p2(&buffer, object->resize_y));
+    OBJ_P_IF(RESIZEZ, 112, p2(&buffer, object->resize_z));
+    OBJ_P_IF(AMBIENT, 113, p1b(&buffer, object->ambient));
     /* The decoder multiplies the stored byte by 5, so divide going back out. */
-    OBJ_P_IF(object->contrast != defaults.contrast, 114, p1b(&buffer, object->contrast / 5));
-    OBJ_P_IF(object->team != defaults.team, 115, p1(&buffer, object->team));
-    OBJ_P_IF(object->bought_id != defaults.bought_id, 139, p2(&buffer, object->bought_id));
-    OBJ_P_IF(
-        object->bought_template_id != defaults.bought_template_id,
-        140,
-        p2(&buffer, object->bought_template_id));
-    OBJ_P_IF(
-        object->placeholder_id != defaults.placeholder_id, 148, p2(&buffer, object->placeholder_id));
-    OBJ_P_IF(
-        object->placeholder_template_id != defaults.placeholder_template_id,
-        149,
-        p2(&buffer, object->placeholder_template_id));
+    OBJ_P_IF(CONTRAST, 114, p1b(&buffer, object->contrast / 5));
+    OBJ_P_IF(TEAM, 115, p1(&buffer, object->team));
+    OBJ_P_IF(BOUGHTLINK, 139, p2(&buffer, object->bought_id));
+    OBJ_P_IF(BOUGHTTEMPLATE, 140, p2(&buffer, object->bought_template_id));
+    OBJ_P_IF(PLACEHOLDERLINK, 148, p2(&buffer, object->placeholder_id));
+    OBJ_P_IF(PLACEHOLDERTEMPLATE, 149, p2(&buffer, object->placeholder_template_id));
 
-    if( object->stacking_behaviour == 2 )
+    if( OBJ_HAS(STACKABLE) && object->stacking_behaviour == 2 )
         p1(&buffer, 160);
 
+    /* Each of 200/201/202 carries one entry, so a stated list is a non-empty
+     * one; the three are written together in list order. */
     if( (flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) &&
-        (object->entity_ops.sub_ops_count > 0 || object->entity_ops.cond_ops_count > 0 ||
-         object->entity_ops.cond_sub_ops_count > 0) )
+        (OBJ_HAS(ENTITY_SUB_OPS) || OBJ_HAS(ENTITY_COND_OPS) || OBJ_HAS(ENTITY_COND_SUB_OPS)) )
     {
         RSCache_EntityOpsEncode(&object->entity_ops, &buffer, 30, 200, 201, 202);
     }
 
-    if( object->params.count > 0 )
+    if( OBJ_HAS(PARAMS) )
     {
         p1(&buffer, 249);
         pparams(&buffer, &object->params);
     }
 
 #undef OBJ_P_IF
+#undef OBJ_HAS
 
     p1(&buffer, 0);
-
-    /* init_object allocates the default name; release it rather than leak once per
-     * encoded record. */
-    free(defaults.name);
-    RSCache_EntityOpsFreeInplace(&defaults.entity_ops);
 
     return buffer.position;
 }
@@ -446,9 +326,13 @@ RSCache_Dat2ConfigObjEncodeFlags(
 void
 RSCache_Dat2ConfigObjInit(struct RSCache_Dat2ConfigObj* object)
 {
+    assert(object);
     memset(object, 0, sizeof(struct RSCache_Dat2ConfigObj));
+    /* Client defaults below, and nothing stated: a decoded opcode sets its bit. */
+    RSCache_PresenceReset(&object->present);
 
     object->name = malloc(5);
+    assert(object->name);
     strcpy(object->name, "null");
 
     object->examine = NULL;
@@ -554,6 +438,7 @@ RSCache_Dat2ConfigObjFreeInplace(struct RSCache_Dat2ConfigObj* object)
     for( i = 0; i < 5; i++ )
     {
         free(object->actions[i]);
+        free(object->hidden_actions[i]);
         free(object->if_actions[i]);
         if( object->sub_actions[i] )
         {
@@ -699,6 +584,7 @@ obj_decode_op_rs2_634(
         return true;
     case 96: /* unsigned here, where the 530 client reads a signed byte */
         object->item_type = g1(buffer);
+        OBJ_SET(RS2_ITEM_TYPE);
         return true;
     case 132: /* quest ids */
     {
@@ -709,6 +595,7 @@ obj_decode_op_rs2_634(
     }
     case 134:
         object->shift_click_drop_index = g1(buffer);
+        OBJ_SET(SHIFT_CLICK_DROP);
         return true;
     default:
         return obj_decode_op_rs2_530(object, opcode, buffer);
@@ -723,23 +610,23 @@ obj_decode_op_rs2_530(
 {
     switch( opcode )
     {
-    case 1: object->inventory_model_id = g2(buffer); return true;
-    case 2: obj_b670_read_string(buffer, &object->name); return true;
-    case 3: obj_b670_read_string(buffer, &object->examine); return true;
-    case 4: object->zoom2d = g2(buffer); return true;
-    case 5: object->xan2d = g2(buffer); return true;
-    case 6: object->yan2d = g2(buffer); return true;
-    case 7: object->offset_x2d = g2b(buffer); return true;
-    case 8: object->offset_y2d = g2b(buffer); return true;
+    case 1: object->inventory_model_id = g2(buffer); OBJ_SET(MODEL); return true;
+    case 2: obj_b670_read_string(buffer, &object->name); OBJ_SET(NAME); return true;
+    case 3: obj_b670_read_string(buffer, &object->examine); OBJ_SET(DESC); return true;
+    case 4: object->zoom2d = g2(buffer); OBJ_SET(ZOOM2D); return true;
+    case 5: object->xan2d = g2(buffer); OBJ_SET(XAN2D); return true;
+    case 6: object->yan2d = g2(buffer); OBJ_SET(YAN2D); return true;
+    case 7: object->offset_x2d = g2b(buffer); OBJ_SET(XOF2D); return true;
+    case 8: object->offset_y2d = g2b(buffer); OBJ_SET(YOF2D); return true;
     case 10: return true; /* unused, payload-free in the 530 client */
-    case 11: object->stacking_behaviour = 1; return true;
-    case 12: object->cost = g4(buffer); return true;
-    case 16: object->is_members = true; return true;
+    case 11: object->stacking_behaviour = 1; OBJ_SET(STACKABLE); return true;
+    case 12: object->cost = g4(buffer); OBJ_SET(COST); return true;
+    case 16: object->is_members = true; OBJ_SET(MEMBERS); return true;
 
-    case 23: object->male_model_0 = g2(buffer); return true;
-    case 24: object->male_model_1 = g2(buffer); return true;
-    case 25: object->female_model_0 = g2(buffer); return true;
-    case 26: object->female_model_1 = g2(buffer); return true;
+    case 23: object->male_model_0 = g2(buffer); OBJ_SET(MANWEAR); return true;
+    case 24: object->male_model_1 = g2(buffer); OBJ_SET(MANWEAR2); return true;
+    case 25: object->female_model_0 = g2(buffer); OBJ_SET(WOMANWEAR); return true;
+    case 26: object->female_model_1 = g2(buffer); OBJ_SET(WOMANWEAR2); return true;
 
     case 30:
     case 31:
@@ -747,6 +634,7 @@ obj_decode_op_rs2_530(
     case 33:
     case 34:
         obj_b670_read_string(buffer, &object->actions[opcode - 30]);
+        OBJ_SET_AT(OP1, opcode - 30);
         return true;
     case 35:
     case 36:
@@ -754,6 +642,7 @@ obj_decode_op_rs2_530(
     case 38:
     case 39:
         obj_b670_read_string(buffer, &object->if_actions[opcode - 35]);
+        OBJ_SET_AT(IOP1, opcode - 35);
         return true;
 
     case 40:
@@ -778,6 +667,10 @@ obj_decode_op_rs2_530(
                 (*to)[i] = b;
             }
         }
+        if( opcode == 40 )
+            OBJ_SET(RECOL);
+        else
+            OBJ_SET(RETEX);
         return true;
     }
     case 42:
@@ -787,17 +680,17 @@ obj_decode_op_rs2_530(
             g1(buffer);
         return true;
     }
-    case 65: object->ge_tradeable = true; return true;
-    case 78: object->male_model_2 = g2(buffer); return true;
-    case 79: object->female_model_2 = g2(buffer); return true;
-    case 90: object->male_head_model = g2(buffer); return true;
-    case 91: object->female_head_model = g2(buffer); return true;
-    case 92: object->male_head_model_2 = g2(buffer); return true;
-    case 93: object->female_head_model_2 = g2(buffer); return true;
-    case 95: object->zan2d = g2(buffer); return true;
-    case 96: object->item_type = g1b(buffer); return true;
-    case 97: object->noted_id = g2(buffer); return true;
-    case 98: object->noted_template = g2(buffer); return true;
+    case 65: object->ge_tradeable = true; OBJ_SET(GE_TRADEABLE); return true;
+    case 78: object->male_model_2 = g2(buffer); OBJ_SET(MANWEAR3); return true;
+    case 79: object->female_model_2 = g2(buffer); OBJ_SET(WOMANWEAR3); return true;
+    case 90: object->male_head_model = g2(buffer); OBJ_SET(MANHEAD); return true;
+    case 91: object->female_head_model = g2(buffer); OBJ_SET(WOMANHEAD); return true;
+    case 92: object->male_head_model_2 = g2(buffer); OBJ_SET(MANHEAD2); return true;
+    case 93: object->female_head_model_2 = g2(buffer); OBJ_SET(WOMANHEAD2); return true;
+    case 95: object->zan2d = g2(buffer); OBJ_SET(ZAN2D); return true;
+    case 96: object->item_type = g1b(buffer); OBJ_SET(RS2_ITEM_TYPE); return true;
+    case 97: object->noted_id = g2(buffer); OBJ_SET(CERTLINK); return true;
+    case 98: object->noted_template = g2(buffer); OBJ_SET(CERTTEMPLATE); return true;
 
     case 100:
     case 101:
@@ -811,15 +704,16 @@ obj_decode_op_rs2_530(
     case 109:
         object->count_obj[opcode - 100] = g2(buffer);
         object->count_co[opcode - 100] = g2(buffer);
+        OBJ_SET_AT(COUNTOBJ1, opcode - 100);
         return true;
-    case 110: object->resize_x = g2(buffer); return true;
-    case 111: object->resize_y = g2(buffer); return true;
-    case 112: object->resize_z = g2(buffer); return true;
-    case 113: object->ambient = g1b(buffer); return true;
-    case 114: object->contrast = g1b(buffer) * 5; return true;
-    case 115: object->team = g1(buffer); return true;
-    case 121: object->lend_id = g2(buffer); return true;
-    case 122: object->lend_template_id = g2(buffer); return true;
+    case 110: object->resize_x = g2(buffer); OBJ_SET(RESIZEX); return true;
+    case 111: object->resize_y = g2(buffer); OBJ_SET(RESIZEY); return true;
+    case 112: object->resize_z = g2(buffer); OBJ_SET(RESIZEZ); return true;
+    case 113: object->ambient = g1b(buffer); OBJ_SET(AMBIENT); return true;
+    case 114: object->contrast = g1b(buffer) * 5; OBJ_SET(CONTRAST); return true;
+    case 115: object->team = g1(buffer); OBJ_SET(TEAM); return true;
+    case 121: object->lend_id = g2(buffer); OBJ_SET(RS2_LEND); return true;
+    case 122: object->lend_template_id = g2(buffer); OBJ_SET(RS2_LEND_TEMPLATE); return true;
 
     case 125:
     case 126:
@@ -833,6 +727,7 @@ obj_decode_op_rs2_530(
         return true;
     case 249:
         RSCache_BufferReadParams(buffer, &object->params);
+        OBJ_SET(PARAMS);
         return true;
     default:
         return false;
@@ -850,43 +745,56 @@ obj_decode_op_rs2_b670(
     /* Every model field is a varuint here — the whole reason for this codec. */
     case 0x01:
         object->inventory_model_id = gvaruint(buffer);
+        OBJ_SET(MODEL);
         return true;
     case 0x17: /* male model 0; the trailing type byte went away at build 502 */
         object->male_model_0 = gvaruint(buffer);
+        OBJ_SET(MANWEAR);
         return true;
     case 0x18:
         object->male_model_1 = gvaruint(buffer);
+        OBJ_SET(MANWEAR2);
         return true;
     case 0x19: /* female model 0 */
         object->female_model_0 = gvaruint(buffer);
+        OBJ_SET(WOMANWEAR);
         return true;
     case 0x1A:
         object->female_model_1 = gvaruint(buffer);
+        OBJ_SET(WOMANWEAR2);
         return true;
     case 0x4E:
         object->male_model_2 = gvaruint(buffer);
+        OBJ_SET(MANWEAR3);
         return true;
     case 0x4F:
         object->female_model_2 = gvaruint(buffer);
+        OBJ_SET(WOMANWEAR3);
         return true;
     case 0x5A:
         object->male_head_model = gvaruint(buffer);
+        OBJ_SET(MANHEAD);
         return true;
     case 0x5B:
         object->female_head_model = gvaruint(buffer);
+        OBJ_SET(WOMANHEAD);
         return true;
     case 0x5C:
         object->male_head_model_2 = gvaruint(buffer);
+        OBJ_SET(MANHEAD2);
         return true;
     case 0x5D:
         object->female_head_model_2 = gvaruint(buffer);
+        OBJ_SET(WOMANHEAD2);
         return true;
 
     case 0x02:
         obj_b670_read_string(buffer, &object->name);
+        OBJ_SET(NAME);
         return true;
     case 0x03: /* buff effect, where OldSchool keeps the examine text */
         obj_b670_read_string(buffer, &object->examine);
+        OBJ_SET(DESC);
         return true;
 
     case 0x1E:
@@ -895,6 +803,7 @@ obj_decode_op_rs2_b670(
     case 0x21:
     case 0x22:
         obj_b670_read_string(buffer, &object->actions[opcode - 0x1E]);
+        OBJ_SET_AT(OP1, opcode - 0x1E);
         return true;
     case 0x23:
     case 0x24:
@@ -902,6 +811,7 @@ obj_decode_op_rs2_b670(
     case 0x26:
     case 0x27:
         obj_b670_read_string(buffer, &object->if_actions[opcode - 0x23]);
+        OBJ_SET_AT(IOP1, opcode - 0x23);
         return true;
     case 0xA4: /* combine shard name */
         obj_b670_read_string(buffer, NULL);
@@ -909,55 +819,71 @@ obj_decode_op_rs2_b670(
 
     case 0x04:
         object->zoom2d = g2(buffer);
+        OBJ_SET(ZOOM2D);
         return true;
     case 0x05:
         object->xan2d = g2(buffer);
+        OBJ_SET(XAN2D);
         return true;
     case 0x06:
         object->yan2d = g2(buffer);
+        OBJ_SET(YAN2D);
         return true;
     case 0x5F:
         object->zan2d = g2(buffer);
+        OBJ_SET(ZAN2D);
         return true;
     case 0x07:
         object->offset_x2d = g2b(buffer);
+        OBJ_SET(XOF2D);
         return true;
     case 0x08:
         object->offset_y2d = g2b(buffer);
+        OBJ_SET(YOF2D);
         return true;
 
     case 0x0B:
         object->stacking_behaviour = 1;
+        OBJ_SET(STACKABLE);
         return true;
     case 0xA5: /* never stackable */
         object->stacking_behaviour = 0;
+        OBJ_SET(STACKABLE);
         return true;
     case 0x0C:
         object->cost = g4(buffer);
+        OBJ_SET(COST);
         return true;
     case 0x0D:
         object->wearpos_1 = g1(buffer);
+        OBJ_SET(WEARPOS);
         return true;
     case 0x0E:
         object->wearpos_2 = g1(buffer);
+        OBJ_SET(WEARPOS2);
         return true;
     case 0x1B:
         object->wearpos_3 = g1(buffer);
+        OBJ_SET(WEARPOS3);
         return true;
     case 0x10:
         object->is_members = true;
+        OBJ_SET(MEMBERS);
         return true;
     case 0x41: /* tradeable */
         object->ge_tradeable = true;
+        OBJ_SET(GE_TRADEABLE);
         return true;
 
     case 0x28:
         obj_b670_read_pairs(
             buffer, &object->recolors_from, &object->recolors_to, &object->recolor_count);
+        OBJ_SET(RECOL);
         return true;
     case 0x29:
         obj_b670_read_pairs(
             buffer, &object->retextures_from, &object->retextures_to, &object->retexture_count);
+        OBJ_SET(RETEX);
         return true;
     case 0x2A: /* recolour palette: (index, value) byte pairs */
     {
@@ -972,24 +898,31 @@ obj_decode_op_rs2_b670(
 
     case 0x5E:
         object->category = g2(buffer);
+        OBJ_SET(CATEGORY);
         return true;
     case 0x61:
         object->noted_id = g2(buffer);
+        OBJ_SET(CERTLINK);
         return true;
     case 0x62:
         object->noted_template = g2(buffer);
+        OBJ_SET(CERTTEMPLATE);
         return true;
     case 0x8B: /* bind link / bought id */
         object->bought_id = g2(buffer);
+        OBJ_SET(BOUGHTLINK);
         return true;
     case 0x8C:
         object->bought_template_id = g2(buffer);
+        OBJ_SET(BOUGHTTEMPLATE);
         return true;
     case 0x73:
         object->team = g1(buffer);
+        OBJ_SET(TEAM);
         return true;
     case 0x86: /* pick size shift */
         object->shift_click_drop_index = g1b(buffer);
+        OBJ_SET(SHIFT_CLICK_DROP);
         return true;
 
     case 0x64:
@@ -1004,26 +937,33 @@ obj_decode_op_rs2_b670(
     case 0x6D:
         object->count_obj[opcode - 0x64] = g2(buffer);
         object->count_co[opcode - 0x64] = g2(buffer);
+        OBJ_SET_AT(COUNTOBJ1, opcode - 0x64);
         return true;
 
     case 0x6E:
         object->resize_x = g2(buffer);
+        OBJ_SET(RESIZEX);
         return true;
     case 0x6F:
         object->resize_y = g2(buffer);
+        OBJ_SET(RESIZEY);
         return true;
     case 0x70:
         object->resize_z = g2(buffer);
+        OBJ_SET(RESIZEZ);
         return true;
     case 0x71:
         object->ambient = g1b(buffer);
+        OBJ_SET(AMBIENT);
         return true;
     case 0x72:
         object->contrast = g1b(buffer) * 5;
+        OBJ_SET(CONTRAST);
         return true;
 
     case 0xF9:
         RSCache_BufferReadParams(buffer, &object->params);
+        OBJ_SET(PARAMS);
         return true;
 
     /* --- consumed at the right width, nothing in this struct to hold them --- */
@@ -1122,69 +1062,88 @@ RSCache_Dat2ConfigObjDecodeOp(
         {
         case 1:
             object->inventory_model_id = g2(buffer);
+            OBJ_SET(MODEL);
             break;
         case 2:
             free(object->name);
             object->name = gcstring(buffer);
+            OBJ_SET(NAME);
             break;
         case 3:
             free(object->examine);
             object->examine = gcstring(buffer);
+            OBJ_SET(DESC);
             break;
         case 4:
             object->zoom2d = g2(buffer);
+            OBJ_SET(ZOOM2D);
             break;
         case 5:
             object->xan2d = g2(buffer);
+            OBJ_SET(XAN2D);
             break;
         case 6:
             object->yan2d = g2(buffer);
+            OBJ_SET(YAN2D);
             break;
         case 7:
             object->offset_x2d = g2b(buffer);
+            OBJ_SET(XOF2D);
             break;
         case 8:
             object->offset_y2d = g2b(buffer);
+            OBJ_SET(YOF2D);
             break;
         case 9:
             free(gcstring(buffer));
             break;
         case 11:
             object->stacking_behaviour = 1;
+            OBJ_SET(STACKABLE);
             break;
         case 12:
             object->cost = g4(buffer);
+            OBJ_SET(COST);
             break;
         case 13:
             object->wearpos_1 = g1b(buffer);
+            OBJ_SET(WEARPOS);
             break;
         case 14:
             object->wearpos_2 = g1b(buffer);
+            OBJ_SET(WEARPOS2);
             break;
         case 15:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV238_UNTRADEABLE) )
                 return false;
             object->tradeable = false;
+            OBJ_SET(UNTRADEABLE);
             break;
         case 16:
             object->is_members = true;
+            OBJ_SET(MEMBERS);
             break;
         case 23:
             object->male_model_0 = g2(buffer);
             object->male_offset = g1(buffer);
+            OBJ_SET(MANWEAR);
             break;
         case 24:
             object->male_model_1 = g2(buffer);
+            OBJ_SET(MANWEAR2);
             break;
         case 25:
             object->female_model_0 = g2(buffer);
             object->female_offset = g1(buffer);
+            OBJ_SET(WOMANWEAR);
             break;
         case 26:
             object->female_model_1 = g2(buffer);
+            OBJ_SET(WOMANWEAR2);
             break;
         case 27:
             object->wearpos_3 = g1(buffer);
+            OBJ_SET(WEARPOS3);
             break;
         case 30:
         case 31:
@@ -1194,12 +1153,17 @@ RSCache_Dat2ConfigObjDecodeOp(
         {
             int idx = opcode - 30;
             free(object->actions[idx]);
+            free(object->hidden_actions[idx]);
+            object->hidden_actions[idx] = NULL;
             object->actions[idx] = gcstring(buffer);
+            /* The client hides an op spelled "hidden"; keep the spelling so the
+             * stated opcode can be written back. */
             if( object->actions[idx] && strcasecmp(object->actions[idx], "Hidden") == 0 )
             {
-                free(object->actions[idx]);
+                object->hidden_actions[idx] = object->actions[idx];
                 object->actions[idx] = NULL;
             }
+            OBJ_SET_AT(OP1, idx);
             break;
         }
         case 35:
@@ -1209,10 +1173,13 @@ RSCache_Dat2ConfigObjDecodeOp(
         case 39:
             free(object->if_actions[opcode - 35]);
             object->if_actions[opcode - 35] = gcstring(buffer);
+            OBJ_SET_AT(IOP1, opcode - 35);
             break;
         case 40:
         {
             int recolor_count = g1(buffer);
+            free(object->recolors_from);
+            free(object->recolors_to);
             object->recolors_from = malloc(recolor_count * sizeof(int));
             object->recolors_to = malloc(recolor_count * sizeof(int));
             for( int i = 0; i < recolor_count; i++ )
@@ -1221,11 +1188,14 @@ RSCache_Dat2ConfigObjDecodeOp(
                 object->recolors_to[i] = g2(buffer);
             }
             object->recolor_count = recolor_count;
+            OBJ_SET(RECOL);
             break;
         }
         case 41:
         {
             int retexture_count = g1(buffer);
+            free(object->retextures_from);
+            free(object->retextures_to);
             object->retextures_from = malloc(retexture_count * sizeof(int));
             object->retextures_to = malloc(retexture_count * sizeof(int));
             for( int i = 0; i < retexture_count; i++ )
@@ -1234,10 +1204,12 @@ RSCache_Dat2ConfigObjDecodeOp(
                 object->retextures_to[i] = g2(buffer);
             }
             object->retexture_count = retexture_count;
+            OBJ_SET(RETEX);
             break;
         }
         case 42:
             object->shift_click_drop_index = g1b(buffer);
+            OBJ_SET(SHIFT_CLICK_DROP);
             break;
         case 43:
         {
@@ -1256,104 +1228,133 @@ RSCache_Dat2ConfigObjDecodeOp(
                     break;
                 char* string = gcstring(buffer);
                 if( valid && sub_action_id >= 0 && sub_action_id < 20 )
+                {
+                    free(object->sub_actions[action_id][sub_action_id]);
                     object->sub_actions[action_id][sub_action_id] = string;
+                }
                 else
                     free(string);
             }
+            /* An out-of-range op index is consumed and dropped: nothing stored. */
+            if( valid )
+                OBJ_SET_AT(SUBOP1, action_id);
             break;
         }
         case 44:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
                 return false;
             object->inventory_model_id = g4(buffer);
+            OBJ_SET(MODEL);
             break;
         case 45:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
                 return false;
             object->male_model_0 = g4(buffer);
             object->male_offset = g1(buffer);
+            OBJ_SET(MANWEAR);
             break;
         case 46:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
                 return false;
             object->male_model_1 = g4(buffer);
+            OBJ_SET(MANWEAR2);
             break;
         case 47:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
                 return false;
             object->male_model_2 = g4(buffer);
+            OBJ_SET(MANWEAR3);
             break;
         case 48:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
                 return false;
             object->female_model_0 = g4(buffer);
             object->female_offset = g1(buffer);
+            OBJ_SET(WOMANWEAR);
             break;
         case 49:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
                 return false;
             object->female_model_1 = g4(buffer);
+            OBJ_SET(WOMANWEAR2);
             break;
         case 50:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
                 return false;
             object->female_model_2 = g4(buffer);
+            OBJ_SET(WOMANWEAR3);
             break;
         case 51:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
                 return false;
             object->male_head_model = g4(buffer);
+            OBJ_SET(MANHEAD);
             break;
         case 52:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
                 return false;
             object->male_head_model_2 = g4(buffer);
+            OBJ_SET(MANHEAD2);
             break;
         case 53:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
                 return false;
             object->female_head_model = g4(buffer);
+            OBJ_SET(WOMANHEAD);
             break;
         case 54:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_INT_MODEL_IDS) )
                 return false;
             object->female_head_model_2 = g4(buffer);
+            OBJ_SET(WOMANHEAD2);
             break;
         case 65:
             object->ge_tradeable = true;
+            OBJ_SET(GE_TRADEABLE);
             break;
         case 75:
             object->weight = g2b(buffer);
+            OBJ_SET(WEIGHT);
             break;
         case 78:
             object->male_model_2 = g2(buffer);
+            OBJ_SET(MANWEAR3);
             break;
         case 79:
             object->female_model_2 = g2(buffer);
+            OBJ_SET(WOMANWEAR3);
             break;
         case 90:
             object->male_head_model = g2(buffer);
+            OBJ_SET(MANHEAD);
             break;
         case 91:
             object->female_head_model = g2(buffer);
+            OBJ_SET(WOMANHEAD);
             break;
         case 92:
             object->male_head_model_2 = g2(buffer);
+            OBJ_SET(MANHEAD2);
             break;
         case 93:
             object->female_head_model_2 = g2(buffer);
+            OBJ_SET(WOMANHEAD2);
             break;
         case 94:
             object->category = g2(buffer);
+            OBJ_SET(CATEGORY);
             break;
         case 95:
             object->zan2d = g2(buffer);
+            OBJ_SET(ZAN2D);
             break;
         case 97:
             object->noted_id = g2(buffer);
+            OBJ_SET(CERTLINK);
             break;
         case 98:
             object->noted_template = g2(buffer);
+            OBJ_SET(CERTTEMPLATE);
             break;
         case 100:
         case 101:
@@ -1367,21 +1368,27 @@ RSCache_Dat2ConfigObjDecodeOp(
         case 109:
             object->count_obj[opcode - 100] = g2(buffer);
             object->count_co[opcode - 100] = g2(buffer);
+            OBJ_SET_AT(COUNTOBJ1, opcode - 100);
             break;
         case 110:
             object->resize_x = g2(buffer);
+            OBJ_SET(RESIZEX);
             break;
         case 111:
             object->resize_y = g2(buffer);
+            OBJ_SET(RESIZEY);
             break;
         case 112:
             object->resize_z = g2(buffer);
+            OBJ_SET(RESIZEZ);
             break;
         case 113:
             object->ambient = g1b(buffer);
+            OBJ_SET(AMBIENT);
             break;
         case 114:
             object->contrast = g1b(buffer) * 5;
+            OBJ_SET(CONTRAST);
             break;
         case 115:
             /*
@@ -1399,41 +1406,51 @@ RSCache_Dat2ConfigObjDecodeOp(
              * either side of it (110-112) use the two-byte one.
              */
             object->team = g1(buffer);
+            OBJ_SET(TEAM);
             break;
         case 139:
             object->bought_id = g2(buffer);
+            OBJ_SET(BOUGHTLINK);
             break;
         case 140:
             object->bought_template_id = g2(buffer);
+            OBJ_SET(BOUGHTTEMPLATE);
             break;
         case 148:
             object->placeholder_id = g2(buffer);
+            OBJ_SET(PLACEHOLDERLINK);
             break;
         case 149:
             object->placeholder_template_id = g2(buffer);
+            OBJ_SET(PLACEHOLDERTEMPLATE);
             break;
         case 160:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV239_STACKABLE2) )
                 return false;
             object->stacking_behaviour = 2;
+            OBJ_SET(STACKABLE);
             break;
         case 200:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) )
                 return false;
             RSCache_EntityOpsDecodeSubOp(&object->entity_ops, buffer);
+            OBJ_SET(ENTITY_SUB_OPS);
             break;
         case 201:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) )
                 return false;
             RSCache_EntityOpsDecodeCondOp(&object->entity_ops, buffer);
+            OBJ_SET(ENTITY_COND_OPS);
             break;
         case 202:
             if( !(flags & RSCACHE_CONFIG_OBJ_DECODE_REV237_ENTITY_OPS) )
                 return false;
             RSCache_EntityOpsDecodeCondSubOp(&object->entity_ops, buffer);
+            OBJ_SET(ENTITY_COND_SUB_OPS);
             break;
         case 249:
             RSCache_BufferReadParams(buffer, &object->params);
+            OBJ_SET(PARAMS);
             break;
         default:
             /* Unknown payload length: stop rather than misalign later fields. */
@@ -1491,8 +1508,7 @@ RSCache_Dat2ConfigObjEncodeBound(const struct RSCache_Dat2ConfigObj* object)
     uint32_t need = 2048u;
     int i;
 
-    if( !object )
-        return need;
+    assert(object);
 
     need += (uint32_t)object->recolor_count * 4u + 2u;
     need += (uint32_t)object->retexture_count * 4u + 2u;
@@ -1505,8 +1521,11 @@ RSCache_Dat2ConfigObjEncodeBound(const struct RSCache_Dat2ConfigObj* object)
     {
         if( object->actions[i] )
             need += (uint32_t)strlen(object->actions[i]) + 2u;
+        if( object->hidden_actions[i] )
+            need += (uint32_t)strlen(object->hidden_actions[i]) + 2u;
         if( object->if_actions[i] )
             need += (uint32_t)strlen(object->if_actions[i]) + 2u;
+        need += 3u; /* opcode 43, its op index and terminator, even when empty */
         if( object->sub_actions[i] )
         {
             for( int sub = 0; sub < 20; sub++ )

@@ -26,6 +26,8 @@ import os
 import re
 import sys
 
+import config_text
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
 WIKI = os.path.join(ROOT, "docs", "bosses", "wiki")
@@ -94,7 +96,7 @@ def read_configs():
     out = {}
     seen = {}
     for path in CONFIGS:
-        text = open(path, encoding="utf-8").read()
+        text = config_text.read_text(path, encoding="utf-8")
         for block in re.split(r"\n(?=\[)", text):
             head = re.match(r"\[([^\]]+)\]", block)
             if not head:
@@ -132,8 +134,8 @@ def wiki_styles(page):
 
 def cache_hitpoints(record):
     """stat4 on the cache record — this tree's hitpoints slot."""
-    text = open(os.path.join(CONTENT, "configs", "all.npc"), encoding="utf-8",
-                errors="replace").read()
+    text = config_text.read_text(os.path.join(CONTENT, "configs", "all.npc"),
+                                 encoding="utf-8", errors="replace")
     match = re.search(r"\n\[%s\]\n(.*?)(?=\n\[|\Z)" % re.escape(record), text, re.S)
     if not match:
         return None

@@ -21,6 +21,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import config_text  # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "docs", "shooting_stars", "sources", "Shooting_Stars.wiki")
 OUT = os.path.join(
@@ -92,6 +95,7 @@ def main():
 
     sites = collect()
     rendered = render(sites)
+    rendered = config_text.completed(OUT, rendered)
 
     if args.check:
         try:

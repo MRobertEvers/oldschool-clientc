@@ -40,12 +40,14 @@ def load_tool():
     return module
 
 
-def build_tree(root, *, script, varp_decl, loc_extra="", varbit_extra=""):
+def build_tree(root, *, script, varp_decl, loc_extra="", varbit_extra="",
+               loc_text=None):
     """A content tree with one multiloc on one varbit in one carrier.
 
     loc 100 `gate_multi` transforms on varbit 7 `gate_open` (carrier varp 3
     `gate_carrier`, bit 0) into `gate_shut` at value 0 and `gate_ajar` at 1,
-    and is placed once on square 50_50.
+    and is placed once on square 50_50. `loc_text` replaces the all.loc
+    records (FULL_KEY_LOC states the same three locs in the full-key format).
     """
     cfg = root / "configs"
     cfg.mkdir(parents=True)
@@ -56,14 +58,15 @@ def build_tree(root, *, script, varp_decl, loc_extra="", varbit_extra=""):
     (cfg / "all.varbit").write_text(
         "[gate_open]\nbasevar=gate_carrier\nstartbit=0\nendbit=0\n" + varbit_extra,
         encoding="utf8")
-    (cfg / "all.loc").write_text(
-        "[gate_multi]\n"
-        "multivarbit=gate_open\n"
-        "multiloc1=gate_shut\n"
-        "multiloc2=gate_ajar\n"
-        "\n[gate_shut]\nname=Gate\nop1=Open\n"
-        "\n[gate_ajar]\nname=Gate\nop1=Close\n" + loc_extra,
-        encoding="utf8")
+    if loc_text is None:
+        loc_text = (
+            "[gate_multi]\n"
+            "multivarbit=gate_open\n"
+            "multiloc1=gate_shut\n"
+            "multiloc2=gate_ajar\n"
+            "\n[gate_shut]\nname=Gate\nop1=Open\n"
+            "\n[gate_ajar]\nname=Gate\nop1=Close\n")
+    (cfg / "all.loc").write_text(loc_text + loc_extra, encoding="utf8")
 
     maps = root / "maps"
     maps.mkdir()
@@ -80,6 +83,31 @@ def build_tree(root, *, script, varp_decl, loc_extra="", varbit_extra=""):
 BOUND_AND_WRITTEN = "[oploc1,gate_shut]\n%gate_open = 1;\n"
 BOUND_ONLY = "[oploc1,gate_shut]\nmes(\"It will not budge.\");\n"
 TRANSMIT = "[gate_carrier]\nprotect=no\ntransmit=yes\nscope=perm\n"
+
+# The same three locs in the full-key config format: every key a record does
+# not set is stated `key=default` (absent) or `key=empty` (an empty list), and
+# `\default` is a string that happens to read "default". A reader that took the
+# markers as values would find a multiloc on a varbit named "default" in every
+# plain loc, and a base named "\default". The switch a multiloc does not use is
+# written `-1` (cachepack's own unpack does that): no varp either.
+FULL_KEY_LOC = (
+    "[gate_multi]\n"
+    "multivarbit=gate_open\n"
+    "multivarp=-1\n"
+    "multiloc1=gate_shut\n"
+    "multiloc2=gate_ajar\n"
+    "name=\\default\n"
+    "op=default\n"
+    "retex=empty\n"
+    "\n[gate_shut]\nname=Gate\nop1=Open\n"
+    "multivarp=default\nmultiloc=empty\nmultivarbit=default\nretex=empty\n"
+    "\n[gate_ajar]\nname=Gate\nop1=Close\n"
+    "multivarp=default\nmultiloc=empty\nmultivarbit=default\nretex=empty\n")
+# A full-key varp record: the keys it does not set are stated as markers.
+TRANSMIT_FULL_KEY = ("[gate_carrier]\nclientcode=default\nprotect=no\n"
+                     "transmit=yes\nscope=perm\ntype=default\n")
+# `transmit=default` means the key is absent -- the varp does not transmit.
+TRANSMIT_DEFAULT = "[gate_carrier]\nprotect=no\ntransmit=default\nscope=perm\n"
 NO_TRANSMIT = "[gate_carrier]\nprotect=no\ntransmit=no\nscope=perm\n"
 
 
@@ -142,6 +170,8 @@ def main():
         (TRANSMIT, 0, "a declared transmitting carrier passes"),
         (NO_TRANSMIT, 1, "transmit=no is caught"),
         ("", 1, "an undeclared carrier is caught"),
+        (TRANSMIT_FULL_KEY, 0, "a full-key transmitting carrier passes"),
+        (TRANSMIT_DEFAULT, 1, "transmit=default (absent) is caught"),
     ):
         rows = rows_for(mod, script=BOUND_AND_WRITTEN, varp_decl=decl)
         buf = io.StringIO()
@@ -160,6 +190,19 @@ def main():
     with redirect_stdout(buf):
         rc = mod.cmd_check_carriers(rows)
     check(rc == 0, "an unwritten varbit is not a carrier failure")
+
+    print("\nthe full-key config format")
+    rows = rows_for(mod, script=BOUND_AND_WRITTEN, varp_decl=TRANSMIT_FULL_KEY,
+                    loc_text=FULL_KEY_LOC)
+    check([r["name"] for r in rows] == ["gate_open"],
+          "a `multivarbit=default` / `multivarp=default` / `multivarp=-1` names no variable")
+    r = one(rows)
+    check(r["placements"] == 1 and r["bucket"] == "implemented",
+          "the full-key tree classifies as the old one does")
+    check([l["variants"] for l in r["locs"]] == [["gate_shut", "gate_ajar"]],
+          "the multiloc variants still resolve")
+    check([l["display"] for l in r["locs"]] == ["default"],
+          "`name=\\default` is the string \"default\", not a marker")
 
     print("\nall checks passed" if not failures else f"\n{failures} failure(s)")
     return 1 if failures else 0

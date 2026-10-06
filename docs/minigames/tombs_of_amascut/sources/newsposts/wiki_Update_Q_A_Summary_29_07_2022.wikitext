@@ -1,0 +1,255 @@
+{{Update|date=4 August 2022|link=https://secure.runescape.com/m=news/qa-summary-29072022?oldschool=1|category=community}}
+[[File:Q&A Summary 29-07-2022 newspost.png|right]]
+{{clear}}
+This week's live stream we saw a demonstration of the Clue Scroll Solver followed by a small Q&A! Topics included:
+* [[#Question #3|If there are plans to add a Puzzle Box Helper in the future]]
+* [[#Question #6|Stackable Clues]]
+* [[#Question #8|Future Mobile UI updates]]
+* [[#Question #9|Future Enhanced Client updates]]
+
+Thanks to Mod Sarnie (Community Manager), Mod Lenny (Content Developer), Mod Tide (Content Developer), Mod Sova (Content Developer) and Mod Bruno (QA Analyst) for their insight!
+
+DISCLAIMER: Livestreams are a glimpse into the ongoing creative process at Jagex. J-Mods are speaking off-the-cuff and their comments are not intended to be read in the same way as prepared updates from the company. Please keep this in mind when discussing the Q&A Transcript!
+
+Missed the live stream? Check out the transcript below!
+
+__TOC__
+==Masori Poll Results==
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=178s Youtube Time Stamp]
+
+[[File:Q&A Summary 29-07-2022 (1).png|right|500px]]
+
+* '''Mod Sarnie:''' We have reworked the Masori Armour following your feedback and I'm happy to announce that concept B has won the poll by 63.9%! It’s quite a landslide.
+* '''Mod Sarnie:''' So B is the one that has been chosen, what do you guys think?
+* '''Mod Lenny:''' I was a big fan of the original design myself. Obviously, a bit of a contentious one going around certain people, but I've loved seeing the progress on it as well as seeing the new ideas that have come around from the community that we've followed up with and I'm really happy with B.
+* '''Mod Sova:''' I voted A, but I'm used to losing votes!
+* '''Mod Tide:''' I think they both look great. So either one's great for me, but I do like A's helmet a lot.
+* '''Mod Bruno:''' I'm all the opposite. Honestly, I'm not a huge fan of A's helmet. It looks too much like an Arma helm, even though I know people are asking for it to look like Arma. I just don't think it needs to look like Armadyl. It has nothing to do with Armadyl since it's in the desert. Hopefully, this will make more people happy.
+* '''Mod Sova:''' So what you're saying is we need a C option with B's helmet on A's body.
+* '''Mod Sarnie:''' Don't start that Sova! The poll results are in, and I like all three of them, to be honest. However, I do feel like B's definitely a worthy contender for a very, very exciting reward for ToA.
+
+==New Mod Questions with Mod Sova==
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=275s Youtube Time Stamp]
+===Question #1===
+{{Cquote2|Can you tell us a little bit about yourself? What do you do on the team and who you are?}}
+
+* '''Mod Sova:''' Hi, I'm Mod Sova, I'm a content developer. I'm actually not a new mod, I've been around for a while! I joined Old School in the middle of last year and before that, I worked on RuneScape for a number of years. So I'm probably the oldest new J-Mod that's come along to a new J-Mod introduction.
+
+===Question #2===
+{{Cquote2|What's your role? What are some of the things you've worked on in terms of RuneScape 3 and Old School?}}
+
+* '''Mod Sova:''' When I first moved over to Old School, I bounced around a lot, helping out the operators. I worked on some PvP changes before Christmas, but I joined "The Gang", which is this lovely collection of people here, just around Christmas. We're mainly focusing on the C++ client for mobile and Steam.
+
+===Question #3===
+{{Cquote2|What is your experience with Old School?}}
+
+* '''Mod Sova:''' I'm an Old School baby. I've played a lot more RuneScape 3, but secretly, or not so secretly, I always kind of preferred Old School. Sorry to all the RuneScape J-Mods I've complained to in the kitchen!
+
+===Question #4===
+{{Cquote2|What's your most favourite thing about the game? And what's your least favourite thing about the game?}}
+
+* '''Mod Sova:''' My favourite thing is actually something very much from a designer's perspective. Since I make games, it's hard to play games in the same way when you make them, even if it's not a game that you're working on. So what I like the most if probably the horizontal shape of RuneScape and Old School.
+* '''Mod Sova:''' Something new comes out and it's not going to make around 90% of the game obsolete. You're usually going to have something you were doing, then maybe you take a break for a couple of years and when you come back, you're still kind of in a good position depending on where you left. You don't come along and go "Oh god, everything's changed. What's going on? I have to get new items and learn new things."
+* '''Mod Sova:''' My cop-out answer for my least favourite thing is the logout timer.
+* '''Mod Sarnie:''' Interesting, any reason?
+* '''Mod Sova:''' Because most of the time I'm AFKing and doing other things, like working and playing and every time it's just "ugh, I'm logged out".
+
+===Question #5===
+{{Cquote2|If you could add one thing without a poll, what would it be? And if you could remove one thing without a poll, what would it be?}}
+
+* '''Mod Sova:''' For something that I would add, consequences be damned, without having to ask people whether they're okay with it is reimagined Dungeoneering. I really like Roguelikes, ARPGs and lots of procedurally generated games with lots of cool dungeons and content that you can do and do a lot.
+* '''Mod Sova:''' I think that we're in a position now where we can do a lot more with Old School than what RuneScape did when they originally added Dungeoneering in 2010, where they added a lot of cool things.
+* '''Mod Sova:''' For removing something, I'm not 100% clear on the specifics of it, but one thing that I know that I would like to change if I had ultimate power is how off-hand style combat equipment penalises you, for example how you can't wear ranged armour and a mage weapon. I would just do away with that, but I know that's never going to happen.
+
+===Question #6===
+{{Cquote2|Do you recall the tallest person you've ever met?}}
+
+* '''Mod Sova:''' I think the tallest person that I've ever met is someone that I went to university with. He was like seven feet tall.
+* '''Mod Sova:''' Luckily, we were doing computer science together, and when you're working on computers you're sitting down most of the time, so I didn't have a sore neck from having to look up and talk to him 24/7. I did have a sore back from being in the shrimp position, from being at my desk all day instead!
+
+==Clue Scroll Helper==
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=1260s Youtube Time Stamp]
+
+{{Cquote2|What were some of the biggest challenges you guys faced in creating the Clue Scroll Helper?}}
+
+* '''Mod Sova:''' We made a completely new data type addition to hold scoring capes tech, to cater to just how complicated clue scrolls are. I think we've got 960 clues in the game, not counting puzzle boxes, that's just clues that we have solvers for.
+* '''Mod Sova:''' Each of those needed three or four objects each, so we've made a large number of things in the game to make this work. It’s just the volume of work and things to check have probably been the most difficult thing about this.
+* '''Mod Lenny:''' I agree. By the time we got to the end of it, it holds up to about 960 clue scrolls in the set of data. It’s no small job for just the data behind it, let alone any of the system work that goes on to actually present it, and process it.
+
+==Bugs & Issues from the Game Update==
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=1360s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' Before we get into the bulk of the questions, I thought it'd be good to address some of the issues we saw after the game update. So we knowwe’re awarethat some of the more prevalent issues are the iPad keyboard and mouse becoming a bit borked.
+* '''Mod Sarnie:''' There was also some feedback on the tooltips and XP tips, which we've taken onboard and we're discussing at the moment. The haptic feedback when clicking on objects is gone for some players and we are aware of those issues.
+* '''Mod Lenny:''' The tooltips and a couple of the other issues that people have noticed around the entity highlights on tapping anything in the game worldthese are a couple of very closely linked issues that we've got a hold of now and should (hopefully) be fixed in next week's update.
+* '''Mod Lenny:''' There are a couple of things that I wouldn't want to speak too much about with regard to timelinesfor example, the keyboard and the haptic feedback, we’re a little more uncertain on when exactly they might be addressed, but they're definitely on our radar and undergoing work.
+* '''Mod Sova:''' As a little sidebar to the specifics, one of the problems that we have on these kinds of issues is that the client work that is involved in fixing these things can't be hotfixed. There were some issues that did come up with the Clue Scroll Helper and we immediately fixed those because they are hotfixable, but there are some other things that we would have to run an entire reboot of everything and take the worlds down, etc.
+* '''Mod Sova:''' We have to measure the demand for itfor the worlds to go down to do this whole process to fix things, and we measure that against if it is something that can wait until the next release.
+* '''Mod Lenny:''' There's always a bit of a looming sense of dread with these updates, with the knowledge that a lot of the issues we might encounter we can fix them in another update, but for these ones we really do need to make that decision of “do we wait a week? Or do we reboot the game for it?”.
+* '''Mod Lenny:''' Unfortunately, it’s just down to the way the game's infrastructure works. There's no other way around it, it comes down to one of those two options. Luckily, with the majority of the issues we encounter, we think the preferable option is to wait a week rather than disrupt with another reboot.
+* '''Mod Sarnie:''' It might be a bit different if we didn't update weekly, but the benefit of us updating weekly means we have the time to balance out what we think would be worth waiting a little bit for.
+* '''Mod Sarnie:''' Apologies to anyone that has been affected by those issues. We are aware of them!
+
+==Question #1==
+{{Cquote2|What was the reason behind adding the Clue Scroll Helper in the way that we did? Have there been any considerations to changing clue scrolls themselves?}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=1555s Youtube Time Stamp]
+
+* '''Mod Sova:''' I think that one of the biggest driving points behind it was how we surveyed people in the open beta for Android about how they felt about everything about the client. One of the questions was “if you had to pick one, what is the worst aspect of the new Android open beta?”. The leading answer was that there aren’t enough features available, and there was a follow-up question asking “which features would you like to see added the most?”.
+* '''Mod Sova:''' The top answer was ground items and the Loot Tracker, which will possibly be talked about later, and the second one was the Clue Scroll Helper.
+* '''Mod Sova:''' You've got third-party client options on desktop, but on mobile you don't have that. You've got the excruciating experience of having to tab into your browser and search the wiki for something which may or may not be useful.
+* '''Mod Sova:''' A lot of people would find if they're doing something and they get a clue, but they're out and about and they're playing on mobile, they'll just leave the clue there because they don't want to do it on mobile. So that was the main driving factor. We have the same C++ client that works both on mobile and on Steam so anyone using either of these clients will have access to the Clue Scroll Helper.
+* '''Mod Lenny:''' One thing on desktop, when either through a third-party client or even just by having the wiki or another fansite up alongside the game window, you can see the answers right there and look things up as you're playing, but on mobile, it's a different experience where you need to swap out from the game and go into your web browser.
+* '''Mod Lenny:''' You can't have it up side by side, for the most part. I know that some phones do allow some sense of split screen nowadays, but it's not quite an ideal scenario to be looking up that information there with the game on the other half of the screen in the same way that it was on desktop.
+* '''Mod Tide:''' Also, you won't get logged out on iOS if you don't have to switch the app.
+
+==Question #2==
+{{Cquote2|Are there plans to add a puzzle box Helper to the new Clue Scroll Helper?}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=1725s Youtube Time Stamp]
+
+* '''Mod Lenny:''' The short answer is no, there are no plans to add a puzzle box solver. It’s something that personally, I think there's a pretty distinct difference there, being presented with a repeatable question where you're told the answer, what the anagram is or what locations and coordinates it correlates to.
+* '''Mod Lenny:''' You still have to go around the game yourself; you still have to have the requirements to teleport there or walk there. You have to go through the gameplay of still completing the treasure trail itself even if we're telling you where it is that you need to go. This is a little bit different to when you're presented with an on-screen puzzle and click-by-click, you'd be told exactly what to do. It kind of feels like it entirely bypasses that part of the gameplay.
+* '''Mod Lenny:''' I know there'll be some people who might argue that offering the solution to clue scrolls does the same, which we don't think is necessarily quite true. I’d say that there's value in just going around the game world and completing these treasure trails. It offers a nice little distraction and diversion from whatever else you might be doing. Whereas puzzle box solvers would just be bypassing this entirely.
+
+==Question #3==
+{{Cquote2|How will the inclusion of the Clue Helper inform the design of future clue puzzles? Will there be more puzzles that are not solvable by a Helper plugin? Will the puzzle design remain mostly unchanged?}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=1813s Youtube Time Stamp]
+
+* '''Mod Bruno:''' We don’t plan on changing anything based on whether or not it works very well with the Clue Scroll Helper. For example, we already have things that don't work the exact way you'd want them to, such as the hot-colds, which don't tell you the exact spot to dig at, or the puzzle boxes and light boxes. So honestly, I don't imagine us changing the way we'd make these updates based on how it works with the display for the Clue Helper.
+* '''Mod Sova:''' There was a small conversation that we had about when we do add new clue scrolls, what do we do with the Helper? There is a sense of discovery and value in solving it when it's completely new content and no one has the answer, so you can't just go up on the wiki and find it.
+* '''Mod Sova:''' I think that's the distinction that we've made for the majority of the clues that we were okay with having the Helper really guide you. They were like memory tests, “do you remember this from the last time you did it?” or “do you remember how to open the OSRS wiki and search for the clue?”.
+* '''Mod Sova:''' We talked about, say, having a lag time on if any new content brings new clues into the game. They'd be expected to be added to the Clue Scroll Helper, but with some kind of delay, so there is like a protected amount of time where it is still an actual riddle, an actual mystery. However, after some amount of time, that answer is going to be on the wiki, and they're going to be on third-party clients. So that is probably a safe enough time for them to go into the C++ client as well.
+
+==Question #4==
+{{Cquote2|For Bruno specifically, what was it like QA’ing this work? Any fun bugs that you found?}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=1955s Youtube Time Stamp]
+
+* '''Mod Bruno:''' It was very interesting! I joined the project only about three months ago, so I'd say we were probably past halfway. I wasn't here from the start since I was working on the Operators team, who work with the week-to-week stuff such as game updates.
+* '''Mod Bruno:''' Any fun bugs? Not really, because this is more checking the clue and checking the display, to see if the display and the clue are saying the same thing, and giving you the answer.
+* '''Mod Bruno:''' There’s not really anything funny there, but it was quite different since I’m more used to testing actual new things in the game, whereas this is more of checking the system itself for the game. But yeah it was fun.
+* '''Mod Sarnie:''' What do you prefer? Do you prefer checking in-game systems or the content itself?
+* '''Mod Bruno:''' I prefer the content itself because if I'm working on new content, then I've never seen this new content, whereas if I'm testing out 15-year-old clues I might have already gotten bored of them on my own account. It's a different type of exploration compared to testing a new raid, which has been really fun!
+* '''Mod Sova:''' You could always open those caskets on your test accounts and be like, “Yay, fake RNG for the item that I don't have!”.
+* '''Mod Bruno:''' I was very lucky to open quite a few, but I didn't get anything like the ranger boots so I'm happy. I think the best thing I got was some holy sandals or wizard boots, so I wasn't mad or anything. I would have been pretty upset if I got ranger boots or a 3rd-age piece. It's happened before with pets.
+
+==Question #5==
+{{Cquote2|We have 5 different tiers of clues, and because they were made at different times, they work in different ways. There isn’t a full consistency across all the tiers. Have we looked at addressing inconsistency in this area, for example with the NPC behaviour between different tiers of Clue Scrolls?}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=2075s Youtube Time Stamp]
+
+* '''Mod Sova:''' If you think that the in-game inconsistency is big, under the hood of how they work is humongous! What are the oldest clues? They're from 2006? 2005? There have been many, many years between different people making different clues, and different styles and different systems, and there hasn't really been anything that has changed with clue scrolls that have had to affect all of them until this.
+* '''Mod Sova:''' So we've made a system that's new, but we didn't really have enough time to also deprecate the old system. So we have them both running at the same time next to each other. Ideally, with more time, we can get rid of all of the inconsistencies from the old system, make everything nice and consistent and not have weird interactions between something that you would expect to be the same as something else.
+* '''Mod Sova:''' It's the first step towards making it far easier to add lots of new clues because usually, we add a handfulmaybe around five or so in content where we just say, "hey, wouldn't it be neat to have some clues?''. Only had a couple of times we've had a "let's do a clue scroll expansion" and had a number of things added.
+* '''Mod Sova:''' But hopefully, with everything working one way, we can have more of those times where we can just add a lot more. For example, adding completely new types of clues, not just new examples in the current different types.
+
+==Question #6==
+{{Cquote2|Will stackable clues ever be coming for Old School? They are in Leagues and RS3 but is this something that players could ever expect to see in OSRS?}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=2235s Youtube Time Stamp]
+
+* '''Mod Tide:''' This was polled ages ago, but unfortunately failed and then made a return in Leagues. So it's been a while and you've been using it in Leagues, so I'd imagine some of you who have said "nah I don't like this" have thought “actually, this is kind of convenient, kind of nice”. So maybe it might pass this time.
+* '''Mod Lenny:''' It’s well worth noting that there aren't any current plans to repoll it, I don't believe, but it could be something that we do see in a future near-misses poll. With that said, I'm not sure what the vote was in the past but you never know. I wouldn't rule it out of a future pollit could come backbut there are no current plans for it to be repolled just yet.
+* '''Mod Sova:''' It’s an interesting discussion on what people want to do with their clues. How they work is that they are a distraction and a diversion from doing whatever you're doingyou'll get a clue and you'll think, "oh, is it worth me going and doing this right now? Yeah, I'll just change up what I'm doing". It helps to keep things fresh, but undeniably there are also people that do just want to bang out 600 clues in a week and you can't really do that. You can't guarantee that you'll get the drops in an amount of time and all that stuff. So there's value to adding it, definitely.
+* '''Mod Sova:''' Interesting story, they did add the item into RuneScape 3 that collects all of the clues: the clue carrier. I have had discussions on the why and the where over there, so I know there's definitely value in it. It's just based on whether enough people want it to work that way versus the other way.
+* '''Mod Lenny:''' Personally as a player, I'm very much in the camp of I like it being treated as a distraction from whatever it is I'm doing. Say I'm doing a Slayer task, I get a clue drop and it's a reason to go away, take a break from the Slayer task, finish the clue and come back to it.
+* '''Mod Lenny:''' I feel even with a low cap on the number of clues that you could have, we do lose that opportunity with any number of stackable clues. That’s not to say that my experience and preference on it is reflecting the entire player base, but that's how I feel as a player and I'm sure there are others in the same camp.
+* '''Mod Sarnie:''' I'm unsure…I quite like it the way it is to be honest, but again, I might be in the minority.
+
+==Question #7==
+{{Cquote2|Thanks for adding the Blast Furnace pipe-highlighting on mobile, it helps with Irons who craft there. What inspired this change?}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=2420s Youtube Time Stamp]
+
+* '''Mod Lenny:''' I suppose the simple answer to this is that third-party clients did inspire it. For example, the way that RuneLite have their Blast Furnace Helper. We started discussing it and thinking, "RuneLite has this Blast Furnace Helper and we want to implement something similar".
+* '''Mod Lenny:''' I forget what exactly is or isn't included in their Helper, but we took a look at that in the first place and then said, “Okay, cool. We want to capture these parts of it, is there anything we feel is missing from it?”. I'm not entirely sure whether or not the pipes were or were not highlighted by them, but that was something that we felt should be done.
+* '''Mod Lenny:''' There was a lot of inspirationif that's what the question is leading towardsfrom RuneLite's implementation and then just us looking at it as players and thinking, “Does this capture everything that I want it to in this kind of similar vein? Or is there anything else to add to it as well?”.
+
+==Question #8==
+{{Cquote2|Are you still planning to change the Mobile UI? Are you looking to address the player feedback from the initial Mobile UI Blog?}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=2503s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' I have an update from Mod Light here.
+* '''Mod Sarnie:''' She says: "I’m working on an update to the Mobile UI Blog currently and hoping to have the blog update in front of players within the next few weeks. We’ll be addressing the major bits of player feedback that we saw the first time around, going over the survey results as a TLDR and we will also be addressing any more feedback that comes in after the blog is updated. We welcome feedback once you have had a chance to see the updated version of the blog.".
+* '''Mod Sarnie:''' So expect that to come soon. I know Mod Light has been working hard on that updated version. So yeah, hopefully you'll see that very, very soon.
+
+==Question #9==
+{{Cquote2|What are you guys working on next for the enhanced client?}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=2540s Youtube Time Stamp]
+
+* '''Mod Lenny:''' I believe that this answer did actually come out in the Gielinor Gazette that has just come out, but our primary focus is now moving towards loot tools along with the mobile TLI as we discussed.
+* '''Mod Lenny:''' We’ve spoken plenty already about what the mobile interface change is going to entail, but the loot tool’s batch of features we're looking at is one that we've not really spoken much about yet. The two big hitters from it are ground items, the list of items that appear over a sack on the ground, and loot tracking to keep track of what you've obtained from what monsters and from other sourceswhether that's Barrows, raids or from skilling throughout your gameplay.
+* '''Mod Lenny:''' There've been a couple of really big technical blockers to these that we've just managed to recently get around with, thanks to the engine client team. So it's really exciting to finally be able to get to work on these because we know that these have been huge asks since we first announced that we were working on these kinds of features.
+* '''Mod Lenny:''' As I've mentioned earlier, when we were doing a survey around the mobile open beta it was the most highly requested feature set that people want us to add to the client, and we're finally able to get onto it.
+* '''Mod Sarnie:''' We can't give you a date yet when these are coming in, but they are being worked on so please just bear with us. As Lenny said, we've just got over some big technical hurdles so you know we'll be hard at work on those next bits.
+
+==Question #10==
+{{Cquote2|I’m always prompted to use 2FA every time I log in even when I click ‘remember me’. Is this a known issue and what is causing this for so many mobile players?}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=2655s Youtube Time Stamp]
+
+* '''Mod Lenny:''' The easy answer here is that it's a bit out of our realm for those of us on the stream, so we can't talk about it very well. It is a known issue that we keep hearing reports of, I'm not sure how much is known about what is actually causing it.
+* '''Mod Lenny:''' It's definitely something on our radar, but there's not a whole lot that I can say about it personally as it's not an area that any of us are especially familiar with.
+* '''Mod Sarnie:''' I've just had a message from one of the teams saying that the authenticator issue is definitely being looked at and we might see something soon. So just keep an eye on that, we'll have more to share once we can confirm everything.
+
+==Question #11==
+{{Cquote2|In regards to new client features, can we turn off other players’ action noises such as mining, woodcutting, etc? Sometimes when I AFK I rely on the noises of my character, but other players doing the same activity can throw this off.}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=2720s Youtube Time Stamp]
+
+* '''Mod Lenny:''' Again, to take the short answer for it, it would be possible to change it via player-specific noise. This wouldn't be something that falls under the new client, this would just be a game-wide change.
+* '''Mod Lenny:''' It just happens to be that there are different sorts of noises that we have in the game; ones that will be broadcast to a single player and ones that we broadcast to those in the area. Certain actions have always just been set to broadcast to those in the area, even if it might seem like a logical decision to just make it exclusive to yourself.
+
+==Question #12==
+{{Cquote2|Can we add a warning message on Steam to the ‘X’ (close window) in the top right? It’s a nice feature to create to avoid accidentally closing your window while playing.}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=2815s Youtube Time Stamp]
+
+* '''Mod Tide:''' Sounds like a nice feature, so you don’t accidentally click it. It wouldn't be a priority now though, at least I don't think so.
+
+==Question #13==
+{{Cquote2|Can we see left-click reset box traps on mobile?}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=2855s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I don't see why not! Maybe there's something tech-wise that will make it a bit difficult. Maybe we'll make it a toggle because some people are probably going to prefer the left-click. But I wouldn't really mind this.
+
+==Question #14==
+{{Cquote2|I know a lot of people have asked about the NPC highlighters, so I don't know if any of you could go into why it wasn't featured on mobile.}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=2890s Youtube Time Stamp]
+
+* '''Mod Lenny:''' I think we’ve spoken about this a couple of times already when we've been talking about the mobile top-level interface rework, and the reason there was that there's simply not a good way to offer it on mobile right now.
+* '''Mod Lenny:''' Some people realise that on desktop you can hold down a key and right-click on an NPC to be able to tag it, which you can't do on mobile unless you've got a Bluetooth keyboard or something to that effect. It just doesn't work in its current format and what we'll need on mobile will be some kind of control options to say "Yeah, I want to go into this mode where I can, in fact, highlight NPCs and highlight tiles on the ground", because if we just had it always enabled, your mini-menus are going to be very convoluted and busy to look at!
+* '''Mod Lenny:''' I know it's already a bit of a nightmare when you've got a big stack of items, and if suddenly, you've got a bunch of highlight options in there as well you're going to have way too much to try and look at. So we want these kinds of control modes to be available that you can just toggle on and off, tap to enable and disable highlighting certain entities.
+* '''Mod Lenny:''' The problem there is that in the current version of the mobile interface, we don't have a good way to offer those control modes. They're not something that we want to be buried away in the settings menu because that's going to be incredibly frustrating to have to go open your settings menu, turn on its control mode, close it, highlight a few things, go back into the settings menu, turn it off.
+* '''Mod Lenny:''' That's the entire purpose of the mobile top-level interface rework that we're proposing, and why we're so keen to push forwards with it in some form or other which as mentioned earlier, will be being spoken about again shortly.
+
+==Question #15==
+{{Cquote2|Would it be possible to save your minimap zoom level? It’s annoying when you log in and it’s reset.}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=3044s Youtube Time Stamp]
+
+* '''Mod Tide:''' We can do it, but it's in the backlog right now, along with a change for zoom on mobile to maybe give you some buttons that you can press next to the minimap to zoom in and out to get your desired zoom level.
+* '''Mod Lenny:''' We know that on mobile the zoom option there is a little bit fiddly as it stands, and we want to offer some control over that before we try and do much more with it. It does work, but it's just not an ideal feature as it stands. We think that before going ahead and doing things like saving it across logouts, we all want better control over it in the first place.
+
+==Question #16==
+{{Cquote2|Are we getting skybox and maybe fog on the mobile client? Also, can we have an option to unlock zoom and viewing angle on the camera on mobile?}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=3100s Youtube Time Stamp]
+
+* '''Mod Lenny:''' Skybox and fog, I'm sure some people will be aware that we got some of the functionality for that quite a long while back now. The issue there becomes applying that to the entirety of the game and doing it right so that you don't go over into Mauritaniawhere it's all murky and swampland has a lovely blue sky that doesn't fit in the slightest.
+* '''Mod Lenny:''' We have been trying to get back on top of that now and figuring out our approach to it. There are a few other things that we still need to get figured out and resolved there before we can get that into people's hands, but it's something that we are actively working to unlock and move forward with.
+* '''Mod Lenny:''' As for the viewing angle? Potentially, it's something that came up a couple of times and it's never been something that we've decided, “yes, we're gonna go forward with that”. We've had some back and forth on it and just never came to the conclusion that yes, we will do it. It's still potentially on the table, but no real plans for it, if that is the case.
+
+==Question #17==
+{{Cquote2|With regards to ground items, would it be possible to only display your own ground items as ironman?}}
+
+[https://www.youtube.com/watch?v=7i4mDIXNXK4&t=3235s Youtube Time Stamp]
+
+* '''Mod Lenny:''' This was something that we were discussing recently and I think there's a distinction there that it wouldn't necessarily be just your own items, but rather items that you're eligible to pick up. That would be the ideal scenario so that items that are mapped down in the world will still show up on the ground items overlays.
+* '''Mod Lenny:''' For example, there’s a fishing net there that you can pick up or a potted flour that you can pick up, as well as the items that you've dropped yourself. I think it's one of the things that we still need to determine how exactly we approach it, but it is something that we're keen to incorporate there.

@@ -1,0 +1,20 @@
+{{Infobox NPC
+|name = Kephri's Phantom
+|image = [[File:Kephri's Phantom.png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|level = 341
+|members = Yes
+|race = Apparition
+|location = [[Tombs of Amascut]]
+|gender = Female
+|examine = A phantom of Kephri.
+|map = No
+|id = 11776
+|leagueRegion = Desert
+}}
+'''Kephri's Phantom''' is a monster encountered in the [[Tombs of Amascut]]. It is summoned alongside [[Akkha's Phantom]] by [[Elidinis' Warden]] in the third phase of the final battle.
+
+As a phantom of [[Kephri]], it will use its standard fireball attack to attack the player. If the Aerial Assault invocation is enabled, the fireball will do more damage and hit in a 3x3 area of effect instead.
+
+{{Tombs of Amascut}}

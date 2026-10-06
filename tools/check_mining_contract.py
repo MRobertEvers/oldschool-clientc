@@ -18,6 +18,8 @@ import os
 import re
 import sys
 
+import config_text
+
 WIKI = "docs/skills/mining/sources/Mining.wiki"
 ROWS = ("OSRS-Content/osrs239-content/server/scripts/skill_mining/configs/"
         "mine.dbrow")
@@ -40,7 +42,7 @@ def wiki_ores(path):
 
 
 def our_rocks(path):
-    text = io.open(path, encoding="utf-8", errors="replace").read()
+    text = config_text.read_text(path, encoding="utf-8", errors="replace")
     out, block = {}, None
     for line in text.split("\n"):
         m = re.match(r"^\[([a-z0-9_]+)\]$", line.strip())

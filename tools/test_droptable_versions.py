@@ -27,6 +27,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wiki_droptable as wd  # noqa: E402
+import config_text  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
@@ -130,7 +131,7 @@ def test_known_version_splits() -> None:
 def test_death_drop_is_always_stated() -> None:
     """Every roster block states the param. An unstated one silently inherits
     `[default] param=death_drop,bones`, which is the whole bug family."""
-    text = open(NPC_CONFIG, encoding="latin-1").read()
+    text = config_text.read_text(NPC_CONFIG, encoding="latin-1")
     blocks = re.split(r"^\[([A-Za-z0-9_]+)\]$", text, flags=re.M)[1:]
     missing = []
     values: dict[str, int] = {}
@@ -157,7 +158,7 @@ def test_no_table_repeats_the_death_drop() -> None:
     the double-drop half: 128 npcs left their variant *and* plain bones."""
     dd: dict[str, str] = {}
     current = None
-    for line in open(NPC_CONFIG, encoding="latin-1"):
+    for line in config_text.read_lines(NPC_CONFIG, encoding="latin-1"):
         s = line.strip()
         m = re.match(r"^\[([A-Za-z0-9_]+)\]$", s)
         if m:

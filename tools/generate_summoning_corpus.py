@@ -13,6 +13,8 @@ import json
 import re
 from pathlib import Path
 
+import config_text
+
 ROOT = Path(__file__).resolve().parents[1]
 POUCHES = ROOT / "docs/summoning_port/pouches_530.json"
 PRIMARY = ROOT / "OSRS-Content/osrs239-content/port/summoning_530.map"
@@ -72,7 +74,7 @@ def primary_by(kind: str):
 def records(path: Path):
     current = None
     result = {}
-    for line in path.read_text().splitlines():
+    for line in config_text.read_lines(path):
         if line.startswith("[") and line.endswith("]"):
             current = line[1:-1]
             result[current] = {}

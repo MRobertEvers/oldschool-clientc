@@ -36,7 +36,9 @@ import os
 import re
 import sys
 
-REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import config_text
+
+REPO =os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 DEFAULT_REF = os.path.expanduser("~/Documents/git_repos/LostCity_Server")
 
@@ -104,9 +106,13 @@ def read_pack(path):
     return by_name, by_id
 
 
-def read_config(path, into=None):
+def read_config(path, into=None, full_key=False):
     """`[name]` sections of `key=value` lines. Repeated keys are kept as a list
-    under the same key so `frame=` can be counted."""
+    under the same key so `frame=` can be counted.
+
+    `full_key` is this tree's config text, where an unset key is written
+    `key=default`/`key=empty`: those lines are dropped (config_text) so they
+    read as the absent key they mean. LostCity's text has no markers."""
     records = into if into is not None else {}
     try:
         handle = open(path, "r", encoding="utf-8", errors="replace")
@@ -114,7 +120,7 @@ def read_config(path, into=None):
         return records
     current = None
     with handle:
-        for raw in handle:
+        for raw in (config_text.filter_lines(handle) if full_key else handle):
             line = raw.split("//")[0].strip()
             if not line:
                 continue
@@ -239,7 +245,8 @@ def build_rows(tree, ref, refs_index):
     for ns, spec in sorted(NAMESPACES.items()):
         this_names, _this_ids = read_pack(
             os.path.join(tree, "configs", "all.%s.compack" % ns))
-        this_records = read_config(os.path.join(tree, "configs", "all.%s" % ns))
+        this_records = read_config(os.path.join(tree, "configs", "all.%s" % ns),
+                                   full_key=True)
         lc_names, _lc_ids = read_pack(
             os.path.join(ref, "content", "pack", "%s.pack" % LC_PACK.get(ns, ns)))
         lc_records = walk_authored(os.path.join(ref, "content", "scripts"), "." + ns)

@@ -1,0 +1,121 @@
+{{Infobox Monster
+|version1 = Magic
+|version2 = Melee
+|version3 = Ranged
+|name = Stone Guardian
+|image1 = [[File:Stone Guardian (magic).png|180px]]
+|image2 = [[File:Stone Guardian (melee).png|180px]]
+|image3 = [[File:Stone Guardian (ranged).png|180px]]
+|release = [[4 January]] [[2018]]
+|update = Dragon Slayer II
+|members = Yes
+|combat = 124
+|size = 1
+|examine = An ancient stone automaton.
+|attributes = Golem
+|xpbonus = 0
+|max hit = 16
+|aggressive = Yes
+|poisonous = No
+|attack style1 = [[Magic]]
+|attack style2 = [[Crush]]
+|attack style3 = [[Ranged]]
+|attack speed = 5
+|respawn1 = 
+|respawn2 = 25
+|respawn3 = 25
+|hitpoints = 62
+|att1 = 1
+|att2 = 150
+|att3 = 1
+|str1 = 1
+|str2 = 148
+|str3 = 1
+|def = 138
+|mage1 = 128
+|mage2 = 118
+|mage3 = 118
+|range1 = 1
+|range2 = 1
+|range3 = 128
+|attbns = 0
+|strbns = 0
+|amagic1 = +10
+|amagic2 = 0
+|amagic3 = 0
+|mbns = 10
+|arange1 = 0
+|arange2 = 0
+|arange3 = +10
+|rngbns1 = 0
+|rngbns2 = 0
+|rngbns3 = +10
+|dstab1 = +40
+|dstab2 = +25
+|dstab3 = +10
+|dslash1 = +40
+|dslash2 = +25
+|dslash3 = +10
+|dcrush1 = +35
+|dcrush2 = +15
+|dcrush3 = 0
+|dmagic1 = +35
+|dmagic2 = +10
+|dmagic3 = +55
+|dlight1 = 0
+|dlight2 = +40
+|dlight3 = +25
+|dstandard1 = 0
+|dstandard2 = +40
+|dstandard3 = +25
+|dheavy1 = 0
+|dheavy2 = +40
+|dheavy3 = +25
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 40
+|poisonresistance = 0
+|venomresistance = 0
+|immunecannon = No
+|immunethrall = No
+|id1 = 8066
+|id2 = 8064
+|id3 = 8065
+}}
+'''Stone Guardians''' are found in the [[Karamjan Temple]] in the south-east corner of the [[Kharazi Jungle]].
+
+==Locations==
+{{LocTableHead}}
+{{LocLine
+|name = Stone Guardian
+|location = [[Karamjan Temple]]
+|levels = 124
+|members = Yes
+|mapID = 10086
+|plane = 0
+|x:2819,y:9258|x:2820,y:9228|x:2820,y:9273|x:2826,y:9231|x:2828,y:9240|x:2828,y:9252|x:2829,y:9275|x:2831,y:9219|x:2832,y:9247|x:2839,y:9267|x:2840,y:9251|x:2841,y:9239|x:2843,y:9260|x:2844,y:9223|x:2848,y:9235|x:2850,y:9220|x:2851,y:9264|x:2856,y:9267|x:2856,y:9274|x:2858,y:9251|x:2859,y:9244|x:2860,y:9256|x:2863,y:9223|x:2864,y:9274|x:2868,y:9241|x:2870,y:9263|x:2874,y:9275|x:2875,y:9221|x:2875,y:9234|x:2875,y:9255
+|mtype = pin
+|leagueRegion = Karamja
+}}
+{{LocTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Stone Guardians now have a 40% [[elemental weakness]] to [[earth spells]].
+}}
+{{Subject changes
+|date = 14 April 2021
+|update = Below Ice Mountain
+|change = The Stone Guardian was made into a [[Golem (attribute)|golem]].
+}}
+{{Subject changes
+|date = 11 January 2018
+|update = The Return of Galvek
+|change = The stone guardians were given slight graphical adjustments to be more easily identifiable.
+}}
+{{Subject changes footer}}
+
+{{Dragon Slayer II}}
+[[Category:Quest monsters]]

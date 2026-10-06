@@ -1,0 +1,565 @@
+{
+  "category": "npcAttackType",
+  "updatedAt": "2026-01-30",
+  "items": [
+    {
+      "id": "UNKNOWN",
+      "status": "active",
+      "summary": "Unknown NPC attack",
+      "introduced": "2026-01-30",
+      "details": "An unrecognized NPC attack type."
+    },
+    {
+      "id": "TOB_MAIDEN_AUTO",
+      "status": "active",
+      "summary": "Maiden auto attack",
+      "introduced": "2026-01-30",
+      "details": "The Maiden of Sugadinti's standard auto attack.",
+      "tags": ["tob", "maiden"]
+    },
+    {
+      "id": "TOB_MAIDEN_BLOOD_THROW",
+      "status": "active",
+      "summary": "Maiden blood throw",
+      "introduced": "2026-01-30",
+      "details": "The Maiden of Sugadinti throws blood at a player.",
+      "tags": ["tob", "maiden"]
+    },
+    {
+      "id": "TOB_BLOAT_STOMP",
+      "status": "active",
+      "summary": "Bloat stomp",
+      "introduced": "2026-01-30",
+      "details": "The Pestilent Bloat's stomp before he gets up.",
+      "tags": ["tob", "bloat"]
+    },
+    {
+      "id": "TOB_NYLO_BOSS_MELEE",
+      "status": "active",
+      "summary": "Nylo boss melee attack",
+      "introduced": "2026-01-30",
+      "details": "Nylocas Prinkipas or Vasilias performs a melee attack.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_BOSS_RANGE",
+      "status": "active",
+      "summary": "Nylo boss ranged attack",
+      "introduced": "2026-01-30",
+      "details": "Nylocas Prinkipas or Vasilias performs a ranged attack.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_BOSS_MAGE",
+      "status": "active",
+      "summary": "Nylo boss magic attack",
+      "introduced": "2026-01-30",
+      "details": "Nylocas Prinkipas or Vasilias performs a magic attack.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_SOTE_MELEE",
+      "status": "active",
+      "summary": "Sotetseg melee attack",
+      "introduced": "2026-01-30",
+      "details": "Sotetseg performs a melee attack.",
+      "tags": ["tob", "sotetseg"]
+    },
+    {
+      "id": "TOB_SOTE_BALL",
+      "status": "active",
+      "summary": "Sotetseg ball",
+      "introduced": "2026-01-30",
+      "details": "Sotetseg launches a magic ball at a player.",
+      "tags": ["tob", "sotetseg"]
+    },
+    {
+      "id": "TOB_SOTE_DEATH_BALL",
+      "status": "active",
+      "summary": "Sotetseg death ball",
+      "introduced": "2026-01-30",
+      "details": "Sotetseg launches a death ball at a player.",
+      "tags": ["tob", "sotetseg"]
+    },
+    {
+      "id": "TOB_XARPUS_SPIT",
+      "status": "active",
+      "summary": "Xarpus poison spit",
+      "introduced": "2026-01-30",
+      "details": "Xarpus spits poison at a player during P2.",
+      "tags": ["tob", "xarpus"]
+    },
+    {
+      "id": "TOB_XARPUS_TURN",
+      "status": "active",
+      "summary": "Xarpus turn",
+      "introduced": "2026-01-30",
+      "details": "Xarpus turns to face a new direction during P3.",
+      "tags": ["tob", "xarpus"]
+    },
+    {
+      "id": "TOB_VERZIK_P1_AUTO",
+      "status": "active",
+      "summary": "Verzik P1 auto attack",
+      "introduced": "2026-01-30",
+      "details": "Verzik Vitur's auto attack during P1.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TOB_VERZIK_P2_BOUNCE",
+      "status": "active",
+      "summary": "Verzik P2 bounce",
+      "introduced": "2026-01-30",
+      "details": "Verzik Vitur bounces a player during P2.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TOB_VERZIK_P2_CABBAGE",
+      "status": "active",
+      "summary": "Verzik P2 ranged attack",
+      "introduced": "2026-01-30",
+      "details": "Verzik Vitur's ranged attack during P2.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TOB_VERZIK_P2_ZAP",
+      "status": "active",
+      "summary": "Verzik P2 zap",
+      "introduced": "2026-01-30",
+      "details": "Verzik Vitur's lightning zap attack during P2.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TOB_VERZIK_P2_PURPLE",
+      "status": "active",
+      "summary": "Verzik P2 purple crab",
+      "introduced": "2026-01-30",
+      "details": "Verzik Vitur launches a Nylocas Athanatos during P2.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TOB_VERZIK_P2_MAGE",
+      "status": "active",
+      "summary": "Verzik P2 magic attack",
+      "introduced": "2026-01-30",
+      "details": "Verzik Vitur's sub-35% magic attack during P2.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TOB_VERZIK_P3_MELEE",
+      "status": "active",
+      "summary": "Verzik P3 melee attack",
+      "introduced": "2026-01-30",
+      "details": "Verzik Vitur's melee attack during P3.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TOB_VERZIK_P3_RANGE",
+      "status": "active",
+      "summary": "Verzik P3 ranged attack",
+      "introduced": "2026-01-30",
+      "details": "Verzik Vitur's ranged attack during P3.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TOB_VERZIK_P3_MAGE",
+      "status": "active",
+      "summary": "Verzik P3 magic attack",
+      "introduced": "2026-01-30",
+      "details": "Verzik Vitur's magic attack during P3.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TOB_VERZIK_P3_WEBS",
+      "status": "active",
+      "summary": "Verzik P3 webs",
+      "introduced": "2026-01-30",
+      "details": "Verzik Vitur's webs attack during P3. Reported on the tick she becomes untargetable and starts walking to the center of the room.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TOB_VERZIK_P3_YELLOWS",
+      "status": "active",
+      "summary": "Verzik P3 yellow pools",
+      "introduced": "2026-01-30",
+      "details": "Verzik Vitur spawns yellow pools during P3.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TOB_VERZIK_P3_BALL",
+      "status": "active",
+      "summary": "Verzik P3 green ball",
+      "introduced": "2026-01-30",
+      "details": "Verzik Vitur launches a green ball at a player during P3.",
+      "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "COLOSSEUM_BERSERKER_AUTO",
+      "status": "active",
+      "summary": "Fremennik Berserker auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Fremennik Berserker's auto attack in the Colosseum.",
+      "tags": ["colosseum"]
+    },
+    {
+      "id": "COLOSSEUM_SEER_AUTO",
+      "status": "active",
+      "summary": "Fremennik Seer auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Fremennik Seer's auto attack in the Colosseum.",
+      "tags": ["colosseum"]
+    },
+    {
+      "id": "COLOSSEUM_ARCHER_AUTO",
+      "status": "active",
+      "summary": "Fremennik Archer auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Fremennik Archer's auto attack in the Colosseum.",
+      "tags": ["colosseum"]
+    },
+    {
+      "id": "COLOSSEUM_SHAMAN_AUTO",
+      "status": "active",
+      "summary": "Shaman auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Serpent Shaman's auto attack in the Colosseum.",
+      "tags": ["colosseum"]
+    },
+    {
+      "id": "COLOSSEUM_JAGUAR_AUTO",
+      "status": "active",
+      "summary": "Jaguar Warrior auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Jaguar Warrior's auto attack in the Colosseum.",
+      "tags": ["colosseum"]
+    },
+    {
+      "id": "COLOSSEUM_JAVELIN_AUTO",
+      "status": "active",
+      "summary": "Javelin Colossus auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Javelin Colossus's auto attack in the Colosseum.",
+      "tags": ["colosseum"]
+    },
+    {
+      "id": "COLOSSEUM_JAVELIN_TOSS",
+      "status": "active",
+      "summary": "Javelin Colossus javelin toss",
+      "introduced": "2026-01-30",
+      "details": "A Javelin Colossus's javelin toss attack in the Colosseum.",
+      "tags": ["colosseum"]
+    },
+    {
+      "id": "COLOSSEUM_MANTICORE_MAGE",
+      "status": "active",
+      "summary": "Manticore magic attack",
+      "introduced": "2026-01-30",
+      "details": "A Manticore's magic attack in the Colosseum.",
+      "tags": ["colosseum"]
+    },
+    {
+      "id": "COLOSSEUM_MANTICORE_RANGE",
+      "status": "active",
+      "summary": "Manticore ranged attack",
+      "introduced": "2026-01-30",
+      "details": "A Manticore's ranged attack in the Colosseum.",
+      "tags": ["colosseum"]
+    },
+    {
+      "id": "COLOSSEUM_MANTICORE_MELEE",
+      "status": "active",
+      "summary": "Manticore melee attack",
+      "introduced": "2026-01-30",
+      "details": "A Manticore's melee attack in the Colosseum.",
+      "tags": ["colosseum"]
+    },
+    {
+      "id": "COLOSSEUM_SHOCKWAVE_AUTO",
+      "status": "active",
+      "summary": "Shockwave Colossus auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Shockwave Colossus's auto attack in the Colosseum.",
+      "tags": ["colosseum"]
+    },
+    {
+      "id": "COLOSSEUM_MINOTAUR_AUTO",
+      "status": "active",
+      "summary": "Minotaur auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Minotaur's auto attack in the Colosseum.",
+      "tags": ["colosseum"]
+    },
+    {
+      "id": "COLOSSEUM_HEREDIT_THRUST",
+      "status": "active",
+      "summary": "Heredit trident stab",
+      "introduced": "2026-01-30",
+      "details": "Sol Heredit's trident stab attack in the Colosseum.",
+      "tags": ["colosseum", "heredit"]
+    },
+    {
+      "id": "COLOSSEUM_HEREDIT_SLAM",
+      "status": "active",
+      "summary": "Heredit shield slam",
+      "introduced": "2026-01-30",
+      "details": "Sol Heredit's shield bash attack in the Colosseum.",
+      "tags": ["colosseum", "heredit"]
+    },
+    {
+      "id": "COLOSSEUM_HEREDIT_BREAK",
+      "status": "active",
+      "summary": "Heredit grapple attack",
+      "introduced": "2026-01-30",
+      "details": "Sol Heredit's grapple attack in the Colosseum.",
+      "tags": ["colosseum", "heredit"]
+    },
+    {
+      "id": "COLOSSEUM_HEREDIT_COMBO",
+      "status": "active",
+      "summary": "Heredit combo attack",
+      "introduced": "2026-01-30",
+      "details": "Sol Heredit's combo attack in the Colosseum.",
+      "tags": ["colosseum", "heredit"]
+    },
+    {
+      "id": "INFERNO_BAT_AUTO",
+      "status": "active",
+      "summary": "Jal-MejRah auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Jal-MejRah (bat) auto attack in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_BLOB_RANGED",
+      "status": "active",
+      "summary": "Jal-Ak ranged attack",
+      "introduced": "2026-01-30",
+      "details": "A Jal-Ak (blob) ranged attack in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_BLOB_MAGE",
+      "status": "active",
+      "summary": "Jal-Ak magic attack",
+      "introduced": "2026-01-30",
+      "details": "A Jal-Ak (blob) magic attack in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_BLOB_MELEE",
+      "status": "active",
+      "summary": "Jal-Ak melee attack",
+      "introduced": "2026-01-30",
+      "details": "A Jal-Ak (blob) melee attack in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_BLOBLET_RANGED_AUTO",
+      "status": "active",
+      "summary": "Jal-AkRek-Xil auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Jal-AkRek-Xil (ranged bloblet) auto attack in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_BLOBLET_MAGE_AUTO",
+      "status": "active",
+      "summary": "Jal-AkRek-Mej auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Jal-AkRek-Mej (magic bloblet) auto attack in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_BLOBLET_MELEE_AUTO",
+      "status": "active",
+      "summary": "Jal-AkRek-Ket auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Jal-AkRek-Ket (melee bloblet) auto attack in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_MELEER_AUTO",
+      "status": "active",
+      "summary": "Jal-ImKot auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Jal-ImKot (meleer) auto attack in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_MELEER_DIG",
+      "status": "active",
+      "summary": "Jal-ImKot dig",
+      "introduced": "2026-01-30",
+      "details": "A Jal-ImKot (meleer) digs towards the player in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_RANGER_AUTO",
+      "status": "active",
+      "summary": "Jal-Xil auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Jal-Xil (ranger) auto attack in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_RANGER_MELEE",
+      "status": "active",
+      "summary": "Jal-Xil melee attack",
+      "introduced": "2026-01-30",
+      "details": "A Jal-Xil (ranger) melee attack in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_MAGER_AUTO",
+      "status": "active",
+      "summary": "Jal-Zek auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Jal-Zek (mager) auto attack in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_MAGER_MELEE",
+      "status": "active",
+      "summary": "Jal-Zek melee attack",
+      "introduced": "2026-01-30",
+      "details": "A Jal-Zek (mager) melee attack in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_MAGER_RESURRECT",
+      "status": "active",
+      "summary": "Jal-Zek resurrect",
+      "introduced": "2026-01-30",
+      "details": "A Jal-Zek (mager) resurrects another NPC in the Inferno.",
+      "tags": ["inferno"]
+    },
+    {
+      "id": "INFERNO_JAD_RANGED",
+      "status": "active",
+      "summary": "JalTok-Jad ranged attack",
+      "introduced": "2026-01-30",
+      "details": "JalTok-Jad's ranged attack in the Inferno.",
+      "tags": ["inferno", "jad"]
+    },
+    {
+      "id": "INFERNO_JAD_MAGE",
+      "status": "active",
+      "summary": "JalTok-Jad magic attack",
+      "introduced": "2026-01-30",
+      "details": "JalTok-Jad's magic attack in the Inferno.",
+      "tags": ["inferno", "jad"]
+    },
+    {
+      "id": "INFERNO_JAD_MELEE",
+      "status": "active",
+      "summary": "JalTok-Jad melee attack",
+      "introduced": "2026-01-30",
+      "details": "JalTok-Jad's melee attack in the Inferno.",
+      "tags": ["inferno", "jad"]
+    },
+    {
+      "id": "INFERNO_JAD_HEALER_AUTO",
+      "status": "active",
+      "summary": "Yt-HurKot auto attack",
+      "introduced": "2026-01-30",
+      "details": "A Yt-HurKot (Jad healer) auto attack in the Inferno.",
+      "tags": ["inferno", "jad"]
+    },
+    {
+      "id": "INFERNO_ZUK_AUTO",
+      "status": "active",
+      "summary": "TzKal-Zuk auto attack",
+      "introduced": "2026-01-30",
+      "details": "TzKal-Zuk's auto attack in the Inferno.",
+      "tags": ["inferno", "zuk"]
+    },
+    {
+      "id": "MOKHAIOTL_RANGED_AUTO",
+      "status": "active",
+      "summary": "Mokhaiotl ranged orb",
+      "introduced": "2026-01-30",
+      "details": "Mokhaiotl launches a ranged auto attack.",
+      "tags": ["mokhaiotl"]
+    },
+    {
+      "id": "MOKHAIOTL_MAGE_AUTO",
+      "status": "active",
+      "summary": "Mokhaiotl magic orb",
+      "introduced": "2026-01-30",
+      "details": "Mokhaiotl launches a magic auto attack.",
+      "tags": ["mokhaiotl"]
+    },
+    {
+      "id": "MOKHAIOTL_MELEE_AUTO",
+      "status": "active",
+      "summary": "Mokhaiotl melee orb",
+      "introduced": "2026-01-30",
+      "details": "Mokhaiotl launches a melee auto attack.",
+      "tags": ["mokhaiotl"]
+    },
+    {
+      "id": "MOKHAIOTL_MAGE_BALL",
+      "status": "active",
+      "summary": "Mokhaiotl magic ball",
+      "introduced": "2026-01-30",
+      "details": "Mokhaiotl launches a magic ball.",
+      "tags": ["mokhaiotl"]
+    },
+    {
+      "id": "MOKHAIOTL_RANGED_BALL",
+      "status": "active",
+      "summary": "Mokhaiotl ranged ball",
+      "introduced": "2026-01-30",
+      "details": "Mokhaiotl launches a ranged ball.",
+      "tags": ["mokhaiotl"]
+    },
+    {
+      "id": "MOKHAIOTL_CHARGE",
+      "status": "active",
+      "summary": "Mokhaiotl charge",
+      "introduced": "2026-01-30",
+      "details": "Mokhaiotl starts charging, either during melee punish or shield phase.",
+      "tags": ["mokhaiotl"]
+    },
+    {
+      "id": "MOKHAIOTL_BLAST",
+      "status": "active",
+      "summary": "Mokhaiotl blast",
+      "introduced": "2026-01-30",
+      "details": "Mokhaiotl releases a blast attack following fully charging.",
+      "tags": ["mokhaiotl"]
+    },
+    {
+      "id": "MOKHAIOTL_RACECAR",
+      "status": "active",
+      "summary": "Mokhaiotl dig",
+      "introduced": "2026-01-30",
+      "details": "Mokhaiotl digs underground towards a player.",
+      "tags": ["mokhaiotl"]
+    },
+    {
+      "id": "MOKHAIOTL_SLAM",
+      "status": "active",
+      "summary": "Mokhaiotl slam",
+      "introduced": "2026-01-30",
+      "details": "Mokhaiotl slams the ground during racecar phase.",
+      "tags": ["mokhaiotl"]
+    },
+    {
+      "id": "MOKHAIOTL_SHOCKWAVE",
+      "status": "active",
+      "summary": "Mokhaiotl shockwave",
+      "introduced": "2026-01-30",
+      "details": "Mokhaiotl releases a shockwave during Volatile earth phase.",
+      "tags": ["mokhaiotl"]
+    },
+    {
+      "id": "MOKHAIOTL_MELEE",
+      "status": "active",
+      "summary": "Mokhaiotl melee attack",
+      "introduced": "2026-01-30",
+      "details": "Mokhaiotl performs a melee attack.",
+      "tags": ["mokhaiotl"]
+    }
+  ]
+}

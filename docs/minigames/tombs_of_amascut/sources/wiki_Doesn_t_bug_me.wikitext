@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = Doesn't bug me
+|image = [[File:Tombs of Amascut - Fighting Kephri.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat Kephri with all Kephri invocations activated and the path levelled up to at least four, without dying yourself.
+|tier = Master
+|monster = Tombs of Amascut: Expert Mode
+|type = Mechanical
+|id = 456
+|leagueRegion = Desert
+}}
+'''Doesn't bug me''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to defeat [[Kephri]] with all invocations active, a path level of 4 and without dying at raid level 300 or above.
+
+==Strategy==
+This achievement can be done solo, however the '''Medic!''' invocation is extremely annoying in solo and thus a small group of up to 4 players is recommended for this task, as to mitigate the impact of '''Aerial Assault'''.
+
+Two players should trap the [[Soldier Scarab]] spawn that appears to the north centre so to prevent it from attacking the team. The [[Spitting Scarab]] should be attacked by two or three players while another player handles all the swarms that appear. In the second cycle, focus on the [[Arcane Scarab]] and then the Spitting one. The second soldier scarab can usually be ignored.
+
+Try to combine this achievement with a raid level of 450 to try and get [[Remnant of Kephri]] at the same time.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

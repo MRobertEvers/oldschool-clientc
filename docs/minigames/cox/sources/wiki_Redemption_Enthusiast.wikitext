@@ -1,0 +1,28 @@
+{{Infobox Combat Achievement
+|name = Redemption Enthusiast
+|image = [[File:Vespula.png|280px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill the Abyssal Portal without forcing Vespula to land.
+|tier = Elite
+|monster = Chambers of Xeric
+|type = Mechanical
+|id = 308
+|leagueRegion = Kourend
+}}
+'''Redemption Enthusiast''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to destroy the [[Abyssal portal]] without letting [[Vespula]] land.
+
+==Strategy==
+Despite the name, [[redemption]] is not required to complete the achievement. 
+
+By attacking the portal, Vespula will fly into an enraged state and rapidly jab everyone next to her for heavy melee damage. Players underneath her will be spared from this attack, but she will apply rapid stomp damage dealing up to 8 damage per tick until they leave. By using [[Redemption]] with level 90 [[Hitpoints]] or higher, the player can use Redemption to restore health instead of using actual food. Using Redemption will drain all of the player's prayer points when they fall below 10% of their maximum Hitpoints level (9 or lower at level 90). To restore prayer, either drink prayer restoration potions or drink a dose of [[Prayer enhance (+)]]. The latter has to be made with 78+ [[Herblore]] or be obtained as a drop from the [[Vanguard|magic vanguard]], [[Tekton]], or the [[Muttadile]]s. Set quick prayers to Redemption and magic/ranged boosting prayers depending on the combat style being used.
+
+Attack the portal once and then run out of Vespula's melee range. The portal is 8 tiles away from the movable area and will require the use of the long range setting for crossbows and powered staves. The player should be out of Vespula's range after Redemption activates, upon which they restore prayer points, activate quick prayers and run back in, repeating until the portal is destroyed. If Redemption is not being used, it is important to heal up upon reaching <30 health, although this is only done when the player has made potions beforehand.
+
+'''For solo-run attempts, be sure raid scaling is set to "0" for the easiest fight, as scaling a raid to "1" doubles boss health.'''
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

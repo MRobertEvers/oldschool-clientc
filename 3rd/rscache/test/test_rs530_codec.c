@@ -164,6 +164,14 @@ test_obj_530_changed_opcodes(void)
     RSCACHE_CHECK_EQ(obj->item_type, -2);
     RSCACHE_CHECK_EQ(obj->lend_id, 0x5678);
     RSCACHE_CHECK_EQ(obj->lend_template_id, 0x6789);
+    /* Stated by the stream, so recorded as stated; the offset-free 23 is still
+     * the MANWEAR field. Opcode 42 is consumed without a field. */
+    RSCACHE_CHECK(RSCache_PresenceHas(&obj->present, RSCACHE_OBJ_FIELD_MANWEAR));
+    RSCACHE_CHECK(RSCache_PresenceHas(&obj->present, RSCACHE_OBJ_FIELD_WOMANWEAR2));
+    RSCACHE_CHECK(RSCache_PresenceHas(&obj->present, RSCACHE_OBJ_FIELD_RS2_ITEM_TYPE));
+    RSCACHE_CHECK(RSCache_PresenceHas(&obj->present, RSCACHE_OBJ_FIELD_RS2_LEND_TEMPLATE));
+    RSCACHE_CHECK(!RSCache_PresenceHas(&obj->present, RSCACHE_OBJ_FIELD_SHIFT_CLICK_DROP));
+    RSCACHE_CHECK(!RSCache_PresenceHas(&obj->present, RSCACHE_OBJ_FIELD_MODEL));
 
     RSCache_Dat2ConfigObjFree(obj);
 }

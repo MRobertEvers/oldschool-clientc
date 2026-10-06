@@ -10,7 +10,9 @@
 #include "filelist.h"
 #include "reference_table.h"
 
+#include <assert.h>
 #include <ctype.h>
+#include <assert.h>
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -92,10 +94,85 @@ merge_ported_alloc(
     return 1;
 }
 
+/*
+ * An included lane's own member index (`ported/<lane>/configs/all.<type>.compack`):
+ * the base cache's names plus the records the lane adds at fixed ids (curses'
+ * varbits 20411..20413). Only the additions are layered in, into the member
+ * index -- they are client records the lane's cache holds, not server
+ * allocations. A base id keeps the base's name; an added name that the base
+ * already uses for another id is fatal.
+ */
+static int
+merge_lane_compack(
+    struct LC_Pack* target,
+    const struct LC_Pack* allocated,
+    const char* path,
+    const char* type)
+{
+    struct LC_Pack layer;
+    struct stat info;
+    int ok = 1;
+
+    /* A lane with no index of this type adds nothing. */
+    if( stat(path, &info) != 0 )
+        return 1;
+    if( !lc_pack_load(&layer, path, type, 0) )
+        return 0;
+    for( int id = 0; id < layer.max && ok; id++ )
+    {
+        const char* name = id < layer.capacity && layer.names ? layer.names[id] : NULL;
+        const char* at_id = id < target->capacity && target->names ? target->names[id] : NULL;
+
+        if( !name )
+            continue;
+        /* The lane's copy of the base ids is a snapshot (gen_curses_lane_configs
+         * writes base + its own); the base index is the authority for its ids. */
+        if( at_id )
+            continue;
+        /* A record the lane allocates is its ledger's, not the member index's. */
+        if( lc_pack_find(allocated, name) >= 0 )
+            continue;
+        if( lc_pack_find(target, name) >= 0 )
+        {
+            fprintf(stderr, "cachepack: `%s` is %s %d in the base index and %d in %s\n", name,
+                    type, lc_pack_find(target, name), id, path);
+            ok = 0;
+            continue;
+        }
+        lc_pack_set(target, id, name);
+    }
+    lc_pack_free(&layer);
+    return ok;
+}
+
+/** An included lane's member index, layered after its ledger (see above). */
+static int
+lane_compack_layer(
+    struct CP_Names* names,
+    const char* root,
+    const char* lane,
+    int type_id,
+    const char* type,
+    const char* const* included_lanes,
+    int included_lane_count)
+{
+    char compack[1600];
+    int included = 0;
+
+    for( int l = 0; l < included_lane_count; l++ )
+        included |= strcmp(included_lanes[l], lane) == 0;
+    if( !included )
+        return 1;
+    snprintf(compack, sizeof(compack), "%s/%s/configs/all.%s.compack", root, lane, type);
+    return merge_lane_compack(&names->packs[type_id], &names->alloc[type_id], compack, type);
+}
+
 int
 cp_names_load_ported_allocs(
     struct CP_Names* names,
-    const char* srcdir)
+    const char* srcdir,
+    const char* const* included_lanes,
+    int included_lane_count)
 {
     char root[1200];
     DIR* handle;
@@ -156,7 +233,11 @@ cp_names_load_ported_allocs(
 
             snprintf(path, sizeof(path), "%s/%s/pack/%s.alloc", root, lanes[lane], type);
             if( stat(path, &info) != 0 )
+            {
+                ok = lane_compack_layer(names, root, lanes[lane], type_id, type, included_lanes,
+                                        included_lane_count);
                 continue;
+            }
             if( !S_ISREG(info.st_mode) )
             {
                 fprintf(stderr, "cachepack: imported allocation is not a regular file: %s\n",
@@ -164,7 +245,18 @@ cp_names_load_ported_allocs(
                 ok = 0;
                 break;
             }
-            ok = merge_ported_alloc(&names->alloc[type_id], path, type);
+            /* An included lane's records are defined by its own configs in this
+             * run, so they are ordinary names here, not overlays of another's. */
+            {
+                int included = 0;
+
+                for( int l = 0; l < included_lane_count; l++ )
+                    included |= strcmp(included_lanes[l], lanes[lane]) == 0;
+                ok = merge_ported_alloc(&names->alloc[type_id], path, type) &&
+                     (included || merge_ported_alloc(&names->lane[type_id], path, type)) &&
+                     lane_compack_layer(names, root, lanes[lane], type_id, type, included_lanes,
+                                        included_lane_count);
+            }
         }
     }
 
@@ -489,7 +581,10 @@ void
 cp_names_free(struct CP_Names* names)
 {
     for( int i = 0; i < CP_TYPE_COUNT; i++ )
+    {
         lc_pack_free(&names->packs[i]);
+        lc_pack_free(&names->lane[i]);
+    }
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
         lc_pack_free(&names->asset_packs[i]);
     lc_pack_free(&names->category);
@@ -2005,4 +2100,15 @@ cp_names_emit_gamevals(
     }
     printf("Gamevals: %d archive(s) written\n", archives);
     return 1;
+}
+
+int
+cp_name_is_lane(
+    const struct CP_Ctx* ctx,
+    enum CP_TypeId type,
+    const char* name)
+{
+    assert(ctx);
+    assert(name);
+    return lc_pack_find(&ctx->names.lane[type], name) >= 0;
 }

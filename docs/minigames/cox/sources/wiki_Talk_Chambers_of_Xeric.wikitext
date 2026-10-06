@@ -1,0 +1,125 @@
+==Untitled==
+Having not personally done raids, I can't use this source accurately.  Mod Ash replying to a player asking if the Dragon Warhammer would have any use.  https://twitter.com/JagexAsh/status/814577162825191424
+
+{{Unsigned|76.23.131.133|11:12, March 23, 2017}}
+Info about rewards:
+
+If you get pure essence, for example, the amount will be your points divided by 2. Saltpetre: your points divided by 24. 
+
+Someone who edits this wiki more should put that info somewhere visible. If this information would be shown in the rewards table (new column?) it would make the page a lot more informative. {{Unsigned|91.158.50.239|11:29, January 6, 2017}}
+
+== points to gp ratio ==
+
+For the rewards, it looks like (at least early on) that the gp per reward is roughly 8*points.
+
+
+
+So for 30,000 points it looks like the rewards will be each 240k (roughly). Hopefully this stays true, but in order to prove it there needs to be lots of documented cases of high scoring games to get the error as small as possible.
+
+
+
+For example, right now 1 rune ore can be obtained with 214 points or with 2400, with high scoring games the numbers will get more precise.
+{{Unsigned|Garden Man|21:53, January 6, 2017}}
+
+== chamber of xeric  ==
+
+is this a safe min game just out of curiosity it doesnt say wjether it is or not {{unsigned|173.72.196.210|02:00, 2 February 2020}}
+
+: Yes, it is a safe death. Items are kept on death and you don't lose your hardcore status. {{User:Legaia2Pla/Signature}} 02:16, 2 February 2020 (UTC)
+
+== Location map is outdated ==
+
+The map in the "Location" section is outdated. The Shayzien area in the map is outdated in particular.
+
+[[User:HVPlus|HVPlus]] ([[User talk:HVPlus|talk]]) 03:51, 23 October 2023 (UTC)
+
+== Feedback (Sat, 10 Aug 2024 04:48:59 GMT) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=06fe24cc-0318-4da1-aa0e-66046a6f24f7
+|date=1723265339803
+|resolved=yes
+|rating=
+|feedback=Please go back to the old search, and get rid of the pictures
+}}
+
+== Feedback (Tue, 14 Jan 2025 22:14:37 GMT) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=0410c809-b4bb-4b78-92d1-8c5f2706ba85
+|date=1736892877815
+|resolved=yes
+|rating=
+|feedback=I'm missing a lore section; the mechanics of the raid are thoroughly covered but there is no section detailing the purpose of the Chambers of Xeric and it's known history etc.
+}}
+
+== Feedback (Mon, 28 Apr 2025 20:14:32 UTC) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=ad8fa025-f8db-4553-8277-1bb9d0f8d92b
+|date=1745871272624
+|resolved=yes
+|rating=
+|feedback="The Chambers of Xeric is currently the only raid that: " Trivia belongs in prose and not trivia.
+}}
+
+== Feedback (Tue, 24 Jun 2025 00:04:15 UTC) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=6bef708d-ef88-4d1c-ab3c-5a5cd429fee3
+|date=1750723455254
+|resolved=yes
+|rating=
+|feedback=Despite being unable to drop items in the lobby before the raid starts, excess glass from superglass make will go to the ground and can be picked up.
+}}
+
+== Feedback (Fri, 10 Oct 2025 20:11:01 UTC) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=5193df91-bce8-45c2-b57d-36edfdc7b33c
+|date=1760127061401
+|resolved=no
+|feedback=If the points from food are capped at 20 per raider, does eating a single piece of food hit the cap, or should this say 20 instances of points?
+}}
+
+
+it depends on raid size 
+[[Special:Contributions/&#126;2026-PrimeLeafExploding1525|&#126;2026-PrimeLeafExploding1525]] ([[User talk:&#126;2026-PrimeLeafExploding1525|talk]]) 01:52, 25 March 2026 (UTC)
+
+== Feedback (Wed, 22 Oct 2025 22:31:47 UTC) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=855f01f1-8cb3-4e48-af39-e44e06b00251
+|date=1761172307070
+|resolved=no
+|feedback=Another article mentioned using Cox death storage to keep an untrimmed cape and i can't find the info about Cox death storage here or the irs article
+}}
+
+== Feedback (Tue, 26 May 2026 13:19:36 UTC) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=96b6c41f-c175-4f19-bc95-4253da7a252d
+|date=1779801576898
+|resolved=yes
+|category=
+|feedback=Made the change to the points from food section. It was worded incorrectly before, but its worded poorly now according to another editor, so if anyone wants to take a crack at it be my guest.
+}}
+Think you misread the order of the edits because I only reverted the original edit where you just changed a single word and the sentence no longer made sense. Your new edit looks fine [[User:Data|Data]] ([[User talk:Data|talk]]) 13:20, 26 May 2026 (UTC)
+
+== Feedback (Fri, 05 Jun 2026 21:20:50 UTC) ==
+
+<!-- This was added automatically using a bot. Please do not remove or manually change the following template. -->
+{{Feedback
+|id=c59769cb-5e6b-4a6e-a0f8-beb70fc91dfa
+|date=1780694450411
+|resolved=no
+|category=
+|feedback=can yall pls make a guide on resetting 3:1 if olm does a special and ur a clanker at cox
+}}

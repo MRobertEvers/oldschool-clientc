@@ -1,0 +1,17 @@
+{{Infobox NPC
+|name = Zebak's Tail
+|image = [[File:Zebak's Tail.png|300px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|race = Crocodile
+|location = [[Tombs of Amascut]]
+|gender = Male
+|examine = Scaley.
+|map = {{Map|name=Zebak's Tail|3911,5408|mapID=-1|r=3|mtype=square}}
+|id = 11731,11734
+|leagueRegion = Desert
+}}
+'''Zebak's Tail''' is a part of [[Zebak]], who is encountered in the [[Tombs of Amascut]].
+
+{{Tombs of Amascut}}

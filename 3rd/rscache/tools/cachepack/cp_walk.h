@@ -30,7 +30,7 @@
 
 enum
 {
-    CP_WALK_MAX_ROOTS = 4,
+    CP_WALK_MAX_ROOTS = 12,
     /** Longest path the walk will record. */
     CP_WALK_PATH = 1024,
 };

@@ -1,0 +1,53 @@
+{{Update|date=19 January 2017|link=http://services.runescape.com/m=news/raids-tweaks--qol?oldschool=1|category=game}}
+[[File:Raids Tweaks & QoL newspost.png|right]]
+{{clear}}
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">Raids Improvements</font></center>
+
+<center>'''This week's update sees some balancing tweaks to the Twisted Bow, as well as a whole host of QOL updates.'''</center>
+
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Raids Rewards Changes</font>
+
+'''Twisted Bow'''
+
+The Twisted Bow now also has a cap on the maximum damage buff it can get from the targets magic level, bringing it more [[File:Raids Tweaks & QoL (1).png|right|150px]]in line with its intended DPS on creatures with very high magic levels. The buff will now max out against a target with level 250 Magic. It is important to note that in this instance, accuracy has not been affected, only damage.
+
+'''Kodai Wand'''
+
+The Kodai Wand now has a 15% chance of negating the rune cost on an offensive spell cast. An offensive spell is categorised as any spell which sees use in combat, and as such will not work on spells such as High Alchemy.
+
+'''Ancestral Robes'''
+
+In a minor usability tweak, Ancestral Robes may now be combined into a set at the Grand Exchange, to aid in the buying & selling of them.
+
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Raids Tweaks</font>
+
+*Scavenger runts are now a little bit beefier, but have two drops per kill instead of one.
+*The Raids Storage Chests now have a new option, allowing you to deposit items into a private store. The private store accepts most equippable items or tradeable items, as well as Raids-specific things, with a capacity of 30, 60 or 90 slots depending on its tier. You can still retrieve items from the private store after leaving your raiding dungeon – there’s a storage chest in the bank tent for this purpose. The private store must be emptied before you re-enter the Chambers of Xeric, so you can’t use it to transfer items between raids.
+*The Dragon Warhammer now works as a construction hammer within Raids.
+*Tweaked the colours of the seeds within Raids.
+*The Vanguard will now have a chance to drop potions upon being defeated.
+
+{{Horizontal Line}}
+
+
+
+'''In other news'''
+
+*The XP given for the Dragon Claws special attack is now given correctly.
+*There are now more broken lightbulbs in Dorgesh-Kaan at any time.
+*Raids are now available in Permanent Deadman world (345). PvP is not permitted in there, but a player cannot enter while skulled.
+*Last weeks Smite fix now applies to the ancient mace too, to make it disable the target’s prayers correctly when they reach zero prayer points.
+*Pmod crown now takes priority over the Ironman symbol.
+*Many NPCs which you would expect to drop Champion’s Challenge scrolls but didn’t, now do.
+*The clickzone of potions in raids has been increased, you should now find them easier to pick up.
+*You can now cross the flat stone in Mountain Daughter using any plank from both directions.
+*The Hopeless Creature in A Soul's Bane quest has had its attack animation improved.
+*Ironman now have separate stocks for food in the Culinaromancer's chest.
+*A render issue while wearing some 2015 holiday items has been addressed.
+*The fight with the Temple guardian during Priest in Peril is now instanced.
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,358,65871462 forums].
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''

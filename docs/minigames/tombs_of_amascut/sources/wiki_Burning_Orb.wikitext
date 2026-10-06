@@ -1,0 +1,15 @@
+{{Infobox NPC
+|name = Burning Orb
+|image = [[File:Burning Orb.png|200px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|examine = A magical orb.
+|map = No
+|id = 11802
+|leagueRegion = Desert
+}}
+'''Burning Orbs''' are objects that appear during the fight with [[Akkha]] in the [[Tombs of Amascut]], where they appear if he unleashes his Trailing Orbs attack, and the player moves whilst in the north-west quadrant. If players walk into one, it will inflict a burn that periodically deals 5 damage for several hits, and can spread to unaffected players if next to them.
+
+{{Tombs of Amascut}}

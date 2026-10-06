@@ -1,0 +1,289 @@
+{{Update|date=29 July 2022|link=https://secure.runescape.com/m=news/gielinor-gazette---july-2022?oldschool=1|category=community}}
+[[File:Gielinor Gazette - July 2022 newspost.png|right]]
+{{clear}}
+We’re halfway through 2022, and the year so far has flown by! We feel great about our recent releases, like the Pride Event and Giants’ Foundry, and we’re making good progress on the roadmap for the remainder of the year. You’ll get to hear all about it next month, but for now, let’s see what this month’s Gazette has in store…
+
+__TOC__
+==Project Status Update==
+===Released Content===
+====PvP Arena====
+This month, the [https://secure.runescape.com/m=news/emirs-arena-full-launch?oldschool=1 Emir's Arena (otherwise known as the PvP Arena)] opened its gates to adventurers seeking glory!
+
+If you didn't know, there are three main builds you can use in the Arena: Max/Med, Pure, and Zerker. These will be on a weekly rotation just like the PvP World Rota in the order:
+
+'''Max/Med → Zerker → Pure'''
+
+We’ll be keeping you in the loop via the weekly game update newspost, just as we do for the PvP World Rota.
+
+We're not quite done with the PvP Arena and the team is keen to see more player-run tournaments and community-run events in the future. For now, keep cracking skulls and having fun!
+
+====Activity Adviser====
+One of the later updates this month was the Activity Adviser, the artist previously known as the Content Recommender.
+
+This in-game tool will highlight activities relevant to your account by measuring your progress and seeing what big, exciting content is in store next. It automatically tallies up your skill levels, quest status, recent activity and other essential stats to figure out what adventures you might be interested in! For the moment, the Activity Adviser only suggests quests, but we expect to include skills, minigames, and other categories later.
+
+It's a fantastic tool for new and returning players and helps to give a bit of direction in the big, big world of Gielinor.
+
+However, only a select number of players have been selected for the initial testing phase. We plan to expand it after we’ve looked at the feedback and made any necessary adjustments to the system. We’re also looking to include new categories like skilling, transport, minigames and more!
+
+If you’re one of the lucky few who already has access to the Activity Adviser, we want to hear your thoughts – check us out on any of our social channels and tell us what you think!
+
+We had a great livestream recently where Mods Daizong and Squid answered questions surrounding the release and our future plans for the Activity Adviser. If you missed it, check out [https://www.youtube.com/watch?v=7XAvDmcFkL8 the VOD here:]
+
+====New Client Features and Next Steps====
+Now that the Clue Scroll Helper (and a bunch of other activity helpers and highlights) are out in the wild, we’re knuckling down to work on the mobile interface layout we spoke about all those aeons ago.
+
+We’re also interested in loot – namely, ground item overlays and loot tracking! These are by no means small undertakings, but we’re excited to share our progress and talk about it more in future.
+
+You can also join us today at 17:00 BST over on [https://twitch.tv/oldschoolrs Twitch], where we'll be discussing the recent update and the future of the C++ Client:
+
+====Jagex Launcher====
+In case you missed it, Mod Shadow from the Publishing Platform Team gave us a very technical look, behind the scenes of the Jagex Launcher.
+
+If you want to know more about the process behind the Launcher and a little into the future, then check out the fantastic newspost [https://secure.runescape.com/m=news/jagex-launcher---technical-newspost?oldschool=1 here].
+
+===Upcoming Content===
+====Tombs of Amascut====
+If you've been sleeping in a sarcophagus, you might have missed that we recently revealed the release date for [https://secure.runescape.com/m=news/tombs-of-amascut-everything-you-need-to-know?oldschool=1 Tombs of Amascut]! Mark your calendars for '''August 24th''' and prepare yourself to face off against Amascut and her corrupted forces. From the giant crocodile Zebak to the fallen warrior Akkha, you've got a lot to look forward to with our next raid, as it's the most diverse one we've created so far.
+
+Being able to choose the order you take on the bosses and giving you the option to scale the difficulty with Invocations means you get to play Tombs of Amascut your way. Each run should feel fresh and exciting!
+
+We’ll have plenty of things to show you in the run-up to release day, including videos, livestreams, and a few other extras, so stay tuned to our socials to get all of the latest ToA information!
+
+<gallery mode="packed" heights="180" style="text-align:left">
+Gielinor Gazette - July 2022 (1).png
+Gielinor Gazette - July 2022 (2).png
+Gielinor Gazette - July 2022 (3).png
+Gielinor Gazette - July 2022 (4).png
+Gielinor Gazette - July 2022 (5).png
+Gielinor Gazette - July 2022 (6).png
+</gallery>
+
+====Quest Speedrunning====
+Quest Speedrunning is an exciting new game mode that’s coming soon. How soon you ask? Well, today we can announce that we'll be running a beta for Quest Speedrunning in '''September'''. Assuming all goes well, the full launch will then follow in '''October'''.
+
+For anyone unaware, Quest Speedrunning challenges you to complete iconic quests in record-time, using separate worlds with their own save profiles. At launch, just a few quests will be available, but more will be added over time.
+
+We’ll be bringing out a dedicated blog to go over all the details, so keep your eyes peeled!
+
+====2022 and Beyond====
+Right now, we are at a very critical stage of determining the direction for the rest of the year and onward into 2023. We want to make sure that the bits and pieces we show you are things that we can commit to. Although we can't say much yet about the future of Old School, we've got some very exciting stuff in the pipeline, and we can't wait to share more. Please stay tuned for more updates regarding the rest of the year in the near future.
+
+==Quest Rewrites & Changes==
+<center>''by Mod Errol''</center>
+
+Alright, alright – we had hoped to keep this one under wraps for a while longer, but the absolute deluge of Ratcatchers posts has forced our hand. Here’s the good news: for the last few months we’ve been considering the possibility of rewriting some of the earliest quests in Old School RuneScape to bring them up to our modern editorial standards.
+
+With the advent of new game modes like Ironman, Leagues and Quest Speedrunning, players are more likely to play through older quests than ever before. The downside is that most of these quests were written a very long time ago, before we had a consistent set of guidelines for content creation. We’ve seen loads of posts calling out poor grammar, spelling, and structure – and we think it’s unfair that such iconic content should be let down by a few typos.
+
+Eventually, we aim to bring more older quests in-line with our current standards, but for now, we’ve settled on three, just to see how things go. These three quests are the subject of frequent player complaints, so we thought they’d make excellent test subjects. They are:
+* The Feud
+* Ratcatchers
+* Legends’ Quest
+
+We’ve already piggybacked on the diversity and inclusion changes we spoke about last time to give The Feud a few editorial touch-ups, with changes that we hope will make the narrative of the quest more obvious and stop it losing momentum in the middle.
+
+Next, we’ll be focusing on Ratcatchers, which requires the most extensive changes by far. Planning is still in the early stages, but we’ll be completely reworking the story and characters, as well as fixing the quest’s ‘unique’ dialogue formatting. We’re also working on a few technical changes which should make the quest’s pain points a little less painful. We know this is something you’ve all been asking after for a while, and we’re excited to give this quest the polish it deserves.
+
+Lastly, we’re looking at Legends’ Quest. This iconic piece of content sits somewhere between Ratcatchers and The Feud in terms of the changes required – by no means does it require a total rework, but there are more fixes to be made than we initially expected.
+
+We’d also like to highlight that the Quest Rewrites are not taking dev time away from all the other wonderful content we’re working on. As a support team, Editorial are able to use our time to work on this project behind the scenes while the regular development teams work on all the big, fancy stuff. It’s a low-cost project that we reckon will have a big impact!
+
+We really do feel that Quest Rewrites are critical to the new and returning player experience, and we can’t wait for you to play through the new-and-improved versions for yourself!
+
+==Postbag From the Hedge==
+Hello everyone! You’ve taken a collective interest in Gielinor’s history this month, sending me trotting across the world to speak to curators, historians, horologists… and whatever Odd Stone thinks he is. If I had legs, they’d be properly worn out – so let’s just have a seat and read through this month’s post!
+
+
+{{Letter|Dear Varrock Museum Curator [[Haig Halen]],
+
+I feel like I can call you Haig because we are so alike. I'd like to be able to use my rare fossils one day, it'd be great to make a new display. I know I don't know as much about fossils as you but I think you'd be impressed with my knowledge. I love your monocle, you look very classy. Do you ever use your rare fossils for Prayer XP? Me neither. These are all things we can talk about and more. I know you have not been seeing my Fossil Island jokes because I know you would set up a new display if you did. I hope you set up rare fossil displays this time, and we can become good friends. I am sure our relationship would be a real rare find!
+
+Bone Voyage,
+
+u/SlothyPotato}}
+
+Dear SlothyPotato,
+
+How wonderful to see an adventurer digging into natural history like this! I have indeed seen your jokes and circulated them among my colleagues – we academic types love a good pun. Regrettably, I’m afraid your ideas regarding a new display may be as dead as the dodo.
+
+You see, our finances are controlled by the old fossils at the palace treasury, and they still haven’t gotten back to us about the funding required for a new exhibit. It’s like squeezing blood from a stone! To tell the truth, our findings on Fossil Island have rocked the boat a bit. I think they expected a few new plants for Queen Ellamaria’s shrubbery, not an island full of fantastic discoveries that must now be collected, cleaned, categorised, and eventually displayed. The crown is mainly interested in exciting, shiny things – and unfortunately the rocks and fossils we’ve been collecting have only sedimental value… for now.
+
+In any case, it would be wonderful if you came and saurus again soon. Mary has recently discovered an entire fossilized leg bone, and we’re throwing a party to celebrate. It promises to be a mammoth shin-dig!
+
+As entertaining as this exchange has been, I must get back to work. Do keep sending your wonderful jokes – they really tickle my funny bone.
+
+
+All the best,
+
+Curator Haig Halen, Varrock Museum
+
+P.S. If you find out where the Bones go, please let us know! As far as we can tell, they just vanish into thin air!
+
+
+----
+
+{{Letter|To [[Koschei the Deathless]],
+
+How long have you been living amongst the Fre'''M'''ennik? What were your Tri'''A'''ls like? '''H'''ow many Chieftains h'''A'''ve you fought a'''L'''ongside, and how many have you seen to Va'''L'''halla? Do you live with Thorvald, or do you just u'''S'''e his cavern for the Trial of Bravery? What's your favorite part of being a Fremennik? Do you often get the chance to visit the various Isles?
+
+Have you ever wondered about your past? Peer helped us with ...something, during the creation of V's Shield, he might be able to help you with your memories! And if that doesn't work, we might be able to get you an audience with the Oneiromancer, if you'd accept such a lunatic idea.
+
+To get to the real meat of this missive, though;
+
+Where were you when the basilisks attacked?
+
+I definitely expected to see you KHARving a swathe through the basilisk. I would never accuse you of SHAIing away from combat, but your absence was quite notable.
+
+Were you leaving slain creatures in your WAKE UP at the hobgoblin coast? Did your blood (and theirs) run deep upon those rocky shores?
+
+If you wish to REMEMBER the taste of true combat, to know it in your very bones, I hear there are mightier foes to prove your mettle in THE NORTH.
+
+I'm sorry,
+
+Sculpt0r}}
+
+Hello Sculpt0r!
+
+Wow, those are a great number of questions! Let’s see now. I must have been living here for… at least a year! My trials were far easier than yours – for one thing, I didn’t have to fight myself! I have just one chieftain, Brundt, and to him I owe my very life. In fact, I owe all my Fremennik friends a great deal.
+
+Wondering who I am, where I came from – that seems like a waste of time! What matters is who I am now. And you can forget talking to those Lunar Clan nutjobs about it! My dreams make no sense, even to me.
+
+You wound me, adventurer! Do you suggest that I, Koschei the Deathless, am some sort of coward? No! I was right there in the marketplace. Don’t you recall seeing me crush our enemies on your way to the ship?
+
+I am always looking for a new challenge to test my mettle. The North, though… no… I think I’d better stay away from there.
+
+I have to go now. I have quite the headache, all of a sudden… nothing a few kegs of beer won’t solve. You should have some too, Sculpt0r – your handwriting’s gone all funny.
+
+
+Get well soon,
+
+Your brother, Koschei
+
+
+----
+
+{{Letter|Dear [[Hazelmere]],
+
+Blah blah blah blah blah blah, blah blah blah? Blah blah blah blah blah blah, blah blah, blah blah blah blah. Blah blah blah blah blah blah? Blah blah blah blah blah, blah blah (blah blah blah blah blah)?
+
+From OreOfChlorophyte}}
+
+Dear BlahBlah
+
+Blah blah blah blah blah! Blah! Blah blah blah blah. Blah blah blah blah blah.
+
+
+Blah blah,
+
+Hazelmere.
+
+P.S. Blah blah blah blah, blah.
+
+
+----
+
+{{Letter|To [[Imerominia]],
+
+I was reflecting on the conversation we were having recently about the history of Kourend, and I have what feels to be, quite frankly, a very foolish question to ask. Who or what was Twill? Was Twill the place where the royal accord was signed, or is the accord named after some instrumental person who was key in bringing about the agreement? I had assumed that Twill was a place given that no one named Twill is referenced in the document, but as a burgeoning historian myself, I’m trying to hold myself to better standards than such simple assumptions. When I was helping Jorral discover the history of the outpost to north-west of West Ardougne, he instilled in me the necessity of conducting first-hand historical research. Any light you could shed on this topic would be most appreciated.
+
+Respectfully,
+
+Dheginesa
+
+P.S. I know that travel away from the Dark Altar can be difficult for the citizens of Arceuus, but I think you should visit the outpost some time if possible. The museum Jorral runs there is quaint but still very charming. I'm sure you'll find yourself enthralled with his work.}}
+
+Dear Dheginesa,
+
+You’re absolutely correct. While there’s little information left from before the time of Xeric, we do know that Twill was a stronghold somewhere near the centre of Kourend, a place that had been respected as neutral ground since the founding of our nation. The Council of Elders would meet there to discuss matters of import, and as you might imagine, the signing of the Accords was of great import indeed.
+
+Sadly we’ll never know exactly where Twill stood, although it’s safe to surmise its ruins may well have been the foundation for Kingstown. They’re both conveniently situated in the centre of the five cities, while remaining comfortably outside of their borders. As you say, though, a good historian always looks for the evidence!
+
+It would be wonderful to take a break for some field study. Unfortunately, I simply don’t have a moment to spare! That’s the problem with studying time. There’s always more of it!
+
+
+Take care,
+
+Imerominia
+
+
+----
+
+{{Letter|To [[Jorral]],
+
+After our last encounter I've travelled the world far and wide looking for more treasure with the enchanted key you gave me. Sadly it seems to have disappeared from my bag at some point. Have you seen it by any chance? If so, could you try rubbing it near the sheep pen north of Ardougne (alternatively I'd be willing to do that for you in case you need to stay at the outpost doing historian things)? I have a gut feeling we could use it to gain interesting insights into things that happened in the past *cough* invasion of Avarrocka, betrayal of Zaros, generic battle in the actual god wars *cough*
+
+Yours truly,
+
+Not the real Zaros}}
+
+I’m sorry, WHAT?
+
+You LOST the Enchanted Key I gave you? Have you any idea what enormous power was stored in that thing? In the wrong hands, it could be very dangerous!
+
+And of course, it’s poor Erin’s family heirloom! Oh, my days, this is terrible. Someone will have to break the bad news to him. Since you’re the one that lost it, I think that someone ought to be you!
+
+And please, please be more careful with whatever priceless artefacts you get your hands on in future.
+
+
+Yours,
+
+Jorral
+
+
+----
+
+{{Letter|Dear [[Odd Stone]],
+
+I hope you and the rest of Weiss are doing well.
+
+I am writing to get a bit more info on that story you told me about the bone-headed human you saw at the stone where you got your name.
+
+I have met a few of those bone-headed people myself now. Some are friendly and some are very dangerous. Any details about them you might remember would be useful, we want to make sure Weiss isn't in any danger after all.
+
+Regards, MissingPear}}
+
+Hey MissingPear!
+
+We all doing well, thanks for asking! Snowflake is good leader troll, much better than Mother was.
+
+Is good to know that not all bone-headed people is scary. We still stay far away from them, I think. Bit too much work to reopen the paths to the snowfields anyway.
+
+I remember like it were yesterday! I saw the odd stone and thought ‘that looks like a good thing to chomp!’ but when I took a nibble out of it the bone headed human popped up – like magic – and started shouting at me! He had big long robes on, and he was very tall. Or maybe I was very small.
+
+Stone didn’t even taste very good! Made my tummy feel tingly for days after. Goutweed much tastier. You should come by and try some soon!
+
+
+Bye bye,
+
+Odd Stone
+
+==Player Showcase Gallery==
+We're back with another batch of your biggest and best pieces of creative work! Everyone featured in the Gazette will receive three months of free membership as thanks for their superb efforts, so keep an eye on the linked social accounts Inbox for more details on how to grab your reward!
+
+If you want to be featured in the next Gazette then make sure to submit your creations through our [https://osrs.game/Player-Showcase-Gallery-Form Player Showcase Gallery Form] and state what Gazette you’d like it to feature in. We look forward to seeing more of your incredible talents!
+
+{| class="wikitable" style="text-align:center;margin:auto;"
+|[[File:Gielinor Gazette - July 2022 (7).jpg|195x150px|centre]]
+|[[File:Gielinor Gazette - July 2022 (8).png|195x150px|centre]]
+|[[File:Gielinor Gazette - July 2022 (9).png|195x150px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/w3slk3/finally_now_i_can_go_home_whenever_i_want/ u/GenericOnlineName]
+|[https://www.reddit.com/r/2007scape/comments/w1yfwl/osrs_card_collection_fight_caves_set/ u/rururupert]
+|[https://www.reddit.com/r/2007scape/comments/w5auwd/took_a_2nd_rug_making_class_made_my_fav_shield/ u/SingadoPhoenixx]
+|-
+|[[File:Gielinor Gazette - July 2022 (10).jpg|195x150px|centre]]
+|[[File:Gielinor Gazette - July 2022 (11).png|195x150px|centre]]
+|[[File:Gielinor Gazette - July 2022 (12).jpg|195x150px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/vz5vpr/fire_cape_by_me/ u/elakudark]
+|[https://www.reddit.com/r/2007scape/comments/vz2b88/my_wife_and_the_osrs_cake_she_made_me_and/ u/Jkelley714]
+|[https://www.reddit.com/r/2007scape/comments/vvorqo/i_made_my_character_out_of_clay/ u/Umbreonest]
+|}
+
+
+----
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

@@ -23,6 +23,8 @@ import os
 import re
 import sys
 
+import config_text
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 ALL_LOC = os.path.join(CONTENT, "configs", "all.loc")
@@ -92,7 +94,7 @@ def main():
     args = ap.parse_args()
 
     with open(ALL_LOC) as fh:
-        blocks = parse_blocks(fh.read())
+        blocks = parse_blocks(config_text.filter_text(fh.read()))
     want = render(collect(blocks))
 
     if args.check:

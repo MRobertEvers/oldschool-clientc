@@ -296,7 +296,7 @@ texture_write(
         emit_texture_lines(texture, &lines);
         fprintf(out, "[%s]\n", name);
         for( int i = 0; i < lines.count; i++ )
-            fprintf(out, "%s\n", lines.lines[i]);
+            cp_line_write(out, lines.lines[i]);
         fputc('\n', out);
         written++;
         RSCache_Dat2TextureFree(texture);
@@ -840,7 +840,7 @@ interface_write(
         emit_component(ctx, comp, &reference, &lines);
         fprintf(out, "[%s]\n", name);
         for( int i = 0; i < lines.count; i++ )
-            fprintf(out, "%s\n", lines.lines[i]);
+            cp_line_write(out, lines.lines[i]);
         fputc('\n', out);
         written++;
         RSCache_Dat2ComponentFree(comp);
@@ -3964,7 +3964,7 @@ worldmap_write(
             worldmap_emit_area(&areas[f], &lines);
         fprintf(out, "[%s]\n", name);
         for( int i = 0; i < lines.count; i++ )
-            fprintf(out, "%s\n", lines.lines[i]);
+            cp_line_write(out, lines.lines[i]);
         fputc('\n', out);
     }
     cp_lines_free(&lines);

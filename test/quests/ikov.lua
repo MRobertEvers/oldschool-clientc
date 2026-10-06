@@ -350,7 +350,7 @@ return {
         -- BEFORE the door press that brings him in, so it is lit before his first cast; prayer does not
         -- regenerate, so the points are read first (37 staged; the fight drains about 1 point per 5 ticks).
         do
-            local points_result, points_detail, points = t.prayer.points()
+            local points_result, points, points_detail = t.prayer.points()
             t.check("fightLes.prayerPoints", points_result == "ok" and points and points.level >= 25, tostring(points_detail))
         end
         t.exec("fightLes.protectFromMagic", t.prayer.set, "protectfrommagic", true)

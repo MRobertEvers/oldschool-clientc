@@ -1,0 +1,97 @@
+{{Update|date=8 December 2016|link=http://services.runescape.com/m=news/load-test-tournament-world--qol?oldschool=1|category=game}}
+[[File:Load Test, Tournament World & QOL newspost.png|right]]
+{{clear}}
+[[File:Load Test, Tournament World & QOL (1).png|center|500px]]
+
+----
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Raiding Party Finder Load Test</font></center>
+
+<center>'''Test the Raiding Party Finder, and get a glimpse at Raids' environments! To join in, jump on World 378.'''</center>
+
+
+[[File:Load Test, Tournament World & QOL (2).png|center]]
+
+In January, Raids are coming to Old School. These dynamic challenges will scale to match your party size, and utilise procedural generation to present a different set of challenges each time. Of course, calling them "Raids" isn't the most exciting thing in the world, so we're proud to announce that come January, you will be facing the perils of the '''Chambers of Xeric'''.
+
+[[File:Load Test, Tournament World & QOL (3).png|center|500px]]
+
+This weekend, we’d like your help to try out the Raiding Party Finder for January’s Raids launch. Old School hasn’t had anything like this before – the Chambers of Xeric will be Old School’s first ever content to generate itself on demand like this, and it’s also the first time anyone’s tried to write a party grouping system in the Old School game engine.
+
+To be honest, it’s been complicated, and we’d be very grateful if you could take a few minutes out of your ‘scaping to help us try it out. So we’ve turned w378 into a tournament world. While you’re on there, you’ll play on a test profile, and nothing you do will be saved over logout, so it can’t harm your account if anything goes wrong in the load-test.
+
+You can use the recruitment board to form your own party, advertise it to others and manage its members. The board will also list parties that other players are hosting, so you can see their members and join the team.
+
+[[File:Load Test, Tournament World & QOL (4).png|center]]
+
+While we’re saving the challenges of the dungeon for the full launch, you can still embark on a foray into the Chambers when you’ve finished recruiting. This will give us a chance to load-test the map-generation algorithm, while you get to explore the eerie atmosphere of the Chambers of Xeric.
+
+Remember, this is a load test, and the content you’re playing is unfinished. The reason we’re doing this is that it’s our best shot of ironing out stability issues with the party system before the full launch, so you are cordially invited to get out there and try to break it! And, if you succeed, right-click the ‘Report’ button and fill in the bug report form to tell the testers exactly how you did it.
+
+We expect to leave the load test open over this weekend, if it’s stable enough, taking it out on Monday. It’s restricted to one world because the load test will be most effective with lots of players logged in, rather than spreading the load over multiple worlds.
+
+----
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Tournament World</font></center>
+
+<center>'''The ever-popular Tournament World is back! It's PvP time!'''</center>
+
+[[File:Load Test, Tournament World & QOL (5).png|center]]
+
+As a little thank-you for helping load-test our party finder, we’ll be opening Clan Wars on the Tournament World where the load test is taking place, so you can engage in top-level PvP with maxed stats and gear.
+
+With maxed accounts and access to the tournament supply chests, you'll have the ability to handcraft your perfect set up every time, meaning everything comes down to skill.
+
+Whether you've been playing Old School Runescape for a week or a decade, tournament worlds are the perfect way to develop and hone your PvP abilities. Or just cause some carnage in the arena. 
+
+This will only be available for the duration of the load test! So make sure to get your fill before the Tournament World disappears again on Monday.
+
+----
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Deadman Finale Changes</font></center>
+
+<center>'''One of the most electrifying seasonal events is almost upon us.'''</center>
+
+[[File:Load Test, Tournament World & QOL (6).png|center|500px]]
+
+We're updating Deadman with the back-end changes needed for the upcoming finale! While we're being a little vague on these right now, we'll have a separate news post out promptly with the full changes!
+
+The invites have gone out, the changes are done, all that remains is to wait for Monday, when the final week will kick off!
+
+The events of the final hour will be streamed live from the RuneScape Twitch channel on Saturday December 17th. Do not miss out on the action - be sure to watch the mayhem unfold!
+
+We've partnered up with the world's largest esports organization, ESL, to make the Deadman Invitational all it can be. For the first time ever, you can join us in person live at the ESL Studio to witness an amazing finale. Ticket prices have now been dropped, so you can enjoy all the action for under a tenner!
+
+[[File:Load Test, Tournament World & QOL (7).png|center|280px]]
+
+Get exclusive access to the Old School team, your favourite players, and other passionate Old School RuneScape fans at what promises to be an incredible event. To join us, [https://www.eventbrite.com/e/deadman-tournament-tickets-29433615737 get your tickets here] or just click the image below!
+
+[[File:Load Test, Tournament World & QOL (8).png|center|400px|link=https://www.eventbrite.com/e/deadman-tournament-tickets-29433615737]]
+
+
+----
+
+
+'''In other news'''
+
+*Nuff's certificate is no longer required to travel to the Fairy Queen's hideout if you have completed the Fairytale II - Cure a Queen quest.
+*An inert Xeric's talisman can now be dismantled into 100 Lizardman fangs.
+*Ironmen will no longer receive a message box relating to achievement diaries when fishing trout with the easy ardougne diary complete.
+*Sherlock now recognizes your completed elite skill challenge when you're carrying an incomplete master skill challenge.
+*Added some missing blocking to MM2 tunnel.
+*Fixed capitalisation inconsistency with demons.
+*Filter messages for drinking a cup of Guthix Rest.
+*POH versions of Hellcats are now named correctly.
+*Fixed a typo when using cadava berries on the apothecary.
+*Fixed tropical tree height issue.
+*Fixed message when using items on Kamfreena.
+*Fixing xp when receiving extra ore while mining lovakite.
+*Updated the construction cape seller dialogue to correct the reference about the teleport perk, which is now unlimited.
+*Fixed the Regicide messenger check and prevent the messenger from appearing in certain places.
+
+Discuss this update on our [http://services.runescape.com/m=forum/c=fWHhiasQXpo/forums.ws?380,381,351,65858291 forums].
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''

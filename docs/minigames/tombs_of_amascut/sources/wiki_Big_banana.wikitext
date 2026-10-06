@@ -1,0 +1,27 @@
+{{Infobox Item
+|name = Big banana
+|image = [[File:Big banana.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = Too big to eat.
+|value = 10
+|alchable = No
+|weight = 0.300
+|id = 27221
+}}
+[[File:Big banana detail.png|left|130px]]
+The '''big banana''' is an item that is dropped by [[Ba-Ba]] in the [[Tombs of Amascut]], in which the player receives one if they dealt the most damage to her.
+
+It is given to [[Awowogei]] after having spoken to the [[Bank Camel]], as part of obtaining the [[Ancient key (Tombs of Amascut)|ancient key]] from them. Doing so requires having completed the [[miniquest]] [[Into the Tombs]].
+
+==Item sources==
+{{Drop sources|Big banana}}
+
+{{Tombs of Amascut}}

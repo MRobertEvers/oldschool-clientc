@@ -1,0 +1,319 @@
+{{Update|date=15 November 2023|rev=20 November 2023|url=https://secure.runescape.com/m=news/leagues-iv---trailblazer-reloaded?oldschool=1|category=game}}
+[[File:Leagues IV - Trailblazer Reloaded newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+''It's the moment you've been waiting for since early 2022... Leagues is back!''
+
+==Blog Update: Monday, November 20th==
+'''Update, 16:30 GMT, November 20th: We've hotfixed the Leagues drop rates for Revenant weapons and some Phantom Muspah uniques. Slayer task modifiers should now correctly apply to the Revenant weapons (on top of your Leagues drop modifiers) and drop modifiers should apply correctly to the Phantom Muspah.'''
+
+'''Note: This week's game update will take place on Thursday, November 23rd instead of the usual Wednesday update. This is to allow us more time to develop more significant fixes.'''
+
+To say that Trailblazer Reloaded has exceeded our expectations would be the understatement of the century! We're over the moon to see so many of you (literally more than ever before) enjoying Leagues and ticking off tasks 'til the cows come home.
+
+To paraphrase another trailblazer: with great popularity comes great responsibility. With that in mind, we'd like to give you all a quick update on outstanding issues that we're working on fixes for so that you know what's being adjusted and can plan ahead for any tasks or activities you might have been putting off for the time-being. The majority of these are things we're hoping to fix alongside this week's game update, though some might need a little more time before we're able to adequately fix them and feature in next week's game update instead.
+
+===Upcoming changes, working to fix as many as possible this week===
+
+* Players receiving Emote clue steps requiring items that aren't obtainable within their region. Additionally, other steps (some Fairy Ring and Falo clues, for example) that weren't completable should be receiving fixes too.
+* 'Receive a Magic seed from a bird's nest' task not completing properly.
+* Players who select the Farmer's Fortune relic can't complete the task for casting Ressurect crops and protecting crops. The task will complete when you attempt to perform that action following a fix, even if you're unable to benefit from the action.
+* Players obtaining pets from Tombs of Amascut or the Desert Treasure II bosses aren't receiving completion for the 'Receive a Boss pet' task. This will also complete retroactively for players who've already obtained a pet from any of the impacted content.
+* Colossal Hydras aren't providing Slayer points to players with the Bloodthirsty relic when killed.
+* Bloodthirsty feels pretty underwhelming in some regions, we're looking to add some low level superiors (e.g. Bloodvelds) into some regions' Slayer task lists to alleviate this. For example, players with Kandarin unlocked can kill Bloodvelds but cannot be assigned them without Morytania, we'll be looking to update some of these instances.
+* Add a toggle to Infernal Gathering for instances where players want to keep more resources. You'll still benefit from the speed, but be able to disable the 'burning' effect.
+* Revenant weapons drops not benefitting from the 5x on-task modifier.
+* Some Phantom Muspah drops not benefitting from Leagues drop-rate modifiers.
+* Some Pyramid Plunder 'killcount' tasks not updating correctly. These will be completed retroactively once fixed.
+* Gout Tubers are rarer than they should be.
+* Enchanted bolt special effects don't apply healing via the Soul Stealer relic.
+* Ghosts Ahoy is auto-completed with a Fremennik region unlock, but doesn't complete the corresponding task.
+* Client of Kourend is auto-completed with a Fremennik region unlock, but doesn't complete the corresponding task.
+* Granite Maul special attacks aren't hitting as intended.
+* Trailblazer tools are weaker than intended on the Path of Het inside Tombs of Amascut.
+* The task for completing Elemental Workshop I will be removed, since this task is auto-completed during the Leagues Tutorial and cannot be completed by players.
+* Sulliuscep mushroom caps are rarer than intended due to multipliers boosting other drops.
+That's all we've got so far, but we're always on the lookout for any more feedback and issues so if you've run into any roadblocks that aren't listed here, let us know and we'll get working on fixing them as soon as possible!
+
+Now get back to gaming, those League Points aren't gonna earn themselves!
+
+==Changelog November 15th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+
+* '''Leagues IV: Trailblazer Reloaded'''
+** Today’s game update marks the release of Leagues IV: Trailblazer Reloaded, a reimagining of the iconic Trailblazer League!
+** Blaze your trail across Gielinor with accelerated experience, new tasks, new Relics, and more!
+** For more information, see the [https://oldschool.runescape.wiki/w/Trailblazer_Reloaded_League OSRS Wiki page for Leagues IV.]
+
+* '''Other Changes '''
+** Halloween is officially over. Congratulations to everyone for completing all the Cauldron milestones!
+** The Sinister Offering spell no longer consumes Long and Curved Bones.
+** In Last Man Standing, the combat option on other players is now always left-click, regardless of their combat levels outside the minigame.
+** This change entails using ‘Fight’ rather than ‘Attack’ for the option, as players may remember from the old Duel Arena.
+** The Slayer Skill Cape perk which allows you to reassign your previous task is now available at Spria.
+** The Soulreaper Axe now sends a message to alert players that its stacks will be lost when unequipped. This message can be blocked by the standard filter.
+
+* '''PvP Rota'''
+** The PvP rota has moved to Period B:
+** 539 - (US) - PvP World
+** 318 - (UK) - Bounty Hunter World
+** 548 - (Germany) - High-Risk PvP World
+** 577 - (US) - Free-to-Play PvP World
+** 559 - (UK) - LMS Competitive
+** World 390 (AUS) for LMS Competitive has been activated with this rota.
+** World 569 (AUS) for Bounty hunter has been activated with this rota.
+** The PvP Arena is using '1 Def Pure' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Leagues IV: Trailblazer Reloaded==
+The agonising wait is over! Today the Leagues game mode makes its triumphant return with the launch of Leagues IV: Trailblazer Reloaded.
+
+In this reimagining of our most popular League ever, you’ll return to the area-locking mayhem of Leagues II: Trailblazer. With a few tweaks to Relics and tasks, and access to all the content we’ve added since the original League, this is a truly unique experience – and we can’t wait for you to play it!
+
+We’ve been drip-feeding teasers and reveals over the last two weeks, as well as answering some of your most frequently asked questions. See ‘em all on [https://secure.runescape.com/m=news/a=97/leagues-iv-faqs--teasers---releasing-november-15th?oldschool=1 the blog], where you’ll also learn everything you need to know about Leagues.
+
+If reading isn’t really your scene, we have a special message from our famous content creators, who want YOU to know which areas they like the look of. &nbsp;
+
+<center><big><big>[https://www.youtube.com/embed/xDiSMO5SAWg?si=OIuKLxZgWswLKq7i Trailblazer Reloaded | An Area Guide ft. Settled, Solo Mission, Torvesta and More]</big></big></center>
+<center>''If for any reason you can't see the video above, [https://www.youtube.com/watch?v=xDiSMO5SAWg click here to be whisked away to our YouTube channel].''</center>
+
+If you’ve been paying close attention to the reveals, you’ll know your old strategies from the original Trailblazer are of no use here – so you’ve got a lot of theorycrafting to do! Luckily, Mod Husky’s Game Jam project means we have the technology to let you browse all the available tasks and plan your next steps no matter what you’re up to. [https://twitter.com/OldSchoolRS/status/1719767912272076891 Take a look by clicking here]!
+
+Leagues IV will run from now until January 10th – and we’re here to fill you in on everything you need to know.
+
+==Getting Started==
+To start blazing your trail, you’ll need to log into an account with active membership. From there, head to one of the worlds marked in green on the World Select page.
+
+At launch, there’ll be 43 Leagues worlds to choose from. Some of them have specific themes, to help players group up more easily:
+
+{{Collapsed section|18|US East (Click to expand world list)}}
+* 385
+* 400 - Forestry
+* 401 - Tempoross
+* 402 – Guardians of the Rift
+* 403 – Theatre of Blood
+* 404 - Nex
+* 472 - Soul Wars
+* 473
+* 574
+* 581
+{{Collapsed section end}}
+
+{{Collapsed section|18|US West (Click to expand world list)}}
+* 409 - Wintertodt
+* 410
+* 411 – Chambers of Xeric
+* 438 – Tombs of Amascut
+* 439 - Zalcano
+* 440
+* 442
+* 541
+{{Collapsed section end}}
+
+{{Collapsed section|18|UK (Click to expand world list)}}
+* 407 - Tempoross
+* 408 - Forestry
+* 503 – Chambers of Xeric
+* 504 – Tombs of Amascut
+* 564
+* 566
+{{Collapsed section end}}
+
+{{Collapsed section|18|DE (Click to expand world list)}}
+* 405
+* 406 - Wintertodt
+* 457 – Guardians of the Rift
+* 458 – Theatre of Blood
+* 460 - Nex
+* 461 - Zalcano
+* 462
+* 550
+* 551
+* 582
+{{Collapsed section end}}
+
+{{Collapsed section|18|AU (Click to expand world list)}}
+* 412 - Raids
+* 426 - Raids
+* 536 - Nex
+* 538 - Skilling Bosses
+* 590 - Skilling Bosses
+* 591 - Soul Wars
+* 592
+* 593
+* 594
+{{Collapsed section end}}
+
+Fremennik enjoyers will be pleased to hear that Blast Furnace automation has been enabled on all Leagues Worlds – so there are no specific ones for Blast Furnace.
+
+When you arrive in Gielinor you’ll find yourself as a brand-new Iron player in Lumbridge, with the Misthalin and Karamja regions available to explore. You’ll have all the usual starting stats plus enough levels in Herblore, Agility and Runecraft to let you start training. With free Dramen Staff in hand, you’re ready to start taking on tasks, choosing your Relics, and unlocking new regions!
+
+You’ll have boosted XP rates throughout the League, so you’ll soon catch up to your favourite activities.
+
+If you’re undecided about which area to unlock first, check out this handy infographic from the endlessly talented [https://twitter.com/GentleTractor GentleTractor]!
+
+[[File:Leagues IV - Trailblazer Reloaded (1).jpg|600px|center]]
+
+Still need more? For a more detailed look at each area, click the dropdown below and enjoy a nifty slideshow!
+
+{{Collapsed section|18|Click here to check out a detailed infographic for each area}}
+<gallery mode="packed", heights="180", style="text-align:center">
+Leagues IV - Trailblazer Reloaded (2).png
+Leagues IV - Trailblazer Reloaded (3).png
+Leagues IV - Trailblazer Reloaded (4).png
+Leagues IV - Trailblazer Reloaded (5).png
+Leagues IV - Trailblazer Reloaded (6).png
+Leagues IV - Trailblazer Reloaded (7).png
+Leagues IV - Trailblazer Reloaded (8).png
+Leagues IV - Trailblazer Reloaded (9).png
+Leagues IV - Trailblazer Reloaded (10).png
+Leagues IV - Trailblazer Reloaded (11).png
+</gallery>
+<center>''Use the arrows to either side or the dots just below the image to navigate through the slides. For higher resolution, click on the image to open it separately and zoom in to your heart's content!''</center>
+{{Collapsed section end}}
+
+===Tasks===
+To unlock regions and gain more Relics, you’ll need League Points – and to get League Points, you’ll need to complete some tasks. These fun challenges are scattered relatively evenly across all available areas – so feel free to pick your favourites!
+
+We’ve teamed up with the OSRS Wiki team to bring you the entire task list on [https://oldschool.runescape.wiki/w/Trailblazer_Reloaded_League/Tasks one incredibly useful page]. This makes it easy to plan your route and choose your Relics to suit your favourite tasks – remember, strategy is key!
+
+===Relics===
+Choosing a Tier 1 Relic is the first decision you’ll need to make. These powerful items bestow all kinds of helpful buffs and boons – but choose wisely, because they’re permanent!
+
+To help you out, here’s a rundown of the Tier 1 Relics:
+
+====Endless Harvest====
+
+* 2x resources gathered from Fishing, Woodcutting and Mining. Bonus resources provide bonus XP.
+* Resources gathered by this Relic are sent directly to your Bank if there’s space. Otherwise, they are placed in your Inventory.
+* Items that normally can’t be banked will be placed into your Inventory regardless of how much space you have.
+
+====Production Prodigy====
+
+* When doing the following activities, all items are processed at once:
+** Smelting ores, Smithing bars and making Cannonballs.
+** Fletching logs, stringing Bows and cutting bolt tips.
+** Cleaning herbs and making Potions which don’t have a stackable secondary ingredient.
+** Cooking food and making Jugs of Wine.
+** Crafting leather, uncut gems, glassblowing, jewellery, pottery, Battlestaves and spinning flax or wool.
+* You’ll receive full XP for all items processed using this Relic.
+* There’s a 25% chance that you’ll make an extra product, which will be sent straight to your Bank! This additional product will also earn you XP.
+* Crafting, Smithing, Herblore, Fletching and Cooking are all boosted by +12.
+
+====Trickster====
+
+* You will automatically re-pickpocket your target.
+* Loot from pickpocketing is doubled and noted.
+* Coin pouch limit is multiplied by 3.
+* You’ll be given the Sage’s Greaves, that grant Agility XP that scales with your Agility level while running.
+* Box traps lure creatures faster.
+* Loot from box traps is doubled.
+* Impling jars can’t break.
+* You can burn up to nine logs simultaneously.
+* You can’t fail actions for Thieving, Agility, Hunter and Firemaking.
+
+Pretty cool, huh? Well, that’s only the first three! You can find information about every single Relic [https://oldschool.runescape.wiki/w/Trailblazer_Reloaded_League/Relics over on the OSRS Wiki] – or, you can keep it a surprise and discover the others as you rise through the ranks.
+
+Alternatively, you can check out this jam-packed infographic (once again, made by GentleTractor) to refer back to while you're progressing!
+
+[[File:Leagues IV - Trailblazer Reloaded (16).png|600px|center]]
+
+===League Firsts===
+If playing for fun isn't enough, but you're not sure that you'll be able to stick it out and go the distance for maximum points then League Firsts might be for you!
+
+Below are a list of a number of achievements we'll be keeping an eye on so that we can commerorate the fastest trailblazers around throughout the League. and etch their names into the annals of League history.
+
+* Kill TzTok-Jad
+* Kill TzKal-Zuk
+* Complete Tzhaar-Ket-Rak's 7th Challenge
+* Complete an elite Achievement Diary
+* Unlock a tier 8 relic
+* Unlock a 5th area
+* Achieve a level 99
+* Achieve total level 2277
+* Kill a Goblin
+* Kill a Lesser Demon
+* Catch a Lucky Impling
+* Kill Nex
+* Complete a Tombs of Amascut raid
+* Complete a Theatre of Blood raid
+* Complete a Chambers of Xeric raid
+* Kill Phosani's Nightmare
+* Open the Grand Hallowed Coffin
+* Open the Elven Crystal Chest
+* Obtain points for easy Combat Achievements
+* Complete a Master Clue Scroll
+* Kill a Demonic Gorilla
+* Kill a Desert Treasure 2 Boss
+* Kill the Phantom Muspah
+* Kill an Awakened Desert Treasure 2 Boss
+See something that catches your eye? Ready, set, go!
+
+===Rewards and Trophies===
+League Points aren’t just for new areas and Relics - you’ll be able to spend them on some fiery new rewards, too! From the hottest fits to the coveted League banner, from new animations to ornament kits – the Leagues Rewards Shop has it all.
+
+As well as a new range of Trailblazer Reloaded-themed cosmetics, you can also purchase all the rewards you missed from previous Leagues. Likewise, if you have Points left over from previous Leagues, you can still spend them on new rewards!
+
+[[File:Leagues IV - Trailblazer Reloaded (12).gif|385px|center]]
+
+
+[[File:Leagues IV - Trailblazer Reloaded (13).gif|428px|center]]
+
+
+[[File:Leagues IV - Trailblazer Reloaded (14).gif|thumb|401px|center|''Here's a sneak-peak at some of the animation overrides on offer this League!'']]
+
+
+To get your mitts on the goods, just hop back to the main game and speak to the Leagues Tutor in Catherby.
+
+Please note that he’ll need a bit of time to set up his wares – to avoid nasty bugs, we’re not allowing players to purchase items from the Leagues Reward Store, or claim Trophies, until a couple of days after the League launches.
+
+Speaking of Trophies, we’ve made some big changes this year! Our new static point threshold approach to HiScores ensures that you can be certain exactly how many League Points you need to earn each Trophy. Just like previous Leagues, there’s a Trophy for each tier on the HiScores, from basic Bronze all the way up to the coveted Dragon tier. &nbsp;
+
+To make it even easier to see where you stack up, we’ve added the exact Point thresholds to your in-game Leagues menu. Take a peek!
+
+[[File:Leagues IV - Trailblazer Reloaded (15).jpg|300px|center]]
+
+Well, it seems we’ve nothing further to tell you. It’s time for you to gear up, put on your travellin’ boots, and head out into the wild world of Leagues IV: Trailblazer Reloaded. We can’t wait to see where you’ll go! Good luck – and have fun!
+
+==Merch Update: Leagues Trailblazer Reloaded Pin==
+Celebrate Leagues IV with the Trailblazer Reloaded limited-edition pin, on sale now!
+
+[[File:Leagues IV - Trailblazer Reloaded (16).jpg|600px|center]]
+
+Commemorate your Leagues adventure with this gorgeous pin, featuring antique gold metal detailing, translucent enamel ‘stained glass’, and orange and yellow glow in the dark accents.
+
+This limited-edition item is only available until Leagues IV ends on January 10th – so get one while you can!
+
+Limited stock is available to ship in November, with a further production run later in January. Don’t miss out – pre-order now from [https://runescape.backstreetmerch.com/ the official Merch Store.]
+
+==Other Changes==
+* Halloween has officially ended, so we’re dusting off the cobwebs and putting away the pumpkins. Congratulations to all you ghouls and ghosts for absolutely smashing the Cauldron milestones!
+* The Sinister Offering spell no longer consumes Long and Curved Bones, as they are of more use to players in Dorgesh-Kaan.
+* In Last Man Standing, the combat option on other players is now always left-click, regardless of their combat levels outside the minigame.
+* This change entails using ‘Fight’ rather than ‘Attack’ for the option, as players may remember from the old Duel Arena.
+* The Slayer Skill Cape perk which allows you to reassign your previous task is now available at Spria, for any 99s who still hang out with her.
+* The Soulreaper Axe now sends a message to alert players that its stacks will be lost when unequipped. This message can be blocked by the standard filter.
+
+==PvP World Rota==
+The PvP rota has moved to Period A:
+
+* 539 (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+World 569 (AUS) for Bounty hunter has been '''activated''' with this rota.
+
+The PvP Arena is using ''''1 Def Pure'''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,892 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

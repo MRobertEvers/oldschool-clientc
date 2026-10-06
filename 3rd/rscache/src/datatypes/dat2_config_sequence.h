@@ -2,6 +2,7 @@
 #define RSCACHE_DATATYPES_DAT2_CONFIG_SEQUENCE_H
 
 #include "../filelist.h"
+#include "../rscache_presence.h"
 #include "../rscache_profile.h"
 
 #include <stdbool.h>
@@ -23,8 +24,47 @@ struct RSCache_Dat2ConfigFrameSoundMap
     int capacity;
 };
 
+/**
+ * The fields a sequence stream can state, for `RSCache_Dat2ConfigSequence.present`.
+ *
+ * Keyed by meaning, not opcode: the era decides the number (frame sounds are 13 or
+ * 15 before rev 226 and 14 after; the maya id is 14, then 13), and every era's
+ * decoder maps its opcode onto the one field.
+ */
+enum RSCache_Dat2ConfigSequenceField
+{
+    RSCACHE_SEQ_FIELD_FRAMES = 0,            /* 1: frame ids + lengths */
+    RSCACHE_SEQ_FIELD_FRAME_STEP,            /* 2 */
+    RSCACHE_SEQ_FIELD_INTERLEAVE,            /* 3 */
+    RSCACHE_SEQ_FIELD_STRETCHES,             /* 4 */
+    RSCACHE_SEQ_FIELD_FORCED_PRIORITY,       /* 5 */
+    RSCACHE_SEQ_FIELD_LEFT_HAND,             /* 6 */
+    RSCACHE_SEQ_FIELD_RIGHT_HAND,            /* 7 */
+    RSCACHE_SEQ_FIELD_MAX_LOOPS,             /* 8 */
+    RSCACHE_SEQ_FIELD_PRECEDENCE,            /* 9 */
+    RSCACHE_SEQ_FIELD_PRIORITY,              /* 10 */
+    RSCACHE_SEQ_FIELD_REPLY_MODE,            /* 11 */
+    RSCACHE_SEQ_FIELD_CHAT_FRAMES,           /* 12 */
+    RSCACHE_SEQ_FIELD_FRAME_SOUNDS,          /* v1/v2 13 or 15, v3 14, rs2 13 */
+    RSCACHE_SEQ_FIELD_MAYA_ID,               /* v1/v2 14, v3 13 */
+    RSCACHE_SEQ_FIELD_MAYA_RANGE,            /* v1/v2 16, v3 15 */
+    RSCACHE_SEQ_FIELD_VERTICAL_OFFSET,       /* v3 16 */
+    RSCACHE_SEQ_FIELD_MAYA_MASKS,            /* 17 */
+    RSCACHE_SEQ_FIELD_DEBUG_NAME,            /* 18 */
+    RSCACHE_SEQ_FIELD_CROSS_WORLD_SOUNDS,    /* v3 19 */
+    RSCACHE_SEQ_FIELD_RS2_530_SOUND_FLAG,    /* rs2 14 */
+    RSCACHE_SEQ_FIELD_RS2_727_TWEENED,       /* rs2-727 15 */
+    RSCACHE_SEQ_FIELD_RS2_727_UNKNOWN16,     /* rs2-727 16 */
+    RSCACHE_SEQ_FIELD_RS2_727_VORBIS_SOUNDS, /* rs2-727 18 */
+    RSCACHE_SEQ_FIELD_COUNT
+};
+
 struct RSCache_Dat2ConfigSequence
 {
+    /** Which `RSCache_Dat2ConfigSequenceField`s the stream stated. The encoder
+     *  writes exactly these; the values below still hold the client defaults
+     *  for the rest. */
+    struct RSCache_Presence present;
     int id;
     int* frame_ids;
     int* frame_lengths;

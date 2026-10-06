@@ -1,4 +1,5 @@
 #include "cachepack.h"
+#include "rscache_register.h"
 
 #include "cp_assets.h"
 #include "cp_import.h"
@@ -7,6 +8,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 static void
 usage(void)
@@ -22,10 +24,16 @@ usage(void)
         "                   [--assets] [--binary] [--gamevals]\n"
         "  cachepack pack   --src DIR --out DIR --rev NAME --asset-only\n"
         "                   --assets=interfaces,scripts [--archive-list FILE]\n"
-        "  cachepack pack   --src DIR --server-only\n"
+        "  cachepack pack   --src DIR --server-only [--lane NAME]... [--server-out DIR] [--force]\n"
         "  cachepack verify --cache DIR --rev NAME --src DIR [--types a,b]\n"
         "                   [--assets[=models,sprites]] [--tmp DIR]\n"
         "  cachepack membership --src DIR --rev NAME [--types a,b] [--check-only]\n"
+        "  cachepack keys   --rev NAME [--types a,b] [--src DIR]\n"
+        "  cachepack missing --src DIR [--rev NAME] [--types a,b]\n"
+        "\n"
+        "  Every block states every key of its type; a field the record does not\n"
+        "  set is written `key=default`, a list it sets empty `key=empty`. `keys`\n"
+        "  prints those keys per type for the profile.\n"
         "\n"
         "  unpack  writes pack/<type>.pack (id=name, seeded from the cache's gameval\n"
         "          table), configs/all.<type> (text records) and meta.ini.\n"
@@ -48,6 +56,13 @@ usage(void)
         "          table for (stat, category) at group 128 up. Rebuilt whole on every\n"
         "          run, so --types makes the config half of it partial. --server-only\n"
         "          writes just that server pack — no cache is opened, no --out needed —\n"
+        "          --lane NAME walks ported/NAME/configs too (its records are\n"
+        "          defined there, below the authored overlays); --server-out puts\n"
+        "          the server pack somewhere other than <src>/server/pack, one per\n"
+        "          lane composition. The pack is stamped with its tree's fingerprint;\n"
+        "          a --server-only run whose stamp matches does nothing (--force\n"
+        "          rewrites), and the server refuses a pack whose stamp does not.\n"
+
         "          which is the cheap form the build runs before every server boot.\n"
         "          --asset-only opens an already-complete --out in place and skips\n"
         "          configs/server packs. With --archive-list, only rows written as\n"
@@ -206,6 +221,65 @@ load_meta(
     return 1;
 }
 
+/*
+ * `cachepack keys --rev NAME [--types a,b]`: every key a block of each type
+ * states under that profile, one per line as `<type> <key> <list|indexed|->`.
+ * The tables live beside the unpackers (CP_KeySpec); this is how a script that
+ * completes or reads the text asks for them instead of keeping a copy.
+ */
+static int
+print_keys(
+    const char* rev,
+    const char* types_csv,
+    const char* src_dir)
+{
+    struct CP_Selection sel = { .all = true, .mask = 0 };
+    struct CP_Ctx ctx;
+
+    if( !rev )
+    {
+        fprintf(stderr, "cachepack: keys needs --rev\n");
+        return 1;
+    }
+    if( types_csv && !parse_types(types_csv, &sel) )
+        return 1;
+    memset(&ctx, 0, sizeof(ctx));
+    if( !tool_resolve_profile(rev, NULL, NULL, NULL, NULL, &ctx.profile) )
+        return 1;
+    if( src_dir )
+        snprintf(ctx.srcdir, sizeof(ctx.srcdir), "%s", src_dir);
+    for( int t = 0; t < CP_TYPE_COUNT; t++ )
+    {
+        const struct CP_Type* type = cp_type((enum CP_TypeId)t);
+
+        if( !sel.all && !(sel.mask & (1u << t)) )
+            continue;
+        for( const struct CP_KeySpec* spec = type->keys; spec->key; spec++ )
+        {
+            if( spec->applies && !spec->applies(&ctx) )
+                continue;
+            printf("%s %s %s%s%s\n", type->name, spec->key,
+                   (spec->flags & CP_KEY_INDEXED) ? "indexed"
+                   : (spec->flags & CP_KEY_LIST) ? "list"
+                                                 : "-",
+                   spec->sibling ? " " : "", spec->sibling ? spec->sibling : "");
+        }
+        /* With --src, the type's server keys too: one key set per record. */
+        if( src_dir )
+        {
+            const struct RSCache_Register* fields = cp_ctx_fields(&ctx, (enum CP_TypeId)t);
+
+            for( int f = 0; f < fields->count; f++ )
+            {
+                if( cp_keys_is_server_key(&ctx, type, &fields->entries[f]) )
+                    printf("%s %s -\n", type->name, fields->entries[f].name);
+            }
+        }
+    }
+    cp_ctx_fields_free(&ctx);
+    return 0;
+}
+
 int
 main(int argc, char** argv)
 {
@@ -262,6 +336,10 @@ main(int argc, char** argv)
     const char* compare_rev = NULL;
     const char* types_csv = NULL;
     const char* binary_tables = NULL;
+    const char* lanes[CP_MAX_LANES];
+    int lane_count = 0;
+    const char* server_out = NULL;
+    int force_server = 0;
     const char* asset_kinds = NULL;
     const char* archive_list_path = NULL;
     const char* tmp_dir = "build/cachepack_verify";
@@ -295,6 +373,19 @@ main(int argc, char** argv)
             check_only = 1;
         else if( strcmp(arg, "--server-only") == 0 )
             server_only = 1;
+        else if( strcmp(arg, "--lane") == 0 && i + 1 < argc )
+        {
+            if( lane_count == CP_MAX_LANES )
+            {
+                fprintf(stderr, "cachepack: at most %d --lane options\n", CP_MAX_LANES);
+                return 1;
+            }
+            lanes[lane_count++] = argv[++i];
+        }
+        else if( strcmp(arg, "--server-out") == 0 && i + 1 < argc )
+            server_out = argv[++i];
+        else if( strcmp(arg, "--force") == 0 )
+            force_server = 1;
         else if( strcmp(arg, "--asset-only") == 0 )
             asset_only = 1;
         else if( strcmp(arg, "--assets") == 0 )
@@ -347,6 +438,9 @@ main(int argc, char** argv)
         }
     }
 
+    if( strcmp(command, "keys") == 0 )
+        return print_keys(rev, types_csv, src_dir);
+
     if( !src_dir )
     {
         fprintf(stderr, "cachepack: --src is required\n");
@@ -376,6 +470,18 @@ main(int argc, char** argv)
     memset(&ctx, 0, sizeof(ctx));
     ctx.warn_limit = warn_limit;
     snprintf(ctx.srcdir, sizeof(ctx.srcdir), "%s", src_dir);
+    for( int l = 0; l < lane_count; l++ )
+        ctx.lanes[l] = lanes[l];
+    ctx.lane_count = lane_count;
+    ctx.force_server = force_server;
+    {
+        struct stat self;
+
+        if( stat(argv[0], &self) == 0 )
+            ctx.writer = ((uint64_t)self.st_size << 32) ^ (uint64_t)self.st_mtime;
+    }
+    if( server_out )
+        snprintf(ctx.server_out, sizeof(ctx.server_out), "%s", server_out);
 
     /*
      * The profile is stated, never guessed — the same rule the library holds to.
@@ -390,7 +496,8 @@ main(int argc, char** argv)
             return 1;
         snprintf(ctx.rev_name, sizeof(ctx.rev_name), "%s", rev);
     }
-    else if( (strcmp(command, "pack") == 0 || strcmp(command, "membership") == 0) &&
+    else if( (strcmp(command, "pack") == 0 || strcmp(command, "membership") == 0 ||
+              strcmp(command, "missing") == 0) &&
              load_meta(src_dir, &ctx.profile) )
     {
         printf("Using the identity meta.ini recorded (game %d, revision %d)\n", ctx.profile.game,
@@ -408,8 +515,9 @@ main(int argc, char** argv)
      * The compiler and runtime already layer each ported lane's pack; these commands
      * must resolve the same names. Import intentionally keeps the root-only view
      * so writing one lane cannot copy every other lane's ledger into it. */
-    if( (strcmp(command, "pack") == 0 || strcmp(command, "membership") == 0) &&
-        !cp_names_load_ported_allocs(&ctx.names, src_dir) )
+    if( (strcmp(command, "pack") == 0 || strcmp(command, "membership") == 0 ||
+         strcmp(command, "missing") == 0) &&
+        !cp_names_load_ported_allocs(&ctx.names, src_dir, ctx.lanes, ctx.lane_count) )
     {
         cp_names_free(&ctx.names);
         return 1;
@@ -432,6 +540,10 @@ main(int argc, char** argv)
         ctx.cache_open = true;
         snprintf(ctx.cache_dir, sizeof(ctx.cache_dir), "%s", cache_dir);
         tool_print_profile(cache_dir, &ctx.profile);
+        /* A param line's value is spelled by its param's declared type, which an
+         * unpack reads from the cache it is unpacking, not from the text it is
+         * about to rewrite. */
+        printf("Typed %d param(s) from the cache\n", cp_param_types_from_cache(&ctx));
 
         if( strcmp(command, "unpack") == 0 && compare_dir )
         {
@@ -638,6 +750,8 @@ main(int argc, char** argv)
                 rc = 1;
         }
     }
+    else if( strcmp(command, "missing") == 0 )
+        rc = cp_missing_run(&ctx, &sel) ? 0 : 1;
     else if( strcmp(command, "membership") == 0 )
     {
         /* No cache, no --out: the routing gates read the text tree and the name

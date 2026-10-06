@@ -1,0 +1,20 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	raid.enter	PASS	7	001-raid.enter	in tob maiden (entry) at 6452,94,0; boss present (tob_maiden_100_story slot 32 at 6426,92); handle 1, started 0, fight 6448,94,0
+2	kit.before	PASS	0		shark 5 coins 1000 scimitar 1 [frame unchanged]
+3	barrier.click	PASS	2	002-barrier.click	map_flag
+4	barrier.confirm	PASS	2	003-options-p1,004-barrier.confirm	2 page(s): options:options, options:choose:Yes, begin the fight. [frame unchanged]
+5	death.line	PASS	25	005-death.line	You have died. Death count: 1. at room tick 25 (lowest hp read 0)
+6	death.not_ordinary	PASS	0		Oh dear=nil Lumbridge=nil [frame unchanged]
+7	death.caged	PASS	1	006-death.cage	tobjail jailed=1 died_in=3 deaths=1 room=1 cleared=0 orbs=30,0,0,0,0 tile=6430,108,0 [frame unchanged]
+8	death.cage_tile	PASS	0		tile 6430,108 L0 (instance-local Maiden cage 30,44 per [nr]) [frame unchanged]
+9	death.orb_varbit	PASS	0		varbit 6442 tob_client_p0 = 30 [frame unchanged]
+10	wipe.line	PASS	1	007-wipe.line	You have failed. 2 tick(s) after the death line
+11	wipe.room_restarted	PASS	4	008-wipe.restart,009-wipe.room_restarted	tobstate active=1 handle=1 room=1 mode=0 started=0 cleared=0 boss_uid=66616 fight=6448,94,0
+12	wipe.uncaged	PASS	1	010-wipe.uncaged	tobjail jailed=0 died_in=2 deaths=1 room=1 cleared=0 orbs=27,0,0,0,0 tile=6452,94,0
+13	wipe.woke_at	PASS	0		tile 6452,94 L0 (room entry, corridor side of the barrier) [frame unchanged]
+14	wipe.items_kept	PASS	0		shark 5 coins 1000 scimitar 1 [frame unchanged]
+15	wipe.bandages	PASS	0		tob_bandages 3 [frame unchanged]
+16	wipe.boss_back	PASS	0		33 [frame unchanged]
+17	wipe.hp	PASS	0		10/10 [frame unchanged]
+SUMMARY	17	PASS	43	exit=0	pass=17 fail=0

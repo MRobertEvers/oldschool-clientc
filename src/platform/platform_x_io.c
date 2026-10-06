@@ -19,6 +19,14 @@
 #include "asyncio.h"
 #include "platform/platform_x_http.h"
 
+/* The launch service's items (raid seam37; see answer_launch_item). These
+ * three lines belong in platform_x_io.h, which is outside that seam's files:
+ * main.c repeats the prototype. */
+#define PLATFORM_X_IO_LAUNCH_PREFIX "launch/"
+typedef char* (*PlatformX_IO_LaunchAnswerFn)(
+    void* context, char const* verb, char const* body, int body_size, int* out_size);
+void PlatformX_IO_SetLaunchAnswer(PlatformX_IO_LaunchAnswerFn answer, void* context);
+
 
 #include <assert.h>
 #include <rscache.h>
@@ -688,6 +696,76 @@ load_file_item(
 }
 
 /*
+ * THE LAUNCH SERVICE'S ITEMS (raid seam37; src/platform/launch_sessions.h,
+ * docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-06j.md DESIGN (1)).
+ *
+ * A request to the embedded IO server's launch service travels the plugin
+ * channel as a SCRIPT item whose path is `launch/<verb>` and whose `data` /
+ * `data_size` LEND the request body (key=value lines) the way FILE_WRITE lends
+ * its bytes: the task that queued it keeps and frees the body, and the answer
+ * replaces it in the item (a malloc'd text the item owns, freed by
+ * ToriRS_IO_ClearItem like any SCRIPT payload). A SCRIPT item rather than a
+ * new kind: every executor already carries SCRIPT items (asyncio.h's item
+ * layout and its browser ABI are unchanged), and one that does not know the
+ * prefix answers a script that is not there, which the caller reads as "no
+ * launch service".
+ *
+ * Answered IN THIS PROCESS by the host's service (main.c sets it: the leader
+ * client is the spawner, the owner's "both servers embedded"). A process with
+ * none -- the standalone io_server, a test binary -- answers `unsupported:`
+ * without touching a disk or a socket, so the HTTP leg never sees the item.
+ */
+static PlatformX_IO_LaunchAnswerFn g_launch_answer;
+static void* g_launch_answer_context;
+
+void
+PlatformX_IO_SetLaunchAnswer(
+    PlatformX_IO_LaunchAnswerFn answer,
+    void* context)
+{
+    g_launch_answer = answer;
+    g_launch_answer_context = context;
+}
+
+static int
+item_is_launch(struct ToriRS_IOItem const* item)
+{
+    return item->kind == TORIRS_IOK_SCRIPT &&
+           strncmp(item->u.script.path, PLATFORM_X_IO_LAUNCH_PREFIX,
+                   sizeof(PLATFORM_X_IO_LAUNCH_PREFIX) - 1) == 0;
+}
+
+static int
+answer_launch_item(struct ToriRS_IOItem* item)
+{
+    char const* verb = item->u.script.path + sizeof(PLATFORM_X_IO_LAUNCH_PREFIX) - 1;
+    char const* body = (char const*)item->data;
+    int const body_size = item->data_size;
+    char* answer;
+    int answer_size = 0;
+
+    assert(body_size >= 0);
+    if( body_size > 0 )
+        assert(body);
+    if( g_launch_answer )
+        answer = g_launch_answer(g_launch_answer_context, verb, body, body_size, &answer_size);
+    else
+    {
+        static char const none[] = "unsupported: no launch service in this process (only a "
+                                   "desktop client's embedded IO server launches clients)\n";
+        answer = (char*)malloc(sizeof(none));
+        assert(answer);
+        memcpy(answer, none, sizeof(none));
+        answer_size = (int)sizeof(none) - 1;
+    }
+    assert(answer);
+    item->data = answer;
+    item->data_size = answer_size;
+    item->error_code = 0;
+    return 0;
+}
+
+/*
  * A plugin script, the manifest that names them, or a shipped plugin asset.
  *
  * Nothing to decide here: stored_file_read is local-first and io_server-second
@@ -1327,6 +1405,10 @@ PlatformX_IO_LoadItem(
         item->error_code = 0;
         return write_client_file_item(item);
     }
+    /* Before the clear too: a launch item lends its request body the same way
+     * (the launch service's banner above). */
+    if( item_is_launch(item) )
+        return answer_launch_item(item);
     /* A prefetch on a source that answers inside LoadItem is already
      * resident by definition -- the disk is the store -- so every group
      * "landed" without a read. The lent id array stays the caller's. */
@@ -1414,7 +1496,8 @@ PlatformX_IO_Process(
 
         /* A write carries its payload in these two fields — see LoadItem —
          * and a prefetch lends its id array the same way. */
-        if( item->kind != TORIRS_IOK_FILE_WRITE && item->kind != TORIRS_IOK_CACHE_PREFETCH )
+        if( item->kind != TORIRS_IOK_FILE_WRITE && item->kind != TORIRS_IOK_CACHE_PREFETCH &&
+            !item_is_launch(item) )
         {
             item->data = NULL;
             item->data_size = 0;

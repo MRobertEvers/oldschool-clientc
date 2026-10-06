@@ -140,8 +140,8 @@ app_sailing_heading_at(
         return 0;
     double x, z;
     if( !ToriRS_WorldUnprojectPlane(
-            &app->world_camera,
-            &app->world_camera_pos,
+            &app->frame_view->world_camera,
+            &app->frame_view->world_camera_pos,
             app->world_emit_desc.x,
             app->world_emit_desc.y,
             app->world_emit_desc.w,
@@ -211,14 +211,16 @@ app_sailing_register_arrows(
     if( vessel->parent_view_id != WORLDVIEW_ROOT )
         return;
     int hover = -1;
-    if( app->world_mouse_in_viewport && !app->pointer_absent && !app->interact.minimenu.visible &&
+    if( app->frame_view->world_mouse_in_viewport && !app->frame_view->pointer_absent &&
+        !app->frame_view->minimenu->visible &&
         !strcmp(app->host.clientop.mouseover_op, "Set heading") )
-        app_sailing_heading_at(app, app->world_mouse_x, app->world_mouse_y, &hover);
+        app_sailing_heading_at(
+            app, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y, &hover);
     int selected =
         app->logic_cycle < app->sailing_selected_until ? app->sailing_selected_heading : -1;
-    int scale = app->world_camera.projection_mode == TORIDRAW_PROJECTION_MODE_FOV
-                    ? toridraw_projection_scale_from_fov(app->world_camera.fov_rpi2048)
-                    : app->world_camera.projection_scale;
+    int scale = app->frame_view->world_camera.projection_mode == TORIDRAW_PROJECTION_MODE_FOV
+                    ? toridraw_projection_scale_from_fov(app->frame_view->world_camera.fov_rpi2048)
+                    : app->frame_view->world_camera.projection_scale;
     if( scale <= 0 )
         scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     int distance = app->world_emit_desc.h > 0

@@ -1,0 +1,281 @@
+{{Update|date=17 September 2020|rev=22 September 2020|link=https://secure.runescape.com/m=news/poll-73-game-improvements-blog?oldschool=1|category=community}}
+[[File:Poll 73 Game Improvements Blog newspost.jpg|right]]
+{{clear}}
+
+<center>The Old School team is back with another new Quality of Life content poll for you. Let's take a look at what we're offering!</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Changelog and Your Feedback (Updated 22nd September)}}
+
+'''Changelog:'''
+
+We've amended the level requirement for the question which asks about the PoH Combat Dummy. It's now 58, rather than 53.
+We've confirmed that the Skull Sceptre chunks are stackable.
+
+We've adjusted the Beekeepers outfit question to include mention of our plans to update the random event.
+
+We've '''removed''' the Alchemical Hydra question. We expect to revisit this topic at a later date, when we're publicly discussing things like PvM QoL associated to the Combat Achievements update.
+
+We've '''removed''' the Nightmare audio question. We won't be polling this, it'll be fixed as an audio bug.
+
+We've slightly revised our proposal for the PoH Combat Dummy. The Kalphite item requirement is now an Ensouled Kalphite head rather than a Kq head.
+
+
+'''Your Feedback:'''
+
+Some of you you felt that rather than toggling the ability to obtain fossils, we should add more uses for fossils. We expect to explore new content additions and uses in the future, but for now we'll be offering the toggle option only.
+
+Some of you asked for more storage for fossils, including near Volcanic Mine. We expect to offer this in a future poll.
+
+Some of you feel that the Jar of Darkness might still be too rare. We don't plan to change it in this poll, but if complaints persist we're open to revisiting the topic.
+
+There were lots of requests for us to look at allowing the Skull Sceptre to auto-cast Crumble Undead. We expect to offer this in a future poll.
+
+There were some requests for us to look at other lost-on-death items alongside the Ava's Devices, including the Lunar staff. We expect to offer this in a future poll.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Construction and the Player Owned House}}
+
+[[File:Poll 73 Game Improvements Blog (1).png|center|80px]]
+
+
+Following the roaring success of Mahogany Homes, we have a few quality of life improvements regarding Construction and the Player Owned House. Starting with Estate Agents, we would like to add two options to their right click menu - one to quickly open the Relocate House menu, and another to redecorate your house.
+
+{{News Poll|1|Should we add a right click option to the Estate Agent to allow players to quickly move or redecorate their homes?}}
+
+
+'''PoH Combat Dummy'''
+
+[[File:Poll 73 Game Improvements Blog (2).png|center|100px]]
+
+
+The PoH combat dummy allows players to test the maximum hit of various weapons. It can also be upgraded to an Undead Combat Dummy to test max hit against zombies and demons (as if you were on a Slayer task). We would like to expand this to include a few additional bane type weapons.
+
+Below is a list of the different additions we'd like to make:
+*'''Dragonbane''': Attach a Vorkath head to test the maximum hit of dragonbane weapons
+*'''Keris''': Attach 10 Ensouled Kalphite heads to test the maximum hit of the keris against Kalphites and Scarabites
+*'''Leaf Bladed''': Attach a Kurask head to test maximum hit against King Kurasks, Kurasks and Turoths with Leaf-Bladed weapons.
+*'''Silver Weapons''': Attach 20 Vampyre dust to test the maximum hit against Vampyres with silver weapons
+*'''Revenant Weapons''': Attach 500 Revenant Ether to test the maximum hit of Craw's Bow, Thammorans Sceptre and Viggora's Chainmace (as if you were attacking an NPC in the wilderness)
+
+{{News Poll|2|Should we expand the PoH Combat dummy to include the suggested functionality? Players will need 58 Construction to be able to attach these upgrades.}}
+
+
+'''Jar of Darkness'''
+
+[[File:Poll 73 Game Improvements Blog (3).png|center|60px]]
+
+
+We'd like to lower the drop rate of the Jar of Darkness. Other bosses offer a much lower drop rate, so we'd like to bring it in line with these drop rates.
+
+{{News Poll|3|Should we change the drop rate of the Jar of Darkness from 1/2,500 to 1/500?}}
+
+
+'''Skull Sceptre'''
+
+[[File:Poll 73 Game Improvements Blog (4).png|center|120px]]
+
+
+We would like to make a few changes to the Skull Sceptre. The first is to increase the amount of charges it can hold from 5 to 10. Additionally, completion of each tier of the Varrock Achievement Diaries will raise it to 14, 18, 22 and 26 accordingly.
+
+{{News Poll|4|Should we increase the base number of charges on the Skull Sceptre from 5 base charges to 10? After completing the Varrock Achievement Diary tiers this will increase it to 14, 18, 22 and 26 respectively. Currently completing these diaries raises the total charges to 7, 9, 11 and 13.}}
+
+Along with this, we want to streamline recharging the Sceptre by using a chisel on the pieces. Doing this will grind them up into tradable, stackable skull chunks. These can then be used to charge your Sceptre without needing to return to the Stronghold of Security.
+
+{{News Poll|5|Should we allow players to crush Skull Sceptre pieces into tradable, stackable chunks? These chunks can then be used to charge the imbued Skull Sceptre.}}
+
+{{News Poll|6|Should the Skull Sceptre no longer be destroyed on death?}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Desert Achievement Diary}}
+
+[[File:Poll 73 Game Improvements Blog (5).png|center|100px]]
+
+
+We would like to lower the diary tier required to have a permanent rope at the entrance to the Kalphite Queens lair. It currently sits at Elite tier, and we would like to lower this to Hard. This would help players going for the Elite Desert Achievement diary by freeing up some inventory space on the way to Kalphite Queen's Lair.
+
+{{News Poll|7|Should we lower the reward tier required for a permanent rope down to the Kalphite Queen from the Desert Achievement Diary from Elite to Hard?}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Slayer}}
+
+[[File:Poll 73 Game Improvements Blog (6).png|center|100px]]
+
+
+Becoming a master of Slayer is no easy task. Those who accomplish it are rewarded with a beautiful Skill Cape to prove to the world they are a true master. However, currently Slayer Masters do not really respect your devotion to the art of Slaying, and we would like to do something about that. Currently, to access various Slayer Masters you need a certain Combat level - this change would allow those with the Slayer Skill Cape to receive tasks from them as well.
+
+{{News Poll|8|Once players have reached 99 slayer, should we allow them to show their Skill Cape once to any Slayer Master, allowing them to receive tasks regardless of Combat level?}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Gnome Gliders}}
+
+[[File:Poll 73 Game Improvements Blog (7).png|center|100px]]
+
+
+After the completion of The Grand Tree, our gnome friends graciously allow us adventurers to soar the skies in gliders. To help speed up the process, we'd like to add a handy right click option on Gnome pilots that will take you back to your last destination. This will function like the previous destination option on charter ships.
+
+{{News Poll|8|Should we add a right click option to Gnome Gliders allowing you to travel to your last destination quickly? This would act similarly to charter ships.}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Beekeeper Outfit}}
+
+[[File:Poll 73 Game Improvements Blog (8).png|center|70px]]
+
+
+The Beekeeper random event has been in Old School for many years. But what if you wanted to dress up as one? Sadly, you'd be out of luck... until now! By adding the Beekeeper outfit to the random event, you'll be able to dress up as a true friend of the bees in Gielinor. Regardless of if this poll question passes, we plan to rework the Beekeeper random event to make it both usable on mobile and a more enjoyable activity overall. The inclusion of the Beekeeper outfit is an awesome addition we think would go perfectly with this overhaul!
+
+{{News Poll|10|Should we add a Beekeepers outfit to go with the Beekeeper random event? Regardless of whether this passes we'd also update the random event to be less annoying.}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Volcanic Mine}}
+
+[[File:Poll 73 Game Improvements Blog (9).png|center|200px]]
+
+
+In the volcanic heart of Fossil Island, players toil away at the earth mining for precious resources. But wouldn't it be nice to know how much longer you had to wait until the next game starts? We think so, and that's why we'd like to add a count-down timer to the Volcanic Mine waiting room.
+
+{{News Poll|11|Should we add a count-down timer to the Volcanic Mine waiting room so players can see the time remaining until a game starts?}}
+
+We'd also like to remove the current cap on Volcanic Points that currently sits at 60,000. By removing this, it will allow players to grind away at the mine without needing the run to the store to spend their points.
+
+{{News Poll|12|Should we remove the Volcanic Mine points cap?}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Fossils}}
+
+[[File:Poll 73 Game Improvements Blog (10).png|center|100px]]
+
+
+Players have been busy collecting and cleaning their fossils ever since the addition of Fossil Island. But after a while, these stop being useful. We'd like to offer the ability to toggle these fossils off so that they no longer drop. This would be off by default, so players would need to turn a toggle on if they no longer wished to receive fossils from any activity on the island.
+
+{{News Poll|13|Should we add two toggles for fossils on Fossil Island? These would allow players to disable dropping of small, medium and large fossils on one toggle, and rare ones on another. This would stop them being given from monsters, skilling and other activities on Fossil Island.}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Chambers of Xeric}}
+
+[[File:Poll 73 Game Improvements Blog (12).png|center|100px]]
+
+
+Moving on swiftly to Chambers of Xeric. The scavenger beasts can be an annoying room to come across, so to alleviate some of this frustration we would like to propose two changes. The first would alter scavenger spawn locations - we'd like to move them so they're consistent across group sizes and room layouts.
+
+{{News Poll|14|Should scavenger spawns be consistent and determined based on groups sizes?}}
+
+Secondly, we would like to change how scavengers drop loot for Ironmen. Right now, if an Ironman is fighting a scavenger and another player attacks the same one, the Ironman would lose out on the loot. And if both accounts are Ironmen, they both lose out! We'd like to change it so that it goes to whoever did the most damage. If the player who did so is an Ironman, the loot is free for anyone to pick up.
+
+{{News Poll|15|Should we change it so scavengers drop the loot to whoever deals the highest damage? If that player is an Ironman, then all players would be able to pick up the loot (similar to how it works with other bosses in CoX).}}
+
+Chambers of Xeric has been out for over three years now. The nature of how the raid is randomly generated has resulted in players entering and leaving until they get a raid they are happy with. Over time, certain rooms have been changed to be more desirable. They will never all be equally balanced, but we currently feel that the vast majority of them are in a good state.
+
+However there does remain an issue in the maps themselves. Currently there are 26 map variants that designate the quantity and location of the combat, puzzle, farming and scavenger rooms.
+
+Two of these 26 maps are 'large' maps, of which five are combat rooms and two or three are puzzle rooms. 16 of these 26 maps are 'medium' maps, four of which are combat rooms and two puzzle rooms. The rest are 'small' maps, with a mixture of three/four combat and one/two puzzle rooms.
+
+We propose creating a new map pool, which you would be able to toggle between depending on your needs.
+
+This new 'large' map pool would be purely comprised of five combat and three puzzle rooms. This is for players who prefer longer raids with a higher point potential. The current map pool would also be rebalanced to have an equal chance of getting a 'medium' or 'small' raid.
+
+{{News Poll|16|Should we implement the proposed change to Chambers of Xeric map generation?}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Nightmare of Ashihama}}
+
+[[File:Poll 73 Game Improvements Blog (13).png|center|100px]]
+
+
+Next up, we've got some Nightmare of Ashihama changes for you. The Nightmare can spawn husks in the fight that lock you down and will repeatedly attack you unless dealt with. Right now, if a player successfully defends against a husk's attack with prayer, they halve the damage. We instead propose that correctly praying should block all husk damage.
+
+{{News Poll|17|Should players completely negate all damage from husks and parasites if they pray correctly?}}
+
+One of the key elements of the fight against the Nightmare is reducing her shield and taking down the totems. Currently, for groups of 20 and below, the Nightmare adds 400 to her shield and 60 to totem shields for each player in the fight. This scales down to 200/30 for groups of 20 or more. We would like to change this so groups of five or more add just 200 to her shield and 30 to the totems'. This will help remove some of the fight's tedium.
+
+{{News Poll|18|Should we change the scaling for shields and totems to 200/30 per player for groups of five upwards?}}
+
+When players enter the Nightmare fight, there's a slight wait as to allow more players to arrive. The current wait times are 40 seconds for your first fight, and 30 for every fight after that. We would like to lower the wait time for the first fight down to 30 seconds, and then to make subsequent fights begin based on when you disturb the Nightmare. This will allow players to get back into the action more quickly!
+
+{{News Poll|19|Should the start time for the first Nightmare fight of an instance be reduced from 40 seconds to 30 seconds? Subsequent fights would then begin when the Nightmare is disturbed.}}
+
+Our final Nightmare question is for all of you who'd like their own little Nightmare. We would like to change the scaling of obtaining the pet to the following:
+
+''1/800 for solo players''
+
+''1/1600 for duos''
+
+''1/2400 groups of 3''
+
+''1/3200 for groups of 4''
+
+''1/4000 for groups of 5+''
+
+This would allow players in smaller groupers a much fairer chance of getting the pet.
+
+{{News Poll|20|Should we change the scaling of the Nightmare pet drop chance as described above?}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Eldritch Staff}}
+
+[[File:Poll 73 Game Improvements Blog (14).png|center|100px]]
+
+
+The Eldritch Staff was introduced with the Nightmare of Ashihama. Invocate, its special attack, can deal a large amount of damage to a target. 50% of that damage is then used to restore the player's prayer points. It currently has a special attack cost of 75% - this is above the Volatile Staff's special of 55%, so we'd like to lower it to 55% to bring it in line with its sister staff.
+
+{{News Poll|21|Should we reduce the special attack cost of the Eldritch Staff from 75% to 55% so that it matches the Volatile Staff?}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Ava's Devices}}
+
+[[File:Poll 73 Game Improvements Blog (15).png|center|100px]]
+
+
+Currently, when one of Ava's Devices is destroyed, players need to return to Ava in Draynor Manor to receive another, handing over a few miscellaneous items in the process. As a quality of life improvement, we would like to change the mechanics of Ava's devices so they are no longer destroyed on death.
+
+{{News Poll|22|Should we change the on-death behaviour for Ava's Devices so they are no longer destroyed on death?}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Toxic Blowpipe}}
+
+[[File:Poll 73 Game Improvements Blog (16).png|center|100px]]
+
+
+Players can store various darts in the Toxic Blowpipe, but only one type of dart at a time. Removing it to swap in a new type of dart can be quite tedious, so to improve on this we would like to allow players to use a new dart on their already filled Blowpipe. This will then swap the existing ammunition held by the Blowpipe with the new one you've just used.
+
+{{News Poll|23|Should we add the ability to swap out ammunition in the Toxic Blowpipe without needed to remove the current ammunition first? This will be done by using the new ammunition on the blowpipe.}}
+
+{{Horizontal Line}}
+
+{{Headline|22|We Need Your Minigame QoL Suggestions!}}
+
+[[File:Poll 73 Game Improvements Blog (17).png|center|100px]]
+
+
+We'd like to give our next group of proposed quality of life changes a clearer focus. When we've spoken about things like the Fishing Skill Boss and Soul Wars a lot of you said that you'd prefer us to focus on fixing existing minigames, and that's exactly what we're going to do. That's why we're asking you to send us your ideas and suggestions for improving minigames.
+
+Your suggestions can cover any existing minigame and could cover things like improving accessibility or playability, increasing how competitive a minigame might be, adjusting the rewards, or anything else you can think of!
+
+Send us your ideas! Share your suggestions on Reddit, Twitter, the official Forums, the #suggestions channel on the official Discord server, or using the dedicated suggestion submission form: https://osrs.game/gamesuggestions
+
+We can't wait to see what you suggest!
+
+
+{{Horizontal Line}}
+
+
+Discuss this blog on our [https://secure.runescape.com/m=forum/forums?380,381,662,66180688 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#old-school''' channel. For reference on the above content, check out the official [http://oldschool.runescape.wiki/ Wiki].
+
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Ed, Elena, Errol, Fed, Flippy, Gayns, Gee, Halo, Husky, Impact, Jndr, John C, Kandosii, Kieren, Lenny, Lottie, Lyric, Mack, Maylea, MikeD, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, Weath & West'''
+
+''The Old School Team''

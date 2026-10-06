@@ -1,0 +1,36 @@
+{{Infobox Scenery
+|name = Sack
+|image = [[File:Sack (Tombs of Amascut).png|200px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Tombs of Amascut]] lobby
+|options = Search
+|examine = Full of animal feed.
+|map = {{Map|3353,9117|mapID=-1|mtype=pin}}
+|id = 46077
+|leagueRegion = desert
+}}
+A '''sack''' can be found inside the [[Tombs of Amascut]]'s lobby, beside the [[Bank Camel]]. 
+
+Attempting to search it will result one of several interactions. Most commonly, a chatbox message will say, "You go to search the sack, but the bank camel glares at you menacingly and spits in your direction." If wearing a [[Camulet]], the Bank Camel will say, "Hey, get your hands off my food! Unless you'd like me to start eating the contents of your bank instead!"
+
+==Success chance==
+If players succeed in searching the sack, the player will receive either a [[needle]] or [[Grain (Tombs of Amascut)|desert-grown grain]], though players will always fail if their inventory is full.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1564891627998642177|date=31 August 2022|archiveurl=https://reldo.runescape.wiki/i/99070|archivedate=31 August|quote=The chance of finding something is 0.4% at level 1 Thieving, 3.9% at level 99. If you find something, it's either a needle or it's grain, with equal chances of either. If your inventory's full, you always fail to find something.|notes=|name=|group=}}
+
+{{Skilling success chart|label=Sack success chance
+|xlabel=Thieving level
+|label1=Normal||low1=1|high1=10|req1=1|color1=tan|image1=Grain (Tombs of Amascut).png
+}}
+
+==Loot==
+{{DropsTableHead}}
+{{DropsLineReward|name=Grain (Tombs of Amascut)|quantity=1|rarity=1/2}}
+{{DropsLineReward|name=Needle|quantity=1|rarity=1/2}}
+{{DropsTableBottom}}
+
+==References==
+{{reflist}}
+
+{{Tombs of Amascut}}

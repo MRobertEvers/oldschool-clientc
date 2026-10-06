@@ -1,6 +1,8 @@
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_BANK_H
 #define SRC_TORIRSSERVER_TORIRS_SERVER_BANK_H
 
+struct RSCache_ServerPack;
+
 /*
  * The bank: a 1410-slot container, the settings the interface reads out of
  * varbits, and the deposit/withdraw arithmetic.
@@ -25,6 +27,7 @@
  */
 
 #include <stdint.h>
+
 
 struct ToriRSServer;
 struct ToriRSServerPlayer;
@@ -125,7 +128,7 @@ struct ToriRSServerBank
  * simply cannot be told which settings are on.
  */
 int
-ToriRSServer_BankLoad(const char* cache_dir);
+ToriRSServer_BankLoad(struct RSCache_ServerPack* pack);
 
 void
 ToriRSServer_BankFree(void);

@@ -1,0 +1,375 @@
+{{Update|date=31 March 2022|link=https://secure.runescape.com/m=news/gielinor-gazette---march-2022?oldschool=1|category=community}}
+[[File:Gielinor Gazette - March 2022 newspost.png|right]]
+{{clear}}
+
+As we March through the third month of the year, we’re busy setting things in motion for the rest of it! Alongside a commitment to Account Security and the brand-new Jagex Launcher, we’ve continued to make changes to PvP, released Group Ironman improvements, added a new quest and Runecraft minigame, and witnessed the nail-biting finale for Leagues III!
+
+
+Despite all that, this edition of the Gazette will be a little shorter than normal, because right now we’re preparing for our first ever Game Jam! All that and more will be explained below, so let’s dive in...
+__TOC__
+==Project Status Update==
+===Released Content===
+====Leagues III: Shattered Relics====
+
+The third iteration of Old School RuneScape Leagues has come to a close! It’s been tremendous fun watching you experiment with this all-new approach to the Leagues experience. Where the previous two incarnations were all about making fixed choices in restricted locations, our third outing gave you new ways to adapt and enhance your powers – and with access to the whole World Map!
+
+The end of the League means that you can now go and claim those hard-earned Trophies and spend your League Points on a variety of flashy rewards.
+
+As for Leagues IV, we’ve taken on a lot of your feedback from the past two months and we have some great ideas brewing already. Keep your eyes peeled for more Leagues IV news later this year!
+
+====New Client Features and Android Open Beta====
+The Android Open Beta is still in full swing! Thank you for all your feedback so far – it’s been incredibly valuable.
+
+Unfortunately we can’t yet confirm the dates for our upcoming iOS Beta just yet, but it is on the way, and we should be able to share more news in the coming weeks.
+
+In the meantime, work on the next set of features is going great. We can’t wait for you to test out the latest improvements. Stay tuned!
+
+====Guardians of the Rift====
+Runecraft never looked so good! We’ve just introduced the Guardians of the Rift minigame and accompanying quest, which sees you delve into the murky history of the Wizards’ Tower, and uncover a long-forgotten temple filled with mysterious – and dangerous – power. Exciting stuff!
+
+It’s been just over a week since launch and we’d like to thank you all for the fantastic feedback you’ve given in that time. The team is working hard to make improvements based on your suggestions, and you can read all about it in the [https://secure.runescape.com/m=news/guardians-of-the-rift-launch?oldschool=1 GotR Game Update Newspost] and the [https://secure.runescape.com/m=news/guardians-of-the-rift-feedback-changes?oldschool=1 Feedback Changes Newspost]!
+
+====Jagex Launcher====
+In case you missed it, the new Jagex Launcher recently entered Open Beta! It significantly improves the login experience, and keeps you up to date with the latest news about our games. But that’s not all – we’ve got lots of additional features in the works, including allowing players to install and launch RuneLite!
+
+We'll keep you posted, but in the meantime, why not install the Launcher and let us know what you think?
+
+You can find all the details in our recent [https://secure.runescape.com/m=news/jagex-launcher-open-beta---live-now?oldschool=1 Jagex Launcher Open Beta] newspost.
+
+===Upcoming Content===
+[[File:Gielinor Gazette - March 2022 (1).png|centre|600px]]
+
+====Beneath Cursed Sands====
+Beneath Cursed Sands is due to launch on '''April 27th'''! You won’t want to miss this one – not only is it the first continuation of the Desert storyline since 2007, completion of the quest is also required for Tombs of Amascut.
+
+So lace up those sandals and refill your Waterskins – here’s a final teaser for you all, a snippet of one of the tracks you'll unlock during this quest composed by Mod Grace.
+
+[[File:Gielinor Gazette - March 2022 (2).ogg]]
+
+For more previews, check out [https://secure.runescape.com/m=news/a=12/gielinor-gazette---february-2022?oldschool=1 last month’s Gazette]!
+
+====Tombs of Amascut====
+Hopefully you’re all in the dungeon-diving mood, because our third raid, Tombs of Amascut, is coming this summer!
+
+Last time we revealed that we had working prototypes for the myriad challenges you’ll face in the raid. The team are now making great progress turning those prototypes into full encounters!
+
+In other news, the Rewards Poll has closed, and everything has passed! Hooray! We are aware that some of you still feel the new rewards are lacking in certain areas. Consequently, we’re looking into running a mini poll with a couple of extra additions – so keep an eye out for that.
+
+For now, here's a couple more teasers...
+
+[[File:Gielinor Gazette - March 2022 (3).png|centre|600px]]
+[[File:Gielinor Gazette - March 2022 (4).png|centre|600px]]
+[[File:Gielinor Gazette - March 2022 (5).png|centre|600px|thumb|''Who in the Akkha could this be?'']]
+[[File:Gielinor Gazette - March 2022 (6).png|centre|600px|thumb|''Concept Art from the Rewards Room.'']]
+
+====The PvP Arena====
+The PvP Arena Rewards Beta just wrapped, and it’s been great seeing you play around with all that fancy-schmancy new equipment! We’ve received a wealth of feedback and ideas about the new items.
+
+You can expect a poll soon – after all, May will be here before we know it!
+
+If you missed out on what was included in the Beta, check out the [https://secure.runescape.com/m=news/pvp-arena-rewards-beta?oldschool=1 PvP Rewards Beta newspost].
+
+====Giants' Foundry====
+Ah yes. Last time we left you with a rather cryptic statement about this upcoming… thing. The good news is that you won’t have to wait too much longer to learn all about it. We'll be spilling all the deets in the next couple of weeks!
+
+Here’s another couple of clues, as a treat: Giants' Foundry is largely a skilling update, but we’re also looking to explore something that neither game has really explored before… giants! Bet you’d never have guessed.
+
+The giants, you see, have started to awaken, and in this '''[REDACTED]''' as you begin to uncover little pieces of their race. It’ll be the beginning of something brand-new and we're really excited to see where it goes.
+
+Keep an eye on our socials throughout April for more information!
+
+====Deadman Re-Run====
+Since the February Gazette the team has been hard at work improving our DDoS mitigation in preparation for the Deadman Re-Run, and we’re happy to announce that this work is now complete!
+
+So, what next? Well, the first thing is to ensure that everything works as intended, so we’ll be hosting a Beta on '''April 20th'''. It’ll be open to all, and we’d like as many people as possible to attend so we can fully test our bandwidth before the official re-run. The following week, we'll be looking to launch a second Beta just for the players that were part of the 2021 DMM Finale.
+
+After reviewing the results of the Beta tests – and assuming everything goes as planned – we’ll look to hold the re-run in May. We know there is no guarantee to completely prevent DDOS attacks, but with the improvements made to our protection, it should make it more preventable.
+
+Once again, we’d like to reiterate that we’re committed to running the final you deserve, and we cannot stress that your continued patience is so very appreciated by all of us. Look out for more information surrounding the Beta in April!
+
+====Account Security and Services====
+We know that improvements to Account Security is something our community is extremely passionate about. Your account is more than just a game save – it’s the embodiment of your adventures, your hard-won accomplishments, and your valuable time. You want to know that they are protected at all costs and there are obviously areas where we can do better. We hear you, and we’re making changes.
+
+Recently, we announced a commitment to changing our approach and improving the fundamentals of account protection. These new features will keep accounts more secure than ever before, and will be released over time, starting with those integrated into the brand-new Jagex Launcher. We’ll also be tackling issues like botting and safeguarding.
+
+You can learn more in our recent [https://secure.runescape.com/m=news/account-security--services-update?oldschool=1 Account Security & Services] and [https://secure.runescape.com/m=news/2022-account-services--player-security-improvements?oldschool=1 2022 Account Services & Player Security Improvements].
+
+====Game Jam====
+Now, onto something new for all of us: the inaugural Old School RuneScape Game Jam!
+
+As you know, our old ideation process has given rise to some of our most beloved content - Leagues, The Hallowed Sepulchre, Guardians of the Rift and more. There was, however, one big issue – finding time for J-Mods to participate!
+
+The Game Jam process aspires to solve that problem by giving the entire Old School Team a week to work on new and exciting projects, with the aim to produce a workable brief for us to build on. We’ll collaborate with other teams, conduct playtests, and maybe even whisk up some prototypes!
+
+We’re already seeing loads of great ideas (if we do say so ourselves) and everyone’s busy picking out the projects that look best to them.
+
+However (as previously mentioned) this experiment means that there will be '''no game update between April 4th – 8th'''. It won’t be all shrouded in silence though, as we’re looking to share some of the ideas we came up with in a stream the following week. We'll have a dedicated spot in April’s Gazette to talk about them, too.
+
+So, here’s to the first ever Old School RuneScape Game Jam!
+
+==Team Ins and Outs==
+We sadly had two departures from the team last month, Mod Deagle and Mod Zuko. We wish them all the best and hope they are both doing well in their future endeavours! Here's a few words from Mod Zuko:
+
+<i>I'm off! Sayonara, goodbye, adios, thanks for all the fish. It's been a pleasure working with the Old School RuneScape community, and the team. I hope one day, we'll meet again.
+
+Love, Mod Zuko</i>
+
+==The Lore Bible==
+''by Mod Errol''
+
+
+Hello! Gosh it’s weird to be writing in the Gazette instead of just editing it. (As you know, the Postbags are all hand-written by your favourite NPCs, not me!)
+
+I’m here to talk about a project I’ve been working on behind the scenes for some time: the Old School RuneScape Lore Bible!
+
+As you know, Old School RuneScape has been going for quite a while and is jam-packed with interesting stories. From the sprawling history of Kourend, Kebos and Varlamore, to the tragic tale of that poor chap in the Kalphite Lair, there’s loads of lore to explore if you just know where to look for it.
+
+Well, that was the crux of the issue – when I first started at Jagex and began writing newsposts, there was no easy way to look for it. There was the fantastic Old School RuneScape Wiki, of course – but they had no way of documenting information that was yet to make it to the game. I was constantly wandering around the office pestering my fellow J-Mods for tiny bits of information: How come Icthlarin, Amascut, and the Avatars of Tumeken are all still hanging around? Which King of Kourend started which war? Do all Imcando dwarves look like that or has Thurgo just had a lot of Redberry Pies?
+
+It occurred to me that someone should really be writing this stuff down – and coincidentally, Mod Ed was thinking the same thing. Thus, the Old School Lore Bible was born: an accessible, searchable repository of all the lore in the game that anyone at Jagex can check out any time they need to.
+
+We began by coming up with 14 lore categories:
+
+'''Events:''' Any event that’s happened in the history of Gielinor (and beyond!). This includes both quests and historical events, like the God Wars or Tumeken’s Sacrifice.
+
+'''Races:''' We should really have called this ‘Species’ but this category includes all the creatures, sentient or otherwise, within the game – from humans and cats all the way to vampyres and Mahjarrat.
+
+'''Characters:''' This category contains all the specific NPCs you can interact with in the game – and some that you can’t!
+
+'''Religions:''' The various belief systems in Gielinor.
+
+'''Groups:''' Groups of characters aligned for a specific purpose – examples include the White Knights, the Council of Kourend, and Scabarites.
+
+'''Languages:''' This is a new addition we created when we discovered just how many different languages are referenced in the game! The most prominent example is the language spoken by the TzHaar, which can actually be translated! Go on, give it a go!
+
+'''Planes:''' This is a category you probably won’t hear much about, but it contains various places that aren’t Gielinor. That’s all I’m allowed to say!
+
+'''Regions:''' On a much smaller scale, these are locations within Gielinor that amount to a unified region: The Desert, Kourend and Kebos, and Misthalin, for example. This came in handy during Leagues II!
+
+'''Settlements:''' And on an even smaller scale, this category deals with individual towns, cities, and even encampments.
+
+'''Landmarks:''' The smallest scale possible! This category is for individual buildings and objects, including Gielinor’s many fine pubs… and terrifying dungeons.
+
+'''Materials:''' This category deals with all the stuff that stuff is made of, where it comes from, and how it’s used.
+
+'''Artefacts:''' This category is filled with the unique items you can find in the game. Ever wondered about the origins of Dinh’s Bulwark, or what a Wizard’s Mind Bomb tastes like? This category holds all the answers!
+
+'''Books:''' This is the first category we filled out, so I have a special fondness for it. It’s all the lore books currently in the game, including the ones written by the fabulous fan writers who contributed to the Prifddinas Grand Library. We started here because these books are the most visible parts of the lore for players – and they’re full of interesting information about all the other stuff! Check out the Farming Guild books for a great example of how much detail can be hidden away in these things.
+
+'''Storylines:''' Our newest category! We realised that the ‘Events’ section wasn’t clear about which order quests happened in, or why players would be especially interested in certain questlines, so Mod Ed created this category to go into greater detail. It includes key information like the tone of quests – is this story funny and silly, or bleak and serious?
+
+With the categories decided, we set to work populating the Lore Bible region by region – starting with Kourend and Kebos, because we were about to launch A Kingdom Divided. To make sure we were focusing on the right content, we set up an internal channel where everyone could ask questions about the lore of the content they were working on – a process which lead to some great discussion about Tombs of Amascut and how all our teams could best represent the story we’re telling in the raid. Seriously – you lorehounds will love all the little details we’ve packed in!
+
+So what’s next for the Lore Bible? Well, as some of you may know, during our office renovations the facilities team at Jagex uncovered a mysterious box labelled ‘LORE ARCHIVES’. Mod Ed and the RuneScape Lore Council were able to save the box from the skip, and we’re currently finding time to get into the office and start digitising the secrets held within. Who knows, maybe some of them will make it back into the game…?
+
+Unfortunately, the Lore Bible is full of spoilers, so it's an internal-only resource. I can however show you my favourite page so far:
+
+[[File:Gielinor Gazette - March 2022 (7).png|600px|centre]]
+
+Alright – I have to go and edit the rest of this Gazette now, so this is Mod Errol, signing off!
+
+==Postbag from the Hedge==
+‘Ello you lot! I’ve been ‘March’-ing all over Gielinor this month, delivering your letters and securing replies from Gielinor’s most illustrious personages! (Sorry, I’ve been hanging out in the Varrock Palace Library again. That Reldo chap sure has a way with words!)
+
+Let’s see what they’ve got to say…
+
+
+'''To [[Bryophyta]]'''
+
+{{Letter|Dear Bryophyta,
+
+Giants are all over our world, but we know so little about you. Do moss giants follow Guthix because you seem to love nature so much?
+
+How do you grow such a lush forest in an underground sewer? Are you friends with Obor? And when might we meet another Titan like yourselves?
+
+I love you Mossy Mommy!
+
+Regards, MissingPear}}
+
+Hello there MissingPear,
+
+We keep ourselves to ourselves, we giants. A long time ago we might have worshipped the gods, but not anymore. We do love nature though! Well, we moss giants do, at least. That’s why we can surround ourselves with such lovely greenery! Whenever we settle in a place for some time, plants start growing all around us. It could be worse – think of what the fire giants have to put up with!
+
+Oh, you know Obor? It seems like ages since we last spoke. Unfortunately we had a bit of a falling-out. If you see him, do pass on my regards – with a big sharp sword, perhaps.
+
+That’s very sweet. I like you too, er… Fleshy Child.
+
+All the best,
+
+Bryophyta
+
+
+----
+
+'''To [[Tarn|Tarn Razorlor]]'''
+
+{{Letter|To Tarn Razorlor,
+
+I write to you in awe and bewilderment after hearing a tale from an adventurer I am friends with. First and foremost, I am so sorry that he actually stole your journal! Some adventurers really just take anything they can get their hands on, don't they?
+
+Now, I'm not as innocent as I could be myself. I listened as he read some of your writing out loud, and I didn't stop him as quickly as I should have. With all this said, I was wondering if you would be willing to provide further insight into this ‘great library’ that was mentioned in one paragraph after another? It's truly shocking to hear that such a facility really exists in Morytania! My mind is overwhelmed pondering over the type of valuable knowledge that might lie there. Antique spell incantations? Esoteric enchanting techniques? Perhaps the secrets behind how Saradomin's army in the God Wars supplied its wizardly troops with magic equipment?
+
+Please, you must shed light on where this great library is located so that its knowledge may be studied and put to use! This is for your own sake as well, as refusing might result in your diary being handed to various scholars for awareness and study, baring anything of intimacy that might lie within its pages...
+
+Regards,
+
+Maximax}}
+
+Hah!
+
+You attempt to blackmail me, the great Tarn Razorlor? You know nothing of my secrets, Maximax. What do I care if the world discovers my adolescent crush on the Sandwich Lady? I am more powerful than their feeble minds can even comprehend!
+
+I can relate to your search for power, so I’ll give you this: there’s no such great library in Morytania. Drakan stamped out such knowledge eons ago, lest his peons discover the means to their own liberation. I had to travel across the ocean, to Kourend, and glean whatever information I could from the few Morytanian texts that were smuggled out.
+
+Your ruthlessness will serve you well on your quest, Maximax. May you soon find the answers you seek…
+
+Tarn Razorlor
+
+
+----
+
+'''To [[Thurgo]]'''
+
+{{Letter|To Thurgo,
+
+A while ago I told you about the lost city of Camdozaal, and its sole inhabitant, Ramarno, another Imcando dwarf. I was wondering if you had visited yet, and if not, would you like to?
+
+I'll bring the Redberry Pies,
+
+- SAwesome1018}}
+
+Hello SAwesome1018,
+
+It’s nice of you to offer me some Redberry Pies. You know they’re my favourite!
+
+The truth is, I don’t think I’m ready to meet Ramarno yet. I’ve spent all this time thinking I was the last EVER Imcando dwarf, and then it turns out there’s one living right around the corner. I suppose I should get over meself and go say hello, but it’s been so long. I wouldn’t know what to say.
+
+I’ll have a think about it, how about that? Just don’t go having all those pies without me!
+
+Best,
+
+Thurgo
+
+
+----
+
+'''To the [[Sphinx]] & the people of [[Sophanem]]'''
+
+{{Letter|To the Sphinx and the good people of Sophanem,
+
+I hope things are going well in your city! I can only imagine your new partnership with the Banks of Gielinor drives a lot of tourism. I've been up to a lot of adventure lately and explored the various tombs and temples around the desert. Jaldraocht had relics and treasures of an ancient god buried within, Uzer held the key to a major demon's banishment, and you are no doubt familiar with my misadventures in Klenter's pyramid and Jalsavrah!
+
+The view from atop Jaleustrophos is remarkable, too. Speaking of that view, it's hard to see as of late, but I think I've caught glimpses of ruins to the east and something larger to the south. Some novice treasure hunters have begun to assemble in Nardah and, since I've plundered just about everywhere else, I can only imagine this is where they're headed. Having seen them in action, I must admit I worry for their safety. They're not likely to heed my warnings, so I am writing to you hoping for insight and advice that might keep them alive. What can you tell me about those reaches of the desert?
+
+Regards, Your Favorite Gullible Yet Well-Meaning Adventurer}}
+
+Oh hello, BadAtNamingPlsHelp. What do you want?
+
+I can hardly tell you how things are going in my city, but Sophanem seems to be doing about as well as it always is. The Devourer is up to her usual tricks, and that poor High Priest is just barely muddling through.
+
+Has your cat been accompanying you on these adventures? Never mind. I’m sure they’ll tell me all about it next time we meet.
+
+Ugh, that place. You don’t want to go there. That abandoned corner of the world is utterly miserable, and more importantly, it’s damp. I suppose there is the old necropolis, which might hold some interest for an adventurer with such a healthy interest in tomb-raiding – and oh yes, it’s sure to be incredibly dangerous. Those workers are doomed! Unless they’re cats, though, it’s completely out of my jurisdiction. Not to mention, I don’t really care. If I intervened in every foolish human endeavour, I’d never get anything done.
+
+Speaking of which, it’s about time for my afternoon sunbathing. Send my love to that cat of yours.
+
+The Sphinx
+
+
+----
+
+'''To [[Ferox]]'''
+
+{{Letter|Dear Ferox,
+
+Now that you've been studying the history of the Wilderness for a while, have you made any interesting discoveries?
+
+From Jade_Mans_Eyes}}
+
+Greetings, Jade_Mans_Eyes
+
+I’m making steady progress. Poring over old tomes, dusting off ancient tombstones, that sort of thing. I can’t say I’ve discovered much that I didn’t already know; that our little enclave was once part of an Ancient empire, destroyed long ago. Someday I hope to discover exactly what stood here. A fort, perhaps, or some lordly manor.
+
+I did overhear an interesting rumour the other day, though. An adventurer dropped by on his way back to Edgeville and told me about her adventures in the north. She said she’d seen a frozen fortress, sealed with strange magic. I’m sure a place like that would be full of secrets… if it’s even real, of course.
+
+Anyway, I must get back to work. Let me know if you do find anything unusual during your adventures here in the Wilderness. I’m always interested in trustworthy information.
+
+Yours,
+
+Ferox
+
+
+----
+
+'''To the [[Stray Dog]]'''
+
+{{Letter|To the dog in Varrock,
+
+We loves you.
+
+What do the Dorgeshuun use snail and tortoise shells for?
+
+Sincerely,
+
+The OSRS Community}}
+
+<i>When I handed this heartfelt letter over to the Stray Dog, he sniffed it and then took a bite! I think that means he’s happy.
+
+Uh oh, he’s looking mighty peckish. I’d better move on to the next delivery! Nice doggy! Aargh!</i>
+
+
+----
+
+'''To [[General Graardor]]'''
+
+{{Letter|To General Graardor,
+
+It is rumoured that you are the last known living member of the Ourg race (I hope that doesn't surprise you; I dont know how much you know of the world outside of the 'current' war). I'm wondering if those rumours are true. Are you an Ourg?
+
+There are also rumours that your bones are not Ourg bones, but regular big bones (don't ask me where these stories came from). If you are indeed an Ourg, how come you don't 'drop' Ourg bones?
+
+Sincerely,
+
+TheWiseLoner
+
+P.S. I've met an Ourg by the name of Slash Bash (unfortunately he was an undead). Did you know him?}}
+
+To TheWiseLoner
+
+If that’s true, it’s because the other Ourgs were WEAK and unworthy of battle! The Big High War God made us strong, with bones like steel! If you’ve met Ourgs with weak bones, they must have been inferior. My bones are filled with strength, so I may SMASH our enemies!
+
+Slash Bash was a coward! He fell in battle before we could corner the Chaos God. Now that he’s stopped shirking, he should rejoin the fight. FOR THE GLORY OF THE BIG HIGH WAR GOD! COWARDS WILL BE SMASHED!
+
+
+''Uh oh, the General is a bit riled up. He’s gone and CRUSHED the G.P.D.T. Standard-Issue Quill! I’d better head off, before he does the same to me!''
+
+==Player Showcase Gallery==
+We're back with another batch of your biggest and best pieces of creative work! Everyone featured in the Gazette will receive 3 Months of Free Membership as thanks for their superb efforts, so keep an eye on the linked social accounts Inbox for more details on how to grab your reward!
+
+If you want to be featured in the next Gazette then make sure to submit your creations through our [https://osrs.game/Player-Showcase-Gallery-Form Player Showcase Gallery Form] and state which Gazette you’d like it to feature in. We look forward to seeing more of your incredible talents!
+
+{| class="wikitable" style="text-align:center;margin:auto;"
+|[[File:Gielinor Gazette - March 2022 (8).png|195x210px|centre]]
+|[[File:Gielinor Gazette - March 2022 (9).png|195x210px|centre]]
+|[[File:Gielinor Gazette - March 2022 (10).png|195x210px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/tkpy1y/tower_of_life_quest_as_a_movie_poster/ u/TheSkulled1]
+|[https://www.reddit.com/r/2007scape/comments/tkhlqq/oc_the_feeling_of_getting_a_skillcape/ u/VectorData]
+|[https://www.reddit.com/r/2007scape/comments/tk0thw/lego_vorkath_moc/ u/TheH0P3Less]
+|-
+|[[File:Gielinor Gazette - March 2022 (11).png|195x210px|centre]]
+|[[File:Gielinor Gazette - March 2022 (12).png|195x210px|centre]]
+|[[File:Gielinor Gazette - March 2022 (13).png|195x210px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/ti3esw/weapon_concepts_i_made_in_blender/ Reddit User]
+|[https://www.reddit.com/r/2007scape/comments/thufhv/custom_player_model_i_made_comes_with_a_glow_in/ u/Esti_]
+|[https://www.reddit.com/r/2007scape/comments/tgemmr/i_met_this_awesome_guy_at_the_fishing_trawler_and/ u/Infinitetekk]
+|}
+
+----
+
+That's your lot! We'd love to hear your feedback on the newest edition and, as with everything else, if you’ve got any ideas about the sorts of things you’d like to see in upcoming editions of the Gielinor Gazette, then please do let us know via our [http://services.runescape.com/m=forum/forums?380,381,800,66249767 official forums], on the [https://www.reddit.com/r/2007scape/comments/tt3ggz/gielinor_gazette_march_2022/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord]. For reference on any of the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

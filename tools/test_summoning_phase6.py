@@ -21,8 +21,10 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import ModuleType
 
+import config_text
 
-REPO = Path(__file__).resolve().parents[1]
+
+REPO =Path(__file__).resolve().parents[1]
 DEFAULT_TREE = REPO / "OSRS-Content/osrs239-content"
 STAGER = REPO / "tools/stage_summoning_overlay.py"
 ALLOCATOR = REPO / "tools/ss_allocate.py"
@@ -44,11 +46,19 @@ def load_module(name: str, path: Path) -> ModuleType:
     return module
 
 
-def parse_sections(path: Path) -> dict[str, list[tuple[str, str]]]:
-    """Read the small INI dialect used by fields and rank-1 configs."""
+def parse_sections(path: Path, config: bool = False) -> dict[str, list[tuple[str, str]]]:
+    """Read the small INI dialect used by fields and rank-1 configs.
+
+    `config` marks cachepack config text, whose `key=default` / `key=empty`
+    marker lines state an absent key and are dropped as the missing line.
+    """
     sections: dict[str, list[tuple[str, str]]] = {}
     current: str | None = None
     for line_no, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if config:
+            raw = config_text.filter_line(raw)
+            if raw is None:
+                continue
         text = raw.strip()
         if not text or text.startswith((";", "#", "//")):
             continue
@@ -192,12 +202,13 @@ def main() -> int:
         expect(set(field_sections) == {"inv.size"},
                "fields/inv.ini widened into shared/shop semantics")
 
-        record_error = validate_bob_record(parse_sections(config))
+        record_error = validate_bob_record(parse_sections(config, config=True))
         expect(record_error is None, record_error or "invalid summoning_bob record")
-        config_text = config.read_text(encoding="utf-8")
-        expect("scope=" not in config_text.lower(),
+        # `scope=default` is the unstated scope, i.e. private by default.
+        bob_text = config_text.read_text(config, encoding="utf-8")
+        expect("scope=" not in bob_text.lower(),
                "summoning_bob must remain private by default, not declare scope")
-        expect(not any(line.lstrip().startswith(";") for line in config_text.splitlines()),
+        expect(not any(line.lstrip().startswith(";") for line in bob_text.splitlines()),
                "cachepack config comments must use //, never INI-style ;")
 
         root = alloc_map(root_alloc)
@@ -259,7 +270,7 @@ def main() -> int:
                 staged_config = staged / "configs/summoning_bob.inv"
                 expect(staged_config.is_file(), "feature-on stage omitted summoning_bob.inv")
                 if staged_config.is_file():
-                    expect(validate_bob_record(parse_sections(staged_config)) is None,
+                    expect(validate_bob_record(parse_sections(staged_config, config=True)) is None,
                            "staged summoning_bob record changed")
                 staged_alloc = staged / "pack/inv.alloc"
                 staged_client = staged / "pack/inv.client"

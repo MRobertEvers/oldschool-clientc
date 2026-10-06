@@ -3,3 +3,9 @@
 column=item,obj,INDEXED,REQUIRED
 column=product,namedobj,int
 column=level,int
+column=version,ABSENT
+
+// A table that declares no columns.
+[empty_table]
+column=empty
+default=default

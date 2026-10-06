@@ -1,0 +1,219 @@
+{{Update|date=26 March 2025|url=https://secure.runescape.com/m=news/poll-83-qol-changes?oldschool=1|category=game}}
+[[File:Poll 83 QoL Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+''This week brings some Poll 83 QoL changes, Emote Loops and more W345 tweaks!''
+
+==Changelog - March 26th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Poll 83 Changes'''
+
+* Updated the Slayer Cape perk when used at Konar to reassign tasks within the same area. The perk now considers the specific location of the task when offering a repeat assignment.
+* You can now cast Alchemy by using items on the Explorer’s Ring, removing the need to wear it or navigate a dialogue box.
+* Added a new dialogue option to receive another farming contract at the same tier as the one a player has just completed.
+* You can now mouse over any fairy ring you have unlocked on the world map to be reminded of its code.
+* Added a seed pack reward to Tithe Farm in exchange for points.
+* Prayer tooltips now shows the base drain rates of all prayers.
+* Updated the Shades of Morton's chest designs with clearer markings on top, making them more distinguishable.
+* ​Mazchna, Vannaka, and Chaeldar now assign Slayer tasks to hunt Crabs. This includes Ammonite, Frost, Rock, Sand and Swamp crabs.
+* All skill guides now feature a new tab named after the skill, providing an overview of what the skill is and the benefits of levelling it.
+* Your game settings will now be automatically adjusted based on your choice when asked on Tutorial Island whether you’re a Beginner, Returning, or Experienced player.
+
+'''Player Support Update'''
+
+* From today onwards, whenever your macroing (botting) report has been reviewed and actioned, you'll receive an inbox message directly in your Message Centre.
+
+'''Emote Looping Continued'''
+
+* The emote looping feature has been added to an additional 45 emotes. This also includes looping for specific treasure trail items such as Flared trousers, Sleeping cap, Powdered wig and Pantaloons.
+
+'''W345 Permanent Deadman Changes'''
+
+* Increased the rarity of Charms and stopped players with Deadman protection from obtaining them. This is to help the prices of the items long term and reward players taking those risks with extra loot!
+* Removed the Elite Diary requirement for purchasing Elite Void. Now you can simply take a regular Void Knight Top or Void Knight Robes to the Elite Void Knight at Pest Control and upgrade your regular void pieces to Elite void pieces for 200 points per piece!
+* Added an option to change the respawn location to the Grand Exchange. Talk to Brugsen Bursen at the Grand Exchange to choose your respawn point upon death, similar to Deadman Armageddon.
+* All players can now use Chivalry, Rigour, and Augury in Permanent Deadman Mode provided they have the prayer level requirement, regardless of their defence level. Chivalry still requires the completion of the Holy Grail quest, Rigour and Augury still requires the prayer scrolls.
+* Trinkets now turn to Trinket dust upon death, similar to Charms.
+* The old Deadman skulls (as seen in Bounty Hunter) have returned to Permanent Deadman.
+* A check has been added to prevent skulled players from diving with the rowboat on Fossil Island.
+
+'''Other Changes'''
+
+* Logging out whilst in the Theatre of Blood or Tombs of Amascut while you have an Escape Crystal in your inventory will now consume the crystal and teleport you outside of the raid on login, preserving any HCIM status you might have.
+* Aggie in Draynor Village has been updated with a Make-All interface for her red, yellow and blue dyes. Instead of crafting dyes one at a time through dialogue, you can now quickly select how many you’d like to make in one go.
+* Lore books in Chambers and TOB will no longer drop once a player has read them.
+* Fixed an issue where getting hit by another player's 'Duel' operation while using Mystic Cards would cause Emote 'Loop' options to stop working until the player moved tiles.
+* The Alchemist's Amulet can no longer be purchased when the player has no space in their inventory.
+* Fixed an issue where quickly destroying the Orb of Oculus while activating the Scry function could crash the client.
+* Getting saved by a Phoenix necklace no longer restores your sanity in a Whisperer fight.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Poll 83 QoL Changes==
+This week, we’re rolling out some of the QoL Poll 83 changes you’ve been waiting for - with even more coming next week! Below is a rundown of the latest updates we've implemented, many of which were inspired by your feedback. So, grab a cuppa and let's dive in!
+
+===Slaying Crabs===
+Shellfish enthusiasts get ready - our community’s favourite low-effort combat training method is now part of Slayer tasks! That’s right, the crab has scuttled its way onto the task lists for Mazchna, Vannaka, and Chaeldar. These tough-shelled training partners have long been a go-to for efficient combat experience, and this update should help newer players discover their benefits too.
+
+If you receive a Crabs task, you can take on any of the following:
+
+* Ammonite Crabs: Located on Fossil Island and within the Wyvern Cave.​
+* Frost Crabs: Found amidst the Ruins of Tapoyauik.​
+* Rock Crabs: Reside north of Rellekka, on Waterbirth Island, west of Mount Quidamortem, inside the Waterbirth Island Dungeon, and within the Brine Rat Cavern.​
+* Sand Crabs: Can be encountered on the Isle of Souls, Crabclaw Isle, east of the Hosidius Vinery, south of the Colossal Wyrm Agility Course, and along the coast south of the Fortis Coliseum.​
+* Swamp Crabs: Dwell in the swamp north of Darkmeyer and to the east of Slepe.
+
+===Slayer Cape Perk at Konar===
+Your Slayer Cape has had a bit of a tune-up. Now, when its perk is triggered at Konar, it will reassign the task within the same area by considering the exact location of your current assignment. No more rerolls that leave you scratching your head – you’ll get the same monster and same location to keep that Slaying momentum going!
+
+[[File:Poll 83 QoL Changes (1).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-26/task.jpg here]!'']]
+
+===Explorer’s Ring Alchemy===
+Who has time to navigate clunky dialogue boxes mid-battle? Not you! The Explorer’s Ring now lets you cast Alchemy simply by using items on it. This little tweak means you can transform your loot in a flash, freeing up inventory space for more treasures. 
+
+===Farming Contracts===
+We all know Guildmaster Jane loves a good chat - but sometimes, you just want to get back to farming! That’s why we’ve added a new dialogue option that lets you grab another contract of the same tier instantly after finishing one. Less menu navigation, more time planting - your green thumb will thank you!
+
+[[File:Poll 83 QoL Changes (2).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-26/contract.jpg here]!'']]
+
+===Fairy Rings on the Map===
+[[File:Poll 83 QoL Changes (3).png|thumb|300px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-26/fairyring.jpg here]!'']]
+
+Ever forgotten a fairy ring code mid-route? We’ve all been there. Now, when you mouse over any fairy ring you’ve unlocked on the world map, its code will pop up. Neat!
+
+===Tithe Farm Reward – Seed Packs!===
+Your efforts at Tithe Farm just got a little sweeter! The Tithe Farm shop has been upgraded to use the new shop interface - don’t worry, you can still grab all the same rewards as before. Plus, we’ve added a brand-new seed pack reward, available for purchase with Tithe Points! This isn’t just any seed pack; it’s equivalent to a Tier 3 Farming Guild contract reward, with a dash of chance at a White Lily Seed.
+
+[[File:Poll 83 QoL Changes (4).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-26/titherewards.jpg here]!'']]
+
+===Personalised Settings for New Accounts===
+New to Gielinor? No problem! When you step onto Tutorial Island, you’ll be asked if you’re a Beginner, Returning, or Experienced player. Based on your answer, your settings will automatically adjust to suit your style:
+
+* Beginners: Enjoy a fresh guide interface with enhanced skill descriptions – say goodbye to overwhelming menus and hello to easy learning!
+* Returning Players: Your tried-and-true settings remain just as you left them, ready for another round of adventure.
+* Experienced Players enjoy optimised defaults, such as:
+** Roof hiding for a clearer view
+** Shift-click to drop items
+** Refined attack options (right-click on players, left-click on NPCs),
+** Make-X for darts and bolts disabled
+** Collection log new addition popup and notification enabled
+** Enabled precise timing
+** PK Skull Prevention
+** Auto-equip worn items from gravestones
+** Rune-picking behaviour
+** Drop item warning disabled
+** Casting Alchemy Spells on Untradeable items warning disabled
+** The minimum item value needed for Alchemy spells warning is set to 0
+** All "Plank make X confirmation" options disabled
+** Accept Aid is disabled
+
+This change cuts down the time spent tweaking settings, letting you jump straight into your adventures.
+
+===Shades of Morton chests===
+We’ve given Shades of Morton’s chests a makeover – now sporting clearer top markings so you can easily spot those secret loot stashes. This upgrade is especially handy for mobile players who know that spotting a chest shouldn’t feel like a scavenger hunt!
+
+[[File:Poll 83 QoL Changes (5).png|thumb|350px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-26/mortonchests.jpg here]!'']]
+
+===Prayer Tooltips===
+Ever wondered how much juice your prayers are really draining? Well, wonder no more! Prayer tooltips now display the base drain rates for all prayers, giving you that extra bit of insight during those heated battles.
+
+[[File:Poll 83 QoL Changes (6).jpg|thumb|235px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-26/drain.jpg here]!'']]
+
+===Skill Guide Summaries===
+Finally, we’ve improved our skill guides with a brand new tab for each skill. These summaries break down what each skill does and the benefits of levelling them up. Whether you’re a battle-hardened veteran or just starting out, this extra clarity will help you plan your path to glory.
+
+[[File:Poll 83 QoL Changes (7).jpg|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-26/skillguide.jpg here]!'']]
+
+==Player Support Update==
+Back in December, we shared a Player Support Survey: 'Help Shape the Future' to better understand what areas of our support offering you want to see improved. Your feedback was clear, with 89% of you saying you'd value receiving confirmation when your cheating reports lead to action.
+
+We've got good news! We've delivered the first step of this improvement ahead of schedule! Rather than waiting until our full Player Support Improvements Roadmap reveal next month, we decided there's no reason to delay something that’s ready today.
+
+From today onwards, whenever your macroing (botting) report has been reviewed and actioned, you'll receive an inbox message directly in your Message Centre. This is an initial rollout for macroing reports, and we'll be closely monitoring feedback as we look to expand this system to cover additional types of cheating reports in future.
+
+This improvement is part of our ongoing commitment to making the world of Gielinor fairer, safer, and more enjoyable for everyone.
+
+If you missed the recent Q&A with Mod North, you'll be pleased to know there’s even more to come! We’ll be sharing the full Player Support Improvements Roadmap in April, detailing further upgrades to your support experience across 2025.
+
+Got questions? We’ve put together an FAQ [https://support.runescape.com/hc/en-gb/articles/33465476665745 here]!
+
+==More Emote Looping!==
+Hold onto your Sleeping caps, adventurers - your favourite emotes are now on an endless loop! We’ve added 45 looping emote sequences to ensure every move you make is the envy of Gielinor. If you’re sporting Treasure Trails gear like the Flared Trousers, Sleeping Cap, Powdered Wig, or Pantaloons, your enhanced emotes now loop with extra swagger - it’s your very own runway moment!
+
+[[File:Poll 83 QoL Changes (8).gif|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-26/emote_loop.gif here]!'']]
+
+==Merch Update==
+===New Youtooz Plushies - Coming Soon!===
+General Graardor and Sandwich Lady plushies drop on [https://youtooz.com/collections/old-school-runescape Youtooz] March 28th – mark your diaries now!
+
+[[File:Poll 83 QoL Changes (9).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-26/merch1.jpg here]!'']]
+
+Don't forget you only have a few days left to get your hands on the WOM and Gnome child figures - pre-orders have been extended to March 28th at 3pm EST on [https://youtooz.com/collections/old-school-runescape Youtooz] - get them whilst you can!
+
+[[File:Poll 83 QoL Changes (10).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-26/merch2.jpg here]!'']]
+
+===RF25 Merch - Last Chance===
+Pre-orders close on March 31st for RF25 attendee exclusive lines - the RF25 Hoodie, Tee and Skillchip Box - order them now [https://runescape.backstreetmerch.com/collections/runefest-2025 here] if you missed out at the event!
+
+[[File:Poll 83 QoL Changes (11).jpg|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-26/merch3.jpg here]!'']]
+
+Pre-orders also close on 31st March for this commemorative 10th RF Tee - open to anyone to order who wants to celebrate past RuneFests! Check out this and the full range of merch [https://runescape.backstreetmerch.com/ here].
+
+[[File:Poll 83 QoL Changes (12).jpg|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-26/merch4.jpg here]!'']]
+
+==W345 Permanent Deadman Changes==
+
+* Increased the rarity of Charms and stopped players with Deadman protection from obtaining them. This is to help the prices of the items long term and reward players taking those risks with extra loot!
+* Removed the Elite Diary requirement for purchasing Elite Void. Now you can simply take a regular Void Knight Top or Void Knight Robes to the Elite Void Knight at Pest Control and upgrade your regular void pieces to Elite void pieces for 200 points per piece!
+* Added an option to change the respawn location to the Grand Exchange. Talk to Brugsen Bursen at the Grand Exchange to choose your respawn point upon death, similar to Deadman Armageddon.
+* All players can now use Chivalry, Rigour, and Augury in Permanent Deadman Mode provided they have the prayer level requirement, regardless of their defence level. Chivalry still requires the completion of the Holy Grail quest, Rigour and Augury still requires the prayer scrolls.
+* Trinkets now turn to Trinket dust upon death, similar to Charms.
+* The old Deadman skulls (as seen in Bounty Hunter) have returned to Permanent Deadman.
+* A check has been added to prevent skulled players from diving with the rowboat on Fossil Island.
+
+==Other Changes==
+
+* Logging out whilst in the Theatre of Blood or Tombs of Amascut while you have an Escape Crystal in your inventory will now consume the crystal and teleport you outside of the raid on login, preserving any HCIM status you might have.
+* Aggie in Draynor Village has been updated with a Make-All interface for her red, yellow and blue dyes. Instead of crafting dyes one at a time through dialogue, you can now quickly select how many you’d like to make in one go.
+* Lore books in Chambers and TOB will no longer drop once a player has read them.
+* Fixed an issue where getting hit by another player's 'Duel' operation while using Mystic Cards would cause Emote 'Loop' options to stop working until the player moved tiles.
+* The Alchemist's Amulet can no longer be purchased when the player has no space in their inventory.
+* Fixed an issue where quickly destroying the Orb of Oculus while activating the Scry function could crash the client.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1jk8v7b/poll_83_qol_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Rach, Redfield, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

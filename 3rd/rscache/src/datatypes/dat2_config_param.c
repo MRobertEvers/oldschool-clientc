@@ -1,6 +1,8 @@
+#include "../rscache_valuetype.h"
 #include "dat2_config_param.h"
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -18,69 +20,23 @@ rscache_param_jagex_char(int c)
     return (char)c;
 }
 
-/* getCharForTypeId: map a numeric type id to its char code. */
-static char
-rscache_param_char_for_type_id(int id)
+char
+RSCache_Dat2ConfigParamCharForTypeKey(int key)
 {
-    switch( id )
-    {
-    case 0:
-        return 'i';
-    case 1:
-        return '1';
-    case 6:
-        return 'A';
-    case 7:
-        return 'C';
-    case 8:
-        return 'H';
-    case 9:
-        return 'I';
-    case 10:
-        return 'K';
-    case 11:
-        return 'M';
-    case 13:
-        return 'O';
-    case 14:
-        return 'P';
-    case 17:
-        return 'S';
-    case 22:
-        return 'c';
-    case 23:
-        return 'd';
-    case 25:
-        return 'f';
-    case 26:
-        return 'g';
-    case 28:
-        return 'j';
-    case 30:
-        return 'l';
-    case 31:
-        return 'm';
-    case 32:
-        return 'n';
-    case 33:
-        return 'o';
-    case 36:
-        return 's';
-    case 37:
-        return 't';
-    case 39:
-        return 'v';
-    case 40:
-        return 'x';
-    case 41:
-        return 'y';
-    case 42:
-        return 'z';
-    case 73:
-        return 'J';
-    default:
-        return 'i';
-    }
+    return rscache_param_jagex_char(key);
+}
+
+/*
+ * getCharForTypeId: map a numeric type id to its char code, through the one
+ * ScriptVarType table (rscache_valuetype.h). An id the table does not know
+ * reads as 'i', as it always has here.
+ */
+char
+RSCache_Dat2ConfigParamCharForTypeId(int id)
+{
+    const struct RSCache_ValueType* type = RSCache_ValueTypeOfId(id);
+
+    return type ? (char)type->ch : 'i';
 }
 
 void
@@ -95,8 +51,13 @@ RSCache_Dat2ConfigParamDecodeInplace(
     assert(data != NULL);
     assert(data_size > 0);
     entry->auto_disable = 1;
-    if( !data || data_size <= 0 || (data_size == 1 && ((const uint8_t*)data)[0] == 0) )
+    /* Nothing stated until an opcode says so. */
+    RSCache_PresenceReset(&entry->present);
+    if( data_size == 1 && ((const uint8_t*)data)[0] == 0 )
+    {
+        entry->_consumed = 1;
         return;
+    }
 
     RSCache_BufferInit(&buf, (uint8_t*)data, (uint32_t)data_size);
 
@@ -119,6 +80,7 @@ RSCache_Dat2ConfigParamInit(struct RSCache_Dat2ConfigParam* entry)
      * read as auto-disable off for every param that never mentions it. Held out
      * of the decode loop so a per-opcode caller cannot miss it. */
     entry->auto_disable = 1;
+    RSCache_PresenceReset(&entry->present);
 }
 
 bool
@@ -132,26 +94,34 @@ RSCache_Dat2ConfigParamDecodeOp(
     switch( opcode )
     {
     case 1:
-        entry->type = rscache_param_jagex_char(g1(buffer));
+        entry->type_key = g1(buffer);
+        entry->type = rscache_param_jagex_char(entry->type_key);
+        RSCache_PresenceSet(&entry->present, RSCACHE_PARAM_FIELD_TYPE);
         return true;
     case 2:
         entry->default_int = g4(buffer);
+        RSCache_PresenceSet(&entry->present, RSCACHE_PARAM_FIELD_DEFAULT_INT);
         return true;
     case 4:
         entry->auto_disable = 0;
+        RSCache_PresenceSet(&entry->present, RSCACHE_PARAM_FIELD_AUTO_DISABLE);
         return true;
     case 5:
     {
         char* str = gcstring(buffer);
         free(entry->default_string);
         entry->default_string = str;
+        RSCache_PresenceSet(&entry->present, RSCACHE_PARAM_FIELD_DEFAULT_STRING);
         return true;
     }
     case 7:
         entry->default_long = (long long)g8(buffer);
+        RSCache_PresenceSet(&entry->present, RSCACHE_PARAM_FIELD_DEFAULT_LONG);
         return true;
     case 8:
-        entry->type = rscache_param_char_for_type_id(g1(buffer));
+        entry->type_id = g1(buffer);
+        entry->type = RSCache_Dat2ConfigParamCharForTypeId(entry->type_id);
+        RSCache_PresenceSet(&entry->present, RSCACHE_PARAM_FIELD_TYPE_ID);
         return true;
     default:
         /*
@@ -181,38 +151,54 @@ RSCache_Dat2ConfigParamEncode(
     struct RSCache_Buffer buf;
     RSCache_BufferInit(&buf, out, out_capacity);
 
-    /* The type reaches the struct as a character, via either opcode 1 (the
-     * character directly) or opcode 8 (a numeric id mapped to one). Which was
-     * used is not recorded, so this always writes opcode 1 — that reproduces the
-     * character exactly, at the cost of byte-exactness for records that used
-     * opcode 8. */
-    if( entry->type != 0 )
+    /* Exactly what the record stated. A default_int of 0 stated explicitly is
+     * written back (every rev-239 int param states one), and so is opcode 8
+     * beside opcode 1.
+     *
+     * The order is the era's, and the era shows in the record: the caches that
+     * write opcode 8 (rev 239) put the bare opcode 4 last, every older one puts
+     * it first. Keyed on opcode 8's presence, that reproduces every cache in the
+     * tree byte for byte. */
+    bool const auto_disable_last =
+        RSCache_PresenceHas(&entry->present, RSCACHE_PARAM_FIELD_TYPE_ID);
+
+    if( !auto_disable_last && RSCache_PresenceHas(&entry->present, RSCACHE_PARAM_FIELD_AUTO_DISABLE) )
+        p1(&buf, 4);
+
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_PARAM_FIELD_TYPE) )
     {
         p1(&buf, 1);
-        p1(&buf, (unsigned char)entry->type);
+        p1(&buf, entry->type_key);
     }
 
-    if( entry->default_int != 0 )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_PARAM_FIELD_TYPE_ID) )
+    {
+        p1(&buf, 8);
+        p1(&buf, entry->type_id);
+    }
+
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_PARAM_FIELD_DEFAULT_INT) )
     {
         p1(&buf, 2);
         p4(&buf, entry->default_int);
     }
 
-    /* auto_disable defaults to 1; opcode 4 is a flag that clears it. */
-    if( !entry->auto_disable )
-        p1(&buf, 4);
-
-    if( entry->default_string )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_PARAM_FIELD_DEFAULT_STRING) )
     {
+        assert(entry->default_string);
         p1(&buf, 5);
         pjstr(&buf, entry->default_string, RSCACHE_JSTR_TERMINATOR_NULL);
     }
 
-    if( entry->default_long != 0 )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_PARAM_FIELD_DEFAULT_LONG) )
     {
         p1(&buf, 7);
         p8(&buf, (int64_t)entry->default_long);
     }
+
+    /* auto_disable defaults to 1; opcode 4 is a flag that clears it. */
+    if( auto_disable_last && RSCache_PresenceHas(&entry->present, RSCACHE_PARAM_FIELD_AUTO_DISABLE) )
+        p1(&buf, 4);
 
     p1(&buf, 0);
     return buf.position;

@@ -42,6 +42,9 @@ import re
 import sys
 from collections import defaultdict
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config_text  # noqa: E402
+
 # Words that name an action rather than a creature. Shared with ev_catalog's
 # tokeniser for the same reason: they are what two unrelated names have in
 # common, so matching on them matches everything.
@@ -150,14 +153,14 @@ def load_cache_attackrate(content_dir):
     current = None
     path = os.path.join(content_dir, "configs", "all.npc")
     with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.strip()
             if line.startswith("[") and line.endswith("]"):
                 current = line[1:-1]
             elif current and line.startswith("param=attackrate,"):
-                # The cache export is typed — `param=attackrate,int,10`; an
-                # authored block is not — `param=attackrate,10`.
-                rates[current] = line.rsplit(",", 1)[1]
+                # `param=attackrate,10`, in the cache export and an authored
+                # block alike.
+                rates[current] = config_text.split_param(line[len("param="):])[1]
     return rates
 
 
@@ -168,7 +171,7 @@ def load_default_attackrate(content_dir):
                         "npc_default.npc")
     in_default = False
     with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.strip()
             if line.startswith("[") and line.endswith("]"):
                 in_default = line == "[default]"
@@ -189,7 +192,7 @@ def load_attackable(content_dir):
     current = None
     path = os.path.join(content_dir, "configs", "all.npc")
     with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.strip()
             if line.startswith("[") and line.endswith("]"):
                 current = line[1:-1]

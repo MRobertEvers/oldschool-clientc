@@ -2,6 +2,7 @@
 #define RSCACHE_DATATYPES_DAT2_CONFIG_FLO_H
 
 #include "../rsbuffer.h"
+#include "../rscache_presence.h"
 
 #include <stdbool.h>
 
@@ -28,6 +29,40 @@ RSCache_Dat2ConfigFloCodecVersion(const struct RSCache* cache);
 int
 RSCache_Dat2ConfigFloFlags(const struct RSCache* cache);
 
+/**
+ * The fields an underlay stream can state, for `RSCache_Dat2ConfigUnderlay.present`.
+ * RS2's flag opcodes 4 and 5 are consumed and not stored, so they have no field.
+ */
+enum RSCache_Dat2ConfigUnderlayField
+{
+    RSCACHE_UNDERLAY_FIELD_COLOUR = 0, /* 1 */
+    RSCACHE_UNDERLAY_FIELD_RS2_TEXTURE, /* RS2 2 */
+    RSCACHE_UNDERLAY_FIELD_RS2_SCALE,   /* RS2 3 */
+};
+
+/**
+ * The fields an overlay stream can state, for `RSCache_Dat2ConfigOverlay.present`.
+ *
+ * Keyed by meaning: the texture is opcode 2 (u8) on OldSchool and opcode 3 (u16)
+ * on RS2, and both decode to TEXTURE. RS2's flag opcodes 8, 10 and 12 are consumed
+ * and not stored, so they have no field.
+ */
+enum RSCache_Dat2ConfigOverlayField
+{
+    RSCACHE_OVERLAY_FIELD_COLOUR = 0,      /* 1 */
+    RSCACHE_OVERLAY_FIELD_TEXTURE,         /* 2; RS2 3 */
+    RSCACHE_OVERLAY_FIELD_FLOTYPE,         /* 3, OldSchool: a bare flag */
+    RSCACHE_OVERLAY_FIELD_SHOW_UNDERLAY,   /* 5: clears hide_underlay */
+    RSCACHE_OVERLAY_FIELD_FLOTYPE_NAME,    /* 6 */
+    RSCACHE_OVERLAY_FIELD_BLEND_COLOUR,    /* 7 */
+    RSCACHE_OVERLAY_FIELD_RS2_SCALE,       /* RS2 9 */
+    RSCACHE_OVERLAY_FIELD_RS2_OPCODE_11,   /* RS2 11 */
+    RSCACHE_OVERLAY_FIELD_RS2_WATER_COLOUR,     /* RS2 13 */
+    RSCACHE_OVERLAY_FIELD_RS2_WATER_SCALE,      /* RS2 14 */
+    RSCACHE_OVERLAY_FIELD_RS2_SECONDARY_TEXTURE, /* RS2 15 */
+    RSCACHE_OVERLAY_FIELD_RS2_WATER_INTENSITY,  /* RS2 16 */
+};
+
 struct RSCache_Dat2ConfigUnderlay
 {
     /** RS2 only: opcode 2, a u16 texture id (-1 when the record said 65535). */
@@ -36,6 +71,8 @@ struct RSCache_Dat2ConfigUnderlay
     int rs2_scale;
     int _id;
     int rgb_color;
+    /** Which fields the stream stated (RSCACHE_UNDERLAY_FIELD_*). */
+    struct RSCache_Presence present;
 };
 
 struct RSCache_Dat2ConfigOverlay
@@ -59,18 +96,21 @@ struct RSCache_Dat2ConfigOverlay
     // Used in dat. Not used in dat2.
     bool flotype_overlay;
     char* flotype_name;
+    /** Which fields the stream stated (RSCACHE_OVERLAY_FIELD_*). */
+    struct RSCache_Presence present;
 };
 
-/** Encode an overlay record. Fields at their decode default are omitted, and the
- *  name field uses the newline terminator its decoder expects. */
+/** Encode an overlay record: exactly the OldSchool fields `present` states. The
+ *  name field uses the newline terminator its decoder expects. The RS2 fields are
+ *  decoded but this encoder cannot write them. */
 uint32_t
 RSCache_Dat2ConfigOverlayEncode(
     const struct RSCache_Dat2ConfigOverlay* overlay,
     uint8_t* out,
     uint32_t out_capacity);
 
-/** Encode an underlay record — a single opcode-1 colour, or a bare terminator when
- *  the colour is 0. */
+/** Encode an underlay record — opcode 1 when `present` states the colour (0 is a
+ *  colour), else a bare terminator. */
 uint32_t
 RSCache_Dat2ConfigUnderlayEncode(
     const struct RSCache_Dat2ConfigUnderlay* underlay,

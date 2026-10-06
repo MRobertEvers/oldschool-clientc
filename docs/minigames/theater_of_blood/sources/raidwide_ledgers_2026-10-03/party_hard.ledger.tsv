@@ -1,0 +1,22 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	goto-lobby	PASS	2	001-goto-lobby	at 3676,3217,0 from 3206,3233,0
+2	hud.lobby_no_party	PASS	1	002-hud.lobby_no_party	6440=0
+3	goto-board	PASS	0	003-goto-board	at 3662,3216,0 from 3676,3217,0
+4	board.read	PASS	2	004-board.read	map_flag
+5	board.first_read	PASS	10	005-mesbox-p1,006-options-p2,007-options-p3,008-mesbox-p4,009-board.first_read	4 page(s): mesbox:From this notice board, you ca, options:options, options:choose:Not very experienced. I, mesbox:When you form a raiding party,
+6	partylist.open	PASS	0		tob_partylist open (group 364)
+7	partylist.make_party	PASS	0	010-partylist.make_party	Make party
+8	partydetails.open	PASS	0		tob_partydetails open (group 50)
+9	hud.lobby_in_party	PASS	3	011-hud.lobby_in_party	6440=1 (party formed, in the lobby)
+10	leader.mode_set	PASS	0	012-leader.mode_set	Mode Set
+11	leader.mode_choose	PASS	14	013-options-p1,014-options-p2,015-leader.mode_choose	2 page(s): options:options, options:choose:Hard Mode - requires a 
+12	partydetails.mode_hard	PASS	2	016-partydetails.mode_hard	mode text 'Mode: Entry'
+13	goto-door	PASS	2	017-goto-door	at 3676,3217,0 from 3662,3217,0
+14	door.enter	PASS	2	018-door.enter	map_flag
+15	door.warning	PASS	2	019-mesbox-p1,020-door.warning	1 page(s): mesbox:The Theatre of Blood is danger
+16	door.ready_check	PASS	1	021-door.ready_check	title=Is your party ready? Members: 1. Mode: Entry.
+17	door.go	PASS	0	022-door.go	chat.choose: page changed
+18	hard.refused	PASS	4	023-hard.refused	You enter the chamber of The Maiden of Sugadinti | You have unlocked a new music track: The Maiden's Sorrow. | Teleported to 3676,3217,0. | You must complete the Theatre of Blood once before attempting Hard Mode. | Teleported to 3662,3216,0. | <col=ff0000>You have unlocked a new music track: Welcome to the Theatre | Teleported to 3676,3217,0. | Cleared 14 item(s). | <col=ff0000>You have unlocked a new music track: Harmony | A crop circle is active near Doric's Hut. | Try ::style 1 for aggressive, or ::setlevel 2 40 for some strength. | Goblins east of the river. Guards on the Al Kharid road.
+19	hard.not_in_raid	PASS	1	024-hard.not_in_raid	tobstate active=1 handle=2 room=1 mode=0 started=0 cleared=0 boss_uid=67106 fight=6448,158,0 | You enter the chamber of The Maiden of Sugadinti | You have unlocked a new music track: The Maiden's Sorrow.
+SUMMARY	19	PASS	46	exit=0	pass=19 fail=0

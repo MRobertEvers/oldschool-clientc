@@ -1,0 +1,39 @@
+{{Infobox NPC
+|version1 = 0%
+|version2 = 25%
+|version3 = 50%
+|version4 = 75%
+|version5 = 100%
+|name = Palm of Resourcefulness
+|image1 = [[File:Palm of Resourcefulness (0%).png|100px]]
+|image2 = [[File:Palm of Resourcefulness (25%).png|125px]]
+|image3 = [[File:Palm of Resourcefulness (50%).png|150px]]
+|image4 = [[File:Palm of Resourcefulness (75%).png|175px]]
+|image5 = [[File:Palm of Resourcefulness.png|200px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|options1 = Water
+|options2 = Water
+|options3 = Water
+|options4 = Water
+|options5 = None
+|examine1 = It needs a lot more water.
+|examine2 = It needs a lot more water.
+|examine3 = It needs more water.
+|examine4 = It needs a bit more water.
+|examine5 = A healthy and nourished palm.
+|map = {{Map|name=Palm of Resourcefulness|3936,5280|mapID=-1|r=4|mtype=square}}
+|id1 = 11700
+|id2 = 11701
+|id3 = 11702
+|id4 = 11703
+|id5 = 11704
+|leagueRegion = Desert
+}}
+The '''Palm of Resourcefulness''' can be found inside the [[Path of Crondis]] in the [[Tombs of Amascut]]. The plant must be watered from the nearby waterfalls before players can proceed and fight [[Zebak]]. In addition, [[Crocodile (Tombs of Amascut)|crocodiles]] may come attack it to hinder its growth.
+
+Though it is possible to use a filled [[watering can]] or [[Gricoller's can]] on the Palm rather than a filled [[Water container (Tombs of Amascut)|water container]], doing so only gives 1 hitpoint towards the palm's growth, and in the case of the Gricoller's can drains ten charges instead of the usual one, allowing for a maximum of 100 uses before requiring refilling.
+
+{{Tombs of Amascut}}

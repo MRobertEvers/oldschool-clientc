@@ -44,6 +44,8 @@
  * found in the decoded data at run time.
  */
 
+#include "servpack_test_group.h"
+#include "torirs_server_boot.h"
 #include "torirs_server.h"
 #include <assert.h>
 #include "torirs_server_content.h"
@@ -140,21 +142,16 @@ npc_group_open(
         return 0;
     RSCache_Dat2DiskSetProfile(group->disk, &group->profile);
     table = RSCache_Dat2DiskTableId(group->disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    group->archive =
-        RSCache_Dat2DiskArchiveNewLoad(group->disk, table, RSCACHE_DAT2_CONFIG_KIND_NPC);
+    group->archive = test_pack_group(RSCACHE_DAT2_CONFIG_KIND_NPC, &group->files);
     if( !group->archive )
     {
         RSCache_Dat2DiskFree(group->disk);
         group->disk = NULL;
         return 0;
     }
-    RSCache_Dat2DiskArchiveInitMetadata(group->disk, group->archive);
     /* The npc decoder branches on the group revision, exactly as
      * torirs_server_npcinfo.c does before decoding this archive. */
-    RSCache_ProfileSetGroupRevision(&group->profile, RSCACHE_TYPE_NPC,
-                                    group->archive->revision);
-    group->files = RSCache_FileListNewFromDecode(
-        group->archive->data, group->archive->data_size, group->archive->file_count);
+    /* group->files: test_pack_group filled it */
     return group->files != NULL;
 }
 
@@ -1034,10 +1031,11 @@ main(void)
 
     /* The param declarations first: half 1 asks each param what it is declared
      * as while it picks subjects. */
-    ToriRSServer_ContentLoad(content_dir);
-    if( !ToriRSServer_NpcInfoLoad(cache_dir) )
+    /* Everything from the server pack, by the server's own load. */
+    ToriRSServer_ServPackDir(content_dir, cache_dir, g_test_pack_dir, sizeof(g_test_pack_dir));
+    if( ToriRSServer_BootLoadContent(content_dir, cache_dir) != 0 )
     {
-        printf("  FAIL npc metadata did not load from %s\n", cache_dir);
+        printf("  FAIL the server pack did not load for %s\n", content_dir);
         return 1;
     }
 

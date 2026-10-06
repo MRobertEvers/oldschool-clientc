@@ -1,0 +1,267 @@
+{{Update|date=19 October 2022|rev=26 October 2022|url=https://secure.runescape.com/m=news/fresh-start-worlds?oldschool=1|category=game}}
+[[File:Fresh Start Worlds newspost.png|right]]
+{{clear|right}}
+
+__TOC__
+==Fresh Start Worlds==
+[[File:Fresh Start Worlds (1).jpg|center|600px]]
+
+
+[https://secure.runescape.com/m=news/a=97/fresh-start-worlds-blog?oldschool=1 Fresh Start Worlds] are now '''Open!''' If you’ve been waiting for the right time to try Old School RuneScape, this is it! Here’s how to get started:
+
+'''Step 1: Create Your Account.''' Head directly to the account creation menu via this [https://secure.runescape.com/m=account-creation/create_account?theme=oldschool link!]
+
+You can [https://oldschool-wtqa.runescape.com/a=97/g=oldscape/download?returner=1 download the vanilla client] or use the new [https://www.jagex.com/en-GB/launcher Jagex Launcher]. The Jagex Launcher allows you to play using '''RuneLite''' which is a widely used third-party client. Once you have downloaded your preferred client, select ‘New User’.
+
+[[File:Fresh Start Worlds (2).png|center|500px]]
+
+
+'''Step 2: Log in with your details.''' Fresh Start Worlds are now live. Once you’ve created an account, simply log in with your details and you can start the tutorial.
+
+[[File:Fresh Start Worlds (3).png|center|500px]]
+
+
+'''Step 3: Complete Tutorial Island!''' Tutorial Island takes about 10 minutes to complete. At the end of the tutorial, you'll be offered the choice between a Fresh Start account or a main game account. lf you're making your account '''before''' the Fresh Start Worlds open at 12:00 BST, do '''not''' leave Tutorial Island! Once you're on the main game you can't go back.
+
+[[File:Fresh Start Worlds (4).png|center|500px]]
+
+
+'''Step 4: Start playing!''' Confirm your choice at the end of Tutorial Island, and you're ready to go! Remember, you can transform a Fresh Start account into a main game account, but this does not work vice versa.
+
+[[File:Fresh Start Worlds (5).png|center|500px]]
+
+
+Fresh Start Worlds are brand-new worlds, with no established economy and fresh HiScores! There are both members and free-to-play Fresh Start Worlds, and the gameplay is exactly the same as it is in the main game – it’s just new!
+
+On Fresh Start Worlds you’re much more likely to encounter players who’ve started the game at the same time you did, and we expect the early-game areas to be much more populated than they are in the main game.
+
+You’ll also get the chance to see your name on the front page of the HiScores – or, if you’re up for a real challenge, why not see if you can achieve a World First?
+
+To help you on your journey, you’ll earn Achievement Points for participating in various activities like quests, bossing, Achievement Diary tasks and Clue Scrolls. This new system is exclusive to Fresh Start accounts and is designed to keep you motivated throughout your adventure.
+
+Achievement Points are tracked via your Side Panel menu, as shown below:
+
+[[File:Fresh Start Worlds (6).png|center]]
+
+
+After six months, your progress in Fresh Start Worlds will automatically transfer over to the main game. Your items, Quest Points and skill levels will be seamlessly transferred over on '''April 19th, 2023!'''
+
+As a heads up for existing players, here are the Fresh Start Worlds that will have the automated Blast Furnace enabled on them: 423, 426, 459, 472, 473, 566, 567.
+
+===Bonds to Membership Vouchers===
+Got a noob friend interested in Fresh Start Worlds or the main game? Why not gift them membership, so they can explore everything Gielinor has to offer?
+
+[[File:Fresh Start Worlds (7).png|center]]
+
+
+We now have a Bond-to-Voucher system which will let you gift membership from the main game to your friend using a voucher code. To generate a code, open up the Bond Redemption menu in the main game, where you’ll see a new option: ‘Redeem a Voucher Code’.
+
+Once generated, the voucher will be sent to the '''Player Inbox''' it was purchased on. You can then claim the voucher for yourself or pass it along to someone else.
+
+Please note that you cannot redeem membership from the voucher in-game. Instead, you must log on to the Old School RuneScape website with the account you want membership applied to, where you'll be able to enter your code via the 'Redeem Code' option.
+
+===Stance on Swapping===
+We've seen a number of questions asking about our stance on swapping GP from the main game to Fresh Start Worlds (or vice versa). We would like to clarify that swapping will '''not''' be a bannable offence. However, this is risky so we don't advise doing it. Players have to accept the risks of potentially being scammed as a result.
+
+
+Spamming to advertise swapping '''is against the rules''' as generally this involves using bots to advertise or is very disruptive, both of which are not permitted within our Game rules.
+
+==Useful Links and Communities for New and Returning Players==
+Got questions about Fresh Start Worlds? Your first port of call should be this dedicated [https://support.runescape.com/hc/articles/8501401130641 Support Article]!
+
+Got more questions? Don’t panic! Old School RuneScape has one of the most helpful communities in the world, and there’s always someone around to help new players out. Don’t be afraid to ask other players for help if you need it! After all, you’re one of us… one of us…
+
+Here are a few links to guide you in the right direction if you’re looking for information as a new player.
+
+Stuck on a Quest? Not sure what an item is used for? The [[Old School RuneScape Wiki]] has all the information you need!
+
+If you're someone who prefers to ask a question in real time, we've got you covered. Head over to the [https://discord.gg/osrs Official Old School RuneScape Discord] and ask away in the #questions channel. The Official OSRS Discord now has a ‘Fresh Start’ role if you want to meet fellow Fresh Starters!
+
+We're also big fans of the new Discord forum features! The new forum features added to Discord can help make looking for a Clan much easier as you're now able to sort Clans by their interest with one simple button-click! Perfect to find friends to PvM with!
+
+Typing ‘-newplayer’ will command the Gnomechild bot to send you helpful guides, like this:
+
+[[File:Fresh Start Worlds (8).png|center|500px]]
+
+
+You can also visit the [https://www.reddit.com/r/2007scape/comments/y49825/have_a_question_about_the_game_or_the_subreddit/ Daily Questions thread] on Reddit, where other players will be happy to help!
+
+Why not listen to some guides on YouTube while you’re grinding away? We've created a [https://www.youtube.com/watch?v=D4hRmP-tw48&list=PLRs68iqW7gYsq0yKl04zMQU2bcomFKc_7 Community YouTube Playlist] of our favourite new-player content. We'll keep adding to it over time, so be sure to send your most helpful videos our way if we've missed them off the list.
+
+Last but not least, our J-Mod team have some helpful tips!
+* You can play as an entirely free-to-play account or upgrade to become a member. In the World list, hover over a world to see what type of world it is and whether there are any restrictions on it. The colour of the world will denote whether it is free to play (silver) or members-only (gold). Fresh Start Worlds will also be clearly labelled.
+* Old School RuneScape can fit compactly on your screen, but you may prefer to make it larger. To do so, click on the spanner in the bottom-right of your screen!
+* The nearest Bank when you get into the game is just behind you, up the stairs of Lumbridge Castle!
+* Enabling '''2-Factor Authentication''' on your account is highly important to keep your account secure. Head [https://support.runescape.com/hc/en-gb/articles/206811835-Enable-authenticator here] to find out how to set up 2FA on your account.
+* Remember that there is no right or wrong way to play the game. There are optimal ways to achieve certain goals, but you decide how you want to play.
+
+Lastly, there are many Discord Communities that exist outside of the Official OSRS Discord where you can find guides, gear setups and more. These are not exclusive to Fresh Start Worlds, but you might find them helpful if you have specific questions about the game.
+
+* [https://discord.gg/b6Uy8gqHEn RuneLite Discord] - ''Community based around RuneLite, a popular third-party client.''
+* [https://discord.gg/runescapewiki OSRS Wiki Discord] - ''Our wonderful Wiki team!'' <!---A lot of people think that uh, the wiki has like, some team of professionals that is just, uh, has everything taken care of and there's-there's nothing left that anyone else could possibly do, and that's just- uh its just fundamentally not true. Uh, the wiki is built by whoever shows up and wants to help. Even like this whole idea "oh man the wiki team is amazing, they're the best ever!" Its just, its whoever shows up. There's no real structure underneath it. And um, you know, whoever you are, it doesn't matter what you're good at, or what you're not good at, or uh, anything else if you wanna help there's something for you to do.-->
+* [https://discord.gg/wdr We Do Raids Discord] - ''Find a group to raid with!''
+* [https://discord.com/invite/e2effBN Skilling Methods Discord] - ''High-level Skilling methods, check their #1-99-channel for intermediate guides!''
+* [https://discord.com/invite/gear Gear Discord] - ''Find up-to-date gear set-ups for every boss in the game!''
+* [https://discord.gg/zZJ6v24BVK EventCord Discord] - ''Competitive events organised by players''
+
+Phew! That's all of them. Now, do you have any helpful tips or communities that you'd like to share? Share your Old School wisdom using the hashtag '''#OSRSFSW''' on Twitter and you'll be in with a chance of winning '''30 days of membership!'''
+
+==Fresh Start Worlds Special Livestream==
+[[File:Fresh Start Worlds (9).png|center|600px]]
+
+
+On '''Thursday October 20th,''' you're invited to join us for a special Fresh Start Worlds [https://www.twitch.tv/oldschoolrs livestream!] During the stream, J-Mods will team up together to take on the early game. Prepare to cringe or be wildly entertained as we progress. Perhaps you might be able to influence where the J-Mods go on their adventure!
+
+We expect the stream will run from approximately 12:00 BST - 18:30 BST. We'll also be dropping '''holiday items''' into Fresh Start Worlds at intervals during the stream, including Halloween Masks, Santa Hats, Easter items and the coveted Party Hats! These are exclusive cosmetic items, so grab them while you can. Tune into our Twitch channel on the day to find out where we'll be dropping them.
+
+If you can't make it to the event, don't worry. All accounts will be merged into the main game after six months, so these items won’t stay exclusive forever – and if there’s significant demand, we’re always up for another drop party. Nevertheless, we look forward to seeing you at launch!
+
+==Mobile Bug Fixes==
+There are a number of bugs and issues currently affecting mobile users. Thanks for all the reports you've sent in - we're working on it! When we update our Engine Systems, this can cause some unforeseen issues in the live environment.
+
+We're working through the issues as quickly as we can. Here's what is being fixed today:
+* Resolved an issue with text displayed on the Helper menu. Previously, the pop-out could cut off the text displayed in the Helper Menu. For example, you might see '5' kills remaining in your Slayer Helper instead of '52'.
+* Resolved an issue where Bank Pin numbers were disappearing. The last touch was leaving the 'mouse' over that number, and the buttons are set to hide the number on mouseover.
+* For players experiencing 'black screen' issues: We have deployed a client update for Android Client users. After manually updating the app, most players should no longer experience this issue. Check the play store to ensure you've got an up-to-date version of the app. There are some niche devices that may still be affected by this issue and you can report detais to us [https://support.runescape.com/hc/en-gb/articles/9929295322641 here]. We're working on a further fix in the coming weeks.
+* We have aligned tool-tips to the left-hand side following player feedback. This should result in less players having trouble reading them. If the left-hand side is also causing problems, let us know your feedback as we'll work on a more responsive solution.
+
+There are still some additional mobile issues affecting players. Here are the top two issues that we're aware of:
+* The Chat Box is glitching when numbers or words are entered.
+* FPS or crash issues, typically when a player is in an instance.
+
+The above issues have been forwarded to the team and are being worked on. These issues have been difficult to replicate and are therefore a bit trickier to get a handle on. We appreciate your patience as we work on this.
+
+==Jagex Launcher==
+[[File:Fresh Start Worlds (10).jpg|center|600px]]
+
+
+Fresh Start Worlds aren’t the only new thing we’d like to talk about today! What better way to get access to these brand-new worlds and more than with a newly updated Jagex Launcher!
+
+The Jagex Launcher is the easiest and most convenient way to play Old School, offering a new and improved experience. It allows you to access Jagex games seamlessly and securely, all in one place and with the safety and convenience of a single login.
+
+Earlier this week the Launcher was updated, allowing you to add up to 10 different accounts and switch between them seamlessly! You can even play multiple accounts simultaneously when using RuneLite or the official client.
+
+Download the Launcher [https://www.jagex.com/en-GB/launcher here].
+
+For more information on the Launcher including multi-account support, check out the FAQ [https://support.runescape.com/hc/en-gb/articles/4431227961489 here].
+
+==Annual Survey 2022==
+[[File:Fresh Start Worlds (11).png|center|600px]]
+
+
+Do you want to help shape the future of Old School RuneScape? Got an idea on what kind of content you'd like to see in 2023 and beyond? Make sure to leave your thoughts in our [https://jagex.eu.qualtrics.com/jfe/form/SV_1zihZPQjuKPvFFI Annual Survey!]
+
+One of the things that makes Old School special is that you, the players, have control over the game's future. Your feedback is essential to Old School RuneScape - it's the ''special sauce'' that makes our game so darn great after so many years!
+
+This is your chance to tell us how we can improve the game you love. Not only that, by doing so, you'll also be in with the chance of winning one of FIFTY Amazon $50 vouchers!
+
+The survey closes on October 31st 2022 and should only take around 30 - 45 minutes to complete. Thanks for helping to shape our wonderful game and for taking the time to leave us your valuable feedback!
+
+==Quest Speedrunning Changes==
+[[File:Fresh Start Worlds (12).gif|centre|600px]]
+
+
+We're pleased to see so many of you enjoying Quest Speedrunning! For those of you with Platinum Trophies, please accept our sincerest congratulations! It's a niche piece of content, we admit, but it's been fantastic to offer you the long-anticipated ability to replay quests on your main account.
+
+Last week, we noticed that the doors in the basement during 'Ernest the Chicken' could be opened and closed by certain nefarious players, causing stalls for others doing the quest. These doors use specific code which is different from the standard doors in-game. We've hotfixed most of the doors that cause major bottlenecks, however please note they are still able to be closed once. It's not currently possible for us to implement a solution where doors cannot be closed at all, however the current fix ensures that they no longer close ''on their own'' and can no longer bottleneck players.
+
+After taking a look at the Quest Speedrunning data, we've also made balancing changes to the trophy times.
+
+'''Ernest the Chicken:''' This speedrun was a bit too hard at the Platinum level, but the Bronze and Silver levels feel too easy. Achieving Platinum is now slightly easier, but we've decreased the gaps between each trophy:
+<center>
+{| class="wikitable" style="text-align:center;"
+! colspan="3" |Ernest the Chicken
+|-
+!Tier || Current || New
+|-
+|Bronze || 7:00 || 5:45
+|-
+|Silver || 5:30 || 5:00
+|-
+|Gold || 4:30 || 4:30 (Remains the same)
+|-
+|Platinum || 4:00 || 4:15
+|}
+</center>
+
+
+'''Dragon Slayer I:''' As a longer quest with lots of combat, there’s a lot of room to get unlucky with RNG and miss out on what would otherwise have been a good time. The gaps between each trophy feel good, so we've added a minute to each tier:
+<center>
+{| class="wikitable" style="text-align:center;"
+! colspan="3" |Dragon Slayer I
+|-
+!Tier || Current || New
+|-
+|Bronze || 36:00 || 37:00
+|-
+|Silver || 27:00 || 28:00
+|-
+|Gold || 21:00 || 22:00
+|-
+|Platinum || 18:00 || 19:00
+|}
+</center>
+
+
+'''Demon Slayer:''' We've heard complaints that there’s a lot of RNG involved in getting a Gold or above and world hopping is pretty much a requirement. We've made changes to ensure that the times are now easier to obtain, but with wider gaps between them.
+<center>
+{| class="wikitable" style="text-align:center;"
+! colspan="3" |Demon Slayer
+|-
+!Tier || Current || New
+|-
+|Bronze || 14:15 || 16:00
+|-
+|Silver || 11:15 || 12:15
+|-
+|Gold || 9:15 || 9:45
+|-
+|Platinum || 8:15 || 8:30
+|}
+</center>
+
+We hope these changes will be more in line with your expectations of Quest Speedrunning. The balancing changes listed above do not work retroactively, so these do not affect your current times.
+
+Further Quest Speedrunning changes this week include the following:
+* Elize now provides additional information about the number of available quests on Speedrunning Worlds as well as the number of trophies of a specific tier you currently have.
+* We have added an option to '''restart''' a speedrun. Pressing the ‘abandon’ button on a speedrun now gives you the option to reset, which will set the speedrun up again for you.
+* Most trapdoors and manholes will now no longer close automatically on Speedrunning Worlds. There may be instances where some still close automatically, and we will review those on a case-by-case basis.
+* Ironman downgrade messages are also no longer given on Speedrunning Worlds.
+
+Lastly, we have removed Quest Speedrunning Worlds 503, 541, 550, 569, and 581.
+
+==Tombs of Amascut Improvements==
+* It is no longer possible to smuggle additional mirrors between phases in the Path of Het challenge room.
+* The Bank Camel's name will also now be a valid answer to the 'MACHETE CLAM' Clue once you've learned it. We previously mentioned that this change was released on [https://secure.runescape.com/m=news/a=97/clan-hall-upgrades--more-?oldschool=1 October 5th]. This was incorrect - it has in fact released today. Sorry!
+* Players can no longer receive the 'Leech' title if they have the highest damage in Tombs of Amascut, or are the raid MVP.
+
+==Other Changes==
+* The Clan Hall's Combat Ring now stores your current Special Attack when entering and restores your Special Attack when exiting. This can make it easier to practice your duels with fellow Clan members. When dying, it will NOT restore your Special Attack to its previous level, but will do so the next time you exit the map or leave the Combat Ring instead.
+* Last week, we rolled out a silent change to our backend system which will allow us to carry out some planned D&I initiatives. Thessalia and Farmer Gricoller’s dialogue experienced some unintentional player-facing changes as a result. We have reverted the dialogue back to normal until we are ready to roll out the D&I changes in full, which we anticipate will happen sometime in November.
+* The Mask of Rebirth can now be stored in a Magic Wardrobe in a Player-Owned House.
+* A snake on Ape Atoll now spawns further away from the southern Teak Trees.
+* Although XP gains are normally restricted in instanced areas on Deadman Worlds, players on World 45 can now gain Slayer XP from Vorkath.
+* The geysers in the Chambers of Xeric now have a left-click option for filling the Gourd Vials more conveniently.
+* Farmer Gricoller's name is now displayed correctly in his dialogue boxes.
+* There is now a visible and audible cue signalling when you stop cutting Blisterwood Trees.
+
+==PvP Rota==
+The PvP rota has moved to '''Period A''':
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is currently using ''''Max/Med'''' loadouts in Ranked Duels and Tournaments.
+
+What do you think of the update this week? Let us know!
+
+----
+
+You can discuss this update on our [https://secure.runescape.com/m=forum/forums?380,381,846,66264677 official forums], on the [https://www.reddit.com/r/2007scape/comments/y7xjxt/fresh_start_worlds_weekly_game_update_wednesday/?utm_source=share&utm_medium=web2x&context=3 2007Scape subreddi]t, the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Wiki|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Chilly, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Shaun, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Steve W, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

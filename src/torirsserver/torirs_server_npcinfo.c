@@ -1,15 +1,18 @@
 /*
- * NPC metadata from the cache: names, and the menu ops the server may act on.
+ * NPC metadata: names, and the menu ops the server may act on.
  *
- * Same recipe as torirs_server_objinfo.c — profile, CONFIGS table, KIND_NPC archive,
- * file list, decode each — and worth keeping separate for the same reason: it
- * is the only place that knows the cache's npc layout.
+ * Read from the server pack's npc client-record archives (`ToriRSServer_NpcInfoLoad`),
+ * decoded with the same rscache npc decoder a client cache read uses — so every
+ * field means what it meant — but from the merge of the content tree rather than
+ * from whichever client cache is on disk. It is the only place that knows the
+ * npc record's layout.
  *
  * Consumers include npc_name and the default greeting path. `npc_say` itself
  * no longer needs the name for a chatbox line — it sets NPC_INFO SAY only.
  */
 
 #include "torirs_server.h"
+#include "torirs_server_servpack.h"
 #include <assert.h>
 
 #include <rscache.h>
@@ -125,8 +128,7 @@ add_param(
         struct NpcParam* grown =
             (struct NpcParam*)realloc(g_npc_params, (size_t)capacity * sizeof(*grown));
 
-        if( !grown )
-            return;
+        assert(grown);
         g_npc_params = grown;
         g_npc_param_capacity = capacity;
     }
@@ -135,6 +137,7 @@ add_param(
     row->key = key;
     row->ival = ival;
     row->sval = sval ? strdup(sval) : NULL;
+    assert(!sval || row->sval);
 }
 
 static void
@@ -182,154 +185,162 @@ ToriRSServer_NpcParam(
     return NULL;
 }
 
-int
-ToriRSServer_NpcInfoLoad(const char* cache_dir)
+/** The empty row an id holds until (unless) its record decodes. */
+static void
+npc_row_defaults(struct ToriRSServerNpcInfo* row)
 {
-    struct RSCache profile = RSCache_ProfileZero();
-    struct RSCache_Dat2Disk* disk;
-    struct RSCache_Dat2DiskArchive* archive;
-    struct RSCache_FileList* files;
-    int table;
-    int highest = -1;
+    memset(row, 0, sizeof(*row));
+    row->name = NULL;
+    row->combat_level = -1;
+    row->size = 1;
+    row->turnspeed = 32; /* NpcType default; 0 is "never turns" */
+    row->attackrate = 4;
+    row->transform_varbit = -1;
+    row->transform_varp = -1;
+}
 
+struct NpcLoad
+{
+    struct RSCache profile;
+    int records;
+    int failed;
+    int capacity;
+};
+
+static void
+npc_load_record(
+    void* context,
+    int id,
+    const uint8_t* body,
+    uint32_t size)
+{
+    struct NpcLoad* load = (struct NpcLoad*)context;
+    struct RSCache_Dat2ConfigNpc* npc;
+
+    assert(load);
+    assert(id >= 0);
+    /* Ids arrive ascending, so the table grows to each new highest id; the gap
+     * rows between sparse ids keep the defaults an absent record answers. */
+    if( id >= load->capacity )
+    {
+        int want = load->capacity ? load->capacity : 4096;
+        struct ToriRSServerNpcInfo* grown;
+
+        while( want <= id )
+            want *= 2;
+        grown = (struct ToriRSServerNpcInfo*)realloc(g_npcs, (size_t)want * sizeof(*grown));
+        assert(grown);
+        for( int i = load->capacity; i < want; i++ )
+            npc_row_defaults(&grown[i]);
+        g_npcs = grown;
+        load->capacity = want;
+    }
+    if( id >= g_npc_count )
+        g_npc_count = id + 1;
+
+    npc = RSCache_Dat2ConfigNpcNewDecodeProfile(&load->profile, (char*)body, (int)size);
+    if( !npc )
+    {
+        /* A record the decoder refuses is one the client codec wrote and this
+         * build cannot read: counted and reported as a stale pack. */
+        load->failed++;
+        return;
+    }
+    load->records++;
+
+    if( npc->name && strcmp(npc->name, "null") != 0 )
+    {
+        g_npcs[id].name = strdup(npc->name);
+        assert(g_npcs[id].name);
+    }
+    g_npcs[id].combat_level = npc->combat_level;
+    g_npcs[id].size = npc->size > 0 ? npc->size : 1;
+    g_npcs[id].turnspeed = npc->rotation_speed;
+    /* Config opcode 18. Stored unconditionally, above the `name` gate the
+     * accessor applies: a nameless multinpc instance still dispatches, and 1,585
+     * of the categorised records in this cache have no name. 0 is the decoder's
+     * "no category stated" and is deliberately not a name in
+     * pack/category.pack — binding a trigger to 0 would match everything. */
+    g_npcs[id].category = npc->category;
+    /* Config opcode 106. Copied rather than borrowed: `RSCache_Dat2ConfigNpcFree`
+     * below owns `npc->configs`. Stored above the name gate with `category`, for
+     * the same reason — every record that carries a transform table is nameless. */
+    g_npcs[id].transform_varbit = npc->varbit_id;
+    g_npcs[id].transform_varp = npc->varp_index;
+    if( npc->configs && npc->configs_count > 0 )
+    {
+        g_npcs[id].transforms = (int*)malloc((size_t)npc->configs_count * sizeof(int));
+        assert(g_npcs[id].transforms);
+        memcpy(g_npcs[id].transforms, npc->configs, (size_t)npc->configs_count * sizeof(int));
+        g_npcs[id].transform_count = npc->configs_count;
+    }
+    for( int op = 0; op < 5; op++ )
+    {
+        g_npcs[id].ops[op] = npc->actions[op] ? strdup(npc->actions[op]) : NULL;
+        assert(!npc->actions[op] || g_npcs[id].ops[op]);
+    }
+    read_combat_params(&npc->params, &g_npcs[id]);
+    /* The whole list, not only the fourteen keys above. */
+    read_params(id, &npc->params);
+    RSCache_Dat2ConfigNpcFree(npc);
+}
+
+/*
+ * Every npc record, from the server pack's client-record archives.
+ *
+ * These are the bytes the client codec decodes — the same decoder a cache read
+ * used, so every field means what it meant — but written by cachepack from the
+ * merge of the whole tree (configs/ rank 0 and server/scripts overlays), not out
+ * of whichever client cache happened to be on disk. The pack is the one source:
+ * a record the tree changed reaches the server the moment the pack is rebuilt,
+ * and a server-only record (`pack/npc.alloc`) has a body here though no client
+ * cache holds it.
+ */
+int
+ToriRSServer_NpcInfoLoad(struct RSCache_ServerPack* pack)
+{
+    struct NpcLoad load;
+    int visited;
+
+    assert(pack);
     ToriRSServer_NpcInfoFree();
 
-    profile.game = RSCACHE_GAME_OLDSCHOOL;
-    profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = TORIRSSERVER_CACHE_REVISION;
+    memset(&load, 0, sizeof(load));
+    load.profile = RSCache_ProfileZero();
+    load.profile.game = RSCACHE_GAME_OLDSCHOOL;
+    load.profile.epoch = RSCACHE_EPOCH_DAT2;
+    /* The declared revision decides every codec branch (rscache_profile.c), the
+     * one cachepack encoded these records under (`meta.ini`). */
+    load.profile.revision = TORIRSSERVER_CACHE_REVISION;
 
-    disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
-    if( !disk )
+    visited = ToriRSServer_ServPackEachRecord(pack, RSCACHE_DAT2_CONFIG_KIND_NPC, npc_load_record,
+                                              &load);
+    if( visited < 0 || load.failed > 0 )
     {
-        /* Run from src/ as well as from the repo root, like objinfo. */
-        char fallback[512];
-
-        snprintf(fallback, sizeof(fallback), "../%s", cache_dir);
-        disk = RSCache_Dat2DiskNewFromDirectory(fallback);
-    }
-    if( !disk )
-    {
-        fprintf(stderr, "torirsserver: no npc metadata (cache '%s' not found)\n", cache_dir);
+        if( load.failed > 0 )
+            fprintf(stderr,
+                    "torirsserver: %d npc record(s) in the server pack do not decode — rebuild "
+                    "it with `%s`\n",
+                    load.failed, TORIRSSERVER_SERVPACK_FIX);
+        ToriRSServer_NpcInfoFree();
         return 0;
     }
-
-    RSCache_Dat2DiskSetProfile(disk, &profile);
-    table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_NPC);
-    if( !archive )
+    if( visited == 0 )
     {
-        RSCache_Dat2DiskFree(disk);
-        fprintf(stderr, "torirsserver: no npc config archive in '%s'\n", cache_dir);
+        fprintf(stderr,
+                "torirsserver: the server pack holds no npc records — rebuild it with `%s`\n",
+                TORIRSSERVER_SERVPACK_FIX);
         return 0;
-    }
-    RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
-    RSCache_ProfileSetGroupRevision(&profile, RSCACHE_TYPE_NPC, archive->revision);
-
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
-    if( !files )
-    {
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
-
-    /* File ids are sparse, so the table is sized from the largest id rather
-     * than from the file count. */
-    for( int i = 0; i < archive->file_count; i++ )
-    {
-        if( archive->file_ids[i] > highest )
-            highest = archive->file_ids[i];
-    }
-    if( highest < 0 )
-    {
-        RSCache_FileListFree(files);
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
-
-    g_npc_count = highest + 1;
-    g_npcs = (struct ToriRSServerNpcInfo*)calloc((size_t)g_npc_count, sizeof(*g_npcs));
-    assert(g_npcs);
-    for( int i = 0; i < g_npc_count; i++ )
-    {
-        g_npcs[i].name = NULL;
-        g_npcs[i].combat_level = -1;
-        g_npcs[i].size = 1;
-        g_npcs[i].turnspeed = 32; /* NpcType default; 0 is "never turns" */
-        g_npcs[i].attackrate = 4;
-        g_npcs[i].transform_varbit = -1;
-        g_npcs[i].transform_varp = -1;
-    }
-
-    for( int i = 0; i < archive->file_count; i++ )
-    {
-        int id = archive->file_ids[i];
-        struct RSCache_Dat2ConfigNpc* npc;
-
-        if( id < 0 || id >= g_npc_count )
-            continue;
-        npc = RSCache_Dat2ConfigNpcNewDecodeProfile(
-            &profile, files->files[i], files->file_sizes[i]);
-        if( !npc )
-            continue;
-
-        if( npc->name && strcmp(npc->name, "null") != 0 )
-            g_npcs[id].name = strdup(npc->name);
-        g_npcs[id].combat_level = npc->combat_level;
-        g_npcs[id].size = npc->size > 0 ? npc->size : 1;
-        g_npcs[id].turnspeed = npc->rotation_speed;
-        /* Config opcode 18 (`dat2_config_npc.c:666`), already decoded by the
-         * linked rscache npc decoder and discarded here until now. Stored
-         * unconditionally, above the `name` gate the accessor applies: a
-         * nameless multinpc instance still dispatches, and 1,585 of the
-         * categorised records in this cache have no name. 0 is the decoder's
-         * "no category stated" and is deliberately not a name in
-         * pack/category.pack — binding a trigger to 0 would match everything. */
-        g_npcs[id].category = npc->category;
-        /* Config opcode 106, decoded into `varbit_id`/`varp_index`/`configs`
-         * and discarded here until 2026-09-21. Copied rather than borrowed:
-         * `RSCache_Dat2ConfigNpcFree` below owns `npc->configs`. Stored above
-         * the name gate with `category`, for the same reason — every record
-         * that carries a transform table is nameless. */
-        g_npcs[id].transform_varbit = npc->varbit_id;
-        g_npcs[id].transform_varp = npc->varp_index;
-        if( npc->configs && npc->configs_count > 0 )
-        {
-            g_npcs[id].transforms =
-                (int*)malloc((size_t)npc->configs_count * sizeof(int));
-            assert(g_npcs[id].transforms);
-            memcpy(g_npcs[id].transforms, npc->configs,
-                   (size_t)npc->configs_count * sizeof(int));
-            g_npcs[id].transform_count = npc->configs_count;
-        }
-        for( int op = 0; op < 5; op++ )
-            g_npcs[id].ops[op] = npc->actions[op] ? strdup(npc->actions[op]) : NULL;
-        read_combat_params(&npc->params, &g_npcs[id]);
-        /* The whole list, not only the fourteen keys above. */
-        read_params(id, &npc->params);
-        RSCache_Dat2ConfigNpcFree(npc);
     }
 
     /* Binary-searched, so it has to actually be ordered — see `struct
      * NpcParam`. */
     qsort(g_npc_params, (size_t)g_npc_param_count, sizeof(*g_npc_params), compare_npc_param);
 
-    /* Read the count before the free, not after: the archive owns it. The
-     * first version of this printed "0 records" from freed memory while the
-     * table itself was fine. */
-    {
-        int loaded = archive->file_count;
-
-        RSCache_FileListFree(files);
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-
-        fprintf(stderr,
-                "torirsserver: npc metadata loaded (%d records from %s, %d params in %zu KB)\n",
-                loaded, cache_dir, g_npc_param_count,
-                ((size_t)g_npc_param_count * sizeof(struct NpcParam)) / 1024);
-    }
+    fprintf(stderr,
+            "torirsserver: npc metadata loaded (%d records from %s, %d params in %zu KB)\n",
+            load.records, pack->dir, g_npc_param_count,
+            ((size_t)g_npc_param_count * sizeof(struct NpcParam)) / 1024);
     return 1;
 }
 

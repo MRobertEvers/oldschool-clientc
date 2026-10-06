@@ -1,0 +1,41 @@
+id	file	tier	monster	type	description
+288	Chambers_of_Xeric_CM_Master	Master	Chambers of Xeric: Challenge Mode	Kill Count	Complete the Chambers of Xeric: Challenge Mode 10 times.
+289	Chambers_of_Xeric_CM_Grandmaster	Grandmaster	Chambers of Xeric: Challenge Mode	Kill Count	Complete the Chambers of Xeric: Challenge Mode 25 times.
+290	Immortal_Raid_Team	Master	Chambers of Xeric: Challenge Mode	Perfection	Complete a Chambers of Xeric: Challenge mode raid without anyone dying.
+291	Immortal_Raider	Master	Chambers of Xeric: Challenge Mode	Perfection	Complete a Chambers of Xeric Challenge mode (Solo) raid without dying.
+292	Dust_Seeker	Elite	Chambers of Xeric: Challenge Mode	Speed	Complete a Chambers of Xeric Challenge mode raid in the target time.
+293	Chambers_of_Xeric_CM_Solo_Speed_Chaser	Master	Chambers of Xeric: Challenge Mode	Speed	Complete a Chambers of Xeric: Challenge Mode (Solo) in less than 45 minutes.
+294	Chambers_of_Xeric_CM_Solo_Speed_Runner	Grandmaster	Chambers of Xeric: Challenge Mode	Speed	Complete a Chambers of Xeric: Challenge Mode (Solo) in less than 38 minutes and 30 seconds.
+295	Chambers_of_Xeric_CM_5_Scale_Speed_Chaser	Master	Chambers of Xeric: Challenge Mode	Speed	Complete a Chambers of Xeric: Challenge Mode (5-scale) in less than 30 minutes.
+296	Chambers_of_Xeric_CM_5_Scale_Speed_Runner	Grandmaster	Chambers of Xeric: Challenge Mode	Speed	Complete a Chambers of Xeric: Challenge Mode (5-scale) in less than 25 minutes.
+297	Chambers_of_Xeric_CM_Trio_Speed_Chaser	Master	Chambers of Xeric: Challenge Mode	Speed	Complete a Chambers of Xeric: Challenge Mode (Trio) in less than 35 minutes.
+298	Chambers_of_Xeric_CM_Trio_Speed_Runner	Grandmaster	Chambers of Xeric: Challenge Mode	Speed	Complete a Chambers of Xeric: Challenge Mode (Trio) in less than 27 minutes.
+299	Chambers_of_Xeric_Veteran	Elite	Chambers of Xeric	Kill Count	Complete the Chambers of Xeric 25 times.
+300	Chambers_of_Xeric_Master	Master	Chambers of Xeric	Kill Count	Complete the Chambers of Xeric 75 times.
+301	Chambers_of_Xeric_Grandmaster	Grandmaster	Chambers of Xeric	Kill Count	Complete the Chambers of Xeric 150 times.
+302	Perfectly_Balanced	Elite	Chambers of Xeric	Mechanical	Kill the Vanguards without them resetting their health.
+303	Together_We_ll_Fall	Elite	Chambers of Xeric	Mechanical	Kill the Vanguards within 10 seconds of the first one dying.
+304	No_Time_for_Death	Master	Chambers of Xeric	Mechanical	Clear the Tightrope room without Killing any Deathly Mages or Deathly Rangers.
+305	Putting_It_Olm_on_the_Line	Master	Chambers of Xeric	Mechanical	Complete a Chambers of Xeric solo raid with more than 40,000 points.
+306	A_Not_So_Special_Lizard	Master	Chambers of Xeric	Mechanical	Kill the Great Olm in a solo raid without letting him use any of the following special attacks in his second to last phase: Crystal Burst, Lightning Walls, Teleportation Portals or left-hand autohealing.
+307	Mutta_diet	Elite	Chambers of Xeric	Mechanical	Kill the Muttadile without letting her or her baby recover hitpoints from the meat tree.
+308	Redemption_Enthusiast	Elite	Chambers of Xeric	Mechanical	Kill the Abyssal Portal without forcing Vespula to land.
+309	Stop_Drop_and_Roll	Master	Chambers of Xeric	Mechanical	Kill Vasa Nistirio before he performs his teleport attack for the second time.
+310	Anvil_No_More	Master	Chambers of Xeric	Mechanical	Kill Tekton before he returns to his anvil for a second time after the fight begins.
+311	Dancing_with_Statues	Elite	Chambers of Xeric	Perfection	Receive kill-credit for a Stone Guardian without taking damage from falling rocks.
+312	Undying_Raid_Team	Elite	Chambers of Xeric	Perfection	Complete a Chambers of Xeric raid without anyone dying.
+313	Undying_Raider	Master	Chambers of Xeric	Perfection	Complete a Chambers of Xeric solo raid without dying.
+314	Shayzien_Specialist	Elite	Chambers of Xeric	Perfection	Receive kill-credit for a Lizardman Shaman without taking damage from any shamans in the room.
+315	Playing_with_Lasers	Master	Chambers of Xeric	Perfection	Clear the [[Jewelled_Crab|Crystal Crabs]] room without wasting an orb after the first crystal has been activated.
+316	Cryo_No_More	Elite	Chambers of Xeric	Perfection	Receive kill-credit for the Ice Demon without taking any damage.
+317	Perfect_Olm_Solo	Master	Chambers of Xeric	Perfection	Kill the Great Olm in a solo raid without taking damage from any of the following: Teleport portals, Fire Walls, Healing pools, Crystal Bombs, Crystal Burst or Prayer Orbs. You also cannot let his claws regenerate or take damage from the same acid pool back to back.
+318	Perfect_Olm_Trio	Master	Chambers of Xeric	Perfection	Kill the Great Olm in a trio raid without any team member taking damage from any of the following: Teleport portals, Fire Walls, Healing pools, Crystal Bombs, Crystal Burst or Prayer Orbs. You also cannot let his claws regenerate or take damage from the same acid pool back to back.
+319	Blind_Spot	Master	Chambers of Xeric	Perfection	Kill Tekton without taking any damage.
+320	Blizzard_Dodger	Elite	Chambers of Xeric	Restriction	Receive kill-credit for the Ice Demon without activating the Protect from Range prayer.
+321	Kill_It_with_Fire	Elite	Chambers of Xeric	Restriction	Finish off the Ice Demon with a fire spell.
+322	Chambers_of_Xeric_Solo_Speed_Chaser	Master	Chambers of Xeric	Speed	Complete a Chambers of Xeric (Solo) in less than 21 minutes.
+323	Chambers_of_Xeric_Solo_Speed_Runner	Grandmaster	Chambers of Xeric	Speed	Complete a Chambers of Xeric (Solo) in less than 17 minutes.
+324	Chambers_of_Xeric_5_Scale_Speed_Chaser	Master	Chambers of Xeric	Speed	Complete a Chambers of Xeric (5-scale) in less than 15 minutes.
+325	Chambers_of_Xeric_5_Scale_Speed_Runner	Grandmaster	Chambers of Xeric	Speed	Complete a Chambers of Xeric (5-scale) in less than 12 minutes and 30 seconds.
+326	Chambers_of_Xeric_Trio_Speed_Chaser	Master	Chambers of Xeric	Speed	Complete a Chambers of Xeric (Trio) in less than 16 minutes and 30 seconds.
+327	Chambers_of_Xeric_Trio_Speed_Runner	Grandmaster	Chambers of Xeric	Speed	Complete a Chambers of Xeric (Trio) in less than 14 minutes and 30 seconds.

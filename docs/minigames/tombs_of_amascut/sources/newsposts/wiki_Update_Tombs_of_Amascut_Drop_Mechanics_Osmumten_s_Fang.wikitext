@@ -1,0 +1,215 @@
+{{Update|date=28 October 2022|url=https://secure.runescape.com/m=news/tombs-of-amascut-drop-mechanics--osmumtens-fang?oldschool=1|category=game}}
+[[File:Tombs of Amascut Drop Mechanics & Osmumten's Fang newspost.png|right]]
+{{clear|right}}
+''Today we want to discuss a couple of hot topics surrounding Tombs of Amascut. Strap in and read on!''
+
+Together, you’ve completed Tombs of Amascut around 4.5 MILLION times since it launched in August, which means we now have the data to address a pair of red-hot topics. Starting with...
+__TOC__
+==Osmumten's Fang==
+This wiggly sword saw a handful of iterations between its first appearance back [https://secure.runescape.com/m=news/tombs-of-amascut-reward-changes?oldschool=1 in May] and its awesome final form.
+
+In the initial Poll Blog, we said Osmumten’s Fang would ‘double roll’ on accuracy, and that there were only a few mobs this weapon would especially excel against.
+
+We’ve had our top investigators on the case and we reckon we’ve figured out what’s going on here. To explain, we first need to talk about Combat Accuracy. Hope you like numbers…
+
+===The numbers...===
+To simplify it a little, imagine that Old School RuneScape’s combat system is made of dice rolls. It’s like D&D, except the dice are rolling in 0.6s intervals and they have several thousand sides apiece.
+
+When the player attacks an NPC, the game performs an ‘accuracy roll’ based on factors like Attack level, equipment accuracy, style bonuses, Prayers, etc. The game picks a value at random between 0 and the player’s maximum roll, and the resulting value is their accuracy roll for that attack.
+
+The game then performs a ‘defense roll’ for the NPC. Different NPCs have different Defence levels and style-specific defensive stats that factor into the maximum value of this roll – but ultimately, the game again picks a random value between 0 and the max.
+
+If the player’s accuracy roll is higher than the NPC’s defensive roll, the player hits! Otherwise, they miss, and their only reward is a cool blue ‘0’ hitsplat.
+
+Some of you may have already figured out why the Fang is overperforming – but let’s make sure we’re all on the same page.
+
+When we initially wrote that Osmumten’s Fang would ‘double roll’ on accuracy, our balancing was based on the idea that the accuracy roll would be performed twice and take the highest roll as the accuracy value for that attack.
+
+Unfortunately, we implemented it incorrectly. For all intents and purposes, Osmumten’s Fang has been bugged since release.
+
+Rather than just re-rolling the player’s accuracy roll, the Fang is, in fact, re-rolling both components of an attack. It’s rolling for both accuracy and the monster’s defence, and if it fails, it rolls both attack and defence again.
+
+Let’s crunch some numbers. If an NPC’s defensive roll was, say, '''10,000''' and the player’s accuracy roll was '''8,000''', the Fang would go ahead and re-roll both values. If the NPC then rolled '''4,000''' and the player rolled '''6,000''', the attack would be considered a hit.
+
+This might not look like a big deal on the surface, but it actually has a pretty drastic effect on the weapon’s accuracy.
+
+Here’s some further examples to illustrate just how significant the error is:
+
+For an NPC whose 'Effective Defence' is 30,000 (meaning a maximum roll of 30,000), with a weapon whose 'Effective Accuracy' is 35,000:
+* Standard Roll (no re-rolling) - 57% Chance to Hit
+* Double Accuracy Roll (intended Fang re-rolling) - 76% Chance to Hit (31.9% improvement over Standard Roll)
+* Double Accuracy, Double Defence Roll (current Fang re-rolling) - 81% Chance to Hit (42.2% improvement over Standard Roll)
+
+Now, sticking with the same 35,000 Effective Accuracy but increasing the Effective Defence to 60,000, we can see how pronounced this difference becomes as Defence increases:
+* Standard Roll - 29% Chance to Hit
+* Double Accuracy Roll - 39% Chance to Hit (35.3% improvement over Standard Roll)
+* Double Accuracy, Double Defence Roll - 50% Chance to Hit (72% improvement over Standard Roll)
+
+===What does it all mean?!===
+The big concern you all have with the Fang is that it’s a great weapon for almost every piece of content in the game, and it’s not really rare enough to justify that kind of power.
+
+One of our key learnings from the Equipment Rebalance project is that if an item isn’t in a healthy spot and risks impacting future reward space, the best time to step in is now.
+
+With this in mind, we'll be fixing the bug in the Fang's behaviour. From Monday, October 31st on it will re-roll the player's accuracy but not the monster's defence.
+
+This will mean that weapons like the Scythe of Vitur, the Dragon Hunter Lance, the Inquisitor’s Mace and so on will reclaim their rightful place at the top of the Best in Slot lists.
+
+We’ll be keeping a close eye on the Fang’s performance in the coming weeks and will remain open to further changes if the balance isn’t quite right. It can’t zig-zag its way out of this one!
+
+More on the rarity of the Fang later, but for now there's something else you've been asking us to address...
+
+==Tombs of Amascut Drop Mechanics==
+Ah yes, more numbers.
+
+You’ve been after some more detailed information about how drops work inside the Tombs of Amascut, and while crowdsourced efforts at places like the [[OSRS Wiki]] give a pretty good overview, we’d like to give a more complete rundown.
+
+The mechanics behind Tombs of Amascut's drops are pretty complex and don't allow us to make simple statements about the drop rate of a given item at a given Raid Level, especially with systems like Path Levelling at play.
+
+Now we weren’t joking, there are a lot of numbers in this, but we’ll include some examples at the end to help everyone get up to speed.
+
+===The Points System===
+You might remember points from content like the Chambers of Xeric. Tombs of Amascut has a similar system with a handful of differences. Let’s break it down.
+
+The game keeps track of players' '''Total''' accumulated points throughout the raid, as well as their accumulated points in the current room.
+
+Inside of any given room, you accumulate '''Room''' points. Whenever a room is completed, your '''Room''' points will be transferred to your '''Total''' points.
+
+With these two terms outlined, we'll explain how both Room and Total points are gained and lost.
+* You start the raid with 5,000 Total points.
+* '''Room''' points are awarded per damage dealt to every NPC in the raid. For most NPCs, 1 damage dealt equates to 1 '''Room''' point. Some NPCs give bonus points while some NPCs give no points, as shown below:
+** Warden Cores have a 0x Point Multiplier.
+** Monkeys on the Path of Apmeken have a 1.2x Point Multiplier.
+** Ba-Ba has a 2x Point Multiplier.
+** Zebak has a 1.5x Point Multiplier.
+** Spitting, Soldier and Arcane Scarabs have a 0.5x Point Multiplier.
+** The Obelisk on the Path of Het as a 2.5x Point Multiplier.
+** The Obelisk in Wardens' P1 has a 1.5x Point Multiplier.
+** Wardens during P2 have a 2x Point Multiplier. However, Wardens during P2 will give no additional points beyond their third 'down'.
+** Wardens during P3 have a 2.5x Point Multiplier.
+* You cannot gain more than 20,000 Room points as an individual in a single room.
+* If you score the most Room points in your party for a room, you will be given an MVP bonus of 300 x Group Size to your Total points upon room completion.
+* Death subtracts 20% from your Total points, with a minimum of 1,000.
+* You cannot accumulate more than 64,000 Total points as an individual in the entire raid.
+* You must have at least 1,500 Total points to be eligible for rewards, otherwise you get some Dung.
+
+
+Let’s look at an example.
+
+You’ve jumped into a raid with a party of four players, at a Raid Level that puts Ba-Ba’s HP at 400. Also, let's pretend the Path of Apmeken has magically stopped existing.
+
+You start the raid with 5,000 '''Total''' and head straight to Ba-Ba, since we’ve no time for monkey business in this example. You deal 250 points of damage to Ba-Ba, then meet your untimely demise because you forgot 'Mind the Gap' was activated. Classic!)
+
+As a result of your death, your '''Total''' points are reduced by 20% from 5,000 to 4,000. As a result of your 250 damage dealt and Ba-Ba's 2x Point Multiplier, your '''Room''' points sit at 500.
+
+At the end of the room, you've dealt more damage than the rest of your team despite your fall. Meaning your 500 '''Room''' points are added to your 4,000 '''Total''', on top of an MVP bonus worth 1,200 (300 x 4) Total points.
+
+Here’s the breakdown again:
+* You start with 5,000 '''Total''' points
+* You lose 20% of your total points on death, leaving you with 4,000 '''Total''' points.
+* You gain 500 '''Room''' points by dealing 250 damage to Ba-Ba, because she has a 2x multiplier for '''Room''' points.
+* When Ba-Ba is slain, your 500 '''Room''' points are added to your 4,000 Total points, leaving you with 4,500 '''Total''' points.
+* You also gain 1,200 '''Total''' points for being the MVP of this room. That's 300 points multiplied by the four players in your party.
+* So, your '''Total''' points are now 5,700.
+* With the room completed, your '''Room''' points reset to zero and the process begins again
+
+===Unique Drop Chances===
+So that’s how points work – but how do they interact with drops?
+
+Points are converted into a drop percentage in various ways. First, let's determine how many points equate to a {{Colour|#8B0000|1% '''base''' chance}} of a given type of drop:
+* {{Colour|#8B0000|10,500}} Total points equates to a 1% base unique drop chance.
+* {{Colour|#8B0000|350,000}} Total points equates to a 1% base pet drop chance.
+
+Next, we factor in raid level for uniques and the pet to obtain a {{Colour|#8d03a8|'drop modifier value'}}, and use this to work out your {{Colour|#0044FA|1% '''true''' unique drop chance}}.
+* For uniques, this value is {{Colour|#8d03a8|20 drop modifer value}} per raid level.
+* For pets, this value is {{Colour|#8d03a8|700 drop modifier value}} per raid level.
+* Raid levels from 400 to 550 only have 1/3 the effect on this value.
+* Raid levels above 550 do not increase this value, meaning your drop rates effectively cap at 550 Raid Level.
+
+Your 1% '''true''' drop chance is obtained as follows:
+* ({{Colour|#8B0000|1% '''base''' drop chance}}) - ({{Colour|#8d03a8|total drop modifier value}})
+
+For example, in a raid at {{Colour|#008000|300 Raid Level}}, where the player earns 20,000 '''Total''' points:
+* {{Colour|#8B0000|10,500}} - ({{Colour|#008000|300}} x {{Colour|#8d03a8|20}}) = {{Colour|#8B0000|10,500}} - {{Colour|#8d03a8|6,000}} = {{Colour|#0044FA|4,500}} points equates to 1% true unique drop chance.
+* {{Colour|#8B0000|350,000}} - ({{Colour|#008000|300}} x {{Colour|#8d03a8|700}}) = {{Colour|#8B0000|350,000}} - {{Colour|#8d03a8|210,000}} = {{Colour|#0044FA|140,000}} points equates to 1% true unique drop chance.
+
+Now, we’ll combine the value we've just calculated to work out the actual chance of obtaining a drop.
+* For a unique: 20,000 '''Total''' points / {{Colour|#0044FA|4,500}} points per 1% = 4.444% (or 1/22.5)
+* For a pet: 20,000 '''Total''' points / {{Colour|#0044FA|140,000}} points per 1% = 0.143% (or 1/700)
+
+In a raid at 550 Raid Level, where the player earns 20,000 '''Total''' points, the numbers for a unique look a little different, since Raid levels beyond 400 only have 1/3 the effect on the Drop Modifier Value:
+* Total Drop Modifier Value: ({{Colour|#008000|400}} + {{Colour|#008000|150}} / 3) x {{Colour|#8d03a8|20}} = {{Colour|#8d03a8|9,000}}
+* 1% true drop chance: {{Colour|#8B0000|10,500}} - {{Colour|#8d03a8|9,000}} = {{Colour|#0044FA|1,500}} Points per 1%
+* Unique drop rate: 20,000 '''Total''' points / {{Colour|#0044FA|1,500}} points per % = 13.333% (or 1/7.5)
+
+For players taking on Tombs of Amascut in groups, the '''Total''' points of the entire group are used to determine whether or not you'll see a unique. The % of the unique being in your name is directly equivalent to the % of points you contributed to the group's total.
+
+It's also worth noting that the chance of receiving a unique can never exceed 55%. This is less relevant for solo players, but might impact larger groups at high Raid Levels.
+
+===Unique Weightings===
+It's a whole lot of math and we're leaving a few gaps to let examples do the talking, but we're almost there!
+
+If you've been following up until this point, then you understand more or less how drop rolls work. The unique table then uses a standard weighting system to determine which unique you'll receive.
+
+Here are the possible uniques, along with their weighting at time of writing:
+* Lightbearer: 7
+* Osmumten's Fang: 7
+* Elidinis' Ward: 3
+* Masori Mask: 2
+* Masori Body: 2
+* Masori Chaps: 2
+* Tumeken's Shadow: 1
+* Total Weighting: 24
+
+Assuming you roll a unique, your chance of obtaining a specific one from that point on is the unique's weighting divided by the total weighting.
+
+If you're assigned a unique below the associated Raid Level – one of the uniques grayed out on the Invocations menu when you set up your raid - the game will perform an additional 1/50 roll. If this roll succeeds, the Raid Level restriction will be skipped, and you'll receive the unique. If it fails, you'll receive one of the untradeable rewards instead.
+
+In practice, this looks like this for a 0 Raid Level completion, where the player has a convenient 10,500 '''Total''' points:
+* 10,500 '''Total''' points with no Raid Level means there is no drop modifier value. In other words, the base chance of rolling a unique is 1% or 1/100.
+* The player rolls on the unique table and has a 1/24 chance of being assigned Tumeken's Shadow. Cumulative odds: 1/2,400
+* Since the Raid Level is 0, the player must pass a 1/50 roll to ignore the Raid Level restriction on the Shadow. Cumulative odds: 1/120,000.
+* There’s a 1 in 120,000 chance for player to receive a Tumeken's Shadow from a 0 Raid Level Tombs of Amascut run, assuming they have 10,500 '''Total''' points.
+
+Need a break from numbers? Good, because we’re going to talk about the weighting of Osmumten’s Fang.
+
+Power level aside, many of you have raised concerns about how cheap the Fang is. Some players want to see us increase its rarity to help its price more accurately reflect its power.
+
+During the first couple of weeks following the raid's release, players felt that we made too many changes simultaneously, and that often the combined effect of individual changes was greater than the sum of its parts.
+
+While we’re open to altering the Fang’s rarity, we want to get a sense for how the price settles following the bugfix outlined earlier in the blog before making any drastic changes.
+
+===Untradeables===
+Still with us? Let’s finish with a quick look at untradeables.
+
+These are handled a little differently from other drops, in that they all have a base rate associated with them but get more common as your kill count increases, or until you obtain the item for the first time.
+
+The base rates are as follows:
+* Thread of Elidinis: 1/10
+* Keris Partisan Jewels: 1/180 for each specific jewel - the base rate to get ''any'' jewel is 1/60
+
+The scaling here interpolates between the base rate at 0 kill count, to 3 times the base rate at a kill count equivalent to 1.5x the base rate denominator – that’s the big number on the right.
+
+So, at 0 kill count you have a 1 in 10 chance to obtain the Thread of Elidinis. At 15 kill count, that becomes three times more likely: the drop rate triples from 1/10 to 3/10 – or 1/3.33 if you’re feeling fancy.
+
+Basically, the higher your kill count, the more likely it is that you’ll get an untradeable drop.
+
+In addition, Keris Partisan Jewels are more likely to appear if you already possess one. Remember, as of September 14th, you can’t get duplicate jewels until you’ve obtained all three!
+
+===Wrapping up===
+Alright everybody, pencils down, heads up.
+
+We know this blog has been a little more technical than usual, but we hope that the examples used throughout help illustrate what’s going on under the lid of the sarcophagus.
+
+If you’re still confused (and we don’t blame you!) we’ve teamed up with the [[OSRS Wiki]] to put together a [[Calculator:Tombs of Amascut loot|calculator]] that will let you experiment with how all the different factors at play intersect to determine your drop rates.
+
+And if you missed it on the recent Q&A, here’s your reminder that we’re committing to releasing drop rates '''2 weeks''' after content releases in future.
+
+Make sure to let us know your thoughts about Osmumten’s Fang and do get in touch if you have any other questions about the contents of this blog!
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Chilly, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Havik, Hend, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Redfield, Regent, Roq, Ry, Sarnie, Shaun, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Stevew, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

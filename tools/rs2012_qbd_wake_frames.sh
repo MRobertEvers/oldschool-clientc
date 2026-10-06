@@ -34,9 +34,11 @@ view="src/build_win64/rs2012_model_view.exe"
 # reaches the arithmetic below as a parse error rather than as a bad number.
 mkdir -p build
 python3 - "$SEQ" <<'PY'
-import re, sys, pathlib
-cfg = pathlib.Path(
-    "OSRS-Content/osrs239-content/ported/rs2012_qbd_td/configs/rs2012.seq").read_text()
+import re, sys
+sys.path.insert(0, "tools")
+import config_text
+cfg = config_text.read_text(
+    "OSRS-Content/osrs239-content/ported/rs2012_qbd_td/configs/rs2012.seq")
 block = re.search(rf"\[{sys.argv[1]}\]\n(.*?)(?=\n\[|\Z)", cfg, re.S).group(1)
 ids = [m.group(1) for m in re.finditer(r"frame=(\d+),(\d+)", block)]
 with open("build/wake.frames", "w", newline="\n") as f:

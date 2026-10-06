@@ -120,6 +120,38 @@ enum CP_AssetId
 
 struct CP_Ctx;
 
+/** The key may repeat (one line per entry) and may be `key=empty`. */
+#define CP_KEY_LIST 0x1
+/** The key is a numbered family (`recol1s`, `recol2d`, ...): its lines are the
+ *  stem followed by a digit, its markers are written on the bare stem. */
+#define CP_KEY_INDEXED 0x2
+
+/**
+ * One text key of a config type.
+ *
+ * Every block of the type states every key that applies, `key=default` when the
+ * record does not state the field (see CP_VALUE_DEFAULT in cp_text.h). The
+ * unpacker is checked against this list as it writes, and the packer refuses a
+ * client record missing one, so a field can no longer fall out of the text
+ * without failing the run. `applies` narrows a key to the profiles whose codec
+ * can carry it (a sequence's `verticaloffset` exists only from rev 226); NULL
+ * means every profile. A table ends with a NULL `key`.
+ */
+struct CP_KeySpec
+{
+    const char* key;
+    unsigned flags;
+    int (*applies)(const struct CP_Ctx* ctx);
+    /**
+     * Another key of the same opcode, or NULL. A dbtable's `column` and `default`
+     * lines are one opcode: when `column` is stated and `default` is not, the
+     * opcode is present with no defaults, `default=empty` — not absent. A record
+     * completed with the missing key gets `empty` when its sibling is stated and
+     * `default` otherwise (cp_keys_missing, `cachepack missing`, `keys`).
+     */
+    const char* sibling;
+};
+
 struct CP_Type
 {
     /** Source file extension and pack basename, e.g. "npc" -> `all.npc`,
@@ -151,7 +183,133 @@ struct CP_Type
         const struct CP_Config* config,
         uint8_t* out,
         uint32_t out_capacity);
+
+    /** Every key a block of this type states. See CP_KeySpec. */
+    const struct CP_KeySpec* keys;
 };
+
+/* Each type's key table, defined beside its unpacker. */
+extern const struct CP_KeySpec cp_underlay_keys[];
+extern const struct CP_KeySpec cp_overlay_keys[];
+extern const struct CP_KeySpec cp_idk_keys[];
+extern const struct CP_KeySpec cp_inv_keys[];
+extern const struct CP_KeySpec cp_loc_keys[];
+extern const struct CP_KeySpec cp_enum_keys[];
+extern const struct CP_KeySpec cp_npc_keys[];
+extern const struct CP_KeySpec cp_obj_keys[];
+extern const struct CP_KeySpec cp_param_keys[];
+extern const struct CP_KeySpec cp_seq_keys[];
+extern const struct CP_KeySpec cp_spotanim_keys[];
+extern const struct CP_KeySpec cp_varbit_keys[];
+extern const struct CP_KeySpec cp_varp_keys[];
+extern const struct CP_KeySpec cp_varc_keys[];
+extern const struct CP_KeySpec cp_hitsplat_keys[];
+extern const struct CP_KeySpec cp_healthbar_keys[];
+extern const struct CP_KeySpec cp_struct_keys[];
+extern const struct CP_KeySpec cp_mapelement_keys[];
+extern const struct CP_KeySpec cp_dbrow_keys[];
+extern const struct CP_KeySpec cp_dbtable_keys[];
+
+/** The spec `key` belongs to in `table` (an INDEXED stem matches its numbered
+ *  lines), ignoring `applies`; NULL when none. For callers with no profile. */
+const struct CP_KeySpec*
+cp_key_spec_in(
+    const struct CP_KeySpec* table,
+    const char* key);
+
+/** The spec for `key` in the type's table, or NULL when the type has no such key
+ *  (or it does not apply to this profile). */
+const struct CP_KeySpec*
+cp_key_spec(
+    const struct CP_Ctx* ctx,
+    const struct CP_Type* type,
+    const char* key);
+
+/**
+ * Check a record's unpacked lines against the type's key table: every applying
+ * key stated, a marker (`default` / `empty`) the only line for its key, `empty`
+ * only on a list key, and no key stated twice unless it is a list. Prints each
+ * violation naming the record and returns 0 if there was one.
+ */
+int
+cp_keys_check_lines(
+    const struct CP_Ctx* ctx,
+    const struct CP_Type* type,
+    const char* record_name,
+    const struct CP_Lines* lines);
+
+struct RSCache_Register;
+struct RSCache_RegisterField;
+
+/**
+ * The whole-record checks: the client table AND every server key of the type —
+ * a `fields/<type>.ini` field spelled `text = key` that is not a client key
+ * (`hitpoints`, `respawnrate`, a varp's `scope`). Client and server keys are
+ * one key set of one record, spelled and stated the same way; the client-only
+ * forms above are for the client view, after the server keys are routed away.
+ */
+int
+cp_keys_check_lines_full(
+    const struct CP_Ctx* ctx,
+    const struct CP_Type* type,
+    const struct RSCache_Register* fields,
+    const char* record_name,
+    const struct CP_Lines* lines);
+
+int
+cp_keys_check_config_full(
+    const struct CP_Ctx* ctx,
+    const struct CP_Type* type,
+    const struct RSCache_Register* fields,
+    const struct CP_Config* config,
+    const char* where);
+
+/** Append `key=default` for every server key of the type: what a record that
+ *  comes from the client cache states for fields only the server carries. */
+void
+cp_keys_add_server_defaults(
+    const struct CP_Ctx* ctx,
+    const struct CP_Type* type,
+    const struct RSCache_Register* fields,
+    struct CP_Lines* lines);
+
+/** The type's field register (`fields/<type>.ini` under `--src`), loaded once. */
+const struct RSCache_Register*
+cp_ctx_fields(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId type);
+
+/** Release what cp_ctx_fields loaded. Accepts a context that loaded none. */
+void
+cp_ctx_fields_free(struct CP_Ctx* ctx);
+
+/** Call `missing` for every key (client and server) `config` does not state,
+ *  with the marker completing it takes (`default`, or `empty` for a key whose
+ *  sibling is stated). Returns how many. The enumeration `cachepack missing`
+ *  reports. */
+int
+cp_keys_missing(
+    const struct CP_Ctx* ctx,
+    const struct CP_Type* type,
+    const struct RSCache_Register* fields,
+    const struct CP_Config* config,
+    void (*missing)(void* user, const char* key, const char* marker),
+    void* user);
+
+/** True if `field` is one of the type's server keys (see the checks above). */
+int
+cp_keys_is_server_key(
+    const struct CP_Ctx* ctx,
+    const struct CP_Type* type,
+    const struct RSCache_RegisterField* field);
+
+/** The same check over a parsed (or merged) block. `where` names its origin. */
+int
+cp_keys_check_config(
+    const struct CP_Ctx* ctx,
+    const struct CP_Type* type,
+    const struct CP_Config* config,
+    const char* where);
 
 const struct CP_Type*
 cp_type(enum CP_TypeId id);
@@ -207,6 +365,13 @@ struct CP_Names
      * allocation is the membership.
      */
     struct LC_Pack alloc[CP_TYPE_COUNT];
+    /**
+     * The subset of `alloc` an imported lane minted (`ported/<lane>/pack/<ns>.alloc`).
+     * A record with one of these names is defined whole in its lane; a
+     * `server/scripts` block for it is an overlay of that record, partial like any
+     * overlay, and the lane's own bake checks the full record.
+     */
+    struct LC_Pack lane[CP_TYPE_COUNT];
     /** Whether each pack was seeded from the cache's own gameval table. Recorded
      *  so the report can distinguish real content names from `<type>_<id>`. */
     bool from_gameval[CP_TYPE_COUNT];
@@ -313,7 +478,9 @@ cp_names_load(
 int
 cp_names_load_ported_allocs(
     struct CP_Names* names,
-    const char* srcdir);
+    const char* srcdir,
+    const char* const* included_lanes,
+    int included_lane_count);
 
 int
 cp_names_save(
@@ -465,8 +632,26 @@ struct CP_Constant
     int value;
 };
 
+enum
+{
+    CP_MAX_LANES = 8,
+};
+
 struct CP_Ctx
 {
+    /** `--lane <name>`: lanes whose `ported/<name>/configs` are walked as
+     *  definitions (below the authored overlays), so their records are whole
+     *  records here rather than overlays of a record defined elsewhere. */
+    const char* lanes[CP_MAX_LANES];
+    int lane_count;
+    /** `--server-out <dir>`: where the server pack goes; "" = <src>/server/pack. */
+    char server_out[1024];
+    /** This cachepack's identity (its executable's size and mtime), stamped into
+     *  the server pack so a rebuilt cachepack rewrites a pack its tree has not
+     *  changed. */
+    uint64_t writer;
+    /** `--force`: write the server pack even when its stamp says it is fresh. */
+    int force_server;
     struct RSCache profile;
     struct Tool_Dat2Cache cache; /* open only for unpack/verify */
     bool cache_open;
@@ -514,6 +699,9 @@ struct CP_Ctx
 
     struct CP_Names names;
     char srcdir[1024];
+    /** Each type's `fields/<type>.ini`, loaded on first use from `srcdir`
+     *  (cp_ctx_fields). A type with no register file loads as an empty table. */
+    struct RSCache_Register* register_fields[CP_TYPE_COUNT];
 
     /**
      * Param id -> declared `type=` character, or 0. Built by
@@ -522,9 +710,6 @@ struct CP_Ctx
     struct CP_ParamType
     {
         char code;
-        /** A declared asset namespace can share an integer wire type.
-         * Zero = no asset reference; otherwise enum CP_AssetId + 1. */
-        int asset_plus_one;
     } *param_types;
     int param_types_count;
 
@@ -674,6 +859,18 @@ int
 cp_pack_server_run(
     struct CP_Ctx* ctx,
     const struct CP_Selection* sel);
+
+/**
+ * `cachepack missing --src DIR`: merge every type exactly as `pack` does and
+ * print, for every record that must state every key and does not, one line per
+ * missing key: `<type>\t<record>\t<file>\t<key>`, `<file>` being the first file
+ * that declares the record (where a completion belongs). Writes nothing.
+ */
+int
+cp_missing_run(
+    struct CP_Ctx* ctx,
+    const struct CP_Selection* sel);
+
 
 /**
  * `membership`: seed `pack/<ns>.client` and `pack/<ns>.server` from the routing
@@ -907,15 +1104,46 @@ cp_intlist_push(
 void
 cp_intlist_free(struct CP_IntList* list);
 
-/** Emit `key=<name of id in type>` unless `id` is `absent`. */
+/** Walk the content roots every command merges: `configs` (rank 0), each
+ *  `--lane`'s `ported/<lane>/configs`, then `server/scripts`. */
 void
-cp_emit_ref(
+cp_walk_content(struct CP_Ctx* ctx);
+
+/** Stamp the server pack at `server_dir` as written from this tree, now. */
+int
+cp_server_stamp_write(
+    struct CP_Ctx* ctx,
+    const char* server_dir);
+
+/** The server pack directory: `--server-out`, else <src>/server/pack. */
+void
+cp_server_dir(
+    const struct CP_Ctx* ctx,
+    char* out,
+    size_t out_size);
+
+/** True if `name` is a record an imported lane minted (CP_Names.lane). */
+int
+cp_name_is_lane(
+    const struct CP_Ctx* ctx,
+    enum CP_TypeId type,
+    const char* name);
+
+/** Type every param from the open cache's own param records (unpack, verify),
+ *  instead of from the tree's text, which an unpack is about to rewrite. */
+int
+cp_param_types_from_cache(struct CP_Ctx* ctx);
+
+/** Write `key=<name of id>`, naming it if the pack has no name yet. The caller
+ *  has already decided the field is present (see CP_KeySpec); there is no
+ *  "absent" value here to compare against. */
+void
+cp_emit_name(
     struct CP_Ctx* ctx,
     struct CP_Lines* out,
     const char* key,
     enum CP_TypeId type,
-    int id,
-    int absent);
+    int id);
 
 /** Resolve a name (or a bare number, for ids the packs do not list) to an id.
  *  Returns 0 and warns when the name is unknown. */
@@ -938,6 +1166,166 @@ cp_resolve_caret(
     struct CP_Ctx* ctx,
     const char* text,
     int* out_value);
+
+/* ---- typed values: the one ScriptVarType table (cp_value.c) ------------- */
+
+/*
+ * A value's type is a ScriptVarType, stated as its numeric id by a dbtable
+ * column, as its character by a param record or an enum, and as its word in the
+ * text. One table answers all three, and one reader and one writer spell an int
+ * value by its type -- dbrow, param records, `param=` lines, enums and the
+ * server band writer all go through these. See cp_value.c for the table and the
+ * spellings.
+ */
+
+/** How a value of a type is spelled. */
+enum CP_ValueSpell
+{
+    CP_VALUE_INT = 0,   /* decimal (also every numeric type: graphic, model, ...) */
+    CP_VALUE_STRING,    /* text; never an int */
+    CP_VALUE_BOOLEAN,   /* yes/no or true/false (CP_BoolStyle) */
+    CP_VALUE_COORD,     /* level_mx_mz_lx_lz */
+    CP_VALUE_REF,       /* a config record's name; `ref` is its CP_TypeId */
+    CP_VALUE_ASSET,     /* an asset's name; `ref` is its CP_AssetId */
+    CP_VALUE_STAT,      /* pack/stat.pack */
+    CP_VALUE_CATEGORY,  /* pack/category.pack */
+    CP_VALUE_COMPONENT, /* interface:component */
+};
+
+struct CP_ValueType
+{
+    /** The ScriptVarType id a dbtable column stores, or -1 when none is published. */
+    int id;
+    /** The type character (a windows-1252 byte) a param or an enum stores, or 0. */
+    int ch;
+    /** The word the text spells it with. */
+    const char* name;
+    enum CP_ValueSpell spell;
+    /** CP_TypeId for CP_VALUE_REF, CP_AssetId for CP_VALUE_ASSET, else -1. */
+    int ref;
+};
+
+/** A boolean's words: a dbrow says `true`/`false`, a param and an enum `yes`/`no`. */
+enum CP_BoolStyle
+{
+    CP_BOOL_TRUE_FALSE = 0,
+    CP_BOOL_YES_NO,
+};
+
+int
+cp_value_type_count(void);
+
+const struct CP_ValueType*
+cp_value_type_at(int index);
+
+/** The type a word names, or NULL. */
+const struct CP_ValueType*
+cp_value_type_named(const char* word);
+
+/** The type with ScriptVarType id `id`, or NULL. */
+const struct CP_ValueType*
+cp_value_type_of_id(int id);
+
+/** The type with character `ch` (a byte), or NULL. */
+const struct CP_ValueType*
+cp_value_type_of_char(int ch);
+
+/** The text of a type character: its word, or its byte in decimal when the
+ *  table does not list it (so it still round-trips). `buf` is scratch. */
+const char*
+cp_value_char_text(
+    int ch,
+    char* buf,
+    size_t buf_size);
+
+/** Inverse of cp_value_char_text: the character, or 0 for text that is neither
+ *  a listed word nor a decimal byte. */
+int
+cp_value_char_read(const char* text);
+
+/** The text of a type id: its word, or the id in decimal. */
+const char*
+cp_value_id_text(
+    int id,
+    char* buf,
+    size_t buf_size);
+
+/** Inverse of cp_value_id_text: the id, or -1. A listed word with no id is -1. */
+int
+cp_value_id_read(const char* text);
+
+/**
+ * One int value of `type` as text (`type` NULL: a plain int). The result is a
+ * name the context owns, a literal, or `buf`. A string type asserts.
+ */
+const char*
+cp_value_int_text(
+    struct CP_Ctx* ctx,
+    const struct CP_ValueType* type,
+    int value,
+    enum CP_BoolStyle bool_style,
+    char* buf,
+    size_t buf_size);
+
+/**
+ * Read one int value of `type` (NULL: a plain int): `null` (-1), a `^constant`
+ * (its text, read as the type reads it), either boolean pair, a coord, a name in
+ * the type's namespace, or a number. Returns 1 and sets `*out`, or 0 when the
+ * text is not a value of that type. `text` is already unescaped.
+ */
+int
+cp_value_int_read(
+    struct CP_Ctx* ctx,
+    const struct CP_ValueType* type,
+    const char* text,
+    int* out);
+
+/** A `^name`'s `.constant` text, or NULL. */
+const char*
+cp_value_constant_text(
+    struct CP_Ctx* ctx,
+    const char* name);
+
+/**
+ * Escape a string value for the text: `\`, `\n`, `\r`, a leading `^` (which
+ * would read as a constant) and, when `whole` (the string is the line's whole
+ * value), a leading `[` and a marker word. `//` and trailing blanks are the line
+ * writer's (cp_line_write).
+ */
+void
+cp_value_string_escape(
+    const char* text,
+    int whole,
+    char* buf,
+    size_t buf_size);
+
+/** Read a string value from its raw (escaped) text: an unescaped leading `^` is
+ *  a constant's text, anything else is unescaped. Returns 0 for an unknown
+ *  constant. */
+int
+cp_value_string_read(
+    struct CP_Ctx* ctx,
+    const char* raw,
+    char* buf,
+    size_t buf_size);
+
+/** Cut a value at its first unescaped `//` and trim unescaped blanks, in place:
+ *  the server's line cleaner, so a trailing comment is not part of the value. */
+void
+cp_value_clean(char* text);
+
+/**
+ * Split `text` (a value with db escapes: `\,` is a comma inside a field) into
+ * exactly `n` fields, in place: the first n-1 end at an unescaped comma and the
+ * last takes the rest. Each field is unescaped, except that an unescaped
+ * leading `^` is kept so cp_value_int_read sees the constant. Returns the
+ * number of fields found, which is short of `n` when the text is.
+ */
+int
+cp_value_split(
+    char* text,
+    int n,
+    char** fields);
 
 /** `cp_resolve_ref`, plus the literal `null` as -1 — the reference's spelling of
  *  "no value". Use this wherever the value is allowed to name nothing. */
@@ -1008,38 +1396,14 @@ cp_parse_param(
     struct RSCache_Params* params,
     const char* value);
 
-/* ---- the ScriptVarType alphabet ----------------------------------------- */
+/* ---- param types -------------------------------------------------------- */
 
 /*
- * A param record's `type` is one character, and content spells it as a word.
- *
- * The cache stores `i`, `o`, `A`; LostCity's configs — and this tree's, which
- * copy them verbatim so that content written against one means the same thing in
- * the other — write `int`, `namedobj`, `seq`. Both spellings have to parse, and
- * the machine export keeps writing the character because that is what the record
- * holds.
- *
- * The mapping matters beyond cosmetics: a *reference* type says which pack file a
- * symbolic default resolves through. `default=bones` is obj 526 only because
- * `death_drop` is a `namedobj`, and nothing else in the record says so.
+ * A param record's `type=` is its ScriptVarType word (cp_value.c); the record
+ * stores the character. The type matters beyond cosmetics: it is what a value
+ * is read through -- `default=bones` is obj 526 only because `death_drop` is a
+ * `namedobj`, and nothing else in the record says so.
  */
-
-/** The `type=` character for a ScriptVarType name, or 0 when unknown. A
- *  single-character `name` is passed through, which is how the machine export's
- *  own spelling parses. */
-char
-cp_param_type_char(const char* name);
-
-/** The ScriptVarType name for a character, for emitting the text form. Falls
- *  back to the character itself when the alphabet does not list it, so an
- *  unmodelled type still round-trips rather than being dropped. */
-const char*
-cp_param_type_name(char type_char);
-
-/** The config type a value of `type_char` names, or -1 when it is not a
- *  reference — `int` and `string` resolve through no pack. */
-int
-cp_param_ref_type(char type_char);
 
 /**
  * Build `ctx->param_types` from every `.param` source in the tree.

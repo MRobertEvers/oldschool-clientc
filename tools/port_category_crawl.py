@@ -84,7 +84,9 @@ import os
 import re
 import sys
 
-REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import config_text
+
+REPO =os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 DEFAULT_REF = os.path.expanduser("~/Documents/git_repos/LostCity_Server")
 
@@ -239,7 +241,7 @@ def tree_records(tree, kind):
     if not os.path.isfile(path):
         return records
     with open(path, encoding="utf-8", errors="replace") as handle:
-        for line in handle:
+        for line in config_text.filter_lines(handle):
             text = line.strip()
             if text.startswith("[") and text.endswith("]"):
                 current = records.setdefault(text[1:-1], {})

@@ -1,0 +1,147 @@
+{{Safe activity|instance=true}}
+{{HasStrategy}}
+[[File:Chambers of Xeric Challenge Mode icon.png|left]]
+The Chambers of Xeric's '''Challenge Mode''' is a Chambers of Xeric raid with increased difficulty. Apart from the [[Great Olm]]'s health, all of the enemies' combat stats (including health) are increased by 50%, making them harder to kill.
+
+In order to attempt a Challenge Mode raid, party leaders must select the "Challenge Mode" box when forming a party.
+
+Unlike the normal raid, Challenge Mode possesses all of the potential rooms. All of the rooms are linear and use the same layout in each run; there is no variation like in normal mode.
+
+*Top level: [[Tekton]], [[Jewelled Crab]]s, [[Scavenger beast]]s, [[Ice demon]], [[Lizardman shaman (Chambers of Xeric)|Lizardman shamans]], resource room
+*Middle level: [[Vanguard]]s, [[Corrupted scavenger|Thieving room]], [[Scavenger beast]]s, [[Vespula]], resource room, [[Chambers of Xeric/Strategies#Tightrope|Tightrope room]]
+*Lower level: [[Guardian (Chambers of Xeric)|Guardians]], [[Vasa Nistirio]], [[Scavenger beast]]s, [[Skeletal mystic]]s, [[Muttadile]]s, resource room
+
+==Recommended stats==
+*{{SCP|Hitpoints|90+}} 
+*{{SCP|Attack|90+}} 
+*{{SCP|Strength|90+}} 
+*{{SCP|Defence|90+}}
+*{{SCP|Ranged|90+}}
+*{{SCP|Magic|90+}}
+*{{SCP|Prayer|77+}}for [[Piety]], [[Rigour]], and [[Augury]]
+*{{SCP|Farming|55+}}to farm [[Noxifer]], [[Buchu leaf|Buchu]], and [[Golpar]]
+*{{SCP|Herblore|78+}}to prepare stronger  [[Xeric's aid (+)|Xeric's aids]], [[Revitalisation (+)|Revitalisations]], and [[Prayer enhance (+)|Prayer enhances]]
+*{{SCP|Construction|30+}}to build [[Storage unit|Storage units]]
+*{{SCP|Mining|75+}}for increased damage against [[Guardian (Chambers of Xeric)|Guardians]]
+*{{SCP|Woodcutting|75+}}for increased [[Kindling (Chambers of Xeric)|Kindling]] yield and damage against the [[Meat tree]]
+*{{SCP|Thieving|75+}}for an increased chance to open the [[Chest (Chambers of Xeric)|Chest]] for more [[Cavern grubs]].
+
+==Strategy==
+Challenge Mode is harder than normal runs, as the enemies' stats are significantly increased with greater max hits. It is still possible to no-prep with sufficient experience, as there is more than enough food.
+
+===Top Level===
+Prior to starting the raid, drink a dose of divine super combat, antidote++ and eat one [[anglerfish]]. Tekton will be the first boss in the raid, and having the ability to drain Defence levels will determine how fast he falls.
+
+Players looking to slightly speed up the kill may opt to tank a hit using [[Vengeance]], as Tekton can hit very high and reflect a good amount of damage back onto him. Apart from an intentional hit, players should avoid getting hit by Tekton at all costs as two unprotected hits will likely result in death. Depending on the amount of dragon warhammer or elder maul specials landed, the scythe of vitur can deal more damage compared to other crush weapons, even when set to slash.
+
+After Tekton dies, pick up the overload(s) (one if solo) and prayer enhance. The revitalization can be picked up to restore prayer if needed. Switch to the [[lightbearer]] if not done so. If playing with ironmen, the ironman player should pick up one of the overloads and the enhance, while the other one is picked up by a non-ironman player. Head into the crab room and arrange the crabs accordingly to clear it.
+
+The team should drink a dose of overload after crabs are cleared. If prepping, one player should remain at the scavengers, ideally the ironman if one is present. Otherwise, any player can be designated as the prepper, while the others clear out the upcoming two rooms. For the ice demon, a combination of [[emberlight]] and/or [[burning claws]] should suffice, although a [[surge potion]] may be necessary if using claws.
+
+Clear shamans as normal. It is recommended to hug the edges so they do not jump and stall time. Safespots can be made by using the western edge of the room, utilising the small chasm there. This requires a weapon that has a range greater than 8 tiles. 
+
+Once shamans are cleared, the team will enter the first of three resource rooms. If supplies are ample, the team should enter the next level. If prepping is required, one player, usually the ironman, will make potions for the entire team. If no one is an ironman, the team should split roles; players with the highest Farming levels picks herbs, while the others fills vials and makes potions as herbs are being deposited. A player on Lunars can fill all vials with ease using [[Humidify]].
+
+All players should carry at least two brews, one restore and be under overload and prayer enhance effects before entering the next room.
+
+===Middle Level===
+It is recommended players avoid tanking more than one Vanguard at a time, as doing so will likely result in a swift death, especially from the melee or ranged Vanguard. Voidwaker can be used to kill a critically low Vanguard, and dragon/burning claws should be used on the ranged Vanguard. Tactics are otherwise the same as in normal mode.
+
+Clear thieving as normal. Finding bats is optional, but is very useful for solo players as the bats can be used in a future room. Bank melee gear as the scavenger eats the grubs up.
+
+Vespula's room is a corner room, though the [[Redemption]] method is still recommended over a normal fight. 
+
+In the tightrope room, solo players can either clear the room normally or try to tightrope skips; unlike in normal mode, challenge mode skips are slightly more complicated due to the higher hits and accuracy. If clearing the room, it is encouraged to safespot the [[deathly ranger]]s. The [[deathly mage]]s don't hit nearly as high but are more accurate due to their higher Magic level. Solo players will have to tank all four deathly enemies, whereas in a group, one player can aggro rangers and hide, while the crosser wears ranged and uses Protect from Magic. Alternatively, tightrope skipping can be performed.
+
+After clearing the tightrope room, make sure to grab a pickaxe, salve amulet, melee gear and refill potions as needed.
+
+===Lower Level===
+Guardians are cleared as in normal mode.
+
+For Vasa, players on lunars should cast Vengeance after killing guardians while at max (118) health. If soloing with lunars, drop to around 100 or so to avoid getting killed after the teleport explosion.
+
+'''Note:''' Standing at the southern edge of Vasa's chamber will trigger the muttadiles to spawn in their chamber.
+
+In the mystics room, the player should try to corner trap and fight the mystics one at a time. The first mystic is usually close enough to be lured away, though the other two may need to be forced into melee. If supplies are a concern, the player can backtrack, though this is a time loss. In a solo or duo encounter, players should use magic with Tumeken's shadow, otherwise ranged with a salve(ei) is required. In trio and larger sizes, the twisted bow and salve amulet(ei) will outperform best-in-slot magic due to the mages' higher Magic level. 
+
+Muttadiles are the last room before Olm and players have a higher risk of dying to their stronger attacks and erratic behaviour which can cause off-prayer hits. Have [[Protect from Missiles]] on at all times unless using the step-under method, which requires very fast clicking as the player needs to attack with their mage armour while one-tick clicking into melee before the muttadile attacks.
+
+Teams have the option of clearing the room normally or tree skipping with a [[zamorak godsword]]. If tree skipping, freeze the muttadile when it reaches ~55% health, making as many melee swaps as necessary before freezing. If frozen, kill the muttadile before it wears off. If the muttadile somehow survives through the bind, it will either eat once or not eat at all. If the special somehow misses, use it again; killing the smaller muttadile with freezes saves more time even when the large muttadile eats from the tree.
+
+When the larger muttadile emerges, run to the normal safespot and fight it as normal; it should not be able to move out of place. If tree skipping, use the godsword when it turns for the tree. If it misses, run to the alternative safespot (as shown in the picture). The muttadile will never be able to melee the player even when it walks south, though care should be taken to avoid getting dragged out.
+
+[[File:Challenge Mode Large Muttadile Safespot.png|thumb|The tile to stand on against the large Muttadile in challenge mode.]]
+
+Once the large muttadile dies, pick up all the potions and refill on potions for the Great Olm.
+
+===Great Olm===
+Unlike the other monsters in challenge mode, Olm's hands and head do not have increased health, although they still retain the increased combat stats, resulting in it hitting significantly harder than it would in normal mode. Players should keep their health above 60, as the Great Olm hits even higher in challenge mode; in solo encounters; phase 1 and 2 has a max of 39, while phase 3 and 4 has a max of ~41.
+
+The same tactics are applied as in normal mode, though emphasis is required in perfectly avoiding as many mechanics as possible to minimise damage due to Olm's higher combat stats. If too much damage is incurred early on, safer strategies may be required to conserve supplies and avoid dying in the final phase. Using thralls can help circumvent the right hand's higher Magic level, which would often result in staves other than [[Tumeken's shadow]] missing quite often. Despite the left hand's higher Defence level, it is still easy to hit, though specials will have lower accuracy. The higher Magic level of the head results in the twisted bow being extremely effective on it, being able to hit frequently and can deal over 90 damage, making the final phase easier to handle than normal mode.
+
+==Rewards==
+While the loot players may receive from defeating the [[Great Olm]] in Challenge Mode is the same as that of a normal mode raid, the points a player will earn throughout the raid is much higher than normal which increases the quantity of commons and increases the chances of a unique item. In addition, completion count for the Chambers of Xeric's Challenge Mode is counted separately from the normal raid.
+
+Players who complete the Challenge Mode raid within a set amount of time will have a 1/75 chance of receiving a [[twisted ancestral colour kit]]. They will also have a 1/400 chance of receiving [[metamorphic dust]], which can be used on an [[olmlet]] to allow it to metamorphose into Tektiny, Enraged Tektiny, Vespina, Flying Vespina, a Vanguard pet, a puppadile or Vasa Minirio. Only one metamorphic dust is required to obtain the ability to metamorphose an olmlet into all other five pets. If any additional metamorphic dusts are used on an olmlet, a game message will appear "You have already unlocked the metamorphosis ability for your pet". The kit and dust will be broadcasted in the game box should one roll, and both of them also have their own separate light shining on the chest.
+
+In addition to having a chance at a twisted ancestral colour kit and metamorphic dust, completion of a Challenge Mode raid within the required time will also yield an additional 5,000 points per player for the total team points count, meaning the overall chance of obtaining a unique drop is increased should the team perform well.
+
+The time required for both of these benefits are as follows:
+
+{|class=wikitable style="text-align:center;"
+!Number of players
+!Completion time required
+|-
+|1
+|1 hour 10 minutes
+|-
+|2
+|1 hour 5 minutes
+|-
+|3
+|50 minutes
+|-
+|4
+|45 minutes
+|-
+|5-10
+|42 minutes
+|-
+|11-15
+|45 minutes
+|-
+|16-23
+|1 hour
+|-
+|24+
+|1 hour 20 minutes
+|}
+
+In addition, completing a certain number of Challenge Mode raids will grant players certain capes by speaking to [[Captain Rimor]] by the Chamber's entrance. The overall designs of the capes will have more elements added to them as players continue to complete more Challenge Mode raids.
+
+{|class="wikitable align-center-1"
+! colspan="2" |Cape
+!Completion count required
+|-
+|{{plinkt|Xeric's guard}}
+|100
+|-
+|{{plinkt|Xeric's warrior}}
+|500
+|-
+|{{plinkt|Xeric's sentinel}}
+|1,000
+|-
+|{{plinkt|Xeric's general}}
+|1,500
+|-
+|{{plinkt|Xeric's champion}}
+|2,000
+|}
+
+A score board can be found outside the entrance to the chambers listing the bests of the current world in addition to a global best.
+
+==Combat Achievements==
+{{Combat Achievements list|Chambers of Xeric: Challenge Mode}}
+
+{{Chambers of Xeric}}

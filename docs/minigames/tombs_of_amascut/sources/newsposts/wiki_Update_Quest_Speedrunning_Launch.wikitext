@@ -1,0 +1,248 @@
+{{Update|date=11 October 2022|rev=12 October 2022|url=https://secure.runescape.com/m=news/quest-speedrunning-launch?oldschool=1|category=game}}
+[[File:Quest Speedrunning Launch newspost.png|right]]
+{{clear|right}}
+
+''This week’s update sees the launch of Quest Speedrunning!''
+__TOC__
+==Hotfixes and Our Actions - October 11th==
+{| class="wikitable" style="text-align:center; width:665px;"
+!Last Updated
+!Issue
+!Our Response
+|-
+|11:52 BST - October 11th
+|We are aware that players are having issues logging into the Beta Worlds 403 and 407.
+|FIXED
+|-
+|15:00 BST - October 11th
+|The game update has caused unintentional behaviour changes with various Bosses. Previously players were able to use the 'Red-X' method at certain encounters as a way of gaining an advantage. Players have also reported that stalling at Nex is no longer possible.
+|FIXED - The behaviour should be changed back to normal following a game reboot on Wednesday, October 12th.
+|-
+|14:45 BST - October 12th
+|Since an engine update has launched with the game update, players have reported issues logging-in to the game on mobile. This is because the App may need to update to the latest version. We've also seen increased reports that users on mobile are experiencing a 'black screen' when trying to log-in.
+|To get you playing again, we recommend wiping the cache of the app on your device, or re-installing the app. We appreciate that this isn't an ideal solution, but some users have reported that this has allowed them to get back into the game. We will release a fix as soon as we can.
+|-
+|12:45 BST - October 12th
+|Players have reported issues with a few doors in Quest Speedrunning Worlds as they can be opened and closed by players. This can cause frustration when trying to compete for the best times on a speedrun.
+|Most of the doors should have had their code changed to prevent this, however there are some outliers. If you experience this on a speedrun, please let us know and we will correct this.
+|}
+
+==Quest Speedrunning - OUT NOW!==
+What was that? A bird? A plane? No, it’s Quest Speedrunning, zooming its way to Old School!
+
+Speedrunning is the art of playing video games as quickly as possible, and the Old School RuneScape community has been doing it unofficially for as long as we can remember.
+
+Soon, you’ll be able to test your speedrunning skills in a brand-new, official game mode, and compete for untradeable cosmetic rewards!
+
+[[File:Quest Speedrunning Launch (1).png|centre|600px]]
+
+
+So limber up and keep reading to learn all you need to know before Quest Speedrunning launches tomorrow, '''Wednesday 12th at approximately 11:30 BST.'''
+
+(Why’s the update here early, if the content still launches tomorrow? Well, we wanted to have plenty of time to test all the engine changes we’re releasing alongside this update. As every speedrunner knows, practice makes perfect)!
+
+==Quest Speedrunning Worlds==
+Remember, Quest Speedrunning takes place on separate, members-only worlds with different save files.
+
+Here's a quick reminder about the differences between Quest Speedrunning Worlds and regular ones:
+* No tutorial.
+* No trading – all players are considered Iron accounts.
+* No PvP.
+* No access to Castle Wars, the PvP Arena, Fight Pits, Last Man Standing, Rat Pits, Soul Wars, or Trouble Brewing.
+* Teleport cooldowns (such as the Home Teleport) are paused on logout, so players can’t log out and wait 30 minutes to regain their teleport and cheat the system.
+* Shops have a static stock and items are never sold out.
+* Items can still be sold to shops but will be immediately deleted.
+* Items picked up from the floor are player-specific, so multiple speedrunners can obtain the same item without having to worry about competition!
+* Dropped items behave as normal, but will be deleted once the speedrun ends.
+* Death works as normal.
+
+In addition, to discourage chicanery, the following rules apply to players on Speedrunning Worlds '''who are not on a speedrun:'''
+* XP gain is disabled.
+* Deaths are safe and any items dropped on death are immediately deleted. If you die while not on a speedrun, you will respawn in Lumbridge with the items you had.
+
+==Getting Started==
+[[File:Quest Speedrunning Launch (2).png|centre|600px]]
+
+
+===Step 1===
+Log into a Quest Speedrunning World and you'll be immediately prompted to select the quest you’d like to run via the Quest Speedrunning menu.
+
+
+You'll see the following data for the quest that you’ve selected:
+* Current Speedrun Time.
+* Personal Best Time.
+* Global Best Time.
+* Times required for each trophy (see Rewards section).
+* Unlocks
+** Unlocks are the stats, completed quests, travel, and other unlocks you’ll get when starting a speedrun. These unlocks are the same for everyone.
+* Items
+** This heading shows the items you’ll get when starting your chosen quest. Be aware that the items given are not necessarily the items required – for example, if the quest requires a dagger, you may be given a suitable pickaxe (or the money to buy one) to go mine some ore and smith it into the dagger you need.
+
+After you’ve made your choice, the game will automatically adjust your stats to the recommended levels for the quest you’ve chosen and provide all the relevant items. This keeps things fair and ensures that everyone starts in the same place.
+
+===Step 2===
+The race will begin after you speak to the relevant NPC and begin the quest – after that point, the '''Speedrun Timer''' will be ticking, and you’ll be conveniently whisked away to the start point of your chosen quest. The timer will automatically stop once the quest is complete or when the speedrun is abandoned, which can be done at any time via the Speedrunning Menu. If things go wrong, you can also cancel your current adventure and start over from that same menu – convenient! Logging out will pause the timer but be aware that doing so will add a couple of seconds to your time to prevent logging out becoming a viable strategy.
+
+Your current time is shown on the Speedrunning Menu and the Speedrunning Helper, which appears onscreen throughout the run and also displays the time required for the next trophy.
+
+===Step 3===
+Finished Speedrunning and ready for your reward? Head over to the NPC located by the Fountain in Varrock Square to find the Speedrunning Rewards Shop! Since they're all untradeable, you'll be able to reclaim any rewards you purchase should you accidentally lose them.
+
+==Rewards==
+Rewards from Quest Speedrunning are a real flex, as they can only be obtained by taking part in this game mode. At launch there will be a maximum of 1,600 points available, because there are only five quests to complete.
+
+Let’s take a look at those rewards!
+
+===Adventurer's Outfit Tier 1 (200 Reward Points)===
+[[File:Quest Speedrunning Launch (3).png|centre|300px]]
+
+===Adventurer's Outfit Tier 2 (600 Reward Points)===
+[[File:Quest Speedrunning Launch (4).png|centre|300px]]
+
+
+===Adventurer's Outfit Tier 3 (1800 Reward Points)===
+[[File:Quest Speedrunning Launch (5).png|centre|300px]]
+
+
+If you’re skilled enough to obtain the Tier 3 Adventurer’s Outfit, you might also be excited to learn that it acts as a Graceful Outfit transmog. Could this be the new meta for Graceful FashionScape?
+
+[[File:Quest Speedrunning Launch (6).png|centre|300px]]
+
+===Speedy Teleport Scroll (600 Reward Points)===
+[[File:Quest Speedrunning Launch (7).gif|centre|300px]]
+
+===Giant Stopwatch (1200 Reward Points)===
+[[File:Quest Speedrunning Launch (8).gif|centre|300px]]
+
+==Reward Points==
+You can earn four different trophies per quest, ranging from Bronze to Platinum! Earning a trophy for the first time will get you Reward Points – the better the trophy, the more Points you’ll get.
+* Bronze: 10 Points
+* Silver: 30 Points
+* Gold: 80 Points
+* Platinum: 200 Points
+
+The total Reward Points available for each quest is 320 Points.
+
+But that’s not all – you’ll also unlock your hard-earned trophies as in-game items! They provide no mechanical buffs, but they will show everyone you meet that you’re a Quest Speedrunning champion.
+
+To unlock the trophies as items, you’ll need to unlock every trophy of that level for all the quests on the Speedrunning list – so to wield the Bronze Trophy, you’ll need to complete all the quests to at least Bronze standard.
+
+You can only earn a given trophy once, but you can always go back and try to earn a higher-level one! Be aware that you can earn multiple trophies in one speedrun, so if you get the Platinum on your first go, you’ll also unlock Gold, Silver, and Bronze.
+
+The Speedrunning Menu will help you keep track of which trophies you’ve already earned, and the Speedrunning Helper will let you know which time you need to beat to earn your next trophy.
+
+Here the five quests which will be available on launch day tomorrow:
+
+
+{|class=wikitable style="text-align:center;"
+! Quest
+! Requirements
+! Items
+! Trophy Times
+|-
+|Cook's Assistant
+|10 Agility
+|100 Coins<br>
+Energy potion
+|Bronze - 3:30<br>
+Silver - 2:45<br>
+Gold - 2:15<br>
+Platinum - 2:00
+|-
+|Ernest the Chicken
+|10 Agility
+|Energy potion<br>
+2 Tuna
+|Bronze - 7:00<br>
+Silver - 5:30<br>
+Gold - 4:30<br>
+Platinum - 4:00
+|-
+|Demon Slayer
+|30 Agility<br>
+Base 25 combat stats
+|5,000 Coins<br>
+4 Energy potions<br>
+5 Tuna
+|Bronze - 14:15<br>
+Silver - 11:15<br>
+Gold - 9:15<br>
+Platinum - 8:15
+|-
+|Vampyre Slayer
+|30 Agility<br>
+Base 30 combat stats
+|8,000 Coins<br>
+2 Energy potions<br>
+5 Tuna
+|Bronze - 6:15<br>
+Silver - 4:45<br>
+Gold - 3:45<br>
+Platinum - 3:15
+|-
+|Dragon Slayer I
+|40 Agility<br>
+34 Smithing<br>
+30 Mining<br>
+8 Crafting<br>
+Base 50 combat stats<br>
+32 quest points (given via miscellaneous quests)
+|16,000 Coins<br>
+3 Stamina potions<br>
+28 Lobsters (20 in bank)
+|Bronze - 36:00<br>
+Silver - 27:00<br>
+Gold - 21:00<br>
+Platinum - 18:00
+|}
+
+Ten additional quests will be added to the Quest Speedrunner in the five months following release. You can check out exactly which ones they are in the [https://secure.runescape.com/m=news/a=97/quest-speedrunning-blog?oldschool=1 Quest Speedrunning blog].
+
+If the game mode proves to be popular with players, we'll look at expanding the Quest Speedrunner and its rewards. For now, let us know what you think via social media or our official surveys.
+
+==Changes and Fixes==
+Now that we've covered what's coming in tomorrow's game update, let’s look at the content changes which will be going live on ''''Tuesday October 11th''' – that’s today! These changes are small but impactful improvements to the main game.
+
+===Tombs of Amascut Improvements===
+* We've given the Warden pet variants some attack animations and unique lines when battling in the Combat Ring of the Player Owned House. Check them out!
+* Tumeken’s Shadow now correctly has a 4x Accuracy and Damage multiplier within Tombs of Amascut.
+* Masori Chaps will no longer stretch when swimming in Zebak’s boss room.
+* Using an Emergency Teleport Crystal on someone else in the raid will no longer use two Crystals instead of one.
+* Fixed an issue where corner tiles in the Path of Scabaras puzzles were difficult to step on when the camera was pointed eastwards.
+
+===Other Changes===
+* Options on an NPC will now disappear as soon as it starts dying.
+* Fixed an issue where the Clan Hall staircase allowed players to teleport from the balcony to the ground and vice versa.
+* Corrected the data relating to Shattered Relics on the Leagues Accomplishment Scroll.
+* The Clan Hall Combat Ring will now run the proper safety checks and prevent players from losing items and/or HCIM status when dying this way.
+* The Catalytic Tiara can now be used to enter the Law Altar, provided you've completed Troll Stronghold. Previously, it was checking Eadgar's Ruse for completion by mistake.
+* The Ancient Godsword can now perform its healing ability more reliably in Last Man Standing.
+* Players raiding a beehive at Catherby can now use a full Beekeeper Outfit for protection rather than the usual Repellent.
+* Spam-clicking the altars in the Tower of Life basement will no longer accidentally steal your ingredients.
+
+==Merch Store Pin Sale==
+Enjoy 3 for 2 on all Pins on our [https://runescape.backstreetmerch.com/ Official Merch Store] this week!
+
+[[File:Quest Speedrunning Launch (9).png|centre|600px]]
+
+
+This sale ends October 19th, so make sure to ‘pin’ this to your to-do list!
+
+==PvP Rota Changes==
+The PvP rota has moved to '''Period B''':
+* 560 - (UK) - PvP World
+579 - (US) - High-Risk PvP World
+561 - (UK) - Free-to-Play PvP World
+580 - (US) - LMS Competitive3
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+The PvP Arena is currently using 'Zerker' Loadouts. From Wednesday, the PvP Arena will be using ''''1 Defence Pure'''' loadouts in Ranked Duels and Tournaments.
+
+----
+
+You can also discuss this update on our [https://secure.runescape.com/m=forum/forums?380,381,844,66264170 official forums], on the [https://www.reddit.com/r/2007scape/comments/y14shz/quest_speedrunning_launch_tomorrow_weekly_game/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Wiki|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Chilly, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Shaun, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Steve W, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

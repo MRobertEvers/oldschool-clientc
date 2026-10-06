@@ -2,6 +2,7 @@
 #define RSCACHE_DATATYPES_DAT2_CONFIG_VAR_H
 
 #include "../rsbuffer.h"
+#include "../rscache_presence.h"
 
 /*
  * The variable config types: varbit (group 14), varplayer (group 16) and
@@ -39,6 +40,37 @@
  */
 
 /**
+ * The fields a varbit stream can state, for `RSCache_Dat2ConfigVarbit.present`.
+ * Keyed by meaning; the opcode is noted beside each.
+ */
+enum RSCache_Dat2ConfigVarbitField
+{
+    /** Opcode 1: basevar, startbit and endbit, one opcode for all three. */
+    RSCACHE_VARBIT_FIELD_BITS = 0,
+    /** Opcode 10. */
+    RSCACHE_VARBIT_FIELD_DEBUGNAME,
+    RSCACHE_VARBIT_FIELD_COUNT
+};
+
+/** The fields a varplayer stream can state, for `RSCache_Dat2ConfigVarplayer.present`. */
+enum RSCache_Dat2ConfigVarplayerField
+{
+    /** Opcode 5. */
+    RSCACHE_VARP_FIELD_CLIENTCODE = 0,
+    RSCACHE_VARP_FIELD_COUNT
+};
+
+/** The fields a varclient stream can state, for `RSCache_Dat2ConfigVarclient.present`. */
+enum RSCache_Dat2ConfigVarclientField
+{
+    /** Opcode 2, a bare flag. */
+    RSCACHE_VARC_FIELD_PERSIST = 0,
+    /** Opcode 3. */
+    RSCACHE_VARC_FIELD_OPCODE_3,
+    RSCACHE_VARC_FIELD_COUNT
+};
+
+/**
  * A varbit: a named bit range inside a varplayer.
  *
  * This is how the game packs many small values — quest stages, setting toggles,
@@ -54,6 +86,9 @@ struct RSCache_Dat2ConfigVarbit
     int endbit;
     /** Opcode 10. Present in dat1 caches; no dat2 record in the corpus carries it. */
     char* debugname;
+    /** Which fields the stream stated (RSCACHE_VARBIT_FIELD_*). The encoder writes
+     *  exactly these; a caller building a record states the fields it means. */
+    struct RSCache_Presence present;
     /** Bytes consumed. Equal to the record size for a fully understood record. */
     int _consumed;
 };
@@ -69,6 +104,8 @@ struct RSCache_Dat2ConfigVarplayer
     int id;
     /** Opcode 5. 0 when the record named none; observed values are 1..22. */
     int clientcode;
+    /** Which fields the stream stated (RSCACHE_VARP_FIELD_*). */
+    struct RSCache_Presence present;
     int _consumed;
 };
 
@@ -90,9 +127,14 @@ struct RSCache_Dat2ConfigVarclient
      * leaving it plainly labelled.
      */
     int opcode_3;
-    /** Whether opcode 3 was present. Needed separately from `opcode_3` because 0 is
-     *  a value the wire carries explicitly — 40 records do. */
-    bool has_opcode_3;
+    /**
+     * Which fields the stream stated (RSCACHE_VARC_FIELD_*).
+     *
+     * This replaced a lone `has_opcode_3` flag, which existed because 0 is a value
+     * the wire carries explicitly for opcode 3 -- 40 records do. Presence is that
+     * same distinction, for every field.
+     */
+    struct RSCache_Presence present;
     int _consumed;
 };
 
@@ -124,7 +166,8 @@ RSCache_Dat2ConfigVarbitDecodeInplace(
     int data_size);
 
 /**
- * Set the type's non-zero defaults on an already-zeroed record.
+ * Set the type's non-zero defaults on an already-zeroed record, and clear its
+ * presence: nothing is stated until an opcode says so.
  *
  * Must run before any `DecodeOp` call: `basevar` defaults to -1, because a varbit
  * that named no base variable is not one pointing at varplayer 0.
@@ -185,7 +228,9 @@ RSCache_Dat2ConfigVarclientDecodeInplace(
  * fixed-shape, so there is no opcode ordering to reproduce and nothing the decode
  * discards.
  *
- * Each returns bytes written, or 0 on failure.
+ * Each writes exactly the fields its record's `present` states, and returns bytes
+ * written. A NULL record or buffer, a buffer under the bound, or a value its opcode
+ * cannot carry is a contract violation and asserts.
  */
 
 uint32_t

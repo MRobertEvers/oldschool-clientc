@@ -1,0 +1,81 @@
+{{Update|date=2 February 2017|link=http://services.runescape.com/m=news/developer-blog-pvm-qol-week?oldschool=1|category=website}}
+[[File:Developer Blog- PvM QoL Week newspost.png|right]]
+{{clear}}
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">Dev Blog: PvM QoL Poll</font></center>
+
+<center>'''This week we are kicking off Quality of Life Month with the PvM QoL Poll on Saturday evening. We're offering up some of the most frequently requested updates to several PvM activities.'''</center>
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Dagannoth Lair Solutions</font></center>
+
+The Dagannoth Kings are a popular boss choice for many players, prized for the valuable rings they drop. One of the common requests we see come up is for additional lairs in which to fight the DKs, specifically an on-task only room. 
+
+We're keen to provide a solution to the problem. So instead of outright polling a suggestion, we'd like to take this opportunity to discuss the issue in depth with you a little more, before deciding what we'd like to offer. 
+
+[[File:Developer Blog- PvM QoL Week (1).png|center|450px]]
+
+One of the important issues that causes us hesitation is the impact this would have on the value of the rings. The Archers, Seers, Berserker and Warrior Rings are staple high value items, and this would introduce them into the game at a higher rate than usual.
+
+The options we propose are as follows, and we're keen to hear your opinions on each as we head to the Poll:
+
+*A single copy of the DK room, for use on assignment only. Potentially with a Diary Requirement.
+*The ability to create an instanced room on demand, but with no ring drops.
+*The ability to create an instanced room on demand, with regular loot drops.
+*Something else!
+
+We're interested to hear what you have to say on the issue, and will discuss ideas with the community as they arise.
+[[File:Developer Blog- PvM QoL Week (2).png|right|150px]]
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Elysian Shield Changes</font></center>
+
+The Elysian Spirit Shield has been one of the most prestigious prizes in Old School Runescape since the introduction of the Corporeal Beast. We've seen requests to improve it 
+slightly given the power of the Raids Rewards.
+
+We'd like to offer the suggestion of making the Elysian's damage reduction effect apply to many attacks that hit through Protection Prayers.
+
+This would apply to attacks by the following NPCs:
+*Abyssal Sire and its minions
+*Venenatis
+*Vet'ion
+*Crazy Archaeologist
+*Chaos Fanatic
+*Brassican Mage
+*Corporeal Beast
+*Obor
+*Kruk, Keef, Kob and the MM2 Boss
+*Cave Kraken Boss
+*Thermonuclear Smoke Devil
+*Superior Slayer Gargoyle Encounter
+*Superior Slayer Dark Beast Encounter
+*Stone Guardians in the Chambers of Xeric
+*Lizardman Shamans
+*Zulrah
+*Demonic Gorillas
+*Giant Roc (My Arm's Big Adventure)
+*Death Spawn (Nechryael Summons)
+
+----
+
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Other Suggestions</font>
+
+*Should we add a crack in the floor in safe places near the descents to the Kalphite Queen’s chamber and DK chamber, so that players could peek and then world-hop without being in combat?
+*Should we increase the experience provided by the dark relic? It would be usable on all skills, providing 150x your level for skills used in Raids (combat, Mining, etc.), and 50x for other skills. Currently, it is only usable on combat stats, and provides a much lower amount of xp.
+*When peeking into a boss room, if the boss is present, should its current hitpoints be displayed?
+*Should Slayer masters offer to unlock the ability for mithril dragons to drop their bars in noted form? This would apply only while you were slaying them on assignment, and would cost 200 points to unlock.
+*Should we remove the requirement to empty your hands while charging a trident? It would still require the same ingredients as before; staffs and other rune-supplying equipment would not be accepted.
+*Should the spectral spirit shield reduce prayer drain by 50% of all prayer draining attacks?
+*Should we shrink the empty cave outside the Corp’s lair? This would make it less likely to have a map-loading trigger in the middle of the fight area.
+*Should the King Black Dragon’s respawn timer be reduced to 10 seconds?
+
+----
+
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Divine Spirit Shield</font>
+
+Additionally, we're keen to gauge the sentiment regarding the Divine Spirit Shield. As a reminder, the Divine Spirit Shield carried a 100% chance of reducing incoming damage by 30%, at a cost of draining your Prayer points by 6% of the damage dealt. <br/><br/>So we will be asking "How do you feel about the divine shield? This will help us decide what to poll in future – if anything." <br/>The available options will be: <br/>"1.	It should drop as a sigil that is added to an elysian shield to create the divine shield.<br/>2.	It should drop as a sigil that is added to a blessed spirit shield as before.<br/>3.	It should not be added to OSRS.<br/>4.	Skip question."<br/>
+
+----
+
+Discuss this Developer Blog on our [http://services.runescape.com/m=forum/a=142/c=wyqCwzcA4S8/forums.ws?380,381,362,65876387 forums].
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''

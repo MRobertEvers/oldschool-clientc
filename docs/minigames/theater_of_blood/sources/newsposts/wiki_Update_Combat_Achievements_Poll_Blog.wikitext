@@ -1,0 +1,410 @@
+{{Update|date=23 November 2020|rev=27 November 2020|link=https://secure.runescape.com/m=news/combat-achievements-poll-blog?oldschool=1|category=dev blog}}
+[[File:Combat Achievements Poll Blog newspost.png|right]]
+{{clear}}
+
+{{Headline|22|Combat Achievements Poll Blog}}
+
+{{Horizontal Line}}
+
+'''Changelog'''
+
+Following player feedback since the blog went live, we've made the following changes:
+
+*27/11/2020 - Additional wording added to the 'Accuracy Based Offhand' section detailing how to reclaim the item and what happens in PvP deaths.
+*27/11/2020 - Added a section under 'Boss Chamber Instances' detailing a change we're looking to make with God Wars Dungeon boss chambers for Ironmen. 
+*25/11/2020 - Added a section under 'How exactly do Combat Achievements work?' to provide further clarity for limited account builds.
+*25/11/2020 - Added more details to Tasks' to emphasise that any previously earnt kill count, and some speed task completions, would carry over and count toward task completions.
+*25/11/2020 - Poll Question #1 slightly changed to highlight how completion of Combat Achievements is not required to obtain the Achievement Diary cape.
+*25/11/2020 - New reward and poll question added to 'Like a Boss Upgrade' that increases the maximum number of TzTok-Jad and TzKal-Zuk that can be assigned.
+*25/11/2020 - Additional wording added to the introduction of 'Boss Chamber Instances'.
+*25/11/2020 - Changes made to the proposed fee for 'Boss Chamber Instances'. Players can opt to pay with coins and the required kill count, or coins and an Ecumenical key. The coins cost has also been lowered.
+*25/11/2020 - New poll question added under 'Boss Chamber Instances' that offers the ability for all private instance fees to be taken directly from Death's Coffer.
+*25/11/2020 - Added a new section called 'Combat Achievements: A Note on the Future' that details our approach new content.
+*25/11/2020 - Information added under 'A New Challenge Approaches' to clarify why the JalRek-Jad transmog for the TzRek-Jad pet is given upon completion as opposed to being a chance drop.
+*25/11/2020 - Added details under 'A New Challenge Approaches' to clarify to clarify TzHaar-Ket-Rak's Six JalTok-Jad Challenge is not dependant upon Combat Achievements.
+
+{{Horizontal Line}}
+
+Earlier this year we announced that we’d begun concepting a way in which high-level players can challenge themselves with fiendishly tough restrictions on boss fights, and track those challenges in a way they can show off to others.
+
+Known then as PvM Achievement Diaries, we’re extremely excited to announce what is now 'Combat Achievements'.
+
+Combat Achievements is a new system that will complement our current gameplay while offering new challenges for those skilled enough to complete them. As you defeat various bosses throughout Gielinor in dozens of different ways, you’ll also be completing tasks of varying difficulties. Doing so progress through the achievement tiers, and when you’ve done enough of them you’ll find you have access to a whole host of new rewards!
+
+You may even encounter some iconic quest bosses along the way...
+
+
+{{Horizontal Line}}
+
+{{Headline|22|How exactly do Combat Achievements work?}}
+
+Much like the normal Achievement Diaries, Combat Achievements are split into different tiers of tasks, increasing in difficulty as they progress. There are a lot of bosses and monsters within Old School, so unlike Achievement Diaries' four tiers, Combat Achievements will have six.
+
+[[File:Combat Achievements Poll Blog (1).png|center|500px]]<center>''A WIP image of the Combat Achievements Overview Interface using placeholder graphics. Clicking on the different tiers will automatically filter all tasks. There is also a section showing some of your PvM accomplishments!''</center>
+
+
+See below for a breakdown of the different tiers and an example of some of the requirements you might expect to be able to fully complete that tier:
+
+''Note: below requirements not intended to be a direct reflection of what is required, they are more of a recommendation for how progressed a typical account may be based on the content you'd likely need to complete.''
+*Easy
+**Base 60 Combat stats
+**50 Slayer
+**Dragon Slayer
+*Medium
+**Base 70 Combat stats
+**69 Slayer
+**Monkey Madness II
+*Hard
+**Base 80 Combat stats
+**85 Slayer
+**Dragon Slayer II
+*Elite
+**Base 90 Combat stats
+**91 Slayer
+**Song of the Elves
+*Master
+**Base 90+ Combat stats
+**95 Slayer
+**Raiding experience and an understanding of most bosses within the game
+*Grandmaster
+**Maxed Combat stats
+**All previous requirements
+**Experienced with all PvM activities within game
+**This tier will take our hardest content in the game and push players to their limits. If you thought the Infernal Cape was the difficulty limit, think again!
+
+
+The additional tiers mean we can be more flexible in our approach with the tasks. Lower tiers are designed to help introduce new and less experienced players into PvM activities, giving them a taste of what combat in the game has to offer. But Master and Grandmaster tiers give us the ability to provide tasks challenging enough to stretch even the most veteran players.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Tasks}}
+
+Now that you’ve seen the different tiers available, let’s take a look into what you can expect from the tasks required to complete them.
+
+It’s important we find the right balance between creating tasks that are difficult for groups but also not impossible for solo players. By the same token, we must also avoid creating tasks that are hard to complete solo, yet trivial for groups.
+
+[[File:Combat Achievements Poll Blog (2).png|center|500px]]<center>''A WIP image of the Combat Achievements Tasks interface using placeholder graphics. You can filter tasks by Tier, Type, Monster or their current Completion state. Clicking on a particular task gives more information on what is required for completion.''</center>
+
+
+Most tasks within Combat Achievements will rely on your ability to complete them alone. There are some exceptions to this, especially when the content itself is designed specifically for groups. Examples include:
+
+*All kill count tasks
+**Any previously earnt kill count will carry over and count towards task completions, should Combat Achievements pass the poll.
+*Some speed tasks
+**Some speed task completions will carry over and count towards task completions, should Combat Achievements pass the poll.
+*Most Raids tasks
+**There will be tasks for varying group sizes for both Chambers of Xeric and Theatre of Blood
+*Most Nightmare of Ashihama tasks
+
+
+[[File:Combat Achievements Poll Blog (3).png|center|500px]]<center>''A WIP image of the Combat Achievements Boss Overview interface using placeholder graphics. Players can find detailed information about the bosses including requirements to defeat them and their drops. Clicking the 'Map' button opens the world map at the location of the boss, too!''</center>
+
+
+Tasks are sorted into categories based on the requirements. Here is an example of the categories and corresponding tasks you might expect to see with Combat Achievements:
+
+<center>
+{| class="wikitable" style="text-align:center;width:665px"
+|-
+! Task Type !! Description !! Example
+|-
+| Kill Count || Kill a boss a certain number of times || 
+* Kill 5 Obor
+* Kill 50 Giant Mole
+* Complete 250 Chambers of Xeric
+|-
+| Speed || Kill a boss within a certain amount of time || 
+* Kill the Grotesque Guardians in less than 1 minute 30 seconds
+* Kill Vorkath in less than 1 minute 10 seconds
+* Kill Zulrah in less than 50 seconds
+|-
+| Restricted Item(s) || Complete the task without ever using that item || 
+* Successfully clear the Fight Caves without any ranged weapons
+* Successfully clear the Theatre of Blood without anyone using a Scythe of Vitur
+* Kill Callisto without using Veracs
+|-
+| Specific Item(s) || Complete the task while only using a specific item(s) || 
+* Kill Giant mole with full Dharoks only
+* Kill General Graardor with mage only
+* Kill Venenatis with a Magic Shortbow only
+|-
+| No Damage || Kill a boss without taking any damage, either at all or from certain NPCs in the encounter || 
+* Kill Zulrah taking no damage from venom clouds
+* Kill Commander Zilyana without taking any damage
+* Kill General Graardor taking no damage from minions
+|-
+| Area Restriction / Stamina || Kill a boss X times without leaving Y place || 
+* Kill Kree'arra 25 times without leaving the room
+* Kill General Graardor 15 times without leaving the room
+* Kill the Grotesque Guardians 20 times without leaving the instance
+|-
+| Mechanic Specific || Defeat a boss in a way that hints at how you're supposed to interact with the boss, or tasks the player to kill the boss in a specific, difficult way || 
+* Kill Skotizo with none of the four pillars alive
+* Kill Giant mole with Protect from Melee active
+* Kill Sarachnis without killing her spiderlings
+|}
+</center>
+
+{{News Poll|1|Should Combat Achievements, a new system that tasks players with defeating various bosses throughout Gielinor in multiple ways and of varying difficulty, be added to the game? Completion of Combat Achievements will not be required in obtaining the Achievement Diary cape.}}
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Rewards}}
+
+Complete all of the tasks within a tier to receive a reward. It wouldn’t be much of an achievement if you were unable to brag about your accomplishments, so let’s take a look at the proposed rewards on offer with Combat Achievements.
+
+
+''The following rewards would only be obtained once all of the tasks within the relevant tier of Combat Achievements have been completed.''
+
+
+<center>'''XP Lamps'''</center>
+
+
+Much like the normal Achievement Diaries, XP lamps are given that scale in experience as you progress through the tiers. These can be used to gain experience in any skill of your choice over a certain level. The following XP lamps would be available:
+
+*Easy Tier - 5k experience in any skill above level 20
+*Medium Tier - 10k experience in any skill above level 30
+*Hard Tier - 15k experience in any skill above level 40
+*Elite Tier - 25k experience in any skill above level 50
+*Master Tier - 35k experience in any skill above level 60
+*Grandmaster Tier - 50k experience in any skill above level 70
+
+{{News Poll|2|If Combat Achievements are added to the game, should each fully completed tier of tasks reward players with an XP lamp? The amount of experience given would increase as you progress through the different tiers.}}
+
+
+<center>'''Increased Clue Scroll Drop Rate'''</center>
+
+
+We propose a 5% increased chance to receive Clue Scrolls you would normally get from drops, with the type of clue changing based on which tier of tasks you had completed. Any skilling or PvM activity would benefit from this increased chance.
+
+''Clue scrolls obtained from Impling Jars or from Clue Caskets would not benefit from this increase.''
+
+*Easy Tier - 5% increased drop chance for Easy Clues
+*Medium Tier - 5% increased drop chance for Medium Clues
+*Hard Tier - 5% increased drop chance for Hard Clues
+*Elite Tier - 5% increased drop chance for Elite Clues
+
+{{News Poll|3|If Combat Achievements are added to the game, should each fully completed tier of tasks give players a 5% increased chance of receiving Clue Scrolls from PvM and Skilling activities as described? Clue scrolls obtained from Impling Jars or from Clue Caskets would not benefit from this increase.}}
+
+
+<center>'''Like a Boss Upgrade'''</center>
+
+
+Players who have unlocked the 'Like a Boss' Slayer ability are able to receive boss monster tasks from certain Slayer Masters. The maximum number of boss kills that can be assigned for most tasks is currently 35. As you master the art of boss slaying, each fully completed tier of tasks increases the maximum number of all bosses that can be assigned when 'Like a Boss' is unlocked.
+
+*Easy Tier - +2 to maximum bosses assigned
+*Medium Tier - +4 to maximum bosses assigned
+*Hard Tier - +6 maximum bosses assigned
+*Elite Tier - +8 maximum bosses assigned
+*Master Tier - +11 maximum bosses assigned
+*Grandmaster Tier - +15 maximum bosses assigned
+
+
+In addition to the above, we can also extend the number of TzTok-Jad and TzKal-Zuk kills you'd normally be assigned. Failing to defeat either of the bosses would still result in losing the assigned kill, but you'd be able to jump straight back in for another attempt!
+*Master Tier - +1 to maximum number of TzTok-Jad and TzKal-Zuk assigned
+*Grandmaster Tier - +2 to maximum number of TzTok-Jad and TzKal-Zuk assigned
+
+{{News Poll|4|If Combat Achievements are added to the game, should each fully completed tier of tasks increase the maximum number of all bosses that can be assigned by a Slayer Master when 'Like a Boss' is unlocked?}}
+{{News Poll|5|If Combat Achievements are added to the game, should completing all tasks within the Master and Grandmaster tiers increase the maximum number of TzTok-Jad and TzKal-Zuk that can be assigned? Master tier would grant an additional assigned kill, and Grandmaster would grant an additional two assigned kills. Failing to defeat either assigned boss would result in losing one of the assigned kills.}}
+
+
+<center>'''New Slayer Helmet Designs'''</center>
+
+
+Spruce up your Slayer look with new Slayer Helmet designs for the highest achievement tiers. Players who complete all tasks in the Elite, Master and Grandmaster tiers will gain access to some of the most prestigious Slayer Helmets in all of Gielinor.
+
+*Elite Tier - TzTok-Jad
+*Master Tier - Lady Verzik Vitur
+*Grandmaster – TzKal-Zuk
+
+{{News Poll|6|If Combat Achievements are added to the game, should completing all tasks within the Elite, Master and Grandmaster tiers unlock new Slayer Helmet designs? The designs would be based around TzTok-Jad for Elite tier, Lady Verzik Vitur for Master tier and TzKal-Zuk for Grandmaster tier.}}
+
+
+<center>'''Accuracy Based Offhand'''</center>
+
+
+We’d like to reward willing adventurers with a new offhand blade that excels in providing increased Melee accuracy in combat. Whilst it would offer no defensive or offensive bonuses outside of Melee accuracy, each fully completed tier of tasks further enhances your ability with the item, unlocking more accuracy as a result. ''Have an idea for what the offhand should be called? Get in touch via one of the feedback links at the bottom of this post!''
+
+*Easy Tier - +15 to Stab, Slash and Crush attacks
+*Medium Tier - +20 to Stab, Slash and Crush attacks
+*Hard Tier - +25 to Stab, Slash and Crush attacks
+*Elite Tier - +30 to Stab, Slash and Crush attacks
+*Master Tier - +35 to Stab, Slash and Crush attacks
+*Grandmaster Tier - +40 to Stab, Slash and Crush attacks
+
+Upon completion of the respective Combat Achievements tier, you would be rewarded your first offhand for free. Should you wish to obtain multiple of these, or reclaim one that was lost in combat, there would be a small fee to pay.
+
+*Easy Tier - 5k to reclaim or repair at Perdu. In PvP death this would convert to 3,750 coins
+*Medium Tier - 10k to reclaim or repair at Perdu. In PvP death this would convert to 7,500 coins
+*Hard Tier - 20k to reclaim or repair at Perdu. In PvP death this would convert to 15,000 coins
+*Elite Tier - 30k to reclaim or repair at Perdu. In PvP death this would convert to 22,500 coins
+*Master Tier - 40k to reclaim or repair at Perdu. In PvP death this would convert to 30,000 coins
+*Grandmaster Tier - 50k to reclaim or repair at Perdu. In PvP death this would convert to 37,500 coins 
+
+{{News Poll|7|If Combat Achievements are added to the game, should a new offhand that excels in providing increased Melee accuracy also be added to the game? This would provide an increasing amount of Stab, Slash and Crush attacks for each fully completed tier of tasks, but has no defensive or strength bonuses.}}
+
+
+<center>'''New Teleport Locations'''</center>
+
+
+New teleport locations have proven to be a popular request within the community, and we’d like to offer some with Combat Achievements.
+
+
+'''God Wars Dungeon'''
+
+The location for this teleport would beside the large boulder blocking the way in to the God Wars Dungeon. Each fully completed tier of tasks increases the number of teleports available.
+
+*Easy Tier - 3 daily teleports
+*Medium Tier - 5 daily teleports
+*Hard, Elite, Master & Grandmaster Tier - Unlimited daily teleports
+
+{{News Poll|8|If Combat Achievements are added to the game, should each fully completed tier of tasks unlock daily teleports to the boulder outside God Wars Dungeon? Completion of the Easy tier would grant three daily teleports, Medium would grant five, and tiers Hard and above would unlock unlimited daily teleports.}}
+
+
+'''Mor Ul Rek'''
+
+The Tzhaar city and home of the infamous TzKal-Zuk. For those of you wanting to gain faster access to one of Old School’s most difficult challenges, fully completing all tasks within the Elite tier and above will grant you daily teleports to the inner ring of Mor Ul Rek.
+
+*Elite Tier - 3 daily teleports
+*Master Tier - 5 daily teleports
+*Grandmaster Tier - Unlimited daily teleports
+
+{{News Poll|9|If Combat Achievements are added to the game, should completing all tasks within the Elite tier and above unlock daily teleports to the inner ring of Mor Ul Rek? Completion of the Elite tier would grant three daily teleports, Master would grant five, and Grandmaster would unlock unlimited daily teleports.}}
+
+
+<center>'''God Wars Dungeon Improvements'''</center>
+
+
+For many, the God Wars Dungeon has served as a proving grounds for aspiring boss Slayers. Packed full of creatures to slay and bosses to fell, you’ll be spending some time here throughout your journey toward completing the Combat Achievement tiers. In return, you’ll find some improvements to the area with reduced follower kill count requirements, increased drop rates of Ecumenical Keys and for a small fee, personal instances for each of the God chambers would be made available.
+
+
+'''Reduced Kill Count'''
+
+Upon completion of all tasks within the Hard tier and above, players will be able to enter the various God chambers with a slightly reduced follower kill count.
+
+*Hard Tier - Follower kill count reduced by 2
+*Elite Tier - Follower kill count reduced by 4
+*Master Tier - Follower kill count reduced by 7
+*Grandmaster Tier - Follower kill count reduced by 10
+
+{{News Poll|10|If Combat Achievements are added to the game, should completing all tasks within the Hard tier and above allow players to enter the various God chambers with a slightly reduced follower kill count? Completion of the Hard tier would reduce the requirement by two kills, Elite by four, Master by seven and Grandmaster would reduce it by 10.}}
+
+
+'''Increased Ecunemical Key Drop Rate'''
+
+The current drop rate for Ecunemical Keys is 1/60. Upon completion of all tasks within the Hard tier and above, players will gain access to an improved drop rate as per the below:
+
+*Hard Tier - 1/55 chance to receive a key
+*Elite Tier - 1/50 chance to receive a key
+*Master Tier - 1/45 chance to receive a key
+*Grandmaster Tier - 1/40 chance to receive a key
+
+{{News Poll|11|If Combat Achievements are added to the game, should completing all tasks within the Hard tier and above give players an increased drop rate for Ecumenical Keys? Completion of the Hard tier would change to a 1/55 chance, Elite to 1/50, Master to 1/45 and Grandmaster would change to a 1/40 chance.}}
+
+
+'''Boss Chamber Instances'''
+
+Overcrowding and players crashing one another within God Wars Dungeon has been an increasing problem. There has been a demand to add private instances to the various boss chambers, but there are also concerns over how powerful adding these may be. With Combat Achievements, we feel it's the perfect opportunity to finally be able to offer them, whilst managing the wider impact by locking the instance options behind content that a typical player would complete on their journey to needing them.
+
+While we believe private instances are a great solution to many of the overcrowding problems players face in the God Wars Dungeon, there is still an underlying issue that remains for the majority of Ironmen.
+
+With an ever increasing player base and more players getting their accounts ready to take on the God Wars Dungeon bosses, it can be very difficult for Ironmen to find a free world, especially when they’re ready to start facing off against the likes of General Graardor.
+
+As Ironmen are unable to obtain loot from monsters that have been attacked by other players, they have no opportunity to compete against other players that may want to try and take over their room. This is a common frustration amongst the Ironman community, as it essentially blocks them from being able to complete content they should be able to access.
+
+We feel this can be solved by making it possible for Ironmen to access an Ironman-only version of the individual God Wars Dungeon boss chambers, much as we did for the Corporeal Beast cave. This change would be in addition to the current poll questions regarding private instances, which would be available for all account types.
+
+This change would also mean that Ironmen would only have access to Ironman-only rooms, just as regular accounts only have access to regular rooms. This would still create some competition, but it would be much less troublesome simply because there will be a smaller pool of players to compete with.
+
+In addition, we’d add a ‘Peek’ option to the boss chamber doors for all account types, with a visual effect that lets you quickly identify whether the room is occupied or not and the option to see who’s in there.
+
+The above changes will not be polled, as we feel they are essential for Iron players to experience the content as intended – but we’d like to hear your feedback on the subject.
+
+Upon completion of all tasks within the Hard tier and above, players will gain access to personal instance for the boss chambers with God Wars Dungeon. There is a price to pay for your privacy however, but progressing through the tiers will reduce this slightly. See below for the proposed costs to open a personal God Wars Dungeon instance.
+
+*Hard Tier - 150k coins and the requiured minion kill count
+*Elite Tier - 125k coins and the requiured minion kill count
+*Master Tier - 100k coins and the requiured minion kill count
+*Grandmaster Tier - 75k coins and the requiured minion kill count
+
+Alternatively, players who'd rather skip the required minion kill count can do so by sacrificing an Ecunemical Key alongside some coins.
+*Hard Tier - 150k coins and an Ecumenical Key
+*Elite Tier - 125k coins and an Ecumenical Key
+*Master Tier - 100k coins and an Ecumenical Key
+*Grandmaster Tier - 75k coins and an Ecumenical Key
+
+''Note: as the name suggests, personal instances provided by Combat Achievements will be for solo players only.''
+
+{{News Poll|12|If Combat Achievements are added to the game, should completing all tasks within the Hard tier and above give players access to a personal instance for each of the boss chambers within God Wars Dungeon? These instances would cost coins and the required minion kill count, or coins and an Ecumenical Key to enter. These instances would be for solo players only.}}
+
+There are many private instance options throughout Gielinor that require coins in order to access. We'd like to make this more accessible for all players, whilst promoting more opportunities for item sinks. We'd do this by allowing the fee to be taken directly from Death's Coffer, should you have the available funds.
+
+{{News Poll|13|Should players be able to pay the coins fee for private instances by taking it directly from Death's Coffer, should they have the available funds? This would apply to all current and future private instances throughout the game.}}
+
+
+<center>'''New Dragon Hunter Crossbow Designs'''</center>
+
+
+When we asked the community for reward ideas, a popular suggestion was to revisit the various Dragon Hunter Crossbow variants created by Mod West. Players that complete the Hard and Elite tiers of Combat Achievement will unlock access to exclusive Vorkath and King Black Dragon versions of the Dragon Hunter Crossbow.
+
+[[File:Combat Achievements Poll Blog (4).png|center|500px]]<center>''A WIP image of proposed new Dragon Hunter Crossbow designs.''</center>
+
+
+*Hard Tier - unlock the ability to combine a King Black Dragon head with the Dragon Hunter Crossbow
+*Elite Tier - unlock the ability to combine a Vortkath head with the Dragon Hunter Crossbow
+
+''Note: Combining these items with the Dragon Hunter Crossbow offers no additional bonuses and is for cosmetic purposes only.''
+
+{{News Poll|14|If Combat Achievements are added to the game, should completing all tasks within the Hard tier reward players with the ability to combine a King Black Dragon head with the Dragon Hunter Crossbow as shown in the image? Combining these items offers no additional bonuses and is for cosmetic purposes only.}}
+
+{{News Poll|15|If Combat Achievements are added to the game, should completing all tasks within the Elite tier reward players with the ability to combine a Vorkath head with the Dragon Hunter Crossbow as shown in the image? Combining these items offers no additional bonuses and is for cosmetic purposes only.}}
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Combat Achievements: A Note on the Future}}
+
+Since we released the blog earlier this week, we've had a fair few comments asking how we're going to approach new content should Combat Achievements pass the poll. While we won't start the full development until it passes, there are some considerations we're already taking into account.
+*New bosses and challenges will be added into the respective tiers, but only when they have 'settled' following the update they arrived in. With Old School RuneScape being a living game that is constantly changing based on player feedback, it's highly likely content will be altered slightly after it is released. We'd take this into account before adding any new tasks to Combat Achievements.
+*Where we are able to add new tasks with future content releases, we will avoid adding anything that could potentially spoil content. This is especially important to consider with new encounters, as we'd rather not reveal their mechanics until you've had the chance to experience them first!
+*We'll be mindful of any changes to content that could make a previously challenging task unintentionally easier.
+
+{{Horizontal Line}}
+
+{{Headline|22|A New Challenge Approaches}}
+
+It wouldn’t be a true Combat focused update if we weren’t offering you a new challenge to go alongside it, would it? Luckily there are many new challenges included within Combat Achievements that will test your PvM prowess.
+
+While on the topic of new challenges, we'd like to take this opportunity to talk about another combat related update separate from Combat Achievements...
+
+Following a series of failed experiments by the TzHaar, a number of eggs from TzTok-Jad were hatched inside the Inferno. From these eggs came the JalTok-Jads. These creatures are stronger and far more aggressive than TzTok-Jad, and the TzHaar are struggling to deal with them. To help with this, TzHaar-Ket-Rak has challenged any who believe themselves brave enough to enter the Inferno and tackle the JalTok-Jads.
+
+Within the inner city of Mor Ul Rek, players will find TzHaar-Ket-Rak. After a short introduction, he will allow players to take on his challenges. There are six in total, with each seeing the player fight a number of JalTok-Jads. Adventurers must complete the previous challenge to unlock the next. The first two challenges are open to anyone who can access the Mor Ul Rek inner city (unlocked upon showing a Fire Cape to the TzHaar guarding the entrance). The final four challenges require completion of the Inferno.
+
+Much like the Inferno, TzHaar-Ket-Rak's six challenges are considered safe, so players can attempt them without worrying about the effects of death (HCIM rejoice!).
+
+[[File:Combat Achievements Poll Blog (5).png|center|600px]]<center>''A WIP image of the 6-Jad challenge.''</center>
+
+
+Think you have what it takes to defeat SIX JalTok-Jads at the same time? If you’re successful, you’ll find yourself rewarded with a new JalRek-Jad transmog for the TzRek-Jad pet. You will also receive some Tokkul for each JalTok-Jad killed. The transmog is awarded upon your first completion of the challenge, rather than it being a chance drop. While we did consider the latter, we feel the true replayability value of this challenge is pushing for faster completions.
+
+[[File:Combat Achievements Poll Blog (6).png|center|600px]]<center>''A WIP image of the JalRek-Jad transmog for the TzRek-Jad pet.''</center>
+
+
+A scoreboard nearby will show personal and global stats for kills, deaths and best times. Who do you think will be the fastest at completing the challenge?
+
+''Note: While we're offering the Six JalTok-Jad Challenge within this blog, it is not dependant upon Combat Achievements. Should both the challenge and Combat Achievements pass in the polls, the Six JalTok-Jad Challenge would be released after Combat Achievements.''
+
+{{News Poll|16|Should TzHaar-Ket-Rak's Six JalTok-Jad Challenge, a new PvM encounter within Mor Ul Rek, be added to the game? Each challenge includes defeating a number of JalTok-Jads, climbing until there are six at the same time. Completing this challenge unlocks a new JalRek-Jad transmog for the TzRek-Jad pet.}}
+
+{{Horizontal Line}}
+
+
+As always we’d love to hear what you think about Combat Achievements, so please share your feedback with us via our [http://services.runescape.com/m=forum/forums.ws?380,381,677,66190432 official forums], on the [https://www.reddit.com/r/2007scape/comments/jzngwv/combat_achievements_poll_blog/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+We’d like to offer an in-game poll for Combat Achievements on November 27th.
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Ditto, Ed, Elena, Errol, Fed, Flippy, Gayns, Gee, Halo, Husky, Impact, Jndr, John C, Kandosii, Kieren, Lenny, Lottie, Lyric, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, & West'''
+
+''The Old School Team''

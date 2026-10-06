@@ -26,6 +26,8 @@ import os
 import re
 import sys
 
+import config_text
+
 TIERS = [
     ("beginner", "trail_is_beginner"),
     ("easy", "trail_is_easy"),
@@ -66,15 +68,16 @@ def read_steps():
     easy-tier item) and no row (it is not a clue you read).
     """
     with open(ALL_OBJ, encoding="utf-8", errors="replace") as handle:
-        text = handle.read()
+        text = config_text.filter_text(handle.read())
     steps = {}
     for block in re.split(r"\n(?=\[)", text):
         match = re.match(r"\[([^\]]+)\]", block)
         if not match:
             continue
         name = match.group(1)
+        # `param=<name>,<value>`; the params read here are all declared int.
         params = dict(
-            re.findall(r"^param=([A-Za-z_][A-Za-z0-9_]*),int,(-?\d+)$", block, re.M)
+            re.findall(r"^param=([A-Za-z_][A-Za-z0-9_]*),(-?\d+)$", block, re.M)
         )
         if "trail_clue_row" not in params:
             continue
@@ -154,6 +157,7 @@ def main():
     ids = read_ids()
     steps = read_steps()
     rendered = render(steps, ids)
+    rendered = config_text.completed(OUT, rendered)
 
     if args.check:
         try:

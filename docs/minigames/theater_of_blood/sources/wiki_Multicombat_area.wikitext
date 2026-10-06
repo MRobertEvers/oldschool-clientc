@@ -1,0 +1,151 @@
+{{External|rs}}
+
+A '''multicombat area''', also known as a '''Multiway Combat area''' is an area of the ''[[Old School RuneScape]]'' world where a [[player]] or [[monster]] can be attacked by more than one player or monster at a time.
+
+Multicombat areas are identified upon entering by two crossed swords ([[File:Multicombat.png|This icon indicates that a player is in a multicombat area]]) which appear in the bottom right-hand corner of the [[interface]] or under the mini [[world map]]. Anywhere else is a [[Single-way combat]] area, also known as a single-combat area, with an exception for the [[Revenant Caves]], [[Wilderness Agility Course]] and lesser Wilderness bosses, which are [[Singles-plus combat]] ([[File:Singles plus.png]]).
+
+Multicombat areas are especially dangerous in the [[Wilderness]], as a player can be attacked by more than one monster or player at a time. It is very useful, though, to be in a multicombat area while monster killing monsters with friends, as lone players can be picked off quickly.
+
+While players can enter multi-combat in single combat zones, this only happens if the player isn't under attack by another monster. Examples include barraging a clump of monsters or hiding in a spot where they cannot attack them and allowing a [[dwarf multicannon]] to do the job.
+
+==Multicombat area map==
+{{Map:DeadmanAnnihilationMulticombatZones|caption={{Legend|#f54636|caption=A map of the multicombat areas on Gielinor (not including ocean zones) indicated in red}}}}{{clear}}
+
+==List of multicombat areas==
+Some multicombat areas include:
+*The majority of [[ocean]]s, barring some parts of the [[Ardent Ocean]]
+*The [[Abyss]]
+*[[Al Kharid Palace]] in [[Al Kharid]]
+*[[Ape Atoll]]
+*[[Bandit Camp (Kharidian Desert)|Bandit Camp]] in the [[Kharidian Desert]]
+*[[Barbarian Assault]]
+*[[Barbarian Village]]
+*[[Battlefield]] south of [[West Ardougne]]
+*[[Castle Wars]]
+*Jail area in [[Draynor Village]]
+*[[Emir's Arena]]
+*Most sections of [[Falador]], including the [[White Knights' Castle]]
+*[[Mole Hole]]
+*[[Fight Pits]] in [[Mor Ul Rek]]
+*[[God Wars Dungeon]]
+*[[Hosidius]] cow pen
+*[[Jatizso]] [[ice troll]] area
+*[[Jormungand's Prison]]
+*[[Kalphite Lair]]
+*Western [[Kharazi Jungle]]
+*[[Lighthouse]] Dungeon
+*[[Neitiznot]] ice troll area
+*[[Pest Control]]
+*[[Piscatoris Fishing Colony]]
+*[[Player-owned house]] dungeons and fight arenas
+*[[Ranging Guild]]
+*The northern coast of the [[Fremennik Province]]
+*The first level of the [[Stronghold of Security]]
+*[[Mor Ul Rek]]
+*[[Varrock Sewers]]
+*[[Waterbirth Island Dungeon]]
+*[[White Wolf Mountain]]
+*Inner [[Kraken Cove]]
+*Several places in the [[Wilderness]] including the areas at or around:
+**The [[Ruins (east)|Abandoned Farm]]
+**The [[Bandit Camp (Wilderness)|Wilderness Bandit Camp]]
+**The [[Chaos Temple (church)|Chaos Temple]] in the western Wilderness (not the [[Chaos Temple]] in the eastern Wilderness)
+**The [[Dark Warriors' Fortress]]
+**The [[Deadly red spider]]s
+**The [[Deep Wilderness Castle Ruins]]
+**The [[Demonic Ruins]]
+**The [[Graveyard of Shadows]]
+**The [[Lava Maze]]
+**[[Lava Dragon Isle]]
+**[[Rogues' Castle]]
+**The [[Scorpion Pit]]
+**The southern part of the [[Wilderness Agility Course]]
+*[[Wizards' Tower]]
+*[[Woodcutting Guild]]
+*[[Ancient Guthixian Temple]] - a unique multicombat arena; while the game considers it a [[Single-way combat]] zone, players can attack up to three [[Tormented Demon]]s at once who in turn can also all attack a single player if attacked first.
+
+==Area-of-effect attacks==
+Some [[weapons]], [[spells]] or [[equipment]] are capable of hitting multiple opponents in a single hit. Most of them can still be used in [[single-combat area]]s, but they can only hit multiple opponents while in a multi-combat area. 
+===Sources===
+
+Technically, the [[Dwarf multicannon]] is not a multi-hitting weapon; it simply shoots at many opponents very rapidly given that the player is not under attack or is in a multi-combat area.
+The [[Soulflame horn]], while not directly an attack, does affect allies within an area. 
+
+{| class="wikitable sortable"
+! Item / Spell / Ability
+! Mechanic Type
+! Special attack
+|-
+| {{plink|Burst spells|pic=Ice Burst}}
+| Target-based burst<ref name="burst">Hit targets in 3x3 around the target.</ref>
+| {{N/a}}
+|-
+| {{plink|Barrage spells|pic=Ice Barrage}}
+| Target-based burst<ref name="burst"/>
+| {{N/A}}
+|-
+| {{plink|Chinchompa|Chinchompas}}, {{plink|Red chinchompa}}, and {{plink|Black chinchompa|}}
+| Target-based burst<ref name="burst"/>
+| {{N/A}}
+|-
+| {{plink|Venator bow}}
+| Chain<ref name="chain">Bounces to secondary target(s) in range</ref>
+| {{N/A}}
+|-
+| {{plink|Scythe of Vitur}}
+| Cleave<ref name="cleave">Hit many targets and/or larger targets multiple times in a player-facing cone.</ref>
+| {{N/A}}
+|-
+| {{plink|Dinh's bulwark}}
+| Target-based burst
+| {{Yes}}
+|-
+| {{plink|Dragon halberd}}
+| Cleave<ref name="cleave"/>
+| {{Yes}}
+|-
+| {{plink|Crystal halberd}}
+| Cleave<ref name="cleave"/>
+| {{Yes}}
+|-
+| {{plink|Dragon 2h sword}}
+| Self-based burst<ref name="self-burst">Hit multiple targets in a burst centred on the player.</ref>
+| {{Yes}}
+|-
+| {{plink|Dragon crossbow}}
+| Target-based burst<ref name="burst"/>
+| {{Yes}}
+|-
+| {{plink|Rune thrownaxe}}
+| Chain<ref name="chain"/>
+| {{Yes}}
+|-
+| {{plink|Vesta's spear}}
+| Self-based burst<ref name="self-burst"/>
+| {{Yes}}
+|-
+| {{plink|Retribution}}<ref>Deal damage to surrounding opponents on the player's death.</ref>
+| Self-based burst<ref name="self-burst"/>
+| {{N/A}}
+|-
+| {{plink|Void seal}}<ref>Deal damage to all nearby pests when operated.</ref>
+| Self-based burst<ref name="self-burst"/>
+| {{N/A}}
+|-
+| {{plink|Hallowfell}}
+| Cleave<ref name="cleave">Hit many targets and/or larger targets multiple times in a player-facing cone.</ref>
+| {{N/A}}
+|}
+{{reflist}}
+
+===Mechanics===
+{{Sectstub}}
+====Enemies larger than 1 tile====
+When targeting large enemies, chinchompas, along with burst and barrage spells will usually centre their 3x3 area based on the target's [[true tile]]. This can lead to players feeling that the AoE effects are not working when a large NPC is directly north or east of another adjactent target.
+
+==Trivia==
+*Usually, when fighting a single [[monster]] with other players, the player that applied the most total damage at the end of the battle gets the monster's item/coin drop.
+*Players can aggravate multiple enemies by simply attacking all of them without killing them then running to a farther location. The [[aggressive]] monsters will follow the player causing the monsters to pile the player.
+*What determines if you are in able to attack someone else is based on the zone they are currently in, which means one could attack multiple targets simultaneously from a [[Single-way combat|single-combat zone]], as long as their opponents are in a multicombat area. This will also mean that only one person can attack you if you are in a single-combat area, with the exception of [[Recoil (disambiguation)|recoil]]-oriented damage (i.e. specific [[Ring of recoil|rings]], [[vengeance]] spells, and [[Dharok the Wretched's equipment|Dharok's Amulet-enhanced set effect]]) reverted back on you when performing multi-hitting attacks against multiple targets (that are in a multicombat area) simultaneously.
+
+{{Combat Mechanics}}

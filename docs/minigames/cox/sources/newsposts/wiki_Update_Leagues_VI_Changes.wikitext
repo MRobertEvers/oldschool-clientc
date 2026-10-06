@@ -1,0 +1,368 @@
+{{Update|date=23 April 2026|url=https://secure.runescape.com/m=news/leagues-vi-changes?oldschool=1|category=game}}
+[[File:Leagues VI Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+{| class="wikitable" style="text-align: center;"
+! Known Issues
+! Status
+|-
+| Leagues World 702 (US West) doesn't appear on the worlds list.
+| This is now resolved and 702 is back on the worlds list.
+|}
+
+----
+''Theories have met power - what a week it's been! Take a look at the initial tweaks for Leagues VI: Demonic Pacts...''
+
+==Changelog - April 23rd==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Leagues VI Changes'''
+
+
+* "Defeat Hueycoatl 1 time" has now become a pact reset task, which means completing it will give a reset point. If you've already completed this task, you'll be retroactively granted the reset point upon opening the Pacts interface.
+* Added pact points to the following existing pact tasks: (If you've already completed these pact tasks, pact points will be added to your account retroactively upon opening the Pacts interface. Note that the 40 pact points max limit will still apply.)
+** Equip an Obsidian Cape
+** Equip any piece of armour from the moons of peril
+** Equip an Echo weapon
+** Complete 1 Deep delve
+* Implemented improvements to rebalance some Demonic Pacts.
+** The boost for all Prayer penetration nodes have been increased to '''25% '''from 15%.
+** The boost for Accuracy ''small'' nodes have been increased to '''25% '''from 15%, and ''big ''nodes to''' 50% '''from 35%.
+** Small % damage nodes for Magic, Ranged and Melee now also give 10% to global accuracy.
+* Implemented rebalancing changes to some Echo Bosses. See the details further down the blog.
+* The Bow and Powered Staff within The Gauntlet will now correctly "Regenerate" ammo/charges, the same as the exception that was applied to the Bow of Faerdhinen pre-launch. This means the weapons will now benefit from various pacts.
+* Echo Thermonuclear smoke devil will now trigger thorns on its basic attacks.
+* Upon unlocking Asgarnia:
+** A Porcine of Interest, Sheep Shearer, Cook's Assistant and Restless Ghost quests will be auto-completed. This will also allow you to purchase the Lumbridge Painting from Sir Renitee for 2,000 coins.
+** The task "Give Thurgo a redberry pie" will be auto-completed.
+** If you've already unlocked Asgarnia, all of the above will be retroactively completed when you next open the Area/Relic interface.
+* Upon unlocking Kandarin:
+** Elemental Workshop II quest and the task to complete it will be auto-completed.
+** Likewise, the Skrach Uglogwee subquest from Recipe for Disaster will be auto-completed. This will also allow you to get raw jubblies by baiting them with balloon toads.
+** If you've already unlocked Kandarin, all of the above will be retroactively completed when you next open the Area/Relic interface.
+* Upon unlocking The Desert:
+** Shadow of the Storm quest and the task to complete it will be auto-completed.
+** If you've already unlocked The Desert, the above will be retroactively completed when you next open the Area/Relic interface.
+* Upon unlocking Morytania:
+** The task "Smuggle some rum" will be auto-completed.
+** The "Use an Ectophial to return to Port Phasmatys" medium diary will be auto-completed. This will also allow you to get Morytania Legs 2, which provides the Ghostspeak Amulet effect for claiming an Ectophial.
+** If you've already unlocked Morytania, all of the above will be retroactively completed when you next open the Area/Relic interface.
+* Upon unlocking Kourend:
+** The task "Craft 100 Aether Runes" will be auto-completed.
+** If you've already unlocked Kourend, the above will be retroactively completed when you next open the Area/Relic interface.
+* A new task has been added to the Fremennik Province: "Defeat Vorkath 15 times without leaving the area" which has replaced the "Equip a Dragon Crossbow" task.
+* Decorating a Magic Totem in Auburn Valley now completes both of the "Fully Decorate a Redwood Totem in the Auburn Valley" and "Fully Decorate a Magic Totem in the Auburn Valley" tasks.
+* Casting Paddewwa Teleport spell in The Desert will now complete the task, without actually teleporting the player.
+* Raw Cave Eels have been added to the Ardougne General Store, allowing you to spawn a Frogeel and complete the "Defeat a Frogeel" task.
+* Flask of Fervour now will no longer clear any antipoison you may have had.
+* Bert will now correctly deliver sand to your bank and properly update the Kandarin Diary progress.
+* Ammo fired from Dizana's Quiver will now regenerate correctly.
+* Endless Harvest no longer prevents trees grown in tree patches from depleting or being chopped down.
+* Endless Harvest will now automatically move to a new fishing spot, and and this should apply to all fish types.
+* Chopping Magic Logs in Tirannwn and Varlamore now correctly count for their respective tasks for the Endless Harvest relic.
+* The Flow State relic now correctly works with auto-chiselling dense essence blocks.
+* Grimoire relic now lets you use the Ourania Teleport.
+* The task to fletch 250 Redwood logs into Arrow shafts can now successfully be completed when you have the Woodsman relic active. This can’t be amended retroactively, so the task may need to be repeated to complete it.
+* With the Hotfoot relic active:
+** The Ape Atoll Agility Course will now give 2x laps.
+** The Prifddinas Agility Course will now give 2x laps.
+** The Varlamore Agility Course's leaderboard has been corrected to display the 2x laps.
+** The Brimhaven Agility ticket pillars will now give at least 2 before the passive modifiers.
+* Players with Barbarian Gathering can now complete the fishing section of the Barbarian Training miniquest.
+* Tasks assigned by Slayer Masters in Leagues VI now match their lists in the main game worlds, but Slayer Masters will still respect your area unlocks.
+* Slayer tasks for bosses now function and roll out correctly with Culling Spree.
+* Soul Shards can now be used to craft combo runes like Sunfire Runes.
+* Fixed a bug where Twisted Banshees weren't retaliating.
+
+====Other Changes====
+
+* The Easter Bunny has packed up the stalls and decorations, and the Easter 2026 Event has been removed.
+* You can now build storage units in the Chambers of Xeric without owning a Player-Owned House, provided you satisfy the Construction level requirements.
+* The Combat Achievements menu now shows the correct number of completed CAs for Brutus.
+* Durrik's Goods shop now has separate stocks for Irons and Mains.
+* Buying more cannon parts from Nulodion no longer prevents you from picking up a cannon that you'd already set up.
+* Teleporting by using an Ancient Magicks spell while under the effect of a Goblin Potion no longer causes stretching.
+* Using the Wiki button on items in the bank or the Grand Exchange no longer causes a crash on mobile.
+* You can now use the Wiki look-up functionality on items in the bank when the bank interface is open.
+* You can no longer run on water near the stepping stones on Karamja.
+
+====PvP Rota====
+The PvP rota has moved to '''Period A''':
+
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+==Leagues VI Changes==
+[[File:Leagues VI Changes (1).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-23/tree.png here]!'']]
+
+Ever since Leagues VI launched last week, Gielinor has been transformed by demonic power. We've been watching it all unfold: time off was booked, theories were crafted, routes were planned, and pacts were made... With the first week of ascended 'Scaping experience now behind us, it's time to roll out those initial tweaks for a smoother League journey. If you haven't seen already, you can check out all the hotfixes we've deployed so far in its [https://secure.runescape.com/m=news/leagues-vi-demonic-pacts---fixes--issues?oldschool=1 dedicated blog post]. Now, let's dive into what's changed with this particular update...
+
+===Demonic Pacts Changes===
+Earlier this week, we deployed a hotfix to give everyone 1 free reset for Demonic Pacts. In addition to that, with today's update, "Defeat Hueycoatl 1 time" has now become a pact reset task. This means completing it will give a reset point and if you've already completed this task, you'll be retroactively granted the reset point upon opening the Pacts interface.
+
+Furthermore, we've added pact points to the following existing tasks: 
+
+
+* Equip an Obsidian Cape
+* Equip any piece of armour from the moons of peril
+* Equip an Echo weapon
+* Complete 1 Deep delve
+
+If you've already completed these tasks, pact points will be added to your account retroactively upon opening the Pacts interface. '''Note that the 40 pact points max limit will still apply.'''
+
+Last but not least, we've implemented improvements to rebalance Demonic Pacts. 
+
+
+* The boost for all Prayer penetration nodes have been increased to '''25% '''from 15%.
+* The boost for Accuracy ''small ''nodes have been increased to '''25% '''from 15%, and ''big ''nodes to''' 50% '''from 35%.
+* Small % damage nodes for Magic, Ranged and Melee now also give 10% to global accuracy.
+
+===Echo Boss Balancing Changes===
+Echo bosses are key milestones in your Leagues journey, even more so this time with pact points and resets locked behind them. We agree with your feedback that they should be more style-agnostic, so we've adjusted some of the defence bonuses to make them easier for builds that were having an overly rough time.
+
+====Echo Amoxliatl====
+
+* Ranged defence reduced to '''40 '''from 200
+* Magic defence reduced to '''20 '''from 200
+
+====Echo Thermonuclear smoke devil====
+
+* Ranged defence reduced to '''90 '''from 900
+
+====Echo Dagannoth Kings====
+
+* '''Echo Dagannoth Rex:'''
+** Melee defence reduced to '''100 '''from 255
+** Ranged defence reduced to '''100 '''from 255
+* '''Echo Dagannoth Prime:'''
+** Melee defence reduced to '''100 '''from 255
+** Magic defence reduced to '''100 '''from 255
+* '''Echo Dagannoth Supreme:'''
+** Ranged defence reduced to '''150''' from 550
+** Magic defence reduced to '''100 '''from 255
+
+====Echo Kalphite Queen====
+
+* Crawling:
+** Ranged defence reduced to '''65 '''from 100
+** Magic defence reduced to '''65 '''from 100
+* Airborne:
+** Melee defence reduced to '''50 '''from 100
+
+====Echo Cerberus====
+
+* Ranged defence reduced to '''70 '''from 100
+* Magic defence reduced to '''70 '''from 100
+
+====Additional Echo Boss changes:====
+
+* The Bow and Powered Staff within The Gauntlet will now correctly "Regenerate" ammo/charges, the same as the exception that was applied to the Bow of Faerdhinen pre-launch. This means the weapons will now benefit from various pacts.
+* Echo Thermonuclear smoke devil will now trigger thorns on its basic attacks.
+
+===Area Unlock Changes===
+====Upon unlocking Asgarnia:====
+
+* A Porcine of Interest, Sheep Shearer, Cook's Assistant and Restless Ghost quests will be auto-completed. This will also allow you to purchase the Lumbridge Painting from Sir Renitee for 2,000 coins.
+* The task "Give Thurgo a redberry pie" will be auto-completed.
+* If you've already unlocked Asgarnia, all of the above will be retroactively completed when you next open the Area/Relic interface.
+
+====Upon unlocking Kandarin:====
+
+* Elemental Workshop II quest and the task to complete it will be auto-completed.
+* Likewise, the Skrach Uglogwee subquest from Recipe for Disaster will be auto-completed. This will also allow you to get raw jubblies by baiting them with balloon toads.
+* If you've already unlocked Kandarin, all of the above will be retroactively completed when you next open the Area/Relic interface.
+
+====Upon unlocking The Desert:====
+
+* Shadow of the Storm quest and the task to complete it will be auto-completed.
+* If you've already unlocked The Desert, the above will be retroactively completed when you next open the Area/Relic interface.
+
+====Upon unlocking Morytania:====
+
+* The task "Smuggle some rum" will be auto-completed.
+* The "Use an Ectophial to return to Port Phasmatys" medium diary will be auto-completed. This will also allow you to get Morytania Legs 2, which provides the Ghostspeak Amulet effect for claiming an Ectophial.
+* If you've already unlocked Morytania, all of the above will be retroactively completed when you next open the Area/Relic interface.
+
+====Upon unlocking Kourend:====
+
+* The task "Craft 100 Aether Runes" will be auto-completed.
+* If you've already unlocked Kourend, the above will be retroactively completed when you next open the Area/Relic interface.
+
+===More Task-Related Changes===
+
+* A new task has been added to the Fremmenik Province: "Defeat Vorkath 15 times without leaving the area" which has replaced the "Equip a Dragon Crossbow" task, so that any player can complete it regardless of their region unlocks.
+* Decorating a Magic Totem in Auburn Valley now completes both of the "Fully Decorate a Redwood Totem in the Auburn Valley" and "Fully Decorate a Magic Totem in the Auburn Valley" tasks.
+* Casting Paddewwa Teleport spell in The Desert will now complete the task, without actually teleporting the player.
+* Raw Cave Eels have been added to the Ardougne General Store, allowing you to spawn a Frogeel and complete the "Defeat a Frogeel" task.
+* Flask of Fervour now will no longer clear any antipoison you may have had.
+* Bert will now correctly deliver sand to your bank and properly update the Kandarin Diary progress.
+
+===Relic-Related Changes===
+
+* Endless Harvest no longer prevents trees grown in tree patches from depleting or being chopped down.
+* Endless Harvest will now automatically move to a new fishing spot, and this should apply to all fish types.
+* Chopping Magic Logs in Tirannwn and Varlamore now correctly count for their respective tasks for the Endless Harvest relic.
+* The Flow State relic now correctly works with auto-chiselling dense essence blocks.
+* Grimoire relic now lets you use the Ourania Teleport.
+* The task to fletch 250 Redwood logs into Arrow shafts can now successfully be completed when you have the Woodsman relic active. This can’t be amended retroactively, so the task may need to be repeated to complete it.
+* With the Hotfoot relic active:
+** The Ape Atoll Agility Course will now give 2x laps.
+** The Prifddinas Agility Course will now give 2x laps.
+** The Varlamore Agility Course's leaderboard has been corrected to display the 2x laps.
+** The Brimhaven Agility ticket pillars will now give at least 2 before the passive modifiers.
+* Players with Barbarian Gathering can now complete the fishing section of the Barbarian Training miniquest.
+
+===Slayer Adjustments===
+
+* Tasks assigned by Slayer Masters in Leagues VI now match their lists in the main game worlds. This means you can be assigned Slayer tasks for monsters such as Naguas, Warped creatures, Metal Dragons, Dagannoths and more. Note that the Slayer Masters will still obey the area restrictions.
+* In the same vein, Slayer tasks for bosses now function and roll out correctly with Culling Spree.
+
+===Additional Changes===
+
+* Ammo fired from Dizana's Quiver will now regenerate correctly.
+* Soul Shards can now be used to craft combo runes like Sunfire Runes.
+* Fixed a bug where Twisted Banshees weren't retaliating.
+
+===New Leagues VI Worlds for Activities===
+{| class="wikitable" style="text-align: center;"
+|-
+! 
+! US East
+! US West
+! UK
+! Europe
+! Australia
+|-
+! Theatre of Blood
+| 658
+| 722
+| 684
+| 749
+| 728
+|-
+! Chambers of Xeric
+| 659
+| 723
+| 685
+| 750
+| 729
+|-
+! Tombs of Amascut
+| 657
+| 721
+| 683
+| 748
+| 727
+|-
+! Group PvM
+| 651
+| 716
+| 678
+| 743
+| 594
+|-
+! Hueycoatl
+| 655
+| 719
+| 681
+| 746
+| 725
+|-
+! Blast Furnace
+| 652
+| 717
+| -
+| 744
+| -
+|-
+! Guardians of the Rift
+| 656
+| 720
+| 682
+| 747
+| 726
+|-
+! Forestry
+| 654
+| 718
+| -
+| 745
+| -
+|-
+! Sorceress's Garden
+| 653
+| -
+| 680
+| -
+| 724
+|}
+===Leagues VI Community Playlist on Youtube===
+With every League, the community delivers incredible content on YouTube! Whether it’s discussing which relics and areas to unlock or sharing the adventure of blasting through tasks, we’ve been keeping an eye on all things Leagues VI on Youtube. Below you'll find a <u>[https://youtube.com/playlist?list=PLRs68iqW7gYti_BpccFdHxZ_jXuUazTHJ&si=cpFt6HSTtEK5ic6o playlist]</u>we've put together featuring the latest from some of your favourite creators. Check it out for guides, tips and tricks, and what the community has been up to in their Leagues VI journey!
+<center>
+{{Youtube|type=playlist|PLRs68iqW7gYti_BpccFdHxZ_jXuUazTHJ}}
+Accept [# marketing cookies] to watch this video here.
+Alternatively, [https://youtube.com/playlist?list=PLRs68iqW7gYti_BpccFdHxZ_jXuUazTHJ&si=JIzxGjF07VEiZbfi watch on YouTube]
+</center>
+
+
+''Click [https://www.youtube.com/playlist?list=PLRs68iqW7gYti_BpccFdHxZ_jXuUazTHJ here] to watch the playlist in a new tab!''
+
+If you have other community-created Leagues VI video suggestions that aren't on this playlist, let us know on our social platforms.
+
+===Leagues VI Discord Leaders===
+Earlier this week, we started a Community Spotlight series, kicking things off with the wonderful Admins of the <u>[https://discord.com/invite/vbhPUHU Leagues Discord Server]</u>! This team of Leagues legends launched the community space back in 2019 and it has been the go-to place for reveal discussions, theory-crafting and finding comradery with fellow Leagues lovers. Join the <u>[https://discord.com/invite/vbhPUHU Leagues Discord Server]</u> for and check out the <u>[https://secure.runescape.com/m=news/community-spotlight-leagues-discord-leaders?oldschool=1 dedicated blog]</u> to get to know the admins Wolaznik, Spiedie, Hammer and Chardo. 
+
+[[File:Leagues VI Changes (2).png|103px]]
+
+[[File:Leagues VI Changes (3).png|103px]]
+
+[[File:Leagues VI Changes (4).png|103px]]
+
+[[File:Leagues VI Changes (5).png|97px]]
+
+==Other Changes==
+
+* The Easter Bunny has packed up the stalls and decorations, and the Easter 2026 Event has been removed.
+* You can now build storage units in the Chambers of Xeric without owning a Player-Owned House, provided you satisfy the Construction level requirements.
+* The Combat Achievements menu now shows the correct number of completed CAs for Brutus.
+* Durrik's Goods shop now has separate stocks for Irons and Mains.
+* Buying more cannon parts from Nulodion no longer prevents you from picking up a cannon that you'd already set up.
+* Teleporting by using an Ancient Magicks spell while under the effect of a Goblin Potion no longer causes stretching.
+* Using the Wiki button on items in the bank or the Grand Exchange no longer causes a crash on mobile.
+* You can now use the Wiki look-up functionality on items in the bank when the bank interface is open.
+* You can no longer run on water near the stepping stones on Karamja.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Default, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Lotus, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume'''
+
+''The Old School Team.''

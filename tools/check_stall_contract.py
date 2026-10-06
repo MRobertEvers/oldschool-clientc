@@ -23,6 +23,8 @@ import os
 import re
 import sys
 
+import config_text
+
 WIKI = "docs/skills/thieving/sources/Stall_Thievable.wiki"
 ROWS = ("OSRS-Content/osrs239-content/server/scripts/skill_thieving/configs/"
         "stalls/stealing.dbrow")
@@ -57,7 +59,7 @@ def wiki_rows(path):
 
 
 def our_rows(path):
-    text = io.open(path, encoding="utf-8", errors="replace").read()
+    text = config_text.read_text(path, encoding="utf-8", errors="replace")
     out, block = {}, None
     for line in text.split("\n"):
         m = re.match(r"^\[([a-z0-9_]+)\]$", line.strip())

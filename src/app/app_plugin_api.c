@@ -302,10 +302,10 @@ App_SetCameraPose(struct App* app, int yaw, int pitch, int zoom)
     /* Render skip: a skipped frame is drawn late with the camera it had,
      * before this write moves world_camera (App_RenderSkipCatchUp). */
     (void)App_RenderSkipCatchUp(app);
-    app->orbit.yaw = app->world_camera.yaw = yaw & 2047;
-    app->orbit.pitch = app->world_camera.pitch = pitch;
-    app->world_cam_zoom = zoom;
-    app->orbit.yaw_velocity = app->orbit.pitch_velocity = 0;
+    app->frame_view->orbit.yaw = app->frame_view->world_camera.yaw = yaw & 2047;
+    app->frame_view->orbit.pitch = app->frame_view->world_camera.pitch = pitch;
+    app->frame_view->world_cam_zoom = zoom;
+    app->frame_view->orbit.yaw_velocity = app->frame_view->orbit.pitch_velocity = 0;
     app->need_redraw = 1;
     return true;
 }
@@ -402,7 +402,7 @@ App_MinimenuRowCenter(
     assert(prefix);
     assert(out_x);
     assert(out_y);
-    menu = &app->interact.minimenu;
+    menu = app->frame_view->minimenu;
     if( !menu->visible )
         return false;
     prefix_len = strlen(prefix);

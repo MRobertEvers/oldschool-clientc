@@ -1,0 +1,257 @@
+{{Update|date=12 October 2022|link=https://secure.runescape.com/m=news/qa-summary-06102022?oldschool=1|category=community}}
+[[File:Q&A Summary 06-10-2022 newspost.png|right]]
+{{clear}}
+This week's livestream focused on answering some general Q&A! We answered a range of questions about the game, including:
+* [[#Question #5|Content we'd love to see]]
+* [[#Question #8|Shopscape and its current status]]
+* [[#Question #11|Bad Luck Protection]]
+* [[#Question #14|Possible updates for Slayer]]
+* [[#Question #19|Struggles as a Developer]]
+
+Thanks to Mod Light (Community Manager), Mod Kieren (Associate Design Director), Mod Ash (Product Manager), Mod Bruno (QA Analyst) and Mod Kirby (Junior Content Developer) for their insight!
+
+'''DISCLAIMER:''' Livestreams are a glimpse into the ongoing creative process at Jagex. JMods are speaking off-the-cuff and their comments are not intended to be read in the same way as prepared updates from the company. Please keep this in mind when discussing the Q&A!
+
+Missed the livestream? Check out the full transcript below!
+
+__TOC__
+==Question #1==
+{{Cquote2|Now that Raids 3 has been released, when will we find out about future updates? We’d love to see what the roadmap has in store next!}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=291s Youtube Time Stamp]
+
+* '''Mod Light:''' I would like to let you know that you'll find out more about our future updates at the next summit.
+* '''Mod Light:''' I can't tell you a date yet, but it will be happening in winter. We're planning to give a presentation-style stream similar to how we handled the Summer Summit. When we're ready to share that with you, more news will be coming officially on that.
+
+==Question #2==
+{{Cquote2|When can we start storing multiple accounts on Jagex Launcher?}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=325s Youtube Time Stamp]
+
+* '''Mod Light:''' I've talked with Ayiza about this question. You can expect more news on this relatively soon. Ayiza has said you can expect it to come in the upcoming weeks. I know that he was in a meeting about the Jagex launcher today, so all I can assume is that there is movement on it. We'll share more information when we're ready to, in the next coming weeks.
+
+==Question #3==
+{{Cquote2|Can you tell us a bit more about the projects which were presented in your last Game Jam? We’d love to know which if any were green-lighted to go further. Also, were there any that didn’t get a response you had hoped for, but you think would be a significant contribution to the main game?}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=358s Youtube Time Stamp]
+
+* '''Mod Ash:''' One of them has already been launched, from me. What I pitched were the additional modes for Last Man Standing that we'd always said could be made to support alternate modes. I'd hoped that would happen last year, but it got a new map instead at the time.
+* '''Mod Ash:''' I finally had a week that I could just go and programme it.  We couldn't do the whole thing in the week, it's not that small an update! But it was a great time to get most of the infrastructure in place, and much thanks to Mod Goblin for working with players to help get feedback on the loadout. I'm very pleased that we got that one out there. It was a small update but a lot more variety for the mini-game as a consequence.
+* '''Mod Ash:''' In terms of the other projects, Tasakaal Trials got a really good response from what I've seen, and I very much hope that's going to be able to go forward. It won't be this year - you can kind of guess that from the fact it's October - but we think that will be a very good one to put to the players.
+* '''Mod Ash:''' Also, a special call out for Soff with the Wilderness; it's a massive expansion! That's a big one; frankly, we think pulling that one off is a very tall order. Beyond the work we're doing with the bosses at the moment - and hopefully another Bounty Hunter next year - I'd like us to be able to look towards something of that scale. I think the area deserves it, and there's a lot in there that players can have a lot of fun with.
+* '''Mod Ash:''' There was some good skilling stuff as well. Forestry stands out as one that could well turn up next year as a skilling update so that it is not all bashing things. We hope to get more of them in there. Of course, just because we pitch something at Game Jam doesn't mean that it's definitely going ahead. Maybe the next Game Jam will pitch an even better idea that we should do instead of it. There are always more ideas and players with ideas. It's been a while since we saw a Community Design Competition.
+* '''Mod Kirby:''' So, we have the combat achievements interface, which is very pretty. You can filter your tasks by criteria like bosses, difficulty, etc.
+* '''Mod Kirby:''' With the Achievement Diaries, you get a little fake quest scroll from way back instead of anything useful. There is a disparity in the technology that also plays to the backend systems where it's not exactly pretty to add, remove or update any of the tasks because that task list is from basically when it launched.
+* '''Mod Kirby:''' It's a shame because we've released a lot of good content since then. So, it'd be nice to encourage players to experience that content for the first time. Also, if we make you do different tasks, it makes sense to update the rewards simultaneously and maybe change some of them so that the teleports are consistent.
+* '''Mod Bruno:''' As for me, I'd really want to work on Taskaal Trials. That looks like a really fun piece of content. Also, the Dog Quest... We need a Dog Quest in RuneScape!
+* '''Mod Kieren:''' I'm going to echo the Dog Quest. It's less about the quest and more about the fact that I want pet dogs of various kinds! Dog Quest is a good way to get them!
+* '''Mod Kieren:''' Dog Quest seems to have become the official name at this point. Gertrude's Dog, right? It stuck with us.
+* '''Mod Ash:''' I think the title "Dogs of Gielinor" would work quite well because our projects tend to have a newer code prefix. Like Tombs of Amascut was ToA, Chambers of Xervic could have been CoX. "The Dogs of Gielinor" would have been the prefix of the DOG, which works quite well.
+* '''Mod Light:''' I was gonna say Dog's Quest, too. I'm a really casual player, so it appeals to me so much. We can't really talk about what projects we're going to be taking further because, as I mentioned, there's going to be a summit-style stream where we'll talk a bit more about our roadmap, but Dog's Quest is my personal favourite.
+
+==Question #4==
+{{Cquote2|Can the Jar of Darkness drop rate be looked at again? The previous poll failed by 3%, presumably partly because the 1/500 rate that was polled was still too rare for some voters. Also, when is the next content Poll coming out?}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=734s Youtube Time Stamp]
+
+* '''Mod Light:''' We have good news! This particular topic is going to be brought up in Poll 77, and it's coming up relatively soon. So, adjustments will be made to the rate that the Jar of Darkness drops. It will be polled. No adjustments will be made until it passes the poll, as well as the stale baguette, which we know is something that has come up a lot in player feedback.
+* '''Mod Light:''' More information is going to be in the Poll 77 blog. I don't have an ETA for you on that. We expect it to come as soon as the team has finished giving feedback on it, and it's gone through all our usual processes.
+* '''Mod Kieren:''' I think it's an awkward one because it's tradable. It has a price associated with it. There's some prestige with players who have got it. These ones are always difficult, because we feel like we probably made a mistake. We made the Jar of Darkness too rare, given how you interact with Skotizo getting the totems.
+* '''Mod Kieren:''' Similar to the stale baguette, you have to get the right random event and then get lucky on top of that. The odds stack means it is a hard item to get. Because they're tradable, it can be quite difficult to change them and for players to be happy on both sides. So I'd be interested in what the community thinks. If they are untradable, it'd be a lot easier!
+* '''Mod Bruno:''' We were maybe a bit too harsh when we released them. I wouldn't mind rebalancing that as long as the community is happy with it.
+
+==Question #5==
+{{Cquote2|What new ideas or pieces of content would you love to see in the game, or what changes would you love to see implemented for existing content?}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=879s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I'll give my standard answer of the Completionist Cape. I'd love to have Completionist Cape added to the game at some point, where we can just give people a list of everything to complete and then people can go complete them and brag about them.
+* '''Mod Ash:''' It may not count as being in the game, but I'd like a lobby! There's been some pushback for it before when it's been discussed, but you've already got the ''Message of the Week'' screen with info on it and links to useful stuff about your account, like how much credit you have left. The fact that you're in-game while reading that screen is not helpful for anybody. If anything, it might be a bit dangerous.
+* '''Mod Ash:''' I'd prefer that you'd be in a lobby - we could add chat, so you can chat with other players in there - and you could interact with that screen a lot more safely without the game being hidden behind it with things potentially going on around you. We can disable the 'Message of the Week' screen in the most dangerous areas, but a lobby is still something I've always wanted.
+* '''Mod Ash:''' You might find that we build you a better world-switching menu than the login screen currently has. If it were built into a lobby where we can actually script rather than being restricted to - respectfully - what the game engine had in 2007.
+* '''Mod Ash:''' Apart from that, if we're looking at changes to existing content, I want a pop-up in the bank that would let you change the contents of your Rune Pouch flexibly while the bank is open to put things in and out of it.
+* '''Mod Kirby:''' Quests! You know Slug Menace? I want a sequel to Slug Menace! Various other quests too, but honestly, I really liked the concept of Sea Slug and Slug Menace. I'd like a bit more there.
+* '''Mod Kieren:''' Just not the same sequel where you use the pillar to kill the final exciting boss.
+* '''Mod Ash:''' I think it would be appropriate if we have such a fight that there is a pillar with a push option. You push it, it falls, and it lands on her, and she's fine! She's actually really powerful, and she says, ''Well, what do you think that was gonna do?''. I'd like to see that.
+* '''Mod Kieren:''' Something completely wild. I'm interested in this concept of being able to own buildings or plots in the real world.
+* '''Mod Kieren:''' Now, this feature is sometimes present in other games, it wouldn't be unique to Old School. It would be completely different to anything we've done before in Old School. I imagine a plot of land somewhere in the world that goes to auction, you could bid with gold, and the highest bid wins.
+* '''Mod Kieren:''' We sink that gold, so it's great for a gold sink. Then, you get this spot that you can customise and do various things with - imagine a version of the Achievement Gallery, where your achievements are on the actual maps and others can see them.
+* '''Mod Kieren:''' I'm not sure how players would feel about that concept; it's not something I'm saying we're going to be doing. It's just a really interesting idea of how we could bring something more multiplayer-focused and world-changing based on the events of what the actual community does.
+* '''Mod Kieren:''' It's slightly different to POH. In essence, it is a customisable house, so there is a common overlap, but being able to put it on the world map where somebody can see it when they're just wandering around the game world. Something that would be somewhat similar to Final Fantasy XIV, that kind of concept.
+* '''Mod Light:''' This idea occurred to me when I was attending an event from a player who was organising a march. I struggled because I couldn't see the actual player who was organising the event amongst the masses of people within the game. So, what I thought would be really handy was if there was some way of making event organisers visually distinct - like a tag - just so that you can see them better. Alternatively, when they're chatting in the game, we could see what they're writing because, obviously, they're probably going to write something related to the event, and there are a lot of players talking a lot when you're attending an event. This could be very helpful when organising events!
+* '''Mod Light:''' As for existing content, I'd love to see an incentive for people in the PvP Arena. There are a lot of complaints about the lack of rewards - I know that they failed the poll several times, which has affected player sentiment about it. I had a lot of fun when I play-tested the PvP Arena myself, even as someone who's super casual, so it's a shame that the PvP Arena doesn't have the rewards incentive as much to it. If we could ever agree on good rewards, that would be nice, and this is something that I'd love to change, but I don't know if it's possible.
+
+==Question #6==
+{{Cquote2|There has been a lot of concern from the PvP community about the way that PvP rewards get polled. Players are worried that perfectly legitimate items will fail the poll due to spite voting. What are your thoughts on this in light of the recent Wildy Boss Rewards? Can we restrict all PvP questions in the future, or even put them into the game without pulling them at all? You already have a PvP discord for legit feedback. }}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=1308s Youtube Time Stamp]
+
+* '''Mod Kirby:''' Conveniently, I believe that Ayiza gave some prerequisites in the WBR blog. One: we can still balance the bosses themselves to have good GP per hour with or without the bonus rewards. Two: while the current rewards are good, if these fail, we can just rework them and come back to them at a later time, as we did with the current Revenant weapons as they exist in the game.
+* '''Mod Kirby:''' Also, these Revenant weapons aren't just PvP weapons - we're putting a Tier 75 beatstick in there!  That will be good for all players, regardless of what you're actually doing in terms of actual activity in the game. Restricting it to a PvP poll isn't exactly appropriate, and as we've seen in the past, just restricting is no guarantee it's going to pass either. The PvP Arena rewards failed, despite being restricted and having a lot of feedback go through the PvP Discord as well.
+* '''Mod Kirby:''' In this instance, it's nice that there's not too much negativity towards the rewards themselves. So, I'm confident that rewards are in a good space overall, even with the open polling, but I don't think restricting them or forcing them through unpolled is a healthy way to go about things.
+
+==Question #7==
+{{Cquote2|Are there any plans to address Phosani's Nightmare? It's one of the toughest bosses in the game, but GP/hr is now lower than far easier content. Why would mains kill this boss rather than the Giant Mole? }}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=1450s Youtube Time Stamp]
+
+* '''Mod Light:''' We talked about this earlier in the week - we have a Weekly Suggestions Meeting where we discuss player suggestions. The consensus was that Nightmare should not be a cash cow piece of content. We need to strike a balance with this because of the number of uniques coming from Nightmare. 
+* '''Mod Light:''' We do think that the price of uniques has been affected by ToA. There is an option to sink more through the GE tax, but uniques will lose their appeal unless we potentially buff them in a unique way. We could look at putting the Harmonised Orb in a better place, but in order to do this, we might look at changing the normal Spellbook. Standard spells currently don't scale with level, so if we rework that, that might help with the price of the Harmonised Orb. 
+* '''Mod Light:''' We'll keep this in mind, but in terms of straight-up buffs, we won't be able to do anything at this stage. We'll probably look at it in terms of a Game Jam project.
+* '''Mod Bruno:''' I think it's in an unfortunate position where a slight power creep has made the uniques from Nightmare less useful than they are worth because of how long it takes to get them. So, items like the new staff from the Tombs and Torva from Nex can make those unique items less good. They're still good but not as best-in-slot as they used to be. I'm not sure how we should fix or update that, but I think it should be improved.
+* '''Mod Kirby:''' I think the staff's problem is that it's heavily tied to the standard Spellbook. You are required to pair it with a Tome of Fire, which restricts you from what you can equip it with. You can't take a Spectral or anything with you at the same time.
+* '''Mod Kirby:''' Those two just get out-classed by, say, a new raid reward plus any given shield item; you can see where the loss of value comes from. Phosani's Nightmare, in my opinion, is still probably the best solo piece of content we have in terms of just an individual boss fight, but that might just be because I helped make it!
+* '''Mod Kieren:''' At the end of the day, the item's price is a result of how rare it is - the supply and the demand in terms of how good it is. You can see the price of the Harmonised Orb right now has fallen quite a lot, and this is an item that is quite rare compared to other uniques from other bosses. We all know that Nightmares' drop rates are very low compared to Graardor, and you get something every 120-odd kills.
+* '''Mod Kieren:''' That's where I feel the issue lies. It's just too niche, it's good at the specific thing it's good at, but it's just not wide enough that it can carry a better drop rate or a much better price.
+* '''Mod Kieren:''' We don't know what the solution is overall, other than potentially sinking more for the G, but it's certainly a conversation in trying to work out: ''How can we make either the Harmonised Orb better or make for Phosani's Nightmare worth doing in a way that isn't just bulking out the regular drop table?''
+* '''Mod Ash:''' In the meantime, though it is only a stopgap and not a great solution, we do intend to sink more via the GE tax in the short term while we look at possibilities for what would make it more desirable.
+
+==Question #8==
+{{Cquote2|Any chance the team would revisit the idea of changing Shopscape for irons? One of the most tedious and pointless things in the game is having to hop a 100 worlds so you can stock up on runes. }}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=1702s Youtube Time Stamp]
+
+* '''Mod Kieren:''' I agree. It's tedious. It's awful. It's not fun. So, as designers, we don't want people doing that. It's not fun for any Ironman to sit there hopping worlds, competing with other Ironmen for the same stock when the shops restock slowly, and the costs skyrocket when ten or so are purchased.
+* '''Mod Kieren:''' We did improve the shop of Lunar Isle recently so that it doesn't scale the price up so fast when they buy the stock, which essentially just increases the amount of buyable stock in the game.
+* '''Mod Kieren:''' It takes hours and hours of messing around with shops, and I think Gold Ore is one of the worst culprits compared to runes. Ideally, it's more interesting if there's an interesting way to get these items. Think of the sand solution - we added the sand grinder, which made getting sand and even paying for it far more interesting than just saying, “here's a bunch of packs in the shop.”
+* '''Mod Kieren:''' However, I think there's a balance to be struck. Until we add those better scaling systems and better solutions, we shouldn't be leaving it as painful as it is. This is my view, and I'd happily see more rune packs and stock increases. You're spending the gold anyway, so what's the point of making you spread it out over 4, 5, 6 hours of hopping worlds to buy them one at a time and getting frustrated when it's a busy time, and there are other people buying the stock up before you. It's just not fun, and we shouldn't leave our players to do something that tedious.
+* '''Mod Light:''' I've seen a lot of comments about it myself, and I know that the dev team does want to encourage players to obtain runes in a more gameplay-oriented way. For Guardians of the Rifts, we wanted to encourage people to interact with the minigame in order to get the kind of runes that they wanted, and I think that was successful.
+* '''Mod Light:''' It's clear that there's still an issue with shopscape for some Irons because they keep bringing it up to us. So, I'd be keen for any changes in that area. 
+* '''Mod Ash:'''  It is hard for skilling activities to compete with the rates that the shop could pump them out. However, coin shops are not the only kind of shop available. One discussion that didn't get agreed on at the time but could have been revisited was whether the reward shop from Guardians of the Rift could sell packs of runes so that rather than going to the coin shop, you'd be playing a minigame and coming away with stacks of runes that way.
+
+==Question #9==
+{{Cquote2|Will the ToA design philosophy be used for most/all future content? That is, the concept of having a boss that is easy at its core, but which can be made more difficult by turning on optional mechanics? Will we ever see something like the inferno or ToB again?}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=1923s Youtube Time Stamp]
+
+* '''Mod Ash:''' That can certainly work with replayable content, and I do expect there'll be more use for it. We're very much aware of the interest in seeing Chambers of Xeric and ToB get some kind of scaling feature. You know how painful it is to customise your CoX grades with alts and scouts, etc. So a feature for customising it via a coin sink is well worth offering. 
+* '''Mod Ash:''' In the few discussions I've had with players, it seems like something people would be willing to get behind even for quite a lot of coins, so that could be worth pursuing. Now that said, I also think there'll be a need for truly elite content in the game, and there's something about an Infernal Cape rather than ToA on a particular setting. While it may be as difficult and as great an achievement, it doesn't have the same ring to it because there are so many other versions available. So, I think there will be a need for truly elite content, so the best of the best can get their flex off. 
+* '''Mod Ash:''' On the other hand, a project like ToA took nearly a year from quite a large chunk of the team. If we're going to put in that much time on something, and therefore they're not available to make other things for other players, we want the thing they're producing at the end of all that time to be something a lot of you can engage in. That means making it in a way that mid-level and above can plausibly have some fun with, and invocations and scaling options seem like a good way of offering that. This doesn't mean there can't be really elite stuff, but that might be more the size of the Inferno than a raiding dungeon. I doubt we do another thing on the scale of ToB that was so inaccessible to the casual player.
+* '''Mod Kieren:''' The only thing I wanted to expand on a bit other than scaling was that ToB's death system was so harsh. It made it hard to get into the content and learn it because you think that you have to fight so many bosses, and then finally do Verzik. To practice Verzick was actually quite hard. So, you can do the first four in any order in the new raid, but you also have better ways to get to grips with it. 
+* '''Mod Kieren:''' Anybody who is familiar with high-end raids, and not just Old School, and not just Runescape, but other titles as well know that finding teams is hard. You have this vicious circle of teams requesting only people who've done 50 kill counts, etc. How do you get your first kill count if you can't get a team because all the teams require you to already know it? That is a big problem games face. We want to make that a better journey and provide a journey that you can actually learn the content by and get into it and get to a higher level. 
+* '''Mod Kieren:''' Ash covered it really well - raids are expensive to make. It's not only invocations - they aren't the only way to scale up content, and that might well be something we experiment more with in the future and offer it in different systems. Some content that Runescape has done boss-wise; there are enrage systems that scale up the more you defeat it, and you unlock higher enrage options. That essentially ends up being sort of a difficulty slider rather than a completely customizable ''choose your invocation'' feature.
+* '''Mod Kieren:''' We could experiment with a lot, and we've learned already from doing invocations. Balancing them is really quite hard and takes a lot of effort, and I wouldn't say it's perfect by any means. So, we'll see what happens in future content.
+* '''Mod Bruno:''' I think it's been very well made for the Tombs of Amascut. I definitely don't think we're gonna be doing it for everything, but we'll do it when it makes sense, like with a bigger raid or a bigger piece of content. Say we add a new boss, I wouldn't expect it to come out with one of those, though you might get one of the twists. I'm not going to say definitely because that's a strong word, but I think we'll most likely get something big like Theatre of Blood or the Inferno at some point in the future.
+* '''Mod Kirby:''' I feel like having the scaling stuff is slowly going to become a requirement for group content, because we're going to get players with different proficiencies and experience levels with the game. For them to play together, you need to reliably have it at the lowest sort of denominator of who can actually access it. Obviously, that's gonna be different for different groups of people.
+* '''Mod Kirby:''' You want your sweaty group to be able to go, "okay, we'd like to have all the invocations and die in two seconds to everything", but for getting Mod Light into a party, I think I'd like to turn the difficulty down a little bit - no shade.
+* '''Mod Light:''' I love accessibility and for what it's worth, I think games thrive with both accessible content, but also flashy content that your top-level players can flip. I'm just glad that players received it so well. There was a bit of concern that our high-level players wouldn't accept it as much because it's something new, but actually, high-level players are seemingly really enjoying the new invocation system and having a lot of fun with it.
+
+==Question #10==
+{{Cquote2|When are the ToA Combat Achievements expected to come out?}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=2344s Youtube Time Stamp]
+
+* '''Mod Ash:''' They were all going through testing as part of development. I'd expect to see them out for Christmas if all goes well. I don't know the exact date.
+* '''Mod Bruno:''' What Ash said - it's being developed so expect them this year hopefully, as long as nothing goes terribly wrong.
+* '''Mod Kieren:''' I just quickly want to expand that we're looking to see if we can do a Rewards Pass with these new combat achievements and see if we can bulk of the rewards, especially of the lower tiers which feel quite lacking. But that's all being discussed, and might well come with this.
+
+==Question #11==
+{{Cquote2|There has been a somewhat unwelcome trend creeping in new content releases where untradeable random drops are mandatory for doing the activity efficiently. Going dry on these items feels terrible and there is literally nothing that a player can do to control it. Would you be open to adding "bad luck protection" to these items, or better yet making obtaining them guaranteed by some alternative means?}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=2401s Youtube Time Stamp]
+
+* '''Mod Kieren:''' I see where they're coming from, and bad luck protection is an interesting area. We've done a little bit -  we have it currently at Vorkath's head; you're currently guaranteed it off 50 kills at Vorkath. You also guaranteed it with the Kalphite Queen in the diary task.
+* '''Mod Kieren:''' In essence, it feels anti-Old School. This is part of the game, but I also don't like it because it can be very unfair when you know one person gets the big benefit straightaway and others go stupidly dry on it. You can use other examples - it's much more present in Ironman because something like the Dragon Warhammer is 1/5000. You hear of people who got 20,000 kills and don't get it, and other people who get it up kill count 200.
+* '''Mod Kieren:''' So it's a huge swing on some people who are really happy, and some people are sinking hundreds of hours to get the drop. I think an alternative way you could do this is instead of offering it as one item, that's 1/5000, for example - you have to get like 100 shards that are all 1/50. In that sense, your variability would drastically decrease because even if you were really unlucky, you're probably not going to go 20,000 if you run the maths on it at all.
+* '''Mod Kieren:''' There are alternative ways to look at this. It just doesn't feel as satisfying when you get that major drop - you lose that drop hype of, "Oh my god, that Dragon Warhammer is on the floor!". Maybe this can work well in smaller doses with things like the thread from your rune pouch upgrade or your Vorkath's head, something where it makes a little bit more sense to be fairer with them. I don't know all the answers, just interesting thoughts.
+* '''Mod Ash:''' For what it's worth, we can distinguish between generally useful items and items that are just for that one activity, for example, the tablet for teleporting to Slepe. That really makes a difference if you're doing it efficiently. We can treat them differently from the big-ticket items.
+* '''Mod Ash:''' Now you want the hype of getting the big-ticket item as a rare drop. We made a dungeon like that long ago in RS3 that gave almost everything via the shards approach that Kieren was describing - the Polypore Dungeon. Anyway, almost everything in there came via the shards approach, and therefore it wasn't very interesting because you are trickling your way towards the rewards the entire time.
+* '''Mod Ash:''' But while we can still have the big exciting uber rare drops for the prestigious rewards, they don't have to be the ones that are utilities for doing the activity efficiently. When we've got something that's gonna be like the Slepe tablet, maybe we don't make it a random drop at all; maybe after you've killed the thing X amount of times, an NPC becomes willing to sell it to you.
+* '''Mod Ash:''' If it's a mini-game that's got points, we put it in the reward shop and trade points for it - it depends on what the contents gonna be, but maybe that will be how we treat utility items.
+* '''Mod Ash:''' Now, they'll still be an entire community of Iron players out there saying, "but my Dragon Warhammer is essential for all this content, too." - honestly, taking away all the RNG from loot tables across Old School Runescape might be a bit much even for that precious mode. But for the utility within a feature, we could move away from using RNG at all.
+* '''Mod Light:''' I definitely think that would help ease sentiment concerns around the utility feature and going dry on it and you don't get it, and you're trying to do it for the mini-game. It happens, so I definitely see the value in that.
+* '''Mod Kirby:'''  It's something we probably have to look at on a piecemeal basis. Unfortunately, we can't just sit here and go, yes, we can do this globally, because there are way too many niche features in this game!
+* '''Mod Bruno:''' I'm a fan of bad luck protection in certain places. So things like the Vorkath's head and even the Kalphite Queen's head - I think that's fine. Untradeable drops that make an impact on how you do the content, I think, would be fine as well, but I wouldn't be happy with a Dragon Warhammer, for example - which is tradeable - and is kind of the point of the item.
+* '''Mod Kieren:''' We do have one thing in-game that strikes me as similar, on the lines of the shards idea, and that's the abyssal bludgeon, in that it comes in three pieces. When you roll it, you always get a piece you need. So from that sense, it may as well be three abyssal shards, for instance, that combined during the bludgeon. Then it's about 1/200 or something for a bludgeon piece - 1/100 for the inside and then about 1/200 for the bludgeon piece.
+* '''Mod Kieren:''' On average, that's about 1/600 Abyssal Sires to get a bludgeon, but if it was just a 1/600 drop, you could easily be unlucky and do 2000 kills without one, though you probably don't hear of that many people are going to 2000 kills of Sire without one because we've got it split up into three pieces. Maybe that's a lighter mid-ground where it's okay, but I think there are other trade-offs. 
+* '''Mod Kieren:''' You feel bound as soon as you get that first piece; you must keep returning to Sire because you've got none of the benefits until you get the other two! There are trade-offs here that are awkward to work out. What if three of the Sires on one side dropped them in pieces, and the three Sires on the other dropped as a bludgeon in one go - which one would people choose? Even if mathematically, on average, is the same?
+
+==Question #12==
+{{Cquote2|When will the diversity and inclusion changes be made? June's Gazette predicted it would be the end of September, yet many (if not all) have not been made.}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=2868s Youtube Time Stamp]
+
+* '''Mod Light:''' As an update on that, we're still working on these changes. We are sorry that it's taking so long to release! We just made a few shifts in the release schedule, so we pushed it forward a little more. We want to allow many of the changes to go out in bulk - we don't want to drip them over the next few updates.
+* '''Mod Light:''' What I can tell you is next week's update is Quest Speedrunning, and the next one after that is Fresh Start Worlds because we've already announced that. After that, it is the last week of October, so that's going to be reserved for Halloween.
+* '''Mod Light:''' I imagine D&I will go out after that period, but I can't tell you exactly when. It's still something we're committed to doing; it just shifts around depending on how production is going and our release schedule.
+
+==Question #13==
+{{Cquote2|How does the drop rate/items get chosen for new content? Some newer bosses have hideously long grinds.}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=2923s Youtube Time Stamp]
+
+* '''Mod Bruno:''' It depends on what we're giving out from this item, what the boss is, and what it aligns with. For something like a raid, you're expecting it to be probably no more than 1/20. You'd expect something like that from a raid. That's in line with the previous raids we've had.
+* '''Mod Bruno:''' Whereas for something like a new mid-level boss, it depends on how many drops the boss itself has. Gargoyles have a few drops, so the items are a little bit more common - but if you look at God Wars, for example, the bosses are pretty hard, and there aren't that many drops. So around 1/500 of a specific seems fair. We look at what we're trying to add and what we are trying to compare it to and then go off of that.
+* '''Mod Kirby:''' Another thing that's good to think about is how long an item takes to obtain. That is a lot more quantifiable, and you can work on that early on in design before you know the specifics of, “Okay, how long does the boss take to kill?”.
+* '''Mod Kirby:''' If you have an idea of how long it should take to get an item, you can more reliably go, “Okay, if a boss dies in four minutes and I want them to get this on average in 100 hours.”, that is hard, 1/1500 - whatever the numbers work out to for that - you can get a rough estimate of what the drop rate should be, based off the expected time to get it.
+* '''Mod Kieren:''' It depends on how good the item is, and it depends on how niche the item is. What's the demand gonna look like? Ultimately it ought to have a good price, and it needs to be desirable for the effort it will take to get it.
+* '''Mod Kieren:''' We often look at the example of God Wars. You don't get that much profit while just getting regular drops, but it's awesome when you get the big drop! The thing is, the drop rates at God Wars are pretty common. The biggest thing you have with that is that you don't have to do God Wars for that many hours before you start seeing drops. It's just so universally in demand!
+* '''Mod Kieren:''' Everybody needs Bando's Tassets because until Torva came out, it was the best-in-slot, the go-to item, and you need it for Torva too. It's so universally in demand, but not every player wants one. Not every player needs one. You're not wearing it every time you do melee content. So when it's got that demand, you can afford the tassets to be dropped in 1/512, or whatever the rate is.
+* '''Mod Kieren:''' Obviously, it's not just the tassets; it's the chest plate as well. Same for Aramdyl from Kree. You could afford it to be quite common. If something is quite niche, and we wanted it to have a good price representing how powerful the item is, it must be quite rare. It's this difficult approach of getting that right and fitting the content, as Kirby said - you don't want it to take too many hours.
+* '''Mod Kieren:''' That's one of the pressures, and this feedback is about - it takes too long to get the drop. On the other hand, if we make it faster to get, you'll probably get more people wanting to do the content, and more of the drops will come in, so the price will be much lower. Then you'll also get complaints that “this is just way too cheap for how good it is!”. These are factors we really have to consider when balancing it so that both the content and the item are good.
+
+==Question #14==
+{{Cquote2|Are there plans for more updates to Slayer? I'm itching for new monsters to fight!}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=3209s Youtube Time Stamp]
+
+* '''Mod Kieren:''' I don't think we do enough new monsters! It's usually a pretty simple update - it's a new monster with something interesting about it. Maybe it has a unique drop.
+* '''Mod Kieren:''' The problem with it is the balancing of Slayer. As we've seen when we've added new monsters over time; whether it's drake's or the wyverns on Fossil Island, you get a lot of people asking to be able to toggle them off because it's a task that's not efficient to do! It stops them from doing the tasks they want to be doing.
+* '''Mod Kieren:''' Equally, on the other hand, it could be a really good task, and something else gets removed from your rotation, and you're suddenly going to start skipping something you weren't previously skipping. I feel like that sucks, and I don't know how to solve that from an interesting perspective.
+* '''Mod Kieren:''' Maybe these monsters will be worth doing for their drops and so on. The other thing is how Slayer XP is balanced, which just puts all of the emphasis on aspects such as if it has low defence and high health or if it's in Multi.
+* '''Mod Kieren:''' You can use ancient spells or cannons, so it's just an interesting space where if somebody's got a mechanic and it's hard to deal with, then it's just not worth doing. It's a pain in the bum compared to bursting Smoke Devils or anything like that.
+* '''Mod Kieren:''' I would look to see how we can fix that. Perhaps we can artificially make certain monsters give different amounts of Slayer XP based on a bigger, more complex formula based on their other stats. Maybe we could add some modifiers, for example, "Oh, it's got mechanics; let's buff the XP that you get for Slayer from it so that it's worthwhile!".
+* '''Mod Ash:''' This isn't exactly what was asked in terms of adding new monsters, but there are things Slayer needs that aren't new monsters - I'd like to see the partnership system, in particular, being made available again. There could be a lot of benefits to the game from people having some variety of content to do with a friend in the game.
+* '''Mod Ash:''' Apart from that, yeah, there are many monsters where getting a hold of one can be tricky - Vyrewatch springs to mind - I will be glad to see more areas for some of these things. We could give it something that players unlocked through the skill so that the skill remains valuable as a means of getting these things.
+* '''Mod Ash:''' Overall, I'd say there's a lot of scope for updates to Slayer. Our team in the player suggestion reviews thought that the Vyrewatch task-only room was quite a reasonable thing to have too. But it wasn't just about new monsters.
+
+==Question #15==
+{{Cquote2|Newer skilling activities like Foundry, Guardians of the Rift, and Sepulchre are really engaging, but they're usually smaller in scope. If you made a skilling activity that was larger and more comprehensive, like raids, what might it look like?}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=3446s Youtube Time Stamp]
+
+* '''Mod Ash:''' Anything you can imagine could be there! Personally, I hope to see a lot more content like Volcanic Mine or Guardians of the Rift. If it was in a raiding dungeon where you're going through challenge rooms like those, rather than challenge rooms with combat bosses in.
+* '''Mod Ash:''' I'd like to see situations where you're performing skill actions to survive or trying to perform them at an adequate rate to harm an antagonist. I'd also like there'd be a lot of moving around and some risk in the kinds of activity we're looking at here so that you don't end up with lots of challenges like the Thieving chest room in Chambers of Xeric. You probably wouldn't thank us for a lot more content like that.
+
+==Question #16==
+{{Cquote2|What's the rationale for what items can and can't be added to the costume room storage in the POH? Obviously you don't want it to just be a bank replacement and have every useful armor, but what is the distinction between Dagganoth armor and Granite armor for example?}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=3523s Youtube Time Stamp]
+
+* '''Mod Ash:''' There's never been a fixed policy on that we've added more player requests from time to time, and I expect we'll keep doing so. We could set a rule that tries to distinguish between Dagannoth armour and Granite armour, but on the other hand, I would be perfectly happy to see both of those in there myself.
+* '''Mod Ash:''' Rewards could be ongoing because people have a lot of interest in storing the actual kit item itself rather than the Ornamented version of the armour. At that point, we're pushing what a costume is for the costume room, but it would help with their storage. We don't have a pressing reason not to, either.
+
+==Question #17==
+{{Cquote2|What made you decide to put the Dragon Pickaxe source to a vote?}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=3592s Youtube Time Stamp]
+
+* '''Mod Light:''' This is something that I chased Mod Goblin about. He said that we felt there were a handful of skilling sources already in-game where it might make sense. We couldn't decide which of them should be favoured over another, so we wanted to put that decision in players' hands to increase player involvement as much as we could within the blog and polling process.
+* '''Mod Kirby:''' We probably would have put the Pickaxe in some of those pieces of content at the time if we'd had the option to. Retrofitting it, they all have small problems - some larger than others - so I figured we might as well get the community involved and have them go, "Actually, we would prefer it like this". This helps to get the players involved a little more, which is a nice little thing we can do when we're not certain.
+
+==Question #18==
+{{Cquote2|Are any mini-games that aren't as active anymore being revived with new ideas, content or rewards? What are your thoughts on reviving some mini-games that aren't as active anymore?}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=3661s Youtube Time Stamp]
+
+* '''Mod Ash:''' As you saw from my Game Jam pitch, I chose to try and revive a mini-game with new content in the form of the LMS update. Our leads are very keen on getting more like that! We would be able to do a lot more with older games like Castle Wars - maybe an alternate castle. The game engine is much more developed than it was when Old School launched. We'd be able to instance mini-games like Castle Wars so that the alternate castle wasn't limited to one game per world at a time.
+* '''Mod Ash:''' I saw an interesting pitch for a higher-tier Pest Control that would take you to a tougher island where you would confront a Pest boss in addition to the usual Pests coming through! Maybe you'd go through the portals yourself to beat this Pest boss. That would be quite a lot of fun - and also a nice higher-tier way of introducing more rewards; maybe pets after all this time.
+* '''Mod Ash:''' Then there's Trouble Brewing. It's been dead for as long as I can remember. It needs more incentive to play it, and it needs a very significant usability overhaul. For example, letting you take your Pieces of Eight rather than having to deposit them will be rather helpful for you Ultimates out there. It needs more than just a little love, that one. It needs a purpose.
+* '''Mod Ash:''' The items there might be a very helpful way of giving it some love if that became its unique selling point - if they were worth having. That might be the route to making people want to play the mini-game.
+
+==Question #19==
+{{Cquote2|What are the main struggles for OSRS developers? The devs' perspective on opportunities, struggles, priorities etc.}}
+
+[https://www.youtube.com/watch?v=bHS1F5tx9xU&t=3788s Youtube Time Stamp]
+
+* '''Mod Light:''' The number one problem I have seen developers deal with is online toxicity. Our development team wants the best for its game and the player base, and toxicity is the number one reason developers are less engaged with the community and less willing to engage on social media. That affects the products because they appear less frequently on streams and engage less with social media, where players leave feedback.
+* '''Mod Light:''' That's the number one struggle, in my opinion, as a CM. Players are always able to voice constructive criticism and feedback; we need this a lot of the time. It's when it gets personal that it becomes a struggle.
+* '''Mod Light:''' The vast majority of players are absolutely wonderful! I've experienced so much positivity myself! It's the small amount of toxicity that can affect developers.
+* '''Mod Kieren:''' All it takes is one comment out of every 100. You get 99 positive comments and 1 that's digging at you for something. It does hurt. I'll echo that toxicity; attacks online, they're not okay.
+* '''Mod Kieren:''' We're a team, and we stand up for each other. Everyone is doing everything they can for the benefit of Old School and want to make it the best game it can be for you!
+* '''Mod Kieren:''' There's a desire to speak to players because that insight is so useful, and I believe most people on the team feel better when they're active and talking to the community to get those insights. But it can be difficult to do if you load up Twitter and see a bunch of attacks. I know many of the player base already know this - but it does need saying sometimes.
+* '''Mod Kieren:''' On a completely different note, everyone who joins - it doesn't matter how great your programming background is, you've got to learn RuneScript, you've got to learn a proprietary language. There's a pretty decent learning curve for the first few months as you pick up the new language, and that's certainly a challenge for us. You can't just recruit someone and have them immediately make an impact.
+* '''Mod Kieren:''' A second point - this game is so big! The amount of content over 20 years of RuneScape; how many systems could you unintentionally impact with changes you do? Game knowledge is a genuine challenge. You bring in people who know some areas well, but it's colossal! It does take a lot of teamwork, discussing with others and speaking to experts on the team who know certain things inside out.
+* '''Mod Kieren:''' That is a challenge, especially when it comes to balancing and making sure rewards work and don't have some sort of negative impact. But equally, you can also break other things in the codebase because so many things touch other parts of the game, and unless you're aware of it all in advance, it can be quite hard to realise that!
+* '''Mod Bruno:''' I definitely agree with the toxicity side of things. It's very important to provide constructive criticism. Aside from that, I feel one of the hardest things for us is to match the players' expectations of the content. This is something that is hard to reach, but I like to think we usually do a decent job, especially with content like Tombs of Amascut, which has gone out really well.
+* '''Mod Bruno:''' On the same line, Theatre of Blood was a little too hard, making it difficult for players to get into it. But people who liked it stuck to it, so that's cool.

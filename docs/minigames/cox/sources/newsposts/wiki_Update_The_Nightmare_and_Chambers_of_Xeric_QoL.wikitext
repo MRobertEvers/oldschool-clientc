@@ -1,0 +1,198 @@
+{{Update|date=11 November 2020|rev=11 November 2020|link=https://secure.runescape.com/m=news/the-nightmare-and-chambers-of-xeric-qol?oldschool=1|category=game}}
+[[File:The Nightmare and Chambers of Xeric QoL newspost.png|right]]
+{{clear}}
+
+<center>''This week, we’re bringing you more Quality of Life updates from Poll #73!''</center>
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Poll #73 Changes}}
+
+'''The Nightmare'''
+
+[[File:The Nightmare and Chambers of Xeric QoL (1).png|center]]
+
+
+Gielinor’s scariest boss has been updated this week in-line with the changes ''you'' voted for! She says “thank you” and also “[guttural screeching noises]”.
+
+To kick things off, The Nightmare’s initial start timer has been reduced from 40 to 30 seconds. If you’re brave enough to fight her more than once in a row, you’ll need to use the ‘Disturb’ option to wake her from her slumber, which will start a 10-second countdown.
+
+You’ll also notice some changes to one of the key parts of The Nightmare fight itself. From today, when fighting her in groups of five or more, 200 will be added to her shield and 30 will be added to her totems’, down from 400 and 60, respectively – all of which should make the fight more exciting. In addition, you can now use Prayers to fully negate the damage from The Nightmare’s husk and parasites.
+
+There’s good news for treasure seekers, too! Firstly, the cost of the Eldritch Staff’s Special Attack has been reduced from 75% to 55%. Secondly, your chance of getting your own Little Nightmare pet has been rescaled depending on the size of your group. Here’s the new drop chances:
+
+{|class=wikitable style="text-align:center;"
+!Number of Players
+!Chance to Drop
+|-
+|1
+|1/800
+|-
+|2
+|1/1600
+|-
+|3
+|1/2400
+|-
+|4
+|1/3200
+|-
+|5+
+|1/4000
+|}
+
+Lastly, we’ve resolved the audio bug that was making the sound effect played when The Nightmare’s Confusion Curse ended too quiet. We’ve also resolved an issue where The Nightmare would sometimes appear to be facing away from the player who took damage, because she was re-targeting the player with the highest Defence halfway through her attack.
+
+
+'''Chambers of Xeric'''
+
+[[File:The Nightmare and Chambers of Xeric QoL (2).png|center|350px]]
+
+
+Meanwhile, across the pond, Chambers of Xeric has also undergone a few renovations.
+
+Most excitingly, we’ve hired the finest lizardman architects to update the map pools! Maps in the large pool now uniformly contain five combat and three puzzle rooms per raid. The regular pool now has equal amounts of small and medium raids.
+
+To complement this change, a secondary checkbox has been added to the Party Board outside the Chambers of Xeric that lets you toggle between regular and large map pools. 
+
+Now, onto everyone’s favourite little dudes - scavengers! From today, scavengers will spawn more consistently, with a preference for locations near players. This should make them easier to catch, which in turn will make this room a little less frustrating.
+
+In addition, when killing a scavenger, a message will appear that makes it clear who will receive the drop.
+
+Lastly, if an Iron player deals the most but not all of the damage to a Chambers of Xeric boss, all other raiders will receive a message announcing that they have earned the drop. This message will override any chat filters you have enabled, so don’t worry about missing it.
+
+Keep an eye out for more Poll #73 updates in the coming weeks!
+
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Leagues II – Trailblazer Hotfixes}}
+
+[[File:The Nightmare and Chambers of Xeric QoL (3).jpg|center]]
+
+
+'''Hotfix November 11th at 16:10 GMT:'''
+
+We received a number of player reports regarding Ice Barrage casting faster than intended with the Double Cast Relic. Upon further investigation, we have identified and resolved a bug that was causing Ice Barrage to cast faster with certain weapons, specifically Ahrim’s staff.
+
+This bug meant that in almost all PvM scenarios, using Ice Barrage with the Ahrim’s staff was the best possible damage output achievable.
+
+Much like the Bind spells accuracy bug, we considered making no changes at all and leaving this as an additional perk of the Double Cast Relic. If Ice Barrage was unintentionally faster for all weapons within the game, then it’s likely we’d have kept this behaviour during the League. Ultimately we decided that leaving this bug in-game would be unfair to anyone that planned their route based on optimising their single-target damage with items such as the Sanguinesti staff, something you’d expect to perform better than an area of effect attack with a much lower requirement item.
+
+Ice Barrage will still remain to be 100% accurate with the correct gear, making it a very strong option throughout the entirety of the League, but there will be certain encounters where other equipment setups are more viable.
+
+
+'''Changes added within this week's update launch:'''
+
+Another week, another round of cheeky fixes to our new favourite game mode! Here’s the list of changes for this week:
+*The Crystal of Memories will now only ask you to confirm teleporting into dark areas which are dangerous, instead of all dark areas.
+*Thorgel now appears in the Temple of Light, outside the Death Altar.
+*Players can now reclaim a free impling jar from the Leagues Tutor once per day.
+*All remaining Sherlock, Falo, Cecilia and Zeah clues have been removed. If you encounter one we’ve missed, let us know!
+*The tasks to build a yew or magic birdhouse have been clarified. They now tell you to ‘Set up a Birdhouse’.
+*More items have been added to the shop auto-restock, including:
+**Mithril platebodies
+**Black platebodies
+**Helmets sold in Barbarian Village
+**Swamp paste
+**Nature runes
+**Buckets of slime
+*The Botanist Relic will now correctly save secondary ingredients when making the following:
+**Stamina Potions
+**Sanfew Serums
+**Antidote++
+**Super Combat Potions
+**Anti-venoms
+**Weapon Poison++
+**Extended Super Antifires
+*The task to equip a Trimmed Amulet of Glory will now complete when equipping the charged version.
+*The Crystal of Memories will no longer erroneously tell you it has saved your location when you use it to return from where you came from.
+*The task ‘Kill Vorkath 5 Times in a Row without Special Damage’ is now completable.
+*The ‘Create a Combat Potion’ Desert task can now be completed anywhere in the area, instead of a place where the player is affected by Desert Heat.
+*Loot Broadcasts from the private God Wars Dungeon instances will now correctly broadcast into their instance instead of the non-instanced boss room.
+*Endless Harvest will now work correctly when mining salt and basalt in the Weiss Salt Mine.
+*Stringing jewellery with the String Jewellery spell will now complete the relevant League and Achievement Diary tasks.
+*Quick Shot will now save charges used by Craw’s Bow.
+*Double Cast will now save charges used by the Slayer Staff (e).
+*The description of the Double Cast Relic has been updated to state that binding and ice spells have 100% accuracy against creatures.
+*The effect will be activated if:
+**The player has +60 Magic Attack Accuracy in their Equipment screen. 
+**The player has +20 Magic Attack Accuracy in their Equipment screen and they are wearing full Void Knight Mage gear or full Elite Void Knight Mage gear.
+*Time challenge tasks in the Hallowed Sepulchre should now be completable... if you’re good enough!
+*Hellpuppy pets which were incorrectly left uninsured and then lost will now be reinsured if you have it in your Collection Log and open the Task Interface. You can then reclaim your beloved Hellpuppy from the Leagues Tutor.
+*Equipping an uncharged Broodoo Shield will now correctly complete the ‘Equip a Matching Broodoo Shield’ tasks.
+*The tasks to ‘Kill a God Wars General X Times’ now specifically states that you must kill the same General.
+*The following tasks, which all require Misthalin and one other region, will now be listed under the ‘Other’ heading in the Task interface:
+**‘Defeat a Rune Dragon’ (Fremennik)
+**‘Equip a Dragon Crossbow’ (Fremennik)
+**‘Equip a Dorgeshuun Crossbow’ (Asgarnia)
+**‘Complete The Lost Tribe’ (Asgarnia)
+**‘Complete Death to the Dorgeshuun’ (Asgarnia)
+**‘Steal a Diamond in Dorgesh-Kaan’ (Asgarnia)
+**‘Pickpocket a Bullseye Lantern from a Cave Goblin’ (Asgarnia)
+
+
+Here are the points thresholds for each rank in the Trailblazer League as of the time of this update:
+
+*Dragon: '''25,240'''
+*Rune: '''18,310'''
+*Adamant: '''8,990'''
+*Mithril: '''4,480'''
+*Steel: '''1,730'''
+*Iron: '''530'''
+*Bronze: '''100'''
+
+{{Horizontal Line}}
+
+{{Headline|22|Merch Store}}
+
+[[File:The Nightmare and Chambers of Xeric QoL (4).png|center|550px]]
+
+
+We’ve got a cracker-full of new goodies launching in time for Christmas!
+
+
+‘Scape up your desk space with this new range of deskmats, featuring Darkmeyer, the Abyssal Sire, and the art from Deadman Mode!
+
+
+And if you want to feel extra-cosy while showing your support for the best MMO in the world, check out the PK Skull Varsity Jacket – or play it cool with the Vorkath Ringer Tee.
+
+
+By the way, Tracked Shipping is now available on all orders – and when you spend over £80/$100 you’ll get Tracked Shipping for free.
+
+
+So, what are you waiting for? Go on and browse the [https://runescape.backstreetmerch.com/en-gb/tag/oldschool Official Merch Store]!
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Golden Gnomes}}
+
+[[File:The Nightmare and Chambers of Xeric QoL (5).jpg|center|500px]]
+
+
+Don’t forget, our all-singing, all-dancing, and all-digital 10th Annual Golden Gnomes Awards live stream will take place on Friday November 20th at 19:00 Game Time. Don’t miss out!
+
+{{Horizontal Line}}
+
+
+{{Headline|22|In Other News}}
+
+*The Halloween event has been removed from the game. Rick’s head has been returned, and he’s gone back to studying magic. Any candy you receive from the Magical Pumpkin in your Player Owned House is now bankable.
+*Players can no longer be dragged randomly if they spam click a Fishing spot before it moves.
+*Random event prevention now works in the God Wars Dungeon.
+*We’ve switched up the order in which God Sword Shards are checked when Smithing, so the engine will aim to get you a full blade instead of lots of half-blades.
+*The Amulet of Avarice now works within the Wilderness Slayer Cave.
+*When starting a new quest a message will now appear in the Chat box to tell you which quest you started. Similarly, the message given upon finishing a quest now specifies which quest was just completed.
+
+Should you feel like helping us shape the game, have a go at this quick ‘n’ easy [https://jagex.eu.qualtrics.com/jfe/form/SV_0iAMaIkcm7iyzA1 survey].
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,674,66188411 official forums], the community-led [https://www.reddit.com/r/2007scape/comments/joh0dz/revenant_cave_tweaks_and_leagues_ii_fixes/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For reference on the above content, check out the official [[Wiki]].
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Ed, Elena, Errol, Fed, Flippy, Gayns, Gee, Halo, Husky, Impact, Jndr, John C, Kandosii, Kieren, Lenny, Lottie, Lyric, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, & West'''
+
+''The Old School Team''

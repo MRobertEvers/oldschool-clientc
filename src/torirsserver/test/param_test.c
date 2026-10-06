@@ -40,6 +40,8 @@
  * are test names for whatever the cache turned out to hold.
  */
 
+#include "servpack_test_group.h"
+#include "torirs_server_boot.h"
 #include "torirs_server.h"
 #include "torirs_server_content.h"
 #include "torirs_server_paramtable.h"
@@ -284,16 +286,14 @@ audit_struct_table(const char* cache_dir)
         return;
     }
     table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_STRUCT);
+    archive = test_pack_group(RSCACHE_DAT2_CONFIG_KIND_STRUCT, &files);
     if( !archive )
     {
         RSCache_Dat2DiskFree(disk);
         CHECK(0, "struct audit: the struct config group is present");
         return;
     }
-    RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size,
-                                          archive->file_count);
+    /* files: test_pack_group filled it */
     for( int i = 0; files && i < archive->file_count; i++ )
     {
         struct RSCache_Dat2ConfigStruct record;
@@ -343,17 +343,14 @@ audit_loc_table(const char* cache_dir)
         return;
     }
     table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_LOCS);
+    archive = test_pack_group(RSCACHE_DAT2_CONFIG_KIND_LOCS, &files);
     if( !archive )
     {
         RSCache_Dat2DiskFree(disk);
         CHECK(0, "loc audit: the loc config group is present");
         return;
     }
-    RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
-    RSCache_ProfileSetGroupRevision(&profile, RSCACHE_TYPE_LOC, archive->revision);
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size,
-                                          archive->file_count);
+    /* files: test_pack_group filled it */
     for( int i = 0; files && i < archive->file_count; i++ )
     {
         struct RSCache_Dat2ConfigLoc* loc;
@@ -369,8 +366,11 @@ audit_loc_table(const char* cache_dir)
     }
 
     CHECK_EQ(ToriRSServer_LocInfoCount(), archive->file_count, "the loader saw every loc record");
-    CHECK_EQ(ToriRSServer_LocInfoParamCount(), audit.rows,
-             "the loader retained exactly the rows the decoder produced");
+    /* Plus the server-only params each loc's band states (fields/loc.ini
+     * `param = <name>`), which the server lays over the client record's. */
+    CHECK_EQ(ToriRSServer_LocInfoParamCount(),
+             audit.rows + ToriRSServer_LocInfoParamOverlaidCount(),
+             "the loader retained exactly the rows the decoder produced, plus the band's");
 
     RSCache_FileListFree(files);
     RSCache_Dat2DiskArchiveFree(archive);
@@ -433,15 +433,13 @@ find_struct_subjects(
     if( !disk )
         return 0;
     table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_STRUCT);
+    archive = test_pack_group(RSCACHE_DAT2_CONFIG_KIND_STRUCT, &files);
     if( !archive )
     {
         RSCache_Dat2DiskFree(disk);
         return 0;
     }
-    RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size,
-                                          archive->file_count);
+    /* files: test_pack_group filled it */
 
     for( int i = 0; files && !found && i < archive->file_count; i++ )
     {
@@ -559,16 +557,13 @@ find_loc_subject(
     if( !disk )
         return 0;
     table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_LOCS);
+    archive = test_pack_group(RSCACHE_DAT2_CONFIG_KIND_LOCS, &files);
     if( !archive )
     {
         RSCache_Dat2DiskFree(disk);
         return 0;
     }
-    RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
-    RSCache_ProfileSetGroupRevision(&profile, RSCACHE_TYPE_LOC, archive->revision);
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size,
-                                          archive->file_count);
+    /* files: test_pack_group filled it */
 
     for( int i = 0; files && !found && i < archive->file_count; i++ )
     {
@@ -887,12 +882,13 @@ main(void)
     /* The declared types and defaults, which decide the stack. Without them
      * every param would fall back to its stored kind and the routing half
      * would be testing nothing. */
-    ToriRSServer_ContentLoad(content_dir);
-
-    if( !ToriRSServer_StructInfoLoad(cache_dir) )
-        CHECK(0, "struct params loaded");
-    if( !ToriRSServer_LocInfoLoad(cache_dir) )
-        CHECK(0, "loc params loaded");
+    /* Everything from the server pack, by the server's own load. */
+    ToriRSServer_ServPackDir(content_dir, cache_dir, g_test_pack_dir, sizeof(g_test_pack_dir));
+    if( ToriRSServer_BootLoadContent(content_dir, cache_dir) != 0 )
+    {
+        CHECK(0, "the server pack loaded");
+        return 1;
+    }
 
     audit_struct_table(cache_dir);
     audit_loc_table(cache_dir);

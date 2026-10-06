@@ -1,12 +1,14 @@
 #include "dat2_config_healthbar.h"
 
+#include <assert.h>
+
 void
 RSCache_Dat2ConfigHealthbarDecode(
     struct RSCache_Dat2ConfigHealthbar* entry,
     struct RSCache_Buffer* buffer)
 {
-    if( !entry || !buffer )
-        return;
+    assert(entry);
+    assert(buffer);
 
     RSCache_Dat2ConfigHealthbarInit(entry);
 
@@ -27,8 +29,14 @@ RSCache_Dat2ConfigHealthbarDecode(
 void
 RSCache_Dat2ConfigHealthbarInit(struct RSCache_Dat2ConfigHealthbar* entry)
 {
-    if( !entry )
-        return;
+    assert(entry);
+    /* Nothing stated until an opcode says so. */
+    RSCache_PresenceReset(&entry->present);
+    entry->has_draw_order = false;
+    entry->has_evict_priority = false;
+    entry->has_persist_cycles = false;
+    entry->has_fade_threshold = false;
+    entry->has_width = false;
     /* -1, not 0: sprite 0 exists, so it cannot double as "no sprite". Kept out of
      * the loop so a per-opcode caller cannot miss it — see the hitsplat note. */
     entry->front_sprite_id = -1;
@@ -48,28 +56,35 @@ RSCache_Dat2ConfigHealthbarDecodeOp(
     case 2:
         entry->draw_order = g1(buffer);
         entry->has_draw_order = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HEALTHBAR_FIELD_DRAW_ORDER);
         return true;
     case 3:
         entry->evict_priority = g1(buffer);
         entry->has_evict_priority = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HEALTHBAR_FIELD_EVICT_PRIORITY);
         return true;
     case 5:
         entry->persist_cycles = g2(buffer);
         entry->has_persist_cycles = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HEALTHBAR_FIELD_PERSIST_CYCLES);
         return true;
     case 7:
         entry->front_sprite_id = g2(buffer);
+        RSCache_PresenceSet(&entry->present, RSCACHE_HEALTHBAR_FIELD_FRONT_SPRITE);
         return true;
     case 8:
         entry->back_sprite_id = g2(buffer);
+        RSCache_PresenceSet(&entry->present, RSCACHE_HEALTHBAR_FIELD_BACK_SPRITE);
         return true;
     case 11:
         entry->fade_threshold = g2(buffer);
         entry->has_fade_threshold = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HEALTHBAR_FIELD_FADE_THRESHOLD);
         return true;
     case 14:
         entry->width = g1(buffer);
         entry->has_width = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HEALTHBAR_FIELD_WIDTH);
         return true;
     default:
         /* Unknown opcode: stop rather than guess its width. See the header. */
@@ -83,14 +98,14 @@ RSCache_Dat2ConfigHealthbarDecodeInplace(
     const void* data,
     int data_size)
 {
-    if( !entry )
-        return;
-    if( !data || data_size <= 0 )
+    assert(entry);
+    /* No bytes is the empty record: the defaults, nothing stated. */
+    if( data_size <= 0 )
     {
-        entry->front_sprite_id = -1;
-        entry->back_sprite_id = -1;
+        RSCache_Dat2ConfigHealthbarInit(entry);
         return;
     }
+    assert(data);
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
@@ -112,8 +127,8 @@ RSCache_Dat2ConfigHealthbarEncode(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !entry || !out )
-        return 0;
+    assert(entry);
+    assert(out);
     if( out_capacity < RSCache_Dat2ConfigHealthbarEncodeBound(entry) )
         return 0;
 
@@ -130,37 +145,37 @@ RSCache_Dat2ConfigHealthbarEncode(
      * byte-exactness would read 0% and the tracked figure would stop being a
      * regression signal.
      */
-    if( entry->front_sprite_id >= 0 )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_HEALTHBAR_FIELD_FRONT_SPRITE) )
     {
         p1(&buffer, 7);
         p2(&buffer, entry->front_sprite_id);
     }
-    if( entry->back_sprite_id >= 0 )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_HEALTHBAR_FIELD_BACK_SPRITE) )
     {
         p1(&buffer, 8);
         p2(&buffer, entry->back_sprite_id);
     }
-    if( entry->has_draw_order )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_HEALTHBAR_FIELD_DRAW_ORDER) )
     {
         p1(&buffer, 2);
         p1(&buffer, entry->draw_order);
     }
-    if( entry->has_evict_priority )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_HEALTHBAR_FIELD_EVICT_PRIORITY) )
     {
         p1(&buffer, 3);
         p1(&buffer, entry->evict_priority);
     }
-    if( entry->has_persist_cycles )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_HEALTHBAR_FIELD_PERSIST_CYCLES) )
     {
         p1(&buffer, 5);
         p2(&buffer, entry->persist_cycles);
     }
-    if( entry->has_fade_threshold )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_HEALTHBAR_FIELD_FADE_THRESHOLD) )
     {
         p1(&buffer, 11);
         p2(&buffer, entry->fade_threshold);
     }
-    if( entry->has_width )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_HEALTHBAR_FIELD_WIDTH) )
     {
         p1(&buffer, 14);
         p1(&buffer, entry->width);

@@ -8,6 +8,8 @@ import re
 import sys
 from pathlib import Path
 
+import config_text
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
@@ -27,10 +29,26 @@ TEXT_SUFFIXES = {
     ".varp",
     ".cs2",
 }
+# Cachepack config text: its `key=default` / `key=empty` marker lines are
+# filtered out, so a record reads exactly as it did with the keys omitted.
+CONFIG_TEXT_SUFFIXES = {
+    ".enum",
+    ".loc",
+    ".npc",
+    ".obj",
+    ".seq",
+    ".spotanim",
+    ".varbit",
+    ".varp",
+}
 
 
 def data_lines(path: Path):
-    for line_no, raw in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), start=1):
+    if path.suffix in CONFIG_TEXT_SUFFIXES:
+        text = config_text.read_text(path, encoding="utf-8", errors="replace")
+    else:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    for line_no, raw in enumerate(text.splitlines(), start=1):
         stripped = raw.strip()
         if stripped and not stripped.startswith(("#", ";", "//")):
             yield line_no, stripped

@@ -1,0 +1,167 @@
+{{Update|date=28 October 2016|link=http://services.runescape.com/m=news/dev-blog-raids-rewards?oldschool=1|category=website}}
+[[File:Dev Blog- Raids Rewards newspost.png|right]]
+{{clear}}
+We've collected some promising and popular community suggestions to be polled next week as rewards from raids. From a powerful new bow to dragon claws, there is bound to be something that excites you in today's blog!
+
+Head over to the forums and give the [http://services.runescape.com/m=forum/forums.ws?380,381,339,65846170 raids rewards developer blog] a read.
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''
+
+
+
+----
+
+
+
+
+{{Headline|25|Dev Blog: Raids Rewards}}
+
+
+'''We've collected some promising and popular community suggestions to be polled next week as rewards from raids. From a powerful new bow to dragon claws, there is bound to be something that excites you in today's blog!'''
+
+Please note: within this blog, the term 'attack rate' refers to the number of game cycles between attacks.
+{{ToC}}
+
+==Dragon Claws==
+Dragon Claws are an iconic item in RuneScape's history. Since the release of Old School back in 2013 there has been an ongoing debate about whether or not they have a place in the game.
+
+Over the past year we have seen growing support for Dragon Claws, especially since their inclusion in Tournament Worlds. With Raids planned for early 2017, we feel that Dragon Claws would be a suitably massive addition to Old School to fit the content.
+
+Dragon Claws would '''require level 60 Attack''' and would provide the following stats and special attack:
+
+[[File:Dev Blog- Raids Rewards (1).png|centre]]
+
+
+===What happened to the Abyssal Claws suggestion?===
+One suggestion we saw from the community was adding a weapon identical to Dragon Claws, but with a 70 Attack requirement (named Abyssal Claws).
+
+While this is an idea that interested us, and a portion of the community, there are a number of advantages to moving forward with Dragon Claws as the community knows them.
+
+[[File:Dev Blog- Raids Rewards (2).png|centre|200px]]
+
+Keeping the 60 Attack requirement is not something which concerns us from a balancing perspective, and it will allow a larger number of players to enjoy the variety Dragon Claws will bring.
+
+Also, the existing understanding of what Dragon Claws are and how they work means that many players will already know what to expect. With a new item it isn't so easy for people to immediately understand what the differences are, however minor they may be.
+
+==Ancestral Robes==
+Ancestral Robes will offer a superb offensive option for high level Magic users. Requiring 75 Magic & 65 Defence to use, they will act as a '''non-degradable''' set aimed at boosting Magic Damage.
+
+To achieve this, they trade off some of the Defensive stats of Ahrim's for additional Magic Attack Bonus, as well as '''2% Magic Damage increase per piece worn'''.
+
+[[File:Dev Blog- Raids Rewards (3).png|centre]]
+
+
+The non-degradeable nature of the Robes will provide a Magic alternative to the Bandos and Armadyl armours.
+
+Dropping only from Olm, the final challenge of Raids, these Robes will carry a prestige and rarity as yet unseen in Mage armour.
+
+As they will be '''very difficult to acquire''', these Robes will likely carry a high price tag and be an unlikely choice for PKing, preserving Ahrim's place as a staple choice for Mages.
+
+
+==Twisted Bow==
+The Twisted Bow is a slow, hard-hitting and accurate longbow which requires level 75 Range to use. The bow '''changes in strength and accuracy when used against magical opponents'''. Arrows all the way up to and including dragon arrows can be fired by this weapon.
+
+[[File:Dev Blog- Raids Rewards (4).png|centre]]
+
+
+While the Twisted Bow has strong base stats, it can become stronger '''or weaker''' against opponents depending on their magic level or magic attack bonus.
+
+The following graph shows the buff % at different magic levels:
+
+[[File:Dev Blog- Raids Rewards (5).png|centre]]
+
+
+As an example of the Twisted Bow's strength, Dagannoth Prime is one monster where this bow is likely to be useful. The boss has a Magic level of 255, which would provide a Ranged strength buff of '''217%''' and a Ranged accuracy buff of '''142%'''.
+
+While the Twisted Bow will be strong against some monsters, it will also be '''very weak against others'''. If a monster or player has a Magic level and bonus of 1, the bow would only provide 54% of its base damage and 40% of its base accuracy.
+
+There is a cap of 250% on the damage buff of the bow, and a cap of 150% on the accuracy buff. This is to ensure that it doesn't end up being too strong against any monsters we may release in the future.
+
+If a player's Magic accuracy bonus is higher than their Magic level, the bow will base the damage and accuracy modifier on their accuracy bonus instead.
+
+==Twisted Buckler==
+The Twisted Buckler is a shield requiring level 75 Range and Defence. It provides best-in-slot range accuracy bonus, as well as noteworthy defensive stats.
+
+[[File:Dev Blog- Raids Rewards (6).png|centre]]
+
+The Twisted Buckler is the the spiritual successor of the Odium Ward, providing similar uses and value at a higher level.
+
+As with Ancestral and Ahrim's, the value of the Odium Ward will still have its place as a lower tier, lower cost alternative to the Twisted Buckler. It will not be easy, or cheap, to get your hands on a Twisted Buckler - so you'll probably want to hold onto your Odium Ward.
+
+
+==Dinh's Bulwark==
+Dinh's Bulwark is a two-handed shield which requires level 75 Defence and Attack to equip. The bulwark is unlike any shield or weapon currently in game, and offers some interesting advantages to its users.
+
+[[File:Dev Blog- Raids Rewards (7).png|centre]]
+
+
+Dinh's Bulwark has two attack options: '''block''' and '''pummel'''. Unlike attack styles on other weapons, these options change the nature of the shield in a big way.
+
+When using '''block''', you are '''unable to attack'''. However, all incoming damage is reduced by 20%.
+
+When using '''pummel''', you can attack with the shield but lose the damage reduction.
+
+To prevent the advantages of each style being used at the same time, there is a short delay when switching from block to pummel during which you cannot attack. This will also apply when switching from the bulwark to other weapons.
+
+The goal with this delay is to prevent the shield being used in conjunction with other weapons to both tank effectively and deal a lot of damage. The length of this delay will be 8 ticks, which is slightly more time than a slow hitting boss might take to attack.
+
+Dinh's Bulwark will not work in PvP combat. The block option will simply act as a standard defensive attack style.
+
+It will not be possible to cast offensive spells with the Dinh's Bulwark equipped.
+
+
+==Dragon Hunter Crossbow==
+The Dragon Hunter Crossbow is a unique range weapon with increased power when fighting Dragons.
+
+Requiring 65 Ranged, the Dragon Hunter Crossbow offers a base bonus of 95 Ranged Attack. Fighting Dragons will empower the weapon, increasing both accuracy and damage by 10%. This will stack additively with Void, not multiplicatively.
+
+[[File:Dev Blog- Raids Rewards (8).png|centre]]
+
+
+==Dragon & Infernal Harpoon==
+The Dragon Harpoon is an equippable tool used for fishing. When used for fishing, the Dragon Harpoon increases the likelihood of catching fish by 20%.
+
+[[File:Dev Blog- Raids Rewards (9).png|centre]]
+
+The Dragon Harpoon requires level 60 Attack to equip and level 75 Fishing to use. It can be used from the inventory and does not need to be equipped.
+
+===Infernal Harpoon===
+The Infernal Harpoon can be created by combining a Smouldering Stone and a Dragon Harpoon. It is very similar to both the Infernal Pickaxe and Axe in nature.
+
+Whilst Fishing, the Infernal Harpoon has a 1/3 chance of consuming a fish when caught. You will receive a small amount of cooking experience for the fish which was consumed, with the experience gained being dependent on the type of fish.
+
+After consuming 5,000 fish, the Infernal Harpoon becomes uncharged. It can continue to be used as a Dragon Harpoon in this state, or it can be recharged. To recharge the Infernal Harpoon, use a Smouldering Stone or Dragon Harpoon on it. This will give it another 5,000 charges.
+
+==Elder Armour==
+Elder armour is a new, top-tier set of melee armour. It requires level 75 Defence to equip and provides bonuses to justify very high requirement.
+
+[[File:Dev Blog- Raids Rewards (10).png|centre]]
+
+
+Elder armour is '''degradable''' and can be repaired for a price. The helmet degrades at a rate of '''20k per hour''' of use, the platebody degrades at a rate of '''50k per hour''' of use and the platelegs degrade at a rate of '''30k per hour''' of use.
+
+==Kodai Robes==
+Kodai robes require level 75 Magic and Defence, providing substantial bonuses for both.
+
+[[File:Dev Blog- Raids Rewards (11).png|centre]]
+
+
+Kodai Robes are degradable and can be repaired for a price. The hood degrades at a rate of '''20k per hour''' of use, the robe top degrades at a rate of '''50k per hour''' of use and the robe bottoms degrade at a rate of '''30k per hour''' of use.
+
+==Twisted Armour==
+Twisted armour is a set of very strong Ranged armour which requires both level 75 Ranged and Defence to use. Twisted would be the first set of armour in the game to provide Ranged strength bonus.
+
+[[File:Dev Blog- Raids Rewards (12).png|centre]]
+
+
+Twisted Armour is degradable and can be repaired for a price. The coif degrades at a rate of '''20k per hour''' of use, the body degrades at a rate of '''50k per hour''' of use and the chaps degrade at a rate of '''30k per hour''' of use.
+
+
+==When will these rewards be polled?==
+We will be closely monitoring your feedback on the content of this blog over the weekend. If necessary, we will tweak the rewards currently on offer in a follow up next week.
+
+Following that blog, we'll be launching a poll alongside next week's game update to decide whether or not these rewards make it into raids.
+
+It is '''vital''' that you provide us with feedback if you aren't happy with the rewards on offer. If you have thoughts on what has been discussed in this blog, please let us know!
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''

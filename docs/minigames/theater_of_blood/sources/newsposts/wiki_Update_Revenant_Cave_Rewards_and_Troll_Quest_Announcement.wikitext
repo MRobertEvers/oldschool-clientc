@@ -1,0 +1,106 @@
+{{Update|date=26 July 2018|link=http://services.runescape.com/m=news/revenant-cave-rewards-and-troll-quest-announcement?oldschool=1|category=game}}
+[[File:Revenant Cave Rewards and Troll Quest Announcement newspost.png|right]]
+
+{{clear}}
+<center>''Today's game update sees the arrival of four new unique Revenant drops. Later today you'll be able to take advantage of our partnership with Twitch Prime. And we need your help in perfecting the rewards for Making Friends with My Arm, the continuation in the the Troll quest series from Mod Ash.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Revenant Cave Rewards}}
+
+At the end of June we polled a number of possible new rewards to Revenants. The initial proposal can be found in the [http://services.runescape.com/m=news/revenant-cave-rewards-revisited-content-poll--theatre-of-blood?oldschool=1 Revenant Cave Rewards Revisited blog]. Today's update sees the arrival of the rewards which passed the polls: Craw's Bow, Thammaron's sceptre, Viggora's chainmace, and the Amulet of avarice. For more information on the these new items, read on below.
+
+'''Craw's bow'''
+
+Craw's bow is a tradeable 2-handed bow that can deal additional damage to Wilderness NPCs. It has the same stats as the Magic shortbow (i) and requires 60 Ranged to equip. When charged with a minimum of 1000 Revenant ether, an additional 50% Ranged accuracy and 50% Ranged damage boost is activated vs any Wilderness NPC. This effect will stack with either a Slayer helmet or a Salve amulet equipped, but does not allow the effects of both the Slayer helmet and Salve amulet to stack. This includes imbued versions of both the Slayer helmet and the Salve amulet.
+
+The bow does not use any ammo, much like the Crystal bow. Instead, it relies on the use of the Revenant ether stored within it. One Revenant ether is used per hit, even if a hit misses. Any Revenant ether stored within the bow is always dropped on death when inside the Wilderness.
+
+[[File:Revenant Cave Rewards and Troll Quest Announcement (1).png|center]]<br/>[[File:Revenant Cave Rewards and Troll Quest Announcement (2).png|center|400px]]
+
+'''Thammaron's sceptre'''
+
+Thammaron's sceptre is a tradeable 1-handed magic weapon that can deal additional damage to Wilderness NPCs. It has the same stats as the Master wand and requires 60 Magic to equip. When charged with a minimum of 1000 Revenant ether, an additional 100% Magic accuracy and 25% Magic damage boost is activated vs any Wilderness NPC. This effect will stack with either a Slayer helmet or a Salve amulet equipped, but does not allow the effects of both the Slayer helmet and Salve amulet to stack. This includes imbued versions of both the Slayer helmet and the Salve amulet.
+
+The sceptre can be used much like the Master wand, though it cannot autocast ancient spells. Each spell that is cast using the sceptre uses one Revenant ether, regardless of the spell hitting or not, alongside the standard runes required.
+
+[[File:Revenant Cave Rewards and Troll Quest Announcement (3).png|center]]<br/>[[File:Revenant Cave Rewards and Troll Quest Announcement (4).png|center|400px]]
+
+'''Viggora's chainmace'''
+
+Viggora's chainmace is a tradeable 1-handed flail that can deal additional damage to Wilderness NPCs. It has stats similar to that of a Dragon scimitar and requires 60 Attack to equip. When charged with a minimum of 1000 Revenant ether, an additional 50% Melee accuracy and 50% Melee damage boost is activated vs any Wilderness NPC. This effect will stack with either a Slayer helmet or a Salve amulet equipped, but does not allow the effects of both the Slayer helmet and Salve amulet to stack. This includes imbued versions of both the Slayer helmet and the Salve amulet.
+
+One Revenant ether is used per hit, even if a hit misses. Any Revenant ether stored within the chainmace is always dropped on death when inside the Wilderness.
+
+[[File:Revenant Cave Rewards and Troll Quest Announcement (5).png|center]]<br/>[[File:Revenant Cave Rewards and Troll Quest Announcement (6).png|center|400px]]
+
+'''Amulet of avarice'''
+
+Within the Revenant Caves are a plethora of NPCs, many of which are killed frequently for Wilderness Slayer tasks. It's no secret that a lot of Wilderness activities are a trade-off between risk and reward. We want to further extend the risk vs reward factor with a new reward from Revenant NPCs - the Amulet of avarice.
+
+The Amulet of avarice provides the same stats as an Amulet of glory, with the added ability of causing all drops within the Revenant Caves to be noted whilst it's worn - this includes the non-Revenant NPCs also in the cave. The downside to this benefit however, is that the player is constantly skulled while wearing the amulet. If removed, a normal 20-minute skull will remain.
+
+[[File:Revenant Cave Rewards and Troll Quest Announcement (7).png|center]]<br/>[[File:Revenant Cave Rewards and Troll Quest Announcement (8).png|center|250px]]
+
+{{Horizontal Line}}
+
+[[File:Revenant Cave Rewards and Troll Quest Announcement (9).png|center]]
+
+Last Summer we partnered with Twitch to deliver ''one free month of membership'' for every player with Twitch Prime, and we are absolutely delighted to announce that we'll be partnering with Twich Prime once again. Details of the partnership can be found below, but please be aware that you will not be able to claim the offer until '''5pm BST on Thursday 26th July''' (12pm EST).
+
+'''Old School RuneScape and Twitch Prime'''
+
+Between '''Thursday 26th July - Thursday 6th September''' members of [https://www.twitch.tv/prime?ref_=SM_CM_RUNE18_MIC Twitch Prime] can claim '''one free month of membership''' and get access to the ''purple skin colour'', which players without Twitch Prime will gain access to once the partnership has ended. Just to reiterate, you won't be able to get the membership or the purple skin until 5pm BST on Thursday 26th July.
+
+'''Using Twitch Prime'''
+
+Getting the membership and getting the purple skin colour can be done in four easy steps:
+*'''Step 1:''' [https://twitch.amazon.com/prime?ref_=SM_CM_RUNE2_MS_US Claim the Twitch Prime Umbral Pack] (''Reminder: you will not be able to claim the offer until '''5pm BST''' on '''Thursday 26th July''' (12pm EST)'')
+*'''Step 2:''' [https://secure.runescape.com/m=twitch_integration/hop?redirto=https:runescape:main:account/linked-accounts/twitch/redeem#_ga=2.244682764.8239735.1532420115-676587761.1527680787<!--this ga hash is also in the newspost and not dynamically added - dont remove!--> Link your Twitch and RuneScape accounts]
+*'''Step 3:''' Well, you now have the free month of membership!
+*'''Step 4:''' Visit the Makeover Mage (found just South-West of Falador) to make yourself purple!
+
+We're delighted to tell you that Twitch offer a 30-day free trial to Twitch Prime. Those of you without Twitch Prime - [https://twitch.amazon.com/prime?ref_=SM_CM_RUNE2_MS_US Start your free trial today!]
+
+Another benefit of Twitch Prime is a free subscription to a Twitch streamer each month. Put your free subscription to good use and support one of our fantastic Old School RuneScape content creators. Head to the [http://osrs.game/streamers Old School RuneScape stream directory] to see who is live and to show some love!
+
+{{Horizontal Line}}
+
+{{Headline|22|Making Friends with My Arm}}
+
+This week we've been [https://twitter.com/JagexAsh/status/1021802743651020803 teasing] just [https://twitter.com/OldSchoolRS/status/1021818954774392836 which] large project we'll be working on next. On [https://www.twitch.tv/videos/289084827 yesterday's Q&A] we confirmed that Making Friends with My Arm will be the next quest to be released on Old School RuneScape (should it pass the poll). This project will be headed by Mod Ash's team (it's recommended you read this [http://services.runescape.com/m=news/team-structure-pvp-changes-and-upcoming-poll?oldschool=1 blog explaining changes to the team structure]), and you can expect to see a blog detailing the quest and its rewards sometime next week. Speaking of rewards, we'd like your help perfecting just what it is that we offer. We'd like the rewards to involve using Firemaking to light minerals (which are mined after the quest) in pre-designated fire pits around the world, with the fires providing various benefits. What are your thoughts on this? What do you like or dislike? What would you change? Give us feedback on our [http://services.runescape.com/m=forum/forums.ws?380,381,501,66029764 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [https://discordapp.com/invite/OSRS OSRS Discord] in the '''#gameupdate''' channel. Alternatively, you can [https://twitter.com/JagexMunro/status/1022149980419772416 contact Mod Munro directly]!
+
+Listen to [https://clips.twitch.tv/HeadstrongDeafVelociraptorUnSane Mod Ash himself] to hear how the quest first came to fruition.
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+*The Deadman Autumn Season has ended! Deadman Season worlds are now inaccessible.
+*We're moving the [https://www.runescape.com/oldschool/pvpworldrota PvP World Rota Asssignment] to '''Period A'''.
+*A unique animation has been added to the teleport of the Xeric's amulet.
+*The sandstorm effect present during the Shadow of the Storm has been made transparent when playing on mobile, as it severely restricted visibility.
+*Recently we released an update on mobile which allowed you to interact with the game in the area visible when the minimap was hidden. Some players on some devices with specific device resolution were still unable to interact properly. We've fixed this.
+*We've fixed an issue where birdhouses might not update when logging in near one.
+*We've fixed an issue during Recruitment Drive which prevented you from advancing after completing Sir Kuam Ferentse's task.
+*We've fixed some strange isssues involving dying (or not dying properly) within the Zogre cave after being caught picklocking the Ogre Coffin.
+*Captain Khaled's taskgiving has been fixed in situations in which you'd hop worlds and then try to request other tasks.
+*A Sulliuscep mushroom has been moved slightly to the north, a bit further away from the Tar monsters.
+*We've changed some of The Overseer's dialogue.
+*The Lumbridge store barrel is no longer a ''Barrel full of staffs''. It's now a ''Barrel full of staves''.
+*The Avernic defender and the Ivandis flail have both been added to the Attack skill guide.
+*The tip given by Slayer Masters assigning Adamant dragons has been corrected.
+*Using Geomancy to check Grapes and Cacti now reads Minimum Yield rather than Available Yield.
+*The message displayed when savagely dismembering a toad for it's legs have been added to the filter. ''Poor toad. At least they'll grow back''.
+*You can now feed acorns to the Giant squirrel pet.
+*Relogging inside the Theatre of Blood after Verzik dies will now more reliably resync you to your party, so long as any of them remain in the instance.
+*Doric will now recognise that you have the items required to complete the quest upon starting the quest.
+*You can no longer stand inside the wall in Lovakengj bank.
+*A missing word has been added to the Estate Agent's dialogue.
+*Untradeable Midsummer event holiday items have now been made accessible to players without membership. Players without membership will be able to buy them from the store and will be able to wear them.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,501,66029764 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''''Mods Archie, Ash, Ayiza, Bruno, Curse, Ed, Ghost, Jed, John C, Kieren, Lenny, Lottie, Mat K, Maz, Munro, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

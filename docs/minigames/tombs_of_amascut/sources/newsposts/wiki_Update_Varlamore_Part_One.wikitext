@@ -1,0 +1,338 @@
+{{Update|date=20 March 2024|rev=22 March 2024|url=https://secure.runescape.com/m=news/varlamore-part-one?oldschool=1|category=game}}
+[[File:Varlamore- Part One newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+==Blog Update - Friday, March 22nd==
+It's been an eventful couple of days!
+
+In less than 72 hours you've flown atop gigantic birds, taken your first steps into a new land, hunted exotic creatures, investigated Hunter rumours, fought to the death in the Colosseum, run the pockets (and homes) of Varlamore's citizens dry, awakened and subdued an almost otherworldly-evil, and stumbled around Ralos' Rise assuring yourself that all that wine you brought was definitely for Prayer training. 
+
+We're over the moon to see so many of you enjoying Varlamore and making new discoveries, it's been an absolute joy for us and we're only at Part One - there's still more to come!
+
+If you've not yet had the chance to get involved with everything the Shining Kingdom has to offer, then we hope to see you there over the weekend! Just before we sign off for the weekend though, we want to give you a quick summary of some of the feedback points we've seen and where we're at with them so far.
+
+Please note that we're not going to commit to specific dates for changes we're keen to make, some might come next week, some might come the week after, and others might come a little down the line. We're not looking to make many knee-jerk changes while things are so fresh and people are still getting to grips with everything on offer, but feel there are some bits that can absolutely stand to be improved - let's take a look!
+
+===Things we've hotfixed so far===
+We've made a few quick fixes since release, you'll likely have noticed these already but just to make sure we're all on the same page:
+
+* Fixed one of the options on the POH Jewellery box.
+* Replaced Varrock's missing Yew trees.
+* Fixed some missing blocking in the Fortis Crypt, apologies to any wall-locked Iron accounts.
+* Prevented Random Events from spawning in the houses associated with the Thieving activity.
+* Fixed a bug where players were unable to make Sunlight crossbows by using a Fletching boost.
+* Fixed some Hunter rumours that weren't dropping their associated item.
+* Removed Herblore XP given by creating Moonlight potions inside Nepotzli.
+* Fixed a S.T.A.S.H. Unit inside Fortis.
+* Increased the maximum permitted player count inside the boss rooms for each of the Moons of Peril.
+* Reduced the healing offered by Snowy Knight Mixes.
+* Fixed a bug where the new Quetzal pet could not be reclaimed by Probita.
+* Extended the range of Sol Heredit's Spear Strike and Shield Slam attacks.
+* Improved the drop rates for some Hunter rumour items.
+* Fixed an interaction where Dizana's Quiver + Toxic Blowpipe wasn't respecting the bonuses offered by the Blowpipe's ammunition.
+
+The following fixes are in a separate section because they've only just been deployed and you might not have noticed them yet!
+
+* Adjusted the Runecraft XP offered by crafting Sunfire runes. Effectively rather than these scaling with your Runecraft level up to 13.5 XP per Essence used, they now offer a flat 9 XP per Essence used at all Runecraft levels.
+* Increased the lenience of the reduced Colosseum death fees. Currently, your fee is reduced by 75% until you've completed 50 waves, we're looking to up this to 100 waves for now. We don't want to go overboard because gold sinks are valuable to us and we feel progression will get easier as more players produce educational content to aid on conquering the Colosseum. Outside of this adjusted reduction, the Colosseum will continue to make use of the standard death/gravestone system.
+* Fixed Echo boots so that they're not losing charges in scenarios where they're not actually recoiling damage.
+
+===Things we've agreed to tweak in the near future===
+====Colosseum====
+* Correct the description of 'Doom' modifiers in the Colosseum so that it's clear the modifier applies to every source of damage, not just NPCs.
+* Improve the visibility of everybody's favourite bees!
+* Tweaking the appearance of Dizana's Quiver and its Max Cape variant, as shown below!
+
+<center>
+[[File:Varlamore- Part One (5).png|600px]]
+[[File:Varlamore- Part One (6).png|600px]]
+</center>
+
+Shown above are some 'before' and 'afters' for Dizana's Quiver concepts to try and make it look a little beefier, since we've seen some feedback suggesting it looks a little small for a coveted best-in-slot item - let us know what you think!
+
+====Hunter Guild====
+
+* Improve messaging to make it clear when a player has unlocked their Quetzal Whistle by completing 10 rumours. We'll be deploying this one on the same day as this blog update goes out, so it might already have been improved by the time you're reading this!
+* Prevent players from being able to receive the same rumour back-to-back by default, but allow players to toggle this back on by talking to an NPC.
+* Standardise naming conventions between rumours and loot sacks.
+* Reduce 'overcrowding' at Pyre foxes by rotating the north and east traps to face inwards and increasing the number of spawns.
+* Improve messaging to make it clear how players recharge Quetzal Whistles.
+* Make it easier to recharge multiple Quetzal whistles at once.
+* Make the Hunter Guild teleport on the Hunter Skillcape more visible.
+* Improve the pathfinding of pitfall NPCs so they don't get stuck quite as often.
+* Correct the wording for Red chinchompa rumours so that you're no longer instructed to bring back a claw, where it should be some of their fur.
+* Allow players to store a wider variety of Hunter-associated items in their Huntsman's Kit.
+* Fix Razor-backed Kebbit Meat so that it interacts correctly with meat pouches.
+* Allow players to directly empty meat and fur pouches into their bank.
+* Add a one-time fee to Matthias for unlimited falconry. Additionally, add a right-click 'Pay' option for people not looking to splash out for, and we cannot stress this enough, unlimited falconry.
+* Speed up the respawn timer on antelopes.
+* Correctly update the Collection Log when acquiring Sunfire Splinters from antelopes.
+* Make more trees in the Savannah choppable.
+* Add 'Open' and 'Close' options to meat and fur pouches, so that relevant loot is placed in them automatically, similar to a Looting Bag.
+
+====Perilous Moons====
+
+* Give a more fitting name to the 'Armour' stat on the new bosses.
+* Tweak the Blood Moon boss so that its healing isn't quite so randomly punishing.
+* Fix an issue where the Moons can flicker, resulting in players clicking through them and running into the middle of the room while attacking.
+* Allowing more than one person to open the Lunar chest at once, though you'll still be welcome to queue up if you'd like.
+* Fix the option to 'Disable warnings' before entering one of the Moons' lairs, which currently isn't working as intended.
+* Increase the Grand Exchange Buy-limit for Atlatl darts and Sunfire splinters.
+* Remove the delay when drinking tea using the stoves inside Nepotzli.
+* Fix some bugs with the Eclipse Moon Chestplate changing colours depending on the player's hair colour.
+* Disable 'forced camera angles' when moving through Nepotzli.
+
+====Miscellaneous====
+
+* Allow players to store more of the outfits introduced with Varlamore inside their POH.
+* Swap the placements for the two Fortis Quetzals so that Renu is closer to the Standard spellbook teleport.
+* Adjusting the Clue scroll step requiring the Fortis Salute emote and Blue Moon armour set.
+* Fix the POH Jewellery box right-click options.
+* Increase the Portal Nexus capacity.
+* Ensure newly added Clue steps behave like other Clues when dropped on the ground.
+* Prevent players being unable to pick up an axe from the stump in the Oasis if they have a Soulreaper or Zombie axe equipped - this is easier than letting you use those axes to chop down trees.
+
+===Things we're waiting for more long-term feedback or further discussions on===
+
+This section details feedback that we're aware of but not looking to knee-jerk react to and risk over-correcting, we'd like to take our time to make sure we get these right or can find the time to properly develop them. It might be the case that we don't end up making these changes at all, but we'd like to document them here so that you know we're aware!
+
+====Colosseum====
+
+* Doom modifiers in the Colosseum. We'd like to see how players feel about Doom once they've gotten more comfortable with the waves and aren't looking to make adjustments for the time being.
+* We're exploring whether or not we can add some NPCs to cheer you on (or actively root against you) from the Colosseum stands. We need to make sure this won't have any negative impacts on performance before committing to anything, especially in a challenge like the Colosseum - performance comes first!
+
+====Hunter Guild====
+
+* We saw some feedback regarding 'checking' your current rumour before you've unlocked your Quetzal Whistle and use the handy 'Rumour' option to check what you're supposed to be hunting. For the time being, we'd encourage you to read the rumour carefully before racing off - and make sure to pay a visit to Soar Leader Pitri after your 10th rumour to unlock your Basic Quetzal Whistle!
+* We'll be reviewing XP and loot from rumours over time, but aren't looking to make any adjustments at the moment. Recent hotfixes to improve the drop rate of relevant rumour items should also buff both of these indirectly. We might also achieve this via increased rewards at regular milestones, though would need to have further discussions on exactly how to balance these.
+* We'd like to take a pass over existing Hunter methods to improve them for players. This is outside the specific scope of the team working on Varlamore and is likely to make an appearance on a future QoL Poll later in the year.
+* We've seen some players asking to be able to set up multiple deadfall traps at once. We're conscious that this might contribute to the current overcrowding (particularly at Pyre foxes) and would also need to consider whether it might impact XP/hr in any unintended ways, so we're holding off on a change like this for now.
+
+====Perilous Moons====
+
+* We've seen calls from players asking for a pet to be added as a reward from the Lunar chest. We'll review this again down the line, this requires further discussion about making mid-level content more appealing for end-game players which might in turn make the content's reward output weaker for its target audience. We're not outright opposed, but want to keep an eye on the Moons for a while longer before making any changes.
+* We'll be keeping an eye on the power level of the Bloodrager, Blue Moon and Eclipse sets in both PvM and PvP scenarios. Their set effects and special attacks will take some time for players to get to grips with and we want more complete information before deciding whether or not we'd like to shift some numbers around so that they're sitting around where they're supposed to be in the gear progression meta.
+
+====Miscellaneous====
+
+* Some players are reporting that they can't bank Blessed Jugs of Wine and suggesting that it's a bug. This is an intended part of the balance of the activity to prevent players stacking wines en masse and achieving higher XP rates than intended.
+* The condensing of Jewellery Enchant spells and addition of the Civitas illa Fortis Teleport spell has moved some spells around on the Standard spellbook, leading to some players expressing frustrations about the spells whose positions have moved around. We mentioned in a blog released earlier this year that we'd be open to considering re-enabling Spellbook Re-ordering as a feature for approved Game Clients. We'll be bringing those conversations forward and will let you know when we update our guidelines to re-enable these plugins.
+
+That's all we've got for you at this stage! Please keep your feedback coming in, especially as you get more long-term experience with all of the content that Varlamore Part One has to offer.
+
+Thanks so much to all of you who've been enjoying your time in the Shining Kingdom, perhaps we'll cross paths in Civitas illa Fortis this weekend!
+
+{{Collapsed section|18|Issues and Hotfixes}}
+{| class="wikitable" style="text-align: center;"
+|-
+! Last Updated
+! Issues Raised
+! Current Progress
+! Status
+|-
+| 11:30 GMT
+| Grand Exchange offers aren't appearing for some players that interact with the Colosseum.
+| This issue has now been resolved. For anyone still seeing the issue, please re-log and this should show correctly.
+| '''HOTFIXED'''
+|-
+| 11:45 GMT
+| Some players have raised the Al Kharid teleport from your Jewellery Box doesn't work.
+| Players should now be able to use the Al Kharid teleport.
+| '''HOTFIXED'''
+|-
+| 11:25 GMT
+| Players are able to get stuck inside part of the wall inside the crypt during the Perilous Moons quest.
+| The team is investigating and we will look to block that tile as soon as possible.
+| '''INVESTIGATING'''
+|-
+| 11:25 GMT
+| Some Yew Trees across the game have gone missing.
+| The team is investigating and hoping to restore the trees to their rightful place.
+| '''INVESTIGATING'''
+|-
+| 14:15 GMT
+| Some players aren't receiving Rare Creature parts from certain creatures.
+| These creatures should now correctly drop Rare Creature parts. Please note that the time it takes to get a part will vary.
+| '''HOTFIXED'''
+|-
+| 15:10 GMT
+| The in-game description from Doom is incorrect.
+| It should say "Any damage taken applies doom. Certain death after 20 stacks." rather than "Hits from monsters off-prayer apply doom".
+
+We will look to update the description in-game.
+| '''INVESTIGATING'''
+|}
+{{Collapsed section end}}
+
+''It's finally time to venture to the land of Varlamore!''
+
+==Changelog - March 20th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+
+'''Varlamore: Part One'''
+* Part One of Varlamore is out now! Main features include:
+** Fortis Colosseum
+** Perilous Moons
+** Hunter's Guild
+** New Thieving Activity
+** New Prayer Activity
+** New Mining Activity
+** Four New Quests
+** And much more!
+
+'''Other Changes'''
+* The Birthday festivities have concluded and the accompanying party favours have been put away until next year.
+* Jewels may no longer be attached to a Keris Partisan while it is equipped unless the player satisfies the requirement to equip the resulting jewelled Partisan.
+* The stone chests of Kebos no longer claim that you might have received a Medium Clue Scroll every time you loot them.
+* The Spade in the underground region of the Morytania Slayer Tower can now be telegrabbed.
+* Streamlined Elnock's dialogue so that it no longer forces you to click through his question about Impling Scrolls every time you return to him.
+* More menus now refer to the Neitiznot Shield by its updated name.
+* The level-up messages for Crafting no longer mention Leprechaun Charms.
+* The Grand Exchange buy limit for Christmas Crackers has been reduced from 50 to 4.
+* Corrected the spelling of Sotetseg's name in the Combat Achievements list.
+* Made wording in messages about potion decanting more consistent.
+
+'''PvP World Rota'''
+
+The PvP rota has moved to '''Period A:'''
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using ''''Max/Med'''' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Varlamore: Part One ==
+Varlamore is finally open to visitors – and you’re cordially invited to be among the first to explore the famous Shining Kingdom. To start your journey, you’ll need to complete '''Children of the Sun''', the beginning of the Varlamore questline. If you’ve already completed it (well done you!) then you’ll find a quetzal waiting outside the eastern gate Varrock to carry you to Varlamore in style.
+
+[[File:Varlamore- Part One (1).jpg|600px|center]]
+
+You’ll swoop into Civitas illa Fortis, Varlamore’s capital city. From there, the world (or at least the bit of it in Part One) is your oyster!
+
+For more information, check out the extensive [https://secure.runescape.com/m=news/varlamore-part-one---overview?oldschool=1 Varlamore: Part One - Overview] newspost. Or, check out this video from [https://www.youtube.com/@Jeporite Jeporite]. They might be locked to Gielinor’s chilly northern climes, but they’ve heard a few things about Varlamore they’d like to share!
+
+<center><big><big>[https://www.youtube.com/embed/9eZbfZPNsZU?si=YiMIgfKkbUraF6ev Varlamore: The Shining Kingdom - Old School RuneScape's Newest Area Expansion]</big></big></center>
+''If you can't see the video, ''[https://www.youtube.com/watch?v=9eZbfZPNsZU CLICK HERE]'' to watch.''
+
+This fantastic brochre below from our good friend '''GentleTractor''' highlights all the main features in Varlamore: Part One – but be sure to explore, as there’s plenty for you to discover…
+
+[[File:Varlamore- Part One (2).png|thumb|600px|center|''To view the full image, ''[https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-03-20/VarlamoreBrochure-GentleTractor.png CLICK HERE]]]
+
+===Twilight's Promise (1)===
+The second quest in the Varlamore storyline follows up on the events of Children of the Sun and introduces you to the land of Varlamore. While optional, we highly recommend completing this quest for a good overview of the area – and it’ll unlock your next highlight, too!
+
+===Quetzal Transport Network===
+Quetzals are Varlamore’s national bird, and if you want to get around like a local, you’ll need to unlock the Quetzal Transport Network! These feathery fellows will have you soaring across the Savannah – and eventually, beyond. Some nests are pre-built, but other areas of Varlamore will need your help to build a comfortable landing zone.
+
+===Fortis Colosseum (2)===
+Civitas illa Fortis has many claims to fame, but towering above them all is the city’s defining feature: the Fortis Colosseum. This epic arena is the setting for a new, wave-based PvM minigame.
+
+<center>'''THE COLOSSEUM IS DANGEROUS FOR BOTH HARDCORE AND HARDCORE GROUP IRON PLAYERS - YOU'VE BEEN WARNED!'''</center>
+
+Those of you who own a Fire Cape should be able to get your feet wet in the early rounds, but as the waves progress, you can expect combinations of enemies that will test the skills of even the most seasoned combatants. Unlike other wave-based minigames, as the difficulty increases, so too do the stakes. After each wave, you’ll be offered a choice: swallow your pride and leave with the loot or risk it all on the next battle – you’re here to put on a show, after all!
+
+Practiced gladiators will be able to acquire the Tonalztic of Ralos, Sunfire Fanatic Armour, Sunfire Splinters, Sunfire Runes and loads of useful unlocks for both the colosseum and beyond. If you're good enough to complete all the waves inside the Colosseum, you'll walk away with Dizana's Quiver.
+
+===Thieving Activity (3 & 4)===
+Civitas illa Fortis is home to the great and good of Varlamore – and we reckon they could use some help lightening their pockets! With 50 Thieving you can pickpocket wealthy Varlamorians in the Bazaar. Under normal conditions this activity has a high failure rate, but every so often a helpful street urchin will distract a citizen. While distracted, you’ll be able to auto-pickpocket these citizens, and you’ll have a 100% success rate. They’ll drop coin pouches just like any other pickpocket target, but every so often, you’ll also obtain a key… what’s that for, then?
+
+Speak with a certain suspicious character lurking around Civitas’ wealthier homes, and they’ll help you use your key to sneak into the villas and loot the valuables… but be sure to escape before the owners return! This also includes a chance to get a Bone Statuette which can be chipped down into Blessed Bone Shards for Prayer XP.
+
+===Hunters' Guild (5)===
+The Hunters’ Guild is home to Varlamore’s greatest hunters, who spend their time tracking their prey across the Avium Savannah. If you’ve got what it takes to join their ranks – 46 Hunter, to be precise – then you can follow the dirt roads from Civitas illa Fortis to the heart of the Avium Savannah, where the Guild’s many amenities await you.
+
+Take on Hunter’s Rumours to track down unusual prey and get your hands on unique loot like the Quetzal Whistle – or even a quetzal pet! Or, avail yourself of the Guild’s leatherworking services and get yourself a new set of armour to hunt in.
+
+Outside the guild, you’ll get to know some of Varlamore’s wildlife. Moths, Antelope, Jerboa, Foxes, and even Salamanders are all scuttling around, waiting to be trapped. You’ll learn to prepare Hunter Meats with a nifty healing over time effect, too!
+
+Other new goodies include the Sunlight Hunter’s Crossbow (including new Ammunition types), the Hunter’s Spear, Sacks to store Meat and Furs, and improvements to existing Hunter gear.
+
+===Perilous Moons (8)===
+Lurking below the surface of Cam Torum is an ancient temple, built to contain powerful entities. Now, the earth has been disturbed – and the dwarves need your help to keep these strange beings contained!
+
+The quest found here will reveal a new chunk of PvM content aimed at mid-level players. We recommend tackling the dungeon with a combat level of 75 or greater.
+
+'''Quest Requirements:'''
+* 48 Slayer
+* 20 Runecraft
+* 20 Hunter
+* 20 Fishing
+* 10 Construction
+* Completed Twilight's Promise
+
+The Perilous Moons dungeon holds three deadly demi-bosses. Defeat them, and you’ll reemerge with some exciting new loot!
+
+Even more excitingly, you can take on the bosses with other players without affecting your own loot potential! Each player has their own contribution meter which essentially acts as the boss’ health. So, bring your friends, explore the caverns, and grab yourselves some unique gear!
+
+===Mining Activity (10)===
+Your second source of Blessed Bone Shards is this new low-intensity Mining method, available with 41 Mining. You’ll also receive Prayer XP as you mine!
+
+Keep your eyes peeled – Mining veins with waterfalls boosts your success rate by 15%!
+
+Occasionally, you’ll hit upon Calcified Deposits. Smash them with a hammer at your friendly local anvil, and you’ll either receive a stack of Bone Shards or a one-time, tradeable Cam Torum teleport. Handy!
+
+While that covers the main points of your itinerary, we highly recommend wandering off the beaten track. There’s lots to explore in Part One of Varlamore… and even a few surprise goodies for you to discover!
+
+Remember, this is just Part One. You can expect to hear more about Parts Two and Three very soon. In the meantime, have fun exploring Varlamore – and give those quetzals a cuddle from us!
+
+===Prayer Activity (11)===
+Ralos’ Rise is the legendary mountain where the Varlamorian god Ralos is said to have appeared to his worshippers, thousands of years ago. Now, pilgrims travel here to make offerings at the Altar of Ralos. You know what they say… when in Varlamore!
+
+To participate, you’ll need 30 Prayer, a few Jugs of Wine and bones. Under the watchful eye of the attendants, you’ll chip bones into shards, fill the libation pool with blessed wine, and make your offerings.
+
+Bone Shards can be crafted from most existing bones, but will all give the same XP when offered. Higher-tier bones can be made into larger quantities of shards, and some even offer a chance for bonus shards!
+
+==Other Changes==
+* The Birthday festivities have concluded and the accompanying party favours have been put away until next year.
+* Jewels may no longer be attached to a Keris Partisan while it is equipped unless the player satisfies the requirement to equip the resulting jewelled Partisan.
+* The stone chests of Kebos no longer claim that you might have received a Medium Clue Scroll every time you loot them.
+* The Spade in the underground region of the Morytania Slayer Tower can now be telegrabbed.
+* Streamlined Elnock's dialogue so that it no longer forces you to click through his question about Impling Scrolls every time you return to him.
+* More menus now refer to the Neitiznot Shield by its updated name.
+* The level-up messages for Crafting no longer mention Leprechaun Charms.
+* The Grand Exchange buy limit for Christmas Crackers has been reduced from 50 to 4.
+* Corrected the spelling of Sotetseg's name in the Combat Achievements list.
+* Made wording in messages about potion decanting more consistent.
+
+==Community News - J1MMY's Gary Gilbert Figure from Youtooz!==
+[[File:Varlamore- Part One (3).jpg|600px|center]]
+
+Check out this Gary vinyl figure on pre-order now from [https://youtooz.com/products/j1mmy Youtooz]  – you had better be quick - orders close 29th March!
+
+[[File:Varlamore- Part One (4).jpg|600px|center]]
+
+You’ve just arrived in Lumbridge on the infamous World 301 for the first time. You cross over the nearby River Lum, and quickly realize the rumors are true: the most handsome man you’ve ever seen is there, sword and shield in-hand, slaying mighty gobs. It’s really him… Gary Gilbert. J1MMY’s permanent new player and adventurer, Gary Gilbert, stands  at 5 inches tall and is ready for any fight.
+
+Gary’s signature mustache sits smugly below his nose and his spiky hair reaches to the sky. He sports his blue stitched shirt and black shorts proudly, and raises his bronze sword and wooden shield to take on anything that dares stand in his path (as long as they’re not over level 5).
+
+This figure has been created under license, the first merch created by a content creator under an [[Update:Content Creator - Avatar License & Makeship Framework|Avatar License]] with Jagex.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A:'''
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using ''''Max/Med'''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1bj9lzp/varlamore_part_one/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

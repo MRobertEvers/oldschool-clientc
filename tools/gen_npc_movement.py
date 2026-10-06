@@ -119,6 +119,8 @@ import os
 import re
 import sys
 
+import config_text
+
 # Layer order is the whole decision procedure: the first one that answers wins.
 # Ordered by distance from this cache's revision, except that m0 outranks
 # everything below it because it is joined by tile against the very dump this
@@ -168,12 +170,17 @@ LEDGER_DIR = "npc_movement"
 # ---------------------------------------------------------------- this tree
 
 
-def parse_config(path):
-    """A `.npc`-grammar file as {block: {key: value}}, first value per key."""
+def parse_config(path, markers=True):
+    """A `.npc`-grammar file as {block: {key: value}}, first value per key.
+
+    `markers`: this tree's config text, so `key=default` / `key=empty` lines
+    read as absent (config_text). False for another server's files (LostCity),
+    which are not in that format.
+    """
     blocks = {}
     current = None
     with open(path, encoding="latin-1") as f:
-        for line in f:
+        for line in (config_text.filter_lines(f) if markers else f):
             line = line.strip()
             if line.startswith("//"):
                 continue
@@ -401,7 +408,7 @@ def layer_m4_lostcity(root, known):
             if not filename.endswith(".npc"):
                 continue
             for gameval, keys in parse_config(
-                    os.path.join(dirpath, filename)).items():
+                    os.path.join(dirpath, filename), markers=False).items():
                 if gameval not in known:
                     continue
                 still = (keys.get("moverestrict") == "nomove"
@@ -505,7 +512,7 @@ def layer_r2_lostcity(root, known):
             if not filename.endswith(".npc"):
                 continue
             for gameval, keys in parse_config(
-                    os.path.join(dirpath, filename)).items():
+                    os.path.join(dirpath, filename), markers=False).items():
                 if gameval in known and keys.get("moverestrict") in ("indoors",
                                                                      "outdoors"):
                     out[gameval] = keys["moverestrict"]

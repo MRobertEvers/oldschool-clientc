@@ -42,6 +42,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wiki_fetch  # noqa: E402
 import wiki_infobox as wi  # noqa: E402
 import wiki_droptable as wd  # noqa: E402
+import config_text  # noqa: E402
 from gen_npc_combat import claim_server_membership  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -350,7 +351,8 @@ def block_keys(content_dir: str, exclude_paths: set[str]) -> dict[str, set[str]]
                 continue
             current = None
             with open(full, encoding="latin-1") as f:
-                for line in f:
+                # `key=default` states nothing; the marker lines read as absent.
+                for line in config_text.filter_lines(f):
                     line = line.strip()
                     m = BLOCK_RE.match(line)
                     if m:

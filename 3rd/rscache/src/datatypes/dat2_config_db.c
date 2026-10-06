@@ -1,5 +1,6 @@
 #include "dat2_config_db.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -85,21 +86,15 @@ decode_columns(
     bool is_table)
 {
     int alloc = RSCache_BufferG1(buf);
-    struct RSCache_DbColumn* cols;
+    struct RSCache_DbColumn* cols = NULL;
 
-    if( alloc <= 0 )
+    /* An alloc of 0 still carries its 0xff-terminated column list -- the client
+     * reads it either way -- so the loop below runs regardless; every column it
+     * lists is out of range and lands in the scratch. */
+    if( alloc > 0 )
     {
-        *cols_out = NULL;
-        *count_out = 0;
-        return;
-    }
-
-    cols = calloc((size_t)alloc, sizeof(*cols));
-    if( !cols )
-    {
-        *cols_out = NULL;
-        *count_out = 0;
-        return;
+        cols = calloc((size_t)alloc, sizeof(*cols));
+        assert(cols);
     }
 
     for( ;; )
@@ -153,11 +148,11 @@ RSCache_Dat2ConfigDbRowDecodeInplace(
 {
     struct RSCache_Buffer buf;
 
-    if( !entry )
-        return;
+    assert(entry);
     entry->table_id = -1;
     entry->column_count = 0;
     entry->columns = NULL;
+    RSCache_PresenceReset(&entry->present);
     if( !data || data_size <= 0 || (data_size == 1 && ((const uint8_t*)data)[0] == 0) )
         return;
 
@@ -169,9 +164,15 @@ RSCache_Dat2ConfigDbRowDecodeInplace(
         if( opcode == 0 )
             break;
         if( opcode == 3 )
+        {
             decode_columns(&buf, &entry->columns, &entry->column_count, false);
+            RSCache_PresenceSet(&entry->present, RSCACHE_DBROW_FIELD_COLUMNS);
+        }
         else if( opcode == 4 )
+        {
             entry->table_id = RSCache_BufferReadVarInt2(&buf);
+            RSCache_PresenceSet(&entry->present, RSCACHE_DBROW_FIELD_TABLE);
+        }
     }
 }
 
@@ -199,10 +200,10 @@ RSCache_Dat2ConfigDbTableDecodeInplace(
 {
     struct RSCache_Buffer buf;
 
-    if( !entry )
-        return;
+    assert(entry);
     entry->column_count = 0;
     entry->columns = NULL;
+    RSCache_PresenceReset(&entry->present);
     if( !data || data_size <= 0 || (data_size == 1 && ((const uint8_t*)data)[0] == 0) )
         return;
 
@@ -214,7 +215,10 @@ RSCache_Dat2ConfigDbTableDecodeInplace(
         if( opcode == 0 )
             break;
         if( opcode == 1 )
+        {
             decode_columns(&buf, &entry->columns, &entry->column_count, true);
+            RSCache_PresenceSet(&entry->present, RSCACHE_DBTABLE_FIELD_COLUMNS);
+        }
     }
 }
 
@@ -430,8 +434,7 @@ RSCache_Dat2ConfigDbRowEncodeBound(const struct RSCache_Dat2ConfigDbRow* entry)
 {
     uint32_t need = 1 + 1 + 5; /* opcode 3, opcode 4 + varint2, terminator */
 
-    if( !entry )
-        return 1;
+    assert(entry);
     if( entry->columns )
         need += columns_bound(entry->columns, entry->column_count);
     return need + 8;
@@ -445,8 +448,9 @@ RSCache_Dat2ConfigDbRowEncode(
 {
     struct RSCache_Buffer buf;
 
-    if( !entry || !out )
-        return 0;
+    assert(entry);
+    assert(out);
+    assert(capacity >= RSCache_Dat2ConfigDbRowEncodeBound(entry));
     RSCache_BufferInit(&buf, out, capacity);
 
     /*
@@ -458,19 +462,19 @@ RSCache_Dat2ConfigDbRowEncode(
      * semantic check and caught immediately by byte comparison: 15,418 of 16,711
      * rows differed, and the 1,293 that passed were the ones with no table id.
      */
-    if( entry->table_id >= 0 )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_DBROW_FIELD_TABLE) )
     {
+        assert(entry->table_id >= 0);
         RSCache_BufferP1(&buf, 4);
         RSCache_BufferWriteVarInt2(&buf, entry->table_id);
     }
-    if( entry->columns && entry->column_count > 0 )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_DBROW_FIELD_COLUMNS) )
     {
         RSCache_BufferP1(&buf, 3);
         encode_columns(&buf, entry->columns, entry->column_count, false);
     }
     RSCache_BufferP1(&buf, 0);
-    if( buf.position > capacity )
-        return 0;
+    assert(buf.position <= capacity);
     return buf.position;
 }
 
@@ -479,8 +483,7 @@ RSCache_Dat2ConfigDbTableEncodeBound(const struct RSCache_Dat2ConfigDbTable* ent
 {
     uint32_t need = 1 + 1; /* opcode 1, terminator */
 
-    if( !entry )
-        return 1;
+    assert(entry);
     if( entry->columns )
         need += columns_bound(entry->columns, entry->column_count);
     return need + 8;
@@ -494,17 +497,17 @@ RSCache_Dat2ConfigDbTableEncode(
 {
     struct RSCache_Buffer buf;
 
-    if( !entry || !out )
-        return 0;
+    assert(entry);
+    assert(out);
+    assert(capacity >= RSCache_Dat2ConfigDbTableEncodeBound(entry));
     RSCache_BufferInit(&buf, out, capacity);
 
-    if( entry->columns && entry->column_count > 0 )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_DBTABLE_FIELD_COLUMNS) )
     {
         RSCache_BufferP1(&buf, 1);
         encode_columns(&buf, entry->columns, entry->column_count, true);
     }
     RSCache_BufferP1(&buf, 0);
-    if( buf.position > capacity )
-        return 0;
+    assert(buf.position <= capacity);
     return buf.position;
 }

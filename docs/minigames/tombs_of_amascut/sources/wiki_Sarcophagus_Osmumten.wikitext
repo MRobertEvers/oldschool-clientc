@@ -1,0 +1,33 @@
+{{Infobox Scenery
+|version1 = Closed
+|version2 = Closed (unique)
+|version3 = Opened
+|name1 = Sarcophagus
+|name2 = Sarcophagus
+|name3 = Opened sarcophagus
+|image1 = [[File:Sarcophagus (Osmumten, closed).png|250x250px]]
+|image2 = [[File:Sarcophagus (Osmumten, closed).png|250x250px]]
+|image3 = [[File:Sarcophagus (Osmumten, opened).png|250x250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Tombs of Amascut]]
+|options1 = None
+|options2 = Open
+|options3 = None
+|examine1 = A place for the dead.
+|examine2 = A place for the dead.
+|examine3 = It's been opened.
+|map = {{Map|name=Sarcophagus (Osmumten)|x=3679|y=5140|mapID=-1|mtype=pin}}
+|id1 = 44825
+|id2 = 44826
+|id3 = 44934
+}}
+The '''sarcophagus''' of Pharaoh [[Osmumten]] can be found in his burial chamber in the [[Tombs of Amascut]] raid. If any player in the raid has received a unique reward, the flames around the sarcophagus will glow purple instead of white, and can be opened by the player who received the unique.
+[[File:Tombs of Amascut - receiving rare reward.gif|thumb|left|300px|A player receives the [[Masori body]] from Osmumten's sarcophagus.]]
+
+==Loot table==
+{{main|Chest_(Tombs_of_Amascut)#Uniques_2}}
+
+{{Tombs of Amascut}}

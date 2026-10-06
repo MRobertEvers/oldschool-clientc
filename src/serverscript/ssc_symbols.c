@@ -16,6 +16,7 @@
 #include <assert.h>
 
 #include "content/content_register.h"
+#include "content/content_value.h"
 
 #include <sys/stat.h>
 
@@ -948,29 +949,57 @@ SSC_SymbolsLoadConstantDir(
  *   column=spell,int,INDEXED,REQUIRED
  *   column=spellcom,component
  *
- * Cache exports spell the same data with explicit indices:
+ * A column's id is its POSITION among the block's `column=` lines. The cache
+ * export (`configs/all.dbtable`, written by cachepack in the same grammar) has
+ * holes in its numbering, and says so with a line per hole that occupies its
+ * position and names nothing:
  *
  *   [poh_room]
- *   columns=12
- *   columndef=5:source_offset,int,int
+ *   column=name,string
+ *   column=col1,ABSENT
+ *   ...
+ *   column=source_offset,int,int
  *
  * A `table:column` reference compiles to (table << 12) | (column << 4), matching
  * how DbOps.ts unpacks it; the low nibble is a tuple index the corpus does not
  * use. The table id comes from the dbtable symbol packs, so those have to be
- * loaded first. Supporting both spellings lets scripts query imported cache
- * tables without maintaining a second, hand-transcribed schema.
+ * loaded first. One grammar for both means scripts query imported cache tables
+ * without a second, hand-transcribed schema.
+ *
+ * The retired machine spelling (`columns=` / `columndef=<id>:<name>,...`) is
+ * refused by name: read positionally it would compose nothing, and a tree that
+ * still carries it is one cachepack has not re-unpacked.
  */
+static int
+column_is_absent(const char* types)
+{
+    const char* scan = types;
+    size_t length = strlen("ABSENT");
+
+    while( scan && *scan )
+    {
+        const char* end = strchr(scan, ',');
+        size_t token = end ? (size_t)(end - scan) : strlen(scan);
+
+        if( token == length && strncmp(scan, "ABSENT", length) == 0 )
+            return 1;
+        scan = end ? end + 1 : NULL;
+    }
+    return 0;
+}
+
 static int
 load_dbtable_file(
     struct SSC_Symbols* symbols,
     const char* path)
 {
     FILE* file = fopen(path, "rb");
-    char line[512];
+    char line[8192];
     char table_name[SSC_MAX_NAME] = "";
     int32_t table_id = -1;
     int column_index = 0;
     int loaded = 0;
+    int retired_reported = 0;
 
     if( !file )
         return 0;
@@ -998,39 +1027,33 @@ load_dbtable_file(
             continue;
         }
 
+        if( strncmp(cursor, "columndef=", 10) == 0 || strncmp(cursor, "columns=", 8) == 0 )
         {
-            char* name;
-            char* comma;
+            if( !retired_reported )
+                fprintf(stderr,
+                        "sscompile: %s: `columndef=` / `columns=` is the retired machine "
+                        "grammar; column ids are positional `column=` lines now — re-run "
+                        "`cachepack unpack --types dbtable,dbrow`\n",
+                        path);
+            retired_reported = 1;
+            continue;
+        }
+        if( strncmp(cursor, "column=", 7) != 0 )
+            continue;
+        /*
+         * `column=default` / `column=empty` (content/content_value.h): a table
+         * stating no columns. Read as values they were a column named "default"
+         * (or "empty"), composed into a `table:default` symbol a script could
+         * reference and get column 0.
+         */
+        if( ContentValue_IsMarker(ContentValue_LineMarker(cursor, 7)) )
+            continue;
+
+        {
+            char* name = cursor + 7;
+            char* comma = strchr(name, ',');
             char qualified[SSC_MAX_NAME];
-            int explicit_index = -1;
-            int field_index;
-
-            if( strncmp(cursor, "column=", 7) == 0 )
-            {
-                name = cursor + 7;
-                field_index = column_index++;
-            }
-            else if( strncmp(cursor, "columndef=", 10) == 0 )
-            {
-                char* colon;
-
-                name = cursor + 10;
-                colon = strchr(name, ':');
-                if( !colon )
-                    continue;
-                *colon = '\0';
-                explicit_index = atoi(name);
-                if( explicit_index < 0 || explicit_index > 255 )
-                    continue;
-                name = colon + 1;
-                field_index = explicit_index;
-                if( column_index <= explicit_index )
-                    column_index = explicit_index + 1;
-            }
-            else
-                continue;
-
-            comma = strchr(name, ',');
+            int field_index = column_index++;
             /*
              * Everything after the column name — its declared types and flags,
              * `string` or `coord,int,int,int,LIST` — kept because `db_getfield`
@@ -1046,6 +1069,11 @@ load_dbtable_file(
                 *comma = '\0';
                 types = comma + 1;
             }
+            /* A hole: its position is counted above, and it names nothing. */
+            if( types && column_is_absent(types) )
+                continue;
+            if( field_index > 255 )
+                continue;
             if( table_id >= 0 && *name )
             {
                 snprintf(qualified, sizeof(qualified), "%s:%s", table_name, name);
@@ -1255,6 +1283,16 @@ SSC_SymbolsLoadVarbitBases(
             snprintf(varbit_name, sizeof(varbit_name), "%s", cursor + 1);
             continue;
         }
+        /* `basevar=default`, `startbit=default` (content/content_value.h): the
+         * record does not state it, so it stays -1 -- "no carrier", "no bit".
+         * `atoi` read the bits as 0, a real bit. */
+        {
+            char* equals = strchr(cursor, '=');
+            size_t prefix = equals ? (size_t)(equals - cursor) + 1 : 0;
+
+            if( equals && ContentValue_IsMarker(ContentValue_LineMarker(cursor, prefix)) )
+                continue;
+        }
         if( strncmp(cursor, "basevar=", 8) == 0 )
         {
             const struct SSC_Symbol* varp =
@@ -1359,6 +1397,17 @@ load_varp_decl_file(
             symbol = SSC_SymbolsFind(symbols, cursor + 1, SSC_SYM_VARP);
             varp = symbol ? symbol->value : -1;
             continue;
+        }
+        /* `wholewrite=default` (content/content_value.h) is an unstated
+         * licence -- none. The `allow` test below would refuse it anyway; the
+         * marker test is here so this reader classifies the line the same way
+         * the server's `load_varp_config` does. */
+        {
+            char* equals = strchr(cursor, '=');
+            size_t prefix = equals ? (size_t)(equals - cursor) + 1 : 0;
+
+            if( equals && ContentValue_IsMarker(ContentValue_LineMarker(cursor, prefix)) )
+                continue;
         }
         if( varp >= 0 && strncmp(cursor, "wholewrite=", 11) == 0 &&
             strcmp(cursor + 11, "allow") == 0 )

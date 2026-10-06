@@ -821,15 +821,48 @@ function Build-Scripts {
     Invoke-Make -Targets @('torirsserver-scripts')
 }
 
+# The server pack: every config record the world server boots from (it reads no
+# config text). Same lane mapping as run-live.sh's servpack_lanes: a composition
+# with lanes gets its own pack beside its cache (<cache>.serverpack), which the
+# server finds by itself. cachepack skips the rebuild when the pack's stamp
+# matches its tree; the server refuses a pack whose stamp does not.
+function Get-ServpackLanes {
+    switch -Wildcard ($cacheDir) {
+        '*cache.osrs239.rs2012-summoning-curses' { return 'rs2012_qbd_td scape2009_summoning rs558_ancient_curses' }
+        '*cache.osrs239.rs2012-summoning' { return 'rs2012_qbd_td scape2009_summoning' }
+        '*cache.osrs239.rs2012' { return 'rs2012_qbd_td' }
+        '*cache.osrs239.summoning' { return 'scape2009_summoning' }
+        '*cache.osrs239.curses' { return 'rs558_ancient_curses' }
+        default { return '' }
+    }
+}
+
+function Build-ServerPack {
+    $lanes = Get-ServpackLanes
+    $targets = @('torirsserver-servpack')
+    if ($lanes) {
+        $out = ($cacheDir.TrimEnd('\', '/')) + '.serverpack'
+        $targets += "SERVPACK_LANES=$lanes"
+        $targets += "SERVPACK_OUT=$out"
+        Write-Host "run-live.ps1: server pack (lanes: $lanes)..." -ForegroundColor Cyan
+    } else {
+        Write-Host 'run-live.ps1: server pack...' -ForegroundColor Cyan
+    }
+    Invoke-Make -Targets $targets
+}
+
 # Cache and scripts are one consistency boundary. Keep the fast path together
 # at each native and web call site so a launch cannot prepare only one half.
 function Prepare-LiveContent {
     if ($skipChecks) {
         Write-Host 'run-live.ps1: --skip-checks -- using the cache and server script pack as they stand (they may be stale)' -ForegroundColor Yellow
+        # The server pack's opt-out, as run-live.sh's.
+        $env:TORIRSSERVER_ALLOW_STALE_PACK = '1'
         return
     }
     Build-CacheOverlay
     Build-Scripts
+    Build-ServerPack
 }
 
 # ------------------------------------------------------------------- web lane

@@ -1,10 +1,13 @@
 #include "cachepack.h"
 
+#include "datatypes/dat2_config_param.h"
+
 #include "dat2disk.h"
 #include "filelist.h"
 #include "reference_table.h"
 #include "rsbuffer.h"
 
+#include <assert.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
@@ -270,21 +273,19 @@ cp_record_ids(
 /* ---- shared emit / parse helpers ---------------------------------------- */
 
 void
-cp_emit_ref(
+cp_emit_name(
     struct CP_Ctx* ctx,
     struct CP_Lines* out,
     const char* key,
     enum CP_TypeId type,
-    int id,
-    int absent)
+    int id)
 {
-    if( id == absent )
-        return;
+    assert(ctx);
+    assert(out);
+    assert(key);
     const char* name = cp_name_ensure(ctx, type, id);
-    if( name )
-        cp_lines_addf(out, "%s=%s", key, name);
-    else
-        cp_lines_addf(out, "%s=%d", key, id);
+    assert(name);
+    cp_lines_addf(out, "%s=%s", key, name);
 }
 
 int
@@ -508,25 +509,6 @@ cp_emit_recols(
     }
 }
 
-/*
- * A param line is `param=<name>,<kind>,<value>`.
- *
- * The kind is spelled out rather than inferred from the value, because the wire
- * carries it per entry and a string param whose value happens to be numeric is
- * common ("1", "0" as flags). Inferring would silently rewrite those as ints,
- * which changes the byte the reader dispatches on and therefore what the client
- * gets back. The value is the line's tail, so it may contain commas.
- */
-static const char*
-param_kind_name(uint8_t kind)
-{
-    if( kind == RSCACHE_PARAM_STRING )
-        return "str";
-    if( kind == RSCACHE_PARAM_LONG )
-        return "long";
-    return "int";
-}
-
 int
 cp_collect_pairs(
     const struct CP_Config* config,
@@ -566,25 +548,46 @@ cp_emit_params(
     struct CP_Lines* out,
     const struct RSCache_Params* params)
 {
+    /*
+     * The authored spelling, `param=<name>,<value>`, the one content writes: the
+     * value is spelled by the param's declared type through the one table
+     * (cp_value.c) -- a record's name (`null` for -1), a coord, `yes`/`no` -- and
+     * everything after the first comma is the value, so a string may hold commas.
+     *
+     * An entry whose wire kind disagrees with its param's declared type has no
+     * authored spelling. It is refused loudly rather than written in a second
+     * spelling: one form per field.
+     */
     for( int i = 0; i < params->count; i++ )
     {
         const char* name = cp_name_ensure(ctx, CP_TYPE_PARAM, params->keys[i]);
-        const char* kind = param_kind_name(params->kinds[i]);
+        char code = cp_param_type_of(ctx, params->keys[i]);
+        const struct CP_ValueType* type = cp_value_type_of_char((unsigned char)code);
+        int declared_string = type && type->spell == CP_VALUE_STRING;
         char buf[8192];
-        if( params->kinds[i] == RSCACHE_PARAM_STRING )
+
+        assert(params->values[i]);
+        if( params->kinds[i] == RSCACHE_PARAM_STRING && declared_string )
+            snprintf(buf, sizeof(buf), "%s,%s", name, (const char*)params->values[i]);
+        else if( params->kinds[i] == RSCACHE_PARAM_INT && !declared_string )
         {
-            const char* value = params->values[i] ? (const char*)params->values[i] : "";
-            snprintf(buf, sizeof(buf), "%s,%s,%s", name, kind, value);
-        }
-        else if( params->kinds[i] == RSCACHE_PARAM_LONG )
-        {
-            long long v = params->values[i] ? *(const int64_t*)params->values[i] : 0;
-            snprintf(buf, sizeof(buf), "%s,%s,%lld", name, kind, v);
+            char number[64];
+
+            snprintf(buf, sizeof(buf), "%s,%s", name,
+                     cp_value_int_text(ctx, type, *(const int*)params->values[i],
+                                       CP_BOOL_YES_NO, number, sizeof(number)));
         }
         else
         {
-            int v = params->values[i] ? *(const int*)params->values[i] : 0;
-            snprintf(buf, sizeof(buf), "%s,%s,%d", name, kind, v);
+            cp_warn(ctx, &ctx->warn_unresolved_name,
+                    "param %s: a %s value where the param is declared `%c` — the authored "
+                    "spelling cannot state it",
+                    name,
+                    params->kinds[i] == RSCACHE_PARAM_STRING ? "string"
+                    : params->kinds[i] == RSCACHE_PARAM_LONG ? "long"
+                                                              : "int",
+                    code ? code : '?');
+            continue;
         }
         cp_lines_add_str(out, "param", buf);
     }
@@ -602,19 +605,14 @@ params_push(
     {
         int next = params->capacity ? params->capacity * 2 : 4;
         int* keys = realloc(params->keys, (size_t)next * sizeof(int));
-        if( keys )
-            params->keys = keys;
+        assert(keys);
+        params->keys = keys;
         void** values = realloc(params->values, (size_t)next * sizeof(void*));
-        if( values )
-            params->values = values;
+        assert(values);
+        params->values = values;
         uint8_t* kinds = realloc(params->kinds, (size_t)next * sizeof(uint8_t));
-        if( kinds )
-            params->kinds = kinds;
-        if( !keys || !values || !kinds )
-        {
-            free(value);
-            return 0;
-        }
+        assert(kinds);
+        params->kinds = kinds;
         params->capacity = next;
     }
     params->keys[params->count] = key;
@@ -622,107 +620,6 @@ params_push(
     params->kinds[params->count] = kind;
     params->count++;
     return 1;
-}
-
-/* ---- the ScriptVarType alphabet ----------------------------------------- */
-
-/*
- * Character, name, and the pack a symbolic value resolves through.
- *
- * Only the types this tree can actually state. A name not listed returns 0 and
- * is reported, rather than defaulting to `int`: a param whose type is silently
- * wrong reads its default back as a number that means something else, and a
- * default of `bones` becoming 0 is obj 0, which exists.
- *
- * `stat`, `category` and `component` are deliberately absent from the ref column
- * even though they have names: they are not cachepack config types, so there is
- * no pack here to resolve them through. A param of those types takes a number.
- */
-static const struct
-{
-    char code;
-    const char* name;
-    int ref; /* enum CP_TypeId, or -1 */
-} k_param_types[] = {
-    { 'i', "int", -1 },
-    { 's', "string", -1 },
-    { '1', "boolean", -1 },
-    { 'o', "obj", CP_TYPE_OBJ },
-    { 'O', "namedobj", CP_TYPE_OBJ },
-    { 'n', "npc", CP_TYPE_NPC },
-    { 'l', "loc", CP_TYPE_LOC },
-    { 'A', "seq", CP_TYPE_SEQ },
-    { 't', "spotanim", CP_TYPE_SPOTANIM },
-    { 'g', "enum", CP_TYPE_ENUM },
-    { 'J', "struct", CP_TYPE_STRUCT },
-    { 'v', "inv", CP_TYPE_INV },
-    { 'P', "param", CP_TYPE_PARAM },
-    { 'S', "stat", -1 },
-    { 'y', "category", -1 },
-    { 'I', "component", -1 },
-    { 'c', "coord", -1 },
-    { 'm', "model", -1 },
-    /*
-     * `synth` is not a cache param letter — 'P' is already `param` — so a sound
-     * param is stored as an int here, exactly as it was when it was spelled
-     * `type=int`. The word is listed anyway because the *server* reads the same
-     * `type=` for a second thing the wire character cannot express: the namespace a
-     * symbolic value resolves in. Spelled `int`, `param=attack_sound_stance1,
-     * longbow` was guessed at and came back as the longbow *item*. Listed after
-     * `int` so `cp_param_type_name('i')` still answers "int" and a re-pack of
-     * cachepack's own output reads back unchanged. cp_param_types_load retains
-     * the asset namespace separately for authored symbolic values.
-     */
-    { 'i', "synth", -1 },
-};
-
-#define PARAM_TYPE_COUNT ((int)(sizeof(k_param_types) / sizeof(k_param_types[0])))
-
-char
-cp_param_type_char(const char* name)
-{
-    if( !name || !name[0] )
-        return 0;
-    /* The machine export writes the character itself, so a one-character name is
-     * already the answer — and must stay so, or a re-pack of the tree cachepack
-     * just wrote would refuse its own output. */
-    if( !name[1] )
-        return name[0];
-    for( int i = 0; i < PARAM_TYPE_COUNT; i++ )
-    {
-        if( strcmp(k_param_types[i].name, name) == 0 )
-            return k_param_types[i].code;
-    }
-    return 0;
-}
-
-const char*
-cp_param_type_name(char type_char)
-{
-    static char fallback[2];
-
-    for( int i = 0; i < PARAM_TYPE_COUNT; i++ )
-    {
-        if( k_param_types[i].code == type_char )
-            return k_param_types[i].name;
-    }
-    /* A type outside the alphabet above still has to survive the text round trip,
-     * so it goes back as its own character — which `cp_param_type_char` reads
-     * again unchanged. Losing it would be worse than not naming it. */
-    fallback[0] = type_char;
-    fallback[1] = '\0';
-    return fallback;
-}
-
-int
-cp_param_ref_type(char type_char)
-{
-    for( int i = 0; i < PARAM_TYPE_COUNT; i++ )
-    {
-        if( k_param_types[i].code == type_char )
-            return k_param_types[i].ref;
-    }
-    return -1;
 }
 
 char
@@ -745,9 +642,8 @@ cp_param_types_load(struct CP_Ctx* ctx)
 
     free(ctx->param_types);
     ctx->param_types = calloc((size_t)capacity, sizeof(*ctx->param_types));
-    ctx->param_types_count = ctx->param_types ? capacity : 0;
-    if( !ctx->param_types )
-        return 0;
+    assert(ctx->param_types);
+    ctx->param_types_count = capacity;
 
     for( int f = 0; f < found_count; f++ )
     {
@@ -764,7 +660,14 @@ cp_param_types_load(struct CP_Ctx* ctx)
 
             if( !type_text || id < 0 || id >= ctx->param_types_count )
                 continue;
-            code = cp_param_type_char(type_text);
+            /* `type=default`: this layer states no type, which clears whatever an
+             * earlier layer stated (cp_text.h markers). */
+            if( cp_value_is_default(type_text) )
+            {
+                ctx->param_types[id].code = 0;
+                continue;
+            }
+            code = (char)cp_value_char_read(type_text);
             if( !code )
             {
                 fprintf(stderr, "cachepack: param [%s]: unknown type `%s`\n", block->debugname,
@@ -774,8 +677,6 @@ cp_param_types_load(struct CP_Ctx* ctx)
             /* A later layer restating a type overrides an earlier one, matching
              * the merge's rank rule — `cp_walk` hands them back in rank order. */
             ctx->param_types[id].code = code;
-            ctx->param_types[id].asset_plus_one =
-                strcmp(type_text, "synth") == 0 ? CP_ASSET_SYNTH + 1 : 0;
             typed++;
         }
         cp_config_file_free(&file);
@@ -790,139 +691,94 @@ cp_parse_param(
     const char* value)
 {
     char unescaped[8192];
-    char kind_buf[16];
-    char resolved_buf[32];
     int resolved = 0;
+    int param_id;
+    const struct CP_ValueType* type;
+    const char* text;
+    char* comma;
+
     cp_unescape(value, unescaped, sizeof(unescaped));
 
-    char* first = strchr(unescaped, ',');
-    if( !first )
+    /* `param=<name>,<value>`: the value is everything after the first comma, so
+     * a string may hold commas, and its kind is the param's declared type. */
+    comma = strchr(unescaped, ',');
+    if( !comma )
         return 0;
-    *first = '\0';
-    char* second = strchr(first + 1, ',');
-    const char* kind_text;
-    const char* text;
-
-    int param_id;
+    *comma = '\0';
+    text = comma + 1;
     if( !cp_resolve_ref(ctx, CP_TYPE_PARAM, unescaped, &param_id) )
         return 0;
+    type = cp_value_type_of_char((unsigned char)cp_param_type_of(ctx, param_id));
 
-    /* LostCity's lookupParamValue: `null` is -1 for every non-string type —
-     * `param=death_drop,null` is "drops nothing", not a failed name. A string
-     * param's `null` is the empty string, handled by the str branch reading the
-     * text as-is being wrong for exactly one spelling, so map it here too. */
-    if( strcmp(first + 1, "null") == 0 && !second )
-    {
-        char code = cp_param_type_of(ctx, param_id);
-        if( code != 's' )
-        {
-            int* copy = malloc(sizeof(*copy));
-            if( !copy )
-                return 0;
-            *copy = -1;
-            return params_push(params, param_id, RSCACHE_PARAM_INT, copy);
-        }
-    }
-
-    if( second )
-    {
-        *second = '\0';
-        kind_text = first + 1;
-        text = second + 1;
-    }
-    else
-    {
-        /*
-         * The authored spelling, `param=<name>,<value>`.
-         *
-         * The machine export writes the kind because it decoded one; a person
-         * writing `param=attackrate,6` does not, and neither does LostCity's
-         * grammar. The kind is recoverable from the param's own declared type,
-         * which is exactly what that type is for — so the two forms are the same
-         * statement, and the kind column stops being something a content author
-         * has to know.
-         */
-        char code = cp_param_type_of(ctx, param_id);
-        int ref = cp_param_ref_type(code);
-        int asset = ctx->param_types && param_id >= 0 && param_id < ctx->param_types_count
-                        ? ctx->param_types[param_id].asset_plus_one - 1 : -1;
-
-        kind_text = code == 's' ? "str" : "int";
-        snprintf(kind_buf, sizeof(kind_buf), "%s", kind_text);
-        kind_text = kind_buf;
-        text = first + 1;
-
-        /*
-         * A `^name` value is a constant, whatever the param's type.
-         *
-         * `param=undead,^true` and `param=damagetype,^crush_style` are both in
-         * this tree. It runs before the reference clause below because a caret is
-         * never a record name — the two cannot be confused — and after the kind
-         * is known so the resolved integer goes to the right slot.
-         */
-        if( text[0] == '^' && cp_resolve_caret(ctx, text, &resolved) )
-        {
-            snprintf(resolved_buf, sizeof(resolved_buf), "%d", resolved);
-            text = resolved_buf;
-        }
-
-        /*
-         * And a *reference* type's value is a name.
-         *
-         * `param=next_loc_stage,poordooropen` is loc 11403 because
-         * `next_loc_stage` is declared `type=loc`, and there is nowhere else that
-         * could be said — the line itself carries no type column. Resolved in
-         * place, so everything downstream sees the ordinary integer form.
-         */
-        if( ref >= 0 && !cp_parse_int(text, &resolved) )
-        {
-            if( !cp_resolve_ref_or_null(ctx, (enum CP_TypeId)ref, text, &resolved) )
-                return 0;
-            snprintf(resolved_buf, sizeof(resolved_buf), "%d", resolved);
-            text = resolved_buf;
-        }
-        else if( asset >= 0 && !cp_parse_int(text, &resolved) )
-        {
-            resolved = cp_asset_name_find(ctx, (enum CP_AssetId)asset, text);
-            if( resolved < 0 )
-                return 0;
-            snprintf(resolved_buf, sizeof(resolved_buf), "%d", resolved);
-            text = resolved_buf;
-        }
-    }
-
-    if( strcmp(kind_text, "str") == 0 )
+    if( type && type->spell == CP_VALUE_STRING )
     {
         size_t n = strlen(text);
         char* copy = malloc(n + 1);
-        if( !copy )
-            return 0;
+        assert(copy);
         memcpy(copy, text, n + 1);
         return params_push(params, param_id, RSCACHE_PARAM_STRING, copy);
     }
-    if( strcmp(kind_text, "long") == 0 )
+
+    /*
+     * Through the one table: `null` is -1 for every type (`param=death_drop,null`
+     * is "drops nothing"), a `^name` is a constant (`param=undead,^true`), and a
+     * reference type's value is a record name -- `param=next_loc_stage,poordooropen`
+     * is the loc that name binds, because `next_loc_stage` is declared `type=loc`.
+     */
+    if( !cp_value_int_read(ctx, type, text, &resolved) )
+        return 0;
     {
-        int64_t v;
-        if( !cp_parse_i64(text, &v) )
-            return 0;
-        int64_t* copy = malloc(sizeof(*copy));
-        if( !copy )
-            return 0;
-        *copy = v;
-        return params_push(params, param_id, RSCACHE_PARAM_LONG, copy);
-    }
-    if( strcmp(kind_text, "int") == 0 )
-    {
-        int v;
-        if( !cp_parse_int(text, &v) )
-            return 0;
         int* copy = malloc(sizeof(*copy));
-        if( !copy )
-            return 0;
-        *copy = v;
+        assert(copy);
+        *copy = resolved;
         return params_push(params, param_id, RSCACHE_PARAM_INT, copy);
     }
-    return 0;
+}
+
+/* ---- param types from the cache ----------------------------------------- */
+
+int
+cp_param_types_from_cache(struct CP_Ctx* ctx)
+{
+    struct CP_Group group;
+    int typed = 0;
+
+    assert(ctx);
+    if( !cp_group_open(ctx, CP_TYPE_PARAM, &group) )
+        return 0;
+    free(ctx->param_types);
+    ctx->param_types_count = 4096;
+    for( int i = 0; i < group.count; i++ )
+    {
+        int id = group.ids ? group.ids[i] : i;
+        if( id >= ctx->param_types_count )
+            ctx->param_types_count = id + 1;
+    }
+    ctx->param_types = calloc((size_t)ctx->param_types_count, sizeof(*ctx->param_types));
+    assert(ctx->param_types);
+    for( int i = 0; i < group.count; i++ )
+    {
+        int id = group.ids ? group.ids[i] : i;
+        int size = 0;
+        const uint8_t* record = cp_group_record(&group, i, &size);
+        struct RSCache_Dat2ConfigParam param;
+
+        if( !record )
+            continue;
+        memset(&param, 0, sizeof(param));
+        RSCache_Dat2ConfigParamDecodeInplace(&param, (char*)record, size);
+        /* The type the client reads (opcode 8 over opcode 1); an untyped param
+         * reads as int, which is code 0 here exactly as for the tree loader. */
+        if( RSCache_PresenceHas(&param.present, RSCACHE_PARAM_FIELD_TYPE) ||
+            RSCache_PresenceHas(&param.present, RSCACHE_PARAM_FIELD_TYPE_ID) )
+        {
+            ctx->param_types[id].code = param.type;
+            typed++;
+        }
+        RSCache_Dat2ConfigParamFreeInplace(&param);
+    }
+    cp_group_free(&group);
+    return typed;
 }
 
 /* ---- entity ops --------------------------------------------------------- */
@@ -1122,16 +978,15 @@ cp_intlist_set(
     int index,
     int value)
 {
-    if( index < 0 )
-        return;
+    assert(list);
+    assert(index >= 0);
     if( index >= list->capacity )
     {
         int next = list->capacity ? list->capacity : 8;
         while( next <= index )
             next *= 2;
         int* grown = realloc(list->items, (size_t)next * sizeof(int));
-        if( !grown )
-            return;
+        assert(grown);
         memset(grown + list->capacity, 0, (size_t)(next - list->capacity) * sizeof(int));
         list->items = grown;
         list->capacity = next;

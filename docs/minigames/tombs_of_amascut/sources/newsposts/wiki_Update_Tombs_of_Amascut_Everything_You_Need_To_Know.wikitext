@@ -1,0 +1,386 @@
+{{Update|date=15 July 2022|rev=10 August 2022|link=https://secure.runescape.com/m=news/tombs-of-amascut-everything-you-need-to-know?oldschool=1|category=future}}
+[[File:Tombs of Amascut- Everything You Need To Know newspost.png|right]]
+{{clear}}
+<center>''We're getting to close one of the biggest releases of the year – Tombs of Amascut! It's time to get hyped for Old School's newest raid and the continuation of the Desert storyline. Read on for rewards, player competitions and more details about your next adventure amidst the ancient sands...''</center>
+
+==Launches August 24th==
+<center>'''Contents'''</center>
+
+<center>[[#Requirements|Summary & Requirements]]<br>
+[[#Bosses|Bosses of Tombs of Amascut]]<br>
+[[#Invocations|Invocations]]<br>
+[[#Rewards|Rewards]]<br>
+[[#Competitions|Competitions]]</center>
+
+==<span id="Requirements"></span>Introducing: Tombs of Amascut==
+[[File:Tombs of Amascut- Everything You Need To Know (1).png|center|600px]]
+
+Long ago, the citizens of the Kharidian Desert lived prosperous and luxurious lives. All that changed when Amascut, the Goddess of Rebirth, became corrupted and warped. She became the Devourer, intent on consuming every soul in existence. Deep within the desert, an ancient tomb has long hidden a great power – and she is determined to harness it at any cost.
+
+There is only one solution: take the fight to Amascut before it's too late!
+
+{{Collapsed section|18|Requirements - Click to Expand (SPOILER WARNING!)}}
+To take on the Tombs of Amascut you'll need to have finished the following quests:
+* Beneath Cursed Sands
+** Contact!
+*** Prince Ali Rescue
+*** Icthlarin's Little Helper
+**** Gertrude's Cat
+
+This means you'll need the following skill levels (in order required to complete the associated quests):
+* 62 Agility
+* 55 Crafting
+* 55 Firemaking
+{{Collapsed section end}}
+==<span id="Bosses"></span>Bosses Within The Tombs==
+{{Collapsed section|18|Bosses - Click to Expand (SPOILER WARNING!)}}
+===Akkha===
+[[File:Tombs of Amascut- Everything You Need To Know (2).png|center|275px]]
+
+{{cquote2|Once a human warrior, Akkha made the mistake of joining a cult dedicated to the original form of Amascut, before she was corrupted into the Devourer. This cult had one desire: to be reborn in a perfected form. They performed a ritual and called upon Amascut, sacrificing themselves in her name. However, the poison used by Akkha failed to work correctly. He survived, trapped on the brink of death, becoming a perfect servant to the Devourer.}}
+
+===Ba-Ba===
+[[File:Tombs of Amascut- Everything You Need To Know (3).png|center|275px]]
+
+{{cquote2|Ba-Ba was once the matriarch of a large troop of baboons. As she grew old, she feared for the future of her family, considering her heir to be incompetent. Amascut promised her immortality so that she could rule her family forever. However, in return, she demanded both Ba-Ba and her family serve her. Ba-Ba agreed, and was willingly corrupted by Amascut. This corruption granted her the immortality she desired, but bound her to Amascut.}}
+
+===Kephri===
+[[File:Tombs of Amascut- Everything You Need To Know (4).png|center|300px]]
+
+{{cquote2|Kephri is the last of an ancient race of long-lived scarabs. She lived in isolation for years, watching the desert from afar, gathering knowledge as she did. While initially content, over time, she started to desire children to pass her knowledge on to. Amascut claimed to have a way to give Kephri the children she desired, promising to make her a mother of scarabs even smarter than she was. However, Amascut twisted these words, destroying Kephri’s intelligence, making her nothing more than a mindless thrall.}}
+
+===Zebak===
+[[File:Tombs of Amascut- Everything You Need To Know (5).png|center|300px]]
+
+{{cquote2|Zebak was part of a large group of crocodiles living in the Elid. With so little food available, the group had to rely on their resourcefulness. However, Zebak was weak, and was unable to compete with the others. To survive, he used his resourcefulness in another way, luring the other crocodiles into traps so he could kill them and take their food. Before long, he was the only crocodile left. With nothing left to eat, Amascut promised him a lifetime supply of food in return for his service. He willingly agreed.}}
+{{Collapsed section end}}
+==<span id="Invocations"></span>The Invocation System==
+The invocation system is one of the gameplay features that sets the Tombs of Amascut apart from our previous raids. This innovative feature will let raiders customise their experience inside the tombs like never before, giving newer adventurers the chance to learn the ropes and letting veterans build on the mechanics they’ve mastered to create whole new challenges.
+
+Sounds good, right? Read on to learn some of the finer details about how invocations work.
+
+{{Collapsed section|18|Invocations - Click to Expand (SPOILER WARNING!)}}
+When you first enter Tombs of Amascut, you’ll get the choice to start out with no invocations (a little thing we call Entry Mode), or with a set menu of invocations that should result in a challenging and engaging first-time experience.
+
+You’ll also be able to view the Invocations tab when making or joining a raiding party. You’ll see a big list of all the invocations, and the party leader will be able to select as many (or as few) as they like for that particular run.
+
+Each invocation you activate will add a certain amount to your Raid Level. With no invocations, your Raid Level will be 0. The tougher the invocation, the more Raid Level it will add. In other words, your Raid Level shows, at a glance, how difficult the raid will be – and higher risk equals higher reward.
+
+[[File:Tombs of Amascut- Everything You Need To Know (11).png|centre|thumb|485px|''This is the invocations tab. Active invocations are highlighted yellow, while inactive or lower tier invocations are greyed out. We could've sworn we included the names in here but it looks like they've gone missing for now...'']]
+
+A Raid Level of 0 - 149 will count as an Entry Mode raid.
+
+Entry Mode raids are a great way for less experienced raiders to get stuck in and start improving.
+
+A Raid Level of 150 - 299 will count as a Normal Mode raid.
+
+Normal Mode raids are where players with some previous raiding experience will be able to enjoy a challenge and work their way up towards Expert Mode as they get more comfortable inside the tombs.
+
+A raid with anything over 300 Raid Level will count as an Expert Mode raid.
+
+Expert Mode is for the best of the best. 300 Raid Level is all it takes to get there, but you can gain up to 580 Raid Level (so far...) Test your limits and see how far you can go before the power of Amascut overwhelms you!
+
+As the Raid Level increases, enemies inside the tombs will hit harder and last longer. On the other hand, completing raids with a higher Raid Level will improve your rewards – not to mention your bragging rights!
+
+[[File:Tombs of Amascut- Everything You Need To Know (12).png|centre|thumb|600px|''The various Raid Level thresholds, scaling from Entry Mode at 0 Raid Level all the way to 'Probably Impossible' at 580 Raid Level.'']]
+
+Here's a quick breakdown of how Raid Level will impact your spoils while you're busy tomb raiding:
+
+* All of the untradeable rewards (the Thread of Elidinis and the Keris Partisan Jewels) can be obtained at any Raid Level.
+* As you work your way up the ranks and surpass 50 Raid Level, you'll be in with a shot at earning the Lightbearer and Osmumten's Fang.
+* Completing a Normal Mode (or higher!) raid will give you the chance to loot a piece of Masori Armour, the Ward of Elidinis or even the Shadow of Tumeken.
+
+The chance to gain a unique item, and the quantity of the normal loot you receive, is also boosted at higher Raid Level. This means there’s always an incentive to challenge yourself if you want to get your hands on that sweet, sweet loot!
+{{Collapsed section end}}
+==Rewards==
+If there's one thing any self-respecting ancient tomb pretty much guarantees, it's the presence of hidden treasures. Brave the Tombs of Amascut and if you're lucky you'll come away with some pretty spectacular rewards. Here's what to look out for.
+{{Collapsed section|18|Rewards - Click to Expand (SPOILER WARNING!)}}
+<center>'''As always, we refer to the in-game timings as cycles. Each cycle is equal to 0.6 seconds and is also commonly referred to as a 'tick' by the wider community.</center>
+
+===Masori Armour===
+{{cquote2|The Masori were powerful ranged weapon-wielders active during an ancient Kharidian war. They focused primarily on defending ordinary people from the violent thieves and murderers who sought to take advantage of the wartime chaos. This mighty clan has been long since disbanded, but their weapons can still be found in the palaces of wealthy Menaphites, and among the treasures of long-dead Pharaohs.}}
+
+Requirements:
+* 80 Ranged
+* 30 Defence (or 80 when upgraded)
+
+[[File:Tombs of Amascut- Everything You Need To Know (6).png|frame|center|''Stats for the standard Masori Armour.'']]
+
+
+Using plates broken down from Armadyl’s Armour and crafting them (with 90 Crafting) onto your Masori Armour pieces with a chisel, you can create the upgraded versions.
+
+'''Breaking Down Values'''
+* Armadyl Helmet - 1 Armadyl Plate
+* Armadyl Chestplate - 4 Armadyl Plates
+* Armadyl Chainskirt - 3 Armadyl Plates
+
+'''Crafting Values (with 90 Crafting)'''
+* Masori Helmet (Upgraded) - 1 Armadyl Plate
+* Masori Chestplate (Upgraded) - 4 Armadyl Plates
+* Masori Chainskirt (Upgraded) - 3 Armadyl Plates
+
+[[File:Tombs of Amascut- Everything You Need To Know (7).png|frame|center|''Stats for the upgraded Masori Armour.'']]
+
+===Shadow of Tumeken===
+{{cquote2|When forces of the Ruinous Powers arrived in their lands, Tumeken and his people found themselves facing an enemy unlike any other. While his children, Amascut and Icthlarin, sought powerful allies to aid them, Tumeken hunted down a weapon of great power to use against this new threat. However, rather than claiming this weapon for himself, he instead used it to create the Shadow of Tumeken. This staff is powered by the sun itself, and with that brightest light comes the darkest of shadows...}}
+
+Requirements:
+* 85 Magic
+
+[[File:Tombs of Amascut- Everything You Need To Know (8).png|frame|center|''Stats for the Shadow of Tumeken.'']]
+
+
+Similar to a Powered Stave, it will have a built-in spell with charges powered by Soul and Chaos Runes. This staff will have an attack rate of five cycles and can only be used in PvM, like other powered Magic weapons.
+
+Base max hit is calculated from the following formula: Magic Level / 3 + 1.
+
+The Shadow of Tumeken also comes with two passive effects:
+* Magic Strength from gear is tripled (capped at a total of 100% Magic Strength).
+* Magic Accuracy from gear is tripled.
+
+Note: These passive effects only apply to the in-built spell of the Shadow of Tumeken and won't impact the bonuses applied to spells from any Spellbook.
+
+===Ward of Elidinis===
+{{cquote2|Elidinis was the Goddess of Fertility and alongside her husband Tumeken, they were the joint leaders of the Menaphite Pantheon. But while Tumeken and Elidinis steered the people of the Kharidian Desert spiritually, it was the responsibility of the human Pharaoh to rule in practical matters. Osmumten was the last Pharaoh before the end of the ancient war, and he fought alongside Tumeken against enemy forces until the noble God sacrificed himself to end the conflict. After her husband’s death, Elidinis fled to mourn the loss of her family. Before she left, the Goddess gifted Osmumten with Tumeken's Heka and her own broken Ward.}}
+
+Requirements:
+* 80 Magic
+* 80 Defence
+* 80 Prayer
+
+[[File:Tombs of Amascut- Everything You Need To Know (9).png|frame|center|''Stats for the uncharged Ward of Elidinis (left) and charged Ward of Elidinis (right).'']]
+
+
+The Ward of Elidinis will be your new best-in-slot magical shield. You'll receive the broken Ward as rare loot from the Tombs of Amascut. With 90 Prayer and 90 Smithing, you'll be able to combine the broken Ward with an Arcane Sigil and 10,000 Soul Runes to repair it.
+
+Both the broken and fully repaired Wards can be equipped, but the broken Ward will be tradeable, and untradeable when fixed. Players can dismantle it to recover both the Sigil and the Ward, but the Runes will be lost. Dying in PvP will result in the Sigil and the broken Ward being dropped.
+
+===Osmumten's Fang===
+{{cquote2|Known to his people as Osmumten the Hunter, he was renowned for bringing down many of the land's deadliest beasts. During his hunts, he wore armour and weapons crafted by the region's finest artisans. One such weapon was his Fang, with which he was eventually buried.}}
+
+Requirements:
+* 82 Attack
+
+[[File:Tombs of Amascut- Everything You Need To Know (10).png|frame|center|''Stats for Osmumten's Fang.'']]
+
+
+Osmumten’s Fang is a five-cycle weapon that packs a serious punch while on Stab. It’s decently effective against low defence NPCs, but it excels against monsters with a high defence (and does full damage to the Corporeal Beast, similar to spears). Alongside this, it has a special effect to 'double roll' on accuracy, which means it will roll twice for your accuracy when you attack and will take the highest roll from the two, meaning it's way more accurate!
+
+===Lightbearer===
+{{cquote2|Ahmek was a formidable warrior who sought to capitalise on the political instability at the end of the war. He crafted a powerful ring which he imbued with the unstable energy left behind from Tumekin's sacrifice. Ahmek sought to use this ring to emerge as a new power in the region; by forcibly uniting thieves and mercenaries under his command, he would overthrow Osmumten. His scheming proved fruitless, however, when the ring was stolen, and he was murdered in his sleep. The Menaphite Guards claimed the ring from the body of the murderous thief and dutifully presented it to the Pharaoh.}}
+
+The Lightbearer is a ring for any adventurer looking to unload a deluge of Special Attacks and can be equipped by anybody fortunate enough to have one in their possession.
+
+When equipped, your Special Attack energy will regenerate at twice the speed it usually does. Unequipping the ring will reset the Special Attack energy restoration timer.
+
+===Thread of Elidinis===
+Requirements:
+* 75 Crafting
+
+With this being a somewhat magical raid, players suggested a potential upgrade to the Rune Pouch! It's a very popular item used in almost all content. We propose adding the Thread of Elidinis, a new '''untradeable reward'''.
+
+This magical thread, once woven by an ancient seamstress, can be used together with a needle to imbue your Rune Pouch with magical energy – allowing you to store an additional type of Rune! You won't be able to have both the new and old version of the Rune Pouch simultaneously as that might be a tad too powerful.
+
+If a player loses the Thread of Elidinis then they will need to re-obtain it through Tombs of Amascut. However, you will be able to obtain multiple threads (this will be a fairly common drop compared to other uniques, due to its untradeable nature) and not roll on the same unique drop table. You'll also be able to de-grade the Rune Pouch to re-obtain the Thread – just in case you're getting involved in risky business and worried about losing that all-important item!
+
+===Keris Partisan Jewels===
+If you've checked out the Keris Partisan from Beneath Cursed Sands, you'll notice it has a jewel socket. Players can insert various untradeable jewels in it, all obtainable from Tombs of Amascut. Only one jewel can be used at a time, with each bestowing a different effect on the weapon.
+
+These jewels can '''ONLY''' be used within Tombs of Amascut, aside from the Breach of the Scarab jewel which previously passed the polls. Some examples of jewels are:
+* '''Eye of the Corruptor:'''
+** Using this jewel grants the Keris Partisan a Special Attack, '''Wrath of Amascut''', which costs 75% of your Special Attack energy.
+** Wrath of Amascut has 100% increased accuracy and 25% increased damage.
+** Any enemy hit by Wrath of Amascut will receive 25% increased damage for the next 6 seconds (10 cycles).
+** The Keris Partisan's attack speed will be halved when using Wrath of Amascut. In other words, you'll have to wait 8 cycles after using this Special Attack to be able to start attacking again.
+* '''Jewel of the Sun:'''
+** Using this jewel grants the Keris Partisan a passive ability to drain life from defeated enemies at the cost of prayer points.
+** If a killing blow is dealt to a creature within the Tombs of Amascut with a Keris Partisan sporting a Jewel of the Sun, the player will lose 5 Prayer points but gain 12 Hitpoints. This effect can overheal up to 20% over the player's Hitpoints level.
+** The Jewel of the Sun gives the Keris Partisan +25% accuracy against creatures with less than 25% health.
+** Additionally, the jewel grants a Special Attack: '''Tumeken's Light.'''
+** Tumeken's Light costs 75% of the player's Special Attack energy and 50 Prayer points in order to fully heal (and overheal) the player up to 20% above their Hitpoints level. This Special Attack also cures all poison, restores any drained stats and fully restores Run Energy.
+* '''Breach of the Scarab:''' Increases accuracy by 33% against Kalphites, Scarabs, and Beetles. '''Remember, this is the only jewel that can be used outside of the raid.'''
+{{Collapsed section end}}
+==<span id="Competitions"></span>Competitions Galore!==
+===Competition #1 - Login Screen Design Challenge - FINISHED===
+<br>The votes have been counted and we are happy to reveal the winner of the Login Screen Design Challenge was '''Cherrycake4'''
+
+
+[[File:Tombs of Amascut- Everything You Need To Know (13).png|center|600px]]
+
+
+Each of the other finalists will also receive their prizes according to the recent poll results:
+[[File:Tombs of Amascut- Everything You Need To Know (14).png|center|400px]]
+
+
+[[File:Tombs of Amascut- Everything You Need To Know (15).png|center|600px]]
+<center><i>2nd Place: NinthCloud</i></center>
+
+
+[[File:Tombs of Amascut- Everything You Need To Know (16).png|center|600px]]
+<center><i>3rd Place: God of Onion</i></center>
+
+
+[[File:Tombs of Amascut- Everything You Need To Know (17).png|center|600px]]
+<center><i>4th Place: Iron Mrs50s</i></center>
+
+
+
+{{Collapsed section|18|Competition Details - Login Screen Design Challenge - Click to Expand}}
+Want to play a part in the launch of Tombs? This is your chance to design something familiar to all 'Scapers... the Old School login screen!
+
+Using the lore surrounding the events of the Desert Storyline and the background of the Kharadian Desert as your inspiration, we'd like you to come up with a thematic login screen for when Tombs of Amascut arrives in August. If you win, every player who opens Old School will see your design as they prepare to step into Gielinor!
+
+Here's everything you need to know:
+
+Dates & Times:
+* The competition begins at '''13:00 BST''' on '''July 15th''' and closes at '''23:59 BST''' on '''July 24th'''.
+* The four finalists will be chosen by the Old School team and will feature in a poll starting on '''July 28th''' and closing on '''August 1st'''.
+
+Dimensions & Display:
+* The image you submit must be '''545x671 pixels exactly and either JPG/JPEG'''.
+* The login screen works by taking an image and mirroring it. When submitting, make sure that it's half of a login screen (see the examples below).
+* Remember that the flames and window boxes (where players enter their login details) will be placed on top of your image, in the same positions as where they currently sit. These cannot be moved.
+* You must use the inspiration as stated above to be considered for your entry.
+
+
+Submissions:
+
+Complete the [https://jagex.eu.qualtrics.com/jfe/form/SV_b7QSKUcrch7ypRI ToA - Login Screen Design Challenge form] with the following details:
+* Your login screen design.
+* Your RuneScape Username (RSN).
+* Your Country of Residence.
+{{Collapsed section end}}
+We want to make sure all the finalists are rewarded for making it to the top four. Here's what you could win:
+* '''1st Place''' - $200 Amazon voucher ,12 months of membership and framed image of your artwork, signed by the team.
+* '''2nd Place''' - $100 Amazon voucher and 6 months of membership
+* '''3rd & 4th Place''' - $50 Amazon voucher and 3 months of membership
+
+If you need a little inspiration, look no further than the previous winners of our login screen competitions for [https://cdn.runescape.com/assets/img/external/oldschool/2020/newsposts/2020-05-09/login_screen-sote.jpg Song of the Elves] and [https://cdn.runescape.com/assets/img/external/oldschool/2020/newsposts/2020-05-09/login_screen-kebos.jpg Kebos Lowlands]! And there's always [https://cdn.runescape.com/assets/img/external/oldschool/2020/newsposts/2020-05-09/login_screen-normal.jpg the classic], of course!
+
+For more details and the full Ts and Cs, head over to the [https://secure.runescape.com/m=forum/forums?380,381,822,66257442 official forum thread]. We look forward to seeing all of your submissions!
+
+===Competition #2 - Stories From The Kharidian Desert: Short Story Competition - FINISHED===
+<br>Thank you to all the submissions for our second Tombs of Amascut competition. We saw some amazing literature that included legends, old tales and diaries from a forgotten age.
+
+We've made our decisions on who the top 4 enteries are, with the winner being featured within an in-game book, when Tombs of Amascut releases on August 24th.
+
+
+<p>Let's find out who got the top spots:</p>
+	<ul>
+	<li><b>1st Place:</b> AesirWarrior</li>
+	<li><b>2nd Place:</b> Elaku Dark</li>
+	<li><b>3rd Place:</b> JooshyJosh</li>
+	<li><b>4th Place:</b> TransGirlDel</li>
+	</ul>
+
+
+Please note that the winning short story will be altered slightly when seen in-game to better thematically fit.
+
+
+'''1st Place: AesirWarrior'''
+
+{{Letter|'''<center><i>The Jackal’s Torch</center></i>
+
+
+Once, long ago, three mortals were led through the land of the dead. They travelled together on the dismal road of the Underworld. The Devourer’s beasts were not to be seen then, but the Underworld was still a treacherous place: souls were lost in mist, the Noumenon called and pulled souls to its hidden depths, and impossible whispers lead them astray to places even the gods knew not. But worst of all was the darkness. More than anything, the Underworld was a dark place. The Sun’s light could never reach so low. But in His stead was His son. The guide and protector. The wanderer in darkness. Icthlarin, god of the Underworld.
+
+
+Icthlarin led the party of three blindly through the darkness, relying on scent alone. The only light by which to see was the glow from their spirits – enough only to not stumble and fall.
+
+
+At last, they came to a passageway, and Icthlarin turned to the first of the three and said:
+
+“This is your port of call. Through here is music and peace everlasting. You will want for nothing. Now go, for my endless task continues and there are more souls to guide.”
+
+And so, the first of the three bowed graciously and passed on.
+
+
+After a journey through mist, they came to yet another passageway. Icthlarin turned this time to the second of the three and said:
+
+“This is your port of call. Through here is discord and war everlasting. You will always want more. Now go, for my endless task continues and there are more souls to guide.”
+
+And so, the second of the three bowed respectfully and passed on.
+
+
+Then Icthlarin walked in silence. He stopped at every crossroads and crossing, every path and passageway, but still he walked. At last, he turned to the third and asked:
+
+“Where is your port of call? I can find no place for you in all the Underworld. Your scent is on no hall.”
+
+The last of three replied:
+
+“My place is with you. You outshine your father and all else above. Service, not rest, is my reward.”
+
+The god grew silent then and knew not what to say.
+
+
+They walked longer through mist until at last Icthlarin said, his back turned:
+
+“You know not of what you speak. I have no port of call, no halls to call my own. My life is spent in in-betweens; my task is never done. No, my father’s field of reeds, that is best for you.”
+
+Yet the mortal was persistent:
+
+“I care not for your father’s field of reeds nor any other hall! I need no port of call!”
+
+And Icthlarin was angered by their insolence:
+
+“What aid can you give me? Your spirit is dim and has not even the brittle strength of bones.”
+
+The third answered:
+
+“The light of my spirit may be dim, but it is better than darkness.”
+
+The god considered:
+
+“It is a lonely path. You will meet many, but they will all pass you by.”
+
+And the third smiled:
+
+“The better to share it.”
+
+Icthlarin grew silent once more, but then he turned to the cave wall. He tore free one of the roots of the world and extended it to his mortal companion and said:
+
+“Come then, for our endless task continues and there are more souls to guide.”
+
+And with the third’s touch, their spirit became the first ember and lit the root’s end.
+
+It was a beginning. Since then, Icthlarin has never wandered alone, for all those who serve him are wanderers in darkness too. They are the light in the jackal’s torch.'''}}
+
+<p>You can find the other finalists in the recent [https://secure.runescape.com/m=news/lms-game-modes-pures--zerks?oldschool=1 LMS Game Modes: Pures & Zerks] Game Update Newspost.</p>
+
+
+{{Collapsed section|18|Competition Details - Stories From The Kharidian Desert: Short Story - Click to Expand}}
+This is our most narrative-driven raid yet, and we know you lorehounds will be ready to take us on a journey with your own evocative tales of desert sands and ancient intrigue. Jump into the creative writing zone and tell us a story relevant either to the Tombs of Amascut, the overarching Desert Storyline (from Icthlarin's Little Helper to Beneath Cursed Sands) or the Kharidian Desert.
+
+The winner of this competition will have their short story turned into an in-game book that will be available for all players to access and read! Whether it be myth, legend or based on true events, we can't wait to see what you all come up with! Details as follows:
+
+Dates & Times:
+* The competition begins at '''13:00 BST''' on '''July 15th''' and closes at '''23:59 BST''' on '''July 24th'''.
+* The winner will be voted for by the Old School team between '''July 25th''' and '''July 30th'''.
+
+Specifications & Format:
+* Your story must be no longer than 1,000 words.
+* It must be submitted in a PDF file format.
+* It must feature inspiration from the Kharadian Desert and/or the Tombs of Amascut raid.
+
+
+Submissions:
+
+Complete the [https://jagex.eu.qualtrics.com/jfe/form/SV_6ikBPOV9EZtmujk ToA - Short Story Competition form] with:
+* Your short story PDF.
+* Your RuneScape Username (RSN).
+* Your Country of Residence.
+{{Collapsed section end}}
+We want to make sure all the finalists are rewarded for making it to the top four. Here's what you could win:
+* '''1st Place''' - 12 months of membership & your short story turned into an in-game book.
+* '''2nd Place''' - 6 months of membership
+* '''3rd & 4th Place''' - 3 months of membership
+
+For more details and the full T&Cs, head over to the [https://secure.runescape.com/m=forum/forums?380,381,822,66257547 official forum thread]. We look forward to seeing all of your submissions!
+
+----
+
+Discuss the upcoming Tombs of Amascut on [http://services.runescape.com/m=forum/forums?380,381,820,66256990 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #TombsOfAmascut channel.
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

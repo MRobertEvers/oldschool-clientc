@@ -1,6 +1,8 @@
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_CONTENT_H
 #define SRC_TORIRSSERVER_TORIRS_SERVER_CONTENT_H
 
+struct RSCache_ServerPack;
+
 /*
  * The mock's content tree: LostCity's pack files, config syntax and map format,
  * read straight off disk.
@@ -693,6 +695,8 @@ struct ToriRSServerVarpDef
      * `fields/varp.ini`.
      */
     int wholewrite_allowed;
+    /** `wholeread=allow`: stated for the compiler; the runtime reads nothing. */
+    int wholeread_allowed;
 };
 
 /** Declaration for a varp, or NULL when nothing declared it. An undeclared
@@ -921,81 +925,39 @@ ToriRSServer_ContentObjSpawns(int* count);
 /* ------------------------------------------------------------------ */
 
 /**
- * Read the whole tree.
+ * Read the tree's symbols and every grammar the server still reads as text
+ * (constants, enums, varps, objs, invs, spawns, maps, params, structs).
  *
- * **Call after `ToriRSServer_ObjInfoLoad` and `ToriRSServer_NpcInfoLoad`.** Bonuses,
- * attack rate and damage type are seeded from the cache params those two
- * already decoded, and the config blocks overlay that. Loading in the other
- * order silently produces npcs with no bonuses, which reads as a combat-formula
- * bug rather than a load-order one.
+ * npc and loc definitions are NOT read here: they come from the server pack
+ * alone, `ToriRSServer_ContentLoadPack`, which runs after this (it needs the
+ * symbols and the registers this loads) and seeds every npc def from what this
+ * leaves in `ToriRSServer_ContentNpcDefault()`.
  *
- * Returns the number of npc definitions read, or 0 when `dir` does not exist —
- * which is not an error. Every consumer falls back to engine defaults, the way
- * an absent script pack falls back to the hardcoded C behaviour.
+ * Returns the number of symbols read, or 0 when `dir` does not exist.
  */
 int
-ToriRSServer_ContentLoad(const char* dir);
+ToriRSServer_ContentLoad(
+    const char* dir,
+    struct RSCache_ServerPack* pack);
 
-/* ------------------------------------------------------------------ */
-/* The server band (server/pack)                                       */
-/* ------------------------------------------------------------------ */
-
-/** What `ToriRSServer_ContentLoadServerBand` found, for the boot log. */
-struct ToriRSServerBandReport
-{
-    /** Band archives that opened and decoded, across every registered type. */
-    int archives;
-    /** Of those, how many overlay a def the text pass loaded. */
-    int overlaid;
-    /** Archives refusing to open — bad magic, version, kind or CRC. Any one of
-     *  these means the pack on disk is stale or truncated. */
-    int invalid;
-    /** Field values where the band and the text parse disagree. Any one of
-     *  these means the *tree* moved since the pack was written. */
-    int mismatched;
-    /** Field values only the text carries because the band has no wire for
-     *  them (`huntmode=aggressive` is an enum name and the band is integers).
-     *  Expected during migration; reported per field, never fatal. */
-    int text_only;
-    /** Band archives over records the runtime never loads: no def, and the
-     *  seed is blind to the cache record (`ToriRSServer_NpcInfoKnown` — the
-     *  nameless multinpc instances). Nothing exists to compare them against
-     *  and nothing is applied from them. */
-    int unseeded;
-};
-
-/** `ToriRSServer_ContentLoadServerBand` results. */
-enum ToriRSServerBandStatus
-{
-    /** Verified identical to the text parse and applied over it. */
-    TORIRSSERVER_BAND_LOADED = 1,
-    /** No `server/pack` on disk — run `cachepack pack` (make torirsserver-servpack). */
-    TORIRSSERVER_BAND_MISSING = 0,
-    /** Present but stale: a CRC/header refusal or a value disagreeing with the
-     *  text parse. Nothing was applied; the text-loaded records stand. */
-    TORIRSSERVER_BAND_STALE = -1,
-};
 
 /**
- * The band load path: read `<dir>/server/pack`, prove it equivalent, prefer it.
+ * The npc and loc definitions, from the server pack (`torirs_server_servpack.h`).
  *
- * **Call after `ToriRSServer_ContentLoad`** — the proof is against what that pass
- * loaded, and the seeds come from the cache tables plus the text `[default]`
- * block it applied.
+ * **Call after `ToriRSServer_ContentLoad`, `ToriRSServer_NpcInfoLoad` and
+ * `ToriRSServer_LocInfoLoad`.** Each npc def is seeded from the built-in numbers,
+ * the pack's `[default]` band over them, and the record's own params
+ * (`ToriRSServer_NpcInfo`); then its band is applied through the register
+ * bindings. Each loc band fills its def and the loc param table; the loc
+ * records' categories and ops (`ToriRSServer_LocInfo*`) fill the rest.
  *
- * Every band archive is held to the text parse three ways, per registered
- * field: a band value must equal the text-loaded value; a field the band lacks
- * must be one the text left at its seed **or** one the band has no wire for
- * (counted per field as `text_only`); and a record with no text def must decode
- * to exactly its seed. Only when every archive passes is the band decoded over
- * the live records — at which point the band, not the text, is what the engine
- * is running on. Any refusal leaves the text parse standing, which is the
- * migration fallback PORTING_GUIDE §3.6 describes.
+ * Returns 0, or -1 after a report: the pack has no `[default]` band, an archive
+ * does not validate, a band does not decode whole, or the registers disagree
+ * with the bindings. Every one of those is a boot failure — the server has no
+ * other source for these records.
  */
-enum ToriRSServerBandStatus
-ToriRSServer_ContentLoadServerBand(
-    const char* dir,
-    struct ToriRSServerBandReport* report);
+int
+ToriRSServer_ContentLoadPack(struct RSCache_ServerPack* pack);
 
 void
 ToriRSServer_ContentFree(void);

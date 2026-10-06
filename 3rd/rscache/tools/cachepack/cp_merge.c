@@ -1,5 +1,8 @@
 #include "cp_merge.h"
 
+#include "cachepack.h"
+#include "rscache_register.h"
+
 #include <assert.h>
 
 #include <stdio.h>
@@ -293,6 +296,151 @@ push_line(struct CP_MergedRecord* rec, const char* key, const char* value, int r
     return 1;
 }
 
+static int
+value_is_marker(const char* value)
+{
+    return cp_value_is_default(value) || cp_value_is_empty(value);
+}
+
+/*
+ * A list or map key whose lower layers say only `key=default` / `key=empty` holds
+ * a marker, not entries, so a higher layer's first real line REPLACES it rather
+ * than appending beside it (which would leave the packer a marker next to a
+ * value). And a higher layer's own marker clears the key: `recol=default` in an
+ * overlay means "this record has no recolours", whatever rank 0 listed.
+ *
+ * Returns 1 if the lower-rank lines for `key` were removed.
+ */
+/** The INDEXED family `key` is a line of, or NULL. */
+static const struct CP_KeySpec*
+indexed_family(
+    const struct CP_MergeSet* set,
+    const char* key)
+{
+    const struct CP_KeySpec* spec;
+
+    if( !set->keys )
+        return NULL;
+    spec = cp_key_spec_in(set->keys, key);
+    return (spec && (spec->flags & CP_KEY_INDEXED)) ? spec : NULL;
+}
+
+/** The register list field `key` is a line of (`stock3`, or the bare stem
+ *  `stock` its markers are written on), or NULL. */
+static const struct RSCache_RegisterField*
+register_list_family(
+    const struct CP_MergeSet* set,
+    const char* key)
+{
+    const struct RSCache_RegisterField* field;
+
+    if( !set->fields )
+        return NULL;
+    field = RSCache_RegisterFindLine(set->fields, key);
+    if( !field || (field->text != RSCACHE_REGISTER_TEXT_INDEXED &&
+                   field->text != RSCACHE_REGISTER_TEXT_LIST) )
+        return NULL;
+    return field;
+}
+
+/** Do two line keys name the same field? */
+static int
+same_field(
+    const struct CP_MergeSet* set,
+    const char* a,
+    const char* b)
+{
+    const struct CP_KeySpec* family = indexed_family(set, a);
+    const struct RSCache_RegisterField* list = register_list_family(set, a);
+
+    if( strcmp(a, b) == 0 )
+        return 1;
+    if( list && list == register_list_family(set, b) )
+        return 1;
+    return family && family == indexed_family(set, b);
+}
+
+static int
+drop_lower_markers(
+    const struct CP_MergeSet* set,
+    struct CP_MergedRecord* rec,
+    const char* key,
+    const char* value,
+    int rank)
+{
+    int lower = 0;
+    int lower_markers = 0;
+    int w = 0;
+
+    for( int i = 0; i < rec->count; i++ )
+    {
+        if( !same_field(set, rec->lines[i].key, key) || rec->lines[i].rank >= rank )
+            continue;
+        lower++;
+        lower_markers += value_is_marker(rec->lines[i].value);
+    }
+    if( lower == 0 )
+        return 0;
+    if( !value_is_marker(value) && lower_markers != lower )
+        return 0;
+
+    for( int i = 0; i < rec->count; i++ )
+    {
+        if( same_field(set, rec->lines[i].key, key) && rec->lines[i].rank < rank )
+        {
+            free(rec->lines[i].key);
+            free(rec->lines[i].value);
+            continue;
+        }
+        rec->lines[w++] = rec->lines[i];
+    }
+    rec->count = w;
+    return 1;
+}
+
+/*
+ * A dbrow's `data=<column>,<value>...` lines are a map keyed by column, and a
+ * column may hold several tuples (one line each). A higher layer stating a
+ * column replaces EVERY lower-layer line for that column -- its tuples are the
+ * column's tuples now -- while further lines for it in the same layer append as
+ * that layer's next tuples. Without this an overlay's tuples were appended to
+ * the cache's, so the column held both.
+ */
+static int
+key_is_tuple_map(const char* key)
+{
+    return strcmp(key, "data") == 0;
+}
+
+static void
+drop_lower_column(
+    struct CP_MergedRecord* rec,
+    const char* value,
+    int rank)
+{
+    char want[128];
+    int w = 0;
+
+    map_subkey(value, want, sizeof(want));
+    for( int i = 0; i < rec->count; i++ )
+    {
+        char have[128];
+
+        if( strcmp(rec->lines[i].key, "data") == 0 && rec->lines[i].rank < rank )
+        {
+            map_subkey(rec->lines[i].value, have, sizeof(have));
+            if( strcmp(have, want) == 0 )
+            {
+                free(rec->lines[i].key);
+                free(rec->lines[i].value);
+                continue;
+            }
+        }
+        rec->lines[w++] = rec->lines[i];
+    }
+    rec->count = w;
+}
+
 int
 cp_merge_rank_for(int index, const char* path)
 {
@@ -303,6 +451,10 @@ cp_merge_rank_for(int index, const char* path)
     assert(path);
     base = strrchr(path, '/');
     base = base ? base + 1 : path;
+    /* A lane's own configs (`ported/<lane>/configs`, walked only for an included
+     * lane) define its records, and the authored layer may still overlay them. */
+    if( strstr(path, "/ported/") )
+        return 1;
     return strstr(base, ".generated.") ? 1 : 2;
 }
 
@@ -349,7 +501,22 @@ cp_merge_add(
              * check reported them as mismatched archives with no way to
              * converge: re-running the packer reproduced them exactly.
              */
-            int listy = key_is_multi(set, key) && !key_is_map(key);
+            const struct RSCache_RegisterField* list = register_list_family(set, key);
+            int listy = (key_is_multi(set, key) ||
+                         (list && list->text == RSCACHE_REGISTER_TEXT_LIST)) &&
+                        !key_is_map(key);
+
+            if( (listy || key_is_map(key) || indexed_family(set, key) || list) &&
+                drop_lower_markers(set, rec, key, value, rank) )
+                at = slot_for(rec, key, value);
+            if( key_is_tuple_map(key) && !value_is_marker(value) )
+            {
+                drop_lower_column(rec, value, rank);
+                if( !push_line(rec, key, value, rank, origin) )
+                    return 0;
+                contributed = 1;
+                continue;
+            }
 
             /*
              * A key rank 0 states more than once is a list: append, never replace.
@@ -358,6 +525,20 @@ cp_merge_add(
              */
             if( at >= 0 && listy )
                 at = -1;
+            /* `param=levelrequire,attack,60` twice on one record is two entries of
+             * a list field the register spells as a param, not one param stated
+             * twice: append. */
+            if( at >= 0 && key_is_map(key) && set->fields && !value_is_marker(value) )
+            {
+                char subkey[128];
+                const struct RSCache_RegisterField* field;
+
+                map_subkey(value, subkey, sizeof(subkey));
+                field = RSCache_RegisterFind(set->fields, subkey);
+                if( field && field->text == RSCACHE_REGISTER_TEXT_PARAM &&
+                    field->wire == RSCACHE_REGISTER_WIRE_LIST )
+                    at = -1;
+            }
 
             if( at < 0 )
             {

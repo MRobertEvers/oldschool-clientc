@@ -1,0 +1,302 @@
+{{Update|date=11 May 2022|link=https://secure.runescape.com/m=news/equipment-rebalance-tier-changes--poll-76?oldschool=1|category=game}}
+[[File:Equipment Rebalance Tier Changes & Poll 76 newspost.png|right]]
+{{Clear}}
+__TOC__
+==Issues and Hotfixes==
+{|class=wikitable style="text-align:center; width:665px;"
+!Last Updated
+!Issue
+!Our Response
+|-
+|May 11th, 12:50 GMT
+|Clue Scrolls added to the Hallowed Sepulchre are replacing existing rolls and they are not an additional roll on the drop table.
+
+The Poll 76 blog did not specify that they would replace rolls, so players feel confused because they expected Clue Scrolls to be in addition to the loot you currently receive.
+|The Poll 76 blog did not specify exactly how the rolls would work, however, typically in the past we have added clues as an additional roll on the droptable. The Hallowed Sepulchre already had a very strong drop table and we didn't want it to become too powerful, which is why a decision was made during development to have them replace existing rolls.
+
+We do not want players to feel mislead by the original blog as we know this may have influenced the way it was voted on. Moving forward, we'll try to be more explicit about these considerations in poll blogs wherever possible. Certain decisions (such as in this case) need to be made in development for balancing reasons. For now, we'd like to hear your feedback on it and we will review whether this needs to be changed following more feedback. Please let us know what you think and we will take this into consideration.
+
+'''Update - 13:45 BST, May 12th''' We have implemented a hotfix to make the Clue Scroll drops to be tertiary rolls, rather than replacing rolls.
+|-
+|May 11th, 16:00 BST
+|Clue Scrolls from the Hallowed Sepulchre had only one step.
+|'''HOTFIXED - 16:00 BST''' Clue Scrolls will henceforth have an appropriate number of steps, as is normal for their tier.
+|}
+
+''This week we’re talking Equipment Rebalancing, Poll 76 Changes, and all the latest RuneScape Kingdoms news. Plus, keep reading for an exciting announcement regarding the Jagex Launcher…
+
+==Equipment Rebalance: Tier Changes==
+As per [https://secure.runescape.com/m=news/tier-rebalancing-next-steps?oldschool=1 this newspost], we’ve been adjusting required skills for certain weapons!
+
+The only change since we last discussed this back in December is a small one to the Scythe of Vitur. We’ve made this item a hybrid weapon requiring 80 Attack and 90 Strength, as opposed to the even 85 Attack and Strength we proposed last time. Our reasoning is that this will allow pures to use the Scythe in exchange for one more combat level, alongside the other new tier 80 weapons.
+
+Here’s a reminder of what we’re changing:
+<center>
+
+'''Ghrazi Rapier'''
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (1).png|100px]]
+
+Previous requirements: 75 Attack
+
+New requirements: 80 Attack
+
+
+'''Blade of Saeldor'''
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (2).png|100px]]
+
+Previous requirements: 75 Attack
+
+New requirements: 80 Attack
+
+
+'''Inquisitor's Mace'''
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (3).png|100px]]
+
+Previous requirements: 75 Attack
+
+New requirements: 80 Attack
+
+
+'''Trident of the Swamp'''
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (4).png|100px]]
+
+Previous requirements: 75 Magic
+
+New requirements: 78 Magic
+
+
+'''Sanguinesti Staff'''
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (5).png|100px]]
+
+Previous requirements: 75 Magic
+
+New requirements: 82 Magic
+
+
+'''Kodai Wand'''
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (6).png|100px]]
+
+Previous requirements: 75 Magic
+
+New requirements: 80 Magic
+
+
+'''Nightmare Staff (base)'''
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (7).png|100px]]
+
+Previous requirements: 65 Magic
+
+New requirements: 72 Magic
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (8).png|100px]]
+
+'''Nightmare Staff (with any Orb attached)'''
+
+Previous requirements: 75 Magic
+
+New requirements: 82 Magic
+
+
+'''Dragon Hunter Crossbow'''
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (9).png|100px]]
+
+Previous requirements: 65 Ranged
+
+New requirements: 70 Ranged
+
+
+'''Dragon Hunter Lance'''
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (10).png|100px]]
+
+Previous requirements: 70 Attack
+
+New requirements: 78 Attack
+
+
+'''Scythe of Vitur'''
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (11).png|100px]]
+
+Previous requirements: 75 Attack and 75 Strength
+
+New requirements: 80 Attack and 90 Strength
+
+
+'''Twisted Bow'''
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (12).png|100px]]
+
+Previous requirements: 75 Ranged
+
+New requirements: 85 Ranged
+
+
+'''Bow of Faerdhinen'''
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (13).png|100px]]
+
+Previous requirements: 75 Ranged and 70 Agility
+
+New requirements: 80 Ranged and 70 Agility
+</center>
+
+We hope you'll welcome the new tiers!
+
+==Poll 76 Changes==
+===Clue Scroll Changes===
+We’ve changed the rarity of 3rd Age items from Elite Clues to fit proportionally between Hard and Master Clues. This has been a highly anticipated change and will affect existing Clue Caskets, so if you’ve been waiting to open them… go go go!
+
+We’ve also added the chance to get Clues from the Hallowed Sepulchre at the following rates:
+
+{| class="wikitable" style="margin: 0 auto;"
+|Floor 1
+|Easy Clues
+|1/50
+|-
+|Floor 2
+|Medium Clues
+|1/50
+|-
+|Floor 3
+|Medium Clues
+|1/25
+|-
+|Floor 4
+|Hard Clues
+|1/50
+|-
+|Floor 5
+|Elite Clues
+|1/60
+|-
+|Grand Coffin
+|Elite Clues
+|1/30
+|}
+
+These Clues will replace the item you would have received, with the exception of the Ring of Endurance, which takes priority.
+
+===Bryophyta's Staff===
+A giant-sized change here: Bryophyta’s Staff is now a free-to-play item, along with Bryophyta’s Essence. To craft it, take the Essence and 50,000 gold to Zaff at his store in Varrock Square.
+
+In addition, Mossy and Giants’ Keys are now stackable!
+
+===Further Poll 76 Changes===
+The magic defence of V’s Shield has been boosted up to 5, and it no longer has negative bonuses to magic or ranged attacks.
+
+The smoke overlay in the Desert’s Smoke Dungeon can now be toggled on and off by right-clicking the Smoky Well.
+
+That’s all for this week, but for those of you anxiously awaiting the remaining Poll 76 Changes, we’re now able to provide some clarity on when you can expect them to go live.
+
+===Timeline for the remaining Poll 76 Changes===
+'''Next week''', we reckon we can deliver the following changes:
+* Space-bar to continue Smithing and Jewelry Crafting
+* Ensouled Hellhound Heads
+* Increased visibility in the Fight Caves
+* Fairy Ring on the Isle of Souls
+* Soul Wars to be playable on every world
+* ‘Buy X’ options in the Soul Wars store
+
+We’re also currently developing the following changes, although we’re not yet sure when they’ll be rolled out:
+* Max hit Hitsplats
+* Pet system changes
+
+Finally, the following changes are not yet in development, but '''will be worked on soon:'''
+* Notifications when items are in item retrieval systems
+* Poison Dynamite
+* Baba Yaga house camera options
+* Clan Hall changes
+
+==Jagex Launcher Update: RuneLite available!==
+[[File:Equipment Rebalance Tier Changes & Poll 76 (14).png|centre|600px]]
+
+Whaaaaaat? Yeah, you heard us – later today after this week’s update, RuneLite will be available in the official Jagex Launcher!
+
+If you’re not yet familiar with the Jagex Launcher, or want more of a deep dive into its inception, you can read all about it in in this detailed [https://secure.runescape.com/m=news/jagex-launcher-open-beta---live-now?oldschool=1 technical blog]. Go ahead, check it out now. We’ll wait.
+
+So, installing and playing RuneLite via the Jagex Launcher is a mega-convenient way to remember your account details and automatically log in to the RuneLite client. If you decide you prefer the original (and official) client, you can quickly switch between them, too.
+
+Here’s how it works:
+
+# Head to the [https://www.jagex.com/en-GB/launcher Jagex Launcher] and log in to your Old School RuneScape account
+# Click the drop-down menu next to the '''Play''' or '''Install''' button
+# Choose '''RuneLite'''
+* If you haven't already downloaded RuneLite press '''Install''' and you'll be directed to the official RuneLite website
+
+For further assistance, please refer to the [https://support.runescape.com/hc/en-gb Support Hub FAQ!]
+
+Please note, RuneLite will need to update itself before it becomes available in the Jagex Launcher. We expect that to happen later today, so it won't be available straight after the update.
+
+==DMM Re-Run Second Beta==
+Unfortunately, while we were preparing for the DMM Re-Run Closed Beta last week we encountered some issues with player save profiles taken during DMM Reborn. To resolve this issue, we’ve pushed the date of the Second Beta back to '''Friday, May 13th at 13:00 BST.'''
+
+==Game Jam Livestream==
+If you missed it in last month's [https://secure.runescape.com/m=news/gielinor-gazette---april-2022?oldschool=1 Gielinor Gazette] or last week's handy [https://youtu.be/Sgb1yv-oPjY Weekly Recap by Jillyfish], we shared more details surrounding Old School's very first Game Jam!
+
+Now it's time for you to hear from the very people behind the ideas as we've got a special livestream dedicated to some of those ideas. Join plethora of famaliar J-Mods on '''Thursday, May 12th''' from '''16:00 BST''' over on our Twitch channel, where you'll get a rundown of each idea and gives you chance to ask them directly about the proposals.
+
+We can't wait to see you there!
+
+==Other Changes==
+* The Revenant Maledictus will no longer despawn in the middle of a fight. Coward!
+* Fixed a minor clipping issue in the Dust Devil Slayer Area.
+* Fixed minor clipping issues on one of the Player Owned House Tool Storages.
+* The Toxic Trident weapon charge text has been changed to read ‘Toxic Trident’ instead of ‘weapon’, bringing it in line with other weapons’ text.
+* We've reduced the weight of holiday items that are over 1kg, to 1kg, as their weight felt a little excessive for cosmetic items. Let us know if there are other items we should lighten up!
+* Jarr will no longer speak about the old Pharaoh’s Sceptre max charges when discussing the Desert Achievement Diary.
+* We've added the option to purchase additional Bank slots from more Bankers. They are: Vampyre Bankers in Darkmeyer and Ver Sinhaza, Emerald Benedict at the Rogues’ Den, Gundai at the Mage Arena Bank and Odovacar in the Lair of Tarn Razorlor. Please note, this change only affects the ability to purchase Bank slots from these Bankers. The change does not increase the total amount of Bank slots that are currently obtainable as it just makes them more widely obtainable.
+
+==RuneScape Kingdoms Board Game Update==
+This week we have more news on our partnership with Steamforged Games and their quest to bring the magical world of Gielinor to the tabletop with RuneScape Kingdoms: Shadow of Elvarg!
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (15).png|centre|600px]]
+
+Steamforged's Kickstarter starts on May 31st and will only run for '''10 days,''' so sign up [https://www.kickstarter.com/projects/steamforged/runescape-board-game here] and be the first to know when it goes live!
+
+You can also join the [https://www.facebook.com/groups/runescapekingdoms/ RuneScape Kingdoms Facebook Group RuneScape Kingdoms Facebook Group] to be the first to see the latest weekly blogs, get reveals of new cards and minis, and chat directly with the developers about the game.
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (16).png|centre|600px]]
+
+[https://steamforged.com/blogs/brands/open-world-runescape-board-game This week's blog] covers how you explore in the open world, narrative adventure that is RuneScape Kingdoms. Learn more about what you can do as you wander about Asgarnia and Misthalin, and how to move around the fast-travel game board. Plus, you’ll get your first look at the Exploration Card designs for each kingdom!
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (17).png|centre]]
+
+What would a RuneScape Kingdoms update be without mini reveals? This week, we’ve got two to show you…
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (18).jpg|centre|600px]]
+
+The nightmare of Draynor Manor, this supernatural scourge has been terrorising the inhabitants of Draynor Village. Put a stop to his (literally) bloodthirsty rampage in your first of four iconic campaigns.
+
+Of course, there’s loads of stuff to do in Asgarnia and Misthalin, so you’d be forgiven for getting distracted from your goal. Don’t spend too much time away, though – as Count Draynor goes unchallenged, he’ll start to roam further afield in search of prey, making your exploration progressively more dangerous…
+
+When you do get around to facing the Count, you’ll want make sure you’ve had a crash course in fighting vampyres and acquired a sturdy stake – otherwise, you might not live to tell the tale!
+
+But let’s not worry about that right now. Instead, let’s meet our newest player character: the clue hunter!
+
+[[File:Equipment Rebalance Tier Changes & Poll 76 (19).jpg|centre|600px]]
+
+Some people don’t play RuneScape and Old School RuneScape for the combat, or the skills. They’re in it for the Clues. The thrill of solving puzzles, digging up treasure in hostile climes and finally opening your hard-won Caskets. The irresistible allure of fashionscape, augmented by super-rare rewards.
+
+Does that sound familiar? Then the clue hunter player avatar is the one for you!
+
+Equipped with an iconic Staff of Bob the Cat and dressed in the Sandwich Lady outfit, the clue hunter is designed to represent an avid treasure seeker just starting out on their fashionscape journey.
+
+
+With that, we’ve met all five player avatars – or the lower-level ones, at least. More news on that front another time…
+
+----
+
+You can discuss this update on our [https://secure.runescape.com/m=forum/forums?380,381,808,66252910 official forums], on the [https://www.reddit.com/r/2007scape/comments/un6chn/equipment_rebalance_tier_changes_poll_76_weekly/?utm_source=share&utm_medium=web2x&context=3 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led OSRS Discord in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

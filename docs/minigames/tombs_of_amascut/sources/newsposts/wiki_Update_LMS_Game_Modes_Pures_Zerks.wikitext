@@ -1,0 +1,578 @@
+{{Update|date=10 August 2022|revised=12 August 2022|link=https://secure.runescape.com/m=news/lms-game-modes-pures--zerks?oldschool=1|category=game}}
+[[File:LMS Game Modes- Pures & Zerks newspost.png|right]]
+{{clear}}
+<center><big>'''Note: there will be no Game Update next week in the lead-up to Tombs of Amascut.'''</big></center>
+__TOC__
+==Your Feedback, Our Response==
+{| class="wikitable" style="text-align:center; width:665px;"
+!Last Updated
+!Issues Raised
+!Current Progress
+!Status
+|-
+|12:00 BST - August 10th
+|An update on the recent world crashes.
+|Added a section regarding recent world crashes and reported item loss.
+|DONE
+|-
+|13:40 BST - August 10th
+|An update on the Revenant Caves teleport delay.
+|The delay has been reduced from 1.8s (3 cycles) to 1.2s (2 cycles) as many players felt it was disproportionately punishing towards legitimate players. We have the ability to adjust this further if necessary.
+|DONE
+|-
+|16:00 BST - August 12th
+|Mobile players reported crashes and FPS issues following this week's update.
+|We're working to fix these issues ASAP. The issue appears to be caused by on-screen overlays, so you might find your experience smoother in the mean time if you're able to disable overlays such as the Mining or Woodcutting timers.
+|August 24th
+|-
+|16:00 BST - August 12th
+|Some weapons (Zaryte crossbow, Light ballista and Dragon knives) are missing their special attack bar within LMS.
+|We'll be adding special attack bars to these weapons.
+|August 24th
+|-
+|16:00 BST - August 12th
+|Rune gloves are included in the Pure LMS loadout, despite Pures not being able to obtain these in-game.
+|We'll be removing rune gloves from Pure loadout.
+|August 24th
+|-
+|16:00 BST - August 12th
+|Players felt that Pures and Zerks being able to use Piety/Rigour/Augury inside LMS was confusing, since these builds aren't able to use these Prayers in the main game.
+|We'll be restricting these Prayers to improve consistency between LMS and the main game.
+|August 24th
+|-
+|16:00 BST - August 12th
+|Players seemed to like the inclusion of Spellbook selection in Loadouts, but feel there's no real reason to choose the Standard spellbook due to its low strength without a Tome of Fire.
+|We'll be adding the Tome of Fire to the loadout chest. If this proves unbalanced, we're open to removing it. We hope that an extra switch in exchange for increased damage should help the Standard spellbook feel like a more meaningful and impactful choice.
+|August 24th
+|-
+|16:00 BST - August 12th
+|Players were confused that Pures could select the Lunar spellbook when customising their loadouts.
+|In line with other changes, we'll be restricting the Lunar spellbook for Pures to maintain consistency with the main game.
+|August 24th
+|-
+|16:00 BST - August 12th
+|Players reported receiving Dragon opal bolts from the reward chests without having a crossbow able to fire them.
+|We'll be making a change so these bolts are only awarded alongside an Armadyl or Zaryte crossbow.
+|August 24th
+|-
+|16:00 BST - August 12th
+|Black dragonhide was reported as having their old stats before the Equipment Rebalance changes went live.
+|We'll be updating Black dragonhide so its stats correctly reflect the main game equivalent.
+|August 24th
+|-
+|16:00 BST - August 12th
+|Players said it was unusual to see the Bow of Faerdhinen included without Crystal armour, but that they would also rather not see Crystal armour offered inside of LMS.
+|We'll be removing the Bow of Faerdhinen from reward chests.
+|August 24th
+|-
+|16:00 BST - August 12th
+|Some players enjoyed the change made to the effectiveness of Protect Prayers within LMS, while others felt that it increased game length and widened the skill gap between newer players and veterans even further.
+|We'll be reverting the change to Protect Prayers' effectiveness within LMS. We would however like to say that we appreciated your open-mindedness and willingness to experiment with these changes! In the future, we'll likely try to signpost any of these 'experimental' adjustments in advance and hope to be able to offer them in an entirely separate loadout dedicated to testing experimental changes. This would allow us to see how players feel about adjustments while minimally disrupting the standard LMS experience.
+|August 24th
+|-
+|16:00 BST - August 12th
+|Many players feel as though the teleport delay added to the Revenant Caves is disproportionately punishing for legitimate players.
+|We understand the frustrations many of you have with this change, and it wasn't a decision we made lightly. Ultimately we felt like it was necessary to tackle the issue asap, based on the options available to us at present. At this time, we'd like to see how this change impacts the Revenant Caves over the coming days before making any additional changes.
+|Ongoing
+|}
+''This week we're introducing new Last Man Standing game modes!''
+==New Last Man Standing Game Modes==
+Last Man Standing just got a lot more variety with two new game modes! Head to the heart of Ferox Enclave to try them out:
+* Zerker: level 75 Attack and level 45 Defence
+* 1 Def Pure: level 75 attack and level 1 Defence
+
+[[File:LMS Game Modes- Pures & Zerks (1).png|centre]]
+
+You’ll be able to choose your preferred game mode from the Settings button on the lobby HUD – after Lisa’s walked you through the game, of course!
+
+
+[[File:LMS Game Modes- Pures & Zerks (2).png|centre]]
+
+When it’s time for a game to begin, the system will look at the preferences of the waiting players, and choose which game mode enters play. For example, if most of the waiting players had Zerker as their preferred mode, a few preferred Max/Med, and only one player chose 1 Def Pure, the game will have a high chance of picking Zerker, a medium chance to choose Max/Med, and a very low chance to choose 1 Def Pure.
+
+However, the system can still choose a random game mode, no matter how many people in the lobby prefer a certain game mode. This ensures variety and prevents big groups (or bots!) from skewing the results too heavily.
+
+The chosen game mode will be announced as you arrive in the battle arena. We’ve increased the countdown duration, so you’ll have plenty of time to get ready to fight!
+
+
+[[File:LMS Game Modes- Pures & Zerks (3).png|centre]]
+
+
+Now that you have three separate modes to prepare for, you’ll want to properly set up your loadouts. You can do so using the Supply Chest in the lobby.
+
+As always, we’re up for adding more item options in later updates, based on your suggestions. For now, though, we’ve added a choice of Spellbooks:
+
+If your loadout includes the Rune Pouch, it’ll enable a selection of spells from whichever Spellbook you’ve selected:
+* Standard: Surge spells and Entangle
+* Ancient: Ice and Blood Blitz plus Barrage
+* Lunar: Vengeance and Cure Me
+
+Your choice of Spellbook is specific to each game mode, so make sure to set them before you head out! By default, you’ll have access to the Ancient Spellbook.
+
+It’s also worth noting that Lunar Spells will be available to 1 Def Pures, as is the case in the PvP Arena.
+
+One last note on new game modes - although converting the minigame to accept alternate modes has taken a long time, now that the work is done it’ll be much easier to add new modes in subsequent updates.
+
+We know these aren’t the only game modes you’ve requested for LMS, and we’ve seen some great suggestions from the community – including a mode with no Protect Prayers, which seems mighty interesting! Watch this space…
+
+===Last Man Standing Improvements===
+Over the years, we've seen a huge number of player suggestions for items and mechanics in PvP. Many of these are things whose performance in-game aren't easy for us to gauge. We've used beta worlds in the past to mixed success, since it's often difficult to see large numbers of interactions and give players more time to experiment as we iterate on changes.
+
+With this in mind, we'd like to try and experiment a little more within LMS and give players the opportunity to try out new things and provide us feedback on ways we could keep LMS (and perhaps PvP in other places) fresh. It could be the case that we build on the 'game modes' idea above and implement a mode solely for testing these experimental changes on a regular basis!
+
+This week, the three Protect Prayers have been made more effective. Damage is now reduced to 30%, up from 60%. So, if you got whacked for what should be 100 damage, you’ll take 30 damage instead of 60 with the correct Prayer. This is an experimental change designed to reward players who’ve taken the time to develop their switching skills. We’re open to reverting or rebalancing the buff and will be monitoring feedback closely in the days following the update.
+
+Here are the other improvements we’ve made this week:
+* Yellow notifications on the heads-up display should no longer overlap with the Buff Bar on official clients.
+* The Buff Bar will also no longer show the minigame’s ammo after you’ve left the battle arena.
+* Lastly, although the supplies in Last Man Standing do look pretty tasty, you probably don’t need to be warned that they’re valuable every time you want to drop some on the floor. We’ve supressed those warnings inside the minigame.
+
+===Dark Varrock Map Improvements===
+* Updated the starting positions for players. This map now uses pairs of spawn points rather than clumps of six, making it more like the spawns on the original Desert Island map.
+* Loot crates are now more likely to spawn closer to the final safe zone. The map is so large that they previously kept spawning in areas that the fog had already reached.
+
+===Loot Chest Improvements===
+* Loot chests and crates will now check what items you already have when deciding what to give you. No more cussing as you get your third pair of Dragon Claws!
+
+We’ve also added a few bits and bobs to the loot table:
+
+{| class="wikitable" style="width:670px; text-align:center;"
+|+
+!
+! Max/Med
+! Zerker
+! 1 Def Pure
+|-
+|First roll from a Bloody Key
+|
+Dragon Claws<br>
+Armadyl Godsword<br>
+Armadyl Crossbow<br>
+Staff of the Dead<br>
+Granite Maul<br>
+Dark Bow and Dragon Arrows<br>
+Infernal Cape<br>
+Mage's Book<br>
+Seers' Ring (i)<br>
+Elder Maul<br>
+Kodai Wand<br>
+Ghrazi Rapier<br>
+Occult Necklace<br>
+Heavy Ballista and Dragon Javelins<br>
+Opal Dragon Bolts (e)
+|Dragon Claws<br>
+Armadyl Godsword<br>
+Armadyl Crossbow<br>
+Staff of the Dead<br>
+Granite Maul<br>
+Dark Bow and Dragon Arrows<br>
+Infernal Cape<br>
+Mage's Book<br>
+Seers' Ring (i)<br>
+Elder Maul<br>
+Kodai Wand<br>
+Occult Necklace<br>
+Heavy Ballista and Dragon Javelins
+|Dragon Claws<br>
+Armadyl Godsword<br>
+Armadyl Crossbow<br>
+Staff of the Dead<br>
+Granite Maul<br>
+Dark Bow and Dragon Arrows<br>
+Infernal Cape<br>
+Mage's Book<br>
+Seers' Ring (i)<br>
+Elder Maul<br>
+Kodai Wand<br>
+Dragon knives<br>
+Light Ballista and Dragon Javelins
+|-
+|First roll from a Bloodier Key
+Also used by loot crates
+|All of the above, plus:
+
+Vesta's Longsword<br>
+Zuriel's Staff<br>
+Morrigan's Javelins<br>
+Statius' Warhammer<br>
+Volatile Staff<br>
+Ancient Godsword<br>
+Inquisitor's Mace<br>
+Zaryte Crossbow<br>
+Bow of Faerdhinen
+|All of the above, plus:
+
+Vesta's Longsword<br>
+Zuriel's Staff<br>
+Morrigan's Javelins<br>
+Volatile Staff<br>
+|All of the above, plus:
+
+Vesta's Longsword<br>
+Zuriel's Staff<br>
+Morrigan's Javelins<br>
+Volatile Staff<br>
+|-
+|Second roll from a Bloody or Bloodier Key
+|Ahrim's Robetop<br>
+Ahrim's Robeskirt<br>
+Karil's Leathertop<br>
+Dharok's Full Set<br>
+Torag's Platelegs<br>
+Torag's Helm<br>
+Guthan's Helm<br>
+Verac's Full Set<br>
+Ancestral Hat<br>
+Ancestral Robe Top<br>
+Ancestral Robe Bottom<br>
+Amulet of Fury<br>
+Blessed Spirit Shield<br>
+Eternal Boots<br>
+Bandos Tassets<br>
+Mithril Seeds
+|3rd Age Robe Top<br>
+3rd Age Robe<br>
+3rd Age Mage Hat<br>
+Inquisitor's Great Helm<br>
+Inquisitor's Hauberk<br>
+Inquisitor's Plateskirt<br>
+3rd Age Range Top<br>
+3rd Age Range Legs<br>
+3rd Age Range Coif<br>
+Infinity Boots<br>
+Tormented Bracelet<br>
+Necklace of Anguish<br>
+Amulet of Torture<br>
+Amulet of Fury<br>
+Fremennik Kilt<br>
+Mithril Seeds
+|Elder Chaos Set<br>
+Fremennik Kilt<br>
+Spiked Manacles<br>
+Rangers' Tunic<br>
+Blessed Dragonhide Chaps<br>
+Wizard Boots<br>
+Tormented Bracelet<br>
+Necklace of Anguish<br>
+Amulet of Torture<br>
+Halo
+|}
+
+[[File:LMS Game Modes- Pures & Zerks (4).png|centre|600px]]
+
+
+Good luck in the updated minigame, and don't forget to visit the Supply Chest in the lobby before embarking on a fight!
+
+==Further PvP Changes==
+===NPC PJ Timer===
+We’ve fixed some unintended behaviour where NPCs could initiate the PJ Timer.
+
+This meant that if an NPC hit a player, that player couldn’t be attacked for 12 seconds, causing frustration in both PvP and PvM scenarios.
+
+Following this week’s update, NPCs will use a five-second timer, in line with their behaviour before the PJ Timer was introduced.
+
+Here’s how that works:
+
+'''For PvP:'''
+
+If Player B is in combat with an NPC, but escapes the NPC without killing it, Player A cannot attack Player B for about five seconds, since Player B is still in combat with the NPC. Likewise, Player B cannot attack Player A.
+
+If, however, Player B kills the NPC, Player A is immediately able to attack Player B – this behaviour is unchanged.
+
+Lastly, if Player A is attacking Player B, NPCs will wait 12 seconds before attacking Player B. This behaviour is also unchanged.
+
+
+'''For PvM:'''
+
+If Player A is in combat with NPC A and then moves towards NPC B from a position NPC A can’t reach, NPC B will wait five seconds before attacking Player A.
+
+If Player A kills NPC A, NPC B can attack Player A immediately – this behaviour is unchanged.
+
+While this fix was necessary to repair the unintended behaviours, we hope the examples above give players the information they need to make sure any would-be escapes aren’t cut short by these changes!
+
+===Teleport Delay Changes===
+Players attempting to teleport from the Revenants’ Cave while attacking the NPCs there will now have to wait 1.2 seconds (2 cycles or 'ticks) for their teleport spell to begin - no more teleporting to safety as soon as you see a little white dot appear on your minimap! This change is intended to help tackle players using prohibited software to teleport with seemingly inhuman reflexes.
+
+===PvP Bug Fixes===
+* Fixed a bug where players could not attack the player that just killed Maledictus.
+* Fixed a bug where players could log out immediately after attacking another player with some special attacks.
+* Fixed a bug where players were able to remove the freeze effect for spells like Ice Barrage and Entangle. If you see anybody still able to abuse this bug in-game, please send as much evidence as possible via email to tipoff@jagex.com.
+
+===PvP Rota===
+The PvP rota has moved to '''Period B''':
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+The PvP Arena is now using <b>'1 Def Pure'</b> loadouts in Ranked Tournaments this week.
+
+==Poll 76 Cat and Piano Changes==
+Kick back and relax in an upgraded Clan Hall!
+
+'''Note: these Clan Hall changes were included in last week's post in error. We're sharing them again to make sure nobody misses them!'''
+
+Be careful where you sit, though – the latest member of your Clan, Hannibal the Clan Hall cat, just got a whole lot more personality! Now you and your Clanmates can pet this fluffy fellow to your heart’s content, and even feed him fish and milk to make sure he’s living his best life. Maybe stay away from the liver and chianti, though…
+
+If you’re the proud owner of a Catspeak Amulet, you’ll also be able to chat to Hannibal and receive his wisdom on a number of topics – including the nearby piano, which has also received some love this week!
+
+[[File:LMS Game Modes- Pures & Zerks (5).png|centre|600px]]
+
+
+We've sent an army of piano tuners (Hannibal kept eating the piano salmons) to your Clan Halls to perform some much-needed musical maintenance.
+
+Adventurers who sit down to play a tune should find that the black keys are now working when using either the 'Entertain' option for your clan or the 'Play quietly' option for yourself.
+
+We hope to see some fantastic covers now that you’ve been given a full range of musical options!
+
+Finally, if you want to see who exactly is busting out ''another'' Sea Shanty II in the Clan Hall, the Clan Chat now indicates how many members are currently in the channel, as well as how many people are in the Clan. Click or tap on that info to switch it to the number of guests in the channel instead.
+
+===Poll 76 Timeline===
+So, what’s left in Poll 76, and when can we move on to Poll 77?
+
+We’re pleased to announce that there are only a couple of jobs left.
+
+The first is '''Poison Dynamite''', a new item that should help certain restricted accounts access more of the game. The development work is complete, and the testing is nearly done – but there’s a couple more steps to go. We want to conduct an internal playtest among the Old School team before bringing Poison Dynamite to an open beta, where you can all explode stuff to your hearts’ content.
+
+As it stands, we plan to host the beta a few weeks after Raids 3 launches. The aim is to make sure that Poison Dynamite is in-line with expectations and that there are no unexpected consequences for those most likely to use it.
+
+The second job is further Clan Hall upgrades, including the Combat Ring and the Party Chest. The Party Chest in particular requires further work to make sure it delivers the experience we’re hoping for. Once this work is complete, both upgrades will go through testing before being assigned a release date.
+
+==Other Changes==
+* Fixed a rare issue where some pets weren’t automatically insured. In this instance, if a player had an uninsured pet in the Bank with placeholders disabled, and that pet was also not marked in the Collection Log, the pet would be marked as uninsured. We recommend double-checking with Probita if you think this issue may have affected your pets, or if you believe your pet should have been automatically insured and it wasn’t.
+* The Redemption Prayer no longer drains Prayer Points after it turns itself off. Bit overzealous, that!
+* A few flowers by a house in Ardougne have outgrown their pots and been planted in the ground, allowing safe passage for any passing adventurers.
+* Sister Senga will now reluctantly allow you to fight Phosani’s Nightmare without having defeated the Nightmare first. Just be assertive about it!
+* Worlds 490 (USE) and 507 (UK) have been given the activity 'Guardians of the Rift'.
+
+==Mobile Known Issues==
+Since the Clue Scroll Helper update, there have been a few reports of new bugs on mobile. This typically happens when we are deploying a heavy update on the mobile client and we'll be working on any bugs as they arise, so thank you for all your reports!
+
+The following bug fixes launched last week:
+* Entity highlights are working as desktop highlights on mobile clients.
+* New tooltip UI opens to the right and down, regardless of screen position.
+* Top left text is appearing as expected on mobile devices.
+
+We’re aware of the following issues and working to fix them:
+* Haptic feedback (vibrations) no longer works on 207.2.
+* Skill XP Tooltips are still displayed after switching tabs on mobile.
+* Chat Box can become unusable.
+* External keyboards are having issues on iPads.
+* The trolley in Garden of Tranquillity does not update after placing a certain statue on it.
+
+We’ll be prioritising the most impactful bugs and will keep you updated on the latest fixes as we make them. Thanks for all your patience as we work on enhancing the mobile experience!
+
+==Recent World Crashes==
+Many of you are aware of the recent issues we’ve had with a select number of worlds going offline, which has in turn caused some players to lose items.
+
+We’ve been actively investigating the cause of these issues, alongside looking into how we can better handle areas of the game that utilise 'temporary inventories' to prevent item loss, such as those within Last Man Standing or The Gauntlet.
+
+We’re working closely with various teams across the studio as we continue our investigations and look to further improvements we can make to these systems. With this weeks update, we implemented some changes that we believe will help going forward, should a world go offline.
+
+For those who have lost items, we have reached out to various players who were impacted. Our ability to restore items is limited, but we understand that your time and progress is beyond valuable and we'd like to explore what is possible to restore in these instances.
+
+We’re truly sorry for the frustration caused to anybody affected and appreciate your patience as we continue our investigations.
+
+We apologise for not posting about this sooner, but we wanted to look into the issues further before knowing what we can and cannot do about it before announcing anything.
+
+==Tombs of Amascut: Short Story Competition==
+Thank you to all the submissions for our second Tombs of Amascut competition. We saw some amazing literature that included legends, old tales and diaries from a forgotten age.
+
+We've made our decisions on who the top 4 enteries are, with the winner being featured within an in-game book, when Tombs of Amascut releases on August 24th.
+
+Let's find out who got the top spots:
+* '''1st Place:''' AesirWarrior
+* '''2nd Place:''' Elaku Dark
+* '''3rd Place:''' JooshyJosh
+* '''4th Place:''' TransGirlDel
+
+Please note that the winning short story will be altered slightly when seen in-game to better thematically fit. Congratulations again to top 4 submissions and keep an eye on your player inbox for more information soon.
+
+===1st Place: AesirWarrior===
+{{Letter|<center>'''The Jackal’s Torch'''
+
+
+Once, long ago, three mortals were led through the land of the dead. They travelled together on the dismal road of the Underworld. The Devourer’s beasts were not to be seen then, but the Underworld was still a treacherous place: souls were lost in mist, the Noumenon called and pulled souls to its hidden depths, and impossible whispers lead them astray to places even the gods knew not. But worst of all was the darkness. More than anything, the Underworld was a dark place. The Sun’s light could never reach so low. But in His stead was His son. The guide and protector. The wanderer in darkness. Icthlarin, god of the Underworld.
+
+
+Icthlarin led the party of three blindly through the darkness, relying on scent alone. The only light by which to see was the glow from their spirits – enough only to not stumble and fall.
+
+
+At last, they came to a passageway, and Icthlarin turned to the first of the three and said:
+
+“This is your port of call. Through here is music and peace everlasting. You will want for nothing. Now go, for my endless task continues and there are more souls to guide.”
+
+And so, the first of the three bowed graciously and passed on.
+
+
+After a journey through mist, they came to yet another passageway. Icthlarin turned this time to the second of the three and said:
+
+“This is your port of call. Through here is discord and war everlasting. You will always want more. Now go, for my endless task continues and there are more souls to guide.”
+
+And so, the second of the three bowed respectfully and passed on.
+
+
+Then Icthlarin walked in silence. He stopped at every crossroads and crossing, every path and passageway, but still he walked. At last, he turned to the third and asked:
+
+“Where is your port of call? I can find no place for you in all the Underworld. Your scent is on no hall.”
+
+The last of three replied:
+
+“My place is with you. You outshine your father and all else above. Service, not rest, is my reward.”
+
+The god grew silent then and knew not what to say.
+
+
+They walked longer through mist until at last Icthlarin said, his back turned:
+
+“You know not of what you speak. I have no port of call, no halls to call my own. My life is spent in in-betweens; my task is never done. No, my father’s field of reeds, that is best for you.”
+
+Yet the mortal was persistent:
+
+“I care not for your father’s field of reeds nor any other hall! I need no port of call!”
+
+And Icthlarin was angered by their insolence:
+
+“What aid can you give me? Your spirit is dim and has not even the brittle strength of bones.”
+
+The third answered:
+
+“The light of my spirit may be dim, but it is better than darkness.”
+
+The god considered:
+
+“It is a lonely path. You will meet many, but they will all pass you by.”
+
+And the third smiled:
+
+“The better to share it.”
+
+Icthlarin grew silent once more, but then he turned to the cave wall. He tore free one of the roots of the world and extended it to his mortal companion and said:
+
+“Come then, for our endless task continues and there are more souls to guide.”
+
+And with the third’s touch, their spirit became the first ember and lit the root’s end.
+
+It was a beginning. Since then, Icthlarin has never wandered alone, for all those who serve him are wanderers in darkness too. They are the light in the jackal’s torch.
+</center>}}
+
+===2nd Place: Elaku Dark===
+{{Letter|<center>'''The Blood of Scabaras'''
+
+
+Field notes on the Kalphite species, as recorded by Iqbar Ali-Abdula
+
+
+I have travelled to the Bedabin camp to examine the giant insect brought down by Al Shabim and his fighters. The nomads say they have sometimes sighted these creatures roaming the desert to the north, but this is the first in living memory to cross into Bedabin territory. Even dead, it is a fascinating specimen — comparable in size to a Kharidian scorpion but closer in appearance to a scarab, with six segmented legs and a chitinous exoskeleton. The Bedabins have named it “kalphite,” after a creature Menaphite religious lore tells was created during the fall of Scabaras, when the god’s blood dripped upon a swarm of scarabs and caused monstrous mutations of body and mind.
+
+I have devised the scientific name kalphiscarabeinae for this unique species. I suspect the kalphiscarabeinae has gained its mythical reputation for being so rare, and hope my research trip into the northern desert will shed light on its natural origin. This could well be the defining discovery of my bug-hunting career!
+
+
+In several days of exploration I have not encountered more kalphites, live or dead, but their snaking trails criss-cross the sands everywhere I look. Scattered along these tracks lie the dry husks of shed exoskeletons, many larger than the Bedabin specimen.
+
+Initial evidence indicates kalphites may live in subterranean hives, as ants or termites do. I have located a sandstone structure some days north of the nomad’s camp which conceals the entrance to an underground tunnel. It would take a good length of rope to overcome the initial drop, and attempting the descent by moonlight would risk injury, so I will camp for the night and venture down at dawn.
+
+Strange. The desert is quiet tonight, yet a humming vibration plays on the edges of my awareness, somewhere between heard and felt. Long days in the heat must be wearing on my senses.
+
+
+This morning I breached the kalphite lair. Following the drop down is a vast, airy tunnel, well-lit by the sun filtering down through the rocks above. Narrower passages branch away to each side, trailing off to depths and darknesses unknown. All around, insects click and scuttle in the walls, and always there is the humming, the incessant droning, enough to make your ears ache all the way down to your teeth.
+
+Tumeken’s light, it torments me! Sometimes, when my focus drifts, I swear I hear language in the noise, but when I try to pick out words, they slip my grasp.
+
+I have managed to avoid a direct encounter with the creatures, though increasingly I worry this is only because I am too small to draw their notice. I am presently hidden in a small alcove for safety as I write. Ahead, the tunnel opens on a larger atrium. Two of the largest kalphites I have yet seen guard a pit at its centre. Beyond that, I do not know. Dare I wonder?
+
+
+Icthlarin spare my soul, but I dared.
+
+Somehow I won through to the pit unscathed by its guardians. Stifling, stinking waves of heat radiated up from the depths. I lashed a rope in place and shimmied down halfway for an overhead view of the space below.
+
+And I saw her.
+
+Oh, the sight of her stole my breath! I knew her for a Queen at once. She patrolled her throne chamber in pitted chitin armour, hulking and six-legged, a nightmare of twitching antennae and scissoring mandibles.
+
+She sensed me; her eyeless head swivelled in my direction. Then she reared back on four legs and let out a terrible screech, interspersed with a series of mandible clicks so precise they could only be purposeful speech. Sandstone cracked and crumbled as the walls disgorged dozens of smaller kalphites, a shifting, swarming mass that flooded into the chamber like a river of blood.
+
+Sheer panic kept me clinging to the rope. The insectile clicks and groans of the kalphites took on the rhythm of a chant, smothering every sense, drowning out every thought. A new presence pressed on my awareness – a terrible, divine, eternal presence. With a faraway sense of alarm I realized that the Queen and her children were praying, and something, some god, answered the call.hyx
+
+Shimmering with divine protection, the Queen went silent and still. Then a spasm ran through her. Her thorax and abdomen pulsed grotesquely. With a sound like rending metal, the chitin plating split along her back and she burst forth, born anew, wings whirring to motion, legs grasping through the air towards me–
+
+
+There is a gap in my memory here. I cannot say how I made it back up the rope to safety. Even now, I struggle to hold my thoughts.
+
+The kalphites have a language and a Queen and a god. This is not an anthill, not a termite colony, no mere swarm of insects, no! A cult! A cult of Scarabas secreted away beneath our very feet!
+
+Am I to deliver this knowledge back to the Bedabins? To Al Kharid, or Menaphos? No, no, it is blasphemy to speak of Scabaras in Menaphos. But then, Menaphos seems far away, unreal, a city of short-lived humans with mortal concerns. Nothing to a god — a god of insects, a god of nightmares, a god of isolation.
+
+Why, why, why did I come down here? My head is full with the whirring of insect wings.
+
+
+The Kalphite Queen holds court beneath the sands. She leads her children in prayer. Her children, larvae glutted on the rotting flesh of a fallen god. Her workers, her soldiers, her guardians. Scabaras’ cult, Scabaras’ army. Scabaras’ sacred blood, flowing in a hundred tangled veins under the desert.
+
+The blood of Scabaras prays for his return! The blood of Scabaras awaits his return! Oh kalphiscarabeinae pasha, oh kalphiscarabeinae sacer!
+
+
+[The remaining pages of the journal are filled with frantic scratchings that do not correspond to any known language.]
+</center>}}
+
+===3rd Place: JooshyJosh===
+{{Letter|<center>'''The Exodus'''
+
+
+Its been a few weeks since the sacrifice. Those that were far enough away said it was beautiful, a symbol of hope for us all. A shimmering, radiant star powerful enough to save us. Those closer to it claimed they felt embraced, though they also lost their vision. And those close enough to touch the power? They are gone, the light was indiscriminate. I am unsure how they felt, though personally I would not feel much gratitude. I never saw the light clearly myself, but I felt the heat, along with everything else living here.
+
+I immediately stepped outside. There are a distinct shift in the air. I saw others doing the same. The heat was blistering, plant life was scorched. The buildings were shaking. Some thought this meant our end was near and in hindsight, they were not far off.
+
+Everyday it seems more dies, what was once a green, beautiful land, slowly turning to ash and sand. The native wildlife cannot survive in this environment and I grow doubtful of our ability to as well. More people turn to crime and I no longer have the will to stop them.
+
+They tell us the Empire has retreated and that we’ve won. But its hard to feel that way looking at the suffering around me. If this was a victory, how much worse would losing have been? The Empire at least seems strong enough to protect its citizens. People are lost and angry and I cannot blame them. Who do we to turn to now? The Gods that couldn’t protect us, or the Pharaoh chosen by the same Gods? The Empire is still vast and expansive outside our borders. Our ace, our hope and our protector is gone after subjecting us to what seems to be a slow end. This is our freedom.
+
+I am resentful. Of Amascut for abandoning us. Of Icthlarin, for losing control of his Judges. Of the Judges for their betrayal. Of the ruler of the Empire for his endless expansion. Of Pharaoh Osmumten, for his vain attempts to fix this. Of those who believe this will pass in time. And most of all, I resent Tumeken. For his arrogance in thinking he could protect us.
+
+I’m not alone in these thoughts, though few would say it out loud. There are plots and schemes brewing. I do not intend to be around to see any of them through. Treachery is something I not stoop too. But my heart goes out to those that will stay and endure. And I sympathize for those that want change. I can only imagine what the cowardly and faithless plan to do in the chaos in the name of profit and power.
+
+I suppose I am also a coward and a faithless man now though. I’m leaving Menaphos in a few nights with my family. Being a guard I doubt I’ll draw much suspicion. There are others too, and we are supposedly leaving by boat, we must have a powerful ally. The malcontent in the city runs deep. Where are we headed? I’m unsure, a secluded part of the Empire perhaps, free of conflict? Or another land untouched by this Empty Lord. Anywhere would be better than this cursed and hopeless desert.
+
+I leave this diary with hope my brother finds it afterwards. He would’ve been forced to stop me from leaving I know. I just hope he understands and maybe one day we will see each other again when times are better.
+
+
+- Name faded out
+</center>}}
+
+===4th Place: TransGirlDel===
+{{Letter|<center>'''The Meaning of a Name'''
+
+
+In the first moment, she became the goddess of rebirth, of return. Her breath was a soft, welcoming embrace that brought souls from death into new life. Her words were whispered promises, a sense of love and lost that continued the great cycle. Her touch was gentle and guiding, a push towards the direction of further life - and all was good. She shifted with the sands, brought peace to the arid winds, and slipped between the cold-mooned nights.
+
+Her name was Amascut. Sister. Daughter. Life-bringer.
+
+The second moment came, and a war of ages broke across the sands. Grains rolled under armored feet, the wind howled beneath their helms, and her voice was a careful caution to all. To hear her speak was to be taken, to allow breath to still, and feel one’s muscles drift to silence; forevermore to be reborn anew with spear in hand. She loved and lost both in the second moment. She must have felt her heart swell as the Mahjarrat entered the fray, must have mourned for those who fell.
+
+Her name was Amascut. Warrior. Guide. Sister, still. Sister of the peace-bringer, sister of the sands themselves.
+
+The third moment, a moment of darkness. Of revelation, that allies were not always what they seemed. Of seeing horrors beyond comprehension as the light faded from follower after follower and Zaros’ name was whispered on lips instead of hers. She felt nothing but sorrow - the words were true, the sands were empty, the souls were not fit for rebirth. To pass on was to no longer be guided to a new spear, but to be devoured, to be struck down with hatred and scorn. Her name became hatred, her love a lust for destruction, her touch a callous and rough strike.
+
+Her name is Amascut. Devourer. End of days. Bringer of true dark.
+
+Now I hear her voice. I hear her name. I dig, and dig, to find the tomb of her warmth. I dig with her words in my ears and her hatred in my heart because she is the true end. Amascut is my beginning, Amascut is where I will die, Amascut’s beasts will devour my soul no matter her brother’s meddling. I give myself willingly into her empty maw, to become a part of her name, a part of her ultimate plan. A part of her control over the sands.
+
+The winds.
+
+The sun.
+
+The moon.
+
+She is Amascut.
+
+She is hungry.
+</center>}}
+
+----
+
+Discuss this update on our [https://secure.runescape.com/m=forum/forums?380,381,828,66259835 official forums], on the [https://www.reddit.com/r/2007scape/comments/wkthna/new_lms_game_modes_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Wiki|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

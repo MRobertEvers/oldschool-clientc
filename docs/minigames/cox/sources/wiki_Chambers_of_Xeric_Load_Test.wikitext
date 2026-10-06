@@ -1,0 +1,23 @@
+{{Stub}}
+{{Infobox Beta
+|name = Chambers of Xeric Load Test
+|image = [[File:Load_Test,_Tournament_World_&_QOL_(1).png]]
+|open = [[8 December]] [[2016]]
+|end = [[12 December]] [[2016]]
+|update = Load Test, Tournament World & QOL
+|removalupdate = None
+}}
+''Duration: [[8 December]] - [[12 December]] [[2016]]''
+[[File:Mount_Quidamortem_(beta).png|thumb|left|300px|A player in Mount Quidamortem, accessible via the deep-pink portal.]]
+The load test for raids, also known as the Chambers of Xeric, was open only to members. Along with the regular facilities that an unrestricted world supplied (Clan Wars portal, free-for-all portal, spellbook altar, etc.), a deep-pink portal found south-east of the bank chest will take players to Mount Quidamortem, where the entrance to the Chambers of Xeric is found.
+[[File:Raiding_Party_interface.png|thumb|250px|The Raiding Party interface.]]
+Players can use the recruiting board to create or find raiding parties, where they can find (from left to right) the number of members in the party, target number of players, the leader's name, preferred combat level, preferred total level, and the time passed since the party formed.
+
+Once the player is accepted into a raiding party, they will join the leader's clan chat and must wait until the leader enters the chambers. The chambers contain no monsters or NPCs, as it is simply a beta intended to test the self-generating dungeons and party grouping system.
+
+<gallery captionalign="center" widths="180">
+Chambers of Xeric - load test 1.png|The starting area of the Chambers.
+Chambers of Xeric - load test 2.png|An area within the Chambers. A large anvil can be found here, and is the fight area for [[Tekton]].
+Chambers of Xeric - load test 3.png|An area within the Chambers that leads to the next level below.
+Chambers of Xeric - load test 4.png|The final area within the Chambers, where players will be able to exit the chambers.
+</gallery>

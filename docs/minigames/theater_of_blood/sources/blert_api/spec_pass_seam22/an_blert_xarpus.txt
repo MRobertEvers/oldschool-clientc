@@ -1,0 +1,15 @@
+scale 2: rooms 4, spit landings 98, unknown-source splats 0
+  children of the FIRST landing: {0: 2, 1: 1, 2: 1}
+  children of every later landing: {0: 29, 1: 52, 2: 12, 3: 1}
+  grandchildren per landing: {0: 89, 1: 5, 2: 3, 3: 1}
+  child lag (ticks after the landing): {2: 6, 3: 9, 4: 4, 5: 1, 6: 8, 7: 2, 8: 12, 9: 6, 10: 7, 11: 6, 12: 5, 13: 3, 14: 4, 15: 6, 16: 1, 17: 2}
+scale 3: rooms 12, spit landings 243, unknown-source splats 0
+  children of the FIRST landing: {0: 1, 1: 7, 2: 4}
+  children of every later landing: {0: 146, 1: 69, 2: 15, 3: 1}
+  grandchildren per landing: {0: 235, 1: 6, 2: 2}
+  child lag (ticks after the landing): {2: 3, 3: 4, 4: 9, 5: 3, 6: 11, 7: 13, 8: 9, 9: 14, 10: 18, 11: 17, 12: 1, 18: 1, 35: 1, 38: 1, 41: 1, 42: 2, 44: 2, 45: 2, 48: 1, 66: 1, 101: 1, 102: 1, 103: 1}
+scale 4: rooms 4, spit landings 61, unknown-source splats 0
+  children of the FIRST landing: {1: 3, 2: 1}
+  children of every later landing: {0: 27, 1: 26, 2: 3, 3: 1}
+  grandchildren per landing: {0: 53, 1: 6, 2: 2}
+  child lag (ticks after the landing): {2: 2, 3: 2, 4: 5, 5: 2, 6: 5, 7: 5, 8: 5, 9: 4, 10: 2, 11: 5, 16: 2, 87: 1}

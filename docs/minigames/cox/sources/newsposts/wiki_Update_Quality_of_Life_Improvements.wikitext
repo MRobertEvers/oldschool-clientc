@@ -1,0 +1,45 @@
+{{Update|date=12 April 2018|link=http://services.runescape.com/m=news/quality-of-life-improvements?oldschool=1|category=game}}
+[[File:Quality of Life Improvements newspost.png|right]]
+{{clear}}
+{{Headline|25|Quality of Life Improvements}}<br/>
+<center>''This week we release some of the updates polled in the "Old School Content Poll #58: More QoL and a Quest". There's also your usual round of bug fixes and tweaks.''</center>
+
+{{Horizontal Line}}{{Headline|22|iOS Beta}}
+
+On Tuesday we invited 5,431 players to the iOS beta. In case you missed the detail behind the process, you can read more in [http://services.runescape.com/m=news/osrs-mobile-ios-beta-invitations-sent?oldschool=1 this news post]. The beta period opens at 2pm BST on Friday 13th April, and closes with the game update on Thursday 19th April. There's a few mobile only changes coming with this week's game update such as a mobile controls tutorial, the left-click bank withdraw and shop buying/selling system and some keyboard changes. 
+
+We're constantly discovering more areas of the game which would benefit from improvements to make the mobile experience better, of which you can find more about in the [http://services.runescape.com/m=news/osrs-mobile-android-results-and-ios-beta?oldschool=1 OSRS Mobile: Android results and iOS beta] blog. 
+
+{{Horizontal Line}}{{Headline|22|QoL Improvements}}
+
+The Morytania legs and Ardougne Cloak now have right click teleports to specific locations when used in your inventory.
+
+[[File:Quality of Life Improvements (1).png|center]]<br/>Player Moderator chat will no longer filter through public chat when it's turned "off". 
+
+You may now commune with the undead chicken on all Ava's devices to ask it to stop gathering junk whilst it's worn, rather than just within the inventory. This also applies to similar items that act like an Ava's device, such as the Ranging cape. ''Unfortunately however, this will not include the standard max cape, as we have run out of space for additional options on there.''
+
+[[File:Quality of Life Improvements (2).png|center]]
+
+The hourglass overlay found in Pyramid Plunder is no more. It has been removed. The bar indicating how long you have left still remains.
+
+[[File:Quality of Life Improvements (3).png|center]]<br/>The XP gained from selling Curved and Long bones to Barlak (the Dorgesh-Kaan cave goblin) has been increased to three times their previous amount. Curved bones will now grant 6750 Construction experience and Long bones will grant 4500 Construction experience when handed in. 
+
+The Feldip Hills Glider pilot has passed his flight safety course! He now has a left click "Glider" option like all other pilots.
+
+[[File:Quality of Life Improvements (4).png|center]]
+
+{{Horizontal Line}}<br/>{{Headline|22|In Other News}}
+
+*The Eggshell platebody no longer stretches when performing certain animations.
+*A typo in the Depths of Despair quest journal has been resolved.
+*The weight of the Angler outfit has been drastically lowered. We're not quite sure what was causing it to be so heavy...
+*Players who approach the point limit of the Volcanic mine will now be notified before hitting said limit.
+*The route your character takes when you click on a tree patch, fruit tree or hardwood tree patch has been adjusted to avoid defaulting on the south-west corner so often.
+*The Locator orb from Dragon Slayer II may now be stored in the Chambers of Xeric private storage chest.
+*The accuracy and damage modifiers used by the Twisted bow have had their formula tweaked to better handle NPCs with abnormally high Magic stats. The Twisted bow's accuracy and damage modifiers work by looking at an NPCs Magic stats. If it has Magic stats between 0-350, the bow gets better and better towards the 350 end. For NPCs with Magic stats over 350, which are present in raids in large teams, the bow used to become worse. This change will instead mean the bow will now act like the NPC has Magic stats of 350, even if it is actually higher than that. '''This change is only relevant to NPCs within the Chambers of Xeric, due to the way the dynamic scaling on bosses works within the Chambers. No NPCs outside of the Chambers will be affected as the Magic stats cap used to calculate the accuracy and damage modifiers is 250.'''
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,476,66004512 official forums], the community lead [http://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community lead [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

@@ -1,0 +1,83 @@
+{{otheruses|the shamans encountered in the Chambers of Xeric|the surface variant|Lizardmen shaman}}
+{{Infobox Monster
+|version1 = Normal
+|version2 = Challenge Mode
+|name = Lizardman shaman
+|image = [[File:Lizardman shaman (1).png|200px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[17 May]] [[2018]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size = 3
+|examine = A mystic from a race created during the darker days of Kourend.
+|attributes = xerician
+|xpbonus1 = 17.5
+|xpbonus2 = 27.5
+|max hit = 65 (unconfirmed)
+|aggressive = Yes
+|poisonous = Yes (12)
+|attack style = [[Melee]], [[Ranged]]
+|attack speed = 4
+|slayxp = Varies
+|cat = Lizardmen
+|assignedby = chaeldar,nieve,duradel
+|hitpoints1 = 190
+|hitpoints2 = 285
+|scaledhp = Yes
+|att1 = 130
+|att2 = 195
+|str1 = 130
+|str2 = 195
+|def1 = 210
+|def2 = 315
+|mage1 = 130
+|mage2 = 195
+|range1 = 130
+|range2 = 195
+|attbns = 58
+|strbns = 52
+|amagic = 0
+|mbns = 0
+|arange = 56
+|rngbns = 49
+|dstab = 102
+|dslash = 160
+|dcrush = 150
+|dmagic = 160
+|dlight = -10
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|id = 7573,7574
+}}
+
+'''Lizardman shamans''' are monsters found in the [[Chambers of Xeric]], in the lizardmen shaman room. They do not count for [[Sherlock|Sherlock's]] [[master clue]] step that requires players to kill a lizardman shaman.
+
+Like their [[Lizardman shaman|surface]] counterparts, the shamans inside the Chambers of Xeric share the same attack set. Regardless of team size, their poison blob attack is ~25% stronger, dealing up to 39 damage to players caught in it without the appropriate [[Shayzien armour]] protection.
+
+The amount of players in the team determines the number of lizardmen shamans encountered in the room. A maximum of five shamans can be encountered in large teams, with a minimum of two for solo and very small teams.
+
+Shamans regenerate their stats at a rate of 1 per 20 ticks, faster than the standard rate of 1 per 100 ticks.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1524701424460628080|date=9 July 2026|quote=Stone guardians - 8 Muttadiles - 15 Vasa Nistirio - 10 Vasa's crystal - 9 Tekton - 15 LizardShamans - 20 Skeletal mystics - 25 Jewelled Crabs - 1 Vespula - 10 Vespula's portal - 45 Vespula's grubs - 10000 (i.e. never) Vespine soldier (flying) - 16 Vespine soldier (walking) - 10000 Otherwise default should be 100, as for outside CoX.|ctxquote=Hi@JagexAsh would you per chance be able to say the regen time (in ticks) for mobs in chambers?}}
+
+==Drops==
+===100%===
+{{DropsTableHead|leagueRegion=Kourend}}
+{{DropsLine|name=Big bones|quantity=1|rarity=Always}}
+{{DropsLine|name=Buchu seed|quantity=5-10|rarity=Always|gemw=No}}
+{{DropsLine|name=Golpar seed|quantity=5-10|rarity=Always|gemw=No}}
+{{DropsLine|name=Noxifer seed|quantity=5-10|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead|leagueRegion=Kourend}}
+{{DropsLine|name=Long bone|quantity=1|rarity=1/400|gemw=No}}
+{{DropsLine|name=Curved bone|quantity=1|rarity=1/5012.5|gemw=No}}
+{{DropsTableBottom}}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}

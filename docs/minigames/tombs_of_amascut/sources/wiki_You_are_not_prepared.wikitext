@@ -1,0 +1,27 @@
+{{Infobox Combat Achievement
+|name = You are not prepared
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete a full Tombs of Amascut raid only using supplies given inside the tomb and without anyone dying.
+|tier = Master
+|monster = Tombs of Amascut
+|type = Restriction
+|id = 424
+|leagueRegion = Desert
+}}
+'''You are not prepared''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete a [[Tombs of Amascut]] raid using only supplies provided by the [[Helpful Spirit]] without dying, at level 150 or above. The task will fail if any players in the raid use outside supplies.
+
+==Strategy==
+Players should pre-pot (including with an [[extended anti-venom+]]) before entering the raid. Using a [[Falador shield]] to restore prayer and the [[Keris partisan of the sun]] special attack or [[Blood spells|Blood Spells]] to restore health will not fail the task. Health, prayer, run energy and special attack are also restored after clearing each path.
+
+It is recommended to prioritise taking [[nectar]] and [[tears of Elidinis]] from the [[Helpful Spirit]]. [[Ambrosia]] is also useful as it is the only way to cure poison or venom. Start with [[Zebak]] and [[Kephri]] first since they can be cleared with little damage taken, then take care to avoid the [[Cursed Baboon]]'s venom trails in the [[Path of Apmeken]].
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+==Trivia==
+* The name of this achievement is a reference to [https://www.youtube.com/watch?v=_p73PZIDQuA an iconic line] spoken by Illidan Stormrage in ''{{WP|World of Warcraft: The Burning Crusade}}''.
+
+{{Combat Achievements}}

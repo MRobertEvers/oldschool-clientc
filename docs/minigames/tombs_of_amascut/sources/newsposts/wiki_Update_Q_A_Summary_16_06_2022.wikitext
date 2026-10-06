@@ -1,0 +1,240 @@
+{{Update|date=21 June 2022|link=https://secure.runescape.com/m=news/qa-summary-16062022?oldschool=1|category=community}}
+[[File:Q&A Summary 16-06-2022 newspost.png|right]]
+{{clear}}
+This week's live stream featured a general Q&A!
+* [[#Question #1|Collection Log hunting]]
+* [[#Question #3|The polling system in OSRS]]
+* [[#Question #8|Potential changes to Hespori seeds]]
+* [[#Question #12|Predator vs. prey in PvP]]
+* [[#Question #20|The status of quest porting]]
+
+Thanks to our host Mod Sarnie (Community Manager) and our guests Mod Ayiza (Lead Community Manager), Mod Kieren (Associate Design Director), Mod Bruno (QA Analyst) and Mod Tide (Content Developer) for their insights!
+
+Missed the live stream? Check the transcript below!
+
+DISCLAIMER: Livestreams are a glimpse into the ongoing creative process at Jagex. J-Mods are speaking off-the-cuff and their comments are not intended to be read in the same way as prepared updates from the company. Please keep this in mind when discussing the Q&A Transcript!
+
+__TOC__
+==Question #1==
+{{Cquote2|Since the collection log was added to the clan broadcast system, I've noticed a lot more people have been interested in collection log hunting. Can collection log slots be added to the hiscores?}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=305s Youtube Time Stamp]
+
+* '''Mod Kieren:''' I swear this has come up before! I have no idea why we would say no to it, unless there's something I'm unaware of. But I'd certainly love to have a HiScore for the total number of slots you've got.
+* '''Mod Bruno:''' I think there isn't a big reason to say no, but if someone is in the top 100 collection log, you can assume that they're a pretty wealthy high-level individual because you know they've got lots of things collected! I think that was the biggest thing we would not want to do it for. I don't really mind it; I think it'd be nice. People like to compete with these sorts of things, so why not?
+* '''Mod Kieren:''' Yeah, boss kill count already does that, that's a legitimate point I suppose. But also, in essence, that just because two people are 500 on their slots, one could still be technically ahead of somebody else because they've got harder to obtain items. But that aside, I don't think that's a big deal. I think it's still worth it!
+
+==Question #2==
+{{Cquote2|With how frequent use of prossy armour is, are there any plans to add another tier or perhaps to continue the Slug Menace storyline?}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=393s Youtube Time Stamp]
+
+* '''Mod Kieren:''' If it's already good, why would it need an upgrade? But in all seriousness, I know this is one of the storylines that people have talked about being interested in doing a follow-up that is different to how RuneScape followed up this quest, but I don't believe that quest was popular even at the time. But as with any quest storyline, there are so many storylines that we could possibly look at.
+* '''Mod Kieren:''' If we do look to follow-up a quest series, we'll probably be looking to the player base for surveys, like "which questlines do you want to be looked at?". I think we already have asked them that previously, we might have some info on that. But yeah, right now there are no current plans.
+* '''Mod Tide:''' With the rewards, it does not have to be another tier armour. It could be another slot!
+* '''Mod Bruno:''' Or it could be a different combat style - like a Magic proselyte! I don't think there's anything like that, so that'd be cool. It'd be really useful for bursting things such as dust devils, where you don't need Magic accuracy.
+* '''Mod Bruno:''' The quest side of it wouldn't work for OId School if we went the same way, because I think they went with some Dungeoneering twist, didn't they? I think there's a quest called 'Salt in the Wound' where it had a Dungeoneering twist to it. So that won't work for us, but we've always altered the way that game works for us. But with quests such as Dragon Slayer II or Monkey Madness II, I'd say it'd be cool.
+* '''Mod Sarnie:''' From the Quest porting survey itself, I've just pulled up the results and there was no slug-related one. Penguins, Dwarves, While Guthix Sleeps of course, and the Goblins' storyline. Not the Slug one though. Who knows? Maybe we can do something properly Old School to it!
+
+==Question #3==
+{{Cquote2|Why did Jagex change the Polling process to become more about validation at the end of development, rather than greenlighting at the beginning of development? Updates fail polls when not communicated properly. Can you go into more detail about why updates are being polled so late into their development?}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=517s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' I'd say that we haven't, and if we have, it's not been intentional. There have been a few updates that we definitely have looked at putting the poll out later than we would have liked, just because of timing and resource constraints more than anything. But I personally felt at the start of the year, we were really ahead of the designs being finalised when it came to polling, or at least bringing out the initial blogs.
+* '''Mod Ayiza:''' If anything, it's probably a case of we are doing a lot more in terms of feedback iterations back and forth, and making sure that the final design is in a really good place before we end up then polling, which does by association ends up meaning that we are polling at a point where we've already developed a fair bit of stuff.
+* '''Mod Ayiza:''' It's not really meant to be an intentional thing, and as we look towards the roadmap for the next half of this year, it's something that we're especially going to be considerate of. I don't want that to be the case; I'd rather that we're able to poll much earlier, much sooner. But it is difficult, because a lot of the times poll questions don't sit very well feedback-wise before they go in-game to be voted on, if there isn't a solid design behind it. So it's a bit of a Catch-22; we can't have poll questions with a bad design, but we can't have a good design without having spent some time on it. We are mindful of it though, and it's not intentional.
+* '''Mod Kieren:''' It's not good for us either! We've all the incentive to do it earlier, because it isn't comfortable for any developer either knowing you're working on something that isn't quite through a poll yet. Generally, we're pretty confident - I think we have a pretty good read. Using the Giants' Foundry as an example, it was obviously quite a long way through development by the time we polled it. But we know generally that the frustrations with most poll questions are about rewards, which are relatively easy to change. We know that content is probably going to be alright at a basic level, as a theme and as a concept.
+* '''Mod Ayiza:''' Yeah, exactly. With getting conversations out early, we had Giants' Foundry, for example, mentioned in a Gazette months and months and months before we actually had a full blog about it. So we already had that time to, as Kieren said, gauge player opinions and get a sense for "Okay, is this going to be really controversial? Or is it likely to pass as long as we hit the marks right, in terms of the feedback". We do have a lot more validation before polling than we did before. But that also means that the poll comes later.
+
+==Question #4==
+{{Cquote2|What does the future of restricted polls look like? There was some pretty significant backlash after this last one, and people (myself included) have some very valid concerns about them.}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=729s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' I'm going to give a really safe answer on this one! The future of restricted polls doesn't look like anything right now. We're still experimenting, so it's difficult to say exactly how they may end up. It may be that we don't even do them anymore! I don't think that will be the case, because I'm confident that there are certain circumstances that would allow or restrict the polling for the likes of PvM and skilling.
+* '''Mod Ayiza:''' But we've really just been testing the waters. The first stage was with some Ironman things and Group Ironman. We've now obviously tried it with PvP and we've seen the feedback that has been there regarding that which we'll take into account, and that will help shape whatever future restricted polling may be.
+* '''Mod Ayiza:''' In terms of backlash, again, it's something that we'll consider. If we feel like what we are doing is in the best interests of the game, then... I'm not okay with dealing with the backlash. I'd rather that there wouldn't be any and that everyone would be as happy as possible! But we're never all going to agree on everything all the time, so I'm not going to say that backlash would be a reason for us to step down and no longer do them. It's just that we'll take into account the feedback that we got and look to see how we can avoid that if we do continue restricted polling.
+* '''Mod Ayiza:''' In terms of valid concerns and such, that's something that we'd like to dig into a little bit more as well. I imagine that as we continue iterating with this and polling as a whole, that we'll be looking to involve the community to gather thoughts and feedback, and really work on it together. I realise that currently the Old School team are essentially leading the charge on that, and we haven't really involved anyone from the community to gather thoughts and opinions. So they're all bits that we will be doing. The most recent ones were really just testing the waters, and just seeing how they fared and how they were received.
+* '''Mod Kieren:''' I would simplify, and take a step back from polls in and of themselves. What I want to do is deliver content for all of our players, all of our different communities, and make sure that they're getting the attention they deserve, content-wise. The poll systems, obviously, are a big part of how we've developed since all the way back to 2013! It's had subtle tweaks with how we word questions and how we do blogs. But broadly, it has been a 75% system since 2013.
+* '''Mod Kieren:''' From our annual surveys, the community does think polling is really important to Old School. There were also quite a lot of players who said, in the same survey, they don't think the current system is perfect, that it could do with some tweaks and improvements. Whether we all agree on what improvement it needs, it's a question yet to be answered. I'd certainly be interested to see what people think - how would you like polling to work so that it can be effective?
+
+==Question #5==
+{{Cquote2|Could we possibly see a Fossil Island expansion in the form of a new island in the vicinity, where we're able to fight Skeletal Dinosaurs/Dragonkin Experiments? Would be interested in a combat-agility hybrid.}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=954s Youtube Time Stamp]
+
+* '''Mod Tide:''' This sounds like a really, really nice idea! You could probably incorporate the use of fossils into these as well. Maybe you have to collectively put together a certain amount of fossils to unlock a new area of the island. Something like that, to give it a nice use.
+
+==Question #6==
+{{Cquote2|Currently, dungeons are basically just another field with a bunch of grouped mobs. Have you considered adding some form of linear dungeon to the game? Linear dungeons could generate group play and interesting dungeon content.}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=1010s Youtube Time Stamp]
+
+* '''Mod Kieren:''' I would love to do a proper MMO-like dungeon experience in Old School, 100%! A lot of our dungeons are quite old, they're just rooms with monsters in them. If you go all the way back to Taverley Dungeon, that dungeon looks quite a lot different to the Slayer dungeon under Prifddinas. Dungeons have largely ended up becoming just Slayer dungeons, they're just rooms with monsters to kill for your Slayer task.
+* '''Mod Kieren:''' I like the Taverley Dungeon - it's old, it shows that, but it still had those little bits of storytelling elements. And we saw that get developed a bit further as an idea with Forthos Dungeon a few years ago. I think you all really liked that update when it came out. It didn't quite go this far, but it really did start to push on some of these ideas. I would like to use this sort of concept to present group play content that's available to players that aren't really at max combat. People here have got level 60s, having group content that you can go and do would be really cool.
+* '''Mod Ayiza:''' I agree. You've probably listened to me enough as it is, and how I've gone on about mid-level dungeons and raids, and having them scalable for all kinds of players! If there was one thing nice that I could do for the game without anyone having to veto it, it would definitely be that. I think it's a really missed opportunity and a huge amount of potential. Even if they are just small scale raids with two or three bosses that aren't much more difficult than the likes of Obor or Bryophyta - that kind of level and then scaling up.
+* '''Mod Kieren:''' It just feels like a glaring gap. It's the type of content that would fit very well into this game.
+
+==Question #7==
+{{Cquote2|Is the team happy with the place that the ancient crystal sits in the rev caves? Wildy Slayer might be a good place to have this drop in my opinion, either in the Larran's chest or a rare drop from Slayer monsters.}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=1164s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' Sounds as though an Ironman wants a teleport to their player-owned house if you ask me!
+* '''Mod Ayiza:''' They are quite frustrating for Ironmen, right? It is quite difficult to get a hold of all of them, I'd imagine, but I'm not experienced enough really on how much of a problem that is so I won't say anything!
+* '''Mod Bruno:''' I think they're pretty rare. But then again, there are definitely alternatives to having an obelisk in your house. It really does feel like an Ironman problem, because to build the entire Obelisk it's roughly 600k in ancient crystals. So I'm not totally inclined to change it.
+
+==Question #8==
+{{Cquote2|Any possibilities of adding something to do with extra Hespori seeds? I do Hespori on a regular basis but still have years worth of seeds.}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=1238s Youtube Time Stamp]
+
+* '''Mod Tide:''' What about a special seed pack, which gives you many more seeds, or better seeds?
+* '''Mod Bruno:''' I wouldn't mind that. The spirit tree seeds do the same thing where if you get a spirit seed, you can just trade it in for one of the highest level seed packs. Maybe not the highest level for a Hespori seed, but maybe a mid-level or something would be a nice way to get rid of them.
+* '''Mod Kieren:''' I want to do; "more seeds = harder Hespori fight". So rather than planting one, you can choose to plant up to 10 once. Use them up faster, get a harder fight.
+* '''Mod Kieren:''' As soon as you're high enough combat level with better weapons, Hespori is roughly a 40-50 second fight, you just rinse it. Based on it being a harder fight, the loot can scale and offer better chances at the bottomless bucket as well to account for how many seeds you're using. We'd have to balance it right, I don't want to just refresh the price of the item at the same time. That might be quite an easy way to do it, because even on the dev side, it's not trivial, but you're not necessarily looking at a huge amount of additions to the boss - just making it scale up a little bit better for the higher level players, and we could maybe add some basic mechanics or something. I think that'd be a cool way to do it.
+* '''Mod Bruno:''' Honestly, you should be fine, unless you get back-to-back-to-back vine stuck, then you're going to be screwed. The boss itself doesn't do that much damage, you just pray one style. We might have to then balance the drops, because you wouldn't want 100 Kronos seeds from a 10-seed Hespori. That feels like a bit too much.
+
+==Question #9==
+{{Cquote2|In Giants’ Foundry, when adding items to the crucible, can the “Add 5” and “Add 10” options always appear instead of only when that number of items are in your inventory? Currently, the “Add all” and “Add X” options use different keyboard numbers depending on how many items are in your inventory, which is quite annoying.}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=1391s Youtube Time Stamp]
+
+* '''Mod Kieren:''' Ah, so as you press on the crucible, you go to hit 4 and suddenly that's the wrong option on your keyboard. It's trying to be smart, and not give you the "Add 10" options if you don't have 10. But in turn, that just ruins the muscle memory. It seems reasonable to make this change.
+* '''Mod Tide:''' I would like an "Add Previous" option when it's taken from your bank, since it's right next to it.
+* '''Mod Sarnie:''' When I was speaking to Mod Dylan, what I remember is that we'd have to work out the logic of what's classed as important. If you've got X amount of bars, X amount of 2 types of bars, and you've got two plate bodies, and a battleaxe or whatever, what priority does that take them in? So that was something to work out, but definitely something we can look into!
+
+==Question #10==
+{{Cquote2|Could we use clue scroll reward rewards for the Giant’s Foundry? Like trimmed and Heraldic? This would allow for a sink for these items other than Alching.}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=1500s Youtube Time Stamp]
+
+* '''Mod Tide:''' Sounds fair. You could also make it so trim gives you extra bars. For instance, gold trim could give you a gold bar, if it's used in there.
+* '''Mod Kieren:''' I would love to see the clue scroll version of this equipment to hold better values! They've lost that value, there are so many in the game, so how can we make them more valuable? Maybe they have XP buffs, so if you use a trimmed piece of armour in the crucible you get an XP buff for that sword, to encourage people to buy it. I don't know if that's the right thing to do, but I'd love to find a sink for these items!
+
+==Question #11==
+{{Cquote2|Any thoughts on making crystal tools corruptible? I've been playing a lot of GOTR lately and it's just sad seeing my crystal pickaxe go unused because of how fast the charges go.}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=1583s Youtube Time Stamp]
+
+* '''Mod Kieren:''' Not going to lie, I'm not a fan of how many things you need crystal shards for. Maybe that's solvable with balancing tweaks? But when you think about how many crystal shards you're going to want - maybe you want to make some potions, maybe you want to charge up your crystal armour, maybe you want to charge up your crystal tools but you've gotta use shards to make them in the first place. It just adds up so fast, and getting shards is pretty laborious.
+* '''Mod Kieren:''' What I come back to is, you've earned this access to Prifddinas, you've done the hard work, you've finally got this crystal tool seed, and you're still stuck needing to get endless amounts of shards to get the benefit out of it. That's my general feeling on shards themselves. I'd maybe like to revisit them as an entirety in terms of their balancing, but, I'll find a better way to give you better sources of them.
+* '''Mod Kieren:''' I'm kind of for corrupted crystal tools, but it doesn't really solve that problem entirely because corrupting is expensive, you need to get 1000 shards or however many we set it at. I'd like to review this stuff because it does feel as though it ends up being tedious, rather than fun, and I'd like to make that better.
+
+==Question #12==
+{{Cquote2|I think the community understands that you think reinforcing the predator vs prey dynamic is good. Can you tell us why? Clearly, a lot of the community doesn't it, and fundamentally a lot of the community votes no to content they don't like, which is the reason the polls exist. Why not, for instance, replace non-PvP incentives in the Wilderness with PvP incentives so that you still get the predator vs prey dynamic, but all parties involved are there because they like PvP?}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=1699s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I think part of the issue with this is that not everyone does like PvP, and this will just cause people who don't like PvP to still do it anyway, but maybe rig it like they have done previously in Bounty Hunter. We'll then end up with a system which is very strong if it's rigged, but it's fair if it's not rigged, so we can't really have that because people will rig it.
+* '''Mod Ayiza:''' I think I'm looking at it from the perspective of "let's take out everything that isn't PvP related within the Wilderness, and make everything PvP related within the Wilderness.". I guess that's where you got your rigging part from, Bruno, is that if we did that, it’d be rigged. But we haven’t really looked to push the whole "predator vs. prey" dynamic that hugely within the Wilderness recently, at least not in the sense of “forced”.
+* '''Mod Ayiza:''' I understand that Black chins are obviously a thing, and they give you the best experience if you’re not interrupted. But those were implemented quite literal years ago. I personally wouldn’t be opposed to looking at changing those either if it meant that that sentiment was removed.
+* '''Mod Ayiza:''' The other thing was the Wilderness Chaos Altar. You wouldn’t really need to use the Wilderness Chaos Altar unless you want to save money. Yes, it’s faster, but Gilded Altars still exist. It was meant to be balanced around that ethos anyway! So I think ultimately, the whole "predator vs. prey" dynamic: it is good, as long as the foundations that it’s built upon are also good, and that’s what we’ve been really trying to focus on recently.
+* '''Mod Ayiza:''' We’ve introduced the option to prevent you from being able to get skulled, so that there’s no fear of skull tricking; you can always fight back with safety knowing that it’s quite literally impossible for you to skull if you don’t have one whilst that’s enabled. We introduced the PJ Timer to prevent you being attacked by multiple people in Singles. We also changed the Rev caves from Multi to Singles+, to again favour the solo player and make the battleground a little bit fairer, or even for both sides.
+* '''Mod Ayiza:''' The next initiatives that we’re looking towards are to try and bring people that want to PvP into PvP. The whole idea behind the PvP arena was “let’s have some rewards that are exclusive for PvP”. Of course, it’s a negative to those that don’t PvP because it’s going to mean that you could potentially get killed easier. But the premise of it was: PvP rewards from PvP content that are for PvP only, so that people can then practice PvP to get them and then go out and use them in PvP situations to then start getting better, and having that enjoyment and slowly building the community up that way.
+* '''Mod Ayiza:''' Outside of that, the "predator vs. prey" dynamic is pretty much necessary for the economy of the Wilderness. Without it, there just aren’t enough people. If we have a small enough PvP community, then letting them fight among themselves, when there are hundreds of worlds now that can spread out non PvPers and PvPers as well, obviously isn’t great. So the alternative is to get more people into the Wilderness.
+* '''Mod Ayiza:''' Our incentives for that now are less around the skilling side of things, and it’s more about monetary gain. They’ll look to be on par with other money makers within the game, so that you don’t have to go there. But if you want to, you can still make good money, knowing that you’re going to be susceptible to being attacked.
+* '''Mod Ayiza:''' I think fundamentally, if a lot of the community don’t like that aspect - I know I’m going to get shot down for this, I can feel it already - but just don’t go there. There’s nothing that makes you go there, apart from the dragon pickaxe, and we’re aware of some of the other rewards from Wilderness bosses. But we’ve already said before that we’re going to look at removing the dragon pickaxe, and for the rings that the bosses drop, maybe we can look at alternatives for those as well.
+* '''Mod Ayiza:''' Regardless of what happens, even if we didn’t look at "predator vs prey", and we were just looking at "predator vs predator" - if we added a new boss into the Wilderness, and it was meant to just be for PvPers, someone who doesn’t PvP is probably still going to want to go and kill that! So regardless of how we look at our design, that is always going to be there as a fundamental. People that want to look at collection log slots, that want to go for the pet, that maybe want to get the item just because it’s cool. That is always going to exist even if we are trying to focus on player versus player, rather than player versus prey.
+* '''Mod Ayiza:''' So I don’t know what to say other than; if you don’t like predator vs prey, don’t go to the Wilderness, because you are prey unless you’re going in there as a predator, simple as that. It’s not something that we're going to look to change, because that is a core of Old School. PvP is essentially what the game was built upon. And yes, we’ve neglected it for years, but we’re looking to try and fix that now after years of looking at PvM, skilling, quests and everything else. So it’s not going anywhere.
+* '''Mod Ayiza:''' We are very mindful, though, that there’s a large portion of players that don’t like the Wilderness. So that’s where we’re going to make sure that anything we do add in there is only really incentivising those that want to go, and it’s not going to make you feel as though you’re forced to go in. If you still feel that you’re forced to go in, then maybe start thinking about being prepared to go into the Wilderness knowing that you might go into a fight.
+* '''Mod Ayiza:''' I said in a previous stream; you wouldn’t go into the Inferno and expect to defeat the Inferno if you’ve not even been able to get your fire cape first. You have to learn, you have to get good at the game in order to be able to beat Zuk. It’s the exact same for PvP. You can’t go into a PvP zone and expect to not be a prey and get absolutely trashed on if: 1. You’re not geared up properly, and 2. You’re not prepared on a mental level or a skill level.
+* '''Mod Ayiza:''' Hopefully, as we continue working on Wilderness, and as we start bringing other things into there that aren’t as incentivised for those that feel they have to get forced into there for items. Maybe that mindset can shift to “okay, I’m going to make really good money, even if I’m not in the most efficient setup, so then I can fight back and now I’m not so much of a prey, or maybe I'm prey in disguise”. But that’s my bit on it.
+* '''Mod Kieren:''' I’m just going to say on the topic of being forced to go to the Wilderness - I think it comes down to the balancing being right, and holding our hands up and saying “I don’t think it is right across some of the places right now”. You mentioned the dragon pick as one reason why people, particularly Ironmen, will feel very forced to go there, because it’s such a clear upgrade to everything else.
+* '''Mod Kieren:''' I think things like the Chaos Altar, it’s so much better. It’s not just an option, because it is such a fast upgrade. Even if you detest PvP, and have no interest in fighting back, even if you count the fact that you’re going to lose 30% of your bones if you’re bad, it’s still better!
+* '''Mod Kieren:''' Those players, I think, feel as though they’re being put in a situation where it’s the right choice, but they’ll not enjoy it at the same time. You’ll have players that have been directed to do stuff that they don’t like, but because it’s so good.
+* '''Mod Kieren:''' Now, that’s not to say we can’t solve this in the future, when it comes to how much gold/hour a boss is, or how much loot you get, or how much XP. If it’s that bit closer, is it then a valid option? If the Wilderness Altar wasn’t basically three times better than anything else, if that gap was less, then you do have a bit more of a trade off to say “Actually, I really don’t like the PvP situation, I will go and train Prayer at the Gilded Altar”.
+* '''Mod Kieren:''' I think we can do better and get these things in the right place, so that you’re not forced. I saw a suggestion in the chat about a five black chin spot outside the Wilderness, because you still have that upgrade of a six-spot in the Wilderness - that narrows the gap a little bit, so that there is that choice again.
+* '''Mod Kieren:''' We can look at boss money in a similar sense. Outside the Wilderness, maybe you can get 5 million an hour, but in the Wilderness you can get that little bit more, so that you can say “I want the best money, sure, I’m willing to sacrifice it because I’m going to deal with PvPers.” if you want to do that. If you don’t, you can still do alright! So what I want to do is make it so that if you don’t really don’t like it, you don’t feel screwed. I’m looking at collection log gathering as kind of an aside as we’re not talking about the majority of players.
+* '''Mod Ayiza:''' Playing devil's advocate here: what if I really don’t like training Agility? It’s the same thing. I’ve got to get my Agility levels up, so I’ve just got to get on with it.
+* '''Mod Kieren:''' I don’t like that! I don’t want players to be doing content that they don’t find fun, because that’s not good for the player. I don’t think that’s good for us! We want people to enjoy the game, we want people to stick around. So when I’m looking at Agility, I want to introduce skilling methods for agility that are not awful; that are relatively good. Sepulchre helps at the top end. I don’t want players to feel like they’re directed to content that they don’t personally enjoy, or is bad in the case of Ratcatchers.
+* '''Mod Kieren:''' It’s so much more nuanced when it comes to the Wilderness though, because it’s so much more subjective than simply “this is faster or slower”. It’s a bit of both. There’s a lot of different trade-offs, how good are you at PvP versus not?
+* '''Mod Kieren:''' I think what I’m also interested in is trying to get those scales right. If you see it as the prey on one side and the predator on the other side, how can you make that feel fairer than it does right now? I’d say we do very little on both sides right now. There’s not a huge incentive for PvPers, really. How much are you making, killing the people who’ve got a few dragon bones in their inventory? And for prey, apart from world-hopping, if you get attacked you’re basically dead in most cases, unless you really are trying to fight back.
+* '''Mod Kieren:''' So I think if we can try and do more to strengthen both sides so that maybe we can get to a place where there is a healthier relationship, where dying doesn’t just feel inevitable, but fair. And that feeling is less one that’s negative, and moreso; “Okay, I understand that there’s some things I could have done better to avoid dying”. I don’t think that’s easy, for what it’s worth! I think these are genuinely hard challenges. We’re inevitably going have a lot of discussions internally about it. I’ve already had a lot of discussions, and these aren’t easy problems, because if they were easy we would have probably solved them already!
+* '''Mod Kieren:''' We’re looking at Wilderness bosses, these are going to be big topics when we look at those, and how we fix those, beyond just making them mechanically not just "safe spot then attack them". How do we make them better, for this whole predator/prey mechanic or not? I think what we need to do is agree on what course of action we want to take, and be able to actually start talking to players about how we are going to push forward with these other Wilderness changes down the line. We’re doing a PvP survey right now on certainly some of the priorities you might want to see in the near future.
+* '''Mod Ayiza:''' Before we move to the next question, I just really get a chance to finish what I was saying, Kieren, because I feel you wanted to shut me down about my Agility comment! Where I was leading with it was that if I don’t like training Agility, I have to like it or lump it. But ultimately, if everyone started to feel like that, we would look to add alternate Agility training methods that would then maybe entice those that wouldn’t train it traditionally, to train it in another way, similar to Runecraft, with Guardians of the Rift, and now Giants’ Foundry for Smithing.
+* '''Mod Ayiza:''' Maybe it’s not a case that we need to balance the Chaos Altar, maybe that could stay how it is. But there could be an alternative incentive outside of it that is better than the current Gilded Altars, for example, that might be a little bit different from ensouled heads, or the new demonic ash scattering, that then would take away that clear incentive that you say players have at the moment to go to the Chaos Altar, because it is so darn good.
+* '''Mod Ayiza:''' As a whole, I think the Chaos Altar is pretty bad anyway. As you said, people don’t make money from killing people there. And if you go there, you go there to die, you set yourself up with one invent and that’s your route to reduce the amount that you lose. So as a general design, it’s just awful all-round. So I think we should look to change that regardless. Maybe taking the incentives out with other designed content would be better.
+
+==Question #13==
+{{Cquote2|Where do you see Old School in 5 years? What would be some major long-term goals for the game as a whole moving forward?}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=2657s Youtube Time Stamp]
+
+* '''Mod Kieren:''' We’ve been obviously talking about it a lot ourselves, as we always do. One of those things related to that is "how open do we go with the player base about this"? We all feel like this is a good thing to talk to players about - where would you want to take Old School, what’s the long-term future? So really, what I want to say is "hold this space"! I’m not going to promise "soon", but it’s something that we do want to talk to players about generally.
+* '''Mod Bruno:''' Five raids and a new skill.
+* '''Mod Tide:''' I’d hope to see a new skill and some new continents, some more land to explore with new stories. Ending some old stories as well, this is what I want to see.
+* '''Mod Ayiza:''' I’m not going to be safe, I’m just going to throw it out there. I want to see the equivalent of modding capabilities for RuneScape. I want people to be able to have their own servers that they make their own content on, that players can join on a World List, just as they would any other, similar to how you join Leagues or Deadman or something like that. That’s what I would love to see in the next five years!
+
+==Question #14==
+{{Cquote2|When do you anticipate Ironmen will be able to convert to unranked GIM?}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=2800s Youtube Time Stamp]
+
+* '''Mod Kieren:''' Soon! I don't know if we have an exact date yet, but the work is fully in progress. We saw it all working today. We're not talking too far away. It's just a matter of when we can get into a build and through testing.
+
+==Question #15==
+{{Cquote2|With Tombs of Amascut having an invocation system and the game jam blue inferno having modifiers, where does the team see these types of modifiers fitting into the future of Old School RuneScape?}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=2833s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I like them because it gives everyone, even if they're not at the highest skill level, a chance to do the same content. 
+* '''Mod Bruno:''' Although they might not have the same experience because they might not have 20 different orbs coming at them x amount of times, players will still be able to play through the content. Similar to the entry mode of Theatre of Blood - you might not be able to do a solo hard mode pub, but if you've done entry mode Theatre of Blood then at least you know what's going on, which is nice.
+* '''Mod Kieren:''' I like them too. I think they're really interesting. I feel that they provide quite a lot of replayability for Tombs of Amascut as well. You can work your way up quite gradually if you're learning, and simultaneously there will be some people like Woox who will inevitably try and do the raid with all of the invocations on. We're not exactly balancing it like that is going to be the norm!
+* '''Mod Kieren:''' It should be quite interesting but it is quite experimental. We have not tried this with a raid before, it's quite different. I'm hoping to see quite a lot of variety and how people set up their raids long-term. If it becomes a defined meta, where a certain combination of invocations becomes widely known for being the best and everyone's doing that - I don't think it'll have lived up to its potential. I want to see how it goes.
+* '''Mod Kieren:''' I also think "Blue Inferno", or the Tasakaal Trials is quite a different feature to a raid. They serve quite a different purpose in that content.
+* '''Mod Sarnie:''' I think it’s great to have that option. Let's say you do ToA, you put on three invocations, you get good then you add another one, and another one and another one until you've done multiple tries of ToA with different variants and different setups. Hopefully this means you're going to keep coming back. 
+* '''Mod Sarnie:''' The invocation system, from what I've seen, is a great thing. Hopefully we can continue to carry that on in some form!
+
+==Question #16==
+{{Cquote2|Would it be possible to make stuffed heads function like boss lair jars, and not be lost when switching them out? For how rare they are, most of them sit in the bank since you lose them if you ever get a new one you want to display.}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=2993s Youtube Time Stamp]
+
+* '''Mod Bruno:''' This will go back to that one suggestion I heard in the Q&A a while ago, where instead of having just a boss head place, you'll have like a boss head-stand with like changeable heads.
+* '''Mod Sarnie:''' Maybe it's something we can look into eventually. I'm not going to promise any timings - the Soon™ is coming back out!
+
+==Question #17==
+{{Cquote2|Now that other players can enter the POH of an iron, can you enable the feature to allow us to post bulletin advertisements so we can host?}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=3058s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I don't see why not! I don’t imagine a lot of Irons would use it because I feel like the majority of people who do host their homes, for the most part, are being nice but it's also to get donations from people who use their homes. And Ironmen can't really take donations...
+* '''Mod Bruno:''' Aside from that, I wouldn't really mind. I don't imagine it to be too much work either.
+* '''Mod Kieren:''' It seems like a pretty harmless restriction to remove.
+
+==Question #18==
+{{Cquote2|Are there any plans to expand the history or lore of the werewolves in Canifis? Possibly a quest line to "cure" them?}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=3112s Youtube Time Stamp]
+
+* '''Mod Sarnie:''' What makes you say they want to be cured?
+* '''Mod Kieren:''' Good point Sarnie, maybe the quest could investigate that!
+* '''Mod Sarnie:''' I'm just saying maybe they like being werewolves?
+* '''Mod Kieren:''' Honestly, the short answer is that there are no current plans. I don't know how much established lore there is on werewolves, if any. I'm sure there must be some. But again, there's a huge list of potential quest lines that could be chosen in the future.
+
+==Question #19==
+{{Cquote2|Are there any plans to add birdhouse seeds in packs to the game, so Ironmen don't have to hop-scape to get them?}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=3165s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I don't think there are plans but this is something we've talked about a few times with Ironmen, having to hop worlds to get seeds. At this point, it feels like one of the things we're like I don't really mind if they just have seeds because it doesn't really make for good gameplay.
+* '''Mod Ayiza:''' I swear if you just pickpocket Master Farmer for say, two hours, you have enough seeds if not more. It's one of them it is so minor that it's negligible. (I always sound like such a miserable mod, I apologise to everyone in chat!)
+* '''Mod Ayiza:''' Where do we draw the line between “okay, this is annoying, because it's impossible for me to get them” and shopscape being the only option, versus “I just don't want to play the game as much and this is the easiest way for me to be able to just go ahead and do it”.
+* '''Mod Ayiza:''' There are options to get seeds, and it is so minor because it's like an hour of Master Farmer. I personally don't care, I wouldn't be bothered if we added seed packs, it probably would be a good idea. I'm thinking about the underlying issue behind it. Are we just looking to make it easier for the sake of it, or is it really that much of a problem that it causes so many Ironmen frustration on the daily?
+* '''Mod Kieren:''' I share both points of view here; shopscape doesn't need to be tedious for the sake of it, but in an ideal world we find alternative methods that are good.
+* '''Mod Ayiza:''' What if we took the seeds out of the shop?
+* '''Mod Bruno:''' That, or we could make it so the amount of seeds dropped by Master Farmers is more than 3, or whatever the drop rate is these days. That way you have the best of both worlds, and the tedious method that is pickpocketing farmers isn't as tedious, because you get them faster.
+* '''Mod Ayiza:''' We did that for sand - you didn't have to buy it from the shop because the method for getting it was faster. I really like that! The reason I said "what if we took the seeds out of the shop" wasn't out of spite, it was looking at what players would do if seeds weren't in the shop. The answer; they would pickpocket Master Farmers. So, if we just make seeds from Master Farmers a little better, you wouldn't need to use the shop! And we can still keep them in the shop as well.
+* '''Mod Kieren:''' We can just buff the quantity of hop seeds that you get. Instead of getting one seed at a time, we can multiply it up. It's not going to harm anything, and it encourages you to use a skilling method rather than just using the shop.
+* '''Mod Tide:''' We could increase the amount of hop seeds that regular farmers drop as well when you kill them.
+* '''Mod Ayiza:''' We could make it good enough to actually make it viable!
+
+==Question #20==
+{{Cquote2|What is the status of quest porting? Would love to see While Guthix Sleeps and the Mahjarrat storyline.}}
+
+[https://www.youtube.com/watch?v=H25pJMUl1_w&t=3395s Youtube Time Stamp]
+
+* '''Mod Kieren:''' There have been a lot of good responses to the survey and a lot of support for porting certain quests. Generally, I'd say if the quest was good, it's better for porting than if it wasn't as good. We're not working on this right this second. This is one that absolutely comes to the top of the list for many people, who would love to see 'While Guthix Sleeps' come to the game. It was such an iconic quest when it came out. No promises, but it's certainly something we might discuss at some point.
+* '''Mod Sarnie:''' Yeah, looking back at the results, I believe that it is the most requested quest with 88% positive!

@@ -1,0 +1,366 @@
+{{Update|date=14 November 2019|link=https://secure.runescape.com/m=news/the-twisted-league?oldschool=1|category=game}}
+[[File:The Twisted League newspost.jpg|right]]
+{{clear}}
+
+<center>''This week sees the arrival of the first ever Old School RuneScape League!''</center>
+
+{{Horizontal Line}}
+
+[[File:The Twisted League (1).png|center|300px]]
+
+
+Old School RuneScape Leagues have arrived! Leagues is a brand new game mode. Each League offers a different spin on the game, challenging your knowledge and skill in ways you never imagined!
+
+In this first League, The Twisted League, you’ll be playing as an Ironman restricted to Kebos & Kourend. As with future Leagues, you'll be racing to complete tasks and score points in order to unlock Relics and rewards that you can show off in the main game!
+
+To start your Twisted League adventure, simply log into any of the worlds marked in green on the world selector page. Upon your first login into Twisted League, you will start off on Tutorial Island with fresh stats. Completing (or skipping) Tutorial Island will land you at the Kourend Castle Courtyard where you will meet the League Tutor and begin the challenge for real.
+
+Following the release of the Twisted League we have made a few alterations to the content based on your feedback. Please note these changes will only affect the Twisted League worlds, not the main game.
+
+'''Changelist:'''
+* '''The sandworms at Port Piscarilius have had their respawn timer reduced'''
+* '''Players can now unlock Slayer boss tasks from Konar'''
+* '''Bakery stalls now show the updated version when empty'''
+* '''We've fixed an issue where random events would sometimes fail to return users to the spot they came from and instead teleport them to Kourend Courtyard, thinking that they had escaped Kourend and Kebos'''
+
+We’d also like to take this time to clarify why the Claim Points button exists and why it’s not possible to have points be claimed automatically upon task completion. Every time a player clicks the Claim Points button, it sends a request to move the points over to the main game where they can be redeemed for rewards later. We chose to make this system manual to reduce strain on the server.
+
+Read on for more information about the Twisted League.
+
+
+{{Collapsed section|18|Words from the Team}}
+
+{{Headline|22|Words from the Team}}
+
+[[File:The Twisted League (2).png|center|300px]]
+
+
+"My role in the development of the Twisted League was focused around the design of Relics, tasks and rewards. This involved doing research into training methods on Zeah and what it would be like to be locked to Kourend and Kebos as an Ironman.<br/>I also worked on implementing core mechanics such as preventing accounts from leaving the designated zone, unlocking key quests, and adding all the League-specific content changes to the Information interface.
+Designing the Relics was the most fun. We really wanted players to feel the effect of their new power, for it to be fun and, most importantly, for it to be a hard choice. I feel confident that as a team we've achieved those goals. I look forward to seeing the reactions from players as they unlock each subsequent tier of Relics to see all the crazy power ups they have to choose from. Even now, during the week leading up to Leagues, I have changed my mind at least three times on which starting Relic I want to go with. I look forward to revealing the stats for which Relics have been selected the most for each tier."<br/>'''-Mod Husky (@JagexHusky)'''
+
+"I started my work on Leagues by discussing the Relic design with Mod Husky and helping out in the overall core design process, including the side panel that can be opened at any time to check your progress. I also provided feedback and aided the balancing process to get the game pace and general flow of Leagues right. I am very happy with the end result and I cannot wait to play it together with all of you!"<br/>'''-Mod Flippy (@JagexFlippy)'''
+
+"My role in the development team on the Twisted League has been less focused on the Twisted League itself, and more on the concept of Leagues as a whole, looking at the systems that support it and make it all possible. These generic systems are the things that will make future Leagues possible with significantly less work than the Twisted League, as the same foundations can be used with different sets of tasks to complete and different Relics available."<br/>'''-Mod Lenny (@JagexLenny)'''
+
+"My role in the Twisted League was primarily the development of the system that allows League Points and rewards to be transferred into the main game. I also did general HiScore administration that allows players’ League Points to be recorded on the HiScores page so players can see where they rank as they progress through the League. I also made the engine changes for the in-game world selector page that allows players to log into the League worlds."<br/>'''-Mod Boko (@JagexBoko)'''
+
+"My job was to break as much stuff as possible so the developers could make sure it was all fixed before the release date. I spent the early days of Leagues testing trying to escape Zeah by using the PoH, spellbooks, jewellery teleports, and even random events.<br/>I remember Mod Husky tried to force players to complete the Leagues Tutor dialogue and every time I logged in with a new account that had not completed it, I was teleported across the map and forced to complete the dialogue over and over again no matter what I did. I had to complete it about five hundred times."<br/>'''-Mod Curse (@JagexCurse)'''
+
+"My role for the Leagues project was to create a variety of cosmetic rewards that could be obtained from the mode. I was very excited to start making them as a few of them had been heavily requested before and it’s always great to see player suggestions make it into the game. Although one of my favourite rewards failed the poll, there was still quite a demand for it and I’d imagine these will get requested again in the future, perhaps for a different type of update.<br/>Being an Ironman player myself, I took the opportunity to playtest a little of the early-game of the Twisted Leagues and it was incredibly fun - if you’ve never played an Ironman account but have been interested in the past, this is the best way to get into it!"<br/>'''-Mod West (@JagexWest)'''
+{{Collapsed section end}}
+
+{{Collapsed section|18|Key Information}}
+
+{{Headline|22|Key Information}}
+
+[[File:The Twisted League (3).png|center|75px]]
+'''Dates and Logging in'''<br/>The Twisted League worlds will become available from 11:30am GMT.
+*The Twisted League will start today, November 14th, and end on January 16th, 2020.
+*To log into a Twisted League world, you will need to select a green coloured member only world from the world selector page.
+*A countdown of how many days are left in the League will be displayed on the League Info tab while on the Twisted League worlds.
+
+'''Kourend and Kebos Locked'''<br/>You will be restricted to the Kourend and Kebos regions only. Any successful attempt to escape from Kourend and Kebos will get you teleported back to the respawn point.
+*The respawn location is set to Kourend Castle courtyard.
+*Ports will not transport you away from Kourend but can still be used to travel between Land's End and Port Piscarilius.
+*Teleports will only work if the destination is within Kourend and Kebos.
+*The Ancient and Lunar spellbooks will not be accessible
+*All clues obtained will only have steps that can be completed within Kourend and Kebos.
+
+'''Ironman/Ironwoman Mode with Accelerated XP Rates'''<br/>You will be set as an Ironman or Ironwoman upon account creation. This is not changeable.
+*No trading will take place between players.
+*The base XP will be accelerated by 5x during the League.
+*Selected shops will have increased supplies and accelerated restocking rates.
+*Shops found on Kourend and Kebos will now contain a barbarian rod, Anti-Dragon Shield, and a pestle and mortar.
+*The following items are now obtainable from Watson: sextant, watch, Chart, and Strange Device.
+*All tavern owners will now sell Stew.
+
+'''Starting Stats'''<br/>You will start out with a fresh account with the basic stats, besides the following:
+*Herblore: Level 3
+*Agility: Level 15
+
+These stats will allow players to do Barbarian Fishing and train Herblore.
+
+'''Quest Unlocks'''<br/>In order to be able to obtain and wield certain items and level specific skills you will have the following quests unlocked:
+*Druidic Ritual
+*Dragon Slayer
+*Rune Mysteries
+*Eagle's Peak
+
+'''Slayer Unlocks'''<br/>You can start Slayer from level 5 combat by speaking to Konar. She has a new Kourend and Kebos task list which includes some new tasks specific to the Twisted League. Her tasks will no longer have area restrictions but will still award Brimstone Keys.
+
+Please note, there are some Slayer unlocks which will not work in this League. We do not want to give out Konar's Slayer task list but anything on it can be extended if it has an unlockable extension. The only unlocks that will work are red dragons and lizardmen.
+
+'''Item Drop Changes'''<br/>The following item drops have been changed:
+*The Kodai Insignia from Chambers of Xeric has been replaced with a Kodai Wand
+*The Hydra Leather from Alchemical Hydra has been replaced with the Ferocious Gloves
+*The Hydra Claw from Alchemical Hydra has been replaced with the Dragon Hunter Lance
+*The Broken Dragon Hasta from the Brimstone Chest has been replaced with a Dragon Hasta
+
+'''Achievement Diary Tasks'''<br/>The following Kourend and Kebos Achievement Diary tasks are automatically completed to make it possible to finish all the Diary tasks given the constraints of the Twisted League:
+*Travel to the Fairy Ring south of Mount Karuulm
+*Cast Monster Examine on a troll south of Mount Quidamortem
+{{Collapsed section end}}
+
+{{Collapsed section|18|Tasks}}
+
+{{Headline|22|Tasks}}
+
+[[File:The Twisted League (4).png|center|75px]]
+
+Tasks are a collection of goals and achievements which can be completed in the League. These tasks can be for various activities such as skilling, obtaining drops, killing creatures, completing quests or even playing minigames. Completion of a task will award a number of League Points which can be used to unlock Relics and other rewards. Tasks will range from Easy to Master tiers where Easy tasks are considered simple and Master tasks are considered extremely difficult.
+
+Below is a list of League Points you can obtain when completing tiered tasks:
+
+'''League Points'''
+*Easy: 10 Points
+*Medium: 50 Points
+*Hard: 100 Points
+*Elite: 250 Points
+*Master: 500 Points
+
+Want to see the full task list? Check the Twisted League Task Interface in-game or head over to the [[Twisted League/Tasks|Official Wiki]].
+{{Collapsed section end}}
+
+{{Collapsed section|18|Relics}}
+
+{{Headline|22|Relics}}
+
+[[File:The Twisted League (5).png|center|75px]]
+
+Relics are a Leagues specific source of buffs which are unlocked with League Points. Relics can be boosts to XP, buffs to combat prowess, additional luck when obtaining drops, or even buffs to specific skilling activities. Upon leaving Tutorial Island you will be presented with three Relics to choose from without the need for points. This will allow you to choose which strategy you want to use in the League and give you incentive to strive for the next set of Relic options. '''Once you choose a Relic you will be locked in and will no longer be able to change your Relic selection for that tier. Choose wisely.'''
+
+Below are the first three Relics you will get to choose from when entering Kourend and Kebos:
+[[File:The Twisted League (6).png|center|400px]]
+
+
+'''Abyssal Accumulator'''
+*You have an 85% chance to not consume any ammunition fired (chinchompas excluded)
+*You have an 85% chance to not consume runes when casting any spell
+
+'''Endless Endurance'''
+*Your run energy will never drain whilst running
+*Your hitpoints restores 4 times as quickly
+
+'''Dark Altar Devotion'''
+*Bones dropped by creatures are automatically buried and award 4x XP, this stacks with any existing XP multipliers
+*Ensouled heads now drop 2 at a time
+*Your prayer drains at 1/2 the speed
+
+As you unlock more Relic options, the buffs become more powerful. To unlock them you will have to continue gaining League Points by completing tasks. Below is a list of the points needed to unlock the different Relic tiers:
+*'''2nd Relic''': 400
+*'''3rd Relic''': 1,200
+*'''4th Relic'''': 2,500
+*'''5th Relic''': 5,000
+{{Collapsed section end}}
+
+{{Collapsed section|18|HiScores and League Firsts}}
+
+{{Headline|22|HiScores and League Firsts}}
+
+[[File:The Twisted League (7).png|center|400px]]
+
+It will take grit, strategy and perseverance to reach the top of our brand new HiScores table. Points are given for completing tasks, with harder tasks offering more points. The more tasks you complete, the higher you’ll climb!
+
+If you finish at the top of the leaderboard you will be crowned Champion of the Twisted League.
+
+[[File:The Twisted League (8).png|center|150px]]
+
+
+On top of having a new HiScores page we have also introduced League Firsts. League Firsts are awarded to the player who is first to complete the League’s most impressive feats. These will be represented in-game on the noticeboard next to the League Tutor. There will be no extra rewards or points for achieving a League First, although pride is its own reward!
+
+'''League Firsts'''
+*First to complete Architectural Alliance
+*First to complete the Kourend & Kebos Achievement Diary
+*First to solo complete the Chambers of Xeric without dying
+*First to solo complete the Chambers of Xeric Challenge Mode without dying
+*First to kill Skotizo
+*First to kill the Mimic
+*First to kill Hespori
+*First to kill the Alchemical Hydra
+*First to reach level 99 in any skill
+*First to complete a Master Clue Scroll
+*First to obtain any pet
+*First to obtain a Golden Tench
+*First to obtain a Twisted Bow
+*First to obtain a Dragon Warhammer
+*First to unlock all Twisted Relic tiers
+
+Want to see the official HiScores page for Leagues? Head over to the [https://secure.runescape.com/m=hiscore_oldschool_seasonal/overall HiScores Page] when the Twisted League launches at 11:30am GMT.
+{{Collapsed section end}}
+
+{{Collapsed section|18|Rewards}}
+
+{{Headline|22|Rewards}}
+
+[[File:The Twisted League (9).png|center|75px]]
+
+Rewards will be tiered to ensure players that participate in Leagues are rewarded for their efforts. Unique rewards will be obtainable by placing in the following tiers:
+
+<div style="padding:0 25px 0 25px;">
+{| class="wikitable" style="margin-left: auto; margin-right: auto; border: none; width:50%;
+!Tier
+!Threshold
+|-
+|Bronze
+|10 League Points
+|-
+|Iron
+|Top 80%
+|-
+|Steel
+|Top 60%
+|-
+|Mithril
+|Top 40%
+|-
+|Adamant
+|Top 20%
+|-
+|Rune
+|Top 5%
+|-
+|Dragon
+|Top 1%
+|}
+</div>
+
+Rewards gained will fall under two categories: League-to-League and main game.
+
+
+{{Headline|22|League-to-League Rewards}}
+
+
+The following rewards only affect the League specific worlds. They will only appear in the next League as a way to show off how well you did last time.
+
+'''League-to-League Pets'''
+*Any insured pets gained in the previous League will carry over to the next one.
+*The League Tutor will allow you to reclaim your pets if you lose them.
+
+'''League Right Click Icons'''
+*A unique symbol representing the tier you placed in at the end of the previous League will appear when a player right clicks you.
+
+'''League Rank Worlds'''
+*Mithril, Adamant, and Rune League specific worlds will be accessible based on the tier you ranked in in the previous League.
+*You can use any ranked world you meet the tier requirement for. For example, if you ranked in the Adamant tier, you can access both the Adamant and Mithril rank worlds.
+
+'''League Armour Sets'''
+*Based on how you placed in the League you will be awarded an armour set that can be used in the next one.
+*This starter set will be a set of armour and a weapon with varying stats that can assist in the early gameplay of the following League.
+
+
+{{Headline|22|Main Game Rewards}}
+
+
+At the end of the League your League Points will transfer to the main game as currency to spend in the League Reward Store. As we want rewards to be accessible to all participants, we may change the cost of these rewards closer to the end of the League. If changes are made, they will be communicated in future newsposts and represented in the in-game reward shop.
+
+All main game rewards will be cosmetic and tradeable unless otherwise stated and will be offered in the following League. You may choose to save your League Points for the next set of League rewards if you wish.
+
+The list of rewards that will be available for purchase after the League finishes are listed below:
+
+'''Twisted League Themed Banner'''
+
+[[File:The Twisted League (10).png|center|500px]]
+*Similar to Kourend house banners but themed around the Twisted League
+*Held in the main-hand slot
+*League Point Cost: 750
+
+'''Twisted League Home Teleport Animation'''
+
+[[File:The Twisted League (11).gif|center|300px]]
+*A scroll that changes the Home Teleport animation to have the player draw a black/green circle on the ground
+*When teleporting away a Xerician symbol appears
+*Scroll will be tradeable but consumed once used
+*League Point Cost: 750
+
+'''Cosmetic Twisted League Outfit'''
+
+[[File:The Twisted League (12).png|center|500px]]
+*3 tiers of cosmetic outfits with no stats
+*Tradeable and storable in the PoH
+*Outfit will represent the Twisted League
+*League Point Cost: Tier 1 - 1,000, Tier 2 - 2,500, Tier 3 - 10,000
+
+'''Twisted League Themed PoH Wallkit'''
+
+[[File:The Twisted League (13).png|center|500px]]
+*A scroll, once taken to an Estate Agent, will unlock the ability to have a Twisted League themed PoH
+*Scroll will be tradeable
+*Scroll will be returned when changing PoH style to something else
+*League Point Cost: 4,000
+
+'''Twisted League Home Teleport Animation'''
+
+[[File:The Twisted League (14).gif|center|300px]]
+*Twisted Horns which can be used on a Slayer helm to turn it into a Twisted League themed helm
+*Will require 1000 Slayer points to unlock the recolour to be consistent with all the other Slayer helms
+*Twisted Horns will be tradeable but the helm, once recoloured, will not
+*Twisted Horns can be removed from the helm
+*League Point Cost: 6,000
+
+'''Twisted League Themed PoH Wallkit'''
+
+[[File:The Twisted League (15).png|center|400px]]
+*A cosmetic wieldable trophy that represents which tier you placed in
+*Can only be claimed by players who attained the specific tier rank in the League
+*Unlike the other rewards, this will not be tradeable
+*Storable in the PoH
+*Held in the off-hand slot (aside from Dragon, Rune and Adamant which are 2H)
+*Has a unique emote that is accessed by right clicking the trophy
+*Will not cost any points to purchase
+{{Collapsed section end}}
+
+Good luck adventurer and may your league experience be a fruitful one!
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Twitch Prime}}
+
+[[File:The Twisted League (16).jpg|center|500px]]
+
+
+Our Twitch Prime promotion is here! Between now and December 10th you can claim 14 days of free membership!
+
+For those of you who missed our previous promotions, Twitch Prime is a premium service included as part of Amazon Prime membership. Benefits include bonus loot in your favourite games, a channel subscription every 30 days, and other gaming-related goodies.
+
+You can head over to this [https://support.runescape.com/hc/en-gb/articles/360000898658-Twitch-Prime-FAQ-Twitch-Amazon-Prime support page] if you have any problems or queries regarding Twitch Prime. This page will contain all the info you need to know about claiming your Twitch Prime subscription and linking it to your RuneScape account.
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Merch Update}}
+
+[[File:The Twisted League (17).jpg|center|500px]]
+
+
+Tis the season to gather around the fire and warm ourselves with the most garish sweaters imaginable – and this one fits the bill nicely! Featuring everyone’s favourite bank robber, the Wise Old Man, this cosy advent apparel is perfect for staying warm this wintertime.
+
+This jumper is on sale now, but only available in limited quantities. Place your order on the [https://runescape.backstreetmerch.com/tag/oldschool%20featured Merch Store] now to snag one for the holiday season!
+
+{{Horizontal Line}}
+
+
+{{Headline|22|In Other News}}
+
+
+The PvP World Rota is switching over to Period A. On the east of the Atlantic, host the Bounty Hunter world ('''W18''', UK) and the High Risk PvP world ('''W43''', Germany). On the west of the Atlantic, host the Standard PvP world ('''W24''', USA) and the F2P PvP world ('''W117''', USA).
+
+*Premier Club 2020 is launching later today. You can head over to the [https://support.runescape.com/hc/en-gb support centre] if you have any problems or queries regarding Premier Club.
+*The Western Provinces Elite Diary now states on the interface whether you've used your Zulrah revival reward for the day or not.
+*We've added more ploughs to the Hosidius field for more efficient ploughage.
+*The Bounty Crate is once again available to purchase, but its price has increased to 7 points, and players must have level 50 combat to buy it. The same combat level requirement applies to purchasing dragon weapons from the new store. Though players spending down their old points in the old version of the store can continue buying the dragon weapons without this requirement.
+*In order to address concern and slow down the immediate injection of the items from Bounty Crates into the game, on launch, players with enough points will be able to purchase a maximum of 5 Bounty Crates, after that, every kill will increase the amount of crates they can purchase by another 5. Players will be able to see how many more crates they can purchase by using the value option on the crate inside the new Bounty Hunter store.
+*In various Bounty Tasks, you are asked to deal the finishing blow with a specific combat style. These tasks are now better able to detect that you've done so if the finishing blow is part of a flurry of other hits that you're dealing at the same time.
+*The Bounty Hunter minigame now requires a player to have 48 hours of in-game time, up from the previous 25.
+*Bounty Hunter now waits slightly longer after your previous target kill before assigning you a new one, since players had concerns of not getting enough time after a kill.
+*The new Bounty Hunter reward shop now sells the rune pouch for 15 points rather than 75.
+*The new Bounty Hunter reward shop now sells the looting bag for 2 points rather than 4.
+*The duration permitted for a Bounty Hunter task is now 20 minutes, reduced from 30.
+
+Stay tuned in the coming weeks for the Abyssal Sire changes that you voted for in the latest poll.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,599,66121412 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''''Mods Acorn, Archie, Ash, Bonsai, Bruno, Curse, Ed, Fed, Flippy, Gambit, Gee, Ghost, Husky, John C, Kieren, Lenny, Lottie, Nasty, Oasis, Roq, Ry, Sween, Tide, Weath & West'''''<br/>''The Old School Team''

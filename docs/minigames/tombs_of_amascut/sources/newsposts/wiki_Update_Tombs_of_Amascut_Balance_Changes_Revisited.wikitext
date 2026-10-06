@@ -1,0 +1,164 @@
+{{Update|date=2 September 2022|link=https://secure.runescape.com/m=news/tombs-of-amascut-balance-changes-revisited?oldschool=1|category=game}}
+[[File:Tombs of Amascut- Balance Changes Revisited newspost.png|right]]
+{{clear}}
+''Further changes following feedback to yesterday's tweaks.''
+
+__TOC__
+==Tombs of Amascut Balance Changes Revisited==
+In [https://secure.runescape.com/m=news/a=97/tombs-of-amascut-balancing--bugfixes?oldschool=1 this week's game update], we made a number of balancing changes and bugfixes for Tombs of Amascut.
+
+It's clear that many of you feel like we missed the mark with the update. We've been reviewing your feedback and would like to discuss changes we've already made, alongside some that will be coming with next week's game update.
+
+''Note: next week's game update will take place on Thursday, 8th September. This is to allow us more time to develop and test changes that are detailed in this blog.''
+
+Before we dive into the what, let's cover the why and dispel some myths surrounding the motivation for change.
+
+In the lead-up to the raid's release, we often spoke about our intentions for it to be the most accessible raid yet thanks to the Invocation system, allowing players to customise their difficulty and improve over time by gradually increasing their Raid Level from 0 to as high as 600.
+
+Upon release, it became apparent that Normal mode was the go-to for the majority of players and many now consider this the entry point for Tombs of Amascut, rather than Entry mode as we originally intended.
+
+We believe this is mostly due to the difficulty level of 150 Raids being much lower than we anticipated.
+
+After seeing so many players enjoying Tombs of Amascut, and with it being the first true PvM experience for many, we wanted to make sure that our focus was on the difficulty vs reward, rather than limiting who can participate.
+
+We want Tombs of Amascut to remain healthy content in the long-term, but its important it remains fun content.
+
+It's clear that our balancing was off, and we made too many changes at once. While many of these feel palatable independently, when combined the effect they have is much more impactful.
+
+So, what are doing we doing about it?
+
+===The Wardens===
+The Wardens are the final challenge within the Tombs of Amascut. The encounter is split into three Phases. Yesterday, we made the following changes to the second phase (P2) and third phase (P3):
+* Adjusted the damage formula for Phase 2 to benefit less from accuracy and have a lower max ceiling.
+* Reduced core exposure time by 7 cycles.
+* Increased the Wardens’ Hitpoints during Phase 2 for high-scale groups.
+* Slightly reduced the amount of damage dealt to the Warden when successfully clearing the Phase 3 skull mechanic.
+* Slightly increased the base Hitpoints of the Warden during Phase 3.
+* Reduced the base allowed duration for solving the skull mechanic during Phase 3.
+* Slightly reduced the Magic Attack bonus of the Warden during Phase 3.
+
+For Phase 2, the above changes amounted to an increase in the number of times players were required to force the Wardens Core to fall out, and subsequently proceed to the final phase. ''This is typically referred to as the number of 'downs' required to clear the phase, and we'll be referring to it as that going forward.''
+
+Through the use of Liquid Adrenaline and specific gear (such as the Dragon Dagger), many players had found creative ways to clear the phase within one or two downs, essentially bypassing mechanics that increase the overall difficulty of the encounter.
+
+As a result, it felt as though players were spending more time in this phase hitting the core, rather than engaging with the unique mechanics of the room as intended (namely the Wardens' various attacks and the environmental hazards within the room).
+
+However, with changes to core exposure time and Warden health, compounded with the changes to Liquid Adrenaline and Ambrosia, the phase now just takes longer. Without being that different in terms of mechanics, the phase isn't that much more difficult than before, it just uses more supplies.
+
+We agree that there is a point where more 'downs' feels tedious, and the ability to co-ordinate as a team using specific gear to blast through the core is actually a pretty cool adaptation and use of mid-raid loot.
+
+As such, we've made the following changes to Wardens P2 which are now live at the time of posting this blog:
+* The Wardens' HP (or Poise) remains the same as it did with yesterday's update, but we've;
+* Increased the hitpoint of the Wardens' Core significantly.
+* Reduced the hitpoints scaling of the Wardens' Core when additional Invocations are active by 75%
+* Increased the Wardens' Core exposure phase duration with each subsequent down. This would mean the first time the Core pops out, it won't hang around for long. The second time around, the Core will stay for a little longer, giving well-coordinated groups an opportunity to synchronise their special attacks for a '2-down'. If you're not able to finish the Warden off by the second down, each time the Core is exposed it'll remain exposed for a substantially longer amount of time, which should provide more than enough time for any player to finish the Warden off.
+
+We hope that the above changes still provide an incentive to co-ordinate and be quick with your switches to secure reliable 2-downs, whilst making sure the phase doesn't last long enough to the point that it's frustrating.
+
+We've seen fewer complaints about Phase 3 of the Wardens, but would like to make some adjustments to the 'Skull Phase' mechanic based on player feedback.
+
+Some groups felt that we overdid the time reduction for this mechanic. While we don't think this needs a full revert, we've deployed a hotfix that is now live in-game that gives players a little more leniency by adding an additional 2-3 cycles (depending on group size) to the base allowed duration for solving the Skull mechanic.
+
+The Skull Phase with the Insanity Invocation active was adjusted to be near tick-perfect following yesterday's changes. While this was what the team had intended during development, player feedback alongside ongoing reports of server issues has made this feel a little too punishing. We've reverted this change fully, so any would-be Insanity enthusiasts should find this to now be the same as it was on release.
+
+===Mid-raid Loot===
+Another major concern from players were our changes to mid-raid loot. For a refresher, here's what we changed yesterday:
+* Ambrosia and Liquid Adrenaline are now 1-dose potions. 
+* Liquid Adrenaline now rarely shows up in the Chaos pack.
+* Ambrosia now only shows up in the Life pack.
+* Adjusted the quantity of items provided in the Chaos pack.
+* Slightly increased the base Hitpoints of the Warden during Phase 3.
+* Increased the amount of Run Energy that Smelling Salts restore.
+* The mid-raid loot interface no longer stops your movement, so you'll be able to withdraw your supplies on the fly!
+
+Following the update, we felt like the changes to Ambrosia and Liquid adrenaline were too harsh, so we hotfixed the game to always provide a minimum two doses of Ambrosia and Liquid Adrenaline.
+
+Unfortunately, we're unable to make these singular 2-dose potions via hotfix but we this will be changed in next week's game update. Those of you struggling with inventory management will no longer have to deal with the frustration of juggling 1-dose potions!
+
+Moving Ambrosia to the Life pack was a decision made to address the team's concerns that the Power pack was offering too much bang for your buck. Between Smelling Salts, Liquid Adrenaline and Ambrosia, many players were opting for Power at every opportunity to maximise their damage output while relying purely on Ambrosia instead of any other health or Prayer restore.
+
+While we wanted to encourage a little more decision-making, it seems as though the choice now is almost always Power followed by Life.
+
+As such, we've made the Chaos pack a little more tantalising by occasionally offering some Ambrosia or Liquid Adrenaline, making it a more worthwhile choice depending on your supplies.
+
+Choosing Power then Life will likely remain the consistent go-to, with a dash of Chaos feeling like a worthy choice in certain situations.
+
+We also saw repeated reports of players routinely running out of supplies towards the end of Wardens Phase 2 or during Phase 3. While we don't want Ambrosia being used to brute-force challenging sections of fights, we'd like to find a healthier balance where you don't have enough supplies to pull through.
+
+As a result, we've buffed the Life pack to contain a higher quantity of supplies. Since Nectar sets a small attack delay and reduces your stats, there are drawbacks to using it over Ambrosia.
+
+We'd like to help players feel more confident in having supplies to go the distance if they're willing to make use of Nectar to keep themselves topped up, at the expense of a little DPS. This should mean fewer deaths due to running out of brews, whilst ensuring Ambrosia does not remain the meta by a significant margin.
+
+With the changes to Liquid Adrenaline doses, players feel as though they need to save them exclusively for Wardens. We've adjusted Liquid Adrenaline to give it a little more oomph by increasing the duration that a single dose lasts from 60 seconds to 150 seconds.
+
+This means that a single dose should generally be active for as long as you should need it; with the potential of it even being able to used between rooms in some scenarios. We will keep monitoring how players use Liquid Adrenaline going forward and will make more changes if we feel it's necessary.
+
+===Drop Rates===
+We received a lot of feedback regarding our drop rates changes and the ambiguity of our description. In case you missed it, here's what we wrote yesterday:
+* Slightly reduced the base drop chance for tradeable uniques.
+* Slightly increased the effect that Raid Level has on tradeable unique drop rate.
+
+While we're not going to release full rates at this time, we should have been less vague yesterday. Many of you felt as though we were significantly nerfing 150 Raid Level drop chances in favour of end-game players at 300+.
+
+In the interest of transparency, here's how yesterday's changes impact the tradeable unique chances at various Raid Level breakpoints:
+* Uniques at Raid Level 150 are 12% rarer than before. Meaning that if you were expecting to see a drop every 20 raids before the change, you'd likely see one every 22.4 raids after the change.
+* Uniques at Raid Level 200 are 5% more common than before. Meaning that if you were expecting to see a drop every 20 raids before the change, you'd likely see one every 19 raids after the change.
+* Uniques at Raid Level 250 are 25% more common than before. Meaning that if you were expecting to see a drop every 20 raids before the change, you'd likely see one every 16 after the change.
+* Uniques at Raid Level 300 are 40% more common than before. Meaning that if you were expecting to see a drop every 20 raids before the change, you'd likely see one every 14 after the change.
+
+And for further context; a 300 Raid level Raid compared to a 150 Raid level Raid is roughly 2.5x more likely to receive a unique drop.
+
+Our reasoning for adjusting drop rates was to protect the Raid's tradeable uniques from decreasing in price too quickly, protecting the long term desirability of the content going forward.
+
+It's worth noting that Raid Level was already very rewarding, and that Normal Mode drop chance was a little too generous for how difficult it was. We've been keeping a close eye on the data, and we're already seeing the average Raid Level increase since Tombs of Amascut released, which is great!
+
+We want players to feel empowered to push through Raid Levels, whilst still having a chance at the rarer items for those who are unable to.
+
+A reduction in drop rates combined with the Raid getting more challenging created a rift within the community, with many feeling like we'd disproportionately punished more casual players. We hope that this clarification reassures some of you that we're not looking to completely gut loot at Raid Level 150, more so we're trying to find the right balance.
+
+===Other Issues===
+On top of the more hot topics from yesterday's update, we'd like to briefly go over a few additional points that cropped up:
+* Adding rocks either side of Zebak to prevent players using Melee without risking a chomp had the unintended side effect of some wonky pathing in some parts of the room. We're looking to resolve this next week.
+* Players expressed that the movement delay at the start of P3 is frustrating and can result in high damage taken if the player is lagging. We've made a change today that slightly reduces the duration of this delay.
+* Many players had been employing a strategy (popularised by Molgoatkirby) to save a few cycles when mining the pillar on the Path of Het. Yesterday's update unintentionally altered this behaviour. Whilst this method was unintentional, so was our fix! We'd like to manually recreate this strategy so attentive players are rewarded with an opportunity to slip in an extra hit if they're paying attention!
+* Currently, the in-Raid timer ends after the Wardens' death animation and it can be frustrating to miss time Invocations by a few seconds while waiting for the animation to finish. We'd like to change this timer in next week's game update so that it ends when the final Warden hits 0HP, rather than at the end of its death animation.
+* Some players asked why the scoreboards showing completion times weren't reset when we're making changes that significantly affect completion time. We'd like to take an opportunity to say that we'll likely reset the boards when we feel there aren't many more balancing changes to make and completion times aren't likely to be impacted by any update, but we won't be resetting them just yet.
+* Players felt as though the Path of Apmeken wasn't any quicker than before, despite yesterday's newspost stating we'd made it a little quicker. We've made a change today that combines waves 2 and 3 into a singular wave, which should help speed things up.
+* We've re-fixed issues where players found themselves soft-locked when dying at the same time as the Wardens.
+
+===TL;DR===
+To sum up, here's what's been hotfixed today:
+* Keep the Wardens' HP (or Poise) the same as it is now but;
+** Increased the hitpoints of the Wardens' Core significantly
+** Reduced the hitpoints scaling of the Wardens' Core when additional Invocations are active by 75%
+** Increased the Wardens' Core exposure phase duration with each subsequent down. This would mean the first time the Core pops out, it won't hang around for long. The second time around, the Core will stay for a little longer, giving well-coordinated groups an opportunity to synchronise their special attacks for a '2-down'. If you're not able to finish the Warden off by the second down, each time the Core is exposed it'll remain exposed for a substantially longer amount of time, which should provide more than enough time for any player to finish the Warden off.
+* Liquid Adrenaline now lasts 150 seconds rather than 60 seconds.
+* The Chaos pack for mid-Raid loot will now occasionally offer players doses of Liquid Adrenaline or Ambrosia.
+* The quantity of mid-Raid loot offered in the Life and Chaos packs has been increased.
+* The movement delay at the start of Wardens' third phase has been reduced.
+* Fixed a bug where the Resupply function on the Satchel was occasionally deleting Ambrosia or Liquid Adrenaline doses.
+
+Here's what's been mentioned in this blog that we're changing next week, but keep an eye on next week's blog for more info:
+* Mid-Raid loot will offer 2-dose potion variants instead of two 1-dose potions.
+* We'll fix some of the pathing issues caused by the rocks added to Zebak's lair.
+* The in-raid timer will end as the Warden reaches 0hp rather than after the Wardens' death animation.
+* We hope to be able to recreate the skip when mining the pillar on the Path of Het.
+
+We'd like to thank you all for the feedback provided over the last 24 hours. We hope the changes detailed in this blog help to address the issues you've raised.
+
+We've been thoroughly enjoying watching you all progress throughout the Tombs and we can't wait to see what new strategies you think of!
+
+As always, we're listening, so let us know what you think!
+
+
+'''The Old School Team'''
+
+
+----
+
+
+Discuss this update on our [https://secure.runescape.com/m=forum/forums?380,381,825,66258185 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Wiki|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

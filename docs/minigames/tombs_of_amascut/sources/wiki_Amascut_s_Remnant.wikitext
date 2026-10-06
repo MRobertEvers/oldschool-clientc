@@ -1,0 +1,74 @@
+{{Infobox Combat Achievement
+|name = Amascut's Remnant
+|image = [[File:Tombs of Amascut - fighting Tumeken's Warden.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut at raid level 500 or above without anyone dying.
+|tier = Grandmaster
+|monster = Tombs of Amascut: Expert Mode
+|type = Mechanical
+|id = 446
+|leagueRegion = Desert
+}}
+'''Amascut's Remnant''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete the [[Tombs of Amascut]] raid at level 500 or above without anyone dying.
+
+==Strategy==
+A raid level of 500 will increase the enemies' stats by 200% and health by 150%, making each boss somewhat challenging in itself.
+
+Learning how to use various advanced tactics will help significantly in the raid, as conserving supplies for the Wardens is essential to successfully complete the task. 
+
+=== Equipment and Inventory ===
+A [[Tumeken's shadow]] is the most powerful weapon in the Tombs of Amascut and will make a 500 run much easier, enabling tactics such as Butterfly Akkha, and doing enough damage to defeat [[Akkha's Shadow|Akkha's Shadows]] quickly or end Warden's enrage phase early. See [[Tombs of Amascut/Strategies]] for a breakdown of the best weapons for each encounter. The next best weapons for Wardens are the [[Twisted bow]] and [[Bow of Faerdhinen]]. An [[Osmumten's fang]] is all but required for Kephri and Ba-ba.
+
+Since the [[Keris partisan of the sun]] is likely going to be your only form of healing due to 'Dehydration' and 'No help needed', the amount of [[Super restore|Super restores]] you bring in will be the only supplies you will have access to for the entire raid. It is highly recommended that players get a [[jewel of the sun]] before attempting this achievement, as with 'Dehydration' active, the player will have very limited forms of healing that will likely cost dps and supplies if they are brought along.
+
+Taking '''Power''' both times from the [[Helpful Spirit]] might be necessary, as [[Liquid adrenaline]] potions are vital for being able to heal multiple times and two salts possibly being needed if the last two bosses are slow. If prayer is a problem, '''Life''' can be useful for the tears and scarab.
+
+An [[Amulet of blood fury]] helps sustain chip damage during Kephri and Akkha, occasionally reducing the need to Keris spec. Otherwise, an [[Amulet of rancour]] or [[amulet of torture]] are beneficial.  
+
+Balance additional gear switches with extra prayer potions to ensure you can complete the raid while still allowing for mistakes. Combining gear where possible, such as using [[Mixed hide armour]] as your range and melee armour, [[Barrows gloves]] as your melee and range gloves, or using [[Blue moon armour]] as your melee and mage armour can free up valuable inventory space without losing too much dps.
+
+If Ba-ba and Kephri are done first in order, you only need to bring a single [[Super combat potion]] to handle both rooms effectively. An [[Antidote++]] can be used before the raid begins and will likely last until the end of Kephri's room.
+
+=== Invocations ===
+As most invocations need to be active to reach 500 invocation level, there are only a few options available to make the run as easy as possible. It is almost guaranteed your invocation list will contain 'No help needed', 'Dehydration', 'Insanity', and many boss invocations. 
+
+Invocations to avoid: 
+
+* 'Quiet prayers', as it will drain far too many supplies throughout a raid while also potentially killing the player in places they normally would survive.
+* 'Medic!', as it can waste a lot of time, (upwards of 2-3 minutes), at [[Kephri]] and will drain a noticeable amount of supplies.
+* Any of the time invocations will add unnecessary stress and potentially fail the challenge run on a successful clear if the time is not met.
+
+Some difficult invocations to consider adding or removing.
+
+* 'Overly draining' will limit your damage dealing special attacks and healing potential with the [[Keris partisan of the sun]], adding time to the raid and limiting mistakes.
+* 'Double trouble' will interrupt [[Akkha]] more frequently and add time to the run, and requires advanced movement alongside 'Feeling special'. 
+* 'Keep back' will add additional chip damage or movement to an already challenging room, but is otherwise manageable. Can be almost completely ignored with the butterfly technique and a [[Tumeken's shadow]] or bow of Faerdhinen.
+* 'Pathmaster' pushes each Boss to level 3 at a minimum, increasing their stats and adding additional mechanics. Although it usually won't change any strategies, it will add extra time to each room. Level 4 Zebak is notoriously challenging and should be avoided if possible.
+* 'Ancient haste' can add a lot of unavoidable damage during P1 wardens. Less dps in this phase can drain supplies more than expected, but can be mitigated with [[Redemption]] and [[Tick eating]] strategies.
+* 'More overlords' will add extra time to Kephri, requiring 2 extra minions to be killed along with additional chip damage from the [[Spitting Scarab|Spitting Scarabs]]. However, they can be killed rather quickly.
+
+Every other invocation is assumed to be turned on. Consider leaving 'Hardcore run' off while practicing to avoid the expensive death fees.
+
+<gallery>
+Toa 500 invocation slow.png|An example 500 invocation list that avoids more challenging mechanics but will take longer.
+Toa 500 invocation fast.png|An example 500 invocation list that includes more challenging mechanics but avoids slower ones.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 December 2022
+|update = Quest Speedrunning: Batch 3 & More
+|change = Players who own a [[cursed phalanx]] prior to 30 November 2022 will now have this task retroactively completed.
+}}
+{{Subject changes footer}}
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+==Trivia==
+* It is possible to receive the combat achievement without receiving the [[cursed phalanx]] by defeating the boss, dying, and regenerating one HP all on the same tick.
+
+{{Combat Achievements}}

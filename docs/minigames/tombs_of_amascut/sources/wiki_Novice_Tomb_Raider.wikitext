@@ -1,0 +1,28 @@
+{{Infobox Combat Achievement
+|name = Novice Tomb Raider
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut in Entry mode (or above) 50 times.
+|tier = Elite
+|monster = Tombs of Amascut: Entry Mode
+|type = Kill Count
+|id = 463
+|leagueRegion = Desert
+}}
+'''Novice Tomb Raider''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to complete the [[Tombs of Amascut]] raid at any level 50 times.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Entry Mode}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 December 2022
+|update = Quest Speedrunning: Batch 3 & More
+|change = The amount of raid completions required to complete the "Novice Tomb Raider" task has been reduced from 100 to 50.
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

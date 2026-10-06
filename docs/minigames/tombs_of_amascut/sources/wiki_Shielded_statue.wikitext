@@ -1,0 +1,18 @@
+{{Infobox Scenery
+|name = Shielded statue
+|image = [[File:Shielded statue.png|180px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Tombs of Amascut]]
+|options = None
+|examine = A statue holding a shield.
+|map = {{Map|name=Shielded statue|3684,5281|mapID=-1|r=2|mtype=square}}
+|id = 45485
+}}
+The '''shielded statue''' is found in Path of Het in the [[Tombs of Amascut]]. The statue must receive the energy beam shot by the [[caster statue]] by redirecting it with [[Mirror (Tombs of Amascut)|mirrors]]. Doing so will weaken [[Het's Seal]] and allow players to destroy it.
+
+[[File:Path of Het - energy beam.png|thumb|left|300px|Het's Seal weakening after the energy beam is redirected to the shielded statue.]]
+
+{{Tombs of Amascut}}

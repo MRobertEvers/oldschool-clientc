@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Dropped the ball
+|image = [[File:Tombs of Amascut - Fighting Akkha.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat Akkha without dropping any materialising orbs and without dying yourself.
+|tier = Elite
+|monster = Tombs of Amascut
+|type = Mechanical
+|id = 449
+|leagueRegion = Desert
+}}
+'''Dropped the ball''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to defeat [[Akkha]] without dropping any materialising orbs and without dying, at raid level 150 or above.
+
+==Strategy==
+This refers to your character spawning the orbs from Akkha's special attack, not the white orbs on the final phase. Stand still during the shadow special to complete the task.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

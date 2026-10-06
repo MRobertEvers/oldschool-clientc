@@ -9,8 +9,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import config_text
 
-REPO = Path(__file__).resolve().parents[1]
+
+REPO =Path(__file__).resolve().parents[1]
 
 
 def digest(path: Path) -> str:
@@ -120,19 +122,21 @@ def main() -> int:
     for path in files:
         expect(digest(path) == before[path], f"dry-run changed {path}")
 
-    npc = (lane / "configs/summoning_cohort_spirit_wolf.npc").read_text(encoding="utf-8")
+    # Config text is read marker-filtered: `retex=default` / `bastype=default`
+    # state an absent key and must not trip the "leaked" checks below.
+    npc = config_text.read_text(lane / "configs/summoning_cohort_spirit_wolf.npc", encoding="utf-8")
     expect("[summoning_spirit_wolf]" in npc, "wolf NPC name is not prefixed")
     expect("readyanim=summoning_seq_8297" in npc, "wolf idle animation is not explicit")
     expect("walkanim=summoning_seq_8291" in npc, "wolf walk animation is not explicit")
     expect("bastype=" not in npc and "swarm_walk" not in npc, "Bas/default animation leaked")
     expect("retex" not in npc, "cache-local NPC texture id leaked")
 
-    obj = (lane / "configs/summoning_cohort_spirit_wolf.obj").read_text(encoding="utf-8")
+    obj = config_text.read_text(lane / "configs/summoning_cohort_spirit_wolf.obj", encoding="utf-8")
     expect("[summoning_blank_pouch]" in obj, "blank pouch is not prefixed")
     expect("model=100423" in obj, "blank pouch does not retain model 30826 mapping")
     expect("stackable=1" in obj, "blank pouch did not retain its stackable policy")
 
-    loc = (lane / "configs/summoning_cohort_spirit_wolf.loc").read_text(encoding="utf-8")
+    loc = config_text.read_text(lane / "configs/summoning_cohort_spirit_wolf.loc", encoding="utf-8")
     expect("[summoning_obelisk]" in loc, "obelisk loc name is not prefixed")
     expect("models=100005" in loc, "obelisk did not retain its sole model 31686 mapping")
     expect("anim=summoning_seq_8510" in loc, "obelisk animation is not explicit")
@@ -140,12 +144,13 @@ def main() -> int:
     expect("op2=Renew-points" in loc, "obelisk Renew-points operation is absent")
     expect("shape1=" not in loc, "rev-643 nested-model decode leaked into the rev-530 loc")
 
-    seq = (lane / "configs/summoning_cohort_spirit_wolf.seq").read_text(encoding="utf-8")
+    seq = config_text.read_text(lane / "configs/summoning_cohort_spirit_wolf.seq", encoding="utf-8")
     expect("[summoning_obelisk_charge]" in seq, "obelisk charge sequence is absent")
     expect("[summoning_infuse_anim]" in seq, "pouch-infusion animation is absent")
     expect("framestep=27" in seq, "pouch-infusion sequence lost its source frame step")
 
-    spotanim = (lane / "configs/summoning_cohort_spirit_wolf.spotanim").read_text(encoding="utf-8")
+    spotanim = config_text.read_text(lane / "configs/summoning_cohort_spirit_wolf.spotanim",
+                                     encoding="utf-8")
     expect("[summoning_renew_points_gfx]" in spotanim, "Renew-points gfx is not prefixed")
     expect("model=100006" in spotanim, "Renew-points gfx does not use model 31427 mapping")
     expect("anim=summoning_seq_7662" in spotanim, "Renew-points gfx sequence is absent")

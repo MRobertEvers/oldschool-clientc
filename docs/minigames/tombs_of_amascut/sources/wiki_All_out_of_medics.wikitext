@@ -1,0 +1,32 @@
+{{Infobox Combat Achievement
+|name = All out of medics
+|image = [[File:Tombs of Amascut - Kephri's children.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat Kephri without letting her heal above 25% after the first down. The 'Medic' invocation must be activated. You must do this without dying yourself.
+|tier = Master
+|monster = Tombs of Amascut: Expert Mode
+|type = Mechanical
+|id = 457
+|leagueRegion = Desert
+}}
+'''All out of medics''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to defeat [[Kephri]] without letting her heal above 25% after the first down, without dying, at raid level 300 or above. The 'Medic' invocation must be activated. Any healing from the Soldier Scarab will not fail this task.
+
+== Strategy: ==
+Use Runelite's "Tombs of Amascut" Plugin, enable swarmer overlay under Kephri to see the spawn count. During the fight, healing swarms spawn every 15 ticks, Starting on the east side and rotating spawns clockwise until healing phase occurs. This allows for 2 [[Osmumten's fang|fang]] hits immediately followed up by switching to [[Black chinchompa]] to clear the healing swarm.
+
+'''Healing Phase 1:'''
+
+28 swarms spawn in this phase, there are 18 swarm spawns that can heal [[kephri]] before the despawn timer expires. To stay under the 25% requirement, 16 must be cleared in time.
+
+This is easiest to achieve in a 3-person group, where two people dedicate themselves to swarms, while a third focuses on kephri and the scarabs.
+
+'''Healing Phase 2:'''
+
+24 Healing swarms spawn, the first 14 must all be killed with a [[Toxic blowpipe|blowpipe]].
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

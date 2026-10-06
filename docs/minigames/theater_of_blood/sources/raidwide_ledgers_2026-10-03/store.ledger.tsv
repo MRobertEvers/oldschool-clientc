@@ -1,0 +1,13 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	measure.cleared	PASS	18	001-measure.cleared	tobstate active=1 handle=1 room=2 mode=1 started=1 cleared=1 boss_uid=66615 fight=6439,95,0 (MEASUREMENT: Bloat removed by ::kill)
+2	chest.placed	PASS	0	002-chest.placed	tile 6405,97
+3	goto.chest	PASS	3	003-goto.chest	at 6406,97,0 from 6431,107,0
+4	chest.open	PASS	1	004-chest.open	modal tob_midway_stores
+5	store.open	PASS	0		tob_midway_stores open (group 405) [frame unchanged]
+6	store.points	PASS	3	005-store.frame,006-store.points	server tobstores points=8 stamina=1 stock=8 0:Stamina potion(4):1 1:Prayer potion(4):2 2:Saradomin brew(4):3 3:Super restore(4):3 4:Mushroom potato:1 5:Shark:1 6:Sea turtle:2 7:Manta ray:2 (a chest pays 6-13, plan 5.5)
+7	store.client_label_observed	PASS	0		client label 'Points Available: 0' vs server points 8 -- needs [varp1746_tob_perm_transmit_1] transmit=yes [frame unchanged]
+8	store.stock	PASS	0		tobstores points=8 stamina=1 stock=8 0:Stamina potion(4):1 1:Prayer potion(4):2 2:Saradomin brew(4):3 3:Super restore(4):3 4:Mushroom potato:1 5:Shark:1 6:Sea turtle:2 7:Manta ray:2 [frame unchanged]
+9	store.buy_slot0	PASS	3	007-store.buy_slot0	You take a Stamina potion(4).; tobstorebuy: points left 7; points 8 -> 7 (slot 0 costs 1)
+10	store.client_label_after_observed	PASS	2		client label now 'Points Available: 0' vs server 7 [frame unchanged]
+SUMMARY	10	PASS	30	exit=0	pass=10 fail=0

@@ -1,0 +1,102 @@
+{{Update|date=28 September 2022|url=https://secure.runescape.com/m=news/tombs-of-amascut--group-ironman-changes?oldschool=1|category=game}}
+[[File:Tombs of Amascut & Group Ironman Changes newspost.png|right]]
+{{clear|right}}
+
+''This week we’re making changes to Tombs of Amascut and Group Ironman Mode!''
+__TOC__
+==Tombs of Amascut Changes==
+We've updated how the supplies work:
+
+* Items can now be dropped to the ground directly from the Supplies Bag interface.
+* When withdrawing an item, the slot that was actually selected is the one that is withdrawn, instead of the one at the top of the Supplies Bag.
+* The jugs at Zebak have been given an attack delay, so you can preserve ammo by only attacking them once.
+
+The summary board will now acknowledge any member that has left mid-raid, giving you a fresh new way to flame your salty teammates.
+
+Fixed an issue where the Deadly Prayers Invocation was showing incorrect stats on the Summary interface for Prayer effectiveness.
+
+The following items have now been marked as 'valuable' to stop any accidental drops:
+* Masori Crafting Kit
+* Ancient Remnant
+* Remnant of Zebak
+* Remnant of Kephri
+* Remnant of Ba-Ba
+* Remnant of Akkha
+
+==Group Ironman Changes==
+Next up, we've made some further changes to the deactivation settings for Ironman mode. Iron players have already been able to set a permanent flag on their account, preventing them from ever changing their status. As many of you had the choice made before the introduction of the Unranked Group Ironman mode, we are giving you another chance to change this. Please note that these choices are '''fully permanent''' and will not be subject to review by our Player Support team – so don't take this decision lightly!
+
+[[File:Tombs of Amascut & Group Ironman Changes (1).png|centre|478px]]
+
+Solo Iron players who are currently 'permanent' will receive a message upon logging in, stating that their permanent settings have changed to 'limited'. This means you can become an Unranked Group Ironman if you wish. However, you may still not become a main account.
+
+[[File:Tombs of Amascut & Group Ironman Changes (2).png|centre|478px]]
+
+Visiting the Iron Tutor in Lumbridge will allow you to choose the permanence of your Iron status – and in case it hasn't yet sunk in, you will be warned about the ramifications of this decision before you're allowed to make it.
+
+You don’t have to make this decision immediately and can continue playing however you wish while you think it over.
+
+==Steam and Mobile Client Fixes==
+We’ve also been working on a variety of patches specifically for our Steam and Mobile clients:
+
+* Tweaked the new tooltips to make them easier to read - woohoo!
+* The shortcuts at Guardians of the Rift and south-west of the Necropolis are now highlighted by the Agility helper.
+* Redwood trees at the Farming Guild will now display their respawn timer when chopped.
+* Venom now correctly displays on the Buff Bar.
+* STEAM ONLY: Players can now complete the Stronghold of Security with either 2FA or Steam Guard enabled.
+* JAVA & STEAM: Holding the shift key while on the Inventory and then switching to a different tab, letting go of shift, and then switching back to the Inventory will no longer keep the shift button active.
+* Clue steps which display a lot of text on the Clue Helper overlay will now have a scroll bar which lets you read the whole thing.
+* The Clue Helper display now correctly shows that you need Turquoise Robe Bottoms for the Easy Clue step by the Lumbridge Mill.
+* The cipher Clue where you need to talk to Eluned now correctly displays the World Map icon when looking at the Prifddinas map.
+* The spacing between lines on the Clue Helper overlay has been adjusted to shorten the gap between sections.
+* Fixed an issue where certain Quest clues weren't showing all relevant information.
+* The HP Bar will now correctly reappear when an entity is attacked at the exact same moment the previous HP Bar fades out.
+* Fixed an issue where the Herbiboar Helper was not updating correctly in certain scenarios.
+
+==Beta News==
+Good news, everyone! We’re keeping the Wilderness Boss Rewards Beta open for another week, as we’ve lowered the Voidwaker’s special attack cost to 50% (down from 60%) – so hop on in and test it out!
+
+We’ve also made some plans regarding Poison Dynamite, based on your feedback. Here’s our to-do list:
+
+* Upgrade the Poison damage to P++ (previously P+)
+* Base damage type on player’s equipped weapon and attack style.
+* Prevent use of Poison Dynamite in the Fight Caves.
+* Prevent Dynamite from inflicting the Poison effect on 0 hits.
+* Prevent players from hitting multiple targets with Poison Dynamite, even in multi-way combat.
+* Easier targeting options were a big point in early feedback, and we have two alternatives we'd like your thoughts on:
+** Poison Dynamite will always hit a 3x3 area of attack. This also lets us update ‘fun’ weapons, making them -100 in all stats.<br>OR
+** Poison Dynamite will become Thrown (or ‘Sticky’). The player must use the Dynamite on the NPC within a 1 tile range, with significant action delays.
+
+One thing we will '''not''' be doing is changing the poison type to Venom. We feel this to be overpowered, and it goes against the premise of this new item.
+
+Last bit of news on the Beta front – the Quest Speedrunning Beta has gone fantastically, and we’ll be working hard to make improvements based on your feedback before it launches.
+
+Thank you to everyone who participated in these Betas and sent in feedback!
+
+==Other Changes==
+* Players using the 'Quick-board' option on Zulrah's boat will no longer have their cameras forcibly locked in place to observe the snake's spawn animation, meaning they'll be able to start fighting the snake slightly faster.
+* Craw's Bow and Viggora's Chainmace bonuses will no longer apply to Magic Damage.
+* A spammy message about pet reclamation is no longer displayed on Tutorial Island, as the players there shouldn't need it.
+* Group Iron players are no longer permitted to travel from Lumbridge to The Node whenever the grouping system becomes temporarily unavailable, as they'd then be obliged to wait in The Node until the system became available again.
+* Salve Amulets now have a Make-All dialogue for stringing them, as other amulets do.
+* Players cutting Salve Shards from the outcrops after completing Haunted Mine will now continue cutting Shards until they cancel the action, without needing to click repeatedly.
+
+==PvP Rota Changes==
+The PvP rota has moved to Period B:
+
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (Uk) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,840,66263292 official forums], on the [https://www.reddit.com/r/2007scape/comments/xq8aad/tombs_of_amascut_group_ironman_changes_september/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Chilly, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Maylea, Markos, Meat, Moogle, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Shaun, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Steve W, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

@@ -2,6 +2,7 @@
 #define RSCACHE_DATATYPES_DAT2_CONFIG_LOC_H
 
 #include "../rsbuffer.h"
+#include "../rscache_presence.h"
 #include "../rscache_profile.h"
 #include "dat2_configs.h"
 #include "dat2_entity_ops.h"
@@ -48,8 +49,98 @@ enum RSCache_Dat2LocParamType
     RSCACHE_LOC_PARAM_TYPE_STRING = 1,
 };
 
+/**
+ * The fields a loc stream can state, for `RSCache_Dat2ConfigLoc.present`.
+ *
+ * Keyed by meaning, not opcode: where an era moved a field to another opcode
+ * (model lists became 6/7 with int ids at rev 237, the map function is 60 in
+ * dat1, 82 in OldSchool and 107 in RS2, the map scene is 102 in RS2), every
+ * decoder maps whichever opcode it reads onto the one field and the encoder
+ * writes the current codec's spelling. Distinct opcodes that set the same
+ * struct value with a different meaning are distinct fields: 17 / 18 / 27 all
+ * touch the walk and projectile flags, 77 and 92 both carry the transforms, and
+ * 21 / 81 / 93 / 94 / 95 each select a contour mode.
+ *
+ * The opcodes the decoder consumes without storing (25, 42, 44, 45; RS2's 82,
+ * 88, 90, 91, 97..99, 103..105 and 163..191; a pre-237 100 or 101; a pre-220
+ * 91 or 96) have no field: the type stays lossy for them.
+ */
+enum RSCache_Dat2ConfigLocField
+{
+    RSCACHE_LOC_FIELD_MODELS = 0,            /* 1, rev 237+ 6; RS2 nested 1 and 5 */
+    RSCACHE_LOC_FIELD_MODELS_FLAT,           /* 5, rev 237+ 7 */
+    RSCACHE_LOC_FIELD_NAME,                  /* 2 */
+    RSCACHE_LOC_FIELD_DESC,                  /* 3 */
+    RSCACHE_LOC_FIELD_SIZE_X,                /* 14 */
+    RSCACHE_LOC_FIELD_SIZE_Z,                /* 15 */
+    RSCACHE_LOC_FIELD_UNSOLID,               /* 17: walk and projectiles pass */
+    RSCACHE_LOC_FIELD_PROJECTILES_PASS,      /* 18 */
+    RSCACHE_LOC_FIELD_INTERACTIVE,           /* 19 */
+    RSCACHE_LOC_FIELD_CONTOUR_GROUND,        /* 21: contour type 1 */
+    RSCACHE_LOC_FIELD_SHARELIGHT,            /* 22 */
+    RSCACHE_LOC_FIELD_OCCLUDE,               /* 23 */
+    RSCACHE_LOC_FIELD_ANIM,                  /* 24 */
+    RSCACHE_LOC_FIELD_INTERACT_TYPE_1,       /* 27 */
+    RSCACHE_LOC_FIELD_WALL_WIDTH,            /* 28 */
+    RSCACHE_LOC_FIELD_AMBIENT,               /* 29 */
+    RSCACHE_LOC_FIELD_OP1,                   /* 30 + n (RS2 also 150 + n, n < 5) */
+    RSCACHE_LOC_FIELD_OP2,                   /* 31 */
+    RSCACHE_LOC_FIELD_OP3,                   /* 32 */
+    RSCACHE_LOC_FIELD_OP4,                   /* 33 */
+    RSCACHE_LOC_FIELD_OP5,                   /* 34 */
+    RSCACHE_LOC_FIELD_OP6,                   /* 35 */
+    RSCACHE_LOC_FIELD_OP7,                   /* 36 */
+    RSCACHE_LOC_FIELD_OP8,                   /* 37 */
+    RSCACHE_LOC_FIELD_OP9,                   /* 38 */
+    RSCACHE_LOC_FIELD_CONTRAST,              /* 39 */
+    RSCACHE_LOC_FIELD_RECOLOURS,             /* 40 */
+    RSCACHE_LOC_FIELD_RETEXTURES,            /* 41 */
+    RSCACHE_LOC_FIELD_MAP_FUNCTION,          /* dat1 60, OldSchool 82, RS2 107 */
+    RSCACHE_LOC_FIELD_CATEGORY,              /* 61 */
+    RSCACHE_LOC_FIELD_MIRROR,                /* 62 */
+    RSCACHE_LOC_FIELD_NO_SHADOW,             /* 64 */
+    RSCACHE_LOC_FIELD_RESIZE_X,              /* 65 */
+    RSCACHE_LOC_FIELD_RESIZE_HEIGHT,         /* 66 */
+    RSCACHE_LOC_FIELD_RESIZE_Z,              /* 67 */
+    RSCACHE_LOC_FIELD_MAP_SCENE,             /* 68; RS2 and pre-237 102 */
+    RSCACHE_LOC_FIELD_FORCE_APPROACH,        /* 69 */
+    RSCACHE_LOC_FIELD_OFFSET_X,              /* 70 */
+    RSCACHE_LOC_FIELD_OFFSET_Y,              /* 71 */
+    RSCACHE_LOC_FIELD_OFFSET_Z,              /* 72 */
+    RSCACHE_LOC_FIELD_FORCE_DECOR,           /* 73 */
+    RSCACHE_LOC_FIELD_BREAK_ROUTEFINDING,    /* 74 */
+    RSCACHE_LOC_FIELD_RAISE_OBJECT,          /* 75 */
+    RSCACHE_LOC_FIELD_MULTI,                 /* 77 */
+    RSCACHE_LOC_FIELD_MULTI_DEFAULT,         /* 92: 77 plus a default loc */
+    RSCACHE_LOC_FIELD_SOUND,                 /* 78 */
+    RSCACHE_LOC_FIELD_SOUND_RANDOM,          /* 79 */
+    RSCACHE_LOC_FIELD_CONTOUR_GROUND_HEIGHT, /* 81: contour type 2 */
+    RSCACHE_LOC_FIELD_NO_RANDOM_ANIM_START,  /* 89 */
+    RSCACHE_LOC_FIELD_DEFER_ANIM_CHANGE,     /* OldSchool 90 */
+    RSCACHE_LOC_FIELD_SOUND_DISTANCE_FADE,   /* rev 220+ 91 */
+    RSCACHE_LOC_FIELD_SOUND_FADE,            /* rev 220+ 93 */
+    RSCACHE_LOC_FIELD_CONTOUR_TYPE_3,        /* pre-220 93 */
+    RSCACHE_LOC_FIELD_UNKNOWN1,              /* OldSchool 94 */
+    RSCACHE_LOC_FIELD_CONTOUR_TYPE_4,        /* RS2 94 */
+    RSCACHE_LOC_FIELD_SOUND_VISIBILITY,      /* rev 220+ 95 */
+    RSCACHE_LOC_FIELD_CONTOUR_TYPE_5,        /* pre-220 95 */
+    RSCACHE_LOC_FIELD_RAISE,                 /* rev 220+ 96 */
+    RSCACHE_LOC_FIELD_SUB_OPS,               /* rev 237+ 100 */
+    RSCACHE_LOC_FIELD_COND_OPS,              /* rev 237+ 101 */
+    RSCACHE_LOC_FIELD_COND_SUB_OPS,          /* rev 237+ 102 */
+    RSCACHE_LOC_FIELD_RANDOM_ANIMS,          /* 106 */
+    RSCACHE_LOC_FIELD_CAMPAIGNS,             /* 160 */
+    RSCACHE_LOC_FIELD_PARAMS,                /* 249 */
+    RSCACHE_LOC_FIELD_COUNT
+};
+
 struct RSCache_Dat2ConfigLoc
 {
+    /** Which `RSCache_Dat2ConfigLocField`s the stream stated. The encoder writes
+     *  exactly these; the values below still hold the client defaults (and the
+     *  derivations of `RSCache_Dat2ConfigLocFinish`) for the rest. */
+    struct RSCache_Presence present;
+
     // Added after loading.
     int _id;
 
@@ -106,6 +197,13 @@ struct RSCache_Dat2ConfigLoc
 
     // Menu operations - null terminated strings
     char* actions[10];
+    /**
+     * The spelling of an action the stream stated as "hidden" (any case), which
+     * `actions` holds as NULL exactly as the client does. Kept only so the
+     * encoder can write the record back as it was: cache.osrs239 spells it
+     * "hidden" 520 times and "Hidden" 128 times. NULL for every other slot.
+     */
+    char* hidden_actions[10];
 
     int* recolors_from;
     int* recolors_to;
@@ -194,6 +292,7 @@ struct RSCache_Dat2ConfigLoc
     int sound_fade_out_curve;      /* opcode 93 */
     int sound_fade_out_duration;   /* opcode 93; default 300 */
     bool unknown1;                 /* opcode 94 on OSRS (payload-free) */
+    bool defer_anim_change;        /* opcode 90 on OSRS (payload-free) */
     int sound_visibility;          /* opcode 95; default 2 */
     int raise;                     /* opcode 96 */
 
@@ -313,16 +412,20 @@ RSCache_Dat2ConfigLocNewDecodeProfile(
  * ambient-sound retain byte. Encoding with the wrong profile produces a record the
  * target client misreads.
  *
+ * It writes exactly the fields `loc->present` states (see
+ * RSCache_Dat2ConfigLocField), never inferring one from its value: a field
+ * stated with the default's value is written, an unstated one is not. A
+ * caller building a record by hand states its fields with RSCache_PresenceSet.
+ *
  * Fields that cannot be reproduced, so such records round-trip semantically but not
  * byte-exactly:
- *   - roughly 25 opcodes the decoder consumes without storing (25, 44, 45, 69,
- *     88/90/91/96..105, 163..191, and the boolean-flag block);
- *   - actions 0..4, which the decoder accepts through either opcode 30+i or 150+i
- *     and stores in the same slots — this writes the 30-range;
- *   - map_function_id (opcodes 60, 82, 107) and map_scene_id (68, 102), likewise
- *     collapsed to the lowest opcode of each group;
- *   - an action of literal "hidden", normalised to NULL by the decoder;
- *   - opcode 95's payload pre-220, which the decoder discards.
+ *   - the opcodes the decoder consumes without storing (RS2's 25, 42, 44, 45,
+ *     82, 88, 91, 97..99, 103..105, 163..191; a pre-220 91 or 96);
+ *   - a field stated twice, of which the decoder keeps the last value;
+ *   - RS2 actions 0..4 through 150+i, written back through 30+i; and RS2's
+ *     nested model lists, written back in the flat OldSchool form;
+ *   - an action "hidden" held as NULL with no `hidden_actions` spelling (a
+ *     record built by hand), which this writes as "Hidden".
  */
 uint32_t
 RSCache_Dat2ConfigLocEncode(

@@ -1,0 +1,419 @@
+{{Update|date=25 March 2026|url=https://secure.runescape.com/m=news/easter-2026--pvp-qol-improvements?oldschool=1|category=game}}
+[[File:Easter 2026 & PvP QoL Improvements newspost.png|right]]
+{{clear}}
+__TOC__
+
+We've deployed a hotfix to revert today's changes to the Escape Caves behaviour when leaving at the Wilderness bosses. If you log out inside a boss lair then you'll log back in outside the Escape Caves. All other Escape Caves behaviour is as it was prior to today’s update.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+| Trip Hammer is broken at Giants' Foundry.
+| Coldfixed.
+|-
+| Attempting to cut a tree at Canoe Stations results in failure and a walking back and forth animation appears.
+| Coldfixed.
+|-
+| Some NPCs aren't respecting their aggression range leading to safespots breaking or NPCs wandering outside of their intended boundaries.
+| Coldfixed.
+|}
+
+----
+
+''This week brings spring spirit to Gielinor and a whole heap of PvP QoL improvements!''
+
+==Changelog - March 25th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Easter 2026 Event'''
+
+* The Easter Event has arrived with a familiar sense of mystery... Chat with the Easter Bunny located at the south entrance of the Grand Exchange to start the egg hunt!
+
+'''PvP QoL Improvements'''
+
+* Last Man Standing changes:
+** LMS has had some gear adjustments to bring the gear more in line with the current meta. See the list of updated items further down the blog.
+** You can no longer lose your skull by entering a Last Man Standing game lobby, logging out and hopping world while inside the lobby.
+** You can now hold up to 3 Saradomin Brews, but only 10 Sharks.
+** Max/Med bracket has had its Defence level increased to 85.
+** Zerker bracket has had its Attack level increased to 80.
+* Bounty Hunter changes:
+** Bounty Hunter rewards can now also be used in the TzHaar Fight Pit, player-owned house combat ring and Clan Hall combat ring.
+** While unskulled in Bounty Hunter, you will receive 50% less EP per minute and your Archaic Emblem will not upgrade past tier 5.
+** The Vesta's spear (bh) will now block ranged damage as well as melee damage when the special attack is used.
+** Players dying in the Bounty Hunter lobby will now be considered as skipping their target.
+* Emir's Arena changes:
+** Emir's Arena has had some gear adjustments to bring the gear more in line with the current meta. See the list of updated items further down the blog.
+** Updated the Pure, Zerker and Max/Med starter sets to be more up to date when playing Emir's Arena for the first time, so getting stuck into some fights should be easier than ever! More details further down the blog.
+*** Note that these new starter kits for Pure, Zerker and Max/Med will replace your existing build.
+** Deadeye and Mystic Vigour prayers are now allowed in fights and can be used by players who meet the level requirements.
+** The "Zerker" account build has been adjusted as follows:
+*** Attack level is increased to 75, up from 60
+*** Defence level is increased to 50, up from 45
+*** Prayer level is increased to 63, up from 55
+*** The "Max/Med" account build's Attack, Defence and Prayer levels are increased to 99.
+* Some items that have cosmetic overrides that would typically be lost will now refund the cosmetic variant to the player on PvP death. See the list of cosmetic variants further down the blog.
+* In PvP areas, if you have not attacked another player in the last 20 ticks, swapping between weapons will retain any autocast settings that have been set.
+* The spawn location after leaving Venenatis, Callisto and Vet'ion have been slightly altered to place players above ground. You'll still be placed in close proximity to the escape cave entrances if you'd like to escape any PKers.
+* Vet'tion will now spawn fewer Hellhounds for larger groups.
+* Venenatis will now spawn slightly fewer spiderlings. It will also now only change phases every other attack if there are more than 10 players, rather than just 5.
+* Dizana's Quiver and Revenant Weapons now accurately reflect your risk wealth on the Items Kept on Death UI.
+* Revenants and the Revenant Maledictus will no longer invalidate Iron accounts from obtaining loot if another player attacks those NPCs. The Iron account will still only receive a drop if they are the MvP (player that dealt the most damage).
+** This change is inline with the recent adjustment to how the loot from Zombie Pirates function, as well as other existing Wilderness NPCs such as Callisto, Vet'ion and Venenatis.
+* When crossing a Revenant Cave shortcut, the slight delay when arriving at the other side has been removed.
+* Ranging ammunition no longer spawns on top of the Revenant Cave shortcut pillars.
+* The rear entrance to the Brimhaven Dungeon, which is accessed by paying trading sticks, now will no longer null damage upon use in a PvP or Deadman world.
+* The PJ timer in PvP worlds increased to 16 ticks (9.6 seconds) up from 8 ticks (4.8 seconds), to stop bad actors PJing fights when two opponents eat at the same time.
+* In PvP worlds, players can now use cannons in the Wilderness.
+* In single combat, you can no longer telegrab food dropped by others in the Wilderness. If you've dropped a piece of food in the Wilderness, or a monster you're fighting has dropped some food, you're now able to pick up that food if you're in combat with another player.
+* The placement of the Elder Chaos Druids at the Zombie Pirates have been slightly adjusted so that players passing by get teleblocked less frequently.
+* In PvP worlds, the Chugging Barrel can now be used in the bank located at the Camelot teleport spot. Likewise, you're now able to use the Chugging Barrel in the safe area of the white portal in Clan Wars.
+* Outside designated Castle Wars worlds, barricades will always appear under players. On designated worlds, they will continue to appear on top of other players.
+* On non-designated Castle Wars worlds, bandages will heal a maximum of 18 hitpoints.
+* Added a toggle to disable Combat XP at Castle Wars, Soul Wars, TzHaar Fight Pits and Clan Wars. These toggles can be accessed as follows:
+** Castle Wars: Right-click Lanthus
+** Soul Wars: Talk to Nomad
+** TzHaar Fight Pits: Talk to TzHaar-Mej-Kah
+** Clan Wars: Right-click the white or purple portal
+* In permanent Deadman, trinkets will now break on death again. Also, the hitpoints for the breach NPCs will be restored to being significantly lower.
+
+'''Mobile and Official Client Changes'''
+
+* Added the ability to reduce the UI scale on the Mobile client.
+** You'll find that the default value is 400%, as the Mobile Client defaults to high scale. There's also a magnification cap in place, so the interface never gets too tiny to use.
+* Official Client changes:
+** To make the UI scaling interface consistent and easier to use across Mobile and desktop, we've updated it to a drop-down rather than slider. We've also added a second option, "Input", which lets you type in valid numbers from the whole range directly. To do this, you need to long-press on the scaling drop down if on mobile, or right-click on desktop and select the "input" option.
+*** Desktop users should find their defaults retained, as this is saved per client. If you do see a change however, you can still reset the scaling to the default value by pressing the reset interface scaling button.
+* Added separate “Max Foreground FPS” and “Max Background FPS” settings, allowing the game to run at a lower frame rate while not in focus.
+
+'''Other Changes'''
+
+* In preparation for the upcoming game worlds based in Brazil, we've added a new filtering option to the Configure World Switcher menu today. We'll keep you updated when we have more information to share on these game worlds.
+* A typo has been corrected in the Thieving skillguide.
+* Yami's chathead no longer has blue stripes while he's in a menagerie.
+* The F2P restriction on using chat-channels with a skill total below 150 has been made slightly more flexible to accommodate certain specialist builds.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Easter 2026 Event==
+[[File:Easter 2026 & PvP QoL Improvements (1).jpg|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/easter2026.jpg here]!'']]
+
+Spring has once again arrived in Gielinor, and with it comes a familiar sense of mischief! The Easter Bunny has returned, bringing with it pastel-coloured decorations, a whole lot of carrots and eggs, but something's missing... One of the chocolate eggs has run away, leaving a note behind that hints its whereabouts. This calls for someone with egg-ceptional hunting skills to hop right in! Will you help our good ol' pal the Easter Bunny, who is having a bad hare day?
+
+You'll notice a cosy nook at the south entrance of the Grand Exchange. Start the event by talking to the Easter Bunny waiting for you there!
+
+[[File:Easter 2026 & PvP QoL Improvements (2).png|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/location.png here]!'']]
+
+===Rewards===
+Upon completing the event, you'll get the rewards well in hand - literally. Egg hunters who are successful will get their hands on Archibald, a holdable Easter egg, much like a pet rock!
+
+You'll be able to paint Archibald to unlock different designs. Flex your house's ancient bloodline with the Dragon egg, match the Chick egg with the Nest Hat, go crazy with the fashionscape combinations!
+
+[[File:Easter 2026 & PvP QoL Improvements (3).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/eastereggs.png here]!'']]
+
+[[File:Easter 2026 & PvP QoL Improvements (4).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/painttheegg.png here]!'']]
+
+Want to get the rewards from previous Easter Events as well? Do be sure to drop in on Diango in Draynor Village to claim them while you can, before the event '''ends on April 15th'''!
+
+===Easter Livestream===
+[[File:Easter 2026 & PvP QoL Improvements (5).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/livestream.png here]!'']]
+
+Mark your calendars for our upcoming Easter 2026 Livestream!
+
+* '''When:''' Thursday, April 2nd, 15:30 UTC
+* '''Where:''' Our official <u>[https://www.twitch.tv/oldschoolrs Twitch channel]</u>
+* We'll be sailing across Gielinor in Easter fashionscape on World 520 - route map will be shared next week!
+* The finalists of the egg decoration competition will be polled by the Twitch chat.
+* We'll be playing Hide and Seek with you live on Twitch.
+* Mass Nex event with Mod Manked on World 521
+
+See you next Thursday!
+
+==PvP Quality of Life Improvements==
+We've got a handful of QoL changes that should be welcome for any of you at home who love Wilderness content or a spot of high-octane PvP. The list of changes is long, so without further ado, let's get right into it!
+
+===Last Man Standing Changes===
+Last Man Standing has had some gear adjustments to bring the gear more in line with the current meta. To start with, we've added the following items to Last Man Standing:
+
+{{Collapsed section|18|Click to expand the list}}
+
+* Bow of faerdhinen
+* Crystal body
+* Crystal legs
+* Crystal helm
+* Avernic treads
+* Osmumten's fang
+* Elidinis' ward (f)
+* Noxious halberd
+* Magus ring
+* Ultor ring
+* Purging staff
+* Dragonfire shield
+* Twisted buckler
+* Masori body (f)
+* Masori chaps (f)
+* Torva platelegs
+* Virtus robe top
+* Virtus robe bottom
+* Burning claws
+* Aranea boots
+
+{{Collapsed section end}}
+
+Additionally, the starter gear for the "Max/Med" bracket has been updated with:
+
+* Avernic treads (max)
+* Torag's platelegs
+* Karil's leathertop
+* Ahrim's robetop
+* Ahrim's robeskirt
+* Staff of the dead
+[[File:Easter 2026 & PvP QoL Improvements (6).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/maxmed_starter.png here]!'']]
+
+Additional Last Man Standing changes:
+
+* You can no longer lose your skull by entering a Last Man Standing game lobby, logging out and hopping world while inside the lobby.
+* You can now hold up to 3 Saradomin brews (cap increased from 1), but only 10 Sharks (cap decreased from 11).
+* Max/Med bracket has had its Defence level increased to 85.
+* Zerker bracket has had its Attack level increased to 80.
+
+===Bounty Hunter Changes===
+
+* Bounty Hunter rewards can now also be used in the TzHaar Fight Pit, player-owned house combat ring and Clan Hall combat ring.
+* While unskulled in Bounty Hunter, you will receive 50% less EP per minute and your Archaic Emblem will not upgrade past tier 5.
+* The Vesta's spear (bh) will now block ranged damage as well as melee damage when the special attack is used.
+* Players dying in the Bounty Hunter lobby will now be considered as skipping their target.
+
+===Emir's Arena Changes===
+The following items have been added to the list of items that can be used at Emir's Arena:
+
+{{Collapsed section|18|Click to expand the list}}
+
+* Magus ring
+* Amulet of rancour
+* Twinflame staff
+* Swampbark body
+* Swampbark gauntlets
+* Swampbark helm
+* Swampbark legs
+* Swampbark boots
+* Bloodbark body
+* Bloodbark legs
+* Bloodbark gauntlets
+* Bloodbark helm
+* Bloodbark boots
+* Oathplate legs
+* Oathplate chest
+* Oathplate helm
+* Burning claws
+* Purging staff
+* Soulreaper axe
+* Bellator ring
+* Venator ring
+* Virtus mask
+* Virtus robe top
+* Virtus robe bottom
+* Lightbearer
+* Osmumten's fang
+* Torva platelegs
+* Torva platebody
+* Torva full helm
+* Zaryte vambraces
+* Aranea boots
+* Elidinis' ward (or)
+* Avernic treads (max)
+* Ultor ring
+* Twisted Buckler
+* Masori body (f)
+* Masori chaps (f)
+* Voidwaker
+* Dragonfire shield
+* Noxious halberd
+
+{{Collapsed section end}}
+
+We've updated the Pure, Zerker and Max/Med starter sets to be more up to date when playing Emir's Arena for the first time, so getting stuck into some fights should be easier than ever! Note that these new starter kits for Pure, Zerker and Max/Med will replace your existing build.
+
+[[File:Easter 2026 & PvP QoL Improvements (7).png|thumb|450px|center|''The updated Max/Med starter kit in Emir's Arena.
+If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/pvpmaxmed.png here]!'']]
+
+
+[[File:Easter 2026 & PvP QoL Improvements (8).png|thumb|450px|center|''The updated Zerker starter kit in Emir's Arena.
+If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/pvpzerker.png here]!'']]
+
+
+[[File:Easter 2026 & PvP QoL Improvements (9).png|thumb|450px|center|''The updated 1 Def Pure starter kit in Emir's Arena.
+If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/pvppure.png here]!'']]
+
+Moreover, Deadeye and Mystic Vigour prayers are now allowed in fights and can be used by players who meet the level requirements.
+
+You'll also find that the "Zerker" account build has been adjusted as follows:
+
+* Attack level is increased to 75, up from 60
+* Defence level is increased to 50, up from 45
+* Prayer level is increased to 63, up from 55
+
+Whereas the "Max/Med" account build's Attack, Defence and Prayer levels are increased to 99.
+
+===Refunding Some Cosmetic Unlocks upon PvP Death===
+Previously, dying in PvP would result in losing any applied cosmetic overrides as part of the item loss. To ensure you can keep showing off some of your unlocks, the following items that have cosmetic overrides that would typically be lost will now refund the cosmetic variant to the player on PvP death:
+
+* Magma helm refunds '''Magma mutagen'''
+* Tanzanite helm refunds '''Tanzanite mutagen'''
+* Araxyte slayer helmet refunds '''Araxyte head'''
+* Black slayer helmet and Dragon hunter crossbow (b) refund '''King Black Dragon heads'''
+* Green slayer helmet refunds '''Kalphite Queen head'''
+* Red slayer helmet refunds '''Abyssal demon head'''
+* Purple slayer helmet refunds '''Dark claw'''
+* Turquoise slayer helmet and Dragon hunter crossbow (t) refund '''Vorkath's head'''
+* Hydra slayer helmet refunds '''Alchemical Hydra heads'''
+* Twisted slayer helmet refunds '''Twisted horns'''
+* Elidinis' ward (or) refunds '''Menaphite ornament kit'''
+* Masori assembler and Masori assembler max cape refund '''Masori crafting kit '''
+* Sanguine scythe of vitur and Sanguine scythe of vitur (uncharged) refund '''Sanguine ornament kit'''
+* Holy scythe of vitur, Holy scythe of vitur (uncharged), Holy sanguinesti staff refund (uncharged) and Holy ghrazi rapier refund '''Holy ornament kit '''
+* Osmumten's Fang (or) refunds '''Cursed phalanx'''
+* Twisted ancestral hat, Twisted ancestral robe top and Twisted ancestral robe bottom refund '''Twisted ancestral colour kit'''
+
+As an example, dying with a Magma helm means you will lose the Serpentine helm, however the Magma mutagen will be placed in your gravestone.
+
+===Other PvP QoL Updates===
+
+* In PvP areas, if you have not attacked another player in the last 20 ticks (12 seconds), swapping between weapons will retain any autocast settings that have been set. This should improve Wilderness Slayer tasks where Burst and Barrage spells are used.
+* The spawn location after leaving Venenatis, Callisto and Vet'ion have been slightly altered to place players above ground. You will still be placed in close proximity to the escape cave entrances if you would like to use those to escape any PKers hunting you.
+* Made some changes to improve the Vet'ion and Venenatis fights for larger groups:
+** Vet'tion will now spawn fewer Hellhounds for bigger groups.
+** Venenatis will now spawn slightly fewer spiderlings. It will also now only change phases every other attack if there are more than 10 players, rather than just 5.
+* Dizana's Quiver and Revenant Weapons now accurately reflect your risk wealth on the Items Kept on Death UI.
+* Revenants and the Revenant Maledictus will no longer invalidate Iron accounts from obtaining loot if another player attacks those NPCs. The Iron account will still only receive a drop if they are the MvP (player that dealt the most damage). This change is inline with the recent adjustment to how the loot from Zombie Pirates function, as well as other existing Wilderness NPCs such as Callisto, Vet'ion and Venenatis.
+* When crossing a Revenant Cave shortcut, the slight delay when arriving at the other side has been removed.
+* Ranging ammunition no longer spawns on top of the Revenant Cave shortcut pillars.
+* The rear entrance to the Brimhaven Dungeon, which is accessed by paying trading sticks, now will no longer null damage upon use in a PvP or Deadman world.
+* The PJ timer in PvP worlds increased to 16 ticks (9.6 seconds) up from 8 ticks (4.8 seconds), to stop bad actors PJing fights when two opponents eat at the same time.
+* In PvP worlds, players can now use cannons in the Wilderness.
+* In single combat, you can no longer telegrab food dropped by others in the Wilderness. If you've dropped a piece of food in the Wilderness, or a monster you're fighting has dropped some food, you're now able to pick up that food if you're in combat with another player.
+* The placement of the Elder Chaos Druids at the Zombie Pirates have been slightly adjusted so that players passing by get teleblocked less frequently.
+* In PvP worlds, the Chugging Barrel can now be used in the bank located at the Camelot teleport spot. Likewise, you're now able to use the Chugging Barrel in the safe area of the white portal in Clan Wars.
+* Outside designated Castle Wars worlds, barricades will always appear under players. On designated worlds, they will continue to appear on top of other players.
+* On non-designated Castle Wars worlds, bandages will heal a maximum of 18 hitpoints.
+* Added a toggle to disable Combat XP at Castle Wars, Soul Wars, TzHaar Fight Pits and Clan Wars. These toggles can be accessed as follows:
+** Castle Wars: Right-click Lanthus
+** Soul Wars: Talk to Nomad
+** TzHaar Fight Pits: Talk to TzHaar-Mej-Kah
+** Clan Wars: Right-click the white or purple portal
+* In permanent Deadman, trinkets will now break on death again. Also, the hitpoints for the breach NPCs will be restored to being significantly lower.
+
+==Mobile and Official Client Improvements==
+===Mobile UI Scaling and Scaling Settings Changes===
+The mobile client is played across a wide range of screen dimensions - from standard phones to larger tablets. With such variety, along with differing player preferences, many mobile players have asked for greater control over the interface size. In particular, tablet users want to be able to scale down the UI for a more customisable experience.
+
+Following your feedback, we've now added the ability to reduce the UI scale on the Mobile client. You'll find that the default value is 400%, as the Mobile Client defaults to high scale. There's also a magnification cap in place, so the interface never gets too tiny to use.
+[[File:Easter 2026 & PvP QoL Improvements (10).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/ui.png here]!'']]
+
+Note: Some devices will see no change when moving through the higher values, as depending on your device, the interface will likely have capped at a lower value. We recommend just moving through the values and see what works best for you.
+
+To make the UI scaling interface consistent and easier to use across Mobile and desktop, we've updated it to a drop-down rather than slider on the Official Client as well. On fresh install, the UI Scaling is set the same as the Operating System Display Scale, and if you have a different preference, you can adjust it in the drop-drown in the settings.
+
+We've also added a second option, "Input", which lets you type in valid numbers from the whole range directly. To do this, you need to long-press on the scaling drop down if on mobile, or right-click on desktop and select the "input" option.
+
+===FPS Setting Improvements on the Official Client===
+
+* To give players more control over performance, we’ve added separate “Max Foreground FPS” and “Max Background FPS” settings, allowing the game to run at a lower frame rate while not in focus.
+
+===More Client Changes===
+These changes came with yesterday's client update, but we thought we'd do a quick ICYMI!
+
+* Improved behaviour of Audio Sliders so they act more like you'd expect. Previously, having a low Master Volume could result in some audio channels being unintentionally muted.
+* '''(Android/PC only)''' Fixed a bug that prevented Anti Aliasing settings appearing on supported devices.
+
+==Sailing Update==
+We wanted to share a quick update on further boat combat balancing changes that are currently in progress and scheduled to release next week.
+
+As mentioned on our <u>[https://www.youtube.com/live/Hc9SbKLvuo4?si=3H6A7hpExjpAaiVk Q&amp;A Livestream]</u>, we're applying a buff to cannons when they are actively manned by a player. Take a look at this GIF of it working in action below!
+[[File:Easter 2026 & PvP QoL Improvements (11).mp4|thumb|600px|center|''If you can’t see the asset above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/videowip.mp4 here]!'']]
+
+Whilst we can't give you exact rates of what's changing yet, our goal is to close the gap between cannons and player gear, ensuring that a player using a cannon is on par to the DPS of traditional combat +2 Crew members using cannons.
+
+We're also going to be reducing sea creature HP, especially for those that are smaller and lower-level, so that they are less tanky and their health is more thematically suitable.
+
+We're also addressing an issue with the player's worn gear not contributing as expected to damage calculations. A fix for this will be included alongside the above changes, ensuring that gear will correctly contribute to your overall damage. 
+
+You’ve given us plenty of great suggestions for further improvements to boat combat. For now, we'd like to see how these changes land before planning any further adjustments, so we can see how these changes affect your gains in practice. Once the update is live, we'll be closely monitoring your feedback, so let us know how it feels when it launches next week.
+
+A huge thank you for all of your feedback and your patience while we work on these changes. Sailing will continue to be shaped by the community, and we really value the hands-on experience from those of you who have jumped in to try it out. While we know there are broader changes you'd like to see for boat combat, we hope these updates demonstrate our commitment to iterating alongside you and creating a better foundation for future expansions. 
+
+Speaking of future expansions, we're also nearly ready to share details on our next expansion to boat combat (NPC Boats). This includes new enemies, new rewards and new cannonballs, so keep an eye out for more information coming soon!
+
+==Other Changes==
+As mentioned <u>[https://secure.runescape.com/m=news/winter-summit-2026---overview?oldschool=1#WORLD earlier this year]</u>, we're working on setting up game worlds in more parts of the world. In preparation for the upcoming game worlds based in Brazil, we've added a new filtering option to the Configure World Switcher menu today. We'll keep you updated when we have more information to share on these game worlds. Now let's get to the additional changes we've rolled out with this game update:
+
+* A typo has been corrected in the Thieving skillguide.
+* Yami's chathead no longer has blue stripes while he's in a menagerie.
+* The F2P restriction on using chat-channels with a skill total below 150 has been made slightly more flexible to accommodate certain specialist builds.
+
+==Fight Pits Event==
+Think you’ve got what it takes to be the last one standing?
+[[File:Easter 2026 & PvP QoL Improvements (12).jpg|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-25/dinodiscordbanner.jpg here]!'']]
+
+We’re heading back to the TzHaar Fight Pits for a full community showdown, and this time it’s creator vs creator.
+
+<u>[https://www.twitch.tv/dino_xx Dino_xx]</u> & <u>[https://www.twitch.tv/skillspecs SkillSpecs]</u> are bringing their communities into the Pit to battle it out in World 520. You can fight for your side, fight for yourself, or betray everyone when it suits you.
+
+Just remember, only one can wear the crown.
+
+====Where & When?====
+
+* World 520 - TzHaar Fight Pit
+* Friday, March 27th - 15:30 UTC/GMT / 11:30 ET / 8:30 PT / 2:30 AET.
+
+====How it works:====
+
+* We’ll run three official competition rounds.
+* The last player standing in each official round wins 3 OSRS Bonds.
+* If you die, gear fast and get back in! Rounds restart quickly.
+
+Mods Rach & Manked will be sharing their POVs live over on the <u>[https://discord.com/events/324132423636090880/1478381895677907064 Official OSRS Discord]</u> Stage.
+
+Full T&Cs can be found here: [https://osrs.game/Fight-Pits-Comp-2026 osrs.game/Fight-Pits-Comp-2026].
+
+We'll see you in the pit... 
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1s37atm/easter_2026_pvp_qol_improvements/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Default, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Lotus, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume'''
+
+''The Old School Team.''

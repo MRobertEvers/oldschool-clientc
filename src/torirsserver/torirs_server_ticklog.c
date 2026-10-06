@@ -14,7 +14,10 @@
  * What is recorded is the event set tools/verify_tob_timings.py reads from
  * Blert -- npc attack starts (every npc animation goes through
  * ToriRSServer_AnimPlayNpc, C or content), projectiles, hits both ways,
- * spawns, deaths, type changes, loc and ground changes -- plus the tiles: a
+ * spawns, deaths, type changes, loc and ground changes, and every sound, music
+ * track and jingle sent to a player -- and the presentation the recorders read
+ * off the player and the room (a player's animation and graphic, a loc's
+ * animation, an npc's overhead line) -- plus the tiles: a
  * PLAYER_TILE row for every player every tick (after phase_players, so the
  * row is the tile the player's turn left them on, which is the tile every npc
  * acting on the NEXT tick will scan; ENCOUNTER_TIMING.md section 1) and an
@@ -53,6 +56,12 @@ struct TicklogState
     int32_t npc_tile_plus1[TORIRSSERVER_NPC_MAX];
     uint16_t npc_generation[TORIRSSERVER_NPC_MAX];
     int dealer_npc;
+    /* Each player's `last_input_tick` as the previous RAIDER row saw it. The
+     * stamp alone cannot say "this tick": an in-process client's packets are
+     * handled BETWEEN ticks, stamped with the tick that just ended, after that
+     * tick's row was written -- so a RAIDER row's `input 1` means "an input
+     * arrived since the last row", which is the next tick's input. */
+    int32_t input_seen[TORIRSSERVER_PLAYER_MAX];
 };
 
 static struct TicklogState g_ticklog = { .dealer_npc = -1, .start_tick = -1 };
@@ -75,6 +84,33 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_PLAYER_TILE] = "player_tile",
     [TORIRSSERVER_TICKLOG_NPC_TILE] = "npc_tile",
     [TORIRSSERVER_TICKLOG_NPC_FACE] = "npc_face",
+    [TORIRSSERVER_TICKLOG_SOUND] = "sound",
+    [TORIRSSERVER_TICKLOG_MUSIC] = "music",
+    [TORIRSSERVER_TICKLOG_JINGLE] = "jingle",
+    [TORIRSSERVER_TICKLOG_PLAYER_ANIM] = "player_anim",
+    [TORIRSSERVER_TICKLOG_PLAYER_SPOTANIM] = "player_spotanim",
+    [TORIRSSERVER_TICKLOG_LOC_ANIM] = "loc_anim",
+    [TORIRSSERVER_TICKLOG_NPC_SAY] = "npc_say",
+    [TORIRSSERVER_TICKLOG_NPC_HEAL] = "npc_heal",
+    [TORIRSSERVER_TICKLOG_RAIDER] = "raider",
+    [TORIRSSERVER_TICKLOG_INPUT] = "input",
+    [TORIRSSERVER_TICKLOG_CONSUME] = "consume",
+};
+
+/* A SOUND row's label: where the send came from (the npc source adds the
+ * emitting npc's slot and type to it, "npc <slot> <type>"). */
+static char const* const k_sound_source_names[TORIRSSERVER_TICKLOG_SOUND_SOURCE_COUNT] = {
+    [TORIRSSERVER_TICKLOG_SOUND_SYNTH] = "synth",
+    [TORIRSSERVER_TICKLOG_SOUND_AREA] = "area",
+    [TORIRSSERVER_TICKLOG_SOUND_DISTANCE] = "distance",
+    [TORIRSSERVER_TICKLOG_SOUND_NPC] = "npc",
+};
+
+/* A MUSIC row's label. */
+static char const* const k_music_source_names[TORIRSSERVER_TICKLOG_MUSIC_SOURCE_COUNT] = {
+    [TORIRSSERVER_TICKLOG_MUSIC_SCRIPT] = "script",
+    [TORIRSSERVER_TICKLOG_MUSIC_REGION] = "region",
+    [TORIRSSERVER_TICKLOG_MUSIC_LOGIN] = "login",
 };
 
 char const*
@@ -121,13 +157,18 @@ ticklog_write_row(const struct ToriRSServerTicklogRow* row)
 {
     if( !g_ticklog.out )
         return;
-    fprintf(g_ticklog.out, "%u\t%d\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", (unsigned)row->serial,
-            row->tick, k_kind_names[row->kind], row->a, row->b, row->c, row->d, row->e, row->f,
-            row->label);
+    /* `g` LAST, after the label: tools/verify_tob_timings.py read_ticklog
+     * indexes the label as column 9, and a column inserted before it would
+     * have turned every label into a number there. */
+    fprintf(g_ticklog.out, "%u\t%d\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\n",
+            (unsigned)row->serial, row->tick, k_kind_names[row->kind], row->a, row->b, row->c,
+            row->d, row->e, row->f, row->label, row->g);
 }
 
+/* Every row goes through here; `g` is the seventh field, which only
+ * HIT_PLAYER fills (ticklog_push below passes 0 for every other kind). */
 static uint32_t
-ticklog_push(
+ticklog_push_row(
     int kind,
     int a,
     int b,
@@ -135,6 +176,7 @@ ticklog_push(
     int d,
     int e,
     int f,
+    int g,
     char const* label)
 {
     struct ToriRSServerTicklogRow* row;
@@ -161,6 +203,7 @@ ticklog_push(
     row->d = d;
     row->e = e;
     row->f = f;
+    row->g = g;
     if( label )
     {
         /* Tabs and newlines would split the TSV row; a label is a test's
@@ -179,6 +222,65 @@ ticklog_push(
     return row->serial;
 }
 
+/*
+ * A FILE-ONLY row (raider, input, consume): written to ticklog.tsv, never into
+ * the row array. Ledgers print serials ("mark 'room start' at tick 60 (serial
+ * 99)"), so a row in the array would have moved every later serial and every
+ * kept room's ledger with it. Its serial column repeats the last real row's,
+ * which keeps the file in order. t.ticklog.rows() does not see these.
+ */
+static void
+ticklog_write_side(
+    int kind,
+    int a,
+    int b,
+    int c,
+    int d,
+    int e,
+    int f,
+    int g,
+    char const* label)
+{
+    struct ToriRSServerTicklogRow row;
+
+    assert(g_ticklog.srv);
+    assert(label);
+    if( !g_ticklog.out )
+        return;
+    memset(&row, 0, sizeof(row));
+    row.serial = (uint32_t)g_ticklog.count;
+    row.tick = g_ticklog.srv->tick;
+    row.kind = kind;
+    row.a = a;
+    row.b = b;
+    row.c = c;
+    row.d = d;
+    row.e = e;
+    row.f = f;
+    row.g = g;
+    snprintf(row.label, sizeof(row.label), "%s", label);
+    for( size_t i = 0; row.label[i] != '\0'; i++ )
+    {
+        if( row.label[i] == '\t' || row.label[i] == '\n' || row.label[i] == '\r' )
+            row.label[i] = ' ';
+    }
+    ticklog_write_row(&row);
+}
+
+static uint32_t
+ticklog_push(
+    int kind,
+    int a,
+    int b,
+    int c,
+    int d,
+    int e,
+    int f,
+    char const* label)
+{
+    return ticklog_push_row(kind, a, b, c, d, e, f, 0, label);
+}
+
 static void
 ticklog_snapshot_npc_tiles(void)
 {
@@ -186,6 +288,8 @@ ticklog_snapshot_npc_tiles(void)
 
     memset(g_ticklog.npc_tile_plus1, 0, sizeof(g_ticklog.npc_tile_plus1));
     memset(g_ticklog.npc_generation, 0, sizeof(g_ticklog.npc_generation));
+    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; pid++ )
+        g_ticklog.input_seen[pid] = pid < srv->player_count ? srv->players[pid].last_input_tick : 0;
     for( int slot = 0; slot < srv->npc_slot_max && slot < TORIRSSERVER_NPC_MAX; slot++ )
     {
         const struct ToriRSServerNpc* npc = &srv->npcs[slot];
@@ -221,7 +325,7 @@ ToriRSServer_TicklogEnable(
                     path);
         else
             fprintf(g_ticklog.out,
-                    "ticklog-v1\tserial\ttick\tkind\ta\tb\tc\td\te\tf\tlabel\n");
+                    "ticklog-v1\tserial\ttick\tkind\ta\tb\tc\td\te\tf\tlabel\tg\n");
     }
     ticklog_snapshot_npc_tiles();
     ticklog_push(TORIRSSERVER_TICKLOG_START, srv->tick, 0, 0, 0, 0, 0, NULL);
@@ -304,9 +408,17 @@ ticklog_row_npc_slot(const struct ToriRSServerTicklogRow* row)
     case TORIRSSERVER_TICKLOG_NPC_RETYPE:
     case TORIRSSERVER_TICKLOG_NPC_TILE:
     case TORIRSSERVER_TICKLOG_NPC_FACE:
+    case TORIRSSERVER_TICKLOG_NPC_SAY:
+    case TORIRSSERVER_TICKLOG_NPC_HEAL:
         return row->a;
     case TORIRSSERVER_TICKLOG_HIT_PLAYER:
         return row->b;
+    case TORIRSSERVER_TICKLOG_SOUND:
+        /* Only an npc's own noise names an npc; its slot rides in the label
+         * because all six fields carry the send itself. */
+        if( strncmp(row->label, "npc ", 4) == 0 )
+            return atoi(row->label + 4);
+        return -1;
     default:
         return -1;
     }
@@ -427,7 +539,8 @@ ToriRSServer_TicklogHitPlayer(
     const struct ToriRSServerPlayer* player,
     int damage,
     int hitsplat,
-    int dealer_pid)
+    int dealer_pid,
+    int raw)
 {
     int npc_slot;
     int npc_type = -1;
@@ -446,8 +559,8 @@ ToriRSServer_TicklogHitPlayer(
      * the npc. */
     if( npc_slot >= 0 && dealer_pid == player->pid )
         dealer_pid = -1;
-    ticklog_push(TORIRSSERVER_TICKLOG_HIT_PLAYER, player->pid, npc_slot, damage, hitsplat,
-                 dealer_pid, npc_type, NULL);
+    ticklog_push_row(TORIRSSERVER_TICKLOG_HIT_PLAYER, player->pid, npc_slot, damage, hitsplat,
+                     dealer_pid, npc_type, raw, NULL);
 }
 
 void
@@ -455,13 +568,14 @@ ToriRSServer_TicklogHitNpc(
     const struct ToriRSServer* srv,
     int slot,
     int damage,
-    int hitsplat)
+    int hitsplat,
+    int raw)
 {
     if( !ticklog_on_for(srv) )
         return;
     assert(slot >= 0);
     assert(slot < TORIRSSERVER_NPC_MAX);
-    ticklog_push(TORIRSSERVER_TICKLOG_HIT_NPC, slot, srv->npcs[slot].type, damage, hitsplat, 0, 0,
+    ticklog_push(TORIRSSERVER_TICKLOG_HIT_NPC, slot, srv->npcs[slot].type, damage, hitsplat, raw, 0,
                  NULL);
 }
 
@@ -579,6 +693,169 @@ ToriRSServer_TicklogObjAdd(
     ticklog_push(TORIRSSERVER_TICKLOG_OBJ_ADD, coord, obj_id, count, receiver_pid, 0, 0, NULL);
 }
 
+/*
+ * The audio rows. One row per packet per player: a sound is a per-player
+ * SYNTH_SOUND, so an area sound heard by three players is three rows with the
+ * same tick, id and source tile. Called only where the packet is actually
+ * sent (a negative "no sound" id never reaches here), so a row is exactly
+ * what the player's client was told to play.
+ */
+void
+ToriRSServer_TicklogSound(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int sound,
+    int loops,
+    int delay,
+    int source,
+    int coord,
+    int radius,
+    int npc_slot)
+{
+    char label[TORIRSSERVER_TICKLOG_LABEL_MAX];
+
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    assert(source >= 0);
+    assert(source < TORIRSSERVER_TICKLOG_SOUND_SOURCE_COUNT);
+    if( source == TORIRSSERVER_TICKLOG_SOUND_NPC )
+    {
+        assert(npc_slot >= 0);
+        assert(npc_slot < TORIRSSERVER_NPC_MAX);
+        snprintf(label, sizeof(label), "npc %d %d", npc_slot, srv->npcs[npc_slot].type);
+    }
+    else
+        snprintf(label, sizeof(label), "%s", k_sound_source_names[source]);
+    ticklog_push(TORIRSSERVER_TICKLOG_SOUND, player->pid, sound, loops, delay, coord, radius,
+                 label);
+}
+
+void
+ToriRSServer_TicklogMusic(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int track,
+    int source)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    assert(source >= 0);
+    assert(source < TORIRSSERVER_TICKLOG_MUSIC_SOURCE_COUNT);
+    ticklog_push(TORIRSSERVER_TICKLOG_MUSIC, player->pid, track, 0, 0, 0, 0,
+                 k_music_source_names[source]);
+}
+
+void
+ToriRSServer_TicklogJingle(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int jingle,
+    int length_ms)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    ticklog_push(TORIRSSERVER_TICKLOG_JINGLE, player->pid, jingle, length_ms, 0, 0, 0, "script");
+}
+
+/*
+ * The presentation rows. Each is recorded where the mask or zone packet is
+ * written, so a row is what the client was told: a player animation only once
+ * it has won the priority gate (a refused one changes nothing on the wire), a
+ * player graphic and a loc animation on every send (neither has a gate), an
+ * npc's line as the SAY mask carries it. Bloat's stun graphic on the player,
+ * Sotetseg's and Xarpus's loc loops and Xarpus's screech are these kinds.
+ */
+void
+ToriRSServer_TicklogPlayerAnim(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int seq_id,
+    int delay)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    ticklog_push(TORIRSSERVER_TICKLOG_PLAYER_ANIM, player->pid, seq_id, delay, 0, 0, 0, NULL);
+}
+
+void
+ToriRSServer_TicklogPlayerSpotanim(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int spotanim,
+    int height,
+    int delay)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    ticklog_push(TORIRSSERVER_TICKLOG_PLAYER_SPOTANIM, player->pid, spotanim, height, delay, 0, 0,
+                 NULL);
+}
+
+void
+ToriRSServer_TicklogLocAnim(
+    const struct ToriRSServer* srv,
+    int coord,
+    int loc_id,
+    int shape,
+    int angle,
+    int seq_id)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    ticklog_push(TORIRSSERVER_TICKLOG_LOC_ANIM, coord, loc_id, shape, angle, seq_id, 0, NULL);
+}
+
+void
+ToriRSServer_TicklogNpcSay(
+    const struct ToriRSServerNpc* npc,
+    char const* text)
+{
+    int slot;
+
+    if( !g_ticklog.srv )
+        return;
+    assert(npc);
+    assert(text);
+    slot = ticklog_npc_slot(npc);
+    if( slot < 0 )
+        return;
+    ticklog_push(TORIRSSERVER_TICKLOG_NPC_SAY, slot, npc->type,
+                 ToriRSServer_CoordPack(npc->level, npc->x, npc->z), 0, 0, 0, text);
+}
+
+/*
+ * An npc GAINED hitpoints (raid loop seam9): `npc_statheal` or `npc_statadd`
+ * on hitpoints, recorded only when the level actually rose, so a heal that a
+ * full npc's clamp ate is no row. The HIT_NPC row's mirror -- a hit is damage
+ * dealt, this is damage taken back -- and the label names the script whose
+ * opcode did it (the Maiden's blood-spawn absorb, Verzik's Athanatos), which is
+ * the "source" a tick ledger needs to tell one heal from another.
+ */
+void
+ToriRSServer_TicklogNpcHeal(
+    const struct ToriRSServerNpc* npc,
+    int gained,
+    int after,
+    int base,
+    char const* source)
+{
+    int slot;
+
+    if( !g_ticklog.srv )
+        return;
+    assert(npc);
+    assert(source);
+    slot = ticklog_npc_slot(npc);
+    if( slot < 0 )
+        return;
+    ticklog_push(TORIRSSERVER_TICKLOG_NPC_HEAL, slot, npc->type, gained, after, base, 0, source);
+}
+
 /* NPC_TILE rows are for the encounter, not the world: the roster stands a
  * thousand wandering npcs up, and a row for each of their steps would bury the
  * room's dozen. An npc further than this from every player is not in anyone's
@@ -611,9 +888,98 @@ ticklog_near_a_player(
     return 0;
 }
 
+/* A player varp by its content symbol, or -1 when the pack does not name it. */
+static int
+ticklog_player_varp(
+    const struct ToriRSServerPlayer* player,
+    int varp)
+{
+    assert(player);
+    if( varp < 0 || varp >= TORIRSSERVER_VARP_COUNT )
+        return -1;
+    return player->varps[varp];
+}
+
+/* The RAIDER row: what Blert's PLAYER_UPDATE carries, from the server's own
+ * state at the end of the tick (after phase_players). */
+static void
+ticklog_raider_row(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int prayer_varp,
+    int style_varp,
+    int spec_varp)
+{
+    char label[TORIRSSERVER_TICKLOG_LABEL_MAX];
+    int target = -1;
+    int input;
+
+    assert(srv);
+    assert(player);
+    assert(player->pid >= 0);
+    assert(player->pid < TORIRSSERVER_PLAYER_MAX);
+    if( player->interaction.kind == TORIRSSERVER_INTERACT_NPC )
+        target = player->interaction.npc_slot;
+    input = player->last_input_tick != g_ticklog.input_seen[player->pid];
+    g_ticklog.input_seen[player->pid] = player->last_input_tick;
+    snprintf(label, sizeof(label), "hpmax %d prmax %d head %d input %d tgt %d",
+             player->stat_level[TORIRSSERVER_STAT_HITPOINTS],
+             player->stat_level[TORIRSSERVER_STAT_PRAYER], player->headicons,
+             input, target);
+    ticklog_write_side(TORIRSSERVER_TICKLOG_RAIDER, player->pid,
+                       player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS],
+                       player->stat_boosted[TORIRSSERVER_STAT_PRAYER],
+                       ticklog_player_varp(player, prayer_varp),
+                       player->worn[TORIRSSERVER_WEAR_WEAPON].obj_id,
+                       ticklog_player_varp(player, style_varp),
+                       ticklog_player_varp(player, spec_varp), label);
+}
+
+void
+ToriRSServer_TicklogInput(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int trigger,
+    int type,
+    int npc_slot,
+    char const* label)
+{
+    assert(srv);
+    assert(player);
+    assert(label);
+    if( !ticklog_on_for(srv) )
+        return;
+    ticklog_write_side(TORIRSSERVER_TICKLOG_INPUT, player->pid, trigger, type, npc_slot, 0, 0, 0,
+                       label);
+}
+
+void
+ToriRSServer_TicklogConsume(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int obj,
+    int op,
+    int hitpoints_before,
+    int prayer_before,
+    char const* label)
+{
+    assert(srv);
+    assert(player);
+    assert(label);
+    if( !ticklog_on_for(srv) )
+        return;
+    ticklog_write_side(TORIRSSERVER_TICKLOG_CONSUME, player->pid, obj, op, hitpoints_before,
+                       player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS], prayer_before,
+                       player->stat_boosted[TORIRSSERVER_STAT_PRAYER], label);
+}
+
 void
 ToriRSServer_TicklogTickEnd(struct ToriRSServer* srv)
 {
+    int prayer_varp;
+    int style_varp;
+    int spec_varp;
+
     assert(srv);
     if( !ticklog_on_for(srv) )
         return;
@@ -641,8 +1007,23 @@ ToriRSServer_TicklogTickEnd(struct ToriRSServer* srv)
             continue;
         g_ticklog.npc_tile_plus1[slot] = now;
         g_ticklog.npc_generation[slot] = npc->generation;
-        ticklog_push(TORIRSSERVER_TICKLOG_NPC_TILE, slot, npc->x, npc->z, npc->level, npc->type, 0,
-                     NULL);
+        /* f = the footprint, for a reader's reach test (raid_report.py). */
+        ticklog_push(TORIRSSERVER_TICKLOG_NPC_TILE, slot, npc->x, npc->z, npc->level, npc->type,
+                     npc->size, NULL);
+    }
+    /* LAST, after the tick's real rows, so a reader that skips the file-only
+     * kinds sees the old file. The varps are resolved per tick: the content
+     * tree loads after the world (torirs_server_world.c attack_style_varp). */
+    prayer_varp = ToriRSServer_WorldVarp("varp83_prayer0");
+    style_varp = ToriRSServer_WorldVarp("varp43_com_mode");
+    spec_varp = ToriRSServer_WorldVarp("varp300_sa_energy");
+    for( int pid = 0; pid < srv->player_count; pid++ )
+    {
+        const struct ToriRSServerPlayer* player = &srv->players[pid];
+
+        if( !player->active )
+            continue;
+        ticklog_raider_row(srv, player, prayer_varp, style_varp, spec_varp);
     }
     if( g_ticklog.out )
         fflush(g_ticklog.out);

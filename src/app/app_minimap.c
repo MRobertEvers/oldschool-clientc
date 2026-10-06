@@ -71,7 +71,7 @@ app_minimap_push_dot(
     struct UITreeMinimapDot* dot;
 
     app_minimap_sprite_size(app, scene_id, atlas_index, &w, &h);
-    yaw = ToriDraw_NormalizeAngle(app->world_camera.yaw);
+    yaw = ToriDraw_NormalizeAngle(app->frame_view->world_camera.yaw);
     rotation.sin = ToriDraw_Sin(yaw);
     rotation.cos = ToriDraw_Cos(yaw);
     if( !MinimapView_PlaceDot(&rotation, rel_fx, rel_fz, w, h, &dx, &dy) )
@@ -244,7 +244,7 @@ app_minimap_push_hint(struct App* app, int rel_fx, int rel_fz, int marker_scene)
         return;
 
     app_minimap_sprite_size(app, edge_scene, 0, &w, &h);
-    yaw = ToriDraw_NormalizeAngle(app->world_camera.yaw);
+    yaw = ToriDraw_NormalizeAngle(app->frame_view->world_camera.yaw);
     rotation.sin = ToriDraw_Sin(yaw);
     rotation.cos = ToriDraw_Cos(yaw);
     MinimapView_PlaceRimMarker(
@@ -351,7 +351,8 @@ App_MinimapBuildDots(
                  * have swallowed it. */
                 if( app->minimap_dots.count > before )
                     app->minimap_dots.dots[app->minimap_dots.count - 1].rotate =
-                        (ToriDraw_NormalizeAngle(app->world_camera.yaw) - wev->angle + 1024) &
+                        (ToriDraw_NormalizeAngle(app->frame_view->world_camera.yaw) - wev->angle +
+                         1024) &
                         0x7ff;
             }
         }

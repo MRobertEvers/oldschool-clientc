@@ -51,14 +51,32 @@ struct ToriRSServerBootConfig
 void
 ToriRSServer_BootDefaults(struct ToriRSServerBootConfig* config);
 
+/** `ToriRSServer_BootLoad`'s refusal: `<content>/server/pack` is missing, or
+ *  one of its archives does not validate. The server has no other source for
+ *  its npc and loc records, so a caller must not start the world. */
+#define TORIRSSERVER_BOOT_NO_PACK (-1)
+
 /**
  * Run every loader, in order. Returns the number of content errors — non-zero
  * means the server will address something that does not exist, which is not
- * fatal (running with no content tree is a supported mode) but is never what
- * anyone wanted.
+ * fatal but is never what anyone wanted — or TORIRSSERVER_BOOT_NO_PACK, which
+ * is: the message names the command that builds the pack, and nothing past the
+ * pack loaders ran.
  */
 int
 ToriRSServer_BootLoad(const struct ToriRSServerBootConfig* config);
+
+/**
+ * Load every config record and the content tree's non-config data, from the
+ * server pack (`ToriRSServer_ServPackDir(content_dir, cache_dir)`; `cache_dir`
+ * may be NULL). The one load both the
+ * server and the `ToriRSServer_Pack` validator run. Returns 0, or
+ * TORIRSSERVER_BOOT_NO_PACK after naming the fix.
+ */
+int
+ToriRSServer_BootLoadContent(
+    const char* content_dir,
+    const char* cache_dir);
 
 /** Release everything ToriRSServer_BootLoad allocated. */
 void

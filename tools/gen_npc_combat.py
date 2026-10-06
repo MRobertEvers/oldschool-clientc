@@ -97,6 +97,8 @@ import re
 import sys
 from collections import defaultdict, Counter
 
+import config_text
+
 # ---------------------------------------------------------------------------
 # Constants that encode a measurement rather than a preference
 # ---------------------------------------------------------------------------
@@ -134,6 +136,20 @@ FP_LIVE = {"6", "7", "8"}
 # this does not pretend it can. a4 assigns fp=6 to `attack_anim` only, and leaves
 # defend to the layers that have a name to go on.
 A4_ASSIGNS_DEFEND = False
+
+# a4 classifies a sequence by `forcedpriority` precisely because its name states
+# no action — but "no attack/death/defend word" is not "no role". A name that
+# says the creature is appearing, vanishing, lying down or standing about is a
+# role, and it is never the swing. Eight Theatre of Blood families shipped with
+# one of these as `attack_anim` (RIG_AUDIT.md L2-L8, raid seam11): the Matomenos
+# `elemental_spawn`, both tornadoes' `tob_shadow_projectile_spawn`, the
+# Athanatos `tob_spider_tank_spawn` (its emerge), Bloat's 33-tick down
+# `tob_bloat_sleep`, and the death bat's only seq, its readyanim. Each was the
+# "rig's only forcedpriority 6-8 seq", because each rig holds nothing else.
+A4_NOT_AN_ATTACK = {
+    "spawn", "despawn", "emerge", "appear", "vanish", "sleep", "ready", "idle",
+    "stand", "walk", "death", "dying", "dead", "transform",
+}
 
 ACTION_WORDS = {
     "walk", "run", "idle", "stand", "ready", "attack", "block", "death", "die",
@@ -256,7 +272,7 @@ def parse_config(path):
     out = {}
     current = None
     with open(path, encoding="latin-1") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.strip()
             if line.startswith("[") and line.endswith("]"):
                 current = {}
@@ -476,7 +492,7 @@ def load_default_anims(content_dir):
     out = {}
     in_default = False
     with open(path, encoding="latin-1") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.strip()
             if line.startswith("[") and line.endswith("]"):
                 in_default = line == "[default]"
@@ -521,7 +537,7 @@ def load_default_attackrate(content_dir):
                         "npc_default.npc")
     in_default = False
     with open(path, encoding="latin-1") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.strip()
             if line.startswith("[") and line.endswith("]"):
                 in_default = line == "[default]"
@@ -778,6 +794,7 @@ def decide(npc_id, gameval, rig_seqs, mega, words, feats, readyanim,
     # Below here the name gate is gone, so the rig has to carry the whole claim.
     # On a pile it carries nothing.
     if mega:
+        drop_own_stance(out, readyanim, rejected)
         for slot in ANIM_KEYS:
             out.setdefault(slot, (None, "a5", "rig is shared (%d seqs); only a name could tell"
                                   % len(rig_seqs)))
@@ -829,13 +846,46 @@ def decide(npc_id, gameval, rig_seqs, mega, words, feats, readyanim,
         live = [c for c in rig_seqs
                 if feats.get(c[1], {}).get("forcedpriority") in FP_LIVE]
         if len(live) == 1:
-            out["attack_anim"] = (live[0][1], "a4", "rig's only forcedpriority=6 seq")
+            role = set(live[0][1].lower().split("_")) & A4_NOT_AN_ATTACK
+            fp = feats[live[0][1]]["forcedpriority"]
+            if role:
+                # Still the only candidate, so nothing else may answer: the slot
+                # stays empty (a5) and the refusal is written down.
+                rejected["attack_anim"].append(
+                    "a4 refused %s (rig's only forcedpriority=%s seq, but its name "
+                    "states a %s, not a swing)" % (live[0][1], fp, "/".join(sorted(role))))
+            else:
+                out["attack_anim"] = (live[0][1], "a4",
+                                      "rig's only forcedpriority=%s seq" % fp)
     if A4_ASSIGNS_DEFEND and "defend_anim" not in out:
         pass  # deliberately unreachable; see the constant's note
 
+    drop_own_stance(out, readyanim, rejected)
     for slot in ANIM_KEYS:
         out.setdefault(slot, (None, "a5", "nothing on its rig names or implies one"))
     return finish(out, rejected)
+
+
+def drop_own_stance(out, readyanim, rejected):
+    """An inferred action that IS the npc's own readyanim is not an action.
+
+    The record binds its readyanim as the pose it stands in, so that sequence
+    cannot also be how it swings or dies. Verzik's death bat (rig 1809) holds one
+    sequence, `verzik_phase3_death_b`, which is its readyanim; a2 took it as "the
+    rig's only death seq" and a4 as "the rig's only forcedpriority=6 seq", so the
+    bat was ledgered to swing and die by standing still (RIG_AUDIT.md L8). Only
+    the inference layers are gated: an a0 row is another server's statement.
+    """
+    if not readyanim:
+        return
+    for slot in ANIM_KEYS:
+        if slot not in out:
+            continue
+        value, layer, _why = out[slot]
+        if value == readyanim and not layer.startswith("a0"):
+            del out[slot]
+            rejected[slot].append("%s refused %s (it is this npc's own readyanim)"
+                                  % (layer, value))
 
 
 def finish(out, rejected):
@@ -1099,9 +1149,17 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
                 stated = {}
                 stated_sounds = set()
                 last_param = head
+                param_marker = None
+                block_edits = len(edits)
                 for i in range(head + 1, end):
                     s = lines[i].strip()
                     if not s.startswith("param="):
+                        continue
+                    if config_text.marker(lines[i].split("=", 1)[1]) is not None:
+                        # `param=default` / `param=empty`: the block states no
+                        # params. A marker must stay the only `param` line, so
+                        # a row added below replaces it (see the delete below).
+                        param_marker = i
                         continue
                     last_param = i
                     key, _, value = s[6:].partition(",")
@@ -1211,10 +1269,20 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
                     filled_sounds.append((gameval, key, name, ident, fn))
                     states_server_field.add(gameval)
 
+                # A row was added to a block holding `param=default` /
+                # `param=empty`: drop the marker line (text None). Edits apply
+                # back to front, so the delete and the inserts never shift
+                # each other.
+                if param_marker is not None and any(
+                        isinstance(pos, float) for pos, _ in edits[block_edits:]):
+                    edits.append((param_marker, None))
+
             if edits and write:
                 for pos, text in sorted(edits, key=lambda e: -e[0]):
                     if isinstance(pos, float):
                         lines.insert(int(pos) + 1, text)
+                    elif text is None:
+                        del lines[pos]
                     else:
                         lines[pos] = text
                 with open(full, "w", encoding="latin-1") as f:

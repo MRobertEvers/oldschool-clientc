@@ -1,0 +1,7 @@
+# seam36: python3 seam36_p2_reds_cycle.py and seam36_p2_first_reds.py, B=build/spec_state/matthew-mbp-m4-raid-b1-spec-tob (the pinned Blert streams)
+raids 60
+attacks between reds {7: 84}
+red->first attack {12: 84}
+last attack->red {8: 84}
+red->red {44: 84}
+{('10', 4): 2, ('11', 4): 43, ('12', 4): 17}

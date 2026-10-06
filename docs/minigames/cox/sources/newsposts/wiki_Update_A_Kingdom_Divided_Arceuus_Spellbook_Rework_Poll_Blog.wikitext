@@ -1,0 +1,529 @@
+{{Update|date=11 December 2020|rev=17 December 2020|link=https://secure.runescape.com/m=news/a-kingdom-divided--arceuus-spellbook-rework-poll-blog?oldschool=1|category=dev blog}}
+[[File:A Kingdom Divided & Arceuus Spellbook Rework Poll Blog newspost.png|right]]
+{{clear}}
+
+{{Headline|22|A Kingdom Divided Poll Blog}}
+
+<center>''We're talking about A Kingdom Divided well ahead of its release to give time for feedback before a poll goes live in-game - please let us know what you think using the links below!''</center>
+
+{{ToC}}
+
+==Changelog==
+Following player feedback since the blog went live, we've made the following changes:
+*17/12/2020 - Added information to clarify how Corrupion works in PvP
+*17/12/2020 - Added information to clarify Cerberus would also be classed as a Demon if Poll Question #19 passes a poll
+*14/12/2020 - Removed the "Graveyard of Heroes" and "Kebos Swamp" teleports so the previous "Draynor Manor" and "Fenkenstrain's Castle" would remain.
+*14/12/2020 - Altered the 'Teleport Spells' poll question to only offer "Library of Arceuus" as a replacement for the current "Lumbridge Graveyard" teleport.
+*14/12/2020 - Added more information regarding Thralls and their usage under the 'Resurrection' section of the 'New Spells'. Please refer to this section for the full details.
+*14/12/2020 - Removed the requirement of completing A Kingdom Divded to use Ghostly Grasp and Inferior Demonbane.
+*14/12/2020 - Reduced the stats of "The Book of the Dead" from +8 Magic attack and +5 Prayer to +6 Magic attack and +3 Prayer.
+*14/12/2020 - Added information to clarify that Shadow Veil provides a chance to avoid being stunned and damaged while pickpocketing NPCs, rather than just avoiding the damage.
+*14/12/2020 - Added information to clarify that Dark Lure can be used on Implings.
+*14/12/2020 - Reduced the damage reduction offered with Ward of Arceuus from 25% to 10% and added detail to clarify it will apply to strong foes such as K'ril Tsutsaroth.
+*14/12/2020 - Removed the random herb being destroyed when using Cleanse and clarified it takes 5 game cycles (3 seconds) to complete casting.
+*14/12/2020 - Added a new poll question to the 'New Spells' section offering increasing the Magic attack bonus of the Skull Sceptre from +4 Magic to +10 Magic.
+*14/12/2020 - Removed the assigned Slayer creature requirement from Death Charge. Added more information to clarify that the special attack restore effect only works for the first creature killed, after which it must be cast again. Also added a 60-second cooldown between casts.
+*14/12/2020 - Added a new table to the 'Demonic Ashes' section, providing more information about the different ashes.
+*14/12/2020 - Added more information to the 'Demonic Ashes' section, clarifying that they would be available in F2P should those monsters be available to kill in F2P worlds.
+*14/12/2020 - Added more information to the Demonic and Sinister offering spells to detail how many Prayer points different ashes or bones would provide.
+*14/12/2020 - Lowered the Magic requirement for Demonic Offering from 89 Magic to 84 Magic. Also changed the rune cost from 1 Chaos, 1 Soul & 5 Fire runes to 1 Soul & 1 Wrath runes.
+*14/12/2020 - Changed the rune cost of Sinister Offering from 10 Fire, 1 Death & 1 Blood runes to 1 Blood & 1 Wrath runes.
+*14/12/2020 - Added a new poll question to the 'Demonic Ashes' section, offering "Demonic Ashes" as a drop from Hellhounds and classifying them as Demons.
+
+-----
+
+Great Kourend, a land of wealth, comfort and security. Across its five cities, the citizens of this kingdom work to bring peace and prosperity to all. However, all is not as it seems, and beneath this delicate façade lies an uncomfortable truth: the Kingdom of Great Kourend is a kingdom divided.
+
+Since the death of the last king, Great Kourend has been ruled by the Kourend Council. Under the council, Kourend has seen a golden age of progression. But not all are happy, and, spurred by the recent arrest of Councillor Sophia Hughes, allegations of corruption are growing.
+
+However, the political games of the council may be the least of Kourend’s concerns. A darker power exists in this kingdom, one that could change the face of Gielinor forever...
+
+[[File:A Kingdom Divided & Arceuus Spellbook Rework Poll Blog (1).png|center|600px]]<center>''Concept art for a character you'll meet during A Kingdom Divided. Who could it be?''</center>
+
+
+{{Collapsed section|18|Requirements and Rewards - Click to expand (Spoiler Warning!)}}
+To complete A Kingdom Divided you'll need to have completed the following Quests:
+* X Marks the Spot
+* The Depths of Despair
+* The Queen of Thieves
+* The Ascent of Arceuus
+* The Forsaken Tower
+* Tale of the Righteous
+* Architectural Alliance
+
+
+In addition to the above quests, you'll also need the following skill levels:
+* 54 Agility
+* 52 Thieving
+* 52 Woodcutting
+* 50 Herblore
+* 42 Mining
+* 38 Crafting
+* 35 Magic
+
+
+Upon completion of the quest you'll be rewarded with:
+* 2 Quest Points
+* 10,000 Experience Lamp
+* New Arceuus Spells (subject to them passing a poll)
+* Kourend Castle Respawn Point
+* 20 Additional Kharedst's Memoirs Charges
+{{Collapsed section end}}
+{{News Poll|1|Should A Kingdom Divided, a new experienced-level addition to the Kourend quest series, be added to the game?}}
+
+==Arceuus Spellbook Rework==
+The Arceuus spellbook is the most recent spellbook added to Old School RuneScape, first introduced when Kourend released. Most of its use comes from the various teleports available, alongside reanimation spells where ensouled heads can be brought to life and defeated, granting Prayer experience and favour with Arceuus in the process.
+
+Outside of this, the spellbook is rarely utilised. Reworking it has been a continued topic within the community, and some players have actually created concepts for how a reworked Arceuus spellbook might look, such as this [https://www.reddit.com/r/2007scape/comments/hpyjn2/some_spell_ideas_for_an_arceuusnecromancy/ entire revamp] created by Reddit user LordGozer2! Even our very own Mod West teased an [https://www.reddit.com/r/2007scape/comments/7ri5oj/arceuus_spellbook_rework/ entirely reworked spellbook] back in 2018!
+
+The release of A Kingdom Divided is the perfect opportunity for us to finally take on this popular request. Mod West has been working hard to create a new Arceuus Spellbook that we'd like to offer as an additional reward for completing the quest.
+
+Before we get straight into the changes, let's take a quick look into the mind of Mod West and how he approached the most recent iteration of his rework.
+
+[[File:A Kingdom Divided & Arceuus Spellbook Rework Poll Blog (2).jpg|center|600px]]<center>''An image of Mod West's Arceuus spellbook rework ideation board. You can click the image for a larger version!''</center>
+
+
+If you manage to overcome the admittedly difficult to read colours, you can really begin to see the potential of a reworked Arceuus spellbook, and we're excited to finally share the proposed changes with you!
+
+
+===Reanimation Spells===
+In the current Arceuus spellbook, there is a reanimation spell for each creature that can be reanimated, making a grand total of 22 spells. With the rework, these spells would be replaced by four new reanimation spells. No changes will be made to the amount of experience granted from reanimated creatures.
+
+
+{{Collapsed section|18|Click here to see the Reanimation spells changes!}}
+'''Basic Reanimation'''<br>Can be used to reanimate the ensouled heads of Goblins, Monkeys, Imps, Minotaurs, Scorpions, Bears and Unicorns.
+* Requires 16 Magic
+* Costs 4 Body & 2 Nature runes to cast
+* Grants 32 Magic experience
+
+
+'''Adept Reanimation'''<br>Can be used to reanimate the ensouled heads of Dogs, Chaos Druids, Ogres, Giants, Elves, Trolls and Horrors.
+* Requires 41 Magic
+* Costs 4 Body, 3 Nature & 1 Soul runes to cast
+* Grants 80 Magic experience
+
+
+'''Expert Reanimation'''<br>Can be used to reanimate the ensouled heads of Kalphites, Dagannoth, Bloodvelds, TzHaar and Demons.
+* Requires 72 Magic
+* Costs 1 Blood, 3 Nature & 2 Soul runes to cast
+* Grants 138 Magic experience
+
+
+'''Master Reanimation'''<br>Can be used to reanimate the ensouled heads of Aviansie, Abyssal Creatures and Dragons.
+* Requires 90 Magic
+* Costs 2 Blood, 4 Nature & 4 Soul runes to cast
+* Grants 170 Magic experience
+{{Collapsed section end}}
+{{News Poll|2|Should the Arceuus spellbook Reanimation spells be reworked as described in the blog? No changes will be made to the amount of experience granted from reanimated creatures.}}
+
+
+===Teleport Spells===
+Most of the teleport spells will be unchanged with this rework. However, a few will be replaced to make them more useful. These teleports can be turned into Magic Tablets.
+
+
+{{Collapsed section|18|Click here to see the Teleport spell changes!}}
+'''Library of Arceuus'''<br>Teleports north of the Grand Library in Arceuus.
+* Requires 6 Magic
+* Costs 2 Earth & 1 Law to cast
+* Grants 9 Magic experience
+* Replaces the previous "Lumbridge Graveyard" teleport. Existing "Lumbridge Graveyard" Magic Tablets, Portal Chambers and Nexus teleports would convert to the new location
+
+
+The following teleports will not be changed as part of the rework: Arceuus Home Teleport, Draynor Manor Teleport, Battlefront Teleport, Mind Altar Teleport, Respawn Teleport, Salve Graveyard Teleport, Fenkenstrain's Castle Teleport, West Ardougne Teleport, Harmony Island Teleport, Cemetery Teleport, Barrows Teleport and Ape Atoll Teleport.
+{{Collapsed section end}}
+{{News Poll|3|Should the Lumbridge Graveyard Teleport within the Arceuus spellbook be changed to teleport players to the north of the Grand Library in Arceuus instead? Any Magic Tablets for the previous locations would be updated to their respective new location.}}
+
+
+===New Spells===
+With the rework, various new spells will be added. To use them will require completion of A Kingdom Divided. Some of these spells will introduce new mechanics to the game, so let's cover those before continuing.
+
+====Corruption====
+When a player is corrupted they will start to lose prayer points over a short amount of time. After 6 seconds, 1 prayer point is drained. After another 6 seconds, 2 prayer points are drained. After a final 6 seconds, 3 prayer points are drained. If a Mark of Darkness has also been cast, the occurrence of Corruption happens every 3 seconds instead.
+
+Corruption spells can only be cast on a player that is not already corrupted, but there is no cooldown between Corruption expiring and a new Corruption spell being cast. It is not possible to stack multiple Corruption spells on a single player, even within multi-combat zones.
+
+====Resurrection====
+To perform a resurrection spell, players will need to equip the Book of the Dead. If the spellbook rework passes in the poll, this new magic book would be obtained as a reward from A Kingdom Divided, acting as an upgrade to the completed Kharedsts' Memoirs.
+
+The Book of the Dead would provide +6 Magic attack and +3 Prayer bonus. Completion of A Kingdom Divided is required to equip the book.
+
+Drawing upon the power of defeated creatures, resurrection spells bring to life an undead Thrall that will aid you in battle. This will require runes and Prayer points, and only 1 Thrall can exists at a time. Thralls will remain active for one game cycle (0.6 seconds) for every Magic level the caster has when the spell is cast. For example, if a Thrall is resurrected when your Magic level is 60, it will last for 36 seconds before dying.
+
+A resurrected Thrall will not act like a typical follower. They will wander the area where they were created and attack anything the player attacks, providing the target is within range.
+
+It is possible to resurrect a Thrall throughout most of Gielinor, even if the undead creature being resurrected at the time is not present in that area. Certain exceptions to this will apply where the aid of a Thrall will not be possible, much like how setting up the Dwarf Multicannon is not possible in specific areas.
+
+All resurrected Thralls will attack at a rate of 4 game cycles (one attack every 2.4 seconds). Thralls cannot be damaged and their attacks ignore accuracy checks, but it will still be possible for them to hit 0 at times. Whilst their damage ignores accuracy checks, Protection Prayers will reduce their damage accordingly.
+
+'''Thralls will not aid you in PvP situations.'''
+
+Whether these mechanics should be available all over the game world and in every combat situation is something we're considering, here are some possibilities if you feel like they should be restricted further:
+
+* Only works within Kourend and the Kebos Lowlands
+* Does work in single-combat areas
+
+
+Let us know what you think of these new mechanics after you've seen the different spells listed below!
+
+
+{{Collapsed section|18|Click here to see the new spells!}}
+Some items can be used to auto-cast the spells on this spell-book. They are:
+* Slayer's Staff
+* Skull Sceptre
+* Ahrim's Staff
+* Staff of the Dead
+* Kodai Wand
+
+
+'''Ghostly Grasp'''<br>A damage spell that has a 10% chance to stop the enemy from moving for 2 game cycles (1.2 seconds).
+* Requires 35 Magic
+* Costs 1 Chaos & 4 Air runes to cast
+* Grants 22.5 base Magic experience, increasing with damage dealt
+* Has a base max hit of 12
+* Does not require completion of A Kingdom Divided to cast
+
+
+'''Resurrect Ghost'''<br>Resurrects a Ghost that will attack your enemies with Magic damage. Will remain active for one game cycle (0.6 seconds) for every Magic level the caster had when the spell was cast. This spell costs runes and 2 Prayer points to cast.
+* Requires 38 Magic & Book of the Dead equipped
+* Costs 5 Mind, 10 Air & 1 Cosmic runes to cast
+* In addition to the runes, casting this spell costs 2 Prayer points
+* Grants 55 Magic experience
+* Has a max hit of 1
+
+
+'''Inferior Demonbane'''<br>A damage spell that only works against [[Demon (attribute)|Demonic foes]].
+* Requires 44 Magic
+* Costs 1 Chaos & 4 Fire runes to cast
+* Grants 27 base Magic experience, increasing with damage dealt
+* Has a base max hit of 16
+
+
+'''Shadow Veil'''<br>Grants a 15% chance to avoid being stunned and damaged while pickpocketing NPCs. It will remain active for one game cycle (0.6 seconds) for every Magic level the user has at the time of casting. Stacks with the effects of the Dodgy Necklace, granting a total of 40% chance to avoid being stunned and damaged while pickpocketing NPCs.
+* Requires 47 Magic
+* Costs 5 Earth, 5 Fire & 5 Cosmic runes to cast
+* Grants 58 Magic experience
+
+
+'''Dark Lure'''<br>Prevents a creature that would normally flee, such as Imps, Unicorns, Ghouls and Implings, from fleeing. Doesn't work on creatures that can't move.
+* Requires 50 Magic
+* Costs 1 Death & 1 Nature runes to cast
+* Grants 60 Magic experience
+
+
+'''Skeletal Grasp'''<br>A damage spell that has a 25% chance to stop the enemy from moving for 2 game cycles (1.2 seconds).
+* Requires 56 Magic
+* Costs 1 Death & 8 Earth runes to cast
+* Grants 33 base Magic experience, increasing with damage dealt
+* Has a base max hit of 17
+
+
+'''Resurrect Skeleton'''<br>Resurrects a Skeleton that will attack your enemies with ranged damage. Will remain active for one game cycle (0.6 seconds) for every Magic level the caster has when the spell is cast. This spell costs runes and 4 Prayer points to cast.
+* Requires 57 Magic & Book of the Dead equipped
+* Costs 5 Death, 10 Earth & 1 Cosmic runes to cast
+* In addition to the runes, casting this spell costs 4 Prayer points
+* Grants 70 Magic experience
+* Has a max hit of 2
+
+
+'''Mark of Darkness'''<br>An enemy with this spell cast upon them suffers an array of debuffs:
+* Corruption occurs twice as often.
+* Grasping spells are twice as effective.
+* Demonbane spells deal an additional 25% damage against demonic enemies.
+* Demonbane spells have an additional 25% accuracy against demonic enemies.
+
+This spell will last one game cycle (0.6 seconds) for every Magic level the user has at the time of casting.
+* Requires 59 Magic
+* Costs 1 Soul & 1 Cosmic runes to cast
+* Grants 70 Magic experience
+
+
+'''Superior Demonbane'''<br>A damage spell that only works against [[Demon (attribute)|Demonic foes]].
+* Requires 62 Magic
+* Costs 1 Soul & 8 Fire runes to cast
+* Grants 36 base Magic experience, increasing with damage dealt
+* Has a base max hit of 23
+
+
+'''Lesser Corruption'''<br>Provides a 33% chance to inflict Corruption upon your target with your next damaging hit.
+* Requires 64 Magic
+* Costs 1 Death & 2 Soul runes to cast
+* Grants 75 Magic experience
+
+
+'''Vile Vigour'''<br>Converts all prayer points into run energy.
+* Requires 66 Magic
+* Costs 1 Soul & 3 Air runes to cast
+* Grants 76 Magic experience
+
+
+'''Cleanse'''<br>Cleans all herbs in the inventory. Half the Herblore experience is given. Cleanse will take 5 game cycles (3 seconds) to complete casting.
+* Requires 70 Magic
+* Costs 4 Earth & 2 Nature runes to cast
+* Grants 83 Magic experience
+
+
+'''Ward of Arceuus'''<br>When this is cast, the user gains an array of buffs:
+* Immunity to Corruption.
+* Grasp spells only last for one game cycle (0.6 seconds).
+* Damage from demonic foes is reduced by 10%. This would apply to strong foes such as K'ril Tsutsaroth.
+
+This spell will last one game cycle (0.6 seconds) for every Magic level the user has at the time of casting.
+* Requires 73 Magic
+* Costs 4 Soul, 2 Nature & 1 Cosmic runes to cast
+* Grants 83 Magic experience
+
+
+'''Resurrect Zombie'''<br>Resurrects a Zombie that will attack your enemies with melee damage. Will remain active for one game cycle (0.6 seconds) for every Magic level the caster has when the spell is cast. This spell costs runes and 6 Prayer points to cast.
+* Requires 76 Magic & Book of the Dead equipped
+* Costs 5 Blood, 10 Fire & 1 Cosmic runes to cast
+* In addition to the runes, casting this spell costs 6 Prayer points
+* Grants 88 Magic experience
+* Has a max hit of 3
+
+
+'''Undead Grasp'''<br>A damage spell that has a 50% chance to stop the enemy from moving for 4 game cycles (2.4 seconds).
+* Requires 79 Magic
+* Costs 1 Blood & 12 Fire runes to cast
+* Grants 46.5 base Magic experience, increasing with damage dealt
+* Has a base max hit of 24
+
+
+'''Death Charge'''<br>Provides a buff to the caster that restores 15% special attack energy when a creature dies. Death Charge will remain active for up to 60 seconds and will expire if a creature has been killed, after which it must be cast again. Death Charge cannot be cast more than once every 60 seconds.
+* Requires 80 Magic
+* Costs 1 Death, 1 Blood & 1 Soul runes to cast
+* Grants 90 Magic experience
+* Restores 15% special attack energy for the first creature killed whilst active
+* Can only be cast once every 60 seconds
+
+
+'''Dark Demonbane'''<br>A damage spell that only works against [[Demon (attribute)|Demonic foes]].
+* Requires 82 Magic
+* Costs 2 Soul & 12 Fire runes to cast
+* Grants 43.5 base Magic experience, increasing with damage dealt
+* Has a base max hit of 30
+
+
+'''Greater Corruption'''<br>Provides a 66% chance to inflict corruption upon your target with your next damaging hit.
+* Requires 85 Magic
+* Costs 1 Blood & 3 Soul runes to cast
+* Grants 95 Magic experience
+
+
+'''Demonic Offering'''<br>Converts up to 3 piles of Demonic Ash into Prayer points, granting three times the base experience. Demonic Offering will take 5 game cycles (3 seconds) to complete casting.
+* Requires 84 Magic
+* Costs 1 Soul & 1 Wrath runes to cast
+* Provides 1 Prayer point for each Ash converted up to and including Abyssal Ashes
+* Provides 2 Prayer points for each Infernal Ash coverted
+* Grants 175 Magic experience
+
+
+'''Sinister Offering'''<br>Converts up to 3 sets of bones into Prayer points, granting three times the base experience. Sinister Offering will take 5 game cycles (3 seconds) to complete casting.
+* Requires 92 Magic
+* Costs 1 Blood & 1 Wrath runes to cast
+* Provides 1 Prayer point for each bone converted up to and including Raurg Bones
+* Provides 2 Prayer points for each Hydra, Dagannoth, Ourg or Superior Dragon Bones converted
+* Grants 180 Magic experience
+{{Collapsed section end}}
+{{News Poll|4|If A Kingdom Divided is added to the game, should the Grasp spells be added to the Arceuus spellbook as described in the blog? Completion of A Kingdom Divided will be required to use these spells.}}
+{{News Poll|5|If A Kingdom Divided is added to the game, should the Resurrection spells be added to the Arceuus spellbook as described in the blog? Completion of A Kingdom Divided will be required to use these spells. If this question passes, the Book of the Dead would also be added to the game as a reward from A Kingdom Divided, acting as an upgrade to the completed Kharedsts' Memoirs. The Book of the Dead would provide +6 Magic attack and +3 Prayer bonus.}}
+{{News Poll|6|If A Kingdom Divided is added to the game, should the Demonbane spells be added to the Arceuus spellbook as described in the blog? Completion of A Kingdom Divided will be required to use these spells.}}
+{{News Poll|7|If A Kingdom Divided is added to the game, should Shadow Veil be added to the Arceuus spellbook as described in the blog? Completion of A Kingdom Divided will be required to use this spell.}}
+{{News Poll|8|If A Kingdom Divided is added to the game, should Dark Lure be added to the Arceuus spellbook as described in the blog? Completion of A Kingdom Divided will be required to use this spell.}}
+{{News Poll|9|If A Kingdom Divided is added to the game, should Mark of Darkness be added to the Arceuus spellbook as described in the blog? Completion of A Kingdom Divided will be required to use this spell.}}
+{{News Poll|10|If A Kingdom Divided is added to the game, should the Corruption spells be added to the Arceuus spellbook as described in the blog? Completion of A Kingdom Divided will be required to use these spells.}}
+{{News Poll|11|If A Kingdom Divided is added to the game, should Vile Vigour be added to the Arceuus spellbook as described in the blog? Completion of A Kingdom Divided will be required to use this spell.}}
+{{News Poll|12|If A Kingdom Divided is added to the game, should Cleanse be added to the Arceuus spellbook as described in the blog? Completion of A Kingdom Divided will be required to use this spell.}}
+{{News Poll|13|If A Kingdom Divided is added to the game, should Ward of Arceuus be added to the Arceuus spellbook as described in the blog? Completion of A Kingdom Divided will be required to use this spell.}}
+{{News Poll|14|If A Kingdom Divided is added to the game, should Death Charge be added to the Arceuus spellbook as described in the blog? Completion of A Kingdom Divided will be required to use this spell.}}
+{{News Poll|15|If A Kingdom Divided is added to the game, should Sinister Offering be added to the Arceuus spellbook as described in the blog? Completion of A Kingdom Divided will be required to use this spell.}}
+{{News Poll|16|Should that Magic attack bonus of the Skull Sceptre be increased from +4 Magic to +10 Magic?}}
+
+===Prayer Offerings===
+A common request within the community is for ashes of fallen creatures to have more uses. With the addition of Demonic Offering, we'd like to introduce Demonic Ash. This new ash would replace the ash that usually drops from certain creatures. It can be scattered into the air for a small amount of Prayer experience, much like burying bones, or used with the Demonic Offering spell for three times the base amount given when scattering.
+
+Demonic Ashes would not work with Prayer altars or the Ectofuntus.
+
+{| class="wikitable align-center-1 align-center-2"
+!Ashes
+!XP
+!Notes
+!Drop by
+|-
+|Fiendish Ashes || 10 || Better than standard Bones. || Imps, Fiends, Abyssal Leeches.
+|-
+|Demonic Ashes || 25 || Better than Big Bones. || Lesser, Greater Demons, Abyssal Guardian
+|-
+|Dark Ashes || 65 || Slightly worse than Dragon Bones. || Black Demons, Nechryael, Abyssal Walker
+|-
+|Abyssal Ashes || 85 || Equivalent to Drake Bones. || Abyssal Demons, Sire (could drop mutliple).
+|-
+|Infernal Ashes || 110 || Equivalent to Hydra Bones. || Bosses e.g Cerberus, K'ril Tsutsaroth.
+|}
+
+{{News Poll|17|Should Demonic Ash be added to the game? Demonic Ash would replace the ash that usually drops from certain creatures. It can be scattered into the air for a small amount of Prayer experience, just as burying bones does. Demonic Ashes would not work with Prayer altars or the Ectofuntus.}}
+{{News Poll|18|If Demonic Ash is added to the game, should Demonic Offering be added to the Arceuus spellbook as described in the blog? Completion of A Kingdom Divided will be required to use this spell.}}
+{{News Poll|19|If Demonic Ash is added to the game, should Hellhounds drop Demonic Ashes instead of bones? If this question passes, Hellhounds and Cerberus will also be categorised as Demons.}}
+
+==Shayzien Area Rework==
+The Kingdom of Great Kourend has seen numerous changes over the years since its initial release with Kourend. Last year saw the entire Hosidius area get a makeover, redesigning the area completely and even introducing a new dungeon.
+
+As part of our continued efforts to update the continent and improve older areas of the game, we'd like to propose a rework of the Shayzien area, in addition to A Kingdom Divided and the new Arceuus spellbook.
+
+The Shayzien area currently has the following issues that this rework aims to resolve:
+* Buildings are too big - Many of the buildings in Shayzien are are as large as entire towns in other parts of the game.
+* Buildings look temporary - The buildings in Shayzien are not actually buildings at all but tents.
+* Blocking isn't clear - Blocked areas of the map that players can't walk on are not clear.
+* The city feels inconsistent - Shayzien is both a military camp and a city at the same time, with no clear divide between the two.
+
+[[File:A Kingdom Divided & Arceuus Spellbook Rework Poll Blog (3).png|center|600px]]<center>''An image showing the Shayzien area as it is currently in-game.''</center>
+
+
+With the remapping, the Shayzien area will be split in two. To the south, the actual city of Shayzien will be found. To the north, the Shayzien Military Camp will be found. Both areas will be given a unique feel to set them apart form each other.
+
+The camp to the north will have a more temporary, chaotic feel. The tents currently used throughout Shayzien will be the buildings here.
+
+The city to the south will be given a more permanent and organised feel. The tents will be removed from the city and replaced with brick buildings.
+
+[[File:A Kingdom Divided & Arceuus Spellbook Rework Poll Blog (4).png|center|600px]]<center>''A WIP image showing how the Shayzien area would look after the rework. Click the image for a larger version.''</center>
+
+The table below details how each individual piece of content will be changed:
+
+{| class="wikitable" style="width:750px; text-align:center;"
+!Content
+!Current Location
+!New Location
+!Other Changes
+|-
+|Bank || Central Shayzien || Northern Shayzien || The poll booth that is currently in a separate building will be moved into the bank.
+|-
+|General Store || North Eastern Shayzien || North Eastern Shayzien || The general store currently shares a building with other stores. With the remap, it will be given its own building.
+|-
+|Clothes Store || Central Shayzien || Northern Shayzien || Right now the clothes store doesn't actually sell any clothes, only graceful recolours. With the remap, it will sell clothes as well.
+|-
+|Phileas Rimor's Home || Northern Shayzien || North Eastern Shayzien
+|-
+|Amelia's Home || Central Shayzien || Eastern Shayzien
+|-
+|Chapel || Southern Shayzien || Southern Shayzien || The chapel doesn't have an altar or NPCs right now. Both will be added.
+|-
+|Armour Store || North Eastern Shayzien || Eastern Shayzien || The armour store currently shares a building with other stores. With the remap, it will be given its own building.
+|-
+|Weapon Store || North Eastern Shayzien || South Eastern Shayzien || The weapon store currently shares a building with other stores. With the remap, it will be given its own building.
+|-
+|Combat Ring || Eastern Shayzien || South Eastern Military Camp
+|-
+|War Tent || Southern Shayzien || Western Military Camp
+|-
+|Infirmary || Eastern Shayzien || South Eastern Military Camp
+|-
+|Security Tent || Eastern Shayzien || Central Military Camp
+|}
+
+
+In addition to the above remapping, the following content would also be added as part of the rework:
+
+{| class="wikitable" style="width:750px; text-align:center;"
+!Content
+!Location
+!Description
+|-
+|Administrative Building || Southern Shayzien || An administrative building where the city is managed from. This is separate from the war tent which is where the army is led from.
+|-
+|Lord Shayzien's Home || Eastern Shayzien || A home for Lord Shayzien in the city.
+|-
+|Prison || Western Shayzien || A prison for military prisoners on the outskirts of the city.
+|-
+|Archery Shop || Central Shayzien || A new shop in Shayzien that sells archery supplies.
+|-
+|Pub || North Eastern Shayzien || A pub selling stew and beer.
+|-
+|Bank || Central Military Camp || A second smaller bank in the military camp that uses bank chests. It also has a poll booth and deposit box.
+|-
+|Smithy || Central Military Camp || A small smithy with some anvils.
+|-
+|Agility Course || Eastern Military Camp || A low-level Agility course split into two sections.
+|-
+|Giant Pit || South Western Military Camp || A small area containing a few Hill Giants.
+|-
+|Giant's Den || South Western Military Camp || A dungeon containing Hill Giants, Fire Giants and Moss Giants. The catacomb entrance will be moved into this dungeon.
+|-
+|Ruins of Morra || South Western Shayzien || Some old ruins with some undead Lizardmen in (see the below 'More Mobs!' section for more information).
+|-
+|Secluded Chapel || Western Shayzien || A small chapel outside the city.
+|-
+|Rare Trees || Various || Various types of rare tree will be added in and around Shayzien (Maple, Yew and Magic).
+|-
+|Ranges and Water sources || Various || Various ranges and water sources will be added to both the city and the military camp.
+|}
+
+===Agility Course===
+You may have noticed the mention of an Agility course in the above table. This course would be aimed at lower Agility levels and split into two sections.
+
+The maximum Agility experience from the course would be based on the below approximations:
+* First section of the course requires 5 Agility to complete - 8,500 Agility XP/hour
+* Second section of the course requires 48 Agility to complete - 30,000 Agility XP/hour
+
+[[File:A Kingdom Divided & Arceuus Spellbook Rework Poll Blog (5).png|center|400px]]<center>''A WIP image of how the Shayzien Agility course would look.''</center>
+
+
+The Shayzien Agility course would include a number of obstacles you'll need to navigate:
+* Tight ropes
+* Monkey bars
+* Zip-wires
+* Long jumps
+
+{{News Poll|20|Should the Shayzien area be updated as described in the blog?}}
+{{News Poll|21|If the Shayzien area rework passes, should part of the rework include adding a new Agility course? This course would be aimed at lower Agility levels and split into two sections. The first section of the course would require 5 Agility to complete and the second section of the course would require 48 Agility to complete.}}
+
+===More Mobs!===
+There is so much free real estate in Kourend, and at times it can feel a little empty. Alongside the Shayzien area rework, we think it would be great to increase the mob variety throughout Kourend. What better way to fill areas than with things you can attack and loot!
+
+
+'''West of Kourend Castle'''
+* Giant Spiders (Level 2)
+* Giant Rats (Level 3)
+* '''New:''' Boar (Level 5)
+
+
+'''North-east of Shayzien'''
+* Bandit (Level 22)
+** Ranged and Melee variants
+** These Bandits would be themed to match Kourend
+
+
+'''South of Graveyard of Heroes'''
+* '''New:''' Necromancer (Level 54)
+** Magic based
+** Casts spells from the new Arceuus spellbook
+** Replaces Dark wizards in the area
+* Zombies (Level 34)
+
+
+'''Ruins of Morra'''
+* '''New:''' Undead Lizardmen (Level 44)
+** These Lizardmen would not give favour
+** They would not poison players
+** They would drop Lizardman fangs
+
+{{News Poll|22|Should a variety of low-level mobs be added to various areas within Kourend as described in the blog?}}
+
+
+==Shayzien Area Rework Considerations==
+With so many proposed changes, we're sure you have many questions about how current content would work as a result. We've put together a quick list of things you might be most interested in. ''Thought of something we might have missed? Let us know via one of the feedback links at the bottom of this blog!''
+
+No changes will be made to the current teleports in the Shayzien area. This covers the following:
+* DJR Fairy Ring - Chasm of Fire
+* Xeric's Talisman - Xeric's Look Out
+* Kharedst's Memoirs - Graveyard of Heroes
+
+We will update any Clue Scroll and Gang Meeting locations as needed following the rework.
+
+-----
+
+We'd love to hear what you think about A Kingdom Divided and the Shayzien rework, so please share your feedback with us via our [http://services.runescape.com/m=forum/forums.ws?380,381,682,66193136 official forums], on the [https://www.reddit.com/r/2007scape/comments/kb7c2g/a_kingdom_divided_with_the_arceuus_spellbook_and/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+We'd like to offer an in-game poll for everything we've shown in this blog on December 17th.
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Ditto, Ed, Elena, Errol, Fed, Flippy, Gayns, Gee, Halo, Husky, Impact, Jndr, John C, Kandosii, Kieren, Lenny, Lottie, Lyric, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West & Zuko'''
+
+''The Old School Team''

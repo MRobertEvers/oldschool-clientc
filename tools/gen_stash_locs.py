@@ -23,6 +23,8 @@ import os
 import re
 import sys
 
+import config_text
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content")
 OUT = os.path.join(
@@ -86,8 +88,8 @@ def render_enum(unbuilt, built):
 
 
 def collect():
-    text = open(os.path.join(CONTENT, "configs", "all.loc"), encoding="utf-8",
-                errors="replace").read()
+    text = config_text.read_text(os.path.join(CONTENT, "configs", "all.loc"),
+                                 encoding="utf-8", errors="replace")
     built, unbuilt = [], []
     for block in re.split(r"\n(?=\[)", text):
         head = re.match(r"\[(hidey_[^\]]+)\]", block)

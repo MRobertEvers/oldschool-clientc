@@ -22,6 +22,8 @@ import os
 import re
 import sys
 
+import config_text
+
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
@@ -91,6 +93,10 @@ def blocks(path):
     section, values, line = None, {}, 0
     with open(path, encoding="utf-8", errors="replace") as handle:
         for number, raw in enumerate(handle, 1):
+            # Per line, not filter_lines(): `number` must stay the file's own.
+            raw = config_text.filter_line(raw)
+            if raw is None:
+                continue
             text = raw.split("//", 1)[0].strip()
             if not text:
                 continue

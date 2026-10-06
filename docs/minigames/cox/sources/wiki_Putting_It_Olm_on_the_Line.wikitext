@@ -1,0 +1,45 @@
+{{Infobox Combat Achievement
+|name = Putting It Olm on the Line
+|image = [[File:Chambers of Xeric - keystone room.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete a Chambers of Xeric solo raid with more than 40,000 points.
+|tier = Master
+|monster = Chambers of Xeric
+|type = Mechanical
+|id = 305
+|leagueRegion = Kourend
+}}
+'''Putting It Olm on the Line''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete a solo [[Chambers of Xeric]] raid with 40,000 or more points.
+
+'''Challenge Mode cannot be used for this task.'''
+
+==Strategy==
+The easiest way to get this achievement is to select a "Full" layout for all rooms. Otherwise, in order to get the minimum points needed for the achievement, the player will need to toggle large raids on as it ensures the first two floors are filled to the brim with four combat/puzzle rooms. As the points can be slow to obtain, players should take their time and prepare early to gain more points. Large raids can also cause duplicate puzzle rooms to appear on each floor.
+
+If using a large layout, avoid the following rooms:
+
+*[[Tekton]], [[Lizardman shaman (Chambers of Xeric)|shamans]], [[Jewelled Crab]]s - these rooms provide ~1,600 points.
+
+Look for the following rooms:
+
+*[[Vasa Nistirio]] - focus on the [[glowing crystal]]s more than the boss, as they provide plenty of points. A good strategy is to reach the point cap on the [[glowing crystal]]s then finish off the boss before leaving the room.
+*[[Tightrope]] - each tightrope room provides ~4,000 points on average; double tightropes basically knock out 20% of the required total.
+*[[Ice demon]] - gather 6 piles of [[Kindling (Chambers of Xeric)|kindling]] then light each brazier and double lighting two. This will yield ~6000 points before combat. A 7th pile will yield 50% points ~600.
+*[[Corrupted scavenger|Thieving]] - Gather 39 grubs to hit the point cap, yielding ~4750 points. Bats will yield an extra 300 points.
+*[[Guardian (Chambers of Xeric)]] - Keeping one guardian alive and having them shove you away from the door gives 40 points. This can be done indefinitely until you reach a comfortable point cap if you do not feel comfortable doing this task without dying. This strategy can be done as long as the guardians are not the first room in the raid.
+
+Players without 90+ [[Herblore]] may also want to have a layout that contains an [[Overload (+)]] dropping boss, of which Tekton, Vasa, the [[Muttadile]]s and [[Vanguard]]s drop. Ideally one of the latter two should be selected for this as they provide slightly more points.
+
+Potions give full points for 5 doses then half points for the next 5. If possible drink only [[Overload (+)]] potions before entering [[Great Olm]]. It should be possible to drink 3-4 doses granting 450-600 points.
+
+The [[Great Olm]] will provide roughly 18,500 points and thus it is recommended players ensure that the first two floors will give them at least 22,000 points. Deaths after getting over 5,000 points will likely prevent the player from completing the achievement, although the raid should be completed anyways for the potential rewards. As a result, it is important not to die, which will also unlock the [[Undying Raider]] and [[Undying Raid Team]] if not completed.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+==Trivia==
+*The name is a pun on "putting it all on the line".
+
+{{Combat Achievements}}

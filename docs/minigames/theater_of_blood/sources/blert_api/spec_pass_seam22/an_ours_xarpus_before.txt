@@ -1,0 +1,1 @@
+spits 13, chained 25; per spit {1: 9, 2: 4}; sequence [1, 1, 2, 2, 1, 1, 1, 2, 1, 1, 1, 1, 2]; chained to {'random': 10, 'raider': 7}

@@ -6,6 +6,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import config_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
 QBD = (
@@ -38,7 +40,7 @@ def block(text: str, header: str) -> str:
 
 def main() -> None:
     session = SESSION.read_text(encoding="utf-8")
-    varps = VARPS.read_text(encoding="utf-8")
+    varps = config_text.read_text(VARPS, encoding="utf-8")
     constants = CONSTANTS.read_text(encoding="utf-8")
 
     handle_varp = block(varps, "varp6254_rs2012_qbd_handle")

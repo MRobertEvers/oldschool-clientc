@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Chambers of Xeric: CM (Trio) Speed-Runner
+|image = [[File:Chambers of Xeric - keystone room.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete a Chambers of Xeric: Challenge Mode (Trio) in less than 27 minutes.
+|tier = Grandmaster
+|monster = Chambers of Xeric: Challenge Mode
+|type = Speed
+|id = 298
+|leagueRegion = Kourend
+}}
+'''Chambers of Xeric: CM (Trio) Speed-Runner''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete a Chambers of Xeric: Challenge Mode (Trio) in under 27:00.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric: Challenge Mode}}
+
+{{Combat Achievements}}

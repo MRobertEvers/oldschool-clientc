@@ -1,0 +1,120 @@
+{{Update|date=13 December 2022|url=https://secure.runescape.com/m=news/christmas-event-2022?oldschool=1|category=game}}
+[[File:Christmas Event 2022 newspost.png|right]]
+{{clear}}
+'''''PSA: The previously mentioned 'Buy' offer warning for the Grand Exchange changes listed in the blog is currently unavailable.'''''
+
+Dwarves sure do love their ale, but this year we're hearing that they want to celebrate the season with something a little more festive.... It's time for the Old School Christmas event 2022!
+
+As we wrap up for the holiday season, this festive update will be the '''last one until January 11th'''. See you on the other side!
+
+<center><big><big>[https://www.youtube.com/watch?v=WadwM6TqXJk Christmas Event 2022]</big></big></center>
+<center>''Check out this awesome trailer, featuring Mod Ash, to find out about this year's Christmas event!''</center>
+
+==Getting Started==
+Begin the event by speaking to Guss Mistletoad. You'll find Guss hanging around the red carpet on the road connecting Barbarian Village to Falador.
+
+[[File:Christmas Event 2022 (1).png|center|600px|thumb|''Between the road connecting the Barbarians to Falador, you'll see Santa's given the landscape a gorgeous Winter makeover!'']]
+
+This ambitious Dwarf has set his sights on the hottest pub for NPCs - The Nutcracker. It's an exclusive spot with festive drinks, treats and more. It's all he's ever dreamed of. But there's one problem.... Santa won't let him in!
+
+Being exclusive and all, the Nutcracker is only accessible to those who prove their worth in a series of challenges known as Santa's Festive Games! Impress Santa and you'll get access to his secret tavern. If you don't, you'll be joining the long queue of NPCs trying to get in!
+
+Mod Halo, the developer of this year's Christmas Event, would like to say a few words:
+
+{{News Poll|qtext=|2='''Message from Mod Halo (developer of 2022's Christmas Event)}}
+
+{{News Poll|qtext=|2=<i>Hey 'Scapers! Thought I'd write a few lines for you all after releasing my first project for OSRS! Exciting stuff! As many of you know, I've been working as a QA on the team for quite some time, on projects like Tombs of Amascut. I wouldn't be where I am today without that team - they work exceptionally hard! Moving over to the design team has made for an incredible couple of months so far, and I've had a blast constructing this event for you all. Christmas events are so iconic for Old School and to be able to make one is simply amazing! I went to the extra effort of giving some of the characters their own lore too. I hope Mod Ed will be proud. Spacebarring not allowed!
+
+While I'm here, I'd love to give a quick shout out to the Art team. They have done a stellar job not only with the rewards but with a brilliant new environment. They never miss!
+
+I can't wait to be a part of some REALLY awesome projects coming next year. Stay passionate, and I'll meet you in the Nutcracker for a swift half...</i>}}
+
+[[File:Christmas Event 2022 (2).png|center|600px]]
+
+Thanks Halo! It's also worth noting that all of the minigames in this year's event will be replayable, so you can stay in the festive spirit yourself, or stick around to cheer on your friends. PvP is also '''enabled''' inside the Nutcracker Pub on DMM and PvP worlds, with relevant restrictions on entry if you were to enter an instanced version.
+
+There are some fantastic new rewards to be earned through this year's Christmas event. We'd like to highlight a couple of them in this newspost... but we'll let you discover the rest!
+
+==Nutcracker Outfit==
+The Nutcracker Outfit has two styles. Each piece can be changed with the 'Change Style' option, both in the Inventory and when worn.
+
+[[File:Christmas Event 2022 (3).png|center|600px|thumb|''Could you see yourself Bankstandin' at the Grand Exchange wearing this?'']]
+
+==Seasonal Backpieces==
+
+[[File:Christmas Event 2022 (4).png|center|600px|thumb|''Have you been naughty or nice this year? Be honest...]]
+
+==Winter Summit Recap==
+We held our Winter Summit last Saturday, on the 10th December! If you tuned in, we'd like to say a huge thanks - especially if you're a football fan! The feedback on the stream and our roadmap has been incredibly positive so far. We're really excited to work with the community using our new polling system, involving players right from the very start.
+
+If you missed the Winter Summit - not to worry! We've compiled a top-level summary for you in the [https://secure.runescape.com/m=news/winter-summit-summary?oldschool=1 Winter Summit Summary blog.]
+
+Additionally, you can catch the full stream VOD below. Make sure to let us know your thoughts in the comments below and tell us what you're most excited for!
+
+<center><big><big>[https://www.youtube.com/watch?v=YUzc_4N8yaI The 2022 Old School Winter Summit!]</big></big></center>
+[[File:Christmas Event 2022 (5).png|center|600px|thumb|''It's what you've been waiting for! Old School's content roadmap. Hype! Please note, the Wilderness Boss Rework is still planned for early 2023.'']]
+
+==Recent Downtime==
+''A note on the recent downtime players experienced on December 10th that led to us performing a game-wide rollback.''
+
+As you are aware, issues occurred over the weekend and our team worked tirelessly to get game services back up and running. Our priority has been to get players back in-game, ensure our services are running correctly, and then we had the Winter Summit to focus on.
+
+We're also aware that players have reported issues with lost items following the rollback that occurred.
+
+Now we're back in the office, we're investigating what happened and if there is anything we can do for those who lost items. We want to assure you that when we're able to, we'll provide more information as to what caused the issues and what we're doing going forward to help prevent them from happening again, and to better protect our players should we need to.
+
+Thank you for your continued patience.
+
+==More Changes==
+With it being Christmas an' all, you'll now see pets and some Bosses strolling around Gielinor in festive hats.
+
+===Poll 77===
+We have created a 'Buy all that you can afford' button on the Grand Exchange, which automatically sets the quantity to the maximum number you can afford. There will also be a warning message when placing a sell offer that's lower than 10% of the guide price. This can be disabled in your Settings menu.
+
+===Poison Dynamite===
+We've corrected an issue where a single-placed Poison Dynamite bomb did not explode correctly. We've also enabled Poison Dynamite to work on the guard dog in the Priest in Peril Quest.
+
+===Quest Speedrunning Balancing Changes===
+We've been monitoring A Taste of Hope and Temple of the Eye, which were added to the Quest Speedrunner. At the moment we feel they are substantially easier than any other quest. As such, we have decided to update the times required to better reflect their difficulty relative to speedrunning. Please see these updated times below.
+
+* '''A Taste of Hope (fully launched)'''
+** Bronze - 44:00
+** Silver - 35:00
+** Gold - 29:00
+** Platinum - 26:00
+* '''Temple of the Eye (still in beta)'''
+** Bronze - 19:00
+** Silver - 17:30
+** Gold - 16:30
+** Platinum - 16:00
+
+===Other===
+* Fixed a bug with the 'But... Damage' Combat Achievement so items of level 75 or above are no longer usable.
+* Fixed a bug with the 'Perfect Wardens' task which did not account for Obelisk attacks as intended.
+* Players can once again rub the Camulet in their inventory to teleport without having to equip the Camulet first.
+* The Elven Scout who provides Ilfeen's services during her absence in Song of the Elves was overcharging players who hadn't used Ilfeen's services before. You should be charged the right price now.
+* In the Crondis room in Tombs of Amascut, there were some slight mapping issues with 'purgatory' (where you become a Ghost if you die). We've corrected these issues so that it works as intended.
+
+==PvP Rota==
+The PvP rota has '''Period A''' and '''Period B''' running concurrently. This is because we won't be able to update the PvP Rota over the Christmas Break.
+
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments at the time of this newspost going live. However, the PvP Arena will switch to <b>'Zerker'</b> loadouts on Wednesday December 14th.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Stevew, Surma, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

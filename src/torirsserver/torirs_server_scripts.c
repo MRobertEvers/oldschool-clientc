@@ -2576,6 +2576,77 @@ run_rung(
 }
 
 /*
+ * The raider's side of the tick log (raid seam29, raid_log_raider_state): a
+ * player-initiated trigger a script RAN for is an INPUT row, and an
+ * `[opheld*]` whose script took its obj out of the backpack -- eat, drink --
+ * is a CONSUME row with the hitpoints and prayer either side of it. Both are
+ * file-only (torirs_server.h TORIRSSERVER_TICKLOG_RAIDER): no test's ledger
+ * moves. Snapshotted only while the log is on, so no ordinary run pays.
+ */
+struct TicklogInputSnapshot
+{
+    int armed;
+    int obj_count;
+    int hitpoints;
+    int prayer;
+};
+
+static int
+ticklog_backpack_count(
+    const struct ToriRSServerPlayer* player,
+    int obj)
+{
+    int count = 0;
+
+    assert(player);
+    for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+    {
+        if( player->inv[i].obj_id == obj )
+            count += player->inv[i].count;
+    }
+    return count;
+}
+
+static void
+ticklog_input_begin(
+    const struct ToriRSServerPlayer* player,
+    int trigger,
+    int type,
+    struct TicklogInputSnapshot* out)
+{
+    assert(player);
+    assert(out);
+    out->armed = 1;
+    out->obj_count = 0;
+    if( trigger >= SS_TRIGGER_OPHELD1 && trigger <= SS_TRIGGER_OPHELD5 && type >= 0 )
+        out->obj_count = ticklog_backpack_count(player, type);
+    out->hitpoints = player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
+    out->prayer = player->stat_boosted[TORIRSSERVER_STAT_PRAYER];
+}
+
+static void
+ticklog_input_end(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int trigger,
+    int type,
+    int npc_slot,
+    const struct TicklogInputSnapshot* before)
+{
+    char label[192];
+
+    assert(srv);
+    assert(player);
+    assert(before);
+    trigger_label(trigger, type, label, sizeof(label));
+    ToriRSServer_TicklogInput(srv, player, trigger, type, npc_slot, label);
+    if( trigger >= SS_TRIGGER_OPHELD1 && trigger <= SS_TRIGGER_OPHELD5 && type >= 0 &&
+        ticklog_backpack_count(player, type) < before->obj_count )
+        ToriRSServer_TicklogConsume(srv, player, type, trigger - SS_TRIGGER_OPHELD1 + 1,
+                                    before->hitpoints, before->prayer, label);
+}
+
+/*
  * `chain` walks the reference's getByTrigger ladder — type, then category, then
  * `_` — where `chain == 0` looks up the single key the arguments name, the way
  * getByTriggerSpecific does. `report` is off only for the keyed half of the
@@ -2609,6 +2680,7 @@ run_trigger_impl(
     int rung_count = 0;
     int any_declined = 0;
     void* loc_handle = script_trigger_loc_handle(loc_slot);
+    struct TicklogInputSnapshot ticklog_input = { 0 };
 
     if( !srv->scripts_ok )
         return TORIRSSERVER_TRIGGER_NONE;
@@ -2693,9 +2765,15 @@ run_trigger_impl(
                 return TORIRSSERVER_TRIGGER_FAILED;
         }
         saved_player = srv->active_player;
+        if( context_player && ToriRSServer_TicklogEnabled(srv) &&
+            trigger_is_player_initiated(trigger) )
+            ticklog_input_begin(context_player, trigger, type, &ticklog_input);
         ToriRSServer_WorldSetActive(srv, context_player);
         result = run_rung(srv, script, npc_slot, loc_handle, player_slot, &declined);
         ToriRSServer_WorldSetActive(srv, saved_player);
+        if( ticklog_input.armed && result == TORIRSSERVER_TRIGGER_RAN && !declined )
+            ticklog_input_end(srv, context_player, trigger, type, npc_slot, &ticklog_input);
+        ticklog_input.armed = 0;
 
         if( srv->verbose && rung_count > 1 )
         {
@@ -4725,6 +4803,39 @@ player_by_uid(struct ToriRSServer* srv, int32_t uid)
     return &srv->players[pid];
 }
 
+/*
+ * The world helpers that take only `srv` (`WorldWalkTo`, `WorldInteractionSet`,
+ * `WorldWalkToApproach`) act on `srv->active_player`, which is the player the
+ * dispatcher selected for this phase -- not the player the script bound. An
+ * npc script that walks `huntnext`/`p_finduid` over a party binds each raider
+ * in turn while `srv->active_player` stays whoever ran last, so a `p_*` op
+ * that reaches one of those helpers has to point the world at the bound player
+ * first, and put it back after (the shape `p_overhit` has always used).
+ * In a player's own script the two are the same player and this is a no-op.
+ */
+static struct ToriRSServerPlayer*
+script_world_bind_player(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServerPlayer* saved = srv->active_player;
+
+    assert(player);
+    if( saved != player )
+        ToriRSServer_WorldSetActive(srv, player);
+    return saved;
+}
+
+static void
+script_world_unbind_player(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerPlayer* saved)
+{
+    if( saved != player )
+        ToriRSServer_WorldSetActive(srv, saved);
+}
+
 /* Sailing cargo remains the captain's persistent inventory. The hull keeps
  * its slot, and every rider uses the same owner row through invother_transmit. */
 static struct ToriRSServerContainer*
@@ -5097,6 +5208,47 @@ container_dirty(
  * and so unreachable from a per-domain ops file, and the family's whole
  * difficulty is that there must be exactly one of it — see its comment. */
 
+/*
+ * The tick log's SOUND row for one `sound_synth`, with its source.
+ *
+ * `sound_area` is not an opcode: it is a content proc
+ * (general/scripts/misc/sound.rs2) that hunts every player within a distance
+ * of a coord and calls `sound_synth` once per player. So the only place the
+ * engine can tell an area sound from a plain one is here, by the proc the
+ * opcode is running in, and the tile and radius are that proc's own
+ * arguments. The three procs share one signature, `(synth $sound, int $delay,
+ * coord $coord, int $distance)`, so the coord is int local 2 and the distance
+ * int local 3.
+ */
+static void
+sound_synth_ticklog(
+    const struct SSVM_State* state,
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int sound,
+    int loops,
+    int delay)
+{
+    char const* name;
+    int source = TORIRSSERVER_TICKLOG_SOUND_SYNTH;
+    int coord = -1;
+    int radius = -1;
+
+    assert(state->script);
+    name = state->script->name;
+    if( strcmp(name, "[proc,sound_area]") == 0 || strcmp(name, "[proc,.sound_area]") == 0 )
+        source = TORIRSSERVER_TICKLOG_SOUND_AREA;
+    else if( strcmp(name, "[proc,sound_within_distance]") == 0 )
+        source = TORIRSSERVER_TICKLOG_SOUND_DISTANCE;
+    if( source != TORIRSSERVER_TICKLOG_SOUND_SYNTH )
+    {
+        assert(state->script->int_arg_count == 4);
+        coord = state->int_locals[2];
+        radius = state->int_locals[3];
+    }
+    ToriRSServer_TicklogSound(srv, player, sound, loops, delay, source, coord, radius, -1);
+}
+
 int
 ToriRSServer_ScriptCommand(
     struct SSVM_State* state,
@@ -5219,6 +5371,8 @@ ToriRSServer_ScriptCommand(
          */
         snprintf(npc->say, sizeof(npc->say), "%s", text);
         npc->masks |= TORIRSSERVER_NMASK_SAY;
+        /* The line as the mask carries it (truncated to `say` like the wire). */
+        ToriRSServer_TicklogNpcSay(npc, npc->say);
         return 1;
     }
 
@@ -5370,7 +5524,13 @@ ToriRSServer_ScriptCommand(
             player->clear_map_flag = 1;
         }
         else
+        {
+            /* `WorldWalkTo` walks `srv->active_player`; the branch above reads
+             * the bound `player`. Point the world at the same one. */
+            struct ToriRSServerPlayer* saved = script_world_bind_player(srv, player);
             ToriRSServer_WorldWalkTo(srv, x, z);
+            script_world_unbind_player(srv, player, saved);
+        }
         return 1;
     }
 
@@ -7747,12 +7907,19 @@ ToriRSServer_ScriptCommand(
         }
         if( values[0] == TORIRSSERVER_STAT_HITPOINTS )
         {
+            int const before = npc->hitpoints;
+
             step = values[1] + (npc->base_hitpoints * values[2]) / 100;
             npc->hitpoints += step;
             if( npc->hitpoints > TORIRSSERVER_NPC_STAT_MAX )
                 npc->hitpoints = TORIRSSERVER_NPC_STAT_MAX;
             if( npc->hitpoints < 0 )
                 npc->hitpoints = 0;
+            /* The tick log's npc_heal row (raid loop seam9): only a real gain. */
+            assert(state->script);
+            if( npc->hitpoints > before )
+                ToriRSServer_TicklogNpcHeal(npc, npc->hitpoints - before, npc->hitpoints,
+                                            npc->base_hitpoints, state->script->name);
             return 1;
         }
         step = values[1] + (npc_base_stat(npc, values[0]) * values[2]) / 100;
@@ -7851,7 +8018,20 @@ ToriRSServer_ScriptCommand(
         if( healed < 0 )
             healed = 0;
         if( values[0] == TORIRSSERVER_STAT_HITPOINTS )
+        {
             npc->hitpoints = healed;
+            /*
+             * The tick log's npc_heal row (raid loop seam9), the HIT_NPC row's
+             * mirror: only when the level rose, so a heal the base clamp ate
+             * (a full npc) is no row. Labelled with this script's name -- the
+             * Maiden's blood-spawn absorb and Verzik's Athanatos heal both
+             * arrive here and a ledger has to tell them apart.
+             */
+            assert(state->script);
+            if( healed > current )
+                ToriRSServer_TicklogNpcHeal(npc, healed - current, healed, base,
+                                            state->script->name);
+        }
         else
             npc->stat_drain[values[0]] = base - healed;
         return 1;
@@ -8015,6 +8195,8 @@ ToriRSServer_ScriptCommand(
         }
         ToriRSServer_ZoneLocAnim(srv, loc->x, loc->z, loc->level, loc->shape, loc->angle,
                               (int)seq_id);
+        ToriRSServer_TicklogLocAnim(srv, coord_pack(loc->level, loc->x, loc->z), loc->loc_id,
+                                    loc->shape, loc->angle, (int)seq_id);
         return 1;
     }
 
@@ -8402,9 +8584,14 @@ ToriRSServer_ScriptCommand(
             player->anim_id = -1;
             player->anim_delay = (int)values[1];
             player->masks |= TORIRSSERVER_PMASK_SEQUENCE;
+            ToriRSServer_TicklogPlayerAnim(srv, player, -1, (int)values[1]);
             return 1;
         }
-        ToriRSServer_AnimPlayPlayer(player, values[0], values[1]);
+        /* Logged only when it won the gate: a refused emote is not sent, and
+         * the row is what the client plays (the npc funnel's rule). This op is
+         * the only caller of the player funnel, so it is the one hook. */
+        if( ToriRSServer_AnimPlayPlayer(player, values[0], values[1]) )
+            ToriRSServer_TicklogPlayerAnim(srv, player, (int)values[0], (int)values[1]);
         return 1;
     }
 
@@ -8707,6 +8894,8 @@ ToriRSServer_ScriptCommand(
          * delay in the low. */
         player->spotanim_height_delay = (values[1] << 16) | (values[2] & 0xffff);
         player->masks |= TORIRSSERVER_PMASK_SPOTANIM;
+        ToriRSServer_TicklogPlayerSpotanim(srv, player, (int)values[0], (int)values[1],
+                                           (int)values[2]);
         return 1;
     }
 
@@ -9469,8 +9658,12 @@ ToriRSServer_ScriptCommand(
         struct ToriRSServerNpc* npc;
         const struct ToriRSServerNpcInfo* info;
         const char* verb;
-        struct ToriRSServerPlayer* player = srv->active_player;
+        struct ToriRSServerPlayer* saved_player;
 
+        /* The bound player, as every other `p_*` op reads it (LostCity
+         * PlayerOps.P_OPNPC: `state.activePlayer`). This used to shadow it
+         * with `srv->active_player`. */
+        assert(player);
         if( !SSVM_PopInt(state, &op_num) )
             return 1;
         if( op_num < 1 || op_num > 5 )
@@ -9512,7 +9705,7 @@ ToriRSServer_ScriptCommand(
          */
         if( strcmp(verb, "Attack") == 0 && ToriRSServer_CombatPlayerAfk(player) )
         {
-            ToriRSServer_CombatStopPlayer(srv);
+            ToriRSServer_CombatStopPlayerAt(player);
             return 1;
         }
         /*
@@ -9534,8 +9727,9 @@ ToriRSServer_ScriptCommand(
         if( strcmp(verb, "Attack") == 0 &&
             ToriRSServer_CombatSinglewayRefuses(srv, player, slot) )
             return 1;
-        ToriRSServer_WorldInteractionClear(srv);
+        ToriRSServer_WorldInteractionClearAt(player);
         ToriRSServer_WorldStepsClear(player);
+        saved_player = script_world_bind_player(srv, player);
         ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, (int)op_num, slot,
                                       npc->type, npc->x, npc->z, npc->level,
                                       info->size, info->size);
@@ -9544,6 +9738,7 @@ ToriRSServer_ScriptCommand(
             ToriRSServer_SceneNpcApproach(info->size, &approach);
             ToriRSServer_WorldWalkToApproach(srv, npc->x, npc->z, &approach);
         }
+        script_world_unbind_player(srv, player, saved_player);
         /* Attack keeps the engine face/approach latch; other ops do not. */
         if( strcmp(verb, "Attack") == 0 )
         {
@@ -9584,7 +9779,9 @@ ToriRSServer_ScriptCommand(
         int slot = (int)state->host_tag - 1;
         struct ToriRSServerNpc* npc;
         const struct ToriRSServerNpcInfo* info;
+        struct ToriRSServerPlayer* saved_player;
 
+        assert(player);
         if( !SSVM_PopInt(state, &spell) )
             return 1;
         if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX || !srv->npcs[slot].active )
@@ -9599,8 +9796,9 @@ ToriRSServer_ScriptCommand(
         }
         npc = &srv->npcs[slot];
         info = ToriRSServer_NpcInfo(npc->type);
-        ToriRSServer_WorldInteractionClear(srv);
+        ToriRSServer_WorldInteractionClearAt(player);
         ToriRSServer_WorldStepsClear(player);
+        saved_player = script_world_bind_player(srv, player);
         ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, 1, slot, npc->type, npc->x,
                                       npc->z, npc->level, info->size, info->size);
         player->interaction.spell = (int)spell;
@@ -9609,6 +9807,7 @@ ToriRSServer_ScriptCommand(
             ToriRSServer_SceneNpcApproach(info->size, &approach);
             ToriRSServer_WorldWalkToApproach(srv, npc->x, npc->z, &approach);
         }
+        script_world_unbind_player(srv, player, saved_player);
         return 1;
     }
 
@@ -12362,8 +12561,12 @@ ToriRSServer_ScriptCommand(
      * saves the player. Doing anything more here would duplicate that path.
      */
     case SS_OP_P_LOGOUT:
-        if( srv->active_player && srv->active_player->session )
-            ToriRSServer_SessionKill(srv->active_player->session);
+        /* The bound player (LostCity PlayerOps.P_LOGOUT: `state.activePlayer`).
+         * A selftest player has no session; that is a real state, not a
+         * contract violation. */
+        assert(player);
+        if( player->session )
+            ToriRSServer_SessionKill(player->session);
         return 1;
 
     case SS_OP_STAT_HEAL:
@@ -12496,7 +12699,11 @@ ToriRSServer_ScriptCommand(
         if( values[0] < 0 )
             return 1;
         if( player != NULL )
+        {
             ToriRSServer_SendSynthSound(player, values[0], values[1], values[2]);
+            if( ToriRSServer_TicklogEnabled(srv) )
+                sound_synth_ticklog(state, srv, player, values[0], values[1], values[2]);
+        }
         return 1;
     }
 
@@ -12536,6 +12743,8 @@ ToriRSServer_ScriptCommand(
                 ToriRSServer_SendMidiSongStop(player, 0, 30);
             else
                 ToriRSServer_SendMidiSong(player, id);
+            ToriRSServer_TicklogMusic(srv, player, id < 0 ? -1 : id,
+                                      TORIRSSERVER_TICKLOG_MUSIC_SCRIPT);
         }
         return 1;
     }
@@ -12575,7 +12784,10 @@ ToriRSServer_ScriptCommand(
             return 1;
         length_ms = (id < TORIRSSERVER_JINGLE_LENGTH_COUNT) ? k_ToriRSServer_JingleLengthMs[id] : 0;
         if( player != NULL )
+        {
             ToriRSServer_SendMidiJingle(player, id, length_ms);
+            ToriRSServer_TicklogJingle(srv, player, id, length_ms);
+        }
         return 1;
     }
 
@@ -13218,7 +13430,7 @@ ToriRSServer_ScriptCommand(
      */
     case SS_OP_P_COUNTDIALOG:
         player->last_int = 0;
-        ToriRSServer_SendIfOpencountdialog(srv->active_player);
+        ToriRSServer_SendIfOpencountdialog(player);
         SSVM_Suspend(state, SSVM_COUNTDIALOG);
         return 1;
 
@@ -13349,9 +13561,17 @@ ToriRSServer_ScriptCommand(
      * walk queue is not one, because a click that starts a script has already
      * replaced it — so that is the whole implementation rather than a partial
      * one.
+     *
+     * The player is the script's bound one (LostCity PlayerOps.ts P_STOPACTION:
+     * `state.activePlayer.stopAction()`), never `srv->active_player`: Vasilias'
+     * turn (tob_nylocas_boss.rs2 `~tob_vasilias_act`) binds each raider with
+     * `p_finduid(uid)` inside a `huntnext` loop, and stopping the phase's
+     * leftover player instead let every other raider's swing land on her
+     * retype tick.
      */
     case SS_OP_P_STOPACTION:
-        ToriRSServer_CombatStopPlayer(srv);
+        assert(player);
+        ToriRSServer_CombatStopPlayerAt(player);
         return 1;
 
     case SS_OP_P_LOCMERGE:

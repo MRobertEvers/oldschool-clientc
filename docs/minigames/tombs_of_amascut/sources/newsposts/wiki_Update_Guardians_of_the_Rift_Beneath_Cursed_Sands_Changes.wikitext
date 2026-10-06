@@ -1,0 +1,56 @@
+{{Update|date=4 May 2022|link=https://secure.runescape.com/m=news/guardians-of-the-rift--beneath-cursed-sands-changes?oldschool=1|category=game}}
+[[File:Guardians of the Rift & Beneath Cursed Sands Changes newspost.png|right]]
+{{clear}}
+
+''This week we’ve been working on improvements for our latest releases!''
+__TOC__
+==Guardians of the Rift Improvements==
+* Abyssal Red, Blue, and Green Dyes can now be used to recolour the Amulet of the Eye and the Lost Bag.
+* The Amulet of the Eye now gives you infinite teleports to the Guardians of the Rift lobby! You'll appear south of the portal when teleporting in.
+* Added the Tarnished Locket and the Lost Bag to the Collection Log. They will retroactively unlock for anyone who’s already received them as drops.
+* The Collection Log now displays the number of Rift Searches and Rifts Closed.
+
+==Beneath Cursed Sands Changes==
+Big thank you to everyone who delved into the Desert last week and returned with feedback for us!
+
+* Improved the Pharaoh’s Sceptre-charging dialogue to make it clear how many items are being taken and how many charges have been given as a result.
+* Removed the Slash bonus from the Keris Partisan.
+* Fixed animations on the Shadow Boss.
+
+==Other Changes==
+* Speaking of the Desert, the Easter Bunny has resolved his chocolate woes and returned home to start planning for Easter 2023. With a whole year to prepare, surely nothing can go wrong…
+* Fixed issues with the ‘Finding the Weak Spot’ Combat Achievement.
+* Hotfixed an unintended one-tick skilling method which occurred while cutting Fish from Aerial Fishing. A side effect of this fix means that multiple fish can now be cut in one tick - we've decided to leave this as-is.
+* Fixed an issue with unlocking the ‘Alchemical Hydra Veteran’ Combat Achievement.
+* The message given when checking charges on tridents now tell you what weapon they relate to.
+* An elven lamp was moved one tile east outside Priffdinas to make entering the dense forest there easier.
+* Adamant, Rune and Dragon Trophies from all 3 Leagues have had their weight reduced from 15kg to 1.5kg to better match the weight of lower tiers.
+* When flying a hot air balloon using logs from storage, you will now get told how many you have left of that type.
+* Pickaxes no longer randomly accelerate Mining by one tick on free-to-play worlds.
+* Some incorrect directions were fixed in the Biohazard quest.
+* Fixed a typo in the Settings menu.
+
+==RuneScape Kingdoms: Shadow of Elvarg==
+By now we expect you’ve seen the news – we’ve partnered with Steamforged to bring the magical world of Gielinor to the tabletop in RuneScape Kingdoms: Shadow of Elvarg!
+
+[[File:Guardians of the Rift & Beneath Cursed Sands Changes (1).png|centre|600px]]
+
+Steamforged are releasing weekly blogs in the build up to their '''Kickstarter on May 31st.''' Tune in to learn all about how to play the game, and be among the first to see new cards and minis!
+
+This [https://steamforged.com/blogs/brands/skills-in-runescape-board-game week’s blog] covers how skilling works in the game and reveals the latest player avatar mini – Archer.
+
+[[File:Guardians of the Rift & Beneath Cursed Sands Changes (2).jpg|centre|600px]]
+
+When danger strikes, Archers ensures no foe gets close enough to pose a threat! Completing the melee, magic, and ranged combat triangle, Archers gives you a full selection of combat-focused minis to choose from.
+
+Inspired by early-game ranged gear, Archers are equipped with a Shortbow and Bronze Arrows. Like their weapons, their Leather Body, Chaps, and Boots are cheap and easy to come by — ideal for someone just beginning their journey into RuneScape Kingdoms.
+
+Steamforged's Kickstarter will only run for '''10 days,''' so sign up here and be the first to know when it goes live!
+
+----
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,807,66252425 official forums], on the [https://www.reddit.com/r/2007scape/comments/ui33ks/guardians_of_the_rift_beneath_cursed_sands/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the#gameupdatechannel. For reference on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

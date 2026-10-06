@@ -8,8 +8,10 @@ import re
 import sys
 from pathlib import Path
 
+import config_text
 
-REPO = Path(__file__).resolve().parents[1]
+
+REPO =Path(__file__).resolve().parents[1]
 DEFAULT_TREE = REPO / "OSRS-Content/osrs239-content"
 DEFAULT_MANIFEST = REPO / "docs/summoning_port/pet_guide_assets_727.ini"
 LANE = Path("ported/scape2009_summoning")
@@ -41,7 +43,7 @@ def records(path: Path) -> dict[str, str]:
         match.group(1): match.group(2)
         for match in re.finditer(
             r"^\[([^]]+)\]\n(.*?)(?=^\[|\Z)",
-            path.read_text(encoding="utf-8"),
+            config_text.read_text(path, encoding="utf-8"),
             re.MULTILINE | re.DOTALL,
         )
     }
@@ -84,9 +86,9 @@ def main() -> int:
         for name in exports.values():
             row_name = "summoning_skill_guide_feature_pet_" + name
             row = guide_records.get(row_name, "")
-            expect("columndef=0:icon,obj\n" in row,
-                   f"skill-guide row {row_name} does not declare an object icon")
-            expect(f"values=0:0:{PREFIX}{name}\n" in row,
+            # The authored grammar: the row names its column, and the table's
+            # schema (not the row) says `icon` is an obj.
+            expect(f"data=icon,{PREFIX}{name}\n" in row,
                    f"skill-guide row {row_name} is not bound to {PREFIX}{name}")
 
         obj_alloc = number_pack(lane / "pack/obj.alloc")

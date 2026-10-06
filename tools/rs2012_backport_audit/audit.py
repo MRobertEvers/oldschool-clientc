@@ -84,6 +84,9 @@ except ImportError:  # degraded but functional
 TOOL_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(TOOL_DIR))
 
+sys.path.insert(0, os.path.dirname(TOOL_DIR))
+import config_text  # noqa: E402  (tools/config_text.py)
+
 # Engine constants the findings are judged against (3rd/toridraw/toridraw.c).
 DEPTH_LEVELS_REFERENCE = 1500
 DEPTH_LEVELS_16K = 16384
@@ -226,7 +229,7 @@ def parse_seq_config(path, wanted):
     sections = {}
     current = None
     with open(path, "r", encoding="utf-8", errors="replace") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.strip()
             if line.startswith("[") and line.endswith("]"):
                 current = line[1:-1]

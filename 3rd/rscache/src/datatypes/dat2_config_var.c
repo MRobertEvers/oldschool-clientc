@@ -40,6 +40,7 @@ RSCache_Dat2ConfigVarbitInit(struct RSCache_Dat2ConfigVarbit* entry)
     entry->basevar = -1;
     entry->startbit = 0;
     entry->endbit = 0;
+    RSCache_PresenceReset(&entry->present);
 }
 
 bool
@@ -55,6 +56,7 @@ RSCache_Dat2ConfigVarbitDecodeOp(
         entry->basevar = g2(buffer);
         entry->startbit = g1(buffer);
         entry->endbit = g1(buffer);
+        RSCache_PresenceSet(&entry->present, RSCACHE_VARBIT_FIELD_BITS);
         return true;
     }
     if( opcode == 10 )
@@ -62,6 +64,7 @@ RSCache_Dat2ConfigVarbitDecodeOp(
         char* name = gcstring(buffer);
         free(entry->debugname);
         entry->debugname = name;
+        RSCache_PresenceSet(&entry->present, RSCACHE_VARBIT_FIELD_DEBUGNAME);
         return true;
     }
     /* Stop rather than guess a width — see the header. */
@@ -77,7 +80,9 @@ RSCache_Dat2ConfigVarbitDecodeInplace(
     assert(entry != NULL);
     if( !data || data_size <= 0 )
     {
-        entry->basevar = -1;
+        /* No bytes is an empty record, not a bad argument: the defaults, nothing
+         * stated. */
+        RSCache_Dat2ConfigVarbitInit(entry);
         return;
     }
 
@@ -90,8 +95,7 @@ RSCache_Dat2ConfigVarbitDecodeInplace(
 uint32_t
 RSCache_Dat2ConfigVarbitEncodeBound(const struct RSCache_Dat2ConfigVarbit* entry)
 {
-    if( !entry )
-        return 0;
+    assert(entry);
     /* opcode 1 + u16 + u8 + u8, then opcode 10 + string, then the terminator. */
     uint32_t bound = 5u + 1u;
     if( entry->debugname )
@@ -105,30 +109,32 @@ RSCache_Dat2ConfigVarbitEncode(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !entry || !out )
-        return 0;
-    if( out_capacity < RSCache_Dat2ConfigVarbitEncodeBound(entry) )
-        return 0;
-    if( entry->startbit < 0 || entry->startbit > 255 )
-        return 0;
-    if( entry->endbit < 0 || entry->endbit > 255 )
-        return 0;
+    assert(entry);
+    assert(out);
+    assert(out_capacity >= RSCache_Dat2ConfigVarbitEncodeBound(entry));
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
 
-    /* basevar is the only field opcode 1 can be inferred from: -1 is the "absent"
-     * marker the decoder writes when the opcode was missing. */
-    if( entry->basevar >= 0 )
+    /* Stated, not inferred: this used to write opcode 1 only when basevar >= 0,
+     * reading the decoder's -1 default as "absent". */
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_VARBIT_FIELD_BITS) )
     {
+        assert(entry->basevar >= 0);
+        assert(entry->basevar <= 0xFFFF);
+        assert(entry->startbit >= 0);
+        assert(entry->startbit <= 255);
+        assert(entry->endbit >= 0);
+        assert(entry->endbit <= 255);
         p1(&buffer, 1);
         p2(&buffer, entry->basevar);
         p1(&buffer, entry->startbit);
         p1(&buffer, entry->endbit);
     }
 
-    if( entry->debugname )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_VARBIT_FIELD_DEBUGNAME) )
     {
+        assert(entry->debugname);
         p1(&buffer, 10);
         pjstr(&buffer, entry->debugname, RSCACHE_JSTR_TERMINATOR_NULL);
     }
@@ -165,6 +171,8 @@ RSCache_Dat2ConfigVarplayerDecode(
     assert(entry != NULL);
     assert(buffer != NULL);
 
+    RSCache_PresenceReset(&entry->present);
+
     for( ;; )
     {
         if( buffer->position >= buffer->size )
@@ -190,6 +198,7 @@ RSCache_Dat2ConfigVarplayerDecodeOp(
     if( opcode == 5 )
     {
         entry->clientcode = g2(buffer);
+        RSCache_PresenceSet(&entry->present, RSCACHE_VARP_FIELD_CLIENTCODE);
         return true;
     }
     return false;
@@ -231,13 +240,9 @@ RSCache_Dat2ConfigVarplayerEncode(
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
 
-    /*
-     * Emitted when non-zero. Exact for the corpus: observed clientcodes run 1..22 and
-     * no record carries an explicit zero, so "0" and "absent" do not collide in
-     * practice. A record that did carry an explicit 0 would re-encode one opcode
-     * shorter with the same meaning.
-     */
-    if( entry->clientcode != 0 )
+    /* Stated, not inferred: this used to write the opcode when the value was
+     * non-zero, so a record carrying an explicit 0 re-encoded one opcode short. */
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_VARP_FIELD_CLIENTCODE) )
     {
         p1(&buffer, 5);
         p2(&buffer, entry->clientcode);
@@ -256,6 +261,8 @@ RSCache_Dat2ConfigVarclientDecode(
 {
     assert(entry != NULL);
     assert(buffer != NULL);
+
+    RSCache_PresenceReset(&entry->present);
 
     for( ;; )
     {
@@ -282,12 +289,13 @@ RSCache_Dat2ConfigVarclientDecodeOp(
     if( opcode == 2 )
     {
         entry->persist = 1;
+        RSCache_PresenceSet(&entry->present, RSCACHE_VARC_FIELD_PERSIST);
         return true;
     }
     if( opcode == 3 )
     {
         entry->opcode_3 = g2(buffer);
-        entry->has_opcode_3 = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_VARC_FIELD_OPCODE_3);
         return true;
     }
     return false;
@@ -329,12 +337,12 @@ RSCache_Dat2ConfigVarclientEncode(
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
 
-    if( entry->persist )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_VARC_FIELD_PERSIST) )
         p1(&buffer, 2);
 
     /* Keyed on presence, not value: 40 records in the corpus carry opcode 3 with an
      * explicit 0, so a value test would drop the opcode and change the byte count. */
-    if( entry->has_opcode_3 )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_VARC_FIELD_OPCODE_3) )
     {
         p1(&buffer, 3);
         p2(&buffer, entry->opcode_3);

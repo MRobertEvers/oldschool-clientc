@@ -1,0 +1,119 @@
+{{Update|date=14 March 2019|link=https://secure.runescape.com/m=news/updated-quest-panel-sandstone-grinder-and-qol?oldschool=1|category=game}}
+[[File:Updated Quest Panel, Sandstone Grinder and QoL newspost.png|right]]
+{{clear}}
+
+<center>''This week sees the release of a player-submitted rework for the Quest side-panel, Drew and his Sandstone machine and Quality of Life changes.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|The Quest Panel}}
+
+
+Thanks to ''GentleTractor's'' preliminary designs, we have updated the Quest side panel to have a more intuitive tab system. This will now allow you to switch more easily between the Quest, Achievement Diaries, Minigames and Kourend Favour lists. There is scope for further tabs to be added if necessary, however we think that suggestions we have received so far such as a "player summary" tab would be better placed elsewhere in the user interface.
+
+[[File:Updated Quest Panel, Sandstone Grinder and QoL (1).png|center|350px]]
+
+
+{{Horizontal Line}}
+
+{{Headline|22|QoL Changes}}
+
+
+The changes below include some of those suggested during the final week of QoL month: Miscellaneous.
+
+'''Oldak Accepts Noted Glass'''
+
+[[File:Updated Quest Panel, Sandstone Grinder and QoL (2).png|center|100px]]
+
+Players may now use noted Molten Glass to create Dorgesh-kaan spheres.
+
+
+'''Brimstone Chest Counter'''
+
+[[File:Updated Quest Panel, Sandstone Grinder and QoL (3).png|center|200px]]
+
+The Brimstone Chest found by Konar on Mount Karuulm now tracks the amount of times the player has opened it. The number will appear in your message box each time you open it and can be checked at any time by right-click the chest. As per usual when adding counters in-game, this will only track the number you have opened since this update.
+
+
+'''Mystic Robe Sets'''
+
+Sets are now available from the Grand Exchange for all versions of Mystic Armour.
+
+[[File:Updated Quest Panel, Sandstone Grinder and QoL (4).png|center|200px]]
+<br/>
+[[File:Updated Quest Panel, Sandstone Grinder and QoL (5).png|center]]
+
+
+'''Varrock Museum Cleaning Process'''
+
+The process of cleaning finds at the Varrock Museum has been vastly improved! The following changes have been made:
+*Players can now hold as many Uncleaned finds as they want.
+*Picking up finds has been automated however it's still faster to manually pick up the rocks.
+*The click area of the rocks has been improved.
+*The pile of rocks on the left can now also be clicked on to get uncleaned finds.
+*Specimen tables now have a left-click clean option to clean your finds.
+*Cleaning finds is now done automatically.
+*Cleaning finds has been sped up.
+*When taking tools from the wall to work with, you will now be given everything you don't currently have to be able to clean finds with rather than having to take one of everything.
+*The storage crates at the corner of the museum now have a left-click option which allows you to deposit all the useless finds you have.
+*The Museum guard no longer asks you if you would like to enter the cleaning area every time you try to enter. He will only ask on the first time of every session.
+
+[[File:Updated Quest Panel, Sandstone Grinder and QoL (6).png|center]]
+
+
+'''Right-Click Travel on Veos and Magoro'''
+
+Veos and Captain Magoro now have right click options for their destinations of Port Sarim, Port Piscarilius and Land's End.
+
+
+'''Sandstone to Sand'''
+
+Drew and his Sandstone Grinder have been added to the West of the Granite Quarry. Drew can store up to 25,000 noted buckets. Players may take unnoted Sandstone to the grinder to generate up to 25,000 sand charges. Each size of sandstone brick from 10KG down to 1KG used to charge the grinder will provide 8/4/2/1 sand charges. Players can then claim noted buckets of sand from Drew at a cost of 50 GP, 1 sand charge and 1 stored bucket.
+
+[[File:Updated Quest Panel, Sandstone Grinder and QoL (7).png|center|600px]]
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Song of the Elves: Rewards and Extras}}
+
+
+[[File:Updated Quest Panel, Sandstone Grinder and QoL (8).png|center|125px]]
+
+
+For those of you who haven't given feedback already, here's a reminder for Song of the Elves post-quest content suggestions:
+
+Following the main content passing the polls, now's our chance to go in depth with the smaller rewards and features you would like to see in Prifddinas. Once we've gathered your ideas and put together our own, a second poll blog will be posted with the top suggestions for minor content in the Crystal City. If you would like to get involved and potentially have your ideas made reality in Old School, get involved in the discussion on [https://www.reddit.com/r/2007scape/comments/ax8w3t/song_of_the_elves_rewards_and_extras/ Reddit], [https://twitter.com/OldSchoolRS/status/1102612527282880512 Twitter], and the [http://services.runescape.com/m=forum/forums.ws?380,381,552,66087651 Official Forums].
+
+You may remember that we decided not to poll Crystal armour in the first poll as you weren't happy with the final design (in terms of stats and set effect) and neither were we. To make sure we get it right, we're also holding a separate discussion on separate threads on [https://www.reddit.com/r/2007scape/comments/ax8vmq/crystal_armour_balancing/ Reddit], [https://twitter.com/OldSchoolRS/status/1102962117509087234 Twitter] and the [http://services.runescape.com/m=forum/forums.ws?380,381,553,66087652 Official Forums]. Alternatively you can email in your suggestions to OldSchoolCommunity@Jagex.com. The deadline for all suggestions is '''Friday the 29th of March'''.
+
+
+{{Horizontal Line}}
+
+
+[[File:Updated Quest Panel, Sandstone Grinder and QoL (9).png|center|250px]]
+
+We're now in the final week of our Twitch Prime promotion which is due to end on '''March 19th'''. If you haven't claimed yours already make sure you don't miss out on this offer which includes 14 days of membership! You can find out everything you need to know about Twitch Prime on this page.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+
+*The Enchant spells are no longer offered in the Chambers of Xeric, as the stat-boosts in there are unusually large and were not intended for getting oneself permanent access to items unrelated to the Chambers.
+*Some cooking ranges on Lunar Isle were not working as ranges, and have been fixed.
+*A rogue smoke cloud has been removed from the TzHaar bank.
+*When getting a hard or medium contract from Jane, the dialogue now allows you to ask for an easier one without you having to end and restart the dialogue.
+*Wyrms were occasionally dropping regular bones instead of their intended wyrm bones. This has been fixed.
+*When world-hopping to a PvP world, the chatbox warning now specifies if the PvP world is 'high risk'.
+*Guthix dragonhide body armour is now called "d'hide" like the d'hide armour of other gods.
+*God spell icons, when not highlighted, have had their tint slightly change to better resemble their new highlighted colours.
+*The item sets interface now correctly displays click or tap depending on whether you are on desktop or mobile.
+*Players may no longer enchant jewelry within the Chambers of Xeric.
+
+{{Horizontal Line}}
+
+Discuss this update on our [https://chbs25.jagex.com:18201/forums.ws?380,381,554,66088110 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''''Mods Acorn, Archie, Ash, Bruno, Curse, Ed, Gambit, Ghost, Gee, Husky, Kieren, Lenny, Lottie, Mat K, Maz, Nasty, Roq, Ry, Sween, Tide, Weath, West & Wolf'''''<br/>''The Old School Team''

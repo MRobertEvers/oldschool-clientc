@@ -43,6 +43,8 @@ import re
 import sys
 from pathlib import Path
 
+import config_text
+
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT = [
     ROOT
@@ -80,7 +82,7 @@ def parse_blocks(text: str):
 def check(paths) -> int:
     failures = 0
     for path in paths:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = config_text.read_text(path, encoding="utf-8", errors="replace")
         blocks = parse_blocks(text)
 
         for name in CRAB_FORMS:
@@ -131,7 +133,7 @@ def main() -> int:
 
         with tempfile.TemporaryDirectory() as tmp:
             broken = Path(tmp) / "cox.npc"
-            text = paths[0].read_text(encoding="utf-8", errors="replace")
+            text = config_text.read_text(paths[0], encoding="utf-8", errors="replace")
             mutated = text.replace(
                 "[raids_lasercrabs_crab_red]\nhitpoints=5000\nattack=140\nstrength=140\ndefence=100\nparam=attackrate,4\nparam=attackrange,1\nparam=huntrange,^cox_crab_huntrange\nhuntmode=aggressive\n",
                 "[raids_lasercrabs_crab_red]\nhitpoints=5000\nattack=140\nstrength=140\ndefence=100\nparam=attackrate,4\nparam=attackrange,1\nparam=huntrange,^cox_crab_huntrange\n",

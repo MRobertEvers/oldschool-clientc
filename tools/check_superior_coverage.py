@@ -22,6 +22,8 @@ import os
 import re
 import sys
 
+import config_text
+
 CACHE = "OSRS-Content/osrs239-content/configs/all.npc"
 PROC = ("OSRS-Content/osrs239-content/server/scripts/skill_slayer/scripts/"
         "slayer_superior.rs2")
@@ -33,7 +35,7 @@ VARIANT_MARKS = ("_nolure", "_dead", "_spawn", "_ice", "_death", "_kourend",
 
 
 def cache_superiors(path):
-    text = io.open(path, encoding="utf-8", errors="replace").read()
+    text = config_text.read_text(path, encoding="utf-8", errors="replace")
     out = []
     for block in text.split("\n\n"):
         head = block.split("\n", 1)[0].strip()

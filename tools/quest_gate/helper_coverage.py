@@ -208,6 +208,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
 
 import ledger  # noqa: E402
 
+_sys.path.append(_os.path.dirname(_HERE))   # tools/, for the shared config_text reader
+import config_text  # noqa: E402
+
 QUEUE_PATH = os.path.join(REPO_ROOT, "test", "quests", "QUEUE.tsv")
 AUDIT_PATH = os.path.join(HERE, "helper_coverage.tsv")
 CONTENT_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts")
@@ -1565,6 +1568,7 @@ def content_index():
         return _CONTENT_INDEX
     triggers = {}
     categories = {}
+    cleared = set()   # rank-1 blocks whose `category=default` clears the cache's category
     debugprocs = {}
     header = re.compile(r"^\[(\w+),([\w:]+)\]")
     for directory, dirnames, filenames in os.walk(CONTENT_ROOT):
@@ -1593,7 +1597,18 @@ def content_index():
             elif filename.endswith((".loc", ".npc", ".obj")):
                 with open(path, "r", encoding="utf-8", errors="replace") as handle:
                     name = None
-                    for line in handle:
+                    for raw in handle:
+                        line = config_text.filter_line(raw)
+                        if line is None:
+                            # `key=default` / `key=empty`. An overlay's
+                            # `category=default` CLEARS the cache record's
+                            # category: the all.<kind> pass below must not
+                            # fill it back in.
+                            key, value = config_text.split_line(raw)
+                            if name and key == "category" and config_text.is_default(value):
+                                categories.pop(name, None)
+                                cleared.add(name)
+                            continue
                         match = re.match(r"^\[(\w+)\]", line)
                         if match:
                             name = match.group(1)
@@ -1601,6 +1616,7 @@ def content_index():
                         cat = re.match(r"^category=(\w+)", line)
                         if name and cat:
                             categories[name] = cat.group(1)
+                            cleared.discard(name)
     # The cache's own configs carry most categories, as numbers.
     pack_root = os.path.join(os.path.dirname(os.path.dirname(CONTENT_ROOT)))
     category_names = {}
@@ -1615,13 +1631,12 @@ def content_index():
         path = os.path.join(pack_root, "configs", "all." + kind)
         if not os.path.isfile(path):
             continue
-        with open(path, "r", encoding="utf-8", errors="replace") as handle:
-            text = handle.read()
+        text = config_text.read_text(path, encoding="utf-8", errors="replace")
         for match in re.finditer(r"^\[(\w+)\]\n((?:[^\[\n].*\n|\n(?!\[))*)", text, re.M):
             symbol, body = match.group(1), match.group(2)
             SYMBOLS.add((kind, symbol))
             cat = re.search(r"^category=(\w+)", body, re.M)
-            if cat and symbol not in categories:
+            if cat and symbol not in categories and symbol not in cleared:
                 categories[symbol] = category_names.get(cat.group(1), cat.group(1))
             display = re.search(r"^name=(.*)$", body, re.M)
             if display:

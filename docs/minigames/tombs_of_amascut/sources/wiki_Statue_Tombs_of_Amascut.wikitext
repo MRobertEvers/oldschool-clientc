@@ -1,0 +1,128 @@
+{{Infobox Scenery
+|version1 = Bronze
+|version2 = Iron
+|version3 = Steel
+|version4 = Black
+|version5 = Mithril
+|version6 = Adamant
+|version7 = Rune
+|version8 = Gilded
+|version9 = Dragon
+|version10 = Dragon (or)
+|version11 = Dragon (upgraded)
+|version12 = 3rd age
+|version13 = Infernal
+|version14 = Crystal
+|version15 = Trailblazer
+|version16 = Echo
+|version17 = Empty (unused)
+|name = Statue
+|image1 = [[File:Statue (Tombs of Amascut, bronze).png|200px]]
+|image2 = [[File:Statue (Tombs of Amascut, iron).png|200px]]
+|image3 = [[File:Statue (Tombs of Amascut, steel).png|200px]]
+|image4 = [[File:Statue (Tombs of Amascut, black).png|200px]]
+|image5 = [[File:Statue (Tombs of Amascut, mithril).png|200px]]
+|image6 = [[File:Statue (Tombs of Amascut, adamant).png|200px]]
+|image7 = [[File:Statue (Tombs of Amascut, rune).png|200px]]
+|image8 = [[File:Statue (Tombs of Amascut, gilded).png|200px]]
+|image9 = [[File:Statue (Tombs of Amascut, dragon).png|200px]]
+|image10 = [[File:Statue (Tombs of Amascut, ornamental).png|200px]]
+|image11 = [[File:Statue (Tombs of Amascut, upgraded).png|200px]]
+|image12 = [[File:Statue (Tombs of Amascut, 3rd age).png|200px]]
+|image13 = [[File:Statue (Tombs of Amascut, infernal).png|200px]]
+|image14 = [[File:Statue (Tombs of Amascut, crystal).png|200px]]
+|image15 = [[File:Statue (Tombs of Amascut, trailblazer).png|200px]]
+|image16 = [[File:Statue (Tombs of Amascut, echo).png|200px]]
+|image17 = [[File:Statue (Tombs of Amascut).png|200px]]
+|release1 = [[24 August]] [[2022]]
+|release2 = [[24 August]] [[2022]]
+|release3 = [[24 August]] [[2022]]
+|release4 = [[24 August]] [[2022]]
+|release5 = [[24 August]] [[2022]]
+|release6 = [[24 August]] [[2022]]
+|release7 = [[24 August]] [[2022]]
+|release8 = [[24 August]] [[2022]]
+|release9 = [[24 August]] [[2022]]
+|release10 = [[24 August]] [[2022]]
+|release11 = [[24 August]] [[2022]]
+|release12 = [[24 August]] [[2022]]
+|release13 = [[24 August]] [[2022]]
+|release14 = [[24 August]] [[2022]]
+|release15 = [[24 August]] [[2022]]
+|release16 = [[27 November]] [[2024]]
+|release17 = [[24 August]] [[2022]]
+|update1 = Tombs of Amascut
+|update2 = Tombs of Amascut
+|update3 = Tombs of Amascut
+|update4 = Tombs of Amascut
+|update5 = Tombs of Amascut
+|update6 = Tombs of Amascut
+|update7 = Tombs of Amascut
+|update8 = Tombs of Amascut
+|update9 = Tombs of Amascut
+|update10 = Tombs of Amascut
+|update11 = Tombs of Amascut
+|update12 = Tombs of Amascut
+|update13 = Tombs of Amascut
+|update14 = Tombs of Amascut
+|update15 = Tombs of Amascut
+|update16 = Leagues V: Raging Echoes OUT NOW!
+|update17 = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Tombs of Amascut]]
+|options = Take-pickaxe, Deposit-pickaxe
+|examine1 = The statue of Het is holding out a bronze pickaxe.
+|examine2 = The statue of Het is holding out an iron pickaxe.
+|examine3 = The statue of Het is holding out a steel pickaxe.
+|examine4 = The statue of Het is holding out a black pickaxe.
+|examine5 = The statue of Het is holding out a mithril pickaxe.
+|examine6 = The statue of Het is holding out an adamant pickaxe.
+|examine7 = The statue of Het is holding out a rune pickaxe.
+|examine8 = The statue of Het is holding out a gilded rune pickaxe.
+|examine9 = The statue of Het is holding out a dragon pickaxe.
+|examine10 = The statue of Het is holding out a dragon pickaxe.
+|examine11 = The statue of Het is holding out a dragon pickaxe.
+|examine12 = The statue of Het is holding out a 3rd age pickaxe.
+|examine13 = The statue of Het is holding out an infernal pickaxe.
+|examine14 = The statue of Het is holding out a crystal pickaxe.
+|examine15 = The statue of Het is holding out a trailblazer pickaxe.
+|examine16 = The statue of Het is holding out an Echo pickaxe.
+|examine17 = A statue of Het.
+|map = {{Map|x:3662,y:5275|x:3662,y:5283|x:3679,y:5267|x:3679,y:5291|x:3695,y:5284|mapID=-1|mtype=pin}}
+|id1 = 45469,45470
+|id2 = 45471
+|id3 = 45472
+|id4 = 45473
+|id5 = 45474
+|id6 = 45475
+|id7 = 45476
+|id8 = 45477
+|id9 = 45478
+|id10 = 45479
+|id11 = 45480
+|id12 = 45481
+|id13 = 45482
+|id14 = 45483
+|id15 = 45484
+|id16 = 55808
+|id17 = 45468
+}}
+A '''statue''' can be found inside the [[Tombs of Amascut]], inside the [[Tombs of Amascut/Strategies|Path of Het]] challenge room. It can be used to store the player's pickaxe during and after the raid. If the pickaxe is left there after completing the room or failing the raid, the player can reclaim it by starting a new raid and going to the room.
+
+If no pickaxe is stored, the statue at the entrance to the room will be holding a free [[bronze pickaxe]].
+
+Both charged and uncharged versions of the [[infernal pickaxe]] and its [[Infernal pickaxe (or)|trailblazer ornamental]] version can be put on the statue.
+
+A [[cavity]] in the raid lobby can be used to deposit or retrieve pickaxes without needing to enter the raid itself.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 September 2022
+|update = Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas
+|change = The Path of Het challenge room now has a Pickaxe Statue near the exit.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

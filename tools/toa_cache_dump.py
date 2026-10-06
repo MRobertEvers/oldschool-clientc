@@ -8,6 +8,8 @@ Writes one file per config type: the numeric id, the cache's own symbol, and
 """
 import re, sys, pathlib
 
+import config_text
+
 CONTENT = pathlib.Path(sys.argv[1])
 OUT = pathlib.Path(sys.argv[2])
 OUT.mkdir(parents=True, exist_ok=True)
@@ -49,7 +51,7 @@ def records(kind):
     p = CONTENT / "configs" / f"all.{kind}"
     if not p.exists():
         return {}
-    text = p.read_text(encoding="cp1252", errors="replace")
+    text = config_text.read_text(p, encoding="cp1252", errors="replace")
     out, cur, buf = {}, None, []
     for line in text.splitlines():
         m = re.match(r"^\[([^\]]+)\]\s*$", line)
@@ -132,15 +134,20 @@ INVOCATION_PARAMS = [
 
 
 def dump_invocations():
-    text = (CONTENT / "configs" / "all.struct").read_text(encoding="cp1252",
-                                                          errors="replace")
+    # `param=<name>,<value>`: a value's kind is its param's declared type, and a
+    # reference-typed one (1346, the prerequisite struct) is the record's name.
+    param_types = config_text.param_types(CONTENT / "configs/all.param",
+                                          encoding="cp1252")
+    names = config_text.Names(CONTENT)
+    text = config_text.read_text(CONTENT / "configs" / "all.struct",
+                                 encoding="cp1252", errors="replace")
     rows = []
     for block in re.split(r"\n(?=\[)", text):
         m = re.match(r"\[struct_(\d+)\]", block)
         if not m:
             continue
-        params = dict(re.findall(r"^param=(param_\d+),(?:int|str),(.*)$",
-                                 block, re.M))
+        params = config_text.param_values(
+            re.findall(r"^param=(param_\d+,.*)$", block, re.M), param_types, names)
         if "param_1159" not in params or "param_1160" not in params:
             continue
         rows.append([int(params["param_1159"]), int(m.group(1)),

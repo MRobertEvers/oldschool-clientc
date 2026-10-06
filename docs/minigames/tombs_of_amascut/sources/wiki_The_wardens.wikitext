@@ -1,0 +1,40 @@
+{{Infobox Item
+|name = The wardens
+|image = [[File:The wardens.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Read, Drop
+|examine = A book about the Wardens.
+|value = 30
+|alchable = No
+|weight = 0.510
+|id = 27310
+}}
+[[File:The wardens detail.png|left|150px]]
+'''The wardens''' is a book dropped by either [[Tumeken's Warden]] or [[Elidinis' Warden]] upon defeating them in the [[Tombs of Amascut]].  Written by [[Akila]], the book details the divine weapons that [[Amascut]] came for in [[Osmumten]]'s tomb.
+
+The book can be stored in and retrieved from the bookcase in a [[player-owned house]].
+
+==Transcript==
+{{Hastranscript|The wardens|transclude=yes}}
+
+==Item sources==
+{{Drop sources|The wardens}}
+
+==Gallery==
+<gallery mode="packed" heights="150" style="text-align:center">
+File:The wardens (interface, 1).png|Pages 1-2
+File:The wardens (interface, 2).png|Pages 3-4
+File:The wardens (interface, 3).png|Pages 5-6
+</gallery>
+
+{{Into the Tombs}}
+{{Tombs of Amascut}}
+[[Category:Texts and tomes]]
+[[Category:Storable in bookcases]]

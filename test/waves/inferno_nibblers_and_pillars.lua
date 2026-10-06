@@ -63,7 +63,7 @@ local function eat_if_low(t, below)
     return false
 end
 local function pray_if_low(t)
-    local _, _, pts = t.prayer.points()
+    local _, pts, _ = t.prayer.points()
     if pts and pts.level and pts.level < 35 then t.player.drink("prayer_potion") end
 end
 

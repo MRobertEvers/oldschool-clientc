@@ -1,0 +1,218 @@
+== Introduction ==
+I am [[User:Yubam|Jae]], Yubam ingame, or jae.zip on Discord, and here's my information dump on how to construct a max efficiency setup for [[Tombs of Amascut]]. The setup that you should bring will vary wildly depending on what invocations are on, and who you are raiding with, so I will try to provide as much information as to what you should consider for your setup. For now, I am only writing information regarding max gear, but I may add more in the future when I have time. 
+
+This was created on March 1st, 2025. Future items may change setups (such as [[Avernic treads]], or [[Surge potion]])
+
+'''(3/11/2025: Cool this is outdated! I will update once everything comes out)'''
+==Just give me a setup==
+<tabber>
+Team ToA (dehydration off, ~410 invo) =
+{{Loadout
+|loadoutname = teamtoa
+|loadouticon = Tumeken's guardian
+|head = sanguine torva full helm
+|cape = dizana's max cape
+|neck = necklace of anguish
+|ammo = ruby dragon bolts (e)
+|ammo2 = dragon arrow
+|weapon = voidwaker
+|torso = masori body (f)
+|legs = masori chaps (f)
+|shield = avernic defender
+|gloves = zaryte vambraces
+|boots = primordial boots
+|ring = lightbearer
+|tumeken's shadow|occult necklace|ancestral robe top|ancestral hat
+|zamorak max cape|tormented bracelet|ancestral robe bottom|eternal boots
+|osmumten's fang (or) |amulet of rancour |sanguine torva platebody  |twisted bow
+|infernal max cape |ferocious gloves  |sanguine torva platelegs |zaryte crossbow 
+|keris partisan of the sun  |toxic blowpipe  |saradomin brew(4) |saradomin brew(4) 
+|sanfew serum(4)  |sanfew serum(4)  |sanfew serum(4)  |sanfew serum(4)
+|dragon dagger  |divine super combat potion(2)  |Book of the Dead  |divine rune pouch 
+|rune1 = blood rune
+|rune2 = cosmic rune
+|rune3 = fire rune
+|rune4 = death rune
+|spell1 = Arceuus spellbook
+|spell2 = Resurrect Greater Ghost
+|spell3 = Death Charge
+|spell4 = placeholder
+|spell5 = placeholder
+}}
+|-|
+Solo ToA (dehydration on, 540 invo)=
+{{Loadout
+|loadoutname = solotoa
+|loadouticon = Tumeken's shadow
+|head = sanguine torva full helm
+|cape = dizana's max cape
+|neck = amulet of rancour
+|ammo = dragon arrow
+|ammo2 = amethyst arrow
+|weapon = ghrazi rapier
+|torso = masori body (f)
+|legs = masori chaps (f)
+|shield = avernic defender
+|gloves = ferocious gloves
+|boots = primordial boots
+|ring = ultor ring
+|tumeken's shadow|occult necklace|ancestral robe top|ancestral hat
+|zamorak max cape|tormented bracelet|ancestral robe bottom|magus ring
+|osmumten's fang (or) |sanguine torva platebody |twisted bow  |eternal boots
+|infernal max cape |black chinchompa  |seercull |bone dagger
+|keris partisan of the sun  |toxic blowpipe  |sanfew serum(4) |sanfew serum(4)
+|sanfew serum(4)  |sanfew serum(4)  |sanfew serum(4)  |sanfew serum(4)
+|prayer regeneration potion(4)  |divine super combat potion(2)  |Book of the Dead  |divine rune pouch 
+|rune1 = blood rune
+|rune2 = cosmic rune
+|rune3 = fire rune
+|rune4 = death rune
+|spell1 = Arceuus spellbook
+|spell2 = Resurrect Greater Ghost
+|spell3 = Death Charge
+|spell4 = placeholder
+|spell5 = placeholder
+}}
+</tabber>
+
+These are setups for what I believe to be the most common ways to run ToA at a "high level". 
+
+==Team ToA at ~410 invo==
+
+The first setup is targeted at 8man ~410 invocation raids. This is not the most efficient way to run ToA from an individual perspective, but it is commonly run in clans for bingo events to quickly complete ToA tiles. It is common place to 2 down P2 wardens in this raid as it is possible to cap the unique chance without 3 downing. With a coordinated team, it is possible to clear the raid in 18-20 minutes while still being fairly relaxed.
+
+This does not include items such as a [[bandos godsword]], or [[keris partisan of corruption]]. The former is very important for any raid, where the latter is only a consideration for team raids with 6+ people. You should drop a restore or brew to fit in these items if someone else does not bring them. (The person bringing the [[keris partisan of corruption]] can look to replace their [[zaryte crossbow]] instead, the same person should not be bringing both BGS and Keris). 
+
+While I am mentioning this pretty specific raid invocation, this setup you can take to basically any invocation with dehydration off, take it in a solo raid with the addition of a [[bandos godsword]] (though I would try to do better than solo 400s if you have max gear...) , and even modify it for dehydration raids by removing the [[saradomin brew]] and replacing it with restores. You likely will want to remove the [[dragon dagger]] as well and 3 down wardens with [[voidwaker]] if you are turning dehydration.
+
+'''Notes on items:'''
+* [[Chinchompa]]: It can be common for a single person to handle the killing of every single medic swarm (this invocation is generally on in these types of raids). This is to minimize the alternative of people killing swarms that are near them with a [[toxic blowpipe]], which is theoretically better but can be practically worse if multiple people attempt to blowpipe the same swarm, people lose ticks killing the swarm, or if people just opt to fang swarms rather than blowpiping them. With these factors in mind, I generally think it is better if a single person brings chins and kills all medic swarms. I would suggest bringing regular [[Chincompa]] as you ideally want to release these after Kephri for inventory space, and in team raids the use of [[Black chinchompa]] is a lot lower with the reduced difficulty of the [[Path of Apmeken]].
+* [[Keris partisan of the sun]]: Since this is a setup targeted at raids with the Dehydration invocation off, you do not actually need this item. I opt to include this because it is vital that you do not die as it will seriously hinder the efficiency of your raids, and it will provide you flexibility as it can be a good healing tool in dire situations, particularly on the skulls during P3 Wardens. If you are in a coordinated team, or do not find yourself utilizing this item you can look to drop it. If you are running the invocation Need Some Help I would drop this for a brew instead as this provides significantly more supplies than No Help Needed which is typically on.
+* [[Masori mask (f)]]: Maybe. The reason that it is dropped is it does not give you a [[twisted bow]] or [[toxic blowpipe]] max hit. But an interesting quirk about the setup is that due to the occasional stat tickdown to 124 that can occur even while under the effect of  [[smelling salts]], you will immediately lose twisted bow max hits. It is also possible that you do not complete [[Zebak]] before your salt runs out, which will cause your stats to slowly drain from 125. With these two factors in mind, alongside the accuracy that the mask provides, you can optionally look to add this item.
+* [[Magus Ring]]: Maybe. If you are in a very coordinated team, and plan on going 2x power, utilizing a [[Zaryte crossbow]] on an NPC hit by [[Keris partisan of corruption]] while having a [[lightbearer]] equipped and under the effect of [[liquid adrenaline]] will be superior than the DPS increase from a [[Magus Ring]]. If the NPC is not hit by a [[Keris partisan of corruption]], the DPS becomes roughly equal. If you are not under the effect of [[liquid adrenaline]], it is generally better to have a [[Magus Ring]] equipped, and you can use your own judgement on whether or not you want to bring this item. In these types of raids, I typically look to go power->life, so I personally bring a magus ring. Really the only reason I don't have it in the setup is because I don't think people like doing 9way switches, but release of something like [[Avernic treads]] would change this.
+* [[Ultor Ring]]: Probably not. I personally haven't done the calculations on this item, and I have heard it can be superior to a [[lightbearer]] in a solo raid during [[Ba-ba]] and [[Kephri]]. With that said you need to have a lightbearer for [[Zebak]], so it is generally easier to just use lightbearer in the melee rooms. It might even be worse if you consider [[Keris partisan of corruption]] even without [[liquid adrenaline]].
+* [[Aranea boots]]: Probably not. In a good amount of setups including this one, the one less melee strength will actually lose you a fang max hit while boosted by a [[super combat potion]]. The slight range accuracy bonus is not worth the fang max hit. If you are ranging in this setup look to equip the [[Eternal boots]] and [[Ancestral hat]] to remove the negative ranged accuracy of the melee items. (Anc hat actually still has negative range but it's easier to just equip the hat. You can just take it off too). If you do not have max gear, particularly in setups without a [[tumeken's shadow]], that may not be the case and you can look to include this item.
+* [[Prayer regeneration potion]]: Maybe. It is better prayer regeneration per slot than a [[super restore]]/[[sanfew serum]], but you fully regain your prayer after every room, which is a huge detriment in terms of the efficiency of the potion. I find it easier to just use another restore.
+* [[Amulet of blood fury]]: I am not convinced this item is necessary. The reason it was brought before was compared to an [[amulet of torture]], it was almost never a max hit loss, and the accuracy of the torture was pretty minimal. An [[amulet of rancour]] is a max hit over [[amulet of fury]] in every setup except exactly completely max with [[ultor ring]], as well as having a way bigger accuracy difference. You can bring it if you really want but I would suggest not.
+* Open inventory spots: A huge factor of the time it takes to complete the raid is the time spent in between rooms. The two most common time losses is time spent picking up potions after the [[Path of Apmeken]] and [[Ba-ba]] due to dropping potions far away. If you find yourself losing a significant amount of time to things like this, you can opt to just enter the raid with open inventory spots. This is also helpful to make room for the [[Supplies (Tombs of Amascut)]], [[dragon pickaxe]], and [[Mirror (Tombs of Amascut)]].
+* [[Soul rune]] stack: This setup can access [[death charge]] by unequipping shadow and removing soul runes from it. If you don't feel like doing that you can bring a stack of soul runes instead. With that said the only boss you can reliably proc [[death charge]] is [[Kephri]], which has a lot of downtime in the puzzle room if you are not the one actively doing a puzzle.
+
+'''Other notes:'''
+* It is common to go power->life in this setup, salting for Akkha and then after Zebak. If you die at Akkha, you will lose your effect of [[smelling salts]], and you have a few options to rectify this. The first and most common one is to just do Zebak unsalted. This sucks of course but you can just take the time/point loss and then do Wardens as normal. Your second option is to just use your second salt and either pivot to going double power (this is why I bring a [[keris partisan of the sun]]), or just using preserve throughout wardens. Make sure you use all of your saradomin brews prior to your salt running out if you choose the latter option. If you are not an ironman you can coordinate with someone that will go 2x power and resalt for Zebak and obtain another salt for Wardens from them.
+* If you have access to [[Mystic Vigour]], this prayer gives the same +2 max hits as [[Augury]] when you have a [[lightbearer]] equipped. You can pray this instead to save prayer if you want. Note this does not apply if you have a [[Magus ring]] equipped. This also only applies to this setup with max mage+eternals. 
+* I would personally put the bolts in your actual ammo slot, and the [[dragon arrows]] inside your quiver, as it is possible while you are switching to [[zaryte crossbow]] that you accidently miss your quiver switch, but you will not need to do quick switches in any scenario you are using your twisted bow.
+* This setup honestly has a lot of supplies, which can sometimes not be necessary if the rooms are being completed quickly. Please look to consume at least 1 potion prior to [[Akkha]] if not way sooner, '''not''' including the super combat, as you will want inventory space for the bag of supplies, and a dragon pickaxe. This does not even include being able to pick up a mirror, or having room for salt+adrenaline while your [[tumeken's shadow]] is equipped inside Akkha. This is why I suggest sometimes having open inventory slots. Another way you can mitigate this issue is by bringing a partial dose potion, like a [[prayer potion(3)]] into the raid, and completely drink this potion prior to [[Ba-ba]] reaching 66% hp. This insures you have inventory space to equip a [[toxic blowpipe]] for the boulders, and that you don't need to run to the bottom of [[Ba-ba]] after she is dead and cost your team time.
+* You technically don't need [[ruby dragon bolts (e)]], and could opt for just [[ruby bolts (e)]], but what are you, poor?
+==Solo ToA at 540 invo==
+The second setup is for solo raids at 540/545 invocation. This is generally considered the most efficient way to run solo ToA, with the ability to achieve an ~18% unique chance in 32-35 minutes (and even lower if you are gaming). It is possible to push even further than this by making use of other invocations such as quiet prayers, pathmaster, even lower timers, but this is a setup for a most common "540 toa" invocation setup run by players like B0aty, Reynold, or Warmups.
+
+This setup makes use of the ability to use the [[tumeken's shadow]] on Zebak instead of a [[twisted bow]]. This can match or even surpass a [[twisted bow]] setup depending on how hard [[bone dagger]] or [[seercull]] hits or doesn't hit. This allows you to drop range switches for additional supplies but minimizing the time loss in the raid. In case you didn't know, the [[seercull]] is used to reduce the magic level of [[Zebak]] to increase the DPS output of shadow. I would not suggest doing this on anything else. It is just worse than shadowing on [[Obelisk (Tombs of Amascut)]] and it is barely a time save on average on [[Tumeken's Warden]] (it is like a one second time save on average, and consumes your spec which you could use to heal in an emergency instead given how little the time save is).
+
+The release of the [[amulet of rancour]] has given the quirk that this setup drops [[torva platelegs]] because it '''does not''' give a super combat fang max hit. You can completely drop a melee leg switch and keep the 51 fang max, and still be able to hit a 58 on the core to 3 down wardens at up to 545 invocation. This does lose a salted fang max hit, but that is not as important as you spend a very small time fanging after [[Kephri]].
+
+This setup can opt to go both power->power, as well as power->life, and only making use of the [[Tears of Elidinis]] and [[Blessed crystal scarab]] inside life. Going 2x power allows you use adrenaline in every single room if you need it, as well be completely salted for [[Zebak]]. This is a good option for people that are just getting into efficient solos, but want the extra security of having access to a [[liquid adrenaline]] alongside the [[keris partisan of the sun]] for [[Akkha]] enrage, level 4 [[Zebak]], [[Obelisk (Tombs of Amascut)]], and [[Tumeken's Warden]] enrage. You may opt to drop the lower time save items in this setup such as [[masori chaps (f)]], and [[seercull]], if that is the case, or [[black chinchompas]] if you are not swarming Kephri anyway. 
+
+Going power->life allows you to use more aggressive strategies like ranger tanking in Kephri, as well as allowing for minimal flicking if you want a "chiller raid".
+
+'''Notes on items:'''
+*Traditional 6way [[necklace of anguish]] and [[zaryte vambraces]]: If you drop [[seercull]] and one restore, you can add these items back in and tbow [[Zebak]] traditionally, alongside a bit of additional damage to [[Akkha]] and P2 wardens. It's worth noting that an average hit seercull with shadow on [[Zebak]] and an average bone dagger [[Zebak]] are roughly the same DPS (on paper, depending on what DPS calc you use). Shadow zebak is also less susceptible to DPS loss to [[smelling salts]] running out compared to a 6way [[twisted bow]] setup, but the DPS increase on the before mentioned bosses can make up for that.  
+*[[Zaryte crossbow]]: This is a consideration especially if you are planning on going 2x power, since if you do not need [[keris partisan of the sun]], you do not have a lot of options for DPS spec, due to the fact that [[seercull]] and [[bone dagger]] do not stack. Note that since Overly Draining is on, and you do not have a [[lightbearer]], you will only be able to spec twice over the length of a [[liquid adrenaline]] as you will regain the next 50% to spec as the adrenaline runs out. If you opt for this I would suggest just replacing [[seercull]] with it, and replacing [[amethyst arrow]] with [[ruby dragon bolt (e)]].
+*[[Accursed sceptre]]: '''No'''. This item was used in the past due to a bug? that caused it to have much higher accuracy than it should (rumored to be checking accuracy as if the raid was 0 invocation). Regardless, this is no longer the case and therefor should not be used.
+*[[Black chinchompa]]: This item is used to catch the triple swarms in [[Kephri]]. It is a '''requirement''' if you are looking to speed up the room by swarming the first down of Kephri. With that said, if you opt to not want to swarm Kephri during the first down due to the increased difficulty from More Overlords, you do not need to bring this item. It can be a time save for the [[Path of Apmeken]] as well, but the bigger time save is for Kephri. You can use regular [[chinchompas]] if you want though.
+
+'''Other notes:'''
+* I would highly recommend dropping [[bone dagger]] after Kephri if you are using a shadow zebak setup. It will allow you to easily fit the [[Supplies (Tombs of Amascut)]], [[dragon pickaxe]], and [[Mirror (Tombs of Amascut)]].
+
+==Show me the real Max Efficiency==
+<tabber>
+8way range =
+{{Loadout
+|loadoutname = toa8way
+|loadouticon = twisted bow
+|head = masori mask (f)
+|cape = dizana's max cape
+|neck = necklace of anguish
+|ammo = dragon arrow
+|weapon = ghrazi rapier
+|torso = masori body (f)
+|legs = masori chaps (f)
+|shield = avernic defender
+|gloves = zaryte vambraces
+|boots = primordial boots
+|ring = venator ring
+|tumeken's shadow|occult necklace|ancestral robe top|ancestral hat
+|zamorak max cape|tormented bracelet|magus ring|eternal boots
+|osmumten's fang (or) |amulet of rancour |sanguine torva platebody  |ancestral robe bottom
+|infernal max cape |ferocious gloves  |ultor ring |sanguine torva full helm
+|keris partisan of the sun  |toxic blowpipe  |black chinchompa |twisted bow
+|bone dagger  |sanfew serum(4)  |sanfew serum(4)  |sanfew serum(4)
+|prayer regeneration potion(4)  |divine super combat potion(2)  |Book of the Dead  |divine rune pouch 
+|rune1 = blood rune
+|rune2 = cosmic rune
+|rune3 = fire rune
+|rune4 = death rune
+|spell1 = Arceuus spellbook
+|spell2 = Resurrect Greater Ghost
+|spell3 = Death Charge
+|spell4 = placeholder
+|spell5 = placeholder
+}}
+|-|
+Spellbook Swap=
+{{Loadout
+|loadoutname = solotoasbs
+|loadouticon = Tumeken's shadow
+|head = sanguine torva full helm
+|cape = dizana's max cape
+|neck = amulet of rancour
+|ammo = dragon arrow
+|ammo2 = amethyst arrow
+|weapon = ghrazi rapier
+|torso = masori body (f)
+|legs = masori chaps (f)
+|shield = avernic defender
+|gloves = ferocious gloves
+|boots = primordial boots
+|ring = ultor ring
+|tumeken's shadow|occult necklace|ancestral robe top|ancestral hat
+|zamorak max cape|tormented bracelet|ancestral robe bottom|magus ring
+|osmumten's fang (or) |sanguine torva platebody |twisted bow  |eternal boots
+|infernal max cape |black chinchompa  |seercull |bone dagger
+|keris partisan of the sun  |toxic blowpipe  |sanfew serum(4) |sanfew serum(4)
+|astral rune |law rune  |sanfew serum(4)  |sanfew serum(4)
+|prayer regeneration potion(4)  |divine super combat potion(2)  |Book of the Dead  |divine rune pouch 
+|rune1 = blood rune
+|rune2 = cosmic rune
+|rune3 = lava rune
+|rune4 = death rune
+|spell1 = Lunar spellbook
+|spell2 = Resurrect Greater Ghost
+|spell3 = Spellbook Swap
+|spell4 = Vengeance
+|spell5 = placeholder
+}}
+</tabber>
+
+If you have the ability to pilot these setups you probably don't need a guide but I figured I would share what is possible. These setups are more common in small teams (2-4man at 510-555 invo) where you can drop a few items that can be shared between teammates/are not required by everyone such as [[bone dagger]], [[black chinchompa]], or even [[divine super combat]], but you can definitely use these setups in a solo. You can also bring [[torva platelegs]] and switch to [[aranea boots]] which gives a more pleasant switching experience as well as additional ranged accuracy. '''Don't use aranea boots without torva legs.'''
+
+These setups basically require you to go power->life. Of course it's possible to clear without going life second but I don't think that amount of supplies is worth the effort needed to consistently clear with that few supplies.
+
+The time save in the 8way range setup is obviously at [[Zebak]], and the ranging portions of [[Akkha]] and Wardens P2, and definitely more consistent than a [[tumeken's shadow]] Zebak setup.
+
+The [[Spellbook swap]] setup is a more experimental one, that allows you to cast [[Vengeance]] for additional damage at [[Ba-ba]] (assuming 5:1 which you should be doing at this point) and P2 [[Elidinis' Warden]] for free, as well as opportunities to take vengs in all the other rooms if you want to. It also allows for unique strategies using the [[Spellbook swap]] as a stall in [[Kephri]] to trap both of the [[Spitting Scarab]] without tanking any damage. I would highly recommend having at least the Master [[combat achievements]] completed if not Grandmaster if you want to try this setup. You have opportunities to cast [[Spellbook swap]] without losing DPS in every single room, but it can be challenging to do without making mistakes especially in [[Akkha]] and P3/P4 [[Tumeken's Warden]].
+
+'''Notes on items:'''
+* [[Avernic treads]]: Though it is only one inventory slot, this potential item will likely make 8way range setups more common (and easier) to run.
+* [[Dorgeshuun crossbow]]: Due to a bug with [[bone dagger]], you can only spec [[Kephri]] during a small window following a swarming phase in a solo. There is also a one tick window as you get dunged that you can also get a bone spec off. That is not possible to do with a bone dagger (unless you get creative with stalls+dung, but I am not currently aware of any setup that allows you to get this off on the first dung). This is however possible to do with a [[dorgeshuun crossbow]]. With that said, this weapon is also currently bugged and I have no idea if/when it will be fixed. The viability of this is also questionable as it has a lower max hit than [[bone dagger]], and you would likely need to use this on [[Ba-ba]] as I would not bring two bone weapons. If you are in a team raid bone dagger will work as long as you use it after someone has just hit Kephri.
+
+==What if I don't have max gear?==
+
+If you do not have at minimum a [[tumeken's shadow]], you will need a completely different guide which I will not go into today. If you do have at least that though, your priority in terms of acquiring new gear should be,
+
+'''GEAR THAT YOU NEED TO 3 DOWN WARDENS P2 (solo) > MAGIC DAMAGE GEAR >>> RANGED GEAR >= MELEE GEAR'''
+
+"Gear that you need to 3 down wardens" can become quite relevant as you turn on invocations such as Overly Draining, Dehydration, and just invocation number in general. You can make use of [[dragon dagger]] to make up for a lack of gear for awhile, but as you really push invocation you will need to start acquiring better gear. It is extremely important that you do not 4 down Warden P2, as this is massive time loss that rewards no additional points. If you are doing a team raid, this is much less important and you can just go crazy with a [[dragon dagger]]. An [[abyssal tentacle]] is a good budget core hitting weapon prior to a [[ghrazi rapier]] if Overly Draining is on or if your team is 3 downing anyway.
+
+After 3 downing, your main priority should be obtaining as much magic % damage gear as possible. I would keep only the core melee and ranged items such as [[osmunten's fang]], [[amulet of torture]], [[ferocious gloves]], [[necklace of anguish]], and [[toxic blowpipe]], and go full focus on obtaining magic % damage starting from [[bloodbark]] all the way up to [[ancestral]], acquiring solid value pieces along the way such as [[ancestral hat]], and [[magus ring]]. Given that your best DPS on [[Zebak]] will likely be shadow, I do think it is worth it to acquire armor such as [[Ahrim's]] or [[blue moon armor]] over [[bloodbark]] even though that does not result in any additional max hits. It may be worth it to obtain a special attack weapon such as [[Voidwaker]] along the way. [[Burning claws]] are a solid budget alternative which can even be superior depending on the boss. It is worth noting that [[burning claws]] are pretty bad on [[Tumeken's warden]] with no defence reduction.
+
+After max mage, I would focus on reobtaining special attack weapons like [[voidwaker]] or [[zaryte crossbow]], obtaining unfortified [[masori armor]], and an [[amulet of rancour]].

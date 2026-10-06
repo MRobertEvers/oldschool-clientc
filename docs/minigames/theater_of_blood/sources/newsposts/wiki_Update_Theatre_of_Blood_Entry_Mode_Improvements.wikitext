@@ -1,0 +1,252 @@
+{{Update|date=1 March 2023|url=https://secure.runescape.com/m=news/theatre-of-blood-entry-mode-improvements?oldschool=1|category=game}}
+[[File:Theatre of Blood- Entry Mode Improvements newspost.png|right]]
+{{clear}}
+__TOC__
+<center>'''On Tuesday, March 7th, game worlds will be unavailable from 10:00am GMT to 11:30am GMT while we perform updates to help progress the Jagex Accounts beta.'''<br><br>
+
+'''Keep up to date via the [https://secure.runescape.com/m=news/game-status-information-centre?oldschool=1 Game Status Newspost].'''</center>
+
+==Change Log==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Theatre of Blood: Entry Mode'''
+* Changed how enemy Hitpoint scaling works depending on the number of players.
+* Entry Mode runs now have unlimited attempts.
+* Extra supplies will be given in the event of a wipe.
+* There is no longer a charge for failing an Entry Mode run.
+* Increased the number of normal rewards received. Note that uniques are still unavailable in Entry Mode.
+* A selection prompt will now appear the first time a player interacts with the recruitment board.
+
+'''Poll 78'''
+* Rebalanced the success chances when fermenting Wine of Zamorak.
+* Increased the number of Coins that can be stored in the Player Owned House Chests.
+* Scarab swarms in Pyramid Plunder will no longer attack you while you're trying to open a Sarcophagus.
+* Everyone is now automatically opted-out of gaining experience from pushing the wheat in Puro-Puro. Players can opt-in by talking to the Elnock Inquisitor.
+
+'''Combat Achievements'''
+* Added Combat Achievements for the Phantom Muspah.
+
+'''Other Changes'''
+* Loot Keys will no longer be received if players are in a trade screen. Keys will now be dropped where the player died.
+* Removed the delay when depositing Paydirt into the hopper at Motherlode Mine.
+* The Slayer Helper now properly displays your Wilderness Slayer streak.
+* The 10th Anniversary Dragon Candle has been correctly labelled as a fun weapon.
+* There is now a Fossil Storage Crate at the Volcanic Mine Bank.
+* The Party Room Museum expansion can now be accessed on free-to-play worlds.
+* The Dragon Candle Dagger and Old School Jumper are now tagged as warm clothing.
+* The animation that plays when waxing your Sled will now cancel if the player moves.
+* The Sins of the Father display case in the Museum is now correctly labelled as a Master Quest.
+* Having a Slayer Task streak of 16,000 no longer means you will get the max amount of Slayer Points for every Task you complete.
+* Fixed a typo in the frog random event and in Warmhandz’s dialogue.
+* Updated the banners in the Falador Party Room!
+* Facial animations have been added to certain Birthday Event dialogues.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>Zerker'</b> loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+==Theatre of Blood: Entry Mode Improvements==
+[[File:Theatre of Blood- Entry Mode Improvements (1).png|centre|600px]]
+
+Raiders rejoice, the improvements we promised for the Theatre of Blood Entry Mode are here! If you missed the detailed explanation in the Poll 78 newspost, we’ve got a full rundown of the changes below.
+
+===Foe Hitpoint Scaling===
+We’ve made the hitpoint scaling in Theatre of Blood Entry Mode more consistent:
+* 1 Player: Unchanged
+* 2 Players: +90%
+* 3 Players: +80%
+* 4 Players: +70%
+* 5 Players: +60%
+
+With this change, five players will have a hitpoint increase of 300% rather than 400%, as the percentages stack for every additional player. Three players would have a +170% increase ''(Base Hitpoints + 90% + 80%)''.
+
+For example: ''a foe with 100 hitpoints versus one player would have 400 hitpoints versus five players. Before, it would have had 500 hitpoints.''
+
+===Number of Attempts===
+Theatre of Blood Entry Mode previously gave players three attempts to finish the raid. Given that this is intended as a practice mode, we decided to bring it in line with Tombs of Amascut and give players unlimited attempts to complete it.
+
+It’s worth noting that each failure still takes away from the loot available at the end of the raid, so would-be raiders will still need to polish their skills to get away with the goods!
+
+===Supplies on Wipe===
+Unlimited attempts aren’t the only thing we’ve borrowed from Tombs of Amascut’s Entry Mode. As of today’s update, raid parties will receive extra supplies (in the form of Bandages) whenever they wipe! The number of supplies depends on how much stuff you used in your previous attempt.
+
+===Failure Costs===
+Previously, it cost a whopping 100,000 GP to reclaim your items after failing Theatre of Blood Entry Mode. We’ve had a word with the vampyres and they all agreed that that was a bit harsh, so this cost has now been removed ''for Entry Mode only.''
+
+Please note that other penalties for death, including the loss of Hardcore status, remain in place. You’ve been warned!
+
+===Reward Quantities===
+We’ve increased the amount of normal rewards in Entry Mode from 15% to 20%, so that players can earn enough money to cover any supplies they used in the raid.
+
+''However,'' please note that the unique items from Theatre of Blood are ''not'' available in Entry Mode.
+
+===First-Time User Flow===
+The final change in this batch updates the Theatre of Blood recruitment board. We've added a prompt that appears upon first use, asking players to choose which mode they’d prefer to play. We hope that this will make the first-time user flow a bit easier to navigate. The last thing we want is for people to find diving into a nest of vampiric monsters stressful!
+
+That’s all there is for now, so what are you waiting for? Gear up, grab your friends, and give Theatre of Blood a try!
+
+==Poll 78 Changes==
+We’ve also got a selection of other Poll 78 changes for you!
+
+First up, we’re getting a little chaotic with an exciting Wine of Zamorak change! Previously, your chance to ferment successfully went from 49.8% at level 65 Cooking all the way up to 69% at 99 Cooking. We’ve increased the success rate linearly from ~50% at level 65 to 100% at level 98 – by that time, you should be a fantastic fermentor!
+
+With all that Wine in your Bank you might consider hosting a little house party – in which case, this next change will be very exciting! It’s been about 16 years since we nerfed the chests in the Player Owned House, so we reckon it’s high time you got the opportunity to stick a little bit more gold in there. Here are the new stats:
+
+{| class="wikitable" style="text-align:center"
+!Chest Type
+!Games Room Chest
+!Dungeon Treasure Chest
+|-
+|Wood
+|N/A
+|10,000
+|-
+|Oak
+|20,000
+|20,000
+|-
+|Teak
+|50,000
+|50,000
+|-
+|Mahogany
+|100,000
+|75,000
+|-
+|Magic
+|N/A
+|100,000
+|}
+
+Speaking of gold, our next change is an improvement to Pyramid Plunder! From now on you'll no longer be interrupted by pesky swarms while you're looting the sarcophagus.
+
+Finally, from now on all players will be automatically opted-out of gaining experience while pushing the wheat in Puro-Puro. If you have some kind of bizarre field-locked Ironman, or want those gains for any other reason, you can opt back in by talking to the Elnock Inquisitor.
+
+==Combat Achievements: Phantom Muspah==
+[[File:Theatre of Blood- Entry Mode Improvements (2).png|centre|600px]]
+
+The Phantom Muspah’s been kicking around for a while now, so it’s time for some more Combat Achievements!
+
+We've got a total of 13 achievements for you to tackle - who will be the first to complete them all?
+
+A reminder: with the release of the new Combat Achievements you must fully complete a tier before you can use the Ghommal's Hilt version from that tier. For example, if you'd like to use Ghommal's Hilt 3, you'll have to complete Phantom Muspah Adept.
+
+<table class="wikitable" style="text-align:center">
+      <tr>
+        <td>Tier</td>
+        <td>Name</td>
+        <td>Description</td>
+      </tr>
+      <tr>
+        <td>Hard</td>
+        <td>Phantom Muspah Adept</td>
+        <td>Kill the Phantom Muspah.</td>
+      </tr>
+      <tr>
+        <td>Elite</td>
+        <td>Phantom Muspah Speed-Trialist</td>
+        <td>Kill the Phantom Muspah in less than 3 minutes without a Slayer Task.</td>
+      </tr>
+      <tr>
+        <td>Elite</td>
+        <td>Phantom Muspah Veteran</td>
+        <td>Kill the Phantom Muspah 25 times.</td>
+      </tr>
+      <tr>
+        <td>Elite</td>
+        <td>Can't Escape</td>
+        <td>Kill the Phantom Muspah without running.</td>
+      </tr>
+      <tr>
+        <td>Elite</td>
+        <td>Versatile Drainer</td>
+        <td>Drain the Phantom Muspah's Prayer with three different sources in one kill.</td>
+      </tr>
+      <tr>
+        <td>Master</td>
+        <td>More than just a ranged weapon</td>
+        <td>Kill the Phantom Muspah by only dealing damage to it with a Salamander.</td>
+      </tr>
+      <tr>
+        <td>Master</td>
+        <td>Essence Farmer</td>
+        <td>Kill the Phantom Muspah 10 times in one trip.</td>
+      </tr>
+      <tr>
+        <td>Master</td>
+        <td>Phantom Muspah Speed-Chaser</td>
+        <td>Kill the Phantom Muspah in less than 2 minutes without a Slayer Task.</td>
+      </tr>
+      <tr>
+        <td>Master</td>
+        <td>Phantom Muspah Master</td>
+        <td>Kill the Phantom Muspah 50 times.</td>
+      </tr>
+      <tr>
+        <td>Master</td>
+        <td>Walk Straight Pray True</td>
+        <td>Kill the Phantom Muspah without taking any avoidable damage.</td>
+      </tr>
+      <tr>
+        <td>Master</td>
+        <td>Space is Tight</td>
+        <td>Kill the Phantom Muspah while it is surrounded by spikes.</td>
+      </tr>
+      <tr>
+        <td>Grandmaster</td>
+        <td>Phantom Muspah Manipulator</td>
+        <td>Kill the Phantom Muspah whilst completing Walk Straight Pray True, Space is Tight and Can't Escape.</td>
+      </tr>
+      <tr>
+        <td>Grandmaster</td>
+        <td>Phantom Muspah Speed-Runner</td>
+        <td>Kill the Phantom Muspah in less than 1 minute and 30 seconds without a Slayer Task.</td>
+      </tr>
+</table>
+
+==Other Changes==
+* You can no longer receive a loot key if you are in a trade screen. The key will now be dropped where the player died.
+* Removed the delay when depositing Paydirt into the hopper at Motherlode Mine.
+* The Slayer Helper now properly displays your Wilderness Slayer streak when slaying on behalf of Krystilia.
+* The 10th Anniversary Dragon Candle has been correctly labelled as a fun weapon.
+* There is now a Fossil Storage Crate at the Volcanic Mine Bank.
+* The Museum of Old School expansion in the Falador Party Room can now be accessed on free-to-play worlds.
+* The Dragon Candle Dagger and Old School Jumper are now tagged as warm clothing.
+* The animation that plays when waxing your Sled will now cancel if you move.
+* The Sins of the Father display case in the Museum is now correctly labelled as a Master Quest.
+* Having a Slayer Task streak of 16,000 no longer means you will get the max amount of Slayer Points for every task you complete. You ''will'' still get bonus Points at regular intervals as if you didn't have a ludicrous streak count, and completing a task will also inform you when you're next due to get a bump in Points!
+* Fixed typos in the frog random event and Warmhandz’s dialogue.
+* We updated the banners in the Falador Party Room to the correct versions!
+* Facial animations have been added to those Birthday Event dialogues that previously didn't have them.
+
+==Crack The Clue 3==
+We're back once again with some more clues! This hint is for the clue obtained from the Mysterious Old Man.
+
+[[File:Theatre of Blood- Entry Mode Improvements (3).png|centre|600px]]
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,866,66275619 official forums], on the [https://www.reddit.com/r/2007scape/comments/11f0n5m/theatre_of_blood_entry_mode_improvements/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Pumpkin, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

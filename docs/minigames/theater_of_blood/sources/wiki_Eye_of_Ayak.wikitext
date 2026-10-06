@@ -1,0 +1,189 @@
+{{redirect|Eye|other uses|Eye (disambiguation)}}
+{{redirect|Ayak|the boss, Osto-Ayak|Doom of Mokhaiotl}}
+{{Infobox Item
+|defver = 2
+|version1 = Uncharged
+|version2 = Charged
+|name1 = Eye of Ayak (uncharged)
+|name2 = Eye of Ayak
+|image1 = [[File:Eye of Ayak (uncharged).png]]
+|image2 = [[File:Eye of Ayak.png]]
+|release = [[23 July]] [[2025]]
+|update = Varlamore: The Final Dawn Out Now
+|members = Yes
+|quest = No
+|tradeable1 = Yes
+|tradeable2 = No
+|equipable1 = No
+|equipable2 = Yes
+|stackable = No
+|noteable1 = Yes
+|noteable2 = No
+|options1 = Wield, Charge, Dismantle, Drop
+|options2 = Wield, Check, Uncharge, Drop
+|wornoptions = Check
+|examine1 = This staff is imbued with demonic power. It is currently uncharged.
+|examine2 = This staff is imbued with demonic power.
+|value = 6000000
+|weight = 2.000
+|exchange1 = Yes
+|exchange2 = No
+|id1 = 31115
+|id2 = 31113
+|leagueRegion = Varlamore
+}}
+{{Synced switch
+|version1 = [[File:Eye of Ayak (uncharged) detail.png|130px|left]]
+|version2 = [[File:Eye of Ayak detail.png|130px|left]]
+}}
+[[File:Eye of Ayak spell.gif|thumb|250px|A player using the Eye of Ayak's built-in spell.]]
+The '''Eye of Ayak''' is a one-handed [[powered staff]] that requires level 83 [[Magic]] to wield. It is a drop from the [[Doom of Mokhaiotl]] upon completion of delve level 3 and higher. Like most powered staves, it is only tradeable when it is fully uncharged.
+
+It is the second strongest powered staff, with its strength placed between that of the [[Sanguinesti staff]] and [[Tumeken's shadow]]. Its unique trait is that it attacks every 3 ticks, compared to the 4- or 5-tick attack cycles of other staves. This makes its max hit lower compared to other options, but its faster attack speed makes up for the lowered damage.
+
+The Eye of Ayak can be dismantled for 10,000 [[demon tear]]s, resulting in a loss of {{NoCoins|{{GEP|Demon tear|10000}}-{{GEP|Eye of Ayak (uncharged)}}|c}}.
+
+The Eye of Ayak cannot be used in [[Castle Wars]], [[Clan Wars]], [[TzHaar Fight Pit]], and [[Soul Wars]], despite all other powered staves being usable against players in those areas.
+
+The Eye of Ayak does not lose charges on death in the [[Wilderness]] if the item is [[Items Kept on Death|protected]], even if the death occurs past level 20 Wilderness. 
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Charged
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = +30
+|arange = 0
+|dstab = +1
+|dslash = +5
+|dcrush = +5
+|dmagic = +10
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = +2
+|slot = weapon
+|speed = 3
+|attackrange = 6
+|combatstyle = Powered Staff
+|image1 = [[File:Eye of Ayak (uncharged) equipped male.png]]
+|image2 = [[File:Eye of Ayak equipped male.png]]
+|altimage1 = [[File:Eye of Ayak (uncharged) equipped female.png]]
+|altimage2 = [[File:Eye of Ayak equipped female.png]]
+}}
+
+{{CombatStyles|Powered Staff|speed=3|attackrange=6}}
+
+==Special attack==
+[[File:Soul Rend.gif|thumb|250px|A player using the Eye of Ayak's special attack, ''Soul Rend''.]]
+The Eye of Ayak has a [[special attack]], ''Soul Rend'', which consumes 50% of the player's special attack energy. It has an attack speed of five ticks, compared to the staff's standard attack speed of three ticks, but has double the accuracy and a 30% higher maximum hit.
+
+If the attack deals damage, it reduces the target's Magic Defence by an amount equal to the damage dealt. This differs from the [[accursed sceptre]], which drains the target's Magic level. As Magic Defence is not a stat, NPCs cannot restore it, and the reduction remains until the target is killed or despawns.
+
+Although Magic Defence cannot be reduced below 0, the full reduction persists if the target's Magic Defence subsequently changes. For example, if the special attack deals 50 damage to [[Yama]] while he is in his melee stance, which has −30 Magic Defence, his Magic Defence remains at -30. If he then changes to his magic stance, his actual Magic Defence becomes +10 during phases 1 and 2, or +31 during phase 3, rather than +60 or +81 respectively. This also applies to [[Zulrah]], whose tanzanite form has Magic Defence while its serpentine and magma forms do not.
+
+==Charging==
+To use the staff's built-in spell, it must either be charged with [[demon tears]] or with both [[death rune|death]] and [[chaos rune]]s. It can hold up to 50,000 charges, enough for 25 hours of continuous combat. Each cast consumes either one demon tear, or two death runes and one chaos rune, depending on what the staff is charged with. Using demon tears costs {{NoCoins|{{GEP|Demon tear|1}}|c}} per charge, while using runes costs {{NoCoins|{{GEP|Death rune|2}}+{{GEP|Chaos rune|1}}|c}} per charge. The eye cannot contain both demon tear charges and rune-based charges at the same time.
+
+Any remaining charges can be removed using the 'Uncharge' option, returning all demon tears or runes used to charge it. 
+
+{| class="wikitable align-right-2"
+!Resource 
+!Cost per charge
+|-
+|1 x {{plink|Demon tear}}
+|{{Coins|{{GEP|Demon tear|1}}}}
+|-
+! '''Total cost per charge'''
+| style="text-align:right;" | {{Coins|{{GEP|Demon tear|1}}}}
+|}
+
+The total cost to fully charge the staff with 50,000 demon tears is {{NoCoins|{{GEP|Demon tear|50000}}|c}}. Assuming non-stop use, with one cast every 1.8 seconds equaling 2,000 casts per hour, the Eye costs {{NoCoins|{{GEP|Demon tear}} * 2000|c}} per hour to use with tears.
+
+{| class="wikitable align-right-2"
+!Resource 
+!Cost per charge
+|-
+|2 x {{plink|Death rune}}
+|{{Coins|{{GEP|Death rune}} * 2}}
+|-
+|1 x {{plink|Chaos rune}}
+|{{Coins|{{GEP|Chaos rune}} * 1}}
+|-
+! '''Total cost per charge'''
+| style="text-align:right;" | {{Coins|({{GEP|Death rune}} * 2)+({{GEP|Chaos rune}} * 1)}}
+|}
+
+The total cost to fully charge the staff with 100,000 death and 50,000 chaos runes is {{NoCoins|{{GEP|Death rune|100000}}+{{GEP|Chaos rune|50000}}|c}}. Assuming non-stop use, with one cast every 1.8 seconds equalling 2,000 casts per hour, the Eye costs {{NoCoins|({{GEP|Death rune|2}}+{{GEP|Chaos rune}})* 2000|c}} per hour to use with runes.
+
+If the Eye of Ayak is uncharged or contains demon tear charges, it passively gains 10–20 charges upon defeating the [[Doom of Mokhaiotl]]. No game message is displayed when this occurs. If the player has multiple such staves in their inventory when the Doom of Mokhaiotl is defeated, only one will be charged.
+
+==Maximum hit==
+<math>\begin{align}
+ \text{Max Hit} &= \left\lfloor \frac{\text{MagicLevel}}{3} \right\rfloor - 6\\
+\end{align}</math>
+
+===Calculator===
+{{Magic damage calculator|Eye of Ayak}}
+
+==Products==
+{{Uses material list|Eye of Ayak (uncharged)}}
+
+==Item sources==
+{{Drop sources|Eye of Ayak (uncharged)}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Eye of Ayak}}
+
+==Comparison between other magic weapons==
+{{Magic weapons comparison}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 August 2026
+|update = Summer Sweep Up - Hunter & Skilling
+|change = The item was renamed from "Eye of ayak" to "Eye of Ayak".
+}}
+{{Subject changes
+|date = 14 January 2026
+|update = New Player Improvements Round 2
+|change =
+* Attacking [[Akkha]] and [[Akkha's Shadow]]s with the eye of Ayak no longer causes him to turn invisible.
+* Attacking [[Yama]] with the eye of Ayak no longer causes the player to turn invisible.
+}}
+{{Subject changes
+|update = Varlamore & Summer Sweep-Up Combat Tweaks
+|date = 6 August 2025
+|change = 
+* The eye of Ayak now instantly kills magic grubs and ignores attack delay during the fight with the [[Doom of Mokhaiotl]].
+* Using the eye of Ayak's [[special attack]] no longer causes the clickbox to change.
+}}
+{{Subject changes
+|date = 30 July 2025
+|type = hotfix
+|change = Fixed a bug where the eye of Ayak special attack was incorrectly reducing Magic defence below 0.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+Eye of Ayak, Avernic treads, Confliction gauntlets concept art.png|Concept art of rewards from the Doom of Mokhaiotl, by [[Mod Jerv]].
+</gallery>
+
+== Trivia ==
+
+* "Ayak" translates to "Creature" in the [[Old Ones|Old One]] language, so the weapon's name can roughly translate to "Eye of the Creature."
+{{Doom of Mokhaiotl}}
+{{Magic weapons}}
+
+[[Category:Defence reduction]]
+[[Category:Items with charges]]
+[[Category:Collection log items]]
+[[Category:Weapons with Special attacks]]

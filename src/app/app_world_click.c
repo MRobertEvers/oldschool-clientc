@@ -724,60 +724,63 @@ app_world_pick_finish(
         app->aboard_view,
         hits,
         player_level,
-        &app->world_pickset,
+        &app->frame_view->world_pickset,
         &result);
     /* The point this frame hittested at, recorded with the set it produced.
      * ToriRS_Soft3D_SetPick (app_render.c) armed the pick at exactly these two
      * fields, so a reader holding the set knows which pixel it answers for --
      * see the stamp's banner in world_pickset.h. */
-    World_PickSetStamp(&app->world_pickset, app->world_mouse_x, app->world_mouse_y);
+    World_PickSetStamp(
+        &app->frame_view->world_pickset,
+        app->frame_view->world_mouse_x,
+        app->frame_view->world_mouse_y);
     if( result.hover_tile_valid )
     {
-        app->world_hover_tile_x = result.hover_tile_x;
-        app->world_hover_tile_z = result.hover_tile_z;
-        app->world_hover_tile_level = result.hover_tile_level;
+        app->frame_view->world_hover_tile_x = result.hover_tile_x;
+        app->frame_view->world_hover_tile_z = result.hover_tile_z;
+        app->frame_view->world_hover_tile_level = result.hover_tile_level;
     }
     else
     {
-        app->world_hover_tile_x = -1;
-        app->world_hover_tile_z = -1;
+        app->frame_view->world_hover_tile_x = -1;
+        app->frame_view->world_hover_tile_z = -1;
     }
     if( result.hover_view_valid )
     {
-        app->world_hover_view = result.hover_view;
-        app->world_hover_view_x = result.hover_view_x;
-        app->world_hover_view_z = result.hover_view_z;
-        app->world_hover_view_level = result.hover_view_level;
+        app->frame_view->world_hover_view = result.hover_view;
+        app->frame_view->world_hover_view_x = result.hover_view_x;
+        app->frame_view->world_hover_view_z = result.hover_view_z;
+        app->frame_view->world_hover_view_level = result.hover_view_level;
     }
     else
-        app->world_hover_view = 0;
+        app->frame_view->world_hover_view = 0;
 
     if( getenv("TORIRS_WORLD_PICK_DEBUG") )
     {
         TORIRS_LOG(
             "world_pick: mouse=%d,%d count=%d hover_tile=%d,%d,%d\n",
-            app->world_mouse_x,
-            app->world_mouse_y,
-            app->world_pickset.count,
+            app->frame_view->world_mouse_x,
+            app->frame_view->world_mouse_y,
+            app->frame_view->world_pickset.count,
             result.hover_tile_valid ? result.hover_tile_x : -1,
             result.hover_tile_valid ? result.hover_tile_z : -1,
             result.hover_tile_valid ? result.hover_tile_level : -1);
-        for( int i = 0; i < app->world_pickset.count; i++ )
+        for( int i = 0; i < app->frame_view->world_pickset.count; i++ )
         {
             /* Loc id/name/footprint turn an element id into something you can look up in the
              * cache — the difference between "element 4345 draws late" and "the plinth is a
              * separate 1x1 loc one tile nearer than the statue". */
-            struct WorldEntity_Scenery* scenery =
-                World_SceneryGetByElementId(app->world, app->world_pickset.items[i].element_id);
+            struct WorldEntity_Scenery* scenery = World_SceneryGetByElementId(
+                app->world, app->frame_view->world_pickset.items[i].element_id);
             TORIRS_LOG(
                 "world_pick:  [%d] element=%d type=%d tile=%d,%d,%d loc=%d size=%dx%d "
                 "origin=%d,%d,%d '%s'\n",
                 i,
-                app->world_pickset.items[i].element_id,
-                (int)app->world_pickset.items[i].type,
-                app->world_pickset.items[i].tile_x,
-                app->world_pickset.items[i].tile_z,
-                app->world_pickset.items[i].tile_level,
+                app->frame_view->world_pickset.items[i].element_id,
+                (int)app->frame_view->world_pickset.items[i].type,
+                app->frame_view->world_pickset.items[i].tile_x,
+                app->frame_view->world_pickset.items[i].tile_z,
+                app->frame_view->world_pickset.items[i].tile_level,
                 scenery ? scenery->loc_id : -1,
                 scenery ? scenery->size_x : -1,
                 scenery ? scenery->size_z : -1,

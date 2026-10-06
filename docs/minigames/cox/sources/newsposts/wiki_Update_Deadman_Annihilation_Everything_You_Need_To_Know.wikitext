@@ -1,0 +1,761 @@
+{{Update|date=23 January 2026|url=https://secure.runescape.com/m=news/deadman-annihilation---everything-you-need-to-know?oldschool=1|category=devblog}}
+[[File:Deadman- Annihilation - Everything You Need To Know newspost.png|right]]
+{{clear}}
+__TOC__
+==Deadman: Annihilation, coming January 30th==
+[[File:Deadman- Annihilation - Everything You Need To Know (1).png|500px|center]]
+
+Deadman: Annihilation kicks off this month! To get you up to speed ahead of January 30th, we're back with another blog covering all of the finer detail that you'll need to start planning.
+
+If you're out of the loop, make sure to check out our overview covering the most important top-level changes that separate Deadman: Annihilation from previous Deadman Mode events, you can find that overview blog by [[Update:Deadman: Annihilation Overview & Rewards Blog|clicking here]], or check out [https://www.youtube.com/watch?v=bCI8cwUtw0k this wonderful video from PureSpam and jonmp4] below if you'd rather not read!
+
+<center>
+{{Youtube|bCI8cwUtw0k}}
+</center>
+
+Among the most important changes this time around is that you'll now be able to spend the Deadman Points that you earn on Sigils or permanent account unlocks, meaning no more late-night Ice Barrage sessions chasing the one Sigil you need to realise your perfect build. Naturally this means that you'll want to know how many points you can earn for various activities, how many points all of the Sigils will cost, which quests are auto-completed - everything you need to know to plan out your starting route and get your bearings before being thrust in to always-on PvP carnage. If you're reading this thinking "Yeah, I'd love to know those things" then you've come to the right place!
+
+We'll start at the end, makes sense!
+
+==Finale==
+It wouldn't be Deadman without an epic Finale, and it wouldn't be a Deadman Finale without a change in format!
+
+Falador's seen enough action to last a lifetime, arguably in poor taste considering the events of June 2006, so it's time to take this show on the road. Deadman: Annihilation will feature another chaotic multi-combat Finale taking place on the sunny shores of Daimon's Crater!
+[[File:Deadman- Annihilation - Everything You Need To Know (2).png|500px|center]]
+
+Okay, the shores aren't all that sunny but we've also got an epic twist to brighten things up...
+
+This time around, as you find yourself forcibly teleported to Daimon's Crater and Gielinor is blanketed in lethal fog, you'll open your eyes to find yourself beset on all sides by... allies?
+
+For the first phase of the finale, all players will be split into two teams. All team members will share the same cape so that you can't damage your allies, and each team will spawn at opposite sides of the crater - one to the south-west, one to the south-east. Your goal will be to preserve your allies and push north towards the final area, where the teams will collide in a brutal showdown. 
+
+Once the crowd has been sufficiently thinned: alliances will be dissolved. The final phase will be an all-out free-for-all, so be ready to turn on your teammates at a moment's notice. From there it's business as usual - take out the competition or blend into the background until an opportune moment, strike when the time is right and perhaps you'll be the last player standing, the champion of Deadman: Annihilation.
+
+Just like in previous years, we'll be running a Finale for each combat bracket in a staggered fashion so you'll be able to participate in as many finales as you've got characters for, but keep in mind that the worlds are first-come, first-served, so be ready to log in before 18:00 UTC on February 21st - worlds will open at 17:00 UTC so you'll have an hour to reserve your spot before things kick off!
+
+===Prizing===
+This section's bound to generate some conversation among you all, but we'll start simple: Deadman: Annihilation will not feature any real-world prize pool.
+
+For some of you reading, this is bound to be disappointing news, and we'd like to make clear that this wasn't a decision that we made lightly.
+
+Over the years, Deadman has become considerably more approachable, with Deadman: Annihilation being inarguably our most approachable yet. While Sigils do introduce a layer of complexity, there's no doubt that the lower stakes setting of a temporary game mode does serve as a great jumping in point for players who are new to PvP, and it's important to us to develop a better pipeline into PvP in the main game to introduce new blood to one of Old School's most historic communities. Deadman does remain exceptionally competitive and affords talented players and organised groups the opportunity to really show other players who's boss, but it's definitely less cutthroat than it was in the early days.
+
+Data we've collected across annual surveys, community sentiment analysis and even an in-game opinion survey suggest that the prize pool isn't a significant driver for many players who actively participate in every iteration of Deadman Mode, while for players who avoid Deadman there's a considerable amount of concern that the promise of real-world money encourages bad actors to cheat, engage in toxic behaviours or even break real-world laws around DDoSing to give them an edge in the competition.
+
+For those reasons, we're trialling a Deadman that's focused on keeping things fun and fair for everybody, with plenty of bragging rights to boot. We've got a long way to go with our PvP strategy, so we'll be keeping in mind the desire for opportunities to compete for real prizes as we move into the future. If there are financial incentives to compete in competitions, we want to ensure that they are designed to be competitive for the best of the best, rather than trying to toe the narrow line between 'fun for everybody' and 'only in it to win it'.
+
+Of course, there are still HiScore spots and in-game cosmetics to be earned for players pursuing points, so let's take a look at how you'll be able to earn them in Deadman: Annihilation!
+
+==Deadman Points==
+[[File:Deadman- Annihilation - Everything You Need To Know (3).png|500px|center]]
+
+Just like before, you'll be able to earn Deadman Points by doing just about anything. These points can be spent on the Deadman's Skull for unlocks within Deadman: Annihilation, and all of the points you earn will be useable to obtain cosmetic rewards in the main game. This section details exactly what 'just about anything' actually means, and how many points are up for grabs, so brace yourself for a lot of numbers.
+
+===Breaches===
+* 1 point awarded per damage dealt to Breach NPCs.
+* Points are capped at 5,000 per day that the game mode's been running. Meaning that by day 5, you'll be able to earn up to a total of 25,000 points from Breaches, even if you miss a day and earn in excess of 5,000 points on another day to catch up.
+* The total cap here is 75,000 points, but it's still worth coming back for Breaches to earn their powerful rewards.
+
+===Levels===
+* Levels 1 - 49 award 5 points per level.
+* Levels 50 - 99 award 10 points per level.
+* Level 99 awards a 300 point bonus.
+
+===Collection Log===
+* 10 points awarded per new Collection Log entry.
+
+===Clue Scrolls===
+* Beginner Clues award 5 points per completion.
+* Easy Clues award 8 points per completion.
+* Medium Clues award 15 points per completion.
+* Hard Clues award 20 points per completion.
+* Elite Clues award 30 points per completion.
+* Master Clues award 55 points per completion.
+* Your first Clue completion per tier will award 5x the specified points.
+* No points are awarded for Clue completions beyond the 100th in a tier.
+
+===Achievement Diaries===
+* Easy tasks award 15 points.
+* Medium tasks award 25 points.
+* Hard tasks award 40 points.
+* Elite tasks award 60 points.
+* No bonus for tier completion, so there's no need to feel bad about skipping a task or two!
+
+===Combat Achievements===
+* Easy tasks award 10 points.
+* Medium tasks award 15 points.
+* Hard tasks award 25 points.
+* Elite tasks award 35 points.
+* Master tasks award 50 points.
+* Grandmaster tasks award 75 points.
+* No bonus for tier completion or boss completion, do whichever tasks you like and then move on to the next.
+
+===Boss Kills===
+* Your first kill on a boss awards 5x the specified points.
+* No points are awarded for boss kills beyond the 100th. Meaning your 101st Barrows Brothers clear will award 0 points.
+
+This next section is for the specific number of points awarded by each boss!
+
+* Abyssal Sire - 20 points.
+* Alchemical Hydra - 10 points.
+* Amoxliatl - 5 points.
+* Araxxor - 13 points.
+* Artio - 10 points.
+* Barrows Brothers (all six) - 30 points (5 points per brother).
+* Bryophyta - 15 points.
+* Callisto - 10 points.
+* Calvar'ion - 10 points.
+* Cerberus - 25 points.
+* Chambers of Xeric - 120 points.
+* Chambers of Xeric: Challenge Mode - 180 points.
+* Chaos Elemental - 20 points.
+* Chaos Fanatic - 10 points.
+* Colosseum - 75 points.
+* Commander Zilyana - 20 points.
+* Corrupted Hunllef - 25 points.
+* Corporeal beast - 35 points.
+* Crazy Archaeologist - 10 points.
+* Crystalline Hunllef - 17 points.
+* Dagannoth Prime - 15 points.
+* Dagannoth Rex - 15 points.
+* Dagannoth Supreme - 15 points.
+* Deranged Archaeology - 3 points.
+* Doom of Mokhaiotil - 7 points for reaching wave 8, 7 points for each wave completed beyond wave 8.
+* Duke Sucellus - 15 points.
+* Duke Sucellus (Awakened) - 35 points.
+* Fight Caves - 50 points.
+* General Graardor - 20 points.
+* Giant Mole - 12 points.
+* Grotesque Guardians - 10 points (for clearing the whole encounter).
+* Hespori - 25 points.
+* Hueycoatl - 10 points.
+* Inferno - 100 points.
+* Kalphite Queen - 20 points.
+* King Black Dragon - 5 points.
+* Kraken - 15 points.
+* Kree'arra - 23 points.
+* K'ril Tsutsaroth - 17 points.
+* Leviathan - 15 points.
+* Leviathan (Awakened) - 35 points.
+* Mimic - 10 points.
+* Moons of Peril - 30 points (10 points per moon).
+* Nex - 5 points.
+* Obor - 15 points.
+* Phosani's Nightmare - 30 points.
+* Phantom Muspah - 10 points.
+* Royal Titans - 10 points.
+* Sarachnis - 10 points.
+* Scorpia - 10 points.
+* Scurrius - 5 points.
+* Skotizo - 25 points.
+* Spindel - 10 points.
+* Tempoross - 20 points.
+* The Nightmare - 18 points.
+* Theatre of Blood (Entry Mode) - 100 points.
+* Theatre of Blood - 120 points.
+* Theatre of Blood (Hard Mode) - 180 points.
+* Thermonuclear Smoke Devil - 10 points.
+* Tombs of Amascut (Entry Mode) - 100 points.
+* Tombs of Amascut - 120 points.
+* Tombs of Amascut (Expert Mode) - 150 points.
+* Vardorvis - 15 points.
+* Vardorvis (Awakened) - 35 points.
+* Venenatis - 10 points.
+* Vet'ion - 10 points.
+* Vorkath - 10 points.
+* Wintertodt - 20 points.
+* Whisperer - 15 points.
+* Whisperer (Awakened) - 35 points.
+* Yama - 15 points.
+* Zalcano - 10 points.
+* Zulrah - 20 points.
+
+''...and breathe.''
+
+If you need an in-game reminder, you can use the dedicated Deadman section of the Quest tab to check how many points every activity provides!
+
+[[File:Deadman- Annihilation - Everything You Need To Know (4).png|204px|center]]
+
+As you can see, 'just about anything' means exactly what it says on the tin - play the game, progress your character, participate in Breaches and stock up on points. Progression in Deadman: Annihilation is sped up massively by powerful sigils and account unlocks, which you'll be able to buy with points, so let's see what your hard-earned points can get you!
+
+==Shop Unlocks==
+[[File:Deadman- Annihilation - Everything You Need To Know (5).png|500px|center]]
+
+This section will detail how many points you'll need for the various shop unlocks. We've put together a table to show off the unlock itself, what type of unlock it is, and a small description. For some of the 'new' Sigils, we might opt to keep their descriptions secret until closer to the event so that you have a reveal or two to look forward to!
+
+Remember that all of these can be purchased via the Deadman's Skull, so all you'll have to do is withdraw an item, click it, and get spending. This means that Sigils no longer feature as part of Deadman's Global Loot Table and must be purchased from the Skull shop.
+
+For the table below, 'Permanent' unlocks mean that you buy them and you'll benefit from their effects forever and cannot lose them on death (Ruinous Powers can be swapped away from if you'd rather use the Standard Prayer book), 'Attune' unlocks mean that you'll have to attune these Sigils and can only have up to three equipped at a time (these are almost exclusively PvP-focused Sigils and you can only unlock or swap Attuned Sigils around while at a bank), 'Toggle' unlocks tend to be Skilling focused and can be turned off and on at will since there are some scenarios where you might prefer to leave them turned off.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Unlock
+! Skull Point Cost
+! Unlock Type
+! Unlock Group
+! Description
+|-
+| Ruinous Powers (New)
+| 5,000
+| Prayer
+| Permanent
+| Gives the player access to the ruinous prayers book.
+|-
+| Deft strikes
+| 100
+| Combat
+| Permanent
+| You gain 30% more accuracy in all styles against all non-player enemies.
+|-
+| Resistance
+| 100
+| Combat
+| Permanent
+| All attacks from monsters are reduced by 25%. The damage reduction effect does not stack with the Sigil of Titanium.
+|-
+| Alchemaniac
+| 100
+| Utility
+| Permanent
+| When casting high or low alchemy on a stack of items, the spell will automatically recast over time, until the stack is depleted or moved.
+|-
+| Infernal chef
+| 150
+| Skilling
+| Permanent
+| Provides a 50% chance to instantly cook fish that are caught while Fishing, granting Cooking experience regardless of level requirements.
+|-
+| Onslaught
+| 150
+| Combat
+| Permanent
+| Increases the number of targets that Chinchompas and Ancient Magicks can damage from 9 to 11, as long as they're within a 3x3 radius of the initial target.
+|-
+| Deception
+| 150
+| Skilling
+| Permanent
+| Automatically re-pickpocket NPCs until you're otherwise unable to do so. Stop players from failing pickpockets.
+|-
+| Automation (New)
+| 250
+| Utility
+| Permanent
+| When you're within 10 tiles of your cannon and your cannon has 5 cannonballs or less, your cannon will automatically be reloaded, provided you have enough cannonballs.
+|-
+| Faith
+| 250
+| Utility
+| Permanent
+| Gain twice the number of Prayer points when consuming Prayer-restoring potions.
+|-
+| Hoarding
+| 250
+| Skilling
+| Permanent
+| 5x Points from the following places: Wintertodt, Tempoross, Guardians of the Rift, Golden nuggets from motherlode mine, Pizazz points, Tithe farm, Barbarian Assault, Brimhaven Agility, Giants' Foundry, Hallowed Sepulchre, Chompy bird hunting.
+|-
+| Litheness
+| 250
+| Skilling
+| Permanent
+| Grants 2x your Agility level as Agility XP while running, approximately every 10 ticks. Allows player to use any agility shortcut without needing the requirements.
+|-
+| Nature
+| 500
+| Skilling
+| Permanent
+| Choose your own Farming Contracts. Farming patches will grow instantly and never catch diseases.
+|-
+| Agile fortune
+| 500
+| Skilling
+| Permanent
+| When a Mark of Grace appears while training on a Rooftop Agility Course, 10,000 coins will appear alongside it. When obtaining pyramid tops and handing them in, receive 30,000 coins instead of 10,000 coins.
+|-
+| Efficiency (New)
+| 500
+| Skilling
+| Permanent
+| On failing to chop a tree or catch a fish, you will have a separate 50% chance to succeed. 2x increased resources for fishing, woodcutting and farming.
+|-
+| Hunter
+| 500
+| Skilling
+| Permanent
+| You gain three Chinchompas per successful Chinchompa capture. Box traps will lure creatures faster.
+|-
+| Restoration
+| 500
+| Combat
+| Permanent
+| Upon a successful hit, restore 10% of the damage dealt (rounded up) to your Hitpoints. This works against both players and NPCs but excludes multi-target attacks and Special Attacks.
+|-
+| Treasure hunter
+| 500
+| Utility
+| Permanent
+| Clue Scrolls drop 3x more often. You have a 75% chance for a clue scroll to return the reward casket after you complete a clue step for any tier. Newly-dropped Clue Scrolls are stackable.
+|-
+| Food master
+| 1,000
+| Utility
+| Permanent
+| You have a 5% chance not to consume food when used. This effect has a 6 second cooldown.
+|-
+| Potion master
+| 1,000
+| Utility
+| Permanent
+| You have a 5% chance not to consume potions when using them. Once the effect activates, it cannot be triggered again within six seconds.
+|-
+| Well Fed
+| 1,000
+| Utility
+| Permanent
+| You have a 5% chance to gain twice the number of Hitpoints from any food or potions consumed.
+|-
+| Revoked limitation
+| 1,000
+| Utility
+| Permanent
+| Revenant weapon damage and accuracy bonuses are no longer restricted to the Wilderness.
+|-
+| Meticulousness
+| 1,500
+| Combat
+| Permanent
+| Grants +75% Accuracy in all styles against NPCs. This is a higher-tier variant of the Sigil of Deft Strikes.
+|-
+| Sigil of eternal belief
+| 2,000 (New)
+| Utility
+| Permanent
+| Prayer does not drain naturally, can be affected by prayer drain effects like smite.
+|-
+| Titanium
+| 3,000
+| Combat
+| Permanent
+| All attacks from monsters are reduced by 60%. The damage reduction effect does not stack with the Sigil of resistance.
+|-
+| Conclusion
+| 5,000 (New)
+| Combat
+| Permanent
+| When killing a NPC, receive 10% special attack energy back. The NPC must be within 15 tiles of you and you can't have been in PvP combat in the last 24 seconds.
+|-
+| Augmented thrall
+| 5,000
+| Combat
+| Permanent
+| The max hits of your thralls are multiplied by 5. Thralls duration is doubled.
+|-
+| Specialised strikes
+| 100
+| Combat
+| Attune
+| Activate the Sigil to reduce the cost of your next Special Attack that costs more than 10 energy by 10. This effect lasts for 12 seconds and has a 10 second cooldown.
+|-
+| Consistency
+| 150
+| Combat
+| Attune
+| Every attack does +1 damage to the target.
+|-
+| Lightbearer
+| 250
+| Combat
+| Attune
+| Special attack regeneration will become 15 seconds per 10%. If a Lightbearer ring is also equipped, special attack regeneration will become 10 seconds per 10%.
+|-
+| Meticulous mage
+| 350
+| Combat
+| Attune
+| Your magic accuracy is increased by +40 and you have a 50% chance of saving runes or staff charges when using Magic.
+|-
+| Rigorous ranger
+| 350
+| Combat
+| Attune
+| Your ranged accuracy is increased by +20, and you have a 50% chance of saving ammunition when using Ranged weapons, except when throwing Chinchompas.
+|-
+| Barrows
+| 500
+| Combat
+| Attune
+| Prevents Barrows armour sets from degrading, adds +40% Accuracy to attacks from Barrows weaponry against players and NPCs and gives the Amulet of the damned effects for the Barrows sets.
+|-
+| Finality
+| 500
+| Combat
+| Attune
+| Activate the Sigil to guarantee 100% accuracy on your next special attack within the next 12 seconds. Once activated, the Sigil has a 10 second cooldown.
+|-
+| Formidable fighter
+| 500
+| Combat
+| Attune
+| Your melee accuracy is increased by +30 in stab, slash, and crush. Upon a successful hit, you have a 30% chance for your next hit to deal +10 damage. The chance to deal +10 damage on your next hit does not apply to special attacks. 10 second cooldown for the additional hit.
+|-
+| Fortification
+| 500
+| Combat
+| Attune
+| Your defence is increased by +50 for stab, slash, crush, and ranged.
+|-
+| Menacing mage
+| 500
+| Combat
+| Attune
+| Upon dealing Magic damage, you have a 15% chance to curse the target. The curse deals 18 damage (12 damage in the level 3-60 combat bracket) over the next 6 seconds and heals you for the same amount. A target can only be under the effect of one curse at a time.
+|-
+| Porcupine
+| 500
+| Combat
+| Attune
+| On level 81-95 and 96+ Worlds: Activate the Sigil to recoil 4 damage to your attacker for every hit you take. On level 3-60 and 61-80 Worlds: Activate the Sigil to recoil 2 damage to your attacker for every hit you take. The effect lasts for 25 seconds and has a 1-minute cooldown.
+|-
+| Ruthless ranger
+| 500
+| Combat
+| Attune
+| Upon dealing Ranged damage, you have a 15% chance to cripple the target's movement. The effect deals 15 damage (10 damage in the level 3-60 combat bracket) over the next 6 seconds and drains a total of 15 run energy. The damage is doubled against targets with no run energy. A target can only suffer from one crippling effect at a time.
+|-
+| Sigil of the gods (New)
+| 500
+| Combat
+| Attune
+| The three God spells gain +10% damage and additional effects:
+* Flames of Zamorak has a 10% chance to cause a burn effect (note this burn effect should clear faster on Deadman, within a few ticks, similar to the Eclipse atlatl).
+* Claws of Guthix will lower the targets defence level equal to 50% of the damage dealt. For example, if Player A is level 50 defence and Player B hits a 40, Player A will become 30 defence. This can stack.
+* Saradomin Strike drains the enemy's prayer points by 30% of the damage done.
+|-
+| Pious protection
+| 3,000
+| Combat
+| Attune
+| Decrease the amount of damage you take from attacks of a given combat style by 35% when using the correct protection Prayer for that style. Increase the damage you take by protecting against the wrong combat style by 5%.
+|-
+| Adroit
+| 5,000
+| Combat
+| Attune
+| Increases your Accuracy by 1% against players and NPCs for each Hitpoint you're missing. This means if your max HP is 99 and you're sitting at 50 HP, you'll gain +49% Accuracy against enemies. Below 20 health, the accuracy multiplier is 2% instead of 1%.
+|-
+| Arcane swiftness
+| 5,000
+| Combat
+| Attune
+| The attack speed of all Magic weapons with a base attack speed above 4 will be reduced by 1. Cannot be used in conjunction with the Sigil of the Swashbuckler or the Sigil of the Gunslinger.
+|-
+| Gunslinger
+| 5,000
+| Combat
+| Attune
+| The attack speed of all Ranged weapons with a rapid attack speed above 4 will be reduced by 1. Cannot be used in conjunction with the Sigil of the Swashbuckler or the Sigil of Arcane Swiftness. swiftness. Excludes the crystal bow, Bow of Faerdhinen, and Morrigan's thrownaxe.
+|-
+| Swashbuckler
+| 5,000
+| Combat
+| Attune
+| The attack speed of all Melee weapons with a base attack speed above 4 will be reduced by 1. Cannot be used in conjunction with the Sigil of the Gunslinger or the Sigil of Arcane Swiftness.
+|-
+| Aggression
+| 10,000
+| Combat
+| Attune
+| All attacks deal 10% more damage. This sigil does not stack with the Sigil of Rampage.
+|-
+| Rampage
+| 10,000
+| Combat
+| Attune
+| Alternating combat styles will increase your rampage count, up to a maximum of 2. Consecutive attacks with the same style will reset the counter. Each rampage count increases your damage and accuracy by 7%. Your rampage count will reset after not attacking for 6 seconds. The damage bonus effect does not stack with the Sigil of Aggression.
+|-
+| Remote storage
+| 100
+| Skilling
+| Toggle
+| Resources gathered from Mining, Fishing, Woodcutting and Farming will be automatically noted and placed in your looting bag or inventory.
+|-
+| Enhanced harvest
+| 100
+| Skilling
+| Toggle
+| You always gain 3x resources from Mining, Fishing, Woodcutting, and Farming. This sigil does not stack with Sigil of the Forager.
+|-
+| Slaughter
+| 500
+| Utility
+| Toggle
+| Pay 45 Slayer Points to choose your own non-boss specific Slayer Task. Double the chance of a superior slayer monster appearing. Toggled on, you have a 25% chance for a Slayer Task kill to not count towards the task while still gaining you Slayer XP. Toggled off, 25% chance for a kill to count as 2. This Sigil does not stack with any bracelet effects.
+|-
+| Woodcraft
+| 1,000
+| Skilling
+| Toggle
+| Instead of receiving logs when chopping specific trees, you will receive the appropriate planks. Does not work in guarded areas or with the infernal axe. Requires 50 gp per regular plank, 125 gp per oak plank, 250 gp per teak plank, and 700 gp per mahogany plank.
+|-
+| Devotion
+| 1,500
+| Skilling
+| Toggle
+| Dropped Bones are automatically buried. Ashes are automatically scattered. Prayer XP gained from these activities is increased by 200%.
+|-
+| Lamp - Recipe for Disaster
+| 1,500
+| Quest Lamp
+| Quest Lamp
+| Completes the quest Recipe for Disaster.
+|-
+| Lamp - Camelot Storyline
+| 1,000
+| Quest Lamp
+| Quest Lamp
+| Completes the quests up to and including King's Ransom.
+|-
+| Lamp - Fremennik Storyline
+| 250
+| Quest Lamp
+| Quest Lamp
+| Completes the quests up to and including Fremmenik Exiles.
+|-
+| Lamp - Elf Storyline
+| 500
+| Quest Lamp
+| Quest Lamp
+| Completes the quests up to and including Roving Elves.
+|-
+| Lamp - Gnome Storyline
+| 5,000
+| Quest Lamp
+| Quest Lamp
+| Completes the quests up to and including Monkey Madness 2.
+|-
+| Lamp - Kharidian Storyline
+| 1,500
+| Quest Lamp
+| Quest Lamp
+| Completes the quests up to and including Beneath Cursed Sands.
+|-
+| Lamp - Myreque Storyline
+| 1,000
+| Quest Lamp
+| Quest Lamp
+| Completes the quests up to and including Night at the Theatre.
+|-
+| Lamp - Dragonkin Storyline
+| 5,000
+| Quest Lamp
+| Quest Lamp
+| Completes the quests up to and including Dragon Slayer 2.
+|-
+| Lamp - Mahjarrat Storyline 1
+| 1,500
+| Quest Lamp
+| Quest Lamp
+| Completes the quests up to and including Desert Treasure.
+|-
+| Lamp - Mahjarrat Storyline 2
+| 5,000
+| Quest Lamp
+| Quest Lamp
+| Completes the quests up to and including Secrets of the North.
+|}
+
+Note that you can buy multiple of the same Sigil or Quest Lamp, but you'll be able to sell them back to the shop by using them on the Deadman's Skull - so don't stress over the occasional misclick! We'll also hide any Sigils/Quest lamps that you've already obtained whenever you next open the Skull shop, so accidentally buying dupes shouldn't be something you encounter very often.
+
+That should be plenty for you to figure out how you'd like to kick things off, we're excited to see all of the day one routes descending onto Pastebin and Twitch chats full of people spamming !plan, !route, !guide only to wind up wearing a Pink skirt for nothing but the love of the game.
+
+===Main-game Reward Costs===
+Of course, the points that you earn will carry over to the main game where you'll be able to trade them for brand new cosmetics! These are all unlocked in the form of tradeable items, which also function sort of like a permanent unlock. For example, if you manage to lose your crystal armour recolour, you can visit Nigel in Lumbridge with another crystal set and recolour them to the Deadman: Annihilation theme for free!
+
+Here's what's up for grabs and how much the rewards cost:
+
+* Wilderness-themed POH Kit - 15,000 points.
+* Deadman: Annihilation Home teleport animation - 10,000 points.
+* Deadman: Annihilation recolours for the Toxic Staff of the Dead, Bow of Faerdhinen and Crystal Armour - 12,000 points each.
+* Remember that spending  Skull points in the Skull shop doesn't impact the Deadman points you'll be able to spend in the main game whatsoever, so make sure to prioritise those unlocks to snowball your Point-earning prowess!
+
+==Ruinous Powers Changes==
+[[File:Deadman- Annihilation - Everything You Need To Know (6).png|500px|center]]
+
+We've got loads more small details to clue you in on, but we'll quickly cover some specific changes to the Ruinous Powers since their last appearance during Leagues IV - Trailblazer Reloaded, since we've aimed to make them a little friendlier in PvP scenarios and these changes might affect whether or not you want to drop 5,000 points on picking them up.
+
+First things first, for a history of this since-shelved Prayer book and a full look at what all of the Prayers inside it do, [[Ruinous_Powers|there's no better place than this OSRS Wiki page]]. You'll be able to unlock these in the shop along with a handy little book which you can use to swap your Prayer book whenever you'd like (you can also use the Deadman's Skull for this).
+
+If you're already more-or-less familiar with what the Ruinous Powers do, then here's a breakdown of changes we're making to them for Deadman: Annihilation.
+
+* Dampen Magic, Dampen Ranged and Dampen Melee no longer make the player receive 10% extra damage.
+* Glacies' Vow now only works against NPCs.
+* Ancient Will now provides +3% Magic Damage.
+* Trinitas now provides +2% Magic Damage.
+* Rebuke now increases recoil damage by 10%, down from 50%.
+* Decimate provides +30% Attack, up from +25%.
+* Annihilate provides +30% Ranged attack, up from +25%.
+* Vaporise now provides +30% Magic attack, up from +25%.
+* Intensify now provides +50% accuracy in all Combat styles, up from +40%.
+
+That is a lot of bang for your buck... We expect to see a lot of you using these powerful Prayers, especially in conjunction with the Sigil of Eternal Belief, so be prepared to spill some blood and hit like a train, in Zaros' name!
+
+==Deadman's Chest Mechanics==
+[[File:Deadman- Annihilation - Everything You Need To Know (7).png|500px|center]]
+
+The Deadman's Chest is brand new to Deadman: Annihilation! We mentioned it in our overview post but wanted to double down on the specifics here:
+
+* When an NPC with at least 30 Hitpoints dies, there's a rare chance that it will spawn a Deadman's Chest.
+* In a single-way combat area, the chest takes 60 seconds to open. This doesn't require any Thieving level.
+* In a multi-way combat area, the chest takes 30 seconds to open. This doesn't require any Thieving level.
+* An enemy will be spawned alongside the chest, who you'll likely want to deal with before opening the chest.
+* When you're attempting to open the chest, any form of combat (both PvM and PvP) will interrupt you and reset the timer, as will inventory actions like eating food or drinking potions.
+* Deadman's Chests cannot spawn in instances.
+* For some NPCs where spawns would likely be impossible to open, the chest will spawn outside of the area where the NPC is located, some examples include Scurrius, the Dagannoth Kings, God Wars Dungeon Generals, Scorpia and the King Black Dragon.
+* You must be risking at least 100,000 GP to open the chest.
+* If you have immunity or PvP protection, then you won't be able to open the chest.
+* The first player to open the chest will receive a guaranteed drop of any of the following:
+** Trinket of Advanced Weaponry
+** Trinket of Undead
+** Morrigan's Thrownaxe x100
+** Morrigan's Javelin x100
+** Any piece of Ancient Warrior's armour (Vesta, Statius, Morrigan or Zuriel)
+*** These require level 20 Defence to equip, alongside 75 Ranged for Morrigan's armour and 75 Magic for Zuriel's armour.
+** The Thunder Khopesh
+*** Special Attack requires 60% Energy.
+*** In PvP, its Special Attack will summon 4 lightning bolts on the tile the player was stood. The first bolt will commence 7 ticks after the special attack is used, subsequent bolts will occur every 2 ticks beyond the first. If the player moves 2 tiles away from that original tile, any subsequent lightning bolts will not hit them. Each bolt will do between 30 and 45% of the players max hit. Both the original hit and the lightning bolts can be prayed against using the correct prayer. The initial hit will be melee, the lightning bolts after will be magic.
+** The Dogsword
+*** Special Attack requires 60% Energy.
+*** In PvP, its Special Attack combines all Godsword specials, but the Ancient Godsword effect has had its healing effect reduced.
+
+You'll be sure to see a number of these throughout your journey, so make sure to attune the right sigils to stave off any would-be attacker, stand your ground and claim your spoils to get an edge over your competition. If you're worried about non-stop combat while opening these up, consider venturing off the beaten path and looking for locations where you're unlikely to be interrupted - you might just snag yourself some of the most powerful gear available in Deadman: Annihilation.
+
+==Other Gameplay Changes==
+Before we dive into discussions around the Finale, we've got a lot of tweaks that you'll want to know about. Some of these are small fixes, while others might give you new things to enjoy this Deadman mode...
+
+* For Deadman: Annihilation only, the Revenant Caves have been given a makeover. Players entering from the southern entrance will be able to fight Revenants in a Singles-plus area, just as in the main game. Players entering from the northern entrance will be able to fight revenants in a Multi-combat area. These two sections of the cave are blocked off from each other, and the number of revenants within the accessible parts of the caves have been increased to compensate. There are no additional benefits for killing the multi-combat variants, but we understand that as players wind down over the course of the event that it might be a bit of fun to fly into the caves and find some fights.
+** To reiterate: this change is solely for Deadman: Annihilation.
+* On a related note, we've fixed a bug from Deadman: Armageddon where loot multipliers were resulting in Revenants dropping far more loot than intended.
+* All players will start with the following Quests auto-completed:
+** Alfred Grimhand's Barcrawl (Miniquest)
+** Animal Magnetism
+** Ascent of Arceuus
+** Barbarian Training (Miniquest)
+** Children of the Sun
+** Client of Kourend
+** Demon Slayer
+** The Depths of Despair
+** Druidic Ritual
+** Ernest the Chicken
+** Fairytale I - Growing Pains
+** Fairytale II - Cure a Queen
+** The Forsaken Tower
+** Goblin Diplomacy
+** The Grand Tree
+** Holy Grail
+** Horror from the Deep
+** Lost City
+** Merlin's Crystal
+** Monkey Madness I
+** Nature Spirit
+** Priest in Peril
+** The Queen of Thieves
+** The Restless Ghost
+** Rune Mysteries
+** Shield of Arrav
+** Tale of the Righteous
+** Tree Gnome Village
+** Vampyre Slayer
+** Waterfall Quest
+** Witch's House
+** X Marks the Spot
+* In PvP: All single-instances of damage are capped at 85, with the exception of Dharok's set effect.
+* Spell icons will have spell resizing enabled, as is the case in the main game outside of the Wilderness. There's never been a better time to get to grips with PvP!
+* Private God Wars Dungeon instances are disabled for Deadman: Annihilation. Additionally, killcount obtained in the dungeon will not wipe when you leave the area.
+* Once you're done with the tutorial, you can choose any of the following starting locations: Varrock, Lumbridge, East Ardougne, Gnome Stronghold, Kourend Castle
+* On your first login, you'll be provided with a number of items including a Deadman starter pack. Once you've opened your pack, your setup should include:
+** 30 untradeable tuna in your bank, 12 untradeable tuna in your inventory
+** A Chronicle with 10 teleport cards
+** A Looting bag
+** An early-game cape with some combat bonuses
+** Some starter weapons, body armour and leg armour
+** A Dramen staff
+* Items obtained from Tutorial Island will be placed in your bank, rather than in your inventory
+* The Global Loot Table (accessed by killing any NPC outside of an instance) has been adjusted and can now drop:
+** God d'hide bodies and chaps
+** Various potions
+** Ancient staves
+** Uncut gems
+** Cannonballs
+** Dragonstone bolt (e)
+** Blighted Ice Sacks
+** Mystic Robe tops and bottoms
+** Various runes
+** Cooked food
+** Herblore secondaries
+** Reduced alchables compared to before.
+** For NPCs with a Combat level of 50 or more, there's a rare sub-table which can drop the following items:
+*** Mage's book
+*** Master wand
+*** Any piece of Ancient warrior armour
+* Players can now use noted teleport cards on the Chronicle.
+* Shop stocks act differently depending on the shop, but the ''general'' rule of thumb is that 'generic' shops like General Stores or Rune Shops refresh their stock at a rapid rate or fully restock when their interface is closed and re-opened, while more 'bespoke' shops like Fortunato's Wine Stall deplete as they would in the main game. We'd love to find a more standardised approach to shops in Deadman, but the presence of an in-game economy here (which isn't the case for Leagues) makes things more challenging.
+* Maniacal monkeys in the tunnels unlocked during Monkey Madness 2 have had the rate at which they provide supply drops reduced.
+* Looting bags are now common drops from all monsters, rather than only those found in the Wilderness.
+* Supply drops from skilling actions now occur at a rate of 1 in 1,000 as opposed to 1 in 500.
+* Since bank keys are removed, players' risk will be indicated by skulls above their head, similar to Bounty Hunter. The 'risked wealth' associated with each skull colour is as follows:
+** Bronze: 200,000 GP or less.
+** Iron: Between 200,001 GP and 800,000 GP.
+** Green: Between 800,001 GP and 2,000,000 GP.
+** Blue: Between 2,000,001 GP and 8,000,000 GP
+** Red: More than 8,000,001 GP.
+* Any Quest items that are obtained from automatic Quest unlocks or Quest Lamp unlocks can be reclaimed indefinitely from the Combat Tutors in Lumbridge, except for: Iban's Staff, Crystal shield, Crystal bow, which can only be obtained once.
+* Starter Packs no longer provide a free Sigil once per day. Instead, you'll be granted some points on login to purchase a Sigil from the Skull shop.
+* Note that you will still be able to choose one of the typical combat sigils for free when logging on for the first time (Ruthless Ranger, Formidable Fighter and Menacing Mage)
+* Starter Packs no longer provide 5,000 GP.
+* Your Magic autocast settings remember which spell you used when switching between weapons if you haven’t attacked another player in the last 20 ticks.
+* When getting a kill in a single combat zone, you will be reminded periodically in the chat box how much immunity time you have left until you can be attacked by another player. Immunity is removed when teleporting or logging out.
+* The PJ timer has increased from 20 to 24 ticks.
+* Nihil shards and regular Spirit shields have been made more common from Nex and the Corporal beast respectively.
+* You'll be able to enter a raid while in Combat. Note that the bank chest inside the Chambers of Xeric instance will be disabled for Deadman: Annihilation.
+* Players who have PvP protection active or very low risked wealth will not be able to enter raid areas such as Ver Sinhaza, Mound Quidamortem's peak, or the Tombs of Amascut lobby - meaning would-be raggers or scouts shouldn't be able to dip in and out of raids with zero retaliation to harass people.
+* The respawn times for item spawns and NPCs has been made significantly faster.
+* God books obtained from completing the Horror of the Deep quest will automatically completed, so no need to acquire your own pages.
+* The Arceuus Library is closed for Deadman: Annihilation, and its related diary task is automatically completed. The world is ending, there's no time for messing around with books!
+* The Emblem Trader's shop is receiving some changes:
+* The Ancient Sceptre has been added.
+* Items purchased from the Trader are noted wherever possible.
+* Halos purchased from the Emblem Trader can no longer be alchemised.
+* Players' default respawn point is set to the Grand Exchange.
+* Experience is now granted even when you're inside of an instance, though only at a 3x rate. As a result, Nightmare Zone will be inaccessible.
+** Slayer XP is exempt from this, you'll always be granted full Slayer XP according to your bracket's modifier.
+* Wilderness Slayer will provide significantly fewer Tier 5 Emblems than in previous Deadman Mode events.
+* Logout delay will not apply if you're logging out within a safezone.
+* Hitpoints requirements will not apply to the Amulet of Rancour, Confliction Gauntlets, or any Zenyte jewellery.
+* Blighted Overloads now deal 10 damage to you (down from 25) and reduce your Defence to 90% (up from 80%) of its initial value.
+* The Elder Chaos Druid at the Chaos Temple will be able to unnote your bones.
+* Items above a certain value cannot be banked outside of a safezone if you've been in combat within the last 60 seconds.
+* There's no longer a delay for consuming food or potions after closing your bank while in a safezone.
+* Creating the Emberlight, Purging Staff and Scorching Bow will not require completion of While Guthix Sleeps, though you'll still need to finish the quest if you'd like to fight Tormented Demons for yourself.
+* Some ladders that lead to overpowered '1x1' hiding spots (meaning it's not possible to be attacked in these areas) in Shayzien are under maintenance.
+* Wintertodt and Tempoross are now safezones.
+* A wizguard (yes, you're reading that right) will freeze you for a short duration if you run into a guarded area while skulled.
+* If you're skulled and teleport using a portal in your POH, you'll be warned if your destination is a safezone.
+* PK Skull prevention has been enabled in Deadman is turned on by default, it can be turned off in the settings menu in the same fashion as the main game.
+* Wilderness Agility Course lap counts do not reset when you leave the course.
+* Zulrah's damage cap (limiting hits to a maximum of 50) has been removed.
+* The Trinket of Vengeance has been removed for Deadman: Annihilation.
+* We've fixed a bug where players stood on top of Fairy rings could not attack back while frozen.
+* The Eclipse Atlatl and Arkan Blade have had their burn damage reduced from 15 to 10.
+* Minnow fishing requires a 100,000 GP fee to access the platform, this change is meant to hinder bots.
+
+With all of that, you should be up to speed! We're excited to see all of your plans and perhaps a pink skirt or two. See you all January 30th for Deadman: Annihilation!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School RuneScape Wiki|Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume'''
+
+
+''The Old School Team.''

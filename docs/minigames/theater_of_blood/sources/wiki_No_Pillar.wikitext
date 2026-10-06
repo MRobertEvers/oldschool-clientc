@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = No-Pillar
+|image = [[File:Verzik Vitur.png|220px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Survive Verzik Vitur's pillar phase in the Theatre of Blood: Entry Mode without losing a single pillar.
+|tier = Elite
+|monster = Theatre of Blood: Entry Mode
+|type = Mechanical
+|id = 393
+|leagueRegion = Morytania
+}}
+'''No-Pillar''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to survive [[Verzik Vitur|Verzik Vitur's]] pillar phase in the [[Theatre of Blood/Entry Mode|Theatre of Blood: Entry Mode]] without losing a single [[Supporting Pillar|pillar]].
+
+== Strategy ==
+Have every player use the [[Dawnbringer|Dawnbringer's]] special attack multiple times to quickly end the encounter. Avoid teammates spreading between multiple pillars. If one pillar is taking too much damage, preemptively move to another.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Entry Mode}}
+
+{{Combat Achievements}}

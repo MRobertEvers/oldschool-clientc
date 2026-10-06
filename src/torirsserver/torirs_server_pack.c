@@ -24,6 +24,7 @@
  * not moved; the validator role is the whole tool now.
  */
 
+#include "torirs_server_boot.h"
 #include "content/content_register.h"
 #include <assert.h>
 #include "cp_membership.h"
@@ -31,6 +32,7 @@
 #include "torirs_server_content.h"
 #include "torirs_server_db.h"
 #include "torirs_server_ids.h"
+#include "torirs_server_servpack.h"
 
 #include <rscache.h>
 
@@ -1262,71 +1264,14 @@ main(
         }
     }
 
-    ToriRSServer_ObjInfoLoad(cache);
-    ToriRSServer_NpcInfoLoad(cache);
-    ToriRSServer_SeqInfoLoad(cache);
-    ToriRSServer_HealthbarInfoLoad(cache);
-    /* The loc config table, for `validate_categories`' loc arm. Without it every
-     * loc-only category name in `pack/category.pack` would be reported as carried
-     * by nothing — a validator answering from a table it did not load is worse
-     * than one that does not check at all. */
-    ToriRSServer_LocInfoLoad(cache);
-    ToriRSServer_ContentLoad(content);
     /*
-     * The `.dbtable`/`.dbrow` half of the tree, which this validator did not read.
-     *
-     * `ToriRSServer_DbLoad` had exactly one caller — `torirs_server_boot.c` — so every table
-     * and every row in the content tree was checked only by starting the server.
-     * That is the one namespace family whose ids are allocated rather than the
-     * cache's (docs/CONTENT_ARCHITECTURE.md §3.3), so "the id is missing", "the
-     * table has no such column" and "the value names nothing" were all boot-time
-     * discoveries in a tree `ToriRSServer_Pack --check-only` called clean. Its errors
-     * go through `ToriRSServer_ContentReportError`, so they reach the exit status
-     * from here without any further plumbing.
+     * Every config record from the server pack, by the server's own load
+     * (ToriRSServer_BootLoadContent): a validator reading a different source from
+     * the server would be checking something the server never loads. No pack, or
+     * a stale one, is a validator failure naming the command that builds it.
      */
-    ToriRSServer_DbFree();
-    ToriRSServer_DbLoadCacheTables(cache);
-    ToriRSServer_DbLoad(content);
-    /* The engine's own symbol table, which is a claim about the packs in
-     * exactly the way a config line is: every name the C addresses has to be in
-     * one. Resolving it here is what makes a renamed or dropped symbol a
-     * validator failure rather than a dead interface at runtime. */
-    ToriRSServer_IdsResolve();
-
-    /*
-     * The server band, held to the text parse it is replacing.
-     *
-     * This is the permanent home of the equivalence check PORTING_GUIDE §3.6
-     * item 1 demands: a band on disk that disagrees with the tree is a
-     * validator failure, exactly like a config line that stopped meaning
-     * anything. An *absent* band is not — a fresh checkout has none until
-     * `cachepack pack --server-only` runs, the way it has no script pack until
-     * `torirsserver-scripts` does.
-     */
-    {
-        struct ToriRSServerBandReport band;
-
-        switch( ToriRSServer_ContentLoadServerBand(content, &band) )
-        {
-        case TORIRSSERVER_BAND_LOADED:
-            printf("server band: %d archive(s) verified against the text parse "
-                   "(%d overlay authored defs, %d field value(s) text-only, %d over "
-                   "records the runtime never loads)\n",
-                   band.archives, band.overlaid, band.text_only, band.unseeded);
-            break;
-        case TORIRSSERVER_BAND_MISSING:
-            printf("server band: no server/pack — run `make -C src torirsserver-servpack`; "
-                   "skipped\n");
-            break;
-        case TORIRSSERVER_BAND_STALE:
-            fprintf(stderr,
-                    "ToriRSServer_Pack: server band disagrees with the tree (%d unreadable, "
-                    "%d mismatched archive(s)) — re-run `make -C src torirsserver-servpack`\n",
-                    band.invalid, band.mismatched);
-            g_errors++;
-            break;
-        }
-    }
+    if( ToriRSServer_BootLoadContent(content, cache) != 0 )
+        return 1;
 
     g_errors += ToriRSServer_ContentErrorCount();
 

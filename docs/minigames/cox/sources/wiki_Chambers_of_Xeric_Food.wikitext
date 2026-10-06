@@ -1,0 +1,135 @@
+The [[Chambers of Xeric]] contain '''fish''' and '''bats''' that are sources of [[food]] used exclusively within this [[raid]].
+
+Resource rooms have a 50% chance of spawning bats and a 50% chance of having [[Bubbles|fishing spots]].
+
+Food from the Chambers of Xeric are '''not''' affected by the [[cooking gauntlets]].{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1214495925663682565|date=7 January 2020|archiveurl=https://reldo.runescape.wiki/i/27964452|archivedate=20 September 2026|quote=No, we never installed gauntlet perks for [raids food].}}
+
+==Fish==
+To catch fish, a [[fishing rod]] is required, with [[cave worms]] as bait. [[Scavenger beast]]s drop both of these items. In resource rooms with fishing spots, there are three fishing spots. One of these three spots contains a [[cave snake]], which will damage the player (or take their fish). If a snake appears in the fishing spot, stop fishing and click elsewhere to avoid taking damage. While the spots are static, the spots containing plain fish and the cave snake change occasionally.
+
+{| class="wikitable align-center-1 align-left-2 align-center-5 align-left-6" style="text-align:right;"
+! rowspan="2" colspan="2" |Raw fish
+! colspan="2" |{{SCP|Fishing|link=y}}
+! rowspan="2" colspan="2" |Cooked fish
+! colspan="2" |{{SCP|Cooking|link=y}}
+! rowspan="2" |Heals
+|-
+!Level
+!Exp
+!Level
+!Exp
+|-
+|{{plinkt|Raw pysk fish (0)}}
+|1||20
+|{{plinkt|Pysk fish (0)}}
+|1||10
+|5
+|-
+|{{plinkt|Raw suphi fish (1)}}
+|15||23
+|{{plinkt|Suphi fish (1)}}
+|15||13
+|8
+|-
+|{{plinkt|Raw leckish fish (2)}}
+|30||26
+|{{plinkt|Leckish fish (2)}}
+|30||16
+|11
+|-
+|{{plinkt|Raw brawk fish (3)}}
+|45||29
+|{{plinkt|Brawk fish (3)}}
+|45||19
+|14
+|-
+|{{plinkt|Raw mycil fish (4)}}
+|60||32
+|{{plinkt|Mycil fish (4)}}
+|60||22
+|17
+|-
+|{{plinkt|Raw roqed fish (5)}}
+|75||35
+|{{plinkt|Roqed fish (5)}}
+|75||25
+|20
+|-
+|{{plinkt|Raw kyren fish (6)}}
+|90||38
+|{{plinkt|Kyren fish (6)}}
+|90||28
+|23
+|}
+
+==Bats==
+To catch bats, a [[butterfly net]], a [[magic butterfly net]], or 99 Hunter (to barehand catch bats) is required. Scavenger beasts drop butterfly nets.
+
+{| class="wikitable align-left-1 align-center-2 align-left-3 align-center-6 align-left-7" style="text-align:right;"
+! rowspan="2" |Creature
+! rowspan="2" colspan="2" |Raw bat
+! colspan="2" |{{SCP|Hunter|link=y}}
+! rowspan="2" colspan="2" |Cooked bat
+! colspan="2" |{{SCP|Cooking|link=y}}
+! rowspan="2" |Heals
+|-
+!Level
+!Exp
+!Level
+!Exp
+|-
+|[[Guanic bat]]
+|{{plinkt|Raw guanic bat (0)}}
+|1||5
+|{{plinkt|Guanic bat (0)}}
+|1||10
+|5
+|-
+|[[Prael bat]]
+|{{plinkt|Raw prael bat (1)}}
+|15||9
+|{{plinkt|Prael bat (1)}}
+|15||13
+|8
+|-
+|[[Giral bat]]
+|{{plinkt|Raw giral bat (2)}}
+|30||13
+|{{plinkt|Giral bat (2)}}
+|30||16
+|11
+|-
+|[[Phluxia bat]]
+|{{plinkt|Raw phluxia bat (3)}}
+|45||17
+|{{plinkt|Phluxia bat (3)}}
+|45||19
+|14
+|-
+|[[Kryket bat]]
+|{{plinkt|Raw kryket bat (4)}}
+|60||21
+|{{plinkt|Kryket bat (4)}}
+|60||22
+|17
+|-
+|[[Murng bat]]
+|{{plinkt|Raw murng bat (5)}}
+|75||25
+|{{plinkt|Murng bat (5)}}
+|75||25
+|20
+|-
+|[[Psykk bat]]
+|{{plinkt|Raw psykk bat (6)}}
+|90||29
+|{{plinkt|Psykk bat (6)}}
+|90||28
+|23
+|}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+{{Fish}}

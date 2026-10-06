@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+import config_text
+
 
 EXPECTED_TABLE_SCHEMAS = {
     "furniture": {
@@ -106,38 +108,38 @@ class Block:
     def all(self, key: str) -> list[str]:
         return [value for candidate, value in self.entries if candidate == key]
 
+
+class Row:
+    """One `all.dbrow` record, its columns addressed by column id.
+
+    The text is LostCity's grammar (`table=` + `data=<column>,<v>...`); a column
+    id is the column's position in its table (config_text.parse_dbtables). A
+    value comes back as text: a string column's as it stands, every other as the
+    number the cache stores (a name resolved, `null` -1, a boolean 1/0).
+    """
+
+    def __init__(self, row: config_text.DbRow, names: config_text.Names):
+        self.name = row.name
+        self.row = row
+        self.names = names
+
+    def first(self, key: str) -> str | None:
+        assert key == "table", f"Row.first({key!r}): a dbrow states only table="
+        return self.row.table
+
     def column_values(self, column: int) -> list[str]:
-        prefix = f"{column}:"
-        result: list[str] = []
-        for raw in self.all("values"):
-            if not raw.startswith(prefix):
-                continue
-            _, _, payload = raw.split(":", 2)
-            result.extend(split_cache_csv(payload))
-        return result
-
-
-def split_cache_csv(value: str) -> list[str]:
-    """Split cache CSV where a comma may be escaped by one or more slashes."""
-    fields: list[str] = []
-    current: list[str] = []
-    slash_count = 0
-    for char in value:
-        if char == "\\":
-            slash_count += 1
-            continue
-        if char == "," and slash_count:
-            current.append(",")
-        elif char == ",":
-            fields.append("".join(current))
-            current = []
-        else:
-            current.extend("\\" * slash_count)
-            current.append(char)
-        slash_count = 0
-    current.extend("\\" * slash_count)
-    fields.append("".join(current))
-    return fields
+        schema = self.row.schema
+        if schema is None or column >= len(schema.columns) or schema.columns[column].absent:
+            return []
+        name = schema.columns[column].name
+        try:
+            fields = self.row.typed_fields(name, self.names)
+        except (KeyError, ValueError) as exc:
+            raise CatalogError(f"{self.name}: column {column} ({name}): {exc}") from exc
+        # A string keeps no edge blanks: the cache's "Thorny hedge " reads as
+        # "Thorny hedge", as it always has here (the generated crosswalk and
+        # runtime rows are keyed on it). The grammar escapes the blank (`\ `).
+        return [field.strip() if isinstance(field, str) else str(field) for field in fields]
 
 
 def parse_blocks(text: str) -> list[Block]:
@@ -166,7 +168,14 @@ def parse_blocks(text: str) -> list[Block]:
 
 
 def read_blocks(path: Path) -> list[Block]:
-    return parse_blocks(path.read_text(encoding="cp1252"))
+    return parse_blocks(config_text.read_text(path, encoding="cp1252"))
+
+
+def read_db(content: Path) -> tuple[dict[str, config_text.DbTable], list[Row]]:
+    """`all.dbtable` by name, and every `all.dbrow` record in file order."""
+    tables, rows = config_text.read_db(content / "configs", encoding="cp1252")
+    names = config_text.Names(content)
+    return tables, [Row(row, names) for row in rows.values()]
 
 
 def read_compack(path: Path) -> tuple[dict[int, str], dict[str, int]]:
@@ -187,18 +196,12 @@ def read_compack(path: Path) -> tuple[dict[int, str], dict[str, int]]:
     return by_id, by_name
 
 
-def parse_schema(block: Block) -> dict[int, tuple[str, tuple[str, ...]]]:
-    schema: dict[int, tuple[str, tuple[str, ...]]] = {}
-    for raw in block.all("columndef"):
-        raw_column, definition = raw.split(":", 1)
-        parts = split_cache_csv(definition)
-        if len(parts) < 2:
-            raise CatalogError(f"{block.name}: malformed columndef {raw}")
-        schema[int(raw_column)] = (parts[0], tuple(parts[1:]))
-    return schema
+def parse_schema(table: config_text.DbTable) -> dict[int, tuple[str, tuple[str, ...]]]:
+    """`{column id: (name, types)}`, holes (ABSENT columns) left out."""
+    return table.schema()
 
 
-def require_ints(block: Block, column: int) -> list[int]:
+def require_ints(block: Row, column: int) -> list[int]:
     result: list[int] = []
     for value in block.column_values(column):
         try:
@@ -210,14 +213,13 @@ def require_ints(block: Block, column: int) -> list[int]:
     return result
 
 
-def table_rows(blocks: Iterable[Block], table: str) -> list[Block]:
+def table_rows(blocks: Iterable[Row], table: str) -> list[Row]:
     return [block for block in blocks if block.first("table") == table]
 
 
 def validate(content: Path) -> dict[str, object]:
     configs = content / "configs"
-    tables = {block.name: block for block in read_blocks(configs / "all.dbtable")}
-    rows = read_blocks(configs / "all.dbrow")
+    tables, rows = read_db(content)
     row_id_to_name, row_name_to_id = read_compack(configs / "all.dbrow.compack")
     table_id_to_name, table_name_to_id = read_compack(configs / "all.dbtable.compack")
 
@@ -359,19 +361,30 @@ def validate(content: Path) -> dict[str, object]:
 
 
 def self_test() -> None:
-    fixture = """\
+    tables = config_text.parse_dbtables("""\
+[furniture]
+column=model_obj,obj
+column=name,string
+column=material_cost,obj,int
+column=build_animation_style,ABSENT
+column=hidden_in_build_menu,int
+""")
+    rows = config_text.parse_dbrows("""\
 [row]
 table=furniture
-columndef=2:material_cost,obj,int
-values=2:0:960,2
-values=1:0:Name\\\\, with comma
-"""
-    blocks = parse_blocks(fixture)
+data=name,Name, with comma
+data=material_cost,960,2
+data=material_cost,null,1
+""", tables)
+    assert parse_schema(tables["furniture"]) == {
+        0: ("model_obj", ("obj",)), 1: ("name", ("string",)),
+        2: ("material_cost", ("obj", "int")), 4: ("hidden_in_build_menu", ("int",))}
+    blocks = [Row(row, config_text.Names("/nonexistent")) for row in rows.values()]
     assert len(blocks) == 1
     assert blocks[0].first("table") == "furniture"
-    assert blocks[0].column_values(2) == ["960", "2"]
+    assert blocks[0].column_values(2) == ["960", "2", "-1", "1"]
     assert blocks[0].column_values(1) == ["Name, with comma"]
-    assert split_cache_csv(r"a\\,b,c") == ["a,b", "c"]
+    assert blocks[0].column_values(3) == []
 
 
 def main() -> int:

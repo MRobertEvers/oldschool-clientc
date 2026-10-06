@@ -1,0 +1,88 @@
+{{Update|date = 31 January 2024|url = https://secure.runescape.com/m=news/defender-of-varrock-varlamore-rewards--more?oldschool=1|category = devblog}}
+[[File:Defender of Varrock, Varlamore Rewards & More newspost.jpg|right]]
+{{clear}}
+''Today we’re discussing rewards from Defender of Varrock, Part One of Varlamore, and a few little extras!''
+__TOC__
+
+===The Audio Read===
+[[File:Defender of Varrock, Varlamore Rewards & More narration.mp3]]
+
+With the Winter Summit Giga Poll over, it’s time to start thinking about how we’ll implement some of the content you’ve voted for. In the cases of Defender of Varrock and Varlamore: Part One, we have some shiny rewards to show you, and we’re very keen to hear your thoughts before moving forward.
+
+So, without further ado… let’s go to the polls!
+
+==Defender of Varrock==
+This classic quest unlocks an area from which you can obtain the Zombie Axe weapon as a drop. We’ve already revealed our initial concept for this [https://secure.runescape.com/m=news/defender-of-varrock---overview?oldschool=1 new unique item], but we’ve made a few adjustments based on your feedback:
+
+[[File:Defender of Varrock, Varlamore Rewards & More (1).png|400px|center]]
+
+Starting strong with something that’s technically not a change, we’d like to clarify that the Zombie Axe requires '''65 Attack''' to wield. We apologise for the error in the original statblock image. The gremlin responsible has been fed to sharks.
+
+We’d also like to clarify that this weapon is not a direct reward from the quest. It’s obtainable afterwards, as a drop.
+
+Onto the actual changes: we’re dropping the Crush bonus by 10 for a total of '''90'''. This means the Axe will sit better beside the Zamorakian Hasta and maintain its place in the meta.
+
+Lastly, the Zombie Axe will now drop '''broken''' and will require '''70 Smithing''' to repair at an Anvil. This makes the Axe a little bit more challenging for Iron players to obtain, ensuring that it doesn’t crowd out the Dragon Scimitar too early on. Both broken and repaired versions will be tradeable for non-Iron players.
+
+With these changes in place, the Zombie Axe will sit as a nice upgrade for Dragon weaponry before moving on to the Abyssal Whip – although as previously stated, the Axe’s swift Attack Speed makes it an attractive option in its own right.
+
+{{News Poll|1|Should the Zombie Axe, a new unique weapon drop aimed at mid-level play obtainable after completing Defender of Varrock, have the requirements and features as described in the newspost?}}
+
+==Fortis Colosseum==
+We’re hopping on our quetzals and flying over to Varlamore now, where the Colosseum is filled with heated debate. No, they’re not arguing about the results of the latest arena battle – they’re trying to decide what to do with all these bloody Echo Crystals!
+
+Echo Crystals are an upgrade item that will give ''something'' powerful area-of-effect recoil damage in a 3 x 3 square around the wearer. The upgraded item will require charging, and when you’re out of Echo Crystals, you’ll have to head back to the Colosseum for more. Following your feedback, we’ve also given the Echo Crystals a +2 Prayer bonus.
+
+Initially, we pitched Echo Crystals as an attachment for the Guardian Boots. After you all pointed out that recoil should logically go on a shield, we reworked them as an add-on for the Toktz-ket-xil, the Odium Ward, and the Malediction Ward.
+
+Although the option to add the Echo Crystals to the Toktz-ket-xil and friends passed with well over 70% ‘Yes’ votes, the debate is still raging. Some of you need to ''Toktz-ket-chill''! To resolve the situation, we’ve decided to host a royal rumble. The Guardian Boots Brothers vs. the Toktz-ket-xil Trio, mano a mano, in the greatest arena of all. This is democracy manifest.
+
+Only one of these items can take the Echo Crystals home. Your vote decides the victor. Whichever has the highest number of votes when the poll closes will ''win'', gaining the Echo Crystals’ recoil and +2 Prayer Bonus effects. The loser will be ''cast into the flames'' – which here means “it will be completely fine, but it won’t get any sweet upgrades.”
+
+This decision will be ''final'', so go vote already!
+
+{{News Poll|2|Which item/s should the Echo Crystals from the Fortis Colosseum be attched to? Combining the Echo Crystals with these shields would add a 3x3 AoE recoil effect, consume a charge for each recoil activation, and add a +2 Prayer bonus.}}
+
+==Perilous Moons==
+Time to calm down, with a relaxing trip into the depths of Cam Torum to explore the Perilous Moons Dungeon. In this new area, you’ll not only have access to three new bosses, but also rooms where you can explore and gather resources to face off against these mighty foes.
+
+Inside ''one'' of these rooms, you’ll find a brand-new beastie which can also be given as a Slayer Task. Like most of the creatures you encounter on your adventures, it has a shiny drop you’ll want to get your hands on – the Sulphur Blades!
+
+These unique dual-wield weapons give you two hitsplats instead of one – but don’t worry, the DPS is calculated normally. Double-hitting weapons are going to be useful in Perilous Moons, so we thought we’d throw another one into the mix – and this one focuses on the Slash combat style! Here’s the statblock:
+
+[[File:Defender of Varrock, Varlamore Rewards & More (2).png|thumb|400px|center|''(This one should be typo free, but if not… the sharks are still hungry…)'']]
+
+
+{{News Poll|3|Should we introduce the Sulphur Blades to Perilous Moons? This two-handed Slash weapon will drop from a new Slayer monster found in the dungeon.}}
+
+With all this talk of dual wielding, we’ve neglected to talk about the most iconic dual-wield weapon of all – Torag’s Hammers. These manky mallets are from the Barrows, which means they pre-date Old School RuneScape by eight whole years! It’s high time they got a bit of TLC… and maybe a wash.
+
+To bring them in-line with our other dual-wield offerings, we want to give them two hitsplats instead of just one. Again, although you’ll get double the hitsplats, it won’t change your potential DPS or Max Hit with these iconic weapons – it just makes them feel a lot cooler.
+
+{{Collapsed section|18|Click here for more info!}}
+For those of you who would like a bit more detail on how the damage would work with this change:
+* You roll an accuracy roll, if you miss you hit two 0s
+* If you're successful, you roll 2 seperate damage rolls, each totalling half of your Max Hit
+* If the division is unequal, then one of the rolls gets a +1 - ''Example: If your Max Hit is 17, you'll have a max hit of 8 and 9.''
+{{Collapsed section end}}
+
+{{News Poll|4|Should we change Torag's Hammers to hit with two hitsplats instead of one? This would not change your current DPS or Max Hit with Torag's Hammers.}}
+
+==While Guthix Sleeps Rewards==
+That’s all our poll questions for now, but we still want to hear directly from you on one more topic. To clarify, the survey we’re about to present is to get your '''opinion and''' is '''not binding''' in any way.
+
+In our last poll we asked an '''opinion question''' whether you’d like to see Dragon Claws moved from Chambers of Xeric into the loot table for Tormented Demons. We first raised this question in the Winter Summit, but wanted to affirm that the community felt the same before moving forward. Although the poll results didn’t really give us the consensus we needed to remove Dragon Claws from the raid, it did indicate that you are excited to see Tormented Demons again, and that you’d like to see a unique drop to equal that excitement. Armed with this knowledge, '''we won't be removing Dragon Claws from CoX''' and we’ll be adding a ''new'' drop to the Tormented Demons’ table – something that gives While Guthix Sleeps its own Old School flavour without disrupting the placement and price of the Claws. We’ll have more news to share soon, but now it’s time for this week’s survey!
+
+This week, we want to know your thoughts about God Alignments. As a reward from While Guthix Sleeps, we want to add Prayers aligned with specific gods to the Prayer Book. You greenlit the concept, so now we’re moving on to the Community Consultation phase. We want to know how you think we should approach God Alignment Prayers as a whole, with a special focus on the Rites of Balance.
+
+This is a big addition to the game, so it’s important to us that we get it just right. We’d really appreciate it if you could help us out by taking a few minutes to fill out the survey below… we promise it’s not a waste of XP!
+
+<center><big><big>[https://forms.office.com/pages/responsepage.aspx?id=cHKPuw2LyU2JAOl_a-ccwkuFydxi__NAhv4a-l6BSp1UMFczM0JZRUJKSTJMQk9MVkk0QUNIOTBUQS4u Rites of Balance and God Alignments ]</big></big></center>
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1afk7lq/defender_of_varrock_varlamore_rewards_more 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

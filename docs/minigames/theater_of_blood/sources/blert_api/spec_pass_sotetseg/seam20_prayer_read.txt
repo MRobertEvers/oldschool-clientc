@@ -1,0 +1,80 @@
+# seam20 (2026-10-04): when Sotetseg's ordinary ball reads the protection prayer. Output of scratch/seam20_prayer_read.py over the 21 Normal and Hard stage-13 streams listed in blert_sote_summary.txt (raw streams not committed; regenerate with scratch/fetch_blert_sote.py). Re-run by the seam20 closer: byte-identical. Columns: mag = the PRIMARY raider's Protect from Magic bit, T-1..T+12 (index 0 = T-1); drops = (offset o, hitpoints lost between T+o-1 and T+o).
+balls aimed at the recorder: 116
+== class A: 30
+m11_s3_121e1 T18 d6 mag(T-1..T+12):----MMMMMMMMMM drops(offset,hp):[]
+m11_s3_121e1 T88 d6 mag(T-1..T+12):----MMMMMMMMMM drops(offset,hp):[]
+m11_s3_121e1 T108 d2 mag(T-1..T+12):---MMMMMMMMMMM drops(offset,hp):[(6, 23)]
+m11_s3_48daf T36 d4 mag(T-1..T+12):M----MMMMMM--- drops(offset,hp):[]
+m11_s3_48daf T79 d4 mag(T-1..T+12):-----MMMMMMMMM drops(offset,hp):[(5, 14), (11, 1)]
+m11_s3_48daf T104 d4 mag(T-1..T+12):M----MMM--MMMM drops(offset,hp):[]
+m11_s3_71c56 T6 d8 mag(T-1..T+12):----MMMMMMMMMM drops(offset,hp):[]
+m11_s3_921e8 T36 d4 mag(T-1..T+12):-----MMM------ drops(offset,hp):[(9, 16)]
+m11_s3_921e8 T46 d4 mag(T-1..T+12):-----MMMM----- drops(offset,hp):[]
+m11_s3_921e8 T83 d2 mag(T-1..T+12):-----MMMM----- drops(offset,hp):[(12, 45)]
+m11_s3_921e8 T113 d5 mag(T-1..T+12):M----MMMMMMMMM drops(offset,hp):[]
+m11_s4_17578 T66 d5 mag(T-1..T+12):--MMMMMM------ drops(offset,hp):[]
+m11_s4_17578 T208 d5 mag(T-1..T+12):-----MMMM----- drops(offset,hp):[]
+m11_s4_17578 T243 d5 mag(T-1..T+12):----MMMMMMM--- drops(offset,hp):[]
+m11_s4_3c159 T142 d5 mag(T-1..T+12):---MMMMMMM---- drops(offset,hp):[]
+m11_s4_5b2de T36 d5 mag(T-1..T+12):-----MMMMMM--- drops(offset,hp):[(6, 36)]
+m11_s5_2aa4c T104 d6 mag(T-1..T+12):---MMMMMMMMMMM drops(offset,hp):[]
+m11_s5_41852 T26 d5 mag(T-1..T+12):-----MMMM----- drops(offset,hp):[]
+m11_s5_41852 T110 d5 mag(T-1..T+12):----MMMMM----- drops(offset,hp):[]
+m11_s5_60691 T36 d5 mag(T-1..T+12):-----MMMM----- drops(offset,hp):[]
+m11_s5_60691 T148 d6 mag(T-1..T+12):----MMMMMMMMMM drops(offset,hp):[]
+m11_s5_649da T113 d5 mag(T-1..T+12):----MMMMMMMMMM drops(offset,hp):[]
+m11_s5_649da T224 d5 mag(T-1..T+12):----MMMM------ drops(offset,hp):[]
+m11_s5_7cc5d T186 d5 mag(T-1..T+12):---MMMMMMMMMMM drops(offset,hp):[]
+m11_s5_dadf2 T26 d6 mag(T-1..T+12):-----MMMM----- drops(offset,hp):[]
+m12_s4_54f2c T88 d2 mag(T-1..T+12):----MMMMMMMMMM drops(offset,hp):[(6, 40)]
+m12_s4_54f2c T108 d2 mag(T-1..T+12):-----MMMMM---- drops(offset,hp):[(1, 11)]
+m12_s4_54f2c T178 d2 mag(T-1..T+12):---MMMMMMMMMMM drops(offset,hp):[]
+m12_s5_4dea5 T171 d2 mag(T-1..T+12):-----MMMMMMMMM drops(offset,hp):[]
+m12_s5_4dea5 T191 d6 mag(T-1..T+12):-----MMMMMMMMM drops(offset,hp):[]
+== class B: 9
+m11_s3_48daf T109 d4 mag(T-1..T+12):MMM--MMMMMMMMM drops(offset,hp):[]
+m11_s3_71c56 T51 d5 mag(T-1..T+12):MMM----------- drops(offset,hp):[]
+m11_s3_921e8 T88 d4 mag(T-1..T+12):MMMM---------- drops(offset,hp):[(7, 45)]
+m11_s3_921e8 T128 d4 mag(T-1..T+12):MMMMM--------- drops(offset,hp):[(0, 37)]
+m11_s4_fc867 T205 d1 mag(T-1..T+12):MMMM--MMMMMMMM drops(offset,hp):[]
+m11_s5_41852 T222 d6 mag(T-1..T+12):MM------------ drops(offset,hp):[(1, 74), (7, 5)]
+m11_s5_7cc5d T211 d5 mag(T-1..T+12):MMMMM--------- drops(offset,hp):[]
+m12_s3_843e8 T202 d5 mag(T-1..T+12):MMMMM--M-----M drops(offset,hp):[]
+m12_s5_d6550 T26 d5 mag(T-1..T+12):MMMM-MMMM--MMM drops(offset,hp):[]
+== class C: 9
+m11_s3_121e1 T8 d4 mag(T-1..T+12):-------------- drops(offset,hp):[(7, 37)]
+m11_s3_921e8 T6 d8 mag(T-1..T+12):-------------- drops(offset,hp):[(7, 7)]
+m11_s4_17578 T283 d5 mag(T-1..T+12):-------------- drops(offset,hp):[]
+m11_s5_41852 T227 d6 mag(T-1..T+12):-------------- drops(offset,hp):[(2, 5)]
+m11_s5_60691 T219 d9 mag(T-1..T+12):-------------- drops(offset,hp):[(6, 3), (7, 18)]
+m11_s5_7cc5d T6 d8 mag(T-1..T+12):-------------- drops(offset,hp):[]
+m11_s5_dadf2 T6 d8 mag(T-1..T+12):-------------- drops(offset,hp):[(7, 4)]
+m12_s4_54f2c T41 d1 mag(T-1..T+12):-------------- drops(offset,hp):[(10, 3)]
+m12_s4_54f2c T158 d1 mag(T-1..T+12):-------------- drops(offset,hp):[]
+
+## SUMMARY
+class A (Magic OFF on T, ON within T+1..T+4): 30
+  lost no hitpoints at all T..T+12: 23
+  with a drop: [('m11_s3_121e1', 'T108', 'd2', [(6, 23)]), ('m11_s3_48daf', 'T79', 'd4', [(5, 14), (11, 1)]), ('m11_s3_921e8', 'T36', 'd4', [(9, 16)]), ('m11_s3_921e8', 'T83', 'd2', [(12, 45)]), ('m11_s4_5b2de', 'T36', 'd5', [(6, 36)]), ('m12_s4_54f2c', 'T88', 'd2', [(6, 40)]), ('m12_s4_54f2c', 'T108', 'd2', [(1, 11)])]
+  Magic lit from its first ON through T+7: 26
+  switched ON at offset: [1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+class B (Magic ON on T, OFF within T+1..T+4): 9
+   ('m11_s3_48daf', 'T109', 'd4', 'MMM--MMMMMMMMM', [])
+   ('m11_s3_71c56', 'T51', 'd5', 'MMM-----------', [])
+   ('m11_s3_921e8', 'T88', 'd4', 'MMMM----------', [(7, 45)])
+   ('m11_s3_921e8', 'T128', 'd4', 'MMMMM---------', [(0, 37)])
+   ('m11_s4_fc867', 'T205', 'd1', 'MMMM--MMMMMMMM', [])
+   ('m11_s5_41852', 'T222', 'd6', 'MM------------', [(1, 74), (7, 5)])
+   ('m11_s5_7cc5d', 'T211', 'd5', 'MMMMM---------', [])
+   ('m12_s3_843e8', 'T202', 'd5', 'MMMMM--M-----M', [])
+   ('m12_s5_d6550', 'T26', 'd5', 'MMMM-MMMM--MMM', [])
+class C (Magic OFF throughout): 9
+   ('m11_s3_121e1', 'T8', 'd4', '--------------', [(7, 37)])
+   ('m11_s3_921e8', 'T6', 'd8', '--------------', [(7, 7)])
+   ('m11_s4_17578', 'T283', 'd5', '--------------', [])
+   ('m11_s5_41852', 'T227', 'd6', '--------------', [(2, 5)])
+   ('m11_s5_60691', 'T219', 'd9', '--------------', [(6, 3), (7, 18)])
+   ('m11_s5_7cc5d', 'T6', 'd8', '--------------', [])
+   ('m11_s5_dadf2', 'T6', 'd8', '--------------', [(7, 4)])
+   ('m12_s4_54f2c', 'T41', 'd1', '--------------', [(10, 3)])
+   ('m12_s4_54f2c', 'T158', 'd1', '--------------', [])

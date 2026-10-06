@@ -1,0 +1,289 @@
+{{Update|date=20 October 2021|link=https://secure.runescape.com/m=news/tombs-of-amascut--nex-rewards-beta?oldschool=1|category=game}}
+[[File:Tombs of Amascut & Nex Rewards Beta newspost.png|right]]
+{{Clear|right}}
+{{ToC}}
+==Issues and Hotfixes (October 20th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Issues Raised	
+!Current Progress
+|-
+|'''(12:35 BST)''' We are aware that the Masori Amulet is applying +0 the Ranged Strength Bonus rather than the intended +3.
+|'''(12:35 BST)''' This issue unfortunately cannot be hotfixed. Apologies for the inconvenience.
+|-
+|'''(11:45 BST)''' We've received reports of Anglerfish not healing over 99.
+|'''(12:10 BST) [FIXED]''' A hotfix has been released to resolve this issue.
+|-
+|'''(11:45 BST)''' We've received reports of some issues with the Halloween Event cutscenes.
+|'''(12:10 BST) [FIXED]''' A hotfix has been released to resolve this issue.
+|-
+|'''(11:45 BST)''' Some players are experiencing issues with their interface whilst using a 3rd party client.
+|'''(11:45 BST)''' We'd recommend temporarily turning off any plugins that effect the style of your HUD.
+|-
+|'''(11:50 BST)''' MOBILE - The FPS limiter is working for some players.
+|'''(11:50 BST)''' The team is currently looking into this issue.
+|-
+|'''(12:15 BST)''' We've seen reports of Iffie getting stuck on trees during a section of the Halloween Event.
+|'''(12:45 BST) [FIXED]''' A hotfix has been released to resolve this issue.
+|}
+----
+
+<center>This week we’re launching the Tombs of Amascut and Nex Rewards Beta, where you’ll get to try out some of the newest items coming to the game. In other exciting news, this year’s Halloween event is in full swing over in Varrock Square, and we’ve got some new client features to talk about!</center>
+
+==Tombs of Amascut & Nex Rewards Beta==
+[[File:Tombs of Amascut & Nex Rewards Beta (1).png|centre|600px]]
+
+2022 will see you battling through the Tombs of Amascut and facing off against Nex in the God Wars Dungeon, but before then, we’d like to give you the chance to try the items you’ll be chasing when these two pieces of content drop!
+
+Enter one of the following Beta worlds to get to grips with the upcoming gear:
+*World 401 - US East
+*World 405 - EU
+*World 408 - UK
+*World 409 - US West
+*World 412 - Australia
+
+There are loads of unique items available, so don’t miss this opportunity to give them a try!
+
+One more thing – since the item designs are still being worked on, we’ve given them a rather fetching magenta paintjob. They probably won’t look like that on release. Probably.
+
+Now, let’s take a look at these shiny new items and see where they could be used!
+
+{{Collapsed section|18|Nex Rewards - Click here to expand...}}
+===Ancient Godsword===
+[[File:Tombs of Amascut & Nex Rewards Beta (2).png|centre]]
+
+An iconic Melee weapon requiring 75 Attack to wield. As with the other Godswords, the actual drop is the hilt, and you’ll need to attach it in the usual way.
+
+The Ancient Godsword has a special attack, Blood Sacrifice, that costs 50% energy. It targets a single individual with double the usual accuracy! If it hits, it deals a normal hit with 10% extra damage. In addition, an eight-cycle timer starts. If the target does not move more than five tiles away before the timer ends, they'll be hit for 20 damage and the attacker will be healed for the same amount.
+
+With what’s effectively a 20 minimum hit and heal, this weapon is super-reliable, with some nice PvP combo potential, too.
+
+===Zaryte Bow===
+[[File:Tombs of Amascut & Nex Rewards Beta (3).png|400px|centre]]
+
+Requiring 80 Ranged, this tradeable, non-degrading bow can fire all arrows up to Dragon.
+
+It also has a special effect that uses charges. In multiway areas, an additional target stood within two tiles of the main target will also take damage. This doesn't use an additional arrow, and only uses a single charge.
+
+To recharge the Bow you’ll need to collect Nihil Shards from foes in the prison (including Nex herself!). Please note that only full Shards can be used – crushed shards (Nihil Dust) won’t work.
+
+This bow effectively replaces Black Chinchompas when attacking 2-3 targets. Chinchompas can only hit targets in a 3x3 area, but this bow can reach targets an additional tile away in each direction – and it has better DPS, too.
+
+The Zaryte Bow will make certain activities, such as gathering Ecumenical Keys, completing Slayer tasks, and defeating certain Raid Rooms, significantly faster.
+
+===Zaryte Vambraces===
+[[File:Tombs of Amascut & Nex Rewards Beta (4).png|centre]]
+
+A piece of Ranged Armour requiring 80 Ranged and 50 Defence. The Zaryte Vambraces are tradeable and do not degrade.
+
+As you know, the Vambraces will bolster the impact of your Zaryte Bow, and they have some powerful stats of their own, surpassing barrows gloves as the best in slot for ranged.
+
+===Virtus Armour===
+[[File:Tombs of Amascut & Nex Rewards Beta (5).png|centre]]<br>
+[[File:Tombs of Amascut & Nex Rewards Beta (6).png|centre]]<br>
+[[File:Tombs of Amascut & Nex Rewards Beta (7).png|centre]]
+
+Virtus Armour is a Magic armour set consisting of a Mask, Top and Legs – all requiring 75 Defence and 80 Magic. All three pieces are tradeable and do not degrade.
+
+Each item gives a 3% damage increase to all Ancient spells, for a maximum of 9% if all three are worn. Plus, if you’re wearing the whole set, smoke spells reduce healing by 30% while the target is poisoned, and shadow spells also drain Strength, Ranged, Magic and Defence as well as Attack.
+
+Wear all three and Blood spells can heal up to 20% over the player's max HP, while Ice spells have 10% additional accuracy against frozen targets. It’s the armour set of choice if you’re an Ancient Spellbook fan!
+
+We expect this armour set to usurp Ancestral Robes when a player is mainly focused on Ancient spells. The set bonus’ effect on shadow spells is particularly powerful, with the potential to significantly nerf the defence and offence stats of a monster with a single cast.
+{{Collapsed section end}}
+
+{{Collapsed section|18|Tombs of Amascut Rewards - Click here to expand...}}
+===Masori Equipment===
+[[File:Tombs of Amascut & Nex Rewards Beta (8).png|centre]]<br>
+[[File:Tombs of Amascut & Nex Rewards Beta (9).png|centre]]<br>
+[[File:Tombs of Amascut & Nex Rewards Beta (10).png|centre]]<br>
+[[File:Tombs of Amascut & Nex Rewards Beta (11).png|centre]]
+The Masori equipment consists of a Helm, Chest, Legs, and Amulet, all of which require 80 Ranged, 30 Defence and 70 Hitpoints to equip.
+
+This armour set will be the very first pieces of equipment in the game to utilise Low Life, a new condition which applies when players are below 40% of their maximum health. When the player enters a state of Low Life and has the Masori Helm, Chest and Legs equipped, the equipment set will gain additional accuracy and ranged strength for as long as you remain in Low Life.
+
+In addition to the stat bonus offered when in a state of Low Life, the set bonus also provides players with bonus dodge chance. Dodge is a stat that lets the player have a chance to completely avoid all damage from most sources. Some attacks, such as TzKal-Zuk’s ball attack or dragonfire cannot be dodged, but normal Magic, Ranged and Melee attacks can be.
+
+The Masori Amulet has an additional passive effect. When you have it equipped, and you’re not affected by Low Life, you'll take damage equivalent to 15% of your current health at a rate of every three game cycles.
+
+For any content where being 39 HP isn’t putting you at risk of dying in one hit, this is the new best in slot Ranged armour, yielding significant additional range attack and strength over Armadyl Armour, with lower defence.
+
+We’ve addressed your feedback that the trade-off didn’t seem worth it by increasing the base defence of the armour set and adding the new dodge stat while on Low Life. This is a thematic way of reducing the overall damage players take, without lowering the KO potential of the content the set is best suited to.
+
+Most endgame bosses don’t deal high amounts of unavoidable damage – these situations are where the Masori Armour really shines. For example, Vespula’s room in Chambers of Xeric is a great example of a safe place to reap the benefits of this set!
+
+===Heka of Tumeken and the Ward of Elidinis===
+[[File:Tombs of Amascut & Nex Rewards Beta (12).png|centre]]
+The Heka of Tumeken is a wand-like magical weapon. Equipping the Heka will require 85 Magic. It has a built-in spell with charges which will need to be replenished, using one Soul Rune and three Chaos Runes per charge.
+
+The Heka has an attack rate of two ticks. Every fourth hit the Heka will fire a stronger attack which deals significantly more damage, albeit with a longer delay after the attack. We know that weapons with fast attack speeds scale harder with additional bonuses, like the Toxic Blowpipe. To offset this and to help make the Heka scale more similarly to other magic weapons, the standard faster attacks will only benefit from 50% of your Magic strength.
+
+The slower fourth hit will be much stronger, benefitting from 150% of your Magic strength bonus. Its attack range will be shorter than other staves too, with it being six rather than seven. Casting with the ‘long range’ setting will boost it to eight.
+
+The Heka's raw dps greatly surpasses that of the Sanguinesti Staff, with the additional utility a fast attacking weapon has over slower counterparts, with the only downside is that it has no self-healing capabilities.
+
+For the min-max savvy players out there who like calculations, the following formulas should help with any theory crafting you'd like to put together:
+*Standard fast attacks scale based on '''<nowiki/>'(Magic Level / 6) + 2'''' for the base max hit.
+*The slower fourth attack scales based on '''<nowiki/>'(Magic Level - 25) / 2'''' for the base max hit.
+*After this is calculated, any Magic strength from other sources is then applied.
+
+[[File:Tombs of Amascut & Nex Rewards Beta (13).png|centre]]
+[[File:Tombs of Amascut & Nex Rewards Beta (14).png|centre]]
+The Ward of Elidinis will be the new best-in-slot magical shield. Players will get the Broken Ward as a rare drop from the Tombs of Amascut. With 90 Prayer and 90 Smithing you'll be able to combine the Broken Ward with an Arcane Sigil and 10,000 Soul Runes to repair it. Players without those stats will be able to pay Abbot Langley of the Edgeville Monastery 20,000,000 GP to create it for them.
+
+Equipping the Ward will require 80 Magic, 80 Defence, and 80 Prayer. The broken Ward will be tradeable, but once fixed it will become untradeable. Players can dismantle the Ward to recover the Sigil and the Ward, but the runes will be lost. Dying in PvP will result in the Sigil and the Broken Ward being dropped.
+
+Both the broken and fully repaired Wards can be equipped.
+
+===Lightbearer===
+The Lightbearer is a ring with no Attack, Defence, or other bonuses. It does, however, have a very unique effect. When equipped, your special attack energy will regenerate 100% faster - approximately 15 seconds per 10%, or 150 seconds per 100%. Unequipping the ring will cause the timer to reset.
+
+This unique ring may not compete with the Berserker Ring when it comes to keeping up a barrage of attacks, but in content with downtime, or heavy use of other combat styles, we expect Lightbearer to get a lot of use.
+
+===Osmumten's Fang===
+[[File:Tombs of Amascut & Nex Rewards Beta (15).png|centre]]
+Osmumten's Fang is primarily a stab melee weapon that boasts accuracy comparable to the Elder Maul, and an Attack Speed of 5. Equipping the Fang will require 82 Attack. We expect its damage-per-second output to be comparable with Rapier-tier weapons on opponents with low Defence, with much greater damage-per-second output on opponents with higher Defence.
+
+We'd like to introduce a new unique mechanic for the Fang. Other weapons will roll '''<nowiki/>'0 - max hit''''. the Fang will roll '''<nowiki/>'(max hit * 0.15) - (max hit - (max hit * 0.15))''''. For example, if the max hit is 60, the Fang would roll between 9-51. This makes it a very consistent weapon which excels against high Defence targets.
+
+The Fang also has a special attack which increases its max hit to its true max hit for one attack, as well as boosting its accuracy by an additional 50%. This means that if its max hit was 60, it would roll 9-60. This special attack will cost 50% special attack energy to use.
+
+===Keris Partisan===
+[[File:Tombs of Amascut & Nex Rewards Beta (16).png|centre]]
+In addition to its Stab attack styles, the Partisan will have a Crush attack style, which should prove useful during the Tombs of Amascut and against beetle-like enemies such as the Kalphite Queen.
+
+Although the Keris Partisan is a spear-like weapon, it acts differently from normal spears. The main difference is its Aggressive attack style that allows players to focus their combat experience on Strength. Equipping the Partisan will require 70 Attack.
+
+You are also able to insert special jewels into the Partisan. These jewels are obtained as rare rewards from the Tombs of Amascut inserting them will bestow different effects upon the weapon. Only one jewel can be equipped at a time, and they will not be tradeable.
+
+Here’s a look at a few jewel buffs we're considering. Note that the effects apply only during the Tombs of Amascut raid:
+*The '''Eye of the Corrupter''' adds a damage-over-time effect to attacked enemies. You won't be able to stack this effect multiple times onto a single NPC but you will be able to apply it to multiple NPCs at any one time.
+*The '''Jewel of the Sun''' applies a debuff to attacked NPCs which causes them to take higher damage for a sustained period of time.
+*The '''Breach of the Scarab''' adds a 33% accuracy buff against Kalphites, Scarabs and Beetles.
+{{Collapsed section end}}
+
+You can find more information on both pieces of content in the [https://secure.runescape.com/m=news/nex-rewards-?oldschool=1 Nex Rewards] blog and the [https://secure.runescape.com/m=news/tombs-of-amascut-raid-rewards?oldschool=1 Tombs of Amascut: Raid Rewards] post!
+
+Your feedback is key to this content, so jump in game, give it a go, and let us know what you think about the current versions of the rewards.
+
+==New Client Features: Milestone Three==
+We're back with our third round of new features for the Steam Client! This week’s batch focuses on skilling helpers and introduces the Side Panel.
+
+As a reminder, these features can currently only be used on the C++ client through Steam – and the team is still hard at work on bringing these features to Mobile, which you can see a preview of in the most recent Gielinor Gazette. Keep your eyes on our socials for updates as the project develops.
+
+===XP Tracker===
+[[File:Tombs of Amascut & Nex Rewards Beta (17).png|centre|600px]]
+
+The Side Panel is here! This will be the foundation of multiple upcoming additions to the Steam Client, including a range of different helpers and extra features that will greatly improve your Old School experience.
+
+For now, we’re introducing just one: the XP Tracker.
+
+[[File:Tombs of Amascut & Nex Rewards Beta (18).png|centre|600px]]
+
+This feature automatically tracks your XP gains. When you gain XP, the relevant skill will be displayed in the Side Panel with the following information:
+*Skill XP Gained
+*Skill XP Per Hour
+*Total XP Gained
+*Total XP Per Hour
+*Total Remaining XP to Next Level
+*Actions Remaining to Next Level
+*Progress Bar
+
+Each individual skill can be paused and reset if you want to track specific actions. You can also reset the whole thing if you want a clean slate.
+
+If the XP Tracker is turned on the Side Panel menu will appear at the edge of the game window, regardless of whether the Side Panel is fully open. Pressing one of the icons will expand the panel and provide extra details.
+
+To remove the Side Panel altogether, you’ll need to turn the XP Tracker off. When we introduce more Side Panel features, you’ll need to turn all of those off, too.
+
+===Woodcutting Helper===
+[[File:Tombs of Amascut & Nex Rewards Beta (19).png|centre|600px]]
+
+Respawn timers will now appear on chopped trees in the game world. The timer can be set to always on, always off, or on when carrying a usable axe. The last option is the default.
+
+Respawn timers will only appear if you were in interaction range of the tree when it was fully depleted.
+
+In other news, you’ll now get desktop notifications when Bird Nests are dropped.
+
+===Ore Respawn Timer===
+[[File:Tombs of Amascut & Nex Rewards Beta (20).png|centre|600px]]
+
+Respawn timers will also show up on depleted ore veins. Again, the timer can be set to always on, always off, or on while carrying a usable pickaxe – which is the default option. These respawn timers will only show up if you were within the interaction range of the vein when it was depleted.
+
+===Slayer Helper===
+[[File:Tombs of Amascut & Nex Rewards Beta (21).png|centre|600px]]
+
+This new infobox contains everything you need to know about your current Slayer Task! It’ll display the name of your current task, the amount of creatures you have to slay, the designated area (if applicable) and your current Slayer streak.
+
+===Logout Notifier===
+[[File:Tombs of Amascut & Nex Rewards Beta (22).png|frame|centre]]
+
+Tired of being kicked out while you’re trying to catch some Monkfish at work? Worry no more! You’ll now receive a desktop notification whenever you’re about to be logged out for inactivity. This feature is toggleable and is turned on by default.
+
+===Other Changes===
+[[File:Tombs of Amascut & Nex Rewards Beta (23).png|centre|600px]]
+
+*Entities will now be highlighted so you know what you’re about to click on. This feature is toggleable and is turned off by default.
+*Tooltips have been added to the timers on the Modified Stats overlay, giving extra insight into what they represent.
+*When you are inflicted by poison or venom, the Buff Bar will now display the current damage value.
+*The Ammo Bar will now tell you how many shots you have remaining in your Blowpipe, rather than how many Scales and Darts you have.
+*Timestamps will now match the rest of the text after changing the colour of Private Chat.
+
+Let us know what you think of the new features, and the Steam Client in general, via the in-game prompt or on our social channels!
+
+==Halloween Event 2021==
+What is that? A disturbance near Edgeville? A protest in Varrock? The monks are out in force, Oziach is flexing his cash, an old lady in a rocking chair wants an adventure, Death thinks he is the spookiest (is he?), trees need climbing, Brother Jered needs to drink less wine – what does it all mean?!
+
+[[File:Tombs of Amascut & Nex Rewards Beta (24).png|centre|600px]]
+
+To make sense of this Halloween mystery, you’ll need to head to Varrock Square and talk to the protesters. Be sure to bring your scariest faces and spookiest noises – and it wouldn’t hurt to be good at climbing trees.
+
+This year’s Halloween event is the first project brought to you by Mod Havik based on a concept by Mod Peppers. Here's some words from Mod Havik:
+
+<i>Hi guys!
+
+I joined the team a few months ago, and this is my first project going out into the wild - scary! But it is Halloween, so I suppose that's par for the course. It's been great fun making it. I've learned a lot and met a lot of great people on the team. Working on RuneScape (now Old School!) is a little dream I've always had in the back of my mind, but it was always just that... a little ‘wouldn't that be cool’ thought. Yet here I am! It still hasn't quite sunk in, but I think it will do once the event goes live.
+
+I hope you guys enjoy it, there are some fun rewards! But I won't give anything away about them, you'll have to go and find out for yourself.
+
+I'm incredibly honoured to be creating content for a game (and community!) that has played such a big part in my life, and I'm looking forward to making lots more cool stuff for you all in the future. Happy Halloween!
+
+Mod Havik</i>
+
+==Other Changes==
+*The Asp and Snake Bar in Pollnivneach will now offer different stock options for different account types.
+*The pop-up to confirm closing the Group Storage interface for Group Iron Players will now display at the correct size when an item is withdrawn at the same time.
+*Group Storage will no longer reject banknotes when all its slots are full, provided the banknotes in question are for items already in storage.
+*Clues, Mutagens, and first Infernal Capes are now broadcast to Clan Chat.
+*Players will now be able to kill NPCs in their first spawn cycle.
+*The Jungle Demon in the final battle of Monkey Madness now drops the correct ashes.
+*Iron players can now pick up the bird snare and fishing net spawns on the Isle of Souls.
+*‘The Forests of Shayzien’ will now play instead of ‘Rugged Terrain’ while wandering around Shayzien.
+*All Player and NPC healing has been centralised, as an added bonus of this, various NPCs with healing mechanics will now have healing hitsplats to indicate it.
+
+==PvP World Rota==
+The PvP rota has moved to Period A:
+*539 - (US) - PvP World
+*548 - (Germany) - High-Risk PvP World
+*577 - (US) - Free-to-Play PvP World
+*559 - (UK) - LMS Competitive
+*390 - (AUS) - LMS Competitive - world becomes active with this rota.
+
+==RuneScape: The First 20 Years==
+A new sneak peek!
+
+[[File:Tombs of Amascut & Nex Rewards Beta (25).png|centre|600px]]
+
+The anniversary book, RuneScape: The First 20 Years, is waiting to be shipped all over the world - but if you can't wait, [https://screenrant.com/runescape-dark-horse-20-years-preview/ ScreenRant] have released these preview pages for you to get a good look at.
+
+Drumroll please...
+
+[[File:Tombs of Amascut & Nex Rewards Beta (26).png|centre|600px]]
+
+For more information about where to get your hands on a copy, check out this [[rsw:Update:RuneScape: The First 20 Years|newspost.]]
+
+----
+
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our <u>[http://services.runescape.com/m=forum/forums?380,381,762,66232951 official forums]</u>, on the <u>[https://www.reddit.com/r/2007scape/comments/qbxe3z/nex_toa_rewards_beta_new_client_features_drop_3/ 2007Scape Reddit]</u>, the <u>[https://steamcommunity.com/app/1343370/discussions/ Steam forums]</u> or the community-led <u>[http://discord.gg/OSRS OSRS Discord]</u> in the #gameupdate channel.
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Con, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Ellie, Errol, Fed, Flippy, Gecko, Grub, Halo, Havik, Hornet, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, KT, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Sova, Squid, Steve W, Sween, Tide, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

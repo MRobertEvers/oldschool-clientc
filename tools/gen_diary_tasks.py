@@ -33,6 +33,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import config_text  # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCES = os.path.join(ROOT, "docs", "diaries", "sources")
 OUT = os.path.join(
@@ -81,10 +84,7 @@ def strip_markup(text):
     text = re.sub(r"<ref[^>]*>.*?</ref>", "", text, flags=re.S)
     text = re.sub(r"<[^>]+>", "", text)
     text = text.replace("'''", "").replace("''", "")
-    text = re.sub(r"\s+", " ", text).strip()
-    # The dbrow grammar splits on commas, so a task's own commas are escaped
-    # exactly as the cache export escapes them.
-    return text.replace(",", "\\\\,")
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def collect():
@@ -131,7 +131,10 @@ def render(tasks, unknown):
         "table=diary_task",
     ]
     for area, tier, number, text in sorted(tasks):
-        lines.append("data=task,%d,%d,%d,%s" % (area, tier, number, text))
+        # The text is the tuple's last field: it takes the rest of the line, so
+        # its commas stay bare (config_text.db_field escapes what must not).
+        lines.append("data=task,%d,%d,%d,%s" % (area, tier, number,
+                                               config_text.db_field(text, True)))
     lines.append("")
     lines.append("// Tasks per (area, tier), which is what a completion check needs.")
     lines.append("[diary_task_counts]")
@@ -154,6 +157,7 @@ def main():
 
     tasks, unknown = collect()
     rendered = render(tasks, unknown)
+    rendered = config_text.completed(OUT, rendered)
 
     if args.check:
         try:

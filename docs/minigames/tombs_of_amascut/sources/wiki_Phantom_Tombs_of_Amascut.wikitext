@@ -1,0 +1,31 @@
+{{Infobox NPC
+|version1 = Normal
+|version2 = Gaping mouth
+|name = Phantom
+|image1 = [[File:Phantom (Tombs of Amascut).png|250px]]
+|image2 = [[File:Phantom (Tombs of Amascut, gaping mouth).png|250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Jaltevas Pyramid]]
+|gender = Female
+|examine = A deadly apparition.
+|map = {{Map|name=Phantom|3937,5142|mapID=-1|r=2|plane=1|mtype=square}}
+|id1 = 11767
+|id2 = 11768
+|leagueRegion = Desert
+}}
+The '''phantom''' is an apparition of [[Amascut]], the Devourer.{{CiteVideo|author=Mod Jerv|title=Sae Bae Cast 236|url=X8KFRsnFJmM|timestamp=27:16|date=20250428|site=Youtube|notes=|name=}} She appears at the southern end of the warped room where players fight either [[Tumeken's Warden]] or [[Elidinis' Warden]], depending on who the player defeated in the previous stage of the fight.
+
+She appears to solely observe the player's battle, but once the Warden reaches critical health, she will open her mouth, unleashing a vortex that consumes the arena, up to the row of tiles right in front of the Warden. Once the Warden itself is defeated, it too will also be consumed by her before disappearing.
+
+<gallery mode="packed" heights="200" style="text-align:left">
+Phantom consumes the warped room.png||The phantom opens a vortex and begins to consume the entire room.
+Tombs of Amascut - phantom consumes Warden.gif|The Warden is consumed by the vortex upon its defeat.
+</gallery>
+
+==References==
+{{Reflist}}
+
+{{Tombs of Amascut}}
+{{Into the Tombs}}

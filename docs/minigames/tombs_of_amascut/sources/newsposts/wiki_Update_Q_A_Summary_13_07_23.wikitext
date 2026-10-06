@@ -1,0 +1,319 @@
+{{Update|date=21 July 2023|url=https://secure.runescape.com/m=news/qa-summary---130723?oldschool=1|category=community}}
+[[File:Q&A Summary - 13-07-23 newspost.png|right]]
+{{clear}}
+
+This week's livestream focused on the upcoming Grandmaster quest, Desert Treasure II: The Fallen Empire! Topics included:
+
+* [[#Question 1|Why the Awakened Bosses are one-off completions]]
+* [[#Question 2|Why the Orbs are tradeable]]
+* [[#Question 3|Why the harder versions of bosses are not efficient for uniques]]
+
+Thanks to Mod Goblin (Community Manager) and Mod Arcane (Senior Systems Designer) for their insights!
+
+
+DISCLAIMER: Livestreams are a glimpse into the ongoing creative process at Jagex. JMods are speaking off-the-cuff and their comments are not intended to be read in the same way as prepared updates from the company. Please keep this in mind when discussing the Q&A!
+
+
+Missed the live stream? Check out the transcript below! Or, check the [https://www.youtube.com/watch?v=9NrVrzYd7EM YouTube VOD!]
+__TOC__
+
+==Question #1==
+{{Cquote2|What does ‘aspirational content’ mean to you? Who are these Awakened bosses targeted at, and what can we expect from them in terms of difficulty?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=367s Youtube Time Stamp]
+
+* '''Mod Arcane:''' This is obviously quite a big and philosophical one. For me, it's mainly having content that you strive to do! That might be many things: you want to get higher skills, to make some more money, to get better at the game - all these different things that the game provides you a means to be bad at, as well as good at in various regards to eventually be able to accomplish something.
+* '''Mod Arcane:''' I play Old School RuneScape right now because of the Inferno! Back then, when I was a lot younger, the
+Fight Caves were really iconic, and it was really cool to go and get your Fire Cape. Then seeing that
+they've done a sequel to that - which is some of my favourite content - I was like "I really need to do
+that!"
+* '''Mod Arcane:''' Therefore, when I first played my main, everything I did was about: How do I get to Inferno as quickly as possible? What are my stats? How do I make money? I remember killing thousands of Vorkaths, so that I could eventually get my Twisted Bow. That is why aspirational content should be that thing that truly motivates you to push, because you want to get it for whatever reason.
+* '''Mod Arcane:''' As much as Infernal Cape is really cool and Best-in-Slot, it's only really for strength bonus; it doesn't really change your actual gameplay very much. However, it's just cool to go like "I defeated Inferno, I have this cape!" - it's such a prestigious thing.
+* '''Mod Arcane:''' That's on the extreme end - aspirational content is all over the place as well. Even if it's just like "I want to get higher mining, so then I can do Volcanic Mine" - that can be aspirational content to some people. I think it's a lot easier to see true aspirational content when it's in the grand scheme like Inferno.
+* '''Mod Arcane:''' Who are these Awakened bosses targeted at? I've been seeing these next 4 bosses from Desert Treasure 2 as the next tier of bosses. God Wars is obviously aimed at a specific demographic, but it's quite old content and introduces tier 70 items - or not even tier 70; in some cases, tier 60-65. In other words, I'm seeing these DT2 bosses as the next content of PvM bosses, and the Awakened versions are even a level above that.
+* '''Mod Arcane:''' I'm hoping that the regular DT2 bosses prove to actually be quite a challenge and to people that are maybe just comfortable with killing Vorkath, the base bosses should actually be fairly aspirational themselves. These rings are going to be worth a lot of money like Best-in-Slot pieces of gear that you're using everywhere in the game. So I do see these bosses also as being aspirational in the first place.
+* '''Mod Arcane:''' However, our player base is so good at the game now. As much as these might be aspirational to people that are just comfortable doing Vorkath etc., some players have done hundreds if not thousands of raids and actual hard pieces of content, and have got Infernal Cape, started speedrunning Inferno etc. It's just like "Can we just give them something a little bit over the top? Can we give something to challenge them?"
+* '''Mod Arcane:''' I'm hoping that these Awakened bosses really target those players specifically that have been craving these challenges. As much as ToA had it with doing 600 invocation raids and such, I think it scratched the itch a bit for some of those people. There is obviously a back and forth in terms of it not being fun to just have higher and higher defence, higher and higher hit points, and that's completely valid. We
+want to be able to introduce new mechanics as well.
+* '''Mod Arcane:''' However, increasing stats is important, too. I know Chambers of Xeric got a lot of criticism on release - or even to this day - that just having 50% increase in defence and obviously all the other stats is just a bit of a boring way to go about it. It's not particularly interesting. I remember taking those learnings and that feedback into designing Hard Mode ToB, and we didn't change any stats in Hard Mode ToB - we just added additional mechanics and tried to mix it up.
+* '''Mod Arcane:''' Our players are already really good at ToB, so adding one or two additional mechanics to ToB didn't change it much, either. We actually got a lot of feedback then, saying we probably should have had a bit higher stats as well. Not saying we should go to the extremes as Chambers of Xeric - which is like 50% additional defence, it's just a ridiculous amount. But maybe they should have had higher hit points, hit a bit harder and have slightly higher defence, just to make it feel a bit beefier and to make it feel like the step up.
+* '''Mod Arcane:''' I'm hoping these Awakened ones feel like that middle ground, where they've got some additional mechanics to make the more mechanical challenge, but they also have additional stats. Because we expect them to be only one-off completions, it's a lot easier to design something that is a curated challenge for 1KC. That's a lot easier to design than making something that's really hard for 1KC, but is also fun after 50, 100, 200 and doesn't just become trivial - that's a lot harder.
+* '''Mod Arcane:''' We want to make something that's a really good challenge, but we're not going to make this like a Hard Mode variant into a grindable variant that's efficient for all the uniques - because that ends up becoming the Meta. I do think they will have better drops, but I don't think they'll be efficient for grinding the uniques. I think that we want to have them as "You managed to kill this boss!" as opposed to "Oh yeah, I grind Awakened Leviathan every day". It's just a different type of approach to the same thing. Inferno was never designed to be grinded - it was very much a one-off completion. I don't think it's gonna sit on the level that Inferno was for your first time if you've not got Cape yet. I'm hoping it scratches that itch.
+* '''Mod Goblin:''' Aspirational content is a relative term. For some people, the Fire Cape is still aspirational content. I think the wording that we used in the blog was quite deliberate, and I didn't want to write it's going to be as hard as in Inferno, because that's just a hard expectation to set. People are good at different things, and difficulty is subjective in Old School. But I feel that the people that really enjoy the Inferno, or early days of ToA doing 500s, or like doing GMs - the people that enjoy that kind of stuff will probably enjoy what we plan to do with these. If you can't do it, then that's fine; the regular bosses are there! The Orbs that we're proposing to give them an extra financial incentive (for players killing the regular post-quest variants).
+* '''Mod Goblin:''' Making comparisons is a bit tricky - I made a mistake by writing that you'd probably be able to shred through Muspah quicker than Vorkath, which turned out not to be true. But I feel like it's not that controversial to say that these are probably harder than all of the other Grandmaster quest bosses, in my opinion. I think all four of them are the top four most difficult post-quest bosses by quite a bit.
+* '''Mod Arcane:''' I completely agree. I do think these bosses are a step up from the existing ones. At the end of the day, it's not going to be something you can't just out-gear and come in with a full inventory of brews and probably manage to scrape through. I think Sins of the Father and Vanstrom is really hard when you're designed to do the fight when you're like 70s, maybe low 80s combat. That fight is really difficult, but if you go in with Max gear and a full inventory brews, you're gonna be able to make so many mistakes - it doesn't really matter, right?
+* '''Mod Arcane:''' That's where stats matter - how much damage you take matters. It's hard to make it perfect for every player at every piece of the game. We're releasing Grandmaster quests that someone who's done 50 Inferno KC and 500 Hard Mode ToB goes in and feels like this isn't a challenge. That player probably passed every Grandmaster quest in that regard, and that's a shame.
+* '''Mod Arcane:''' Mechanically, I do think these bosses all offer something a bit different. They're all fairly unique, and I do think you should struggle if you don't do them right. There will be a step up in expectations for gear, etc. You're probably not going to want to go in with an Iban's Blast and just start hitting everything - you're gonna have a bad time. For most of the quest bosses - even Song of the Elves - you can get away with Blood Barrage, you can get away with your Iban's Blast, and you don't really need that gear. And I think you'll have a really bad time if you don't, for these bosses.
+* '''Mod Goblin:''' Oh no, magic confirmed!
+* '''Mod Arcane:''' Oh my God, one of the three styles is used on one of the four bosses??? Damn!
+
+==Question #2==
+{{Cquote2|I love the ideas, but why are the Orbs tradeable? It feels quite odd; if the boss is going to be locked behind something, it shouldn't be buyable on the GE.}}
+
+[https://youtu.be/9NrVrzYd7EM&t=984s Youtube Time Stamp]
+
+* '''Mod Arcane:''' I think it feels odd because it’s different. We’ve never really done this before - we’ve never really locked being able to do something behind a consumable object. The idea behind making it tradeable is that if a regular player is doing the regular bosses and either don’t have the gear or just aren’t interested and don’t want to do these bosses, they can just sell them.
+* '''Mod Arcane:''' It can become a lucrative venture where high-end players who want to get their Awakened KC and have to do 5 to 10 attempts, there ends up being this economy loop where lower-level players are fueling high-level players, allowing the high-level players to spend millions on these Orbs and attempt it over and over again without having to grind the boss out. That would just be tedious.
+* '''Mod Arcane:''' This way, low-level players benefit from it. I think that’s a really interesting economic incentive and is how most of our game works. How many regular mains are fishing for their Karambwans and their Manta Rays? Not very many - they’re benefitting from all the other people who are doing that content.
+* '''Mod Arcane:''' I know it’s slightly different for Ironmen. It’s going to be a lot harder, and you’ll have to go grind out your Orbs. I think this actually adds to the prestige of it, though. ToA is a good comparison for this.
+* '''Mod Arcane:''' On ToA’s release, there was a bit of disappointment that players could complete both Regular and Expert Mode within the first couple of hours on the first day. It wasn’t the same as Inferno or ToB, which took multiple days. People want that chase of struggling and being unable to complete something for a while.
+* '''Mod Arcane:''' I think the main reason why Inferno and ToB took so long to complete is that if you failed that content, you’re set back a considerable amount of time thanks to the wiping system in ToB, where you have to do the entire raid again, or in Inferno, you have to go through all 60 waves again.
+* '''Mod Arcane:''' If it wasn’t for that forced amount of time you had to put in to learn it, I don’t think it would have taken very long to clear at all if you could just jump to Zuk repeatedly. I don’t think Zuk’s fight is that hard; it’s just that you’ve spent two hours killing monsters and draining supplies, and then you get one attempt and accidentally mess up. Then you’ve got to do it all again. We’re basically gating your learning time via another mechanic in the rest of the raid or the rest of the waves.
+* '''Mod Arcane:''' While this isn’t the same, I think it has somewhat of a similar effect. Because you need a certain amount of Orbs, people can't just spam these over and over and over again like they need to go kill the targeted bosses and need to wait till they actually enter the economy. Then it adds to that little bit of hype, that bit of a race where it's like, “Oh god damn, I really want as many orbs as possible. I want to be the one with the first Awakened KC?”. I think that adds a lot of excitement. I think the economy benefits because the entire loop will make all the bosses more lucrative for most players.
+* '''Mod Arcane:''' It also adds to the day one, week one, hype of who can get the Awakened KC even more exciting because there will be a lot of forks in the economy; it just comes down to how much you are willing to pay. They're going to skyrocket very quickly if there's a lot of demand on day one.
+* '''Mod Arcane:''' I could just make all these bosses have 10 or 20 times the health and add 60 waves before them or something, and then as soon as you die, go do it all again. But I don't think we can really do that in a way that would feel very good or meaningful. So this is a different approach.
+* '''Mod Goblin:''' One of the things that I quite like about it, conceptually, is that, even for mains, there are stakes - which you don't usually have in, for example, the Inferno, especially if it's your first cape. You use some supplies, but then they're relatively inexpensive. If you're at the point where you care about the Inferno, you probably don't care that much about the supply cost; you just pot over and over and over and over again and learn so much in a short time.
+* '''Mod Goblin:''' It's cool in PvM, especially in a game like Old School in 2023, which is heavy on positive progression. There's not really that much risk unless you’re doing PvP. There are not really a lot of negative progression angles or anything like that or regression. I think it’s cool to add stakes like “I spent money on this” or “I spent time getting this”, and this is my one-shot, and if I mess it up, then I gotta get another one. I think that's exciting, and that makes it interesting, as opposed to just dying and running back in and learning everything instantly.
+* '''Mod Arcane:''' I completely agree. I think it has so much potential to add interesting dynamics to encounters like this. At the end of the day, if it comes in the game, and you guys try it out, you don't like it, and it's just annoying, and you don't really care for the benefits, then we just won't do it in the future. We're trying something new, and we think it might be really cool.
+* '''Mod Goblin:''' Yeah, it's nice to be able to experiment with stuff, right? It's cool to try new systems and see what sticks. Whether people like it or not, you can always take away learnings. Whether that's things like this or the invocation system from Raids 3, there are always bits we can plug in and take out or mess with and improve on in the future.
+
+==Question #3==
+{{Cquote2|Why are these harder versions not efficient for uniques? I think it would be awesome if a rare Orb drop from the normal version of the boss translated to a very high unique chance for those players willing to fight the significantly harder variant.}}
+
+[https://youtu.be/9NrVrzYd7EM&t=1334s Youtube Time Stamp]
+
+* '''Mod Arcane:''' I covered this earlier, but just to be a bit more concise on it: As much as I completely sympathise or empathise with the idea of “Harder bosses should give better rewards”. Generally, our entire game translates this way; harder content, more rewards. I think this generally just comes down to the fact that we don't really have that much time to develop these.
+* '''Mod Arcane:''' What I was leaning on earlier is that to develop something that is a really big challenge, a one-off completion that is also fun to grind after 100, 200, and 300 KC, is very difficult. Just creating something fun to grind is hard in itself. Even ignoring the one-time KC challenge, creating something that's both is a lot more difficult. If Inferno was designed with the intent of it being grindable, I don't think it would have been anything like it is today. I don't think having to do two-hour or one-hour attempts is probably fun for most people.
+* '''Mod Arcane:''' If we look historically at some other pieces of content, you've got Phosani’s and regular Nightmare, and people doing original Nightmare solo a while ago wasn't particularly fun. Nightmare didn't really live up to that.
+* '''Mod Arcane:''' I think Gauntlet is a more controversial one, some people love Gauntlet, and some people really dislike it. I don't really enjoy cryptic long-term. I can do like three or four KC in a night, and then I don't really want to do anymore. And I do think there are a lot of people in that boat.
+* '''Mod Arcane:''' Making something that's fun to grind is really difficult. You guys just play this game so much. Most of the games don't have this problem - like Mythic Raids. As much as you repeatedly wipe against the same boss, you're moving on quickly in the grand scheme of things. In our game, though, you're killing Corporeal Beast for like 5000 KC - how do you make that fun long-term? Making it a non-grindable, meta thing for getting uniques and stuff means we don't have to worry about that as much. We can just lean in and really curate something that is a good challenge for one KC. And hopefully, that's more enjoyable. This basically sums it up.
+* '''Mod Goblin:''' There’s also the element that for the people who will most be interested in being able to repeat the bosses, it's the same as doing Inferno a second time. It’s pointless bar like CAs, but people do it; people push it. Or people in the game with 42-minute Inferno times and stuff… I don't think this will be on the same level of complexity because it's not as long, and there's not as much opportunity for time-saving. There are a lot of emergent opportunities for people to have fun repeating them, get better, push them and solve them differently.
+* '''Mod Goblin:''' I completely agree with the points that it is hard to make something fun to do, minute to minute, for hundreds of kills. Instead of fun on the promise of the eventual reward you're getting for having done the thing. It’s tricky.
+
+==Question #4==
+{{Cquote2|Pet?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=1550s Youtube Time Stamp]
+
+* '''Mod Arcane:''' Yep, all four bosses will have their own pet, individually rolled. The pets are a bit different this time as well. I know Mod Halo has done something quite cool with the pets this time. We added pathfinding to Nex for the first time when we released that pet that was something a bit different for a pet, and these pets also have something else a bit different, which I think is quite cool. So I'm excited to see whoever gets those first.
+
+==Question #5==
+{{Cquote2|Will these be post-launch content or available on release?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=1614s Youtube Time Stamp]
+
+* '''Mod Arcane:''' It will be post-launch. Assuming it passes the poll, we can make the Orb start dropping immediately, so you don't have any KC that's not tracked or anything or any regret from playing the content early. So assuming it passes the poll, you'll get Orbs on day one, and you can start hoarding them and manipulating the market, whatever you want. Then eventually, we'll launch the actual Awakened bosses for you to go crazy on!
+
+==Question #6==
+{{Cquote2|Are the four new bosses also instanced solo only like Zulrah, Vorkath, Muspah, Gauntlet, Sire, GG, Hydra etc? Or GWD style where you can play with friends/GIM?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=1687s Youtube Time Stamp]
+
+* '''Mod Arcane:''' Yeah, they are instanced solo-only content like Zulrah, Vorkath and Muspah. We did investigate the idea of maybe trying to have some of them as maybe duo bosses or group bosses. But it's just really awkward when it's in a quest - that means they have to work like a solo boss as well because we're not going to have group questing all of a sudden in that regard.
+* '''Mod Arcane:''' We were like, “Developing four bosses simultaneously is hard enough. Let's not make it more complicated’’. That's not to say we can't release more group content in the future! Obviously, it's balanced - we want to try and release bits of both. We had Muspah, we had ToA, we had Nex. I'm sure one of the future updates will be a group boss.
+* '''Mod Goblin:''' I remember that in our on-site meeting with everyone to kick off, we spoke about making one or two of them like a duo scale. But it just feels weird - they need to be compelling to do solo and then also make them compelling to grind duo - it’s difficult to curate that kind of experience for a boss.
+* '''Mod Arcane:''' I'd love to do a proper duo boss! I had a lot of fun playing Runescape and doing Araxxor - that was quite a duo boss. I'd love to have something like that in the future.
+* '''Mod Goblin:''' Yeah, I think duo is just a cool scale that I'd love to see us do more than just forced two-person content; or if you solo it, it's twice as hard.
+
+==Question #7==
+{{Cquote2|I love the idea of Blood Torva, but why is it from this quest and not a future GWD expansion?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=1818s Youtube Time Stamp]
+
+* '''Mod Arcane:''' I think we're mainly looking at these bosses that we've been developing for the last six months. And it's like, we've got Goblin’s Blood Torva sitting around, and we'd like to release it. Would it fit in this update? Yeah, it fits really well. The entire quest is Zarosian themed, this is a Zarosian armour set, and it fits! I can see the comparisons to Nex, and obviously drops from Nex and God Wars in general, but this update fits, so why not put it in this update? It's not like we can't ever put anything on Nex, God Wars, or another God Wars expansion in the future. We'd rather just get you the reward you want when we can!
+* '''Mod Goblin:''' I get asked for Hard Mode Nex so often. But it feels kind of tricky because so much of what my Angel of Death did in Runescape is a lot of what went into Phosani’s Nightmare - at least, it feels that way on the surface. It's also a case of DT2 dev winding down; we had some extra time and four bosses. We felt like we could do this with the DT2 time to work on DT2 instead of doing a Nex Hard Mode. Because who’s to say we’ll actually get time assigned to release that or invest in it and get all the art and QA budget set aside actually to deliver something like that?
+
+==Question #8==
+{{Cquote2|For the Ancient Sceptre, will the imbued versions be tradeable or can we do something with the extra icons?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=1922s Youtube Time Stamp]
+
+* '''Mod Arcane:''' They're untradable, just like the original sceptre as well. I think it'd be pretty weird if you went from untradable to tradable like that. There's currently nothing to do with the extra icons on your additional sceptres after your fourth one. Because you will pretty much want four Ancient Sceptres, then you'll get the new four gems and make your four different sceptres with the gems inside of them. After all that, the duplicates are kind of useless. I would like to put a use for them in the game at some point. But as of right now, there is no plan to use them.
+
+==Question #9==
+{{Cquote2|Will the Blood Torva drop be guaranteed or RNG-based with a high drop chance?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=1985s Youtube Time Stamp]
+
+* '''Mod Arcane:''' The current plan is, assuming that all passes, you'll get one KC at each of the four Awakened bosses, and then once you've killed the fourth one - the final one - it’ll drop. So it will be a guaranteed drop, but you need to get one KC at each boss to get the kit.
+* '''Mod Goblin:''' When you say “the kit”, is that an item that can change the appearance of all three pieces of Torva? Or is that one kit per piece?
+* '''Mod Arcane:''' Yeah, it'll be one item to use on all your pieces; it doesn't consume itself or attach to it. The idea is that it's like a blood dyer or something like that; it’s like you're injecting blood essence into your Torva.
+
+==Question #10==
+{{Cquote2|My only concern is after a while, high-level players may want to just farm the harder bosses for enjoyment but would be gated behind Orb drops. What are your thoughts on this?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=2070s Youtube Time Stamp]
+
+* '''Mod Arcane:''' For a high-level main, they can buy the Orbs. So they gate it behind them - depends on the price point. But if you generally want to farm them for enjoyment, then you definitely can - they won't be bad to do. The goal would be to have a higher unique chance on them; it might not necessarily be higher uniques per hour. It's not like you're going to be getting screwed or anything like that. If you're an Ironman player that really wants to farm on these harder bosses, then it's just going to be the same as every other problem Ironman has - you've got to work for your resources.
+* '''Mod Goblin:''' Yeah, it is what it is coming from me, who only plays Iron these days. My instant thought when somebody is like, "What about me as an Ironman?" is "De-iron!". I only play Iron, but that's what I signed up for! The game is also infinitely easier for me as an Iron now than it was when I made the account. If you don't like it, don't do it or change game modes. I don't think the Orbs are going to be so crazy rare as well; you won't be spending like 200 hours per attempt.
+* '''Mod Arcane:''' The idea would probably be like you might be able to get an Orb every hour or so, maybe two hours - if you're grinding hard efficiently - not really rare or anything.
+* '''Mod Goblin:''' For me, it's one thing that also adds stakes. If I've done 100 of a boss and I've gotten like two of these Awakener's Orbs, it's like, "Damn, I spent all this time, and now I've got my attempts! I've watched all my videos, I've looked through my Discord for the weird niche methods and streamables from people named after Pokémon, and I've got these 50 kills worth of my time up at stake!". I think that's cool.
+* '''Mod Arcane:''' Thankfully, for an Ironman, you solve your own problems somewhat; because, for an Ironman, you're probably going to get hundreds of KCs at each of these bosses and netting in a bunch of Orbs passively. Then once you've finished all your grinds, you've got all your rings, you've got your Virtus, you've got the axe; you're like, "Okay, I've got a stack of Orbs. Let's see if I can do this!". If you then proceed to send all of your Orbs and fail every attempt, every single boss, you should have prepared more. That's part of the game mode - it makes it even more prestigious when you get it under Ironman. If you see that, you know that they grinded for their own Orbs.
+* '''Mod Goblin:''' Maybe I'm out of touch, or maybe it is a bigger complaint about what needs changing, but we'll see. I feel like the balance on them should be pretty good, to be honest. And again, to be at this point anyway, where you really care, you'll want to be an Iron with full Torva. So you're probably used to just enduring pain.
+
+==Question #11==
+{{Cquote2|For the Virtus Robes, each of the bosses has a chance to drop ‘a’ piece or ‘each’ piece? Each boss has a chance to drop all three pieces, correct?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=2273s Youtube Time Stamp]
+
+* '''Mod Goblin:''' I think this stems from an older blog where, really early on, we were saying you might have to get components and then assemble them into the Virtus pieces so that we had a decent split between four bosses and three pieces. But we changed that approach slightly. Please fill this player and give them some context.
+* '''Mod Arcane:''' Yeah, so there are no components or anything like that for Virtus. You will just get an entire piece of Virtus drop. Every boss has a chance of dropping any piece of Virtus. Therefore, if you get the rings for every single boss, you'll probably finish your full Virtus.
+
+==Question #12==
+{{Cquote2|Would we be able to swap out the sigils on the Ancient Sceptre like how you could swap out handles on the Godsword, or is it like a permanent upgrade thing like fortifying Masori?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=2343s Youtube Time Stamp]
+
+* '''Mod Arcane:''' It’s a permanent upgrade, so you're able to put your gem in your sceptre, and if you want to get all four, then you'll want to have four icons from Muspah. But I think that's well within your reach - if you can get all the gems for all four of these bosses, you can go send a couple of hundred Muspah.
+
+==Question #13==
+{{Cquote2|So what happens to the imbue on the rings after you break them down? Is that time in NMZ wasted, and are those points lost?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=2389s Youtube Time Stamp]
+
+* '''Mod Arcane:''' You can un-imbue your rings and get your points back, so, no change.
+* '''Mod Goblin:''' It's probably also worth saying that the new rings can’t be imbued. The stats that they have are the stats that they’ll have; you don't need to imbue them. So there’s no need to worry about losing the imbue in PvP and all that stuff. Maybe it diminishes the value of Nightmare Zone points a little bit, but no time in NMZ is wasted! You have fun, and you get combat XP as well. So I don’t think it’s wasted; you can get the points back, and you can spend them on something else.
+
+==Question #14==
+{{Cquote2|Will you release drop rates on release this time or are they delayed?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=2389s Youtube Time Stamp]
+
+* '''Mod Arcane:''' It won't be on the release day, but it will be within a week or two. I think that's what we agreed on after Tombs of Amascut.
+* '''Mod Goblin:''' It was within two weeks.
+* '''Mod Arcane:''' We might need to make some changes on release day. If a boss is being killed twice as fast as they should be, then we don't want all of a sudden, a unique just to be completely tanked in value, right?
+* '''Mod Arcane:''' We want everything to be in a good place, including any resources coming in.
+* '''Mod Arcane:''' With Muspah, we changed how many resources came in. Players were killing that boss faster than we expected. We didn't change any unique rates for the boss, but we did change other resources, such as Snapdragons etc. We’re going to have the right to change those things, and then we'll release the rates once we’re happy.
+
+==Question #15==
+{{Cquote2|Are the quest versions still doable for questers/non-aspirational gamers?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=2538s Youtube Time Stamp]
+
+* '''Mod Arcane:''' They will definitely be a challenge. I'd like to believe they're as hard as Vanstrom was when you originally did Vanstrom. They expect you to have slightly higher stats than what Vanstrom is going to expect.
+* '''Mod Arcane:''' You can do Vantstrom with a base 70s. It'll be a rough time, but you can just about do it. The higher stats you have, the better. If you're going in with max combat stats, you're gonna have a much more comfortable time, especially gear too.
+* '''Mod Arcane:''' I wouldn't be going into these bosses of the 70s and expecting a good time. You can kill them, but you're going to want to be good, and you're going to want a handful of attempts to figure out what's happening.
+* '''Mod Arcane:''' They're going to be hard; they're probably going to be the hardest quest bosses we've ever released. We're probably going to keep doing that every time a new Grandmaster quest comes out - I imagine if the quest focuses on combat, we'll probably level it up. We're always going to be pushing you guys harder and better.
+* '''Mod Arcane:''' It's important that we do that as well. I think Old School has quite a big problem right now in terms of the gulf between a more casual Skiller that is creeping into PvM, like doing Barrows, maybe towards jumping into Vorkath and doing all these Grandmaster quests.
+* '''Mod Arcane:''' Then there's an even bigger gulf between those and doing more difficult bosses like Zulrah, and then eventually, ToB and raids. Hopefully, then these bosses as well.
+* '''Mod Arcane:''' There are quite a lot of big gaps. They're not very smooth. ToA did a pretty good job in terms of allowing someone to come in at a pretty low level. Then they just keep piling on Invocation after Invocation, and it gets smoother and smoother, a bit harder and a bit harder. And people can ease themselves quite naturally into PvM. We can do more of it.
+* '''Mod Arcane:''' I do think quest bosses are a really good place for that. A quest forcing you to do some PvM gets you out of your comfort zone a bit and gets you more comfortable with things like that. Then actually killing the bosses post-quest may feel a bit more palatable, eventually going into raids. We've released a lot of PVM content in the past four or five years and if you're not interested in PVM at all, that's a lot of content you're missing out on.
+* '''Mod Arcane:''' It is our job to get you guys more comfortable with us - hopefully in nice ways. We don't want just to throw you in the deep end and force you to do ridiculous content.
+* '''Mod Arcane:''' We're not going to release a quest that's as hard as Inferno, but it is our right to push you guys a bit to get a bit more comfortable step by step. Sometimes we miss the mark and push a bit too hard. Then I'm like, "Oh God, this is too much of a leap", and maybe we nerf the quest versions of the bosses in accordance to that. Maybe you guys have that feedback on the launch. But overall, I think we should be trying to push it a bit.
+* '''Mod Goblin:''' It's an interesting one. There are a lot of people who obviously want Quest Cape for the Lumbridge Elite, but are a little bit scared of it getting more difficult.
+* '''Mod Goblin:''' At the same time, somebody in chat says "the get good era begins". I don't think it was quite that abrasive an approach, but there's a lot of PvM, and there are a lot of people who definitely have a lot of anxiety about getting into PvM.
+* '''Mod Goblin:''' It's finding meaningful and interesting ways to pipeline people into caring about PvM in the first place and helping them build up the fundamentals such as movement presses, prayer switches, gear switches and flicking to some degree and then being able to juggle all of them at the same time while understanding the tick system etc. and being able to introduce them in a meaningful way.
+* '''Mod Goblin:''' Pipelining them into caring about PvM is something we should try to do and then get better at doing, I think. Having players do a quest that raises the ceiling, especially with the same gravitas as DT2. It's an interesting way to do it.
+
+==Question #16==
+{{Cquote2|Are there one-shot mechanics in the new bosses?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=2798s Youtube Time Stamp]
+
+* '''Mod Arcane:''' I don't think there is anything that straight up just does 99 damage or anything; there's a lot of mechanics that will hit very hard if you mess them up. The Muspah can hit you for around 68 or thereabouts with his magic attack or just a basic flick, so there are definitely things that can do a lot of damage.
+There is one mechanic - it’s not really a one-shot mechanic - if you mess up enough times, then you die. You can only make a finite amount of mistakes.
+* '''Mod Goblin:''' I will say that anyone doing a blind run of DT2 on a Hardcore on day one is much braver than I would be. I would not advise it!
+
+==Question #17==
+{{Cquote2|What does the loot table look like? Is it more like God Wars or Muspah?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=2861s Youtube Time Stamp]
+
+* '''Mod Arcane:''' It’s more like God Wars. I know; there was an era where everyone was asking for God Wars-style drop tables for ages. We then released Nightmare, and players screamed.
+* '''Mod Arcane:''' I'm not saying we delivered it accurately back then. We took that feedback on board and tried to deliver something like that then. I think Nightmare succeeded in the regard of having a fairly pitiful loot table, weighting it towards higher uniques.
+* '''Mod Arcane:''' It failed in the regard of those uniques being really, really rare. The boss kills took quite a long time, the walk also took a long time; re-gearing was a bit of a pain due to Relicym's Balm and Sanfew Serum. There were a lot of individual things that made the Nightmare grind a bit of a pain. I don't think these bosses have any of that. They just have low resource drops and reasonable unique rates, but also, the uniques, I'm going to assume, will be really expensive.
+* '''Mod Arcane:''' Everyone's going to want the new Berserker Ring, right? The Berserker Ring is owned by almost everyone watching this stream. I'd like to think everyone will also want this new ring. They might not be able to afford it, but they will want it, so the demand should be high for many of these rings. It's behind the Grandmaster quest, I’d imagine the supply is not going to be as high as ToA or something like that. Anyone can do ToA; it doesn't really have many requirements.
+* '''Mod Arcane:''' These uniques will be worth a lot of money. They're not ridiculously rare or anything like that, but the regular resources will be pretty low. Expect to make less than 3 mil an hour passively like Muspah or Vorkath.
+
+==Question #18==
+{{Cquote2|How long will the quest take?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=2986s Youtube Time Stamp]
+
+* '''Mod Arcane:''' I honestly don't know. We've done a lot of playtests. We held an all-day playtest, and no one actually completed it. This is probably going to be a full-day quest for some people, which might be six or seven hours for others. Once a quest guide comes out, it may take three or four hours.
+* '''Mod Arcane:''' The vast majority of the stream will probably wait, but there are four bosses and four areas with their own individual puzzles and cutscenes. There’s a lot - it's a really good quest!
+* '''Mod Arcane:''' There are a lot of demi-bosses as well. It's not full, like Vardorvis or Duke, but you have these individual bosses who take up a bit of time. It will depend on how much you fail as well; if you really struggle with one of the bosses, that will make the quest a lot longer.
+* '''Mod Arcane:''' Same with the puzzles. If you really struggled with the Secrets of the North puzzles, you'll probably need help with the Gorak puzzle. I'm sure the quest guide will solve all your problems!
+* '''Mod Goblin:''' On release day, don’t spacebar it! The dialogue is really good, the worldbuilding is good, and the lore is good. Old School has really good lore and really cool world-building.
+* '''Mod Goblin:''' Quests are one of the things that makes Old School stand out versus other MMOs in this space because we do quests so differently to a lot of other games where quests are basically just the Slayer skill in different settings.
+* '''Mod Goblin:''' Many people view quests as a vehicle to obtain rewards, power and content. They don't care about the quest themselves, but so much time and love has been put into the quest and it's really cool, it’s really good!
+* '''Mod Goblin:''' If you can stomach it, don't spacebar it. Don’t use a guide; it's a cool quest. You'll feel good.
+* '''Mod Arcane:''' For context, the most fun I’ve ever had in this game was Song of the Elves on release day. I had no idea what was happening, and figuring out the puzzles was so fun! I love that so much, and I’ve never experienced that same magic since I work here now and know all the answers to every quest - it’s spoiled for me. So please, enjoy them!
+
+==Question #19==
+{{Cquote2|How do the Ring Upgrades work? Is it 1 to 1? Do they need to be imbued?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=3179s Youtube Time Stamp]
+
+* '''Mod Arcane:''' 1-1. You don’t imbue them.
+
+==Question #20==
+{{Cquote2|Will there be Awakened Pet Transmogs?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=3188s Youtube Time Stamp]
+
+* '''Mod Arcane:''' This almost feels like a spoiler, but no?
+* '''Mod Goblin:''' We’ll find out - again, we haven’t started to do anything with them; they haven’t been polled.
+
+==Question #21==
+{{Cquote2|Are the Orbs to fight the Awakened bosses going to be unique for each boss or can you use one Orb for any of them?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=3206s Youtube Time Stamp]
+
+* '''Mod Arcane:''' The latter. They will all drop the same type.
+
+==Question #22==
+{{Cquote2|Will the harder versions have a higher pet chance?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=3221s Youtube Time Stamp]
+
+* '''Mod Arcane:''' They probably should. Again, I don't really want to make them efficient. I just don't want to make them pitiful. If the fight takes three times as long, I don't want it to be the same drop rate because that feels rude almost, but I don't want this to be the efficient method of doing any of these.
+
+==Question #23==
+{{Cquote2|How long is each boss fight on average?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=3250s Youtube Time Stamp]
+
+* '''Mod Goblin:''' The answer is: it varies.
+* '''Mod Arcane:''' There are four different bosses. Some of them are 90 seconds, while some are two or three minutes and some are closer to three or four minutes. They’re all within that range, unlike Phosani's or regular Nightmare.
+
+==Question #24==
+{{Cquote2|What combat stats would you recommend for these bosses?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=3292s Youtube Time Stamp]
+
+* '''Mod Arcane:''' Maxed!
+* '''Mod Goblin:''' (Laughs) I’d say mid-to-high 80s to be comfortable in the post-quest versions, and if you're doing the Awakened versions, then max.
+* '''Mod Arcane:''' It's weird because our game is so skewed towards higher stats - stats matter so much. I know you've shared around the picture a lot where it's “Oh, yeah, Ahrim's with 99 Mage is better than Ancestral with 90 Mage”.
+* '''Mod Arcane:''' Therefore, if you're not doing anything for the next two weeks, AFK your combat - I highly recommend it; it'll give you any advantage you need. You can deal with them with a Rune Crossbow or Dragon Scimitar if you're really good. It’s like the ToA meme on release; people doing it in things like Iban Blast to RCB and D Scim. The worse you are at the game, the better stats you will want to at least give you that leverage.
+
+==Question #25==
+{{Cquote2|What would be the ETA for Combat Achievements on new bosses?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=3388s Youtube Time Stamp]
+
+* '''Mod Arcane:''' There’s no ETA, but just sometime after release.
+
+==Question #26==
+{{Cquote2|Can we get Clue Scroll drop rates confirmed along with the unique drop rates?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=3408s Youtube Time Stamp]
+
+* '''Mod Goblin:''' I’ll ask about that when we release them.
+
+==Question #27==
+{{Cquote2|Do you think the new rings will be able to compete with the Lightbearer?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=3415s Youtube Time Stamp]
+
+* '''Mod Goblin:''' Situationally, yes.
+* '''Mod Arcane:''' If you don't care about your max hits in whatever regard, the Lightbearer is still good. It will probably hurt the demand for Lightbearer somewhat since, right now, Lightbearer is really good if you’re not using melee. For example, you were just gonna use an Archers Ring, and you don't care about the accuracy rate. Obviously, with the new ring, it has ranged strength, which may give you a max hit or two. It’s situational.
+
+==Question #28==
+{{Cquote2|Are the bosses in the quest easier than the bosses after the quest?}}
+
+[https://youtu.be/9NrVrzYd7EM&t=3448s Youtube Time Stamp]
+
+* '''Mod Goblin:''' Yes. The quest versions are challenging but doable for people that have already done Grandmaster quests. The post-quest bosses are fine but hard, and Awakened variants, should they pass, will be really rough.
+
+==Player Creations of the Week==
+
+[[File:Q&A Summary - 13-07-23 (1).png|thumb|600px|centre|''u/Kadence_KG'']]
+
+[[File:Q&A Summary - 13-07-23 (2).png|thumb|600px|centre|''u/Frederica_Irving'']]
+
+[[File:Q&A Summary - 13-07-23 (3).png|thumb|600px|centre|''u/ID3APrinting'']]
+
+[[File:Q&A Summary - 13-07-23 (4).png|thumb|600px|centre|''u/SamTheNoobah'']]
+
+[[File:Q&A Summary - 13-07-23 (5).png|thumb|600px|centre|''u/DatAdamBoi'']]

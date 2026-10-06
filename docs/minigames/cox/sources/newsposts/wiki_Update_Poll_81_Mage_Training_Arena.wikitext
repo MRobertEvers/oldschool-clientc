@@ -1,0 +1,159 @@
+{{Update|date=15 March 2024|url=https://secure.runescape.com/m=news/poll-81-mage-training-arena-?oldschool=1|category=community}}
+[[File:Poll 81- Mage Training Arena  newspost.png|right]]
+{{clear}}
+__TOC__
+
+We're back with another QoL Poll. It's been more than a little while since Poll 80 would be an understatement, largely owing to the size of Poll 80, Chambers of Xeric changes and seasonal events. 
+
+Given the impact of the approach we took with Chambers of Xeric tweaks, we'd like to try something a little different with this QoL Poll and to gauge your thoughts. Usually polls like this contain a massive scattering of small tweaks to a bunch of different things - a little something for everybody. We'd like to experiment a little more with taking a really focused look at a specific piece of content and identifying tweaks that are small on their own but add up to become more than the sum of their parts.
+
+With that said, today's poll focuses entirely on a reclusive institution, nestled in the sandy dunes surrounding Al-Kharid: the Mage Training Arena.
+
+==Mage Training Arena==
+Love it or hate it (and we know where most of you stand), the Mage Training Arena is an iconic locale and a staple for progression for many players - whether that's looking to juice your early-game Magic gains in the Alchemy room, unlock Bones to Peaches on your Iron, or snag a Master Wand for your eventual Kodai Emblem (just one more raid, it's coming for sure!)
+
+One of the outcomes of a piece of content being so ubiquitous is that a lot of people have opinions on it, and a lot of those opinions leave some room for improvement. The changes we're proposing in today's blog aim to address some of the more common pain points or frustrations without necessarily speeding up the content or trivialising the chase for various rewards. Our hope is that these changes make your time spent here feel less frustrating and by extension make the Mage Training Arena a more appealing option for training early-on by alleviating your most oft-cited gripes.
+
+When it comes to gripes, one room stands giant golem head and shoulders above the others, what better way to grab your attention than opening with...
+
+===The Telekinetic Theatre===
+[[File:Poll 81- Mage Training Arena  (1).jpg|600px|center]]
+
+The Telekinetic Theatre asks you to use Telekinetic Grab to move a golem around a series of mazes to get to a specific 'end' point. Complete a handful of mazes and you'll net yourself a couple of extra Pizazz points and XP. It's simple enough on paper and in practise it ''is'' pretty relaxed, but can feel a lot more slow and sluggish than the other rooms where you're able to expend some extra effort to get a little more out of your time.
+
+Our proposals for this room are all with the express intent of reducing the amount of time you spend waiting around for golems to move or Run Energy to regenerate, or engaging with a dialogue box after every completed maze. They more or less do exactly what they say on the tin, so let's list them out!
+
+* Speed up the statue's movement. We'd effectively make the statue 'run' rather than 'walk', meaning it would slide gracefully along the floor at twice the speed that it currently does.
+* Inside the Telekinetic Room, remove the delay applied to the player after casting Telekinetic Grab. This means you'd be able to get the statue in motion and start positioning yourself for the next move, rather than waiting around while your character carefully observes their Telegrab projectile travelling slowly towards the statue for the hundredth time.
+** If it's something you'd like to see, we'd be open to rolling out this change to Telekinetic Grab's behaviour across the wider game, so we've included a separate poll question to see what you think!
+* Restore some of the player's Run Energy after completing a set of 5 mazes. This aims to alleviate the need for Stamina or (Super) Energy potions, which can add a sizeable extra cost for many players engaging with MTA in the early-game.
+* Automatically generate the next maze, rather than requiring a dialogue prompt to set it up. If you don't fancy doing another maze, you can always leave the room!
+* Add some token XP (meaning a small amount of additional XP) after completing each maze.
+
+This set of tweaks modernises the room a little, allowing you to fire off your Telegrab and race to the next spot while the statue zooms around. All of this extra running is offset by restoring your Run Energy as you continue to complete mazes, which you'll be able to get through more quickly without so many dialogue boxes to click through. Topping all of that off is a small boost to your XP rates while you cycle through mazes, which stands to benefit players engaging with MTA early-on into their character's life-cycle - it is the Mage ''Training'' Arena after all!
+
+{{News Poll|qtext=Poll Question #1: Should we increase the speed at which the Maze Guardian in the Telekinetic Theatre moves, as described in the blog?}}
+
+{{News Poll|qtext=Poll Question #2: Should we remove the delay applied to the player after casting Telekinetic Grab inside the Telekinetic Theatre?}}
+
+{{News Poll|qtext=Poll Question #3: If Question #2 passes, should we remove this delay everywhere in-game in addition to the Telekinetic Theatre?}}
+
+{{News Poll|qtext=Poll Question #4: Should we restore a portion of the player's Run Energy after completing a number of mazes in the Telekinetic Theatre?}}
+
+{{News Poll|qtext=Poll Question #5: Should we remove the dialogue prompts and automatically generate a new maze in the Telekinetic Theatre, as described in the blog?}}
+
+{{News Poll|qtext=Poll Question #6: Should we offer a token amount of Magic XP after completing each maze in the Telekinetic Theatre?}}
+
+On the topic of training, let's move on to the room that's viewed most favourably from a Magic gains perspective.
+
+===The Alchemists' Playground===
+[[File:Poll 81- Mage Training Arena  (2).jpg|600px|center]]
+
+The Alchemists' Playground is a wondrous collection of cupboards - if such a thing exists...
+
+Of all the rooms in their current state, this one is arguably the most popular since it's ''reasonably'' responsive and offers seriously solid Magic XP for lower levels whether they're using Low or High Alchemy!
+
+We still think there are a couple of sore spots that could be smoothed out, so let's have a look!
+
+* Reduce the number of cupboards from 8 to 6, removing the two empty ones in each rotation. This means that you're always getting ''something'' when you search a cupboard to figure out which rotation you're on.
+* Remove the cap on the number of coins you can deposit at once. Currently this cap is set to 12,000 GP, and any coins you accumulate past this are effectively wasted. We'd be safeguarding this as necessary to prevent any potentially ''massive'' XP drops that result in nasty integer overflow issues.
+* Reduce the frequency of rotations switching by around 30-40%. This means you're still able to pay full attention and play actively to maximise your gains, but you don't have to be totally locked-in and can take things at a slower pace if you'd like.
+* (Unpolled) Have items in the room ignore the Untradeable warning option for Alchemy spells. The items you pull out of the cupboards are different to their equivalents outside of the room, meaning they trigger untradeable warnings even though their express purpose is to be alchemised. It's a small tweak, but hopefully cuts down on time spent in menus and reduces the risk of you forgetting to turn that particular warning back on once you're done.
+* Keep the cupboard doors open. They're magical cupboards containing a limitless supply of all kinds of items, it stands to reason they could perhaps magically keep the doors open too...
+* Where players deposit coins that aren't a multiple of 100, give a % chance of gaining an extra point. This means that depositing 150 coins would give 1 point and a 50% chance at an additional point, similar to how Catalytic/Elemental points work at Guardians of the Rift. This is in contrast to the current behaviour, where you get 1 point per 100 coins and any excess is effectively wiped.
+
+These changes should let you take things at whatever pace you're comfortable with, allowing you to stack GP for juicy XP drops without any of that GP going to waste and giving you the freedom to focus up and maximise your gains or chill out a little and wonder where all of those coins are even going...
+
+{{News Poll|qtext=Poll Question #7: Should we reduce the number of cupboards in the Alchemists' Playground by removing the two empty cupboards in each rotation?}}
+
+{{News Poll|qtext=Poll Question #8: Should we remove the 12,000 GP cap on the number of coins you can deposit at once in the Alchemists' Playground, as described in the blog?}}
+
+{{News Poll|qtext=Poll Question #9: Should we make rotations in the Alchemists' Playground last 30-40% longer before switching to the next?}}
+
+{{News Poll|qtext=Poll Question #10: Should we keep all of the cupboard doors permanently open in the Alchemists' Playground, rather than having them close after a while?}}
+
+{{News Poll|qtext=Poll Question #11: Should we offer players a percentage chance at earning extra points for coins that aren't in multiples of 100, as described in the blog?}}
+
+Perhaps some of those coins are being spent on massive piles of enchantable shapes?
+
+===The Enchanting Chamber===
+[[File:Poll 81- Mage Training Arena  (3).jpg|600px|center]]
+
+The Enchanting Chamber is a peculiar one. You have a variety of approaches here - picking up a bunch of a specific shape and slowly enchanting them all for fewer points, manually enchanting each one to speed things up, picking up a variety of shapes to capitalise on the rotating 'bonus' shapes, or world-hopping for Dragonstone spawns and hoping that nobody else is doing it at the same time as you.
+
+We've not got too many changes here, but we're looking to make the 'intended' method (i.e. not world-hopping) a little better to improve the mid-intensity option of enchanting a variety of shapes, or giving you a chance at finding a sparkly surprise even if you're taking things slowly!
+
+* Adjust the layout so that each corner of the room as at least one of every colour/shape. This lets you park up and pick up everything you'd like, rather than having you run across the room in a panic when the 'bonus' on offer isn't something you can find in your corner.
+* Give a reasonable chance of finding a Dragonstone amongst the shapes in a given pile to give you a slight points injection if you're opting not to world-hop for these rare gems.
+* Provide players a small amount of Magic XP for every object deposited. This makes the 'intended' method a little more appealing from an XP/hr perspective since you'll be depositing more objects, though it's still not likely to compete with other training methods.
+* Store the bonus rune rewards for players to claim when they leave the room, rather than giving them out when objects are deposited. These runes often wind up getting dropped because Inventory pressure eats into how many objects you can enchant before needing to deposit, so alleviating the constraints on Inventory space is a neat added touch.
+
+For players choosing to hop around for Dragonstone spawns, these changes don't do a whole lot, which we think is fine considering it makes gaining Enchantment points particularly speedy. These changes should prove welcome for those of you looking to slow things down with a more passive approach while also better-rewarding engagement with the 'bonus' mechanic, offering up slightly more XP/hr ''and'' resulting in fewer runes doomed to despawn!
+
+{{News Poll|qtext=Poll Question #12: Should we adjust the Enchanting Chamber so that each corner of the room features one of every shape, as described in the blog?}}
+
+{{News Poll|qtext=Poll Question #13: Should we add an uncommon chance to find a Dragonstone while searching for shapes in the Enchanting Chamber? Note: this Dragonstone cannot be taken out of the room, only enchanted and deposited for points.}}
+
+{{News Poll|qtext=Poll Question #14: Should we offer a token amount of Magic XP for every object deposited in the Enchanting Chamber?}}
+
+{{News Poll|qtext=Poll Question #15: Should we adjust the bonus rune rewards so that they're given to the player upon leaving the Enchanting Chamber rather than after each deposit, as described in the blog?}}
+
+Where better to finish up than everybody favourite room full of unending bone piles? 
+
+===The Creature Graveyard===
+[[File:Poll 81- Mage Training Arena  (4).jpg|600px|center]]
+
+In case you've repressed your memories of this one, the Creature Graveyard is the room full of bones that you need to convert into fruit while even ''more'' bones continually fall from ''somewhere'' and deal consistent, unavoidable damage. Interestingly, this room is one of the only rooms inside MTA that benefit from one of the rewards - Bones to Peaches, though this benefit is perhaps a little too understated at the moment.
+
+We'd like to make the room a tad more interactive than it currently is, better reward players using Bones to Peaches (since it's twice the cost of Bones to Bananas) and reduce one or two other pain points.
+
+* Make the falling bones dodgeable, similar to other 'falling X' mechanics in other locations, where players have an opportunity to move out of the way. This gives you some extra decision-making between taking the damage in exchange for better rates (so long as you're able to heal) or avoiding the damage and slipping as many spellcasts as possible in-between so that you don't have to eat the fruit you're making or leave the room entirely to heal up.
+* Adjust the points awarded for depositing peaches. Bones to Peaches costs twice as much to cast as Bones to Bananas, so we'd like to give points every 8 peaches. This is a departure from the current behaviour, where you're awarded a point every 16 fruit deposited, regardless of whether the fruit are bananas or peaches.
+* Inside the Creature Graveyard, remove the delay when casting Bones to Bananas & Bones to Peaches. This ties pretty nicely into the whole 'dodgeable damage' stuff, while also alleviating some of the clunky feeling that the room has at the moment where you can't cast your spells on the move.
+* Add a small amount of Magic XP for every fruit deposited. Peaches would offer slightly more XP than bananas.
+* Similar to the Enchantment Room change, store the bonus rune rewards for players to claim when they leave the room, rather than giving them out when the fruits are deposited. This is another room where Inventory space is really important and often leads to these additional runes getting dropped so that you're not disrupted.
+
+Of all the room-specific changes so far, this is perhaps the most significant adjustment - so let us know what you think!
+
+{{News Poll|qtext=Poll Question #16: Should we make the falling bones in the Creature Graveyard avoidable, as described in the blog? This would make them behave more similarly to 'falling rock'-style mechanics at other content like Scurrius or the Leviathan, rather than unavoidable damage.}}
+
+{{News Poll|qtext=Poll Question #17: Should we double the points received for depositing peaches in the Creature Graveyard, as described in the blog?}}
+
+{{News Poll|qtext=Poll Question #18: Should we remove the delay applied to the player when casting 'Bones to Bananas/Peaches' in the Creature Graveyard?}}
+
+{{News Poll|qtext=Poll Question #19: If Question #18 passes, should we remove this delay everywhere in-game in addition to the Creature Graveyard?}}
+
+{{News Poll|qtext=Poll Question #20: Should we offer a token amount of Magic XP for every fruit deposited in the Creature Graveyard?}}
+
+{{News Poll|qtext=Poll Question #21: Should we adjust the bonus rune rewards so that they're given to the player upon leaving the Creature Graveyard rather than after each deposit, as described in the blog?}}
+
+On top of these, we have a couple of changes to the ''overall'' Mage Training Arena experience that we feel wouldn't go amiss...
+
+===General Changes===
+We've all been there: runes stocked up, podcast or long-form OSRS video series open to make the grind bearable, working up the courage to enter the Telekinetic Grab room when you're told that you can't go in there without your Progress hat. Not to worry, the Entrance Guardian is right there and they'll surely be able to give you another on- what's that? You've already got one in the bank? Better go and get it then - it'd be wasteful to give you another one! By the time you've walked down to Emir's Arena to bank, all of the courage has left and you've got to psych yourself up again. Nightmare!
+
+You can perhaps see where we're going with this, an utterly revolutionary proposal that would allow players (that's you!) to enter any of the Mage Training Arena rooms your heart desires without having to carry that grumpy little hat around with you. Of course, the hot-headed headwear isn't without its uses since the Progress hat is the best way for you to see how many points of each type you've accumulated. To that end, we'd like to make some HUD improvements that would let you view your Pizazz points whenever you're inside the lobby, rather than needing to chat with your hat.
+
+Our final proposed change is adjusting logout behaviour so that you're able to log out while inside one of the rooms, since the current behaviour means all of your progress is lost in the unfortunate event of a disconnection - which doesn't pair super nicely with things like 'stacking up a huge number of coins for a massive XP drop in the Alchemy room'.
+
+{{News Poll|qtext=Poll Question #22: Should we allow players to engage with the rooms inside the Mage Training Arena without needing a Progress Hat, as described in the blog?}}
+
+{{News Poll|qtext=Poll Question #23: Should we adjust the HUD so that it displays your Pizazz points whenever you're in the 'lobby' area of the Mage Training Arena?}}
+
+{{News Poll|qtext=Poll Question #24: Should we allow players to log out while inside the various Mage Training Arena rooms, as described in the blog?}}
+
+Make sure to get in touch across socials in all of the usual places to let us know how you feel about the changes we've outlined. We're not looking to turn your MTA grind into a quick 30 minute session but we hope the things we've laid out in this blog at least make your time spent there a little less rage-inducing!
+
+That's a wrap on Poll 81! We'll be looking to poll all of the questions in this blog sometime next week!
+
+At the moment, we're looking at a variety of minigame and more 'activity-focused' changes for Poll 82, including content like the Wintertodt and its pesky damage-scaling formulae.
+
+We'll be keeping an eye out across all of the usual platforms for your thoughts on our proposals for the Mage Training Arena, so don't hesitate to share! We'd also love to know whether you'd prefer a more focused approach to QoL polls where we make a lot of changes to only a few pieces of content and move from one poll to the next more reliably, or whether you'd prefer the more 'scattershot' approach where we offer up a little something for everybody!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1bffpb7/poll_81_mage_training_arena_improvements/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

@@ -1,0 +1,313 @@
+{{Update|date=10 May 2022|link=https://secure.runescape.com/m=news/qa-summary-05052022?oldschool=1|category=community}}
+[[File:Q&A Summary 05-05-2022 newspost.png|right]]
+{{clear}}
+This week's livestream was a general Q&A, with a focus on the recent PvP Arena rewards blog! Topics included:
+
+* [[#Question #1|The PvP Arena Rewards Poll and the future of restricted polls]]
+* [[#Question #6|The current status of the Wilderness Boss rework]]
+* [[#Question #19|When we might see the smaller rewards from Tombs of Amascut being polled]]
+* [[#Question #23|Slayer]]
+
+Thanks to Mod Ayiza (Lead Community Manager), Mod Kirby (Junior Content Developer), Mod Tide (Content Developer), and Mod Bruno (QA Analyst) for their insights!
+
+Before we get into it, we'd like to address the toxicity we've seen online after our Q&A.
+
+Q&As are a fantastic way to keep us accountable and tell us what you think about the game. Your feedback is so important to us and really helps us understand what matters to you. We hope that our weekly Q&As will provide you, the players, with a link directly to the developers making the game you love. However, we are aware that when we discuss difficult topics, such as PvP, the conversation can often become divisive.
+
+We don't want to shy away from such important subjects because we feel it's important to answer your questions about them, no matter how many opinions may vary.
+
+No harm or offence is ever intended in what we say on stream. However, we are humans too. Q&As are held in a live format and it is very likely that we will make mistakes, or that sometimes we may say something that wasn't quite what we intended. Please keep this in mind as you read and discuss this transcript.
+
+We shouldn't have to tolerate toxic behaviour aimed at J-Mods any more than we should if it is aimed at players. Sadly, if responses of this nature become the norm, we will likely avoid discussing sensitive topics in an open format in the future. As always, please do let us know what you think, but please do so in a constructive way.
+
+Having said all that, check out the full transcript below!
+
+__TOC__
+==Question #1==
+{{Cquote2|Can you explain how the requirements worked? It says 20 wilderness kills or an LMS win. According to my collection log I've only played 8 games of LMS with 3 kills and 0 wins. And I don't think I've even killed a single person in the wilderness. But I was able to vote on all the questions?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=515s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' Essentially, I pretty much just got the details wrong in the blog, so apologies on my behalf! So the criteria was 20 kills on PvP worlds or within the Wilderness (that also includes Bounty Hunter as well I believe), or one LMS win - that was actually that you just had to have participated in an LMS game. So if you've done LMS, you were more than likely able to vote and that's probably how you managed to get in on the vote!
+* '''Mod Ayiza:''' In the [https://secure.runescape.com/m=news/a=12/the-pvp-arena-poll-summary-blog?oldschool=1 PvP Arena Rewards summary blog], we go into a little bit of detail as to why we looked at restricting, and why we were quite lax on the restrictions. So I'd recommend checking that out for more info to save me going go for it now. But hopefully that answers your question!
+* '''Mod Kirby:''' Just to add to that, I'm not particularly worried about the fact that we got the criteria wrong, because from the looks of the data that is also presented in the blog, most of the rewards would have failed anyway, even if we had the restrictions tighter. So it's something we could take as a learning point going forwards - maybe we can restrict tighter, maybe we can restrict looser. Either way, these rewards were not "there".
+* '''Mod Ayiza:''' Yeah, I mean it had an impact, but it still wouldn't have been enough of an impact to have been the ultimate cause of the rewards failing, which is why we're looking at reworking them. But there are some questions on that later on that we'll get to!
+
+==Question #2==
+{{Cquote2|There were changes made to these rewards based on community feedback prior to polling, and they still failed the poll. Will you adjust how feedback is collected and used for changes made to these rewards?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=630s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' Yes. In that same blog that we just mentioned, we talked about a [https://discord.gg/mpCAfTARmS PvP feedback Discord] that we've set up, that is now live. In the blog you'll see a link to be able to join that. Anyone is able to join that server in read-only, but we have restricted discussion to a select few members that filled out the survey when we first said we were doing feedback.
+* '''Mod Ayiza:''' What we're going to be doing over the course of the next few weeks is looking at if there are ways that we can either 1. rework the current rewards that we have, and their set effects and their stats, so that they're a little bit more favourable to everyone, or 2. looking at any alternative ideas for rewards that may utilise armour slots that we've already got some assets for that would also be fitting. We're going to handle that by initially gathering the suggestions from the PvP feedback Discord, and then creating a blog based off what's discussed there, and then sharing that to the wider player base as we would with any other blog.
+* '''Mod Ayiza:''' Essentially, what we're looking at doing is just having an extra step of validation for PvP specifically. We are pretty good when it comes to things such as skilling, and PvM, and quests. They're all very well established within the community and we know exactly who we want to be looking at if we want very specific and focused feedback. It's not so easy for PvP. There's so many sub-communities within there, so many different opinions.
+* '''Mod Ayiza:''' So we're going to use that as a way to validate any changes that we make, similar to how we would internally, and then post our blog and go through the normal feedback process of gathering feedback from the wider community. We'll then probably talk about that feedback again within the feedback Discord before we look at repolling. That's how we're adjusting the way that we collect feedback for PvP stuff, and these rewards specifically.
+* '''Mod Ayiza:''' We're not being really precious over the rewards that are there. We put out what we thought a section of PvPers wanted. We're not "trying to force the rewards to come back in", it's just that we have them there and it's an area that we can talk about. If we're able to rework them great. If not, then we'll just make new rewards.
+* '''Mod Kirby:''' I would like to force the art in though, because the art for the armours is really nice in-game. I want them to be used!
+* '''Mod Ayiza:''' This is one of the things that happens with the way we handle content and the fact that we've got the poll system. Historically, people have wanted an idea of what the armours or weapons might look like before they get added into the game and before they're voted on. But that does come with a risk that if it was to fail, then it might have been time spent on something that won't make it. We have that now at least, so in the future if we ever look at armours, we've got those to fall back on.
+
+==Question #3==
+{{Cquote2|Could the arena still be released and have the completed rewards come out separately? This would at least allow for people to play the arena and give adequate feedback on the initial launch as you guys are updating the rewards.}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=840s Youtube Time Stamp]
+
+* '''Mod Kirby:''' Theoretically, we could just remove the shop in its entirety. That would probably just work, turning off reward points as well, that's also something I think we can reasonably do. So if everything fails then yeah, sure, we could still release it. The problem then is - is there much point in doing it if there's no payout? This is something we've been discussing internally as well. Having this PvP Arena with its ranking system is nice, but is there an intrinsic reason to play it? And does that maintain a player base for long enough the people are around to play it? Because there is a sort of "dead game effect" where players don't think they're going to get the game, so they weren't queue for the game and the population continually decreases, and it just sort of dies a slow and pitiful death. I'm hoping we're going to avoid this, but it's something that's worrying me at least!
+* '''Mod Tide:''' I'd probably still let them get their points. You are going to have the rewards eventually, and you don't want to have people play all this time and then they haven't got anything to show for it.
+* '''Mod Ayiza:''' If we were going to do that, it's obviously a discussion point to have, I'm more in favour of what you've said, Tide - you can still gain your reward points to spend at some point. But at the same time, there'd be no point having reward points if there weren't any rewards coming out, period.
+* '''Mod Ayiza:''' One thing I can say on this, though, is that the Arena itself is something that we said from the start, we wouldn't be polling. So the PvP Arena will come out even if there aren't any rewards for it. If we do get to that point where we can't rework them or find anything that's suitable to be added to it, we may well be in a position where the Arena does come out without any rewards, at least initially. We might spend some more time looking at adding some in the future, but the Arena itself will will be coming regardless as the replacement to the Duel Arena.
+
+==Question #4==
+{{Cquote2|The high barrier to entry of making some sort of PVP account has been brought up before as something that deters people from wanting to get into PVP. However, adding equipment that can only be used in PVP serves to fracture the game, and gives the perception that PVP is a separate game mode. Do you believe that the correct approach involves separating the reward structure of the two communities? Or do you think it will worsen the predator/prey problem, because anyone that's killing wildly bosses, or something non-PK is unable to use the new BIS or near BIS equipment that their stacker is likely to be wearing?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=985s Youtube Time Stamp]
+
+* '''Mod Kirby:''' It's hard, because any item that's good in PvP is likely to be good in not-PvP as well. So if you want an item to be good, but just good for PvPers with the lower restrictions to get more access into PvP, we do kind of need to limit it. To the last point, there is technically nothing stopping you from bringing the PvP-only equipment as a switch, although I understand that is inventory spaces that you're bringing to not to fight the bosses, or whatever it is you're doing in the Wilderness, so that's a really awkward one. It's such a hard problem to solve!
+* '''Mod Tide:''' One of the ideas I came up with was, we have normal stats, but for stuff we want to add to PvP we could have separate "PvP stats". If you're in a PvP zone, for instance, it will use those stats instead. Then we could balance it around those, and we wouldn't have to worry about PvE.
+* '''Mod Kirby:''' The problem is that builds up to this same situation where PvP does exist as a separate entity to PvM and the rest of the game.
+* '''Mod Ayiza:''' Historically as well, we've had a problem with showing how stats are different in different zones. The interface for gear as it stands isn't great, in all honesty. My take on this though, I really, really dislike the fact that gear works differently in PvP and non-PvP. My preference would be that we would avoid it entirely and items would just be items that can be used. If they have benefit in PvP, great! If they just so happen to have benefit in PvM as well, also great!
+* '''Mod Ayiza:''' The problem with that is you've then suddenly got items coming from a game mode that, quite frankly, a large portion of the playerbase don't really want to engage in. This brings forward that discussion point of feeling "forced" - it is a choice, by the way, when you enter the Wilderness. That choice is agreed upon when you step over the ditch or accept the warning on a teleport. But that's besides the point, because that sentiment is still there.
+* '''Mod Ayiza:''' So the whole "having items that are very specific to PvP" is our answer to that problem. If they don't have a use outside of PvP and you're not interested in PvP, then there is no reason that you would feel forced into having to get those items. It's not a great system, I'd rather that we didn't have to approach it that way. But from all of the negativity that we see around certain items that are only obtainable from the Wilderness that have uses outside of it, I don't really see another viable option for us to have.
+* '''Mod Ayiza:''' So I wouldn't say I see them as separate game modes. They're just very different communities with different opinions on what should and shouldn't happen, and we have to just try and accommodate that as best as we can.
+
+==Question #5==
+{{Cquote2|It seems that players don’t like the idea of restricted polls, will this change you might consider polling in the future?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=1234s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' Alright, I'll say something that's probably going to get some backlash...
+* '''Mod Ayiza:''' To me, it seems that players don't like the idea of restricted polls when it doesn't suit them. We've done restricted polls in the past for Ironmen, Group Ironmen, Ultimate Ironmen. There's never been any negativity towards that. It's always been seen as "oh, it's really nice that you're considering that community, it's really nice that you're looking to give them that extra support". Whilst the PvP Arena rewards one was a massive jump up in terms of how much we'd restricted it and how many questions you could vote on (and that was admittedly something that we should have spoke about in more detail before we did it). Even with that aside, this is the only time we've done it where we've seen some form of backlash where people have wanted to have their say.
+* '''Mod Ayiza:''' I understand why, as well. If you're someone who's in the Wilderness frequently and you've got someone who is attacking you, you might (rightly and fairly) want to be able to have a say on whether or not armours that help them kill you faster should be added into the game or not. But that whole basis is really only around - I don't want to say the "spite voting" side of things. But really, you are just saying you'd want to vote no because you don't want that person to have a better time in-game, because it makes your time in-game not as good.
+* '''Mod Ayiza:''' So how do we really combat that situation, other than doing restricted polling? You're never going to want to vote for something that will potentially make your experience in the game worse than it is. The only reason that mentality exists, in my opinion anyway, is because of this mindset of "I feel like I have to go to the Wilderness and when I'm in the Wilderness, I don't want to be spending my time there, I want to get out as quickly as possible".
+* '''Mod Ayiza:''' If that mentality shifted to where you accepted the risks that you take when you go in there, it's really the only area left in the entire game where you can't predict everything. You can't go in there fully setup in maximum efficiency, where you know exactly what's going to happen, how long you're going to be able to stay there for, when you're going to have to go to the bank and how long it takes you to get back and what exact rates you're going to get. It's unpredictable. That's got quite a lot of charm to it, which is something that we're trying to protect and keep in the game, because it is so unique to Old School.
+* '''Mod Ayiza:''' A lot of players didn't like the idea of restricted polling. Will it change how we might consider it in the future? Absolutely. Will it stop us from doing it going forward? I don't think so. It was an experiment and I think it will continue to be experimental for us. There's nothing to say that we won't look at doing restricted polling in the future for things like PvM or skilling, should the questions warrant that level of restriction for example. It just so happens to be we had something very ready for PvP at the time, so that was the first one that got it.
+
+==Question #6==
+{{Cquote2|What is the current status of the wilderness boss rework? We have heard no information since the summer summit on it and the roadmap had it coming out in June/July.}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=1358s Youtube Time Stamp]
+
+* '''Mod Kirby:''' I'll play this one flat, it got pushed back last year because it was supposed to be me and Flippy primarily working on it. Between Leagues work and Flippy leaving the company, which is entirely reasonable, it meant that we didn't really have enough manpower to work on it. So it got pushed. We need to find a space to work on it, which is, hopefully soon because I have a meeting about it tomorrow!
+* '''Mod Ayiza:''' We have a kickoff meeting for the Wilderness boss rework tomorrow. There is a design that we had from back when Flippy was still working at Jagex, we worked on it with him, or at least I remember working on it myself. So there's definitely something there, which is why it's in the roadmap. But PvP Arena is still the current focus and until PvP Arena is done, we're not moving over into the Wilderness boss rework. It's still there, we just got to get to it!
+* '''Mod Ayiza:''' Hopefully within the next month or so, I imagine that we'll have some form of design to share with you and let you know what our plans are. I think we've already talked about how we want to look at making it so that you can get the Dragon Pickaxe from outside of the Wilderness when we do the boss rework. The two reasons behind that - one of them is it's very much a sticking point within the community still, it's one of those last few items that players feel "forced" into getting, so if we can help alleviate that without actually taking anything away from the wilderness, then great.
+* '''Mod Ayiza:''' The second reason is that is that we're not looking to take anything away, right? We're reworking these bosses. If the design that we have at the moment is anything to go off of, there are some pretty awesome rewards... I don't want to leak too much, we're looking at a variety of different things, but I don't think anyone is going to ever care about the Dragon Pickaxe not being available in the Wilderness anymore, apart from those that want to get it outside of the Wilderness when you see those. It's just swapping something and it seems like a great opportunity for us to kind of do that.
+* '''Mod Kirby:''' I will say on those rewards... based on the current poll results, I am not feeling too confident in the current moment!
+* '''Mod Ayiza:''' Look, we'll we'll cross that bridge when we get to it. For now, let's just let's just imagine a world where all these cool ideas come to life! I know there's one with that one reward for sure that I think most people will really like. I'll remain hopeful.
+
+==Question #7==
+{{Cquote2|Can we please poll a buff to Thammarons sceptre, the laughing stock of the Wildy weapons? It's been suggested 20+ times with significant upvotes but never addressed by the team.}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=1658 Youtube Time Stamp]
+
+* '''Mod Bruno:''' I'm going to say we've probably addressed it 20+ times. I, for sure, have addressed it at least a handful of times in my time at Jagex!
+* '''Mod Bruno:''' We know the Thammaron's Sceptre isn't the best weapon, especially compared to the other Wilderness weapons. The thing is how do we go about buffing it? We have to make sure that it doesn't make other weapons useless, and still have a good use in the Wilderness, which is a little bit of a hard thing to balance. Also, we're not overly happy about people merching them like they might be trying to do so here. The players themselves are also not huge fans of that! That's my take on it.
+* '''Mod Ayiza:''' Yeah, we know it needs a rework. We know it needs addressing. It's just fitting it in. It just so happens there is a boss rework coming up soon...
+* '''Mod Kirby:''' No, we're not do it then. If we say we're going to do it, then they'll start merching. We're not doing it!
+* '''Mod Ayiza:''' I said maybe! I said maybe! If you're foolish enough to invest in them now, and then find that you're buying them at a high price because everyone else is doing that who is watching the stream, you're then gonna wait a few weeks or even a few months and be like "damn, I really shouldn't have done that, I need to have the cash", so you're gonna liquidate your Thammaron's Sceptres and you're going to lose half your gold.
+* '''Mod Bruno:''' Also, to anyone suggesting to make it best-in-slot in the Wilderness - does it really make sense to make it best-in-slot compared to something like Nightmare Staff? Because that's pretty damn expensive, and it definitely should be better than a Thammaron's sceptre. We're kind of asking the question "how do we go about balancing this without making the other items, which are supposedly meant to be better than it, not as good as it?"
+* '''Mod Ayiza:''' Well, don't tell Bruno - we have a few ideas that we need to go through. But not on the stream! We definitely have addressed it before, it's just not been something that we've put to paper and committed to fully. But keep an eye on news in the future.
+
+==Question #8==
+{{Cquote2|People keep complaining about the wilderness being "dead". Why not move risk fights and pking that exist in pvp worlds back into the wilderness by removing pvp worlds?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=1807 Youtube Time Stamp]
+
+* '''Mod Kirby:''' All that's going to happen if we do that is people are going to have their risk fights next to the Ferox Enclave and as soon as someone else shows up, "Oh, we go back inside now!". The problem is Wilderness... kind of needs to be dead? Because if the Wilderness was a hotbed for PKers, no one would go there, because it's full of PKers. Why would you go train your prayer at the Chaos Altar? You're just going to get PKed for all of your bones. It's a weird pseudo-state, it needs to have a low population for it to work, to have a population.
+* '''Mod Ayiza:''' Not sure if you're going to get many favourable responses that take...
+* '''Mod Kirby:''' The Wilderness is bizarre. I understand it mechanically, but I don't know if it's good.
+* '''Mod Ayiza:''' It has a very interesting ecosystem, right? It is very delicate.
+* '''Mod Ayiza:''' In terms of moving PvP worlds, this is something that we have talked about before. The thing is, they've got quite an established base of players now that frequent PvP worlds, and having people accustomed to that - removing it, would be a bit detrimental, and could also be seen very similarly to Bounty Hunter, which we removed without really putting in a suitable replacement. So it currently serves a purpose.
+* '''Mod Ayiza:''' I think what I would rather see us spend our time on is bringing back Bounty Hunter, so that Edgeville becomes populated again. Then those that still want to play on PvP worlds can. What I imagine will happen is that if we brought Bounty Hunter back, PvP worlds would just slowly die off anyway as people prefer to go over to Bounty Hunter for whatever extra rewards you might be able to get from there. Then we could consider potentially closing them based on activity.
+* '''Mod Ayiza:''' Right now in its current format, I think it would be too risky to remove them and expect everyone to start fighting in the Wilderness again, especially when the player base is as small as it is. I think bracketing on PvP worlds helps you get fights more consistently. You have the option to be able to fight someone, plus/minus 10 or so levels within your range, just outside of a bank, as opposed to having to go 10 levels deep in the Wilderness. We would need to see some growth first before I think we could look at changing that, personally.
+* '''Mod Tide:''' On the topic of PvP Worlds, what do you reckon it would be like if you could only enter the Wilderness on specific worlds?
+* '''Mod Ayiza:''' It's also something that we've talked about before. In the original Wilderness changes blog, we said that we were going to look at limiting which worlds you could access the Wilderness on. It's one of the most popular suggestions from those that frequent the Wilderness anyway looking for players to kill, just because of how many worlds there are that you're required to hop around.
+* '''Mod Ayiza:''' I wouldn't say that we've completely ruled it out, but the feedback that we had when we first pitched that in the Wilderness changes was overwhelmingly negative to the point where it probably would be a detriment for us to do that straight away. Who knows, with different rewards in mind, with a little bit more of an ability for people to be able to fight back and incentives further for you to go into the Wilderness so it really feels like it's worth your time every time you're there, even if you get PK'd? We could consider something like that.
+* '''Mod Ayiza:''' I think that's what it would have to take before we looked at restricting the worlds - it giving you a really damn good reason to go there, knowing that you're going to get killed while you're there, and that being okay because it's not changing anything for you and the goals you're trying to hit. In its current status, I think it would just alienate a lot of players that are already feeling quite negative towards PKing generally.
+
+==Question #9==
+{{Cquote2|Are there any plans to design any new Wilderness bosses that aren't in Multi combat? It would be nice to try something new but without the risk that a team could jump me. Don't mind the solo PKer interruptions.}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=2072s Youtube Time Stamp]
+
+* '''Mod Kirby:''' This was something that is being considered, we're still looking at the design again. There's some discussion about if could we do this. What would it look like if we were to move existing bosses around into singles or multi? How can we play around with the brackets and give each boss a different experience? We have options available to us, but do we think they're worth using? This is all very "We could do this!" because we haven't decided yet. Sorry!
+* '''Mod Ayiza:''' We could though, right? It's one of those that we do need to have a discussion around and really figure out. I wouldn't mind seeing maybe one of the bosses in non-multi, but to take them all out of multi would be a bit of a shame, even though we are reworking them. They're technically going to be the same, but different.
+* '''Mod Ayiza:''' So we probably could get away with it. But that would be quite a blow to the multi community, which haven't had any content their way for probably longer than any other community in the entirety of Old School. This could be the point of revival, or bring some new life to the multi scene at least, which we've also got to be cautious of. So as Kirby said we might, we also might not.
+
+==Question #10==
+{{Cquote2|Can you remove the number of players required for a High-Stakes LMS game to start? As it stands, you need 24 players to start a game and they never start anymore. Can you drastically lower it?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=2180s Youtube Time Stamp]
+
+* '''Mod Kirby:''' That doesn't sound particularly high stakes...
+* '''Mod Bruno:''' Even if we did have it, would that really make enough of a difference to get it going again? And that's aside from the thinking that, if there's only 12 people in a game, and you have 5 friends, the odds of your friends winning the game is going to be a lot higher. This is why it's 25 right now, so it's not as easy for you to rig the game if you'd like. Yeah, that's my main question - would this actually help? Because I don't see that many people doing high stakes LMS.
+* '''Mod Ayiza:''' I don't really see what it would do, apart from, as you said, help out for those that want to play a smaller amount of games, or potentially launder gold. I guess, realistically we could so maybe there's something to look into to make it started earlier. But there would be some considerations, as Bruno said, for the fact that teams could weight the games and it could also be used to transfer money in a different way.
+
+==Question #11==
+{{Cquote2|Will we get to see another Deadman Mode along with the re-run of the finale? The Last iteration was one of the best yet (aside from the finale issues).}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=2269s Youtube Time Stamp]
+
+* '''Mod Kirby:''' I wouldn't hate doing another one. They get numbers on twitch still, which is nice! It just depends on if we can do another one that's as re-inventive as the previous one was - I think that would be a nice benchmark to set. We have time pencilled in to try and do one, but we'll see what happens.
+* '''Mod Ayiza:''' That's pretty much all we can say on it, really. It's in the roadmap for this year at least. It's something that if we can make happen, we will.
+* '''Mod Ayiza:''' I'll just quickly add in my take - I love doing this, don't I? I think if we're going to continue doing Dead Man, and for it to continue being a success going forward, even though there's been a considerable amount of time, energy and effort put into the anti-DDoS protection that our team have been working on, and it seems to be really, really robust - the proof will be in the pudding in a rerun, right?
+* '''Mod Ayiza:''' But even with that in place, there's still so many inherent risks with running a tournament of 2000 people online and not having them all in a LAN environment. Whether that's individual connections that then could put a bad image on the event or connections to the servers as a whole, or just technical issues. There are so many problems that could be brought up with it.
+* '''Mod Ayiza:''' If it was a choice between like having the 1v1 stay, or never having Dead Man, I'd rather get rid of the 1v1 so that we can still have Dead Man, and then we saw the finale as something else. Whether it's this 1v1 that's just not a tournament and livestreamed event, or whether it's just a crazy last hour that happens and it's almost like the apocalypse coming down upon Gielinor.
+* '''Mod Ayiza:''' Maybe we look at taking the top people that qualify - we could split the 1v1s up to multiple 1v1 arenas and then take the top 10 people that won those 1v1s and invite them to an in-house tournament that's hosted at Jagex, for example. Something like that probably would be better. But I would love to see Dead Man continue. I think it's great!
+
+==Question #12==
+{{Cquote2|Has there been any discussion about expanding the places we can unlock the wilderness weapons? The rev caves are the only place you can get them and being a 1/20k drop while being risky isn't the greatest. Can we spread the three weapons across the 3 main wilderness bosses with a better drop rate so we have more options?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=2434s Youtube Time Stamp]
+
+* '''Mod Kirby:''' To take this argument to its stupidest extension; "Twisted Bow being limited to CoX is stupid, can we have it dropped from goblins?" No. In terms of drop rates, we could look at it. Is it fine as it is? 1-in-20 is kind of ridiculous. I just looked at it and I was like "that is quite a lot for the three weapons..."
+* '''Mod Tide:''' What about a Wilderness chest, like a really rare drop from there?
+* '''Mod Bruno:''' I do think for the Wilderness weapons, that's kind of their charm. They're really rare drops from Revenants. So I don't really know how I feel about adding it to other places, especially if it's a common drop. The point is if you do really want those items, it's a bit of a grind. Those odds make it so that those items are pretty expensive. If you could just get the drops whilst you're farming out your Callisto pet or whatever, that would probably make it worth a reasonable amount less than what they are right now.
+* '''Mod Kirby:''' It does look like it is 20k while skulled, by the way.
+* '''Mod Ayiza:''' It's 1-in-40k if you're unskulled... Well, you know what? Yeah, they're rare. I'm trying not to be sour this stream, I'm trying to be positive and uplifting, and not have negative takes. But this one for me, I'm sorry, is quite literally just a case of my personal take on it - We can, but we really shouldn't.
+* '''Mod Ayiza:''' As Kirby said, similar to CoX (maybe not with the goblin example, but it laid the foundations of getting the point across), those items come from those NPCs. If you want them, then you have to take that risk. Yeah, it's not the greatest, but that's the whole point of it, that's why they're there. And that's why those rewards have very specific niche uses within the Wilderness. If you don't want to do content within the Wilderness, you don't have to get those items! If you do want to do content in the Wilderness, you don't even have to get those items and you can still pretty much compete with the maximum rates - they're really just an extra bit of QoL onto it.
+* '''Mod Ayiza:''' So I don't like the idea of spreading them. It's the one charm that Revs have and if we were to remove those or put them elsewhere, then they've literally just lost their uniques. We already know how bloated that table is with rewards like alchables and supplies. So it's it's it's a no from me, I'm sorry. I wouldn't like that.
+* '''Mod Ayiza:''' The difference with something like the Dragon Pickaxe, because I'm sure that someone's going to counter it with "well that's hypocritical", is that the Dragon Pickaxe has a lot of uses outside of the Wilderness. Technically, if you look at statistically how long it takes you to get the Dragon Pickaxe and the amount of hours that you spend getting it, if you're on rate it only saves you like a minute amount of hours on the grind towards 99 mining. Then the only other use case for it being best-in-slot is for one encounter in Chambers of Xeric when you're against the Guardians - and you can do that just fine with a rune pickaxe!
+* '''Mod Ayiza:''' So there's my counter for the "oh, I feel like I have to get it!" argument. But I understand players do want to get it because it does have general uses like around Gielinor, whereas those Wilderness weapons are very specific, their bonuses only activate within the Wilderness. I think the only use case for any of them outside of the Wilderness is for pure accounts as a replacement for the magic shortbow, because it's slightly higher damage output even outside of the wilderness. I guess the other added addition to the dragon pickaxe is the crystal pickaxe exists too...
+* '''Mod Kirby:''' And the Infernal, yeah.
+* '''Mod Ayiza:''' So that's why, it's a little bit different. Just because that has a much wider appeal, it's one of those where okay, we get that, we can look at making it an option elsewhere. The last consideration is that we've already done it for the Dragon Sword, we did it for the Dragon Harpoon so we've made those tools accessible, especially the harpoon for skiller accounts that wouldn't have been able to get it beforehand because it was locked behind worms from Mount Karuulm. So there is a case for those that don't do combat that might want to unlock it that can't and, again, because of all the other factors, that's why we can consider it there. But for the for the rest of the weapons or rewards or items, for me personally it's a hard no.
+* '''Mod Kirby:''' It just feels weird... Why do the Wilderness bosses have this pickaxe? It just doesn't thematically make sense to me. That's just my minor gripe as well.
+* '''Mod Ayiza:''' You have to remember the Wilderness bosses were added a long time ago. The community was very different back then. They were added around the same time where Old School was really in its first few years, and the majority of the community back then were PvPers because a lot of the PvP community fought to bring back Old School. So it was a very different dynamic.
+* '''Mod Ayiza:''' If you look back to the previous blogs that we put out in the early years of old school, they did talk about a lot of changes to the Wilderness and bringing in new content.The reception to that was overwhelmingly positive. People were giving us new suggestions, like "this would be really cool to see come from the Wilderness", etc, etc. Players wanted to go there to get those high value rewards. So looking at it, what would have made sense? The dragon two-hander, the dragon pickaxe, they had some new shields and that kind of stuff.
+* '''Mod Ayiza:''' It's not so much the same nowadays. That's why it was added, it was just players wanted it at the time, and now they don't. Darn those ironmen... sorry, I love you ironmen, really!
+
+==Question #13==
+{{Cquote2|Do you think we can see a day where people can freely bring items into the wilderness and be safe? They would have to put money in a coffin to increase drop rates, skilling exp or barriers to entry to certain content. That way more people will bring fully geared armour into the wilderness at the cost of what's in a coffin for PvPers to be rewarded with instead of equipment and inventory loot. So we can change the wilderness into a situation where anyone can be prepared for PKing each other.}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=2860 Youtube Time Stamp]
+
+* '''Mod Tide:''' I think if you go to the wilderness, you've inadvertently signed something saying if I die I'm losing my stuff. I don't think we should be saving it. Honestly,
+* '''Mod Bruno:''' It's a hard no for me on this one because it just feels like it's a bit too complicated. Even if we were to do it, if you kill someone and they're wearing full Ahrim's, I expect to get their full Ahrim's if they are skulled. Even if I received the cash equivalent of it., it would still feel weird and not really what I'd expect. Also anything to do with like both drop rates and better odds or anything - I'm not really for that, it just feels a bit random and not like anything we've done in the game before. For that reason, I'm out.
+* '''Mod Kirby:''' Q&A's are just Dragons Den all of a sudden.
+* '''Mod Bruno:''' Yeah. Q&A's are kind of like Dragon's Den when they suggest some things
+* '''Mod Ayiza:''' Yeah, they bring their pictures and we get to evaluate. 
+* '''Mod Kirby:''' All right, I'll go for the quick call. This invalidates the loot key system I wrote. All right Ayiza, let's have the rant. Come on, you know you want to.
+* '''Mod Ayiza:''' Oh, okay. Is it my turn? Oh, no, no, no, no, I'll keep it short and sweet.
+* '''Mod Ayiza:''' First of all, I can see one positive to the suggestion here and that is the comment around changing it so that anyone is especially in a situation where they can be prepared to PK another because that's quite a common point that gets brought up. If you're there fighting Callisto, your gear setup is going to be completely different from someone who is then out to PK and fight you.
+* '''Mod Ayiza:''' They're going to have a way more optimal setup than you are for fighting back. I get why I understand why you would feel like okay, actually, maybe this is a good way to combat that but I'm just gonna go back to a comment I made earlier about that whole efficiency mindset, right?
+* '''Mod Ayiza:''' Why can't you just take a gear to fight back if you're in the wilderness, and just accept that you've lost a few invents spaces that you would have only probably put loot in there anyway? Why don't you change your gear so that you're not using what's optimal to fight that specific boss or creature, but it's good enough to get the job done. Then also allow you to defend yourself.
+* '''Mod Ayiza:''' I don't like how the mindset goes towards, "I need to be wearing the best gear possible for this specific situation. To make it as efficient as possible, even if that includes someone coming back to attack me" 
+* '''Mod Ayiza:''' It's just that mindset, it just, I'd love it if players could kind of get out of it and just think about it in the bigger picture sense of things like "I'm going into the wilderness, it's likely that I'm going to get attacked, maybe I should accept that and not try to go have the best gear setup that has been posted on a gear discord", for example.
+* '''Mod Ayiza:''' Instead, think about bringing in switches or think about bringing in runes, and maybe consider having slightly shorter trips, because you don't have as many inventory spaces. then you can fight back if you want to.
+* '''Mod Ayiza:''' If you don't want to fight back then just completely tank yourself up and use all of your invent spaces for food and try to go for the escape method instead.
+* '''Mod Ayiza:''' Making it so that the Wilderness is completely safe to go into, the only reason that I would see that being a thing isn't because people really want to have an even playing field to fight back. It's probably because you want to go in with like the best items to make that grind as efficient as possible, but that's just not how the wilderness works.
+* '''Mod Ayiza:''' You get a lot of reward, not with the wilderness bosses currently, but you will get a lot of reward for the risk that you have there. Offsetting that by just being able to risk coins instead of your gear, I think would be a bit odd.
+
+==Question #14==
+{{Cquote2|New designed areas always have single path tracks that are frustrating and reduce immersion. Darkmeyer, Shayzien, Prifddinas, Necropolis all look nice but are awful to navigate due to a lack of gaps in the obstacles and landscape. Compare this to Misthalin/Ardougne/older areas. Could we consider reducing the object bloat in these areas and freeing up more space to run around?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=3371s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I somewhat agree, but at the same time I disagree. If you look at some of the older areas, they're really not very well designed. Some of them actually feel kind of barren. A good example of a poorly designed area is Draynor village, where if you want to go from like the middle bit where the house is, to say the market you have to go all the way around, which makes no sense because you just expect to be able to take a shortcut in between the houses.
+* '''Mod Bruno:''' Then you have places like Varrock where most of like the southern parts feel kind of useless aside from a couple NPCs, whereas places like Prifddinas has things happening everywhere. As we can see in Ayizas background. It's very pretty and it's very busy right now. In Darkmeyer, while it is kind of like a one way route, there are things to do throughout the route. You have the Daeyalt Essence Mine house, Hallowed Sepulchre, as examples. I agree that it is kind of one way rooted but at the same time, I don't think it's for a bad reason.
+* '''Mod Kirby:''' I will say something that works against Prifddinas because Prifddinas mapping is actually fairly open it just feels really congested because there's a lot of verticality going on. There's more stuff on your screen at once. This makes it so feel a lot more clumsy than it actually is. Which is something we could potentially design around going forwards but it's not that actually that bad mechanically.
+* '''Mod Tide:''' This is probably not a great reason but it is a reason for design. It depends on what's in the area as well because say for instance, you have the sawmill for example in Prifddinas you don't want to change any EXP rates
+* '''Mod Bruno:''' I think you can go the other way around where where the areas are too barren. For example, if you think about early days of Kourend and it was a very big landscape, but there wasn't really much to it aside from a few activities and favour stuff which I think we've improved on now. Everything is a little bit more packed in and obviously it's a busier area, but it's not as barren and big which is great.
+
+==Question #15==
+{{Cquote2|Can we remove the dialogue options you added to NPC Contacting the Dark Mage in the abyss to repair pouches? Before you could just hold a spacebar as long as you had gotten the book, now if you have the colossal pouch (and I think even without it) it has options you have to choose. I thought the point was to remove monotony?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=3565s Youtube Time Stamp]
+
+* '''Mod Bruno:''' Sure, it would be nice!
+* '''Mod Kirby:''' I haven't actually done Guardians of the Rift yet...
+* '''Mod Bruno:''' I don't runecraft anymore, I'm done with that thankfully! But yeah, if there's now two options you have to click through them manually. Even though it is jsut holding 2 or 1, or whatever it is on your keyboard to get through it quickly, I get that it is annoying compared to what it used to be. I'd be happy to make it more streamlined compared to what it was before.
+* '''Mod Tide:''' It also depends on how much space you have. I haven't exactly seen the dialogue, maybe it's not got any to space to use it. I'm not 100% sure.
+
+==Question #16==
+{{Cquote2|Could twisted tales include favour certificates that apply to any house like Client of Kourend does? Small ones would incentivize people to play the quests to avoid doing some of the favour grinds people dislike like mining sulphite, making shayzien armour, healing soldiers, etc., and would make a great quest reward IMO}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=3645s Youtube Time Stamp]
+
+* '''Mod Tide:''' This sounds like a really nice idea! You're helping out the citizens, so they've gone off to their leader and said "this guy's all right, let him skip this!"
+* '''Mod Ayiza:''' I can't believe favour still exists in the game, to be honest with you...
+* '''Mod Bruno:''' Yeah, that's what I was going to say. It doesn't sound like a bad idea, but at the same time it does feel a bit weird that if you help some farmer south of the Farming Guild with a bear, he'll give you some favour for... I'm guessing it'd be for a specific house so it would give it to Hosidius in this case because that makes the most sense. Even then, it's a bit random, and I don't think 5% really does that much for you. I don't think it'd be the thing stopping you from doing the favour. To be honest, I wouldn't mind just getting rid of Favour altogether if we, do a big update for Kourend again one day.
+* '''Mod Ayiza:''' I guess in general, just more quests in the Kourend area could potentially look at Favour, it's one I would need to run by Mod Ed. But I'm not going to say no, I hate favour.
+* '''Mod Tide:''' So for the favour for Architectural Alliance, you can just have a task list that you have to complete by helping out citizens around the area!
+
+==Question #17==
+{{Cquote2|Could the team look into improving shooting stars to encourage group participation? Current experience rates right now are fine as is, but in non-total worlds Clans and Discord communities constantly pile every star, penalizing everyone else and solo scouters.}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=3755s Youtube Time Stamp]
+
+* '''Mod Kirby:''' Everyone else and solo scouters, damn. Solo scouters are getting double dipped there.
+* '''Mod Bruno:''' So long as helping those people doesn't it make it much better than it is right now. As long as we don't end up buffing the XP rates without trying to book the XP rates I'll be fine with it. It feels to me like the mother lode mine veins upstairs, where if you have more people he doesn't matter. I'd be find with that.
+
+==Question #18==
+{{Cquote2|When can we expect endgame mainscapers to get some love again? Aside from raids 3, which is long overdue and was announced ages ago, it's been (and going to be) nothing but content for ironmen, mid game players, and content creators.}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=3846s Youtube Time Stamp]
+
+* '''Mod Kirby:''' Yes, that famous mid game boss Nex.
+* '''Mod Ayiza:''' My thing about being wrong is that Tombs of Amascut is most definitely aimed at endgame players just as much as anyone else, more so than anyone else. It's going to be more accessible because of the invocation system in there. Mid game and mid to late game players should be able to at least participate and get completions. It's very much an end game content aimed towards end game players with very end game rewards.
+* '''Mod Ayiza:''' I wouldn't say exactly long overdue. We're not too far away from when we initially announced it in terms of its potential release date.
+* '''Mod Ayiza:''' Can we expect endgame MainScapers to get some love again, generally speaking. It would depend on whatever we got coming out in the roadmap that might might help with that. I guess it really depends on what what would you categorise as end game MainScapers?
+* '''Mod Ayiza:''' Maybe there's a chance that you can ask the question next week as well to go into more detail, because I would argue that even Guardians of the Rift was suitable to end-game MainScapers, especially those of you that maybe didn't quite finish out getting 99 in Runecraft or wanted to get some extra rewards for example. It wasn't entirely focused around them, granted.
+* '''Mod Ayiza:''' I do think that the next big thing is going to be the Wilderness Boss rework and then the Tombs of Amascut would be the most end game related and suitable pieces of content coming out anytime soon. 
+* '''Mod Bruno:''' What about that Black and Blue area from Gamejam? 
+* '''Mod Ayiza:''' Oh yeah, we did we show the Tasakaal Trials yet so that's a potential too.
+
+==Question #19==
+{{Cquote2|Any eta on when the “smaller” rewards will be polled for Raids 3 as per March’s Gazette?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=4057s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' There's no date set. We've got a couple of things that we need to get out of the way first. Number one is we've got Giants' Foundry that we're gonna be looking to poll soon. Then depending on how everything goes with the reward feedback with PvP Arena that may come next, if not, then it's most likely going to be a Raids 3 rewards after Giants' Foundry and then we'll move into the PvP rewards.
+* '''Mod Ayiza:''' Hopefully, not too long to have to wait.
+* '''Mod Ayiza:''' We actually went over them today in a meeting and it seems pretty cool. I'm excited and hopefully you will be too.
+
+==Question #20==
+{{Cquote2|How does the Nex drop chance actually work? There has been a lot of discussion around it. Does everyone who has met the damage threshold have the same chance of getting the drop? Or does it work like this: you deal 400 out of 4000 total hp to Nex, and you have a 10% chance of getting the unique? Does contribution% actually matter? Because I feel it should be the second option. If you deal 10% total damage then you should have a 10% chance of getting a unique.}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=4113 Youtube Time Stamp]
+
+* '''Mod Bruno:''' I assume they if you do 2000 out of the 4000 damage, you'd have more chance to get the drop and the unique in that case compared to someone who's on 400 out of the 4000. When they say chance of getting a unique they mean if they unique gets dropped, not just the 10% chance of getting the unique.
+* '''Mod Ayiza:''' I don't think it's 10% chance you need one in 10. Let's go.
+* '''Mod Ayiza:''' I'm pretty sure we've actually gone into detail about Nex drop tables when we first looked at like the Nex rebalancing tweaks. It might be worthwhile checking back on the news post from January because I think we put the drop rate formula in there just about two weeks after Nex was out. The Wiki already had drop rates that had been crowdsourced. You should be able to find the formula in there. In terms of how it works. I just can't remember off the top of my head.
+* '''Mod Bruno:''' I'm also not 100% on what I have said. I am sorry if I'm wrong. I expect the wiki to have correct information since we did share it.
+* '''Mod Ayiza:''' Wiki saving lives since 2007.
+
+==Question #21==
+{{Cquote2|How do we shift from the reliance on Dragon Warhammer/Bandos God Sword for bosses and incorporate the magic spells for reducing attack/strength/defence as a way to kill bosses?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=4225s Youtube Time Stamp]
+
+* '''Mod Kirby:''' You make bosses that you can't melee.
+* '''Mod Bruno:''' We'd also need spells they're more effective as well though.
+* '''Mod Kirby:''' Yeah, like this is something that Mod Arcane has mentioned before and the more I think about it, the more I'm starting to agree with his vision that there's magic in the game and it's kind of bad in that it is just a different flavour ranged. It feels really bad when you have all these spells that you could be using that have really interesting effects but no one does because they are all kind of garbage
+* '''Mod Bruno:''' Magic is just one of those attack styles which is either this is the best thing for it or I probably shouldn't really bother. And when it comes to comparing it something like a Dragon Warhammer or Bandos God Sword it's almost always I shouldn't really bother because Dragon Warhammer and Bandos God Sword are so strong already.
+
+==Question #22==
+{{Cquote2|The recent addition to the Level 65 attack Tier, the Keris Partisan, is super nice and very welcome! Could we see some additional T65 weapons in the future?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=4349s Youtube Time Stamp]
+
+* '''Mod Kirby:''' Yes, if the content and allows it. Beneath Cursed Sands allowed it to fit into account progression where it's the last sort of quests you do and at that point, you're progressing past to 60 So 65 does kind of feel like a nice fit for that reward. If we do more content around the area, we can add more rewards to that area.
+* '''Mod Bruno:''' I think it's important to note that the reason the Partisan in is okay at level 65 is because its main use is like a niche item, which lets it compete with some of the level 80 at weapons or whatever.
+* '''Mod Bruno:''' Whereas if it was set a level 80, there would probably a few less people will be using those items and it wouldn't really make sense because it's only useful at those places. 
+* '''Mod Ayiza:''' You know the Giants' Foundry has got the new sword and that's currently 50 attack. What if it was 65?
+* '''Mod Bruno:'''  I wouldn't mind, it looks cool so it would be nice if it got a good use.
+* '''Mod Ayiza:''' I think it's because the current plan was originally going to be a cosmetic but people wanted it to have stats and not be a cosmetic, but from what I've seen very first-hand, is that now players saying "Oh, this weapon doesn't have very good stats, we're probably not going to use it other than as a cosmetic". I think we could look at having different stats that people may then say "We're cool with it as long as it fit somewhere very similar to how the Keris Partisan did."
+
+==Question #23==
+{{Cquote2|Has there been any discussion for a new higher level slayer boss yet? Maybe a level 97 unlock?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=4488s Youtube Time Stamp]
+
+* '''Mod Bruno:''' Don't believe so? Eventually, yeah, it'd be awesome to have a level 97 Slayer boss, when the time is right, and where we can fit it in. So far though, I don't believe so.
+
+==Question #24==
+{{Cquote2|I love the way the current meta for high-end items is to dismantle Bandos/Armadyl parts for the new tier 80 armour. Do you think we can see this concept return for lower-tier items to create much-needed item sinks for new items?}}
+
+[https://www.youtube.com/watch?v=bpVigcSCZ0w&t=4531s Youtube Time Stamp]
+
+* '''Mod Kirby:''' Yeah, we need to figure out what items we want. What items do we want sink, does it thematically make sense? Does it mechanically make sense? I believe the current ones are just essentially upgrades for that.
+* '''Mod Kirby:''' We'd need to figure out, how do we design this so you're essentially only dismantling your item to upgrade it? We could mix and match components. We could combine your Bandos and Armadyl components to make some weird melee range hybrid armour, which I definitely just haven't designed on the spot.
+* '''Mod Tide:''' Maybe there could be another way to remove items from the game like a mini game or something like that.
+* '''Mod Bruno:''' That's also something that we do pretty often these days, at least when we introduce a new best in slot item, for example, all of the Cerberus boots you're going to need the previous best in slot item to make the new best in slot item. Same thing with Torva, in this case with Bandos. I imagine it will be something that we will carry on doing so we don't devalue the previous best in slot items too much.
+* '''Mod Ayiza:''' I think there's just overall been less interest in doing it for the lower tier items because they don't really have that value. Even if we were to sink them, the value still wouldn't really hold because their use is somewhat limited. For relatively experienced players, at least you're you're going to surpass the requirements to use that gear and replace it relatively quickly, so not as many people care. That doesn't mean that we can't look into it at least and see those options.
+* '''Mod Ayiza:''' That being said though, we literally did propose this before with the sword from Giants' Foundry being an upgrade to Obor's Club and the feedback suggested that wasn't really that welcomed for the lower tier items. It might be a bit of an edge case because Obor's Club is obviously gated behind keys that you need to get and obviously get the drop.
+* '''Mod Ayiza:''' It's something that we'll need to look into a little bit more but I like it as a concept and I think upgrading old items is quite cool.

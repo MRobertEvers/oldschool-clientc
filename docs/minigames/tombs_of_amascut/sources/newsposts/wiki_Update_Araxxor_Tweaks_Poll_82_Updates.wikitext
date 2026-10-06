@@ -1,0 +1,206 @@
+{{Update|date=04 September 2024|rev=5 September 2024|url=https://secure.runescape.com/m=news/araxxor-tweaks--poll-82-updates?oldschool=1|category=game}}
+[[File:Araxxor Tweaks & Poll 82 Updates newspost.png|right]]
+{{clear}}
+__TOC__
+{| class=wikitable style="text-align:center; width:665px;"
+! Date
+! Issue
+! Latest Information
+! Current Status
+|-
+|5th September - 15:56 BST
+|Trouble Brewing: Rum bottles no longer giving 10 Pieces of Eight.
+|We've restored the Pieces of Eight gained in Trouble Brewing back to 10 per bottle of rum, while also hotfixing behaviour leading to excessive rum production. Apologies for the disruption.
+|HOTFIXED
+|}
+
+''This week we have more Poll 82 updates plus some Araxxor bug fixes.''
+
+==Changelog September 4th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Araxxor'''
+
+* Reduced the 'self-damage' from stepping under Araxxor during his enrage phase from 30 to 10.
+* Extended Anti-Venom+ is now prioritised when using the cure option for poison and venom.
+* The kill time required to drop the Coagulated Venom no longer takes the time between the kill and looting into account.
+* Araxxor's body will now push you away if you're standing on him during the death animation.
+* Extended Anti-Venom+ has been recoloured to set it apart from other Anti-Venom potions.
+* Players with Rax stored in their Player Owned House will no longer be able to reclaim another Nid from Probita.
+* Added an additional audio cue for Araxxor's charged venom spit attack to help differentiate it from his basic attack.
+* Death Charge now correctly restores Special Attack Energy when killing Araxxor himself.
+* Rune Platelegs and Rune Kiteshield drops have been made noted to alleviate Inventory pressure on longer trips.
+* Prayer Potion supply drops now always drop as a single 4-dose potion instead of a couple of 2-dose potions.
+* Added Spiders back to the Gauntlet after a temporary time-out for phasing in and out of visibility.
+* Putting the Soulreaper Axe into the Bank with stacks on the weapon and logging out now causes the stack to start decrementing.
+
+'''Further Poll 82 Updates '''
+
+* When taking up a new Mahogany Homes Contract, you can now select "Last-tier contract", for a Contract of the same tier as your previous selection, skipping the tier-selection dialogue. You can use the "Contract" option to choose another tier.
+* You'll now automatically drink your Cup of Tea at the end of a Mahogany Homes Contract.
+* In Trouble Brewing, Bottles of Rum now award 10 Pieces of Eight.
+* You will no longer have to find your way through a bog using a stick in Temple Trekking.
+
+'''Other Changes'''
+
+* Expeditious bracelet now ensures players will receive the correct Slayer Points when used in Partner Slayer.
+* You're no longer able to gain XP by using magic spells on the pillars in the Path of Scarabas. Cheeky!
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Araxxor==
+You've already been racking up your kill counts with the latest Slayer boss to creepy-crawl his way into Old School, and some players have gone as far as to create some unreasonably cute fanart for our favourite arachnid!
+
+[[File:Araxxor Tweaks & Poll 82 Updates (1).jpg|300px|center]]
+
+[[File:Araxxor Tweaks & Poll 82 Updates (2).png|thumb|center|300px|''Cherrycake's [https://x.com/Cherrycake4/status/1829177933317189946 Catraxxor] is honestly too cute to handle, while OceanBytes has given the creepy crawly a truly [https://x.com/OceanBytes12/status/1828993515453624676 retro feel].'']]
+
+Some less welcome bugs made themselves known last week, and last week we put out a handful of hotfixes to remedy them.
+
+This week, we have some more improvements:
+
+Top of the list, Araxxor will now helpfully push players away during his agonised death throes instead of letting them stand awkwardly on his corpse. In another bug fix, the kill time required to drop the Coagulated Venom will no longer take the time between the kill and looting into account.
+
+It's going to be easier to grab your bottle of Extended Anti-Venom+ in a hurry as we've given it a more distinctive recolour. Plus, the Extended Anti-Venom+ will now be prioritised when using the cure option for poison or venom by clicking on your Hitpoints orb.
+
+It didn't take long for you talented folks to discover some seriously cool tech to speed up your kills! Players discovered that you could get Araxxor to do significant damage to himself during his enrage phase with some well-timed 'step-unders'. We're all for ingenuity, however we do think the damage output was perhaps a little on the extreme side. Consequently, we’re reducing it down to 10 as opposed to 30. An extra 10 damage every 4 ticks is still a significant boost, so we hope it still feels worth doing without being so significant that it feels mandatory.
+
+Here are a handful of extra changes we've made: 
+
+* Death Charge now correctly restores Special Attack Energy when killing Araxxor himself.
+* Rune Platelegs and Rune Kiteshield drops have been made noted to alleviate some inventory pressure on longer trips.
+* Prayer Potion supply drops now always drop as a single 4-dose potion instead of 1-2 2-dose potions.
+* Spiders have been welcomed back to the Gauntlet, after a temporary time-out as punishment for phasing in and out of visibility.
+* Players with Rax in their Player Owned House will no longer be able to reclaim another Nid from Probita.
+* Putting the Soulreaper Axe into the Bank with stacks on the weapon and logging out now causes the stack to start decrementing.
+* We've added an additional audio cue for Araxxor's charged venom spit attack to help differentiate it from his basic attack.
+
+Before we move on, we'd like to confirm that the drop rates for Araxxor's uniques on the OSRS Wiki are accurate! The Araxyte Fang has a drop rate of 1 in 600, while Noxious Halberd pieces drop at a rate of 1 in 200. They use a similar system to the Abyssal Bludgeon to prevent you from obtaining any duplicate pieces until you've completed a full weapon.
+
+Plus, here's the Aranea Boots drop rates, too!
+
+* 1/4000 from the small araxytes, meaning 1/1600 on task
+* 1/2000 from the larger araxytes, 1/800 on task
+* 1/400 from superior araxytes
+
+There may well be more Araxxor changes to come, but that's all for this week!
+
+==Poll 82 Updates==
+This week we're continuing to rollout Poll 82 changes!
+
+First up, the much-requested Trouble Brewing update - Bottles of Rum will now award 10 Pieces of Eight! Or should that be Pieces of Ten?
+
+We're also removing the swamp segment in Temple Trekking, meaning you'll no longer have to find your way through a bog with just a stick to guide you.
+
+Finally, Mahogany Homes sees a couple of updates this week, too. When taking up a new Mahogany Homes Contract, you can now select "Last-tier contract", and this will assign a Contract of the same tier as your previous selection, skipping the tier-selection dialogue. You can use the "Contract" option to choose another tier. Plus, you'll now automatically drink your Cup of Tea at the end of a Mahogany Homes Contract - good to the last drop!
+
+==Wintertodt Beta==
+[[File:Araxxor Tweaks & Poll 82 Updates (3).png|600px|center]]
+
+Our Wintertodt Beta is coming soon! This is your chance to test out the new Warmth Metre, replacing Hitpoints as the resource to keep topped up. The Wintertodt's damage, from both basic and special attacks, will now reduce your Warmth Metre, and you'll want to keep that topped up by chomping on some food. Remember to wrap up against that harsh climate with some Warm clothing, as this will help mitigate Wintertodt's damage, along with keeping as many braziers burning as you can. We've also made some adjustments to the Rejuvenation potions, plus how to collect your loot at the end.
+
+We'll be sharing the full breakdown of the changes, plus how to join the beta in an upcoming blog.
+
+==Summer Summit 2024==
+Of course, we're not going to miss a chance to remind you of the upcoming Summer Summit - '''it's happening this weekend!'''
+[[File:Araxxor Tweaks & Poll 82 Updates (4).jpg|600px|center]]
+
+Join us live on [https://www.twitch.tv/oldschoolrs Twitch] on '''Saturday, September 7th, 8pm BST / 3pm ET / 12pm PT''' for your first look at our roadmap and some very exciting reveals... You won't want to miss it!
+
+==Other Changes==
+Okay so it's not a change, but plenty of you have been asking for some insight into the Rocky drop rate for the Varlamore house thieving activity, so we wanted to confirm it with you: it's drop rate is 1/206777.
+
+Changes made this week:
+
+* Expeditious bracelet now ensures players will receive the correct slayer points during partner slayer when it is used.
+* You're no longer able to gain XP through magic spells on the pillars within the Path of Scarabas, cheeky!
+
+==Merch Updates==
+===RuneBreaks - an Old School RuneScape DnB album===
+[[File:Araxxor Tweaks & Poll 82 Updates (5).png|600px|center]]
+
+Old School RuneBreaks is an album of official low poly atmospheric DnB remixes of select songs from the RuneScape OST!
+
+Remixed by London producer Pizza Hotline and with artwork by Matthew Leiher aka [https://uber-osrs.carrd.co/ Uber], RuneBreaks features 11 blissed-out tracks, complete with unique chilled out animations which you can watch and listen to the full album on the [https://www.youtube.com/OldSchoolRuneScape Old School YouTube channel] now!
+
+Pre-orders are now open for a Limited Edition double vinyl set, available via the [https://www.lacedrecords.co/collections/runescape Laced Records store] and the [https://runescape.backstreetmerch.com/ Official Merch Store]. The set features all 11 tracks on blue galaxy-effect heavyweight discs, all housed in a deluxe gatefold sleeve. Purchasing the vinyl via Laced Records unlocks 320kbps MP3 digital downloads.
+
+The album is also now also available on major music streaming platforms. Add it to your playlist!
+
+===RuneScape: Untold Tales of the God Wars, Issue #2 On Pre-Sale Now===
+The second instalment in Titan Comics' comic book series is available to [https://titan-comics.com/news/how-to-order-runescape/ pre-order] now!
+
+Variant covers for issue #2 have now been revealed from artists Bayleigh Underwood, Nick Marinkovich and RuneScape's own Concept Artist Mod DBarker!
+
+[[File:Araxxor Tweaks & Poll 82 Updates (6).jpg|600px|center]]
+
+A special new “virgin” cover for issue 1 has also just been announced as a limited edition featuring only the black and white sketch art for cover 1A by Alan Quah.
+
+Issue #1 is on sale in comic stores and available to purchase digitally on 9th October. Issue #2 follows on November 6th, but all issue covers are now [https://titan-comics.com/news/how-to-order-runescape/ available for pre-order]!
+
+[[File:Araxxor Tweaks & Poll 82 Updates (7).png|thumb|600px|center|''Choose a favourite, or pre-order the whole lot!'']]
+
+===New OSRS Embroidered Clothing Range===
+[[File:Araxxor Tweaks & Poll 82 Updates (8).png|thumb|600px|center|''Gear up for autumn in understated style!'']]
+
+The OSRS team were fully involved in the design of this premium clothing range. They wanted to create some classy OSRS togs with understated style! &nbsp;
+
+The eagle eyed amongst you will have spotted prototypes of this range modelled by hosts on the Winter Summit stream earlier in the year and some of the team were again kitted out in this range for the recent Summer Summit! 
+
+Now available for all on the [https://runescape.backstreetmerch.com/ official merch store], check out the all the items from the new embroidered clothing range below. You’ll find OSRS bosses, runes from the OSRS logo and a PK skull all recreated in subtle embroidered and woven patches on premium garment bases! 
+
+[[File:Araxxor Tweaks & Poll 82 Updates (9).png|600px|center]]
+
+You might recognise the pixel designs from the OSRS HiScores and the Shattered Relics League.
+
+Garments include super soft black pocket tees suitable for all year round and something for the cooler days as we ease into autumn with plaid/cord button down shirts and chunky knit beanies!
+
+Limited stock is available for shipping now – additional stock to follow based on demand!
+
+Here's what the full range includes:
+
+* Jad check shirt, tee and beanie
+* Zulrah green cord shirt and tee
+* Olm check shirt and tee
+* Runes cord and plaid shirt and beanie
+* PK Skull beanie!
+
+You can order any of these items from [https://runescape.backstreetmerch.com/ our merch store] right now!
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1f8p7wx/araxxor_tweaks_poll_82_updates/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nin, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

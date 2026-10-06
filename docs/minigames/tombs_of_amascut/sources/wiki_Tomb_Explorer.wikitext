@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Tomb Explorer
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut once.
+|tier = Elite
+|monster = Tombs of Amascut
+|type = Kill Count
+|id = 468
+|leagueRegion = Desert
+}}
+'''Tomb Explorer''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to complete the [[Tombs of Amascut]] raid once, at raid level 150 or above.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

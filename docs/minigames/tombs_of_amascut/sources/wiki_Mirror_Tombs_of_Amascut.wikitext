@@ -1,0 +1,31 @@
+{{Infobox Item
+|name = Mirror
+|image = [[File:Mirror (Tombs of Amascut).png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Place, Drop
+|examine = I can just about see something in the reflection.
+|value = 100
+|alchable = No
+|weight = 1.000
+|id = 27296
+}}
+[[File:Mirror (Tombs of Amascut) detail.png|left|120px]]
+'''Mirrors''' are an item obtained in the Path of Het within the [[Tombs of Amascut]]. They are used to reflect the energy beams shot by the [[caster statue]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 September 2022
+|update = Tombs of Amascut: Ornament Kits & More!
+|change = The item's inventory icon was adjusted slightly.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

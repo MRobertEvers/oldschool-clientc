@@ -122,6 +122,7 @@ struct ToriPlatformAndroid_Renderer_GLES3;
 #include <rscache.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <string.h>
 
 #if defined(TORIRS_PLATFORM_WEB)
@@ -759,9 +760,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->world_mouse_in_viewport )
+            if( app->frame_view->world_mouse_in_viewport )
             {
-                ToriPlatformWin32_Renderer_D3D9_SetPick(d3d9, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformWin32_Renderer_D3D9_SetPick(
+                    d3d9, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -829,9 +831,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->world_mouse_in_viewport )
+            if( app->frame_view->world_mouse_in_viewport )
             {
-                ToriPlatformAndroid_Renderer_GLES2_SetPick(gles2, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformAndroid_Renderer_GLES2_SetPick(
+                    gles2, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -909,9 +912,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->world_mouse_in_viewport )
+            if( app->frame_view->world_mouse_in_viewport )
             {
-                ToriPlatformWeb_Renderer_WebGL2_SetPick(webgl2, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformWeb_Renderer_WebGL2_SetPick(
+                    webgl2, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -980,9 +984,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->world_mouse_in_viewport )
+            if( app->frame_view->world_mouse_in_viewport )
             {
-                ToriPlatformWeb_Renderer_WebGL1_SetPick(webgl1, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformWeb_Renderer_WebGL1_SetPick(
+                    webgl1, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -1052,9 +1057,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->world_mouse_in_viewport )
+            if( app->frame_view->world_mouse_in_viewport )
             {
-                ToriPlatformAndroid_Renderer_GLES3_SetPick(gles3, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformAndroid_Renderer_GLES3_SetPick(
+                    gles3, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -1127,9 +1133,10 @@ interactive_render_present(
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
-            if( app->world_mouse_in_viewport )
+            if( app->frame_view->world_mouse_in_viewport )
             {
-                ToriPlatformSDL2_Renderer_GL3_SetPick(gl3, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformSDL2_Renderer_GL3_SetPick(
+                    gl3, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
@@ -2182,6 +2189,247 @@ main_dynamic_chrome_scale(
  * TORIRS_SCAN_METER_TRACE=1 prints every frame's reading; =2 adds every
  * site that scanned in it.
  */
+/* ------------------------------------------------------------ runner split
+ *
+ * The host's half of the runner camera split (struct App_ViewSplit,
+ * app_render.c). Which client presents, which lane may carry the second view,
+ * the offscreen runner frame before the presented one, and two proof knobs.
+ */
+
+/* Which lanes carry a second view. The software lane is the offscreen frame's
+ * own and is proved headless; OpenGL 3 is built here and shares the presented
+ * half only (the offscreen frame is always software, its scene queue set
+ * aside) -- built, not run here (no GL context under SDL's dummy driver). The
+ * others are not built or tested by this seam: refused with a message. */
+static char const*
+main_view_split_lane_refusal(enum ToriRS_RendererKind kind)
+{
+    if( kind == TORIRS_RENDERER_KIND_SOFTWARE || kind == TORIRS_RENDERER_KIND_OPENGL3 ||
+        kind == TORIRS_RENDERER_KIND_OPENGL3_DEPTH )
+        return NULL;
+    return "the active renderer (D3D9, GLES or WebGL) is not built or tested with a second view: "
+           "one view, the script moves the presented camera (runner_view_split)";
+}
+
+/* Once per loop iteration, before the presented draw. The lane is re-judged
+ * only when it changes; everything else is one branch while detached. */
+static void
+main_view_split_step(int committed)
+{
+    static enum ToriRS_RendererKind judged = (enum ToriRS_RendererKind)-1;
+
+    if( judged != renderer_active )
+    {
+        judged = renderer_active;
+        app.view_split.lane_refusal = main_view_split_lane_refusal(renderer_active);
+        if( app.view_split.attached && app.view_split.lane_refusal )
+        {
+            TORIRS_REPORT("view-split: %s; detaching\n", app.view_split.lane_refusal);
+            App_ViewDetachPlayerClient(&app);
+        }
+    }
+    if( !app.view_split.attached )
+        return;
+    App_ViewSplitBeforePresent(&app, committed);
+}
+
+/*
+ * TORIRS_VIEW_TRACE=<path>: one line per loop iteration while a script's view
+ * is attached -- both views' poses and pointers, the switch and the counters
+ * -- the per-frame STATE the split's proofs diff. Nothing while detached.
+ */
+static void
+main_view_split_trace(void)
+{
+    static int resolved = 0;
+    static FILE* trace = NULL;
+    struct App_WorldView const* runner;
+    struct App_WorldView const* watcher;
+
+    if( !app.view_split.attached )
+        return;
+    if( !resolved )
+    {
+        char const* path = getenv("TORIRS_VIEW_TRACE");
+        resolved = 1;
+        if( path && path[0] )
+        {
+            trace = fopen(path, "w");
+            if( !trace )
+                TORIRS_ERR("TORIRS_VIEW_TRACE: cannot open %s\n", path);
+        }
+    }
+    if( !trace )
+        return;
+    runner = &app.views[APP_VIEW_RUNNER];
+    watcher = &app.views[APP_VIEW_PLAYER_CLIENT];
+    fprintf(
+        trace,
+        "frame=%ld tick=%d interact=%d runner=%d,%d,%d,%d,%d,%d,%d ptr=%d,%d watcher=%d,%d,%d,%d,%d,%d,%d "
+        "ptr=%d,%d offscreen=%llu presented=%llu delivered=%llu dropped=%llu held=%llu menus=%d,%d\n",
+        frame_count,
+        app.world ? (int)(app.world->cycle / APP_SERVER_TICK_LOGIC_CYCLES) : 0,
+        app.view_split.interact,
+        runner->orbit.yaw,
+        runner->orbit.pitch,
+        runner->world_cam_zoom,
+        runner->world_camera.yaw,
+        runner->world_camera_pos.x,
+        runner->world_camera_pos.y,
+        runner->world_camera_pos.z,
+        runner->world_mouse_x,
+        runner->world_mouse_y,
+        watcher->orbit.yaw,
+        watcher->orbit.pitch,
+        watcher->world_cam_zoom,
+        watcher->world_camera.yaw,
+        watcher->world_camera_pos.x,
+        watcher->world_camera_pos.y,
+        watcher->world_camera_pos.z,
+        watcher->world_mouse_x,
+        watcher->world_mouse_y,
+        (unsigned long long)app.view_split.offscreen_frames,
+        (unsigned long long)app.view_split.presented_frames,
+        (unsigned long long)app.view_split.physical_delivered,
+        (unsigned long long)app.view_split.physical_dropped,
+        (unsigned long long)app.view_split.physical_held,
+        runner->minimenu->visible ? 1 : 0,
+        watcher->minimenu->visible ? 1 : 0);
+    fflush(trace);
+}
+
+/*
+ * PROOF KNOBS for the split (headless, on the virtual clock). Both push onto
+ * the PHYSICAL bus -- where the window's own events land after the platform
+ * layer translates them -- so they take the same drain, filter and input path
+ * a person's mouse and keys do.
+ *
+ * Frames count from the moment a script's view attaches (nothing is pushed
+ * while detached).
+ *
+ * TORIRS_VIEW_SIM_ORBIT="start,end": from loop iteration `start` to `end`, a
+ * watcher who never stops moving the camera: an arrow key held 60 frames left
+ * then 60 right, a wheel notch every 37 frames (in, then out), and the pointer
+ * circling the viewport every frame.
+ *
+ * TORIRS_VIEW_SIM_EVENTS="frame:op:a:b:c;...": one physical event per entry.
+ * ops: move:x:y, click:button:x:y (press now, release next frame),
+ * key:code (press now, release next frame), wheel:notches,
+ * interact:0|1 (the switch, as its button would set it).
+ */
+static void
+main_view_split_sim(void)
+{
+    static int resolved = 0;
+    static long orbit_start = -1;
+    static long orbit_end = -1;
+    static char const* events = NULL;
+    static int release_button = 0;
+    static int release_x = 0;
+    static int release_y = 0;
+    static int release_key = -1;
+
+    if( !resolved )
+    {
+        char const* orbit = getenv("TORIRS_VIEW_SIM_ORBIT");
+        resolved = 1;
+        if( orbit )
+            (void)sscanf(orbit, "%ld,%ld", &orbit_start, &orbit_end);
+        events = getenv("TORIRS_VIEW_SIM_EVENTS");
+    }
+    static long attached_at = -1;
+    long frame;
+
+    if( orbit_start < 0 && !events && !release_button && release_key < 0 )
+        return;
+    /* Frames count from the attach: a script's view exists only from there,
+     * and a run's login takes however long it takes. */
+    if( !app.view_split.attached )
+    {
+        attached_at = -1;
+        return;
+    }
+    if( attached_at < 0 )
+        attached_at = frame_count;
+    frame = frame_count - attached_at;
+    if( release_button )
+    {
+        CmdBus_PushMouseButton(&bus, TORIRS_CMD_INPUT_MOUSE_UP, (uint8_t)release_button, (int16_t)release_x,
+            (int16_t)release_y);
+        release_button = 0;
+    }
+    if( release_key >= 0 )
+    {
+        CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)release_key);
+        release_key = -1;
+    }
+    if( orbit_start >= 0 && frame >= orbit_start && frame <= orbit_end )
+    {
+        long const phase = (frame - orbit_start) % 120;
+        double const angle = (double)(frame - orbit_start) * 0.05;
+        if( phase == 0 )
+        {
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, TORIRSK_RIGHT);
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, TORIRSK_LEFT);
+        }
+        else if( phase == 60 )
+        {
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, TORIRSK_LEFT);
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, TORIRSK_RIGHT);
+        }
+        if( (frame - orbit_start) % 37 == 0 )
+            CmdBus_PushMouseWheel(&bus, ((frame - orbit_start) / 37) % 2 ? -1 : 1);
+        CmdBus_PushMouseMove(
+            &bus, (int16_t)(256 + (int)(120.0 * cos(angle))), (int16_t)(170 + (int)(80.0 * sin(angle))));
+        if( frame == orbit_end )
+        {
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, TORIRSK_LEFT);
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, TORIRSK_RIGHT);
+        }
+    }
+    while( events && *events )
+    {
+        long at = -1;
+        char op[16] = { 0 };
+        int a = 0;
+        int b = 0;
+        int c = 0;
+        int fields = sscanf(events, "%ld:%15[a-z]:%d:%d:%d", &at, op, &a, &b, &c);
+        char const* next;
+
+        if( fields < 2 )
+        {
+            TORIRS_ERR("TORIRS_VIEW_SIM_EVENTS: cannot parse at '%s'; the rest is ignored\n", events);
+            events = NULL;
+            break;
+        }
+        if( at > frame )
+            break;
+        if( strcmp(op, "move") == 0 )
+            CmdBus_PushMouseMove(&bus, (int16_t)a, (int16_t)b);
+        else if( strcmp(op, "click") == 0 )
+        {
+            CmdBus_PushMouseMove(&bus, (int16_t)b, (int16_t)c);
+            CmdBus_PushMouseButton(&bus, TORIRS_CMD_INPUT_MOUSE_DOWN, (uint8_t)a, (int16_t)b, (int16_t)c);
+            release_button = a;
+            release_x = b;
+            release_y = c;
+        }
+        else if( strcmp(op, "key") == 0 )
+        {
+            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)a);
+            release_key = a;
+        }
+        else if( strcmp(op, "wheel") == 0 )
+            CmdBus_PushMouseWheel(&bus, (int16_t)a);
+        else if( strcmp(op, "interact") == 0 )
+            App_ViewSetInteract(&app, a);
+        TORIRS_REPORT("view-sim: frame=%ld (since attach) %s %d %d %d\n", frame, op, a, b, c);
+        next = strchr(events, ';');
+        events = next ? next + 1 : NULL;
+    }
+}
+
 static void
 frame_loop_scan_meter_check(void)
 {
@@ -2253,10 +2501,226 @@ frame_loop_scan_meter_check(void)
     assert(!over && "steady frame re-walked the UI tree; see the uitree: line above");
 }
 
+/*
+ * The world clock of a WATCHED client (TORIRS_DRIVE_ON_DEMAND=1, raid seam23).
+ *
+ * The quest driver needs the in-process world (t.cheat, the server readers),
+ * and the only way a NetTransport hands it out is NetTransport_TestClock --
+ * which also puts the embedded server on the clock it is given. So this gives
+ * it the clock the transport would have run on anyway: the wall clock
+ * (PlatformWindow_Ticks64) for a person watching at real speed, or, under
+ * TORIRS_EMBED_CLOCK_MS=n, n ms per frame -- the frame-locked clock a
+ * headless proof uses -- exactly the step the transport's own poll clock
+ * takes (net_transport_embed.c, embed_poll_clock_ms). Read once.
+ */
+static unsigned long long
+on_demand_world_clock(void)
+{
+    static int step_ms = -1;
+    static unsigned long long frame_clock;
+
+    if( step_ms < 0 )
+    {
+        char const* knob = getenv("TORIRS_EMBED_CLOCK_MS");
+        step_ms = knob && knob[0] ? atoi(knob) : 0;
+        if( step_ms < 0 )
+            step_ms = 0;
+    }
+    if( step_ms == 0 )
+        return PlatformWindow_Ticks64();
+    frame_clock += (unsigned long long)step_ms;
+    return frame_clock;
+}
+
+/*
+ * THE LAUNCH SERVICE of this client's embedded IO server (raid seam37;
+ * src/platform/launch_sessions.h, docs/minigames/raid_loop/
+ * SEAM_TRIAGE_2026-10-06j.md). The embedded flow stays ONE process with both
+ * servers in it (owner, 2026-10-06): a leader that runs a multi-account flow
+ * asks its own IO layer to start the other clients, and this process is the
+ * spawner. Members are this binary (argv[0] resolved absolute) with this
+ * manifest, WITHOUT the embedded options (launch_sessions.c strips them).
+ *
+ *   - `launch/<verb>` items on the plugin channel are answered here
+ *     (platform_x_io.c answer_launch_item -> main_launch_answer);
+ *   - a member's MAIL on the party link is answered here too
+ *     (torirs_server_embed.c -> main_launch_mail);
+ *   - once a second the frame loop heartbeats every session this process
+ *     opened (its frames running IS the leader being here; a barrier that
+ *     held them for seconds must not read as a hung leader) and runs the
+ *     reaper (main_launch_tick);
+ *   - the process's exit kills every member (atexit -> LaunchSessions_Free;
+ *     SDL turns SIGTERM/SIGINT into a quit, which returns through main).
+ *     A SIGKILLed leader runs nothing: its members' TORIRS_LAUNCH_LEADER_PID
+ *     watchdog and the party link's drop end them.
+ *
+ * Desktop only. Web, Android and iOS link no spawning code and create no
+ * table: their launch items answer `unsupported:` (platform_x_io.c with no
+ * service set, or an executor that does not serve them).
+ */
+#if !defined(TORIRS_PLATFORM_WEB) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) &&   \
+    !defined(TORIRS_PLATFORM_ANDROID) && !defined(TORIRS_PLATFORM_IOS)
+#define MAIN_LAUNCH_SERVICE 1
+#include "platform/launch_sessions.h"
+#if defined(TORIRS_EMBED_SERVER)
+#include "torirsserver/torirs_server_embed.h"
+#endif
+/* platform_x_io.c: the prototype belongs in platform_x_io.h, outside raid
+ * seam37's files. */
+void PlatformX_IO_SetLaunchAnswer(
+    char* (*answer)(void* context, char const* verb, char const* body, int body_size,
+                    int* out_size),
+    void* context);
+#else
+#define MAIN_LAUNCH_SERVICE 0
+#endif
+
+#if MAIN_LAUNCH_SERVICE
+static struct LaunchSessions* g_launch_sessions;
+static long long g_launch_next_tick_ms;
+/* The sessions this process opened: their session= and token= lines, for
+ * the heartbeat. */
+enum
+{
+    MAIN_LAUNCH_OPENED_MAX = 8,
+};
+static char g_launch_opened[MAIN_LAUNCH_OPENED_MAX][160];
+
+static void
+main_launch_remember_open(char const* answer)
+{
+    char const* session = strstr(answer, "\nsession=");
+    char const* token = strstr(answer, "\ntoken=");
+    int slot = -1;
+
+    if( strncmp(answer, "ok", 2) != 0 || !session || !token )
+        return;
+    for( int i = 0; i < MAIN_LAUNCH_OPENED_MAX && slot < 0; i++ )
+        if( !g_launch_opened[i][0] )
+            slot = i;
+    if( slot < 0 )
+        slot = 0;
+    snprintf(g_launch_opened[slot], sizeof(g_launch_opened[slot]), "session=%.*s\ntoken=%.*s\n",
+             (int)strcspn(session + 9, "\n"), session + 9, (int)strcspn(token + 7, "\n"), token + 7);
+}
+
+static char*
+main_launch_answer(void* context, char const* verb, char const* body, int body_size, int* out_size)
+{
+    char* answer;
+
+    assert(context == g_launch_sessions);
+    (void)context;
+    answer = LaunchSessions_Answer(g_launch_sessions, verb, body, body_size, "local", out_size);
+    if( strcmp(verb, "open") == 0 )
+        main_launch_remember_open(answer);
+    return answer;
+}
+
+#if defined(TORIRS_EMBED_SERVER)
+static char*
+main_launch_mail(void* context, char const* body, int size, int* out_size)
+{
+    assert(context == g_launch_sessions);
+    (void)context;
+    /* Another process on this machine, over the loopback party link. */
+    return LaunchSessions_Answer(g_launch_sessions, "mail", body, size, "127.0.0.1", out_size);
+}
+#endif
+
+/* Once a second: heartbeat what this process opened, then the reaper. */
+static void
+main_launch_tick(void)
+{
+    long long const now = (long long)LaunchSessions_MonotonicMs(NULL);
+
+    if( !g_launch_sessions || now < g_launch_next_tick_ms )
+        return;
+    g_launch_next_tick_ms = now + 1000;
+    for( int i = 0; i < MAIN_LAUNCH_OPENED_MAX; i++ )
+    {
+        int size = 0;
+        char* answer;
+
+        if( !g_launch_opened[i][0] )
+            continue;
+        answer = LaunchSessions_Answer(g_launch_sessions, "heartbeat", g_launch_opened[i],
+                                       (int)strlen(g_launch_opened[i]), "local", &size);
+        if( strncmp(answer, "ok\nstate=open", 13) != 0 )
+            g_launch_opened[i][0] = '\0';
+        free(answer);
+        /* Every fifth second the session's own `launch/status` answer goes to
+         * the log: each seat's pid, alive, exit and the status its member
+         * last posted over the link -- what a headless proof reads back. */
+        if( g_launch_opened[i][0] && (now / 1000) % 5 == 0 )
+        {
+            answer = LaunchSessions_Answer(g_launch_sessions, "status", g_launch_opened[i],
+                                           (int)strlen(g_launch_opened[i]), "local", &size);
+            for( char* line = strtok(answer, "\n"); line; line = strtok(NULL, "\n") )
+                if( strncmp(line, "ok", 2) != 0 )
+                    TORIRS_REPORT("launch: status: %.400s\n", line);
+            free(answer);
+        }
+    }
+    (void)LaunchSessions_Reap(g_launch_sessions);
+}
+
+static void
+main_launch_free(void)
+{
+    LaunchSessions_Free(g_launch_sessions);
+    g_launch_sessions = NULL;
+}
+
+static void
+main_launch_init(char const* argv0, char const* manifest_path)
+{
+    static char binary[LAUNCH_SESSIONS_PATH_MAX];
+    static char manifest[LAUNCH_SESSIONS_PATH_MAX];
+    struct LaunchSessions_Config config;
+    char const* reason = LaunchSessions_UnsupportedReason();
+
+    assert(argv0);
+    memset(&config, 0, sizeof(config));
+    if( LaunchSessions_OwnBinaryPath(argv0, binary, (int)sizeof(binary)) != 0 )
+    {
+        TORIRS_REPORT("launch: cannot resolve this binary's path from %s: no launch service\n",
+                      argv0);
+        return;
+    }
+    config.binary_path = binary;
+    if( manifest_path )
+    {
+        snprintf(manifest, sizeof(manifest), "%s", manifest_path);
+        config.manifest_path = manifest;
+    }
+    config.launch_directory = "build/launch";
+    config.spawner = LaunchSessions_SystemSpawner();
+    config.clock_ms = LaunchSessions_MonotonicMs;
+    if( !config.spawner )
+    {
+        TORIRS_REPORT("launch: no spawner on this platform: no launch service\n");
+        return;
+    }
+    g_launch_sessions = LaunchSessions_New(&config);
+    PlatformX_IO_SetLaunchAnswer(main_launch_answer, g_launch_sessions);
+#if defined(TORIRS_EMBED_SERVER)
+    ToriRSServer_EmbedPartySetMailAnswer(main_launch_mail, g_launch_sessions);
+#endif
+    atexit(main_launch_free);
+    TORIRS_REPORT("launch: the embedded IO server's launch service is up (members run %s%s%s)%s%s\n",
+                  binary, manifest_path ? " --manifest " : "", manifest_path ? manifest_path : "",
+                  reason ? "; it answers unsupported: " : "", reason ? reason : "");
+}
+#endif /* MAIN_LAUNCH_SERVICE */
+
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
 static int
 frame_loop_step(void)
 {
+#if MAIN_LAUNCH_SERVICE
+    main_launch_tick();
+#endif
 #if defined(TORIRS_PLATFORM_WEB)
     /* Carry last frame's queued cache reads to the IO server and take delivery
      * of whatever came back. Nothing else in the process runs every frame, and
@@ -2379,6 +2843,7 @@ frame_loop_step(void)
      */
     uint64_t logic_now;
     int app_redraw;
+    int app_committed = 0;
     uint64_t frame_start_us;
     /* When the screen is next allowed to be redrawn.
      *
@@ -2742,6 +3207,17 @@ frame_loop_step(void)
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INPUT_PREP)
         {
             now = ContentTest_Begin(&app, sock, &bus, PlatformWindow_Ticks64());
+            /* A WATCHED client (TORIRS_DRIVE_ON_DEMAND=1, raid seam23): the
+             * driver gets the two handles ContentTest_Begin hands a test run's
+             * driver, and its frame boundary, here -- outside every plugin
+             * callback. Without the knob nothing below runs. */
+            if( PluginDrive_OnDemand() )
+            {
+                if( !ContentTest_Enabled() )
+                    PluginDrive_OnDemandHandOver(
+                        NetTransport_TestClock(sock, on_demand_world_clock()), &bus);
+                PluginDrive_FrameBoundary();
+            }
             /* Once per iteration, before any frame work: this is the sample
              * point the GameShell pacer's ten-iteration ring is built on. */
             logic_now = ContentTest_Enabled() ? now : ToriRS_Pacer_BeginFrame(&frame_pacer, now);
@@ -3673,9 +4149,9 @@ frame_loop_step(void)
                     getenv("TORIRS_SIM_CAMERA_YAW_FRAME") && frame_count >= yaw_frame )
                 {
                     yaw_done = 1;
-                    app.orbit.yaw = ToriDraw_NormalizeAngle(
+                    app.frame_view->orbit.yaw = ToriDraw_NormalizeAngle(
                         (int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
-                    app.orbit.yaw_velocity = 0;
+                    app.frame_view->orbit.yaw_velocity = 0;
                     /*
                      * Yaw only, and the pitch is deliberately NOT a second
                      * knob beside it. Measured on this lane: the reset pitch
@@ -3693,7 +4169,7 @@ frame_loop_step(void)
                     TORIRS_REPORT(
                         "sim_camera_yaw: frame %ld parked at %d\n",
                         (long)frame_count,
-                        app.orbit.yaw);
+                        app.frame_view->orbit.yaw);
                 }
             }
 
@@ -4046,6 +4522,7 @@ frame_loop_step(void)
     }
 #endif
 
+    main_view_split_sim();
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_COMMAND_DRAIN)
     {
         if( input_frame_pending )
@@ -4183,6 +4660,7 @@ frame_loop_step(void)
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_APP_RUN)
     {
         app_redraw = App_RunOnce(&app, logic_now, input);
+        app_committed = app_redraw;
         /* Acceptance sessions rasterize explicit checkpoints; logic still runs at 50 Hz. */
         if( ContentTest_Enabled() && getenv("TORIRS_CONTENT_TEST_CHECKPOINTS") )
         {
@@ -4374,14 +4852,24 @@ frame_loop_step(void)
         app_redraw = App_RenderSkipFrame(
             &app, app_redraw, content_draw || renderer_active != TORIRS_RENDERER_KIND_SOFTWARE);
     }
+    /* The runner camera split: the offscreen runner frame a driver push owed
+     * is drawn here, BEFORE the presented one (one branch while detached). */
+    main_view_split_step(app_committed);
     if( app_redraw )
     {
+        /* The presented frame is drawn -- and picked, at the physical pointer
+         * -- through the presented view (the watcher's while a script is
+         * attached, the only view otherwise). */
+        app.frame_view = App_PresentedView(&app);
+        if( app.view_split.attached )
+            app.view_split.presented_frames++;
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
         {
             interactive_render_present(
                 &app, platform, gl3, d3d9, gles2, webgl2, webgl1, gles3,
                 renderer_active_is_depth());
         }
+        app.frame_view = App_RunnerView(&app);
     }
     else if( App_RenderSkipEnabled(&app) )
     {
@@ -4401,6 +4889,7 @@ frame_loop_step(void)
         }
     }
 
+    main_view_split_trace();
     /* Here, after the present: a frame is never half drawn by one renderer
      * and finished by another, and the drawn frame has just emptied the scene
      * queue the new renderer's replay goes into. */
@@ -6330,12 +6819,18 @@ main(
 
     ToriRS_ExecutorConfig_Init(&executor_cfg);
 
+#if MAIN_LAUNCH_SERVICE
+    char const* launch_manifest_path = NULL;
+#endif
     /* Pre-scan for --manifest so its values seed cfg before the flag loop;
      * explicit CLI flags below then override (precedence CLI > manifest). */
     for( argi = 1; argi < argc; argi++ )
     {
         if( strcmp(argv[argi], "--manifest") == 0 && argi + 1 < argc )
         {
+#if MAIN_LAUNCH_SERVICE
+            launch_manifest_path = argv[argi + 1];
+#endif
             if( BootManifest_LoadFile(&boot_manifest, argv[argi + 1]) != 0 )
                 return 1;
             BootManifest_ApplyToConfig(&boot_manifest, &cfg);
@@ -6353,6 +6848,11 @@ main(
         if( main_argument_takes_value(argv[argi]) && argi + 1 < argc )
             argi++;
     }
+#if MAIN_LAUNCH_SERVICE
+    /* Raid seam37: the embedded IO server's launch service (above
+     * frame_loop_step). Created at boot, idle until a launch item comes. */
+    main_launch_init(argv[0], launch_manifest_path);
+#endif
 
     for( i = 0; i < boot_manifest.client_arg_count; i++ )
         manifest_argv[i] = boot_manifest.client_args[i];
@@ -7084,11 +7584,11 @@ main(
                  * only to world_camera is gone by the next cycle. This path
                  * renders immediately and never saw that, which is exactly why
                  * the in-loop twin above could not reuse it. */
-                app.orbit.yaw =
+                app.frame_view->orbit.yaw =
                     ToriDraw_NormalizeAngle((int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
-                app.orbit.yaw_velocity = 0;
-                app.world_camera.yaw = app.orbit.yaw;
-                TORIRS_LOG("sim_camera_yaw: %d\n", app.world_camera.yaw);
+                app.frame_view->orbit.yaw_velocity = 0;
+                app.frame_view->world_camera.yaw = app.frame_view->orbit.yaw;
+                TORIRS_LOG("sim_camera_yaw: %d\n", app.frame_view->world_camera.yaw);
             }
             LibToriRS_Input_Begin(yaw_input, yaw_ms);
             LibToriRS_Input_End(yaw_input);
@@ -7587,6 +8087,17 @@ main(
             TORIRS_ERR("window platform alloc failed\n");
             App_Shutdown(&app);
             return 1;
+        }
+        /* The runner camera split (struct App_ViewSplit): a script gets a view
+         * of its own only in a client that presents to a person. SDL's dummy
+         * driver is a headless run -- one view, nothing created -- unless
+         * TORIRS_VIEW_SPLIT_FORCE=1 asks for the watched path anyway (the
+         * split's headless proofs). */
+        {
+            char const* video = getenv("SDL_VIDEODRIVER");
+            char const* force = getenv("TORIRS_VIEW_SPLIT_FORCE");
+            app.view_split.presentable =
+                (force && strcmp(force, "1") == 0) || !(video && strcmp(video, "dummy") == 0);
         }
         /* Only when the manifest actually said something. Unset leaves the
          * platform's own default standing, which is what makes HighDPI
