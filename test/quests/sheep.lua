@@ -42,7 +42,22 @@ return {
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
 
-        t.exec("goto-fred", t.player.goto_tile, 3189, 3273, 0) -- Fred's location
+        -- Fred's farmhouse (x 3188-3192, z 3270-3275) sits inside a fenced yard. The only
+        -- way in on foot is the yard's north gate (qip_sheep_shearer_fencegate_l/_r at
+        -- 3188-3189,3279, an OPENING gate: gates.rs2 [oploc1,_gate_main_closed] ~open_gate,
+        -- its leaves stand open 500 ticks) and then the farmhouse's north door
+        -- (qip_sheep_shearer_poordoor 3189,3275, doors.loc door_closed). The house's west
+        -- door 3188,3272 opens only onto a 13-tile pocket, and the west gate 3186,3268 onto
+        -- a dead-end yard south of the house (comp.py). So the goto lands on open ground
+        -- north of the gate (reach.py 3206,3233 -> 3188,3280: REACH closed-doors len=109)
+        -- and the gate and the door are pressed by their verbs.
+        t.exec("goto-fred", t.player.goto_tile, 3188, 3280, 0) -- open ground north of Fred's yard gate
+        t.exec("fred.yardGateIn", t.player.pass_door, {
+            closed = "qip_sheep_shearer_fencegate_l", open = "qip_sheep_shearer_openfencegate_l",
+            at = { 3188, 3279, 0 }, near = { 3188, 3280 }, far = { 3188, 3277 } })
+        t.exec("fred.houseDoorIn", t.player.pass_door, {
+            closed = "qip_sheep_shearer_poordoor", open = "qip_sheep_shearer_poordooropen",
+            at = { 3189, 3275, 0 }, near = { 3189, 3276 }, far = { 3189, 3273 } })
 
         -- Reward snapshot before the quest completion
         local reward_snapshot_result, reward_before = t.skill.snapshot()
@@ -70,6 +85,7 @@ return {
         -- 2. Player offers wool: "I have some."
         -- 3. Fred takes the wool (19 balls, with auto-message)
         -- 4. Final hand-in: "I have your last ball of wool."
+        local wool_before_result, wool_before = t.inv.count("ball_of_wool")
         t.exec("fred.handin", t.player.talk_to, "fred_the_farmer", 1)
         t.exec("fred.handin.chat", t.chat.play, {
             "npc:How are you doing getting those balls of wool?",
@@ -78,6 +94,10 @@ return {
             "player:I have your last ball of wool.",
             "npc:I guess I'd better pay you then.",
         })
+
+        -- Fred takes all twenty balls of wool: 20 -> 0 in the pack.
+        local wool_after_result, wool_after = t.inv.count("ball_of_wool")
+        t.check("handin.wool", wool_before_result == "ok" and wool_after_result == "ok" and wool_before == 20 and wool_after == 0, string.format("ball_of_wool %s -> %s (want 20 -> 0), reads %s/%s", tostring(wool_before), tostring(wool_after), tostring(wool_before_result), tostring(wool_after_result)))
 
         t.ticks(3)  -- quest completion is async (see docs)
         t.quest.expect_complete()
