@@ -1,0 +1,2570 @@
+{
+ "kind": "blert-reference-v1",
+ "room": "maiden",
+ "mode": "normal",
+ "mode_code": 11,
+ "scale": 3,
+ "stage": 10,
+ "harvested": "2026-10-06",
+ "selection": {
+  "candidates": 26,
+  "death_free": 24,
+  "used": 24,
+  "used_with_deaths": 0,
+  "uuids": [
+   "cada953d-3cd9-4fb1-a37f-1b44216f5774",
+   "5d75e98c-8d33-4e9e-9461-50b01664e197",
+   "cafb4804-c0aa-4d41-8f10-a252de0e0081",
+   "5c089a69-fd3c-4c95-a43b-4ce284931844",
+   "ebe1ebdd-5789-4057-834b-47e28632d49c",
+   "14ff85e3-a60b-4133-a0d2-5aecf0795974",
+   "7f3528ba-2cf2-4476-9071-02aa6e4bbf42",
+   "02da4bb8-5e73-46ba-92e1-8597dc02dd25",
+   "e6951b9d-ac0c-4078-b042-cd6af23f9d46",
+   "6d9f25e6-3fdf-4039-bfef-c21d46fc2111",
+   "3d344722-3ee2-456d-920b-7e21ff8ac39c",
+   "953d176d-6e43-45f0-af04-a3c568a27386",
+   "f6b215d1-812c-4263-9674-b747b34630e8",
+   "9d6b2bfa-7dc2-4c42-82af-6d3851485e94",
+   "cc7396c0-8447-42c3-af36-2d02ab13bf1b",
+   "f6865ebe-7717-48c0-87c0-3639e45c8cc5",
+   "e12186dd-1e8d-41b3-8a3a-4f22cb94cfa5",
+   "8af721aa-3562-4572-82a7-e8cb3bc2badc",
+   "c427a49d-a807-40d1-93de-7cdb8a74983f",
+   "456ada2c-ab6c-40a5-b197-0e08110f6441",
+   "17368eb4-6da1-40fc-a23b-88a626394ea1",
+   "635be504-74a1-42cb-8b25-b833cada89ba",
+   "af617ce0-b303-4280-b601-6f136d167b37",
+   "f833a03f-b132-4ffc-bf72-fcd88eeab48d"
+  ],
+  "listing": {
+   "pages": 0,
+   "challenges": 0,
+   "completed_room": 0
+  }
+ },
+ "role_sets": [
+  {
+   "roles": [
+    "dps1",
+    "dps2",
+    "freezer"
+   ],
+   "rooms": 24
+  }
+ ],
+ "numbers": {
+  "boss.attacks.maiden_auto": {
+   "median": 12.0,
+   "min": 10,
+   "max": 16,
+   "n": 24
+  },
+  "boss.attacks.maiden_blood": {
+   "median": 3.0,
+   "min": 1,
+   "max": 6,
+   "n": 24
+  },
+  "boss.cadence": {
+   "median": 10.0,
+   "min": 10.0,
+   "max": 10.0,
+   "n": 24
+  },
+  "boss.first_attack": {
+   "median": 9.0,
+   "min": 9,
+   "max": 10,
+   "n": 24
+  },
+  "boss.hit_on_recorder.maiden_auto": {
+   "median": 12.5,
+   "min": 0,
+   "max": 62,
+   "n": 112
+  },
+  "boss.hit_on_recorder.maiden_blood": {
+   "median": 0.0,
+   "min": 0,
+   "max": 41,
+   "n": 26
+  },
+  "outcome.boss_death_tick": {
+   "median": 157.5,
+   "min": 132,
+   "max": 204,
+   "n": 24
+  },
+  "outcome.boss_heal": {
+   "median": 223.5,
+   "min": 0,
+   "max": 821,
+   "n": 24
+  },
+  "outcome.deaths": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 24
+  },
+  "outcome.hp_lost.dps1": {
+   "median": 60.5,
+   "min": 24,
+   "max": 106,
+   "n": 10
+  },
+  "outcome.hp_lost.dps2": {
+   "median": 102,
+   "min": 92,
+   "max": 133,
+   "n": 5
+  },
+  "outcome.hp_lost.freezer": {
+   "median": 65.0,
+   "min": 18,
+   "max": 142,
+   "n": 20
+  },
+  "outcome.leaks": {
+   "median": 5.0,
+   "min": 0,
+   "max": 13,
+   "n": 24
+  },
+  "outcome.phase.100.boss_heal": {
+   "median": 0.0,
+   "min": 0,
+   "max": 8,
+   "n": 24
+  },
+  "outcome.phase.100.leaks": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 24
+  },
+  "outcome.phase.100.start": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 24
+  },
+  "outcome.phase.100.ticks": {
+   "median": 42.0,
+   "min": 32,
+   "max": 52,
+   "n": 24
+  },
+  "outcome.phase.30.boss_heal": {
+   "median": 49.0,
+   "min": 0,
+   "max": 762,
+   "n": 24
+  },
+  "outcome.phase.30.leaks": {
+   "median": 2.0,
+   "min": 0,
+   "max": 9,
+   "n": 24
+  },
+  "outcome.phase.30.start": {
+   "median": 107.0,
+   "min": 87,
+   "max": 156,
+   "n": 24
+  },
+  "outcome.phase.30.ticks": {
+   "median": 48.0,
+   "min": 34,
+   "max": 75,
+   "n": 24
+  },
+  "outcome.phase.50.boss_heal": {
+   "median": 76.5,
+   "min": 0,
+   "max": 411,
+   "n": 24
+  },
+  "outcome.phase.50.leaks": {
+   "median": 2.0,
+   "min": 0,
+   "max": 5,
+   "n": 24
+  },
+  "outcome.phase.50.start": {
+   "median": 69.5,
+   "min": 57,
+   "max": 107,
+   "n": 24
+  },
+  "outcome.phase.50.ticks": {
+   "median": 40.0,
+   "min": 25,
+   "max": 66,
+   "n": 24
+  },
+  "outcome.phase.70.boss_heal": {
+   "median": 1.0,
+   "min": 0,
+   "max": 226,
+   "n": 24
+  },
+  "outcome.phase.70.leaks": {
+   "median": 1.0,
+   "min": 0,
+   "max": 2,
+   "n": 24
+  },
+  "outcome.phase.70.start": {
+   "median": 42.0,
+   "min": 32,
+   "max": 52,
+   "n": 24
+  },
+  "outcome.phase.70.ticks": {
+   "median": 30.0,
+   "min": 20,
+   "max": 55,
+   "n": 24
+  },
+  "outcome.room_ticks": {
+   "median": 157.5,
+   "min": 132,
+   "max": 204,
+   "n": 24
+  },
+  "output.phase.100.boss_hp_per_tick": {
+   "median": 17.94,
+   "min": 15.1,
+   "max": 21.83,
+   "n": 24
+  },
+  "output.phase.100.boss_pct_per_tick": {
+   "median": 0.683,
+   "min": 0.575,
+   "max": 0.832,
+   "n": 24
+  },
+  "output.phase.30.boss_hp_per_tick": {
+   "median": 19.11,
+   "min": 15.93,
+   "max": 25.91,
+   "n": 24
+  },
+  "output.phase.30.boss_pct_per_tick": {
+   "median": 0.728,
+   "min": 0.607,
+   "max": 0.987,
+   "n": 24
+  },
+  "output.phase.50.boss_hp_per_tick": {
+   "median": 15.245,
+   "min": 11.35,
+   "max": 24.6,
+   "n": 24
+  },
+  "output.phase.50.boss_pct_per_tick": {
+   "median": 0.581,
+   "min": 0.432,
+   "max": 0.937,
+   "n": 24
+  },
+  "output.phase.70.boss_hp_per_tick": {
+   "median": 18.945,
+   "min": 10.51,
+   "max": 28.9,
+   "n": 24
+  },
+  "output.phase.70.boss_pct_per_tick": {
+   "median": 0.722,
+   "min": 0.4,
+   "max": 1.101,
+   "n": 24
+  },
+  "react.boss.maiden_auto.dps1.prayer": {
+   "median": 7.0,
+   "min": 1,
+   "max": 12,
+   "n": 16
+  },
+  "react.boss.maiden_auto.dps1.step": {
+   "median": 2.5,
+   "min": 1,
+   "max": 12,
+   "n": 23
+  },
+  "react.boss.maiden_auto.dps2.prayer": {
+   "median": 7.5,
+   "min": 4.0,
+   "max": 19,
+   "n": 14
+  },
+  "react.boss.maiden_auto.dps2.step": {
+   "median": 2.5,
+   "min": 1,
+   "max": 10,
+   "n": 24
+  },
+  "react.boss.maiden_auto.freezer.prayer": {
+   "median": 13,
+   "min": 9.0,
+   "max": 18,
+   "n": 11
+  },
+  "react.boss.maiden_auto.freezer.step": {
+   "median": 2.0,
+   "min": 1,
+   "max": 9,
+   "n": 24
+  },
+  "react.boss.maiden_blood.dps1.prayer": {
+   "median": 16.0,
+   "min": 12,
+   "max": 18,
+   "n": 5
+  },
+  "react.boss.maiden_blood.dps1.step": {
+   "median": 2.0,
+   "min": 1,
+   "max": 14,
+   "n": 20
+  },
+  "react.boss.maiden_blood.dps2.prayer": {
+   "median": 6.0,
+   "min": 2,
+   "max": 19,
+   "n": 6
+  },
+  "react.boss.maiden_blood.dps2.step": {
+   "median": 1.0,
+   "min": 1,
+   "max": 7.5,
+   "n": 18
+  },
+  "react.boss.maiden_blood.freezer.prayer": {
+   "median": 13.5,
+   "min": 8,
+   "max": 19.0,
+   "n": 2
+  },
+  "react.boss.maiden_blood.freezer.step": {
+   "median": 1,
+   "min": 1,
+   "max": 2,
+   "n": 9
+  },
+  "react.phase.30.dps1.attack": {
+   "median": 4.0,
+   "min": 0,
+   "max": 4,
+   "n": 24
+  },
+  "react.phase.30.dps1.attack_add": {
+   "median": 4,
+   "min": 1,
+   "max": 6,
+   "n": 17
+  },
+  "react.phase.30.dps1.step": {
+   "median": 1.0,
+   "min": 0,
+   "max": 17,
+   "n": 24
+  },
+  "react.phase.30.dps1.swap": {
+   "median": 5.0,
+   "min": 0,
+   "max": 16,
+   "n": 18
+  },
+  "react.phase.30.dps2.attack": {
+   "median": 4.0,
+   "min": 0,
+   "max": 5,
+   "n": 24
+  },
+  "react.phase.30.dps2.attack_add": {
+   "median": 4.0,
+   "min": 2,
+   "max": 9,
+   "n": 20
+  },
+  "react.phase.30.dps2.step": {
+   "median": 1.0,
+   "min": 0,
+   "max": 3,
+   "n": 24
+  },
+  "react.phase.30.dps2.swap": {
+   "median": 5.5,
+   "min": 0,
+   "max": 20,
+   "n": 20
+  },
+  "react.phase.30.freezer.attack": {
+   "median": 1.0,
+   "min": 1,
+   "max": 7,
+   "n": 24
+  },
+  "react.phase.30.freezer.attack_add": {
+   "median": 1.0,
+   "min": 1,
+   "max": 7,
+   "n": 24
+  },
+  "react.phase.30.freezer.step": {
+   "median": 1.5,
+   "min": 0,
+   "max": 7,
+   "n": 24
+  },
+  "react.phase.30.freezer.swap": {
+   "median": 18,
+   "min": 0,
+   "max": 19,
+   "n": 23
+  },
+  "react.phase.50.dps1.attack": {
+   "median": 4.0,
+   "min": 0,
+   "max": 5,
+   "n": 24
+  },
+  "react.phase.50.dps1.attack_add": {
+   "median": 4.0,
+   "min": 0,
+   "max": 13,
+   "n": 22
+  },
+  "react.phase.50.dps1.step": {
+   "median": 1.0,
+   "min": 0,
+   "max": 7,
+   "n": 24
+  },
+  "react.phase.50.dps1.swap": {
+   "median": 5.0,
+   "min": 0,
+   "max": 11,
+   "n": 18
+  },
+  "react.phase.50.dps2.attack": {
+   "median": 4.0,
+   "min": 0,
+   "max": 4,
+   "n": 24
+  },
+  "react.phase.50.dps2.attack_add": {
+   "median": 4.0,
+   "min": 2,
+   "max": 17,
+   "n": 24
+  },
+  "react.phase.50.dps2.step": {
+   "median": 1.0,
+   "min": 0,
+   "max": 8,
+   "n": 24
+  },
+  "react.phase.50.dps2.swap": {
+   "median": 5,
+   "min": 0,
+   "max": 20,
+   "n": 19
+  },
+  "react.phase.50.freezer.attack": {
+   "median": 1.0,
+   "min": 1,
+   "max": 6,
+   "n": 24
+  },
+  "react.phase.50.freezer.attack_add": {
+   "median": 1.0,
+   "min": 1,
+   "max": 6,
+   "n": 24
+  },
+  "react.phase.50.freezer.step": {
+   "median": 2.0,
+   "min": 0,
+   "max": 9,
+   "n": 24
+  },
+  "react.phase.50.freezer.swap": {
+   "median": 9,
+   "min": 2,
+   "max": 19,
+   "n": 17
+  },
+  "react.phase.70.dps1.attack": {
+   "median": 4.0,
+   "min": 0,
+   "max": 5,
+   "n": 24
+  },
+  "react.phase.70.dps1.attack_add": {
+   "median": 4.0,
+   "min": 3,
+   "max": 16,
+   "n": 20
+  },
+  "react.phase.70.dps1.step": {
+   "median": 1.0,
+   "min": 0,
+   "max": 6,
+   "n": 24
+  },
+  "react.phase.70.dps1.swap": {
+   "median": 5.0,
+   "min": 0,
+   "max": 12,
+   "n": 18
+  },
+  "react.phase.70.dps2.attack": {
+   "median": 4.0,
+   "min": 0,
+   "max": 4,
+   "n": 24
+  },
+  "react.phase.70.dps2.attack_add": {
+   "median": 4,
+   "min": 3,
+   "max": 9,
+   "n": 19
+  },
+  "react.phase.70.dps2.step": {
+   "median": 1.0,
+   "min": 0,
+   "max": 3,
+   "n": 24
+  },
+  "react.phase.70.dps2.swap": {
+   "median": 5.0,
+   "min": 0,
+   "max": 16,
+   "n": 18
+  },
+  "react.phase.70.freezer.attack": {
+   "median": 1.0,
+   "min": 1,
+   "max": 6,
+   "n": 24
+  },
+  "react.phase.70.freezer.attack_add": {
+   "median": 1.0,
+   "min": 1,
+   "max": 6,
+   "n": 24
+  },
+  "react.phase.70.freezer.step": {
+   "median": 2.0,
+   "min": 0,
+   "max": 12,
+   "n": 22
+  },
+  "react.phase.70.freezer.swap": {
+   "median": 8,
+   "min": 0,
+   "max": 20,
+   "n": 17
+  },
+  "role.dps1.barrage_pct": {
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "n": 24
+  },
+  "role.dps1.boss_targeted_pct": {
+   "median": 38.0,
+   "min": 5.6,
+   "max": 58.8,
+   "n": 24
+  },
+  "role.dps1.cadence": {
+   "median": 5.0,
+   "min": 2.0,
+   "max": 5,
+   "n": 24
+  },
+  "role.dps1.cadence.11804": {
+   "median": 6.0,
+   "min": 6,
+   "max": 6,
+   "n": 2
+  },
+  "role.dps1.cadence.12926": {
+   "median": 2,
+   "min": 2,
+   "max": 2,
+   "n": 3
+  },
+  "role.dps1.cadence.13576": {
+   "median": 6.0,
+   "min": 6,
+   "max": 6,
+   "n": 2
+  },
+  "role.dps1.cadence.13652": {
+   "median": 4.0,
+   "min": 4,
+   "max": 4,
+   "n": 2
+  },
+  "role.dps1.cadence.20997": {
+   "median": 5,
+   "min": 5,
+   "max": 5,
+   "n": 3
+  },
+  "role.dps1.cadence.25739": {
+   "median": 5.0,
+   "min": 5,
+   "max": 5,
+   "n": 18
+  },
+  "role.dps1.cadence.28688": {
+   "median": 2.0,
+   "min": 2.0,
+   "max": 2.0,
+   "n": 3
+  },
+  "role.dps1.eat_at_hp_pct": {
+   "median": 60,
+   "min": 16,
+   "max": 81,
+   "n": 9
+  },
+  "role.dps1.magic_pct": {
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "n": 24
+  },
+  "role.dps1.melee_pct": {
+   "median": 88.9,
+   "min": 2.8,
+   "max": 100.0,
+   "n": 24
+  },
+  "role.dps1.phase.100.attacks_add": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 24
+  },
+  "role.dps1.phase.100.attacks_boss": {
+   "median": 7.5,
+   "min": 6,
+   "max": 15,
+   "n": 24
+  },
+  "role.dps1.phase.100.dist_boss": {
+   "median": 1.0,
+   "min": 1.0,
+   "max": 4,
+   "n": 24
+  },
+  "role.dps1.phase.100.dist_raider": {
+   "median": 3.0,
+   "min": 1.5,
+   "max": 8,
+   "n": 24
+  },
+  "role.dps1.phase.100.drinks": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 10
+  },
+  "role.dps1.phase.100.eats": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 10
+  },
+  "role.dps1.phase.30.attacks_add": {
+   "median": 1.0,
+   "min": 0,
+   "max": 8,
+   "n": 24
+  },
+  "role.dps1.phase.30.attacks_boss": {
+   "median": 7.0,
+   "min": 5,
+   "max": 17,
+   "n": 24
+  },
+  "role.dps1.phase.30.dist_boss": {
+   "median": 1.0,
+   "min": 1.0,
+   "max": 3.0,
+   "n": 24
+  },
+  "role.dps1.phase.30.dist_raider": {
+   "median": 3.0,
+   "min": 1.0,
+   "max": 6,
+   "n": 24
+  },
+  "role.dps1.phase.30.drinks": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 10
+  },
+  "role.dps1.phase.30.eats": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 10
+  },
+  "role.dps1.phase.50.attacks_add": {
+   "median": 2.0,
+   "min": 0,
+   "max": 10,
+   "n": 24
+  },
+  "role.dps1.phase.50.attacks_boss": {
+   "median": 6.5,
+   "min": 3,
+   "max": 19,
+   "n": 24
+  },
+  "role.dps1.phase.50.dist_boss": {
+   "median": 1.0,
+   "min": 1,
+   "max": 4,
+   "n": 24
+  },
+  "role.dps1.phase.50.dist_raider": {
+   "median": 4.0,
+   "min": 2.0,
+   "max": 7,
+   "n": 24
+  },
+  "role.dps1.phase.50.drinks": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 10
+  },
+  "role.dps1.phase.50.eats": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 10
+  },
+  "role.dps1.phase.70.attacks_add": {
+   "median": 1.0,
+   "min": 0,
+   "max": 15,
+   "n": 24
+  },
+  "role.dps1.phase.70.attacks_boss": {
+   "median": 5.0,
+   "min": 3,
+   "max": 12,
+   "n": 24
+  },
+  "role.dps1.phase.70.dist_boss": {
+   "median": 1.0,
+   "min": 1,
+   "max": 4,
+   "n": 24
+  },
+  "role.dps1.phase.70.dist_raider": {
+   "median": 3.0,
+   "min": 1,
+   "max": 10,
+   "n": 24
+  },
+  "role.dps1.phase.70.drinks": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 10
+  },
+  "role.dps1.phase.70.eats": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 10
+  },
+  "role.dps1.prayer.maiden_auto.lit_ticks": {
+   "median": 24,
+   "min": 3,
+   "max": 50.0,
+   "n": 17
+  },
+  "role.dps1.prayer.maiden_auto.right_pct": {
+   "median": 50.0,
+   "min": 0.0,
+   "max": 100.0,
+   "n": 23
+  },
+  "role.dps1.ranged_pct": {
+   "median": 11.1,
+   "min": 0.0,
+   "max": 97.2,
+   "n": 24
+  },
+  "role.dps2.barrage_pct": {
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "n": 24
+  },
+  "role.dps2.boss_targeted_pct": {
+   "median": 41.45,
+   "min": 18.8,
+   "max": 64.3,
+   "n": 24
+  },
+  "role.dps2.cadence": {
+   "median": 5.0,
+   "min": 2.0,
+   "max": 5,
+   "n": 24
+  },
+  "role.dps2.cadence.21003": {
+   "median": 6,
+   "min": 6,
+   "max": 6,
+   "n": 1
+  },
+  "role.dps2.cadence.22325": {
+   "median": 5,
+   "min": 5.0,
+   "max": 5.0,
+   "n": 3
+  },
+  "role.dps2.cadence.25736": {
+   "median": 5.0,
+   "min": 5,
+   "max": 5,
+   "n": 4
+  },
+  "role.dps2.cadence.25739": {
+   "median": 5.0,
+   "min": 5.0,
+   "max": 5.0,
+   "n": 15
+  },
+  "role.dps2.cadence.25741": {
+   "median": 5,
+   "min": 5,
+   "max": 5,
+   "n": 1
+  },
+  "role.dps2.cadence.26374": {
+   "median": 6.0,
+   "min": 5,
+   "max": 7,
+   "n": 2
+  },
+  "role.dps2.cadence.28688": {
+   "median": 2.0,
+   "min": 2.0,
+   "max": 2.0,
+   "n": 1
+  },
+  "role.dps2.cadence.29577": {
+   "median": 4.5,
+   "min": 4.5,
+   "max": 4.5,
+   "n": 1
+  },
+  "role.dps2.cadence.29796": {
+   "median": 5,
+   "min": 5,
+   "max": 5,
+   "n": 1
+  },
+  "role.dps2.eat_at_hp_pct": {
+   "median": 36.0,
+   "min": 14,
+   "max": 75,
+   "n": 14
+  },
+  "role.dps2.magic_pct": {
+   "median": 0.0,
+   "min": 0.0,
+   "max": 0.0,
+   "n": 24
+  },
+  "role.dps2.melee_pct": {
+   "median": 89.3,
+   "min": 16.0,
+   "max": 100.0,
+   "n": 24
+  },
+  "role.dps2.phase.100.attacks_add": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 24
+  },
+  "role.dps2.phase.100.attacks_boss": {
+   "median": 7.0,
+   "min": 6,
+   "max": 11,
+   "n": 24
+  },
+  "role.dps2.phase.100.dist_boss": {
+   "median": 1.0,
+   "min": 1.0,
+   "max": 2,
+   "n": 24
+  },
+  "role.dps2.phase.100.dist_raider": {
+   "median": 3.0,
+   "min": 1.5,
+   "max": 7,
+   "n": 24
+  },
+  "role.dps2.phase.100.drinks": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 5
+  },
+  "role.dps2.phase.100.eats": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 5
+  },
+  "role.dps2.phase.30.attacks_add": {
+   "median": 1.0,
+   "min": 0,
+   "max": 3,
+   "n": 24
+  },
+  "role.dps2.phase.30.attacks_boss": {
+   "median": 6.5,
+   "min": 5,
+   "max": 12,
+   "n": 24
+  },
+  "role.dps2.phase.30.dist_boss": {
+   "median": 1.0,
+   "min": 1.0,
+   "max": 2.0,
+   "n": 24
+  },
+  "role.dps2.phase.30.dist_raider": {
+   "median": 3.0,
+   "min": 1,
+   "max": 5.0,
+   "n": 24
+  },
+  "role.dps2.phase.30.drinks": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 5
+  },
+  "role.dps2.phase.30.eats": {
+   "median": 0,
+   "min": 0,
+   "max": 1,
+   "n": 5
+  },
+  "role.dps2.phase.50.attacks_add": {
+   "median": 3.0,
+   "min": 1,
+   "max": 8,
+   "n": 24
+  },
+  "role.dps2.phase.50.attacks_boss": {
+   "median": 5.0,
+   "min": 1,
+   "max": 17,
+   "n": 24
+  },
+  "role.dps2.phase.50.dist_boss": {
+   "median": 1.0,
+   "min": 1,
+   "max": 5,
+   "n": 24
+  },
+  "role.dps2.phase.50.dist_raider": {
+   "median": 3.0,
+   "min": 2.0,
+   "max": 7,
+   "n": 24
+  },
+  "role.dps2.phase.50.drinks": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 5
+  },
+  "role.dps2.phase.50.eats": {
+   "median": 0,
+   "min": 0,
+   "max": 3,
+   "n": 5
+  },
+  "role.dps2.phase.70.attacks_add": {
+   "median": 1.0,
+   "min": 0,
+   "max": 8,
+   "n": 24
+  },
+  "role.dps2.phase.70.attacks_boss": {
+   "median": 5.0,
+   "min": 3,
+   "max": 17,
+   "n": 24
+  },
+  "role.dps2.phase.70.dist_boss": {
+   "median": 1.0,
+   "min": 1,
+   "max": 3,
+   "n": 24
+  },
+  "role.dps2.phase.70.dist_raider": {
+   "median": 3.0,
+   "min": 1,
+   "max": 8,
+   "n": 24
+  },
+  "role.dps2.phase.70.drinks": {
+   "median": 0,
+   "min": 0,
+   "max": 0,
+   "n": 5
+  },
+  "role.dps2.phase.70.eats": {
+   "median": 0,
+   "min": 0,
+   "max": 2,
+   "n": 5
+  },
+  "role.dps2.prayer.maiden_auto.lit_ticks": {
+   "median": 41,
+   "min": 1,
+   "max": 50,
+   "n": 19
+  },
+  "role.dps2.prayer.maiden_auto.right_pct": {
+   "median": 45.0,
+   "min": 0.0,
+   "max": 100.0,
+   "n": 24
+  },
+  "role.dps2.ranged_pct": {
+   "median": 10.7,
+   "min": 0.0,
+   "max": 84.0,
+   "n": 24
+  },
+  "role.freezer.barrage_pct": {
+   "median": 42.4,
+   "min": 34.4,
+   "max": 60.7,
+   "n": 24
+  },
+  "role.freezer.boss_targeted_pct": {
+   "median": 19.95,
+   "min": 6.2,
+   "max": 50.0,
+   "n": 24
+  },
+  "role.freezer.cadence": {
+   "median": 5.0,
+   "min": 5,
+   "max": 5,
+   "n": 24
+  },
+  "role.freezer.cadence.20997": {
+   "median": 5.0,
+   "min": 5,
+   "max": 5.5,
+   "n": 23
+  },
+  "role.freezer.cadence.21006": {
+   "median": 5.0,
+   "min": 5.0,
+   "max": 5.0,
+   "n": 2
+  },
+  "role.freezer.cadence.24422": {
+   "median": 5.0,
+   "min": 5.0,
+   "max": 5.0,
+   "n": 2
+  },
+  "role.freezer.cadence.25736": {
+   "median": 5.0,
+   "min": 5.0,
+   "max": 5.0,
+   "n": 1
+  },
+  "role.freezer.cadence.25739": {
+   "median": 5.0,
+   "min": 5,
+   "max": 5,
+   "n": 16
+  },
+  "role.freezer.cadence.26374": {
+   "median": 6,
+   "min": 6,
+   "max": 6,
+   "n": 1
+  },
+  "role.freezer.cadence.28266": {
+   "median": 5.0,
+   "min": 5.0,
+   "max": 5.0,
+   "n": 18
+  },
+  "role.freezer.cadence.28474": {
+   "median": 5.0,
+   "min": 5.0,
+   "max": 5.0,
+   "n": 2
+  },
+  "role.freezer.cadence.28688": {
+   "median": 2,
+   "min": 2,
+   "max": 2,
+   "n": 1
+  },
+  "role.freezer.eat_at_hp_pct": {
+   "median": 75.0,
+   "min": 18,
+   "max": 96,
+   "n": 34
+  },
+  "role.freezer.magic_pct": {
+   "median": 44.25,
+   "min": 37.5,
+   "max": 64.3,
+   "n": 24
+  },
+  "role.freezer.melee_pct": {
+   "median": 10.7,
+   "min": 0.0,
+   "max": 28.1,
+   "n": 24
+  },
+  "role.freezer.phase.100.attacks_add": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 24
+  },
+  "role.freezer.phase.100.attacks_boss": {
+   "median": 7.0,
+   "min": 5,
+   "max": 9,
+   "n": 24
+  },
+  "role.freezer.phase.100.dist_boss": {
+   "median": 10.0,
+   "min": 7.0,
+   "max": 10,
+   "n": 24
+  },
+  "role.freezer.phase.100.dist_raider": {
+   "median": 8.0,
+   "min": 6.0,
+   "max": 10,
+   "n": 24
+  },
+  "role.freezer.phase.100.drinks": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 20
+  },
+  "role.freezer.phase.100.eats": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 20
+  },
+  "role.freezer.phase.30.attacks_add": {
+   "median": 4.0,
+   "min": 2,
+   "max": 7,
+   "n": 24
+  },
+  "role.freezer.phase.30.attacks_boss": {
+   "median": 4.0,
+   "min": 1,
+   "max": 10,
+   "n": 24
+  },
+  "role.freezer.phase.30.dist_boss": {
+   "median": 1.0,
+   "min": 1.0,
+   "max": 3,
+   "n": 24
+  },
+  "role.freezer.phase.30.dist_raider": {
+   "median": 3.0,
+   "min": 2.0,
+   "max": 5.0,
+   "n": 24
+  },
+  "role.freezer.phase.30.drinks": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 20
+  },
+  "role.freezer.phase.30.eats": {
+   "median": 0.5,
+   "min": 0,
+   "max": 3,
+   "n": 20
+  },
+  "role.freezer.phase.50.attacks_add": {
+   "median": 5.0,
+   "min": 3,
+   "max": 8,
+   "n": 24
+  },
+  "role.freezer.phase.50.attacks_boss": {
+   "median": 2.0,
+   "min": 1,
+   "max": 7,
+   "n": 24
+  },
+  "role.freezer.phase.50.dist_boss": {
+   "median": 7.0,
+   "min": 1,
+   "max": 10.0,
+   "n": 24
+  },
+  "role.freezer.phase.50.dist_raider": {
+   "median": 6.5,
+   "min": 3,
+   "max": 9.0,
+   "n": 24
+  },
+  "role.freezer.phase.50.drinks": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 20
+  },
+  "role.freezer.phase.50.eats": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 20
+  },
+  "role.freezer.phase.70.attacks_add": {
+   "median": 4.0,
+   "min": 2,
+   "max": 7,
+   "n": 24
+  },
+  "role.freezer.phase.70.attacks_boss": {
+   "median": 2.0,
+   "min": 0,
+   "max": 4,
+   "n": 24
+  },
+  "role.freezer.phase.70.dist_boss": {
+   "median": 10.0,
+   "min": 6,
+   "max": 11,
+   "n": 24
+  },
+  "role.freezer.phase.70.dist_raider": {
+   "median": 9.0,
+   "min": 6.0,
+   "max": 10,
+   "n": 24
+  },
+  "role.freezer.phase.70.drinks": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 20
+  },
+  "role.freezer.phase.70.eats": {
+   "median": 0.0,
+   "min": 0,
+   "max": 0,
+   "n": 20
+  },
+  "role.freezer.prayer.maiden_auto.lit_ticks": {
+   "median": 43.0,
+   "min": 6,
+   "max": 50.0,
+   "n": 9
+  },
+  "role.freezer.prayer.maiden_auto.right_pct": {
+   "median": 0.0,
+   "min": 0.0,
+   "max": 100.0,
+   "n": 24
+  },
+  "role.freezer.ranged_pct": {
+   "median": 45.0,
+   "min": 25.0,
+   "max": 58.6,
+   "n": 24
+  }
+ },
+ "weapons": {
+  "dps1|100": {
+   "TWISTED_BOW": {
+    "rooms": 19,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 5,
+     "n": 19
+    }
+   },
+   "SCYTHE": {
+    "rooms": 18,
+    "count": {
+     "median": 5.0,
+     "min": 4,
+     "max": 7,
+     "n": 18
+    }
+   },
+   "TONALZTICS": {
+    "rooms": 16,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 1,
+     "n": 16
+    }
+   },
+   "HAMMER/HAMMER_BOP": {
+    "rooms": 4,
+    "count": {
+     "median": 1.5,
+     "min": 1,
+     "max": 2,
+     "n": 4
+    }
+   },
+   "BLOWPIPE": {
+    "rooms": 4,
+    "count": {
+     "median": 10.0,
+     "min": 9,
+     "max": 13,
+     "n": 4
+    }
+   },
+   "BGS/GODSWORD": {
+    "rooms": 4,
+    "count": {
+     "median": 1.5,
+     "min": 1,
+     "max": 2,
+     "n": 4
+    }
+   },
+   "CLAW": {
+    "rooms": 2,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 1,
+     "n": 2
+    }
+   },
+   "ELDER_MAUL": {
+    "rooms": 2,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 1,
+     "n": 2
+    }
+   },
+   "SOULREAPER_AXE": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   }
+  },
+  "dps1|30": {
+   "SCYTHE": {
+    "rooms": 18,
+    "count": {
+     "median": 7.0,
+     "min": 5,
+     "max": 13,
+     "n": 18
+    }
+   },
+   "CLAW": {
+    "rooms": 8,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 2,
+     "n": 8
+    }
+   },
+   "BLOWPIPE": {
+    "rooms": 5,
+    "count": {
+     "median": 16,
+     "min": 4,
+     "max": 22,
+     "n": 5
+    }
+   },
+   "CHALLY": {
+    "rooms": 5,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 5
+    }
+   },
+   "ZCB": {
+    "rooms": 5,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 5
+    }
+   },
+   "TWISTED_BOW": {
+    "rooms": 2,
+    "count": {
+     "median": 5.5,
+     "min": 5,
+     "max": 6,
+     "n": 2
+    }
+   },
+   "NOXIOUS_HALBERD": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   }
+  },
+  "dps1|50": {
+   "SCYTHE": {
+    "rooms": 18,
+    "count": {
+     "median": 7.0,
+     "min": 3,
+     "max": 12,
+     "n": 18
+    }
+   },
+   "DINHS": {
+    "rooms": 7,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 7
+    }
+   },
+   "BLOWPIPE": {
+    "rooms": 6,
+    "count": {
+     "median": 19.0,
+     "min": 8,
+     "max": 25,
+     "n": 6
+    }
+   },
+   "TWISTED_BOW": {
+    "rooms": 2,
+    "count": {
+     "median": 4.5,
+     "min": 4,
+     "max": 5,
+     "n": 2
+    }
+   },
+   "ZCB": {
+    "rooms": 2,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 1,
+     "n": 2
+    }
+   },
+   "CLAW": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   }
+  },
+  "dps1|70": {
+   "SCYTHE": {
+    "rooms": 18,
+    "count": {
+     "median": 5.0,
+     "min": 3,
+     "max": 10,
+     "n": 18
+    }
+   },
+   "ZCB": {
+    "rooms": 8,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 1,
+     "n": 8
+    }
+   },
+   "BLOWPIPE": {
+    "rooms": 6,
+    "count": {
+     "median": 14.5,
+     "min": 11,
+     "max": 23,
+     "n": 6
+    }
+   },
+   "TWISTED_BOW": {
+    "rooms": 2,
+    "count": {
+     "median": 4.0,
+     "min": 3,
+     "max": 5,
+     "n": 2
+    }
+   }
+  },
+  "dps2|100": {
+   "SCYTHE": {
+    "rooms": 23,
+    "count": {
+     "median": 5,
+     "min": 4,
+     "max": 8,
+     "n": 23
+    }
+   },
+   "TWISTED_BOW": {
+    "rooms": 22,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 2,
+     "n": 22
+    }
+   },
+   "TONALZTICS": {
+    "rooms": 15,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 15
+    }
+   },
+   "ELDER_MAUL": {
+    "rooms": 8,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 2,
+     "n": 8
+    }
+   },
+   "BGS/GODSWORD": {
+    "rooms": 4,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 1,
+     "n": 4
+    }
+   },
+   "HAMMER/HAMMER_BOP": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   },
+   "NOXIOUS_HALBERD": {
+    "rooms": 1,
+    "count": {
+     "median": 2,
+     "min": 2,
+     "max": 2,
+     "n": 1
+    }
+   },
+   "BURNING_CLAW": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   },
+   "BLOWPIPE": {
+    "rooms": 1,
+    "count": {
+     "median": 7,
+     "min": 7,
+     "max": 7,
+     "n": 1
+    }
+   }
+  },
+  "dps2|30": {
+   "SCYTHE": {
+    "rooms": 23,
+    "count": {
+     "median": 7,
+     "min": 5,
+     "max": 13,
+     "n": 23
+    }
+   },
+   "ZCB": {
+    "rooms": 10,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 2,
+     "n": 10
+    }
+   },
+   "CLAW": {
+    "rooms": 6,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 1,
+     "n": 6
+    }
+   },
+   "CHALLY": {
+    "rooms": 4,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 1,
+     "n": 4
+    }
+   },
+   "BLOWPIPE": {
+    "rooms": 1,
+    "count": {
+     "median": 6,
+     "min": 6,
+     "max": 6,
+     "n": 1
+    }
+   },
+   "NOXIOUS_HALBERD": {
+    "rooms": 1,
+    "count": {
+     "median": 5,
+     "min": 5,
+     "max": 5,
+     "n": 1
+    }
+   },
+   "BURNING_CLAW": {
+    "rooms": 1,
+    "count": {
+     "median": 3,
+     "min": 3,
+     "max": 3,
+     "n": 1
+    }
+   }
+  },
+  "dps2|50": {
+   "SCYTHE": {
+    "rooms": 23,
+    "count": {
+     "median": 8,
+     "min": 4,
+     "max": 13,
+     "n": 23
+    }
+   },
+   "DINHS": {
+    "rooms": 9,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 9
+    }
+   },
+   "BLOWPIPE": {
+    "rooms": 1,
+    "count": {
+     "median": 24,
+     "min": 24,
+     "max": 24,
+     "n": 1
+    }
+   },
+   "CHIN_RED": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   }
+  },
+  "dps2|70": {
+   "SCYTHE": {
+    "rooms": 23,
+    "count": {
+     "median": 5,
+     "min": 3,
+     "max": 10,
+     "n": 23
+    }
+   },
+   "ZCB": {
+    "rooms": 9,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 2,
+     "n": 9
+    }
+   },
+   "BLOWPIPE": {
+    "rooms": 1,
+    "count": {
+     "median": 25,
+     "min": 25,
+     "max": 25,
+     "n": 1
+    }
+   },
+   "SULPHUR_BLADES": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   },
+   "CLAW": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   }
+  },
+  "freezer|100": {
+   "TWISTED_BOW": {
+    "rooms": 23,
+    "count": {
+     "median": 5,
+     "min": 4,
+     "max": 7,
+     "n": 23
+    }
+   },
+   "TONALZTICS": {
+    "rooms": 23,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 2,
+     "n": 23
+    }
+   },
+   "BLOWPIPE": {
+    "rooms": 14,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 1,
+     "n": 14
+    }
+   },
+   "ELDER_MAUL": {
+    "rooms": 2,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 1,
+     "n": 2
+    }
+   },
+   "ZCB": {
+    "rooms": 1,
+    "count": {
+     "median": 4,
+     "min": 4,
+     "max": 4,
+     "n": 1
+    }
+   }
+  },
+  "freezer|30": {
+   "SCEPTRE": {
+    "rooms": 20,
+    "count": {
+     "median": 4.0,
+     "min": 2,
+     "max": 7,
+     "n": 20
+    }
+   },
+   "TWISTED_BOW": {
+    "rooms": 19,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 4,
+     "n": 19
+    }
+   },
+   "SCYTHE": {
+    "rooms": 19,
+    "count": {
+     "median": 3,
+     "min": 1,
+     "max": 9,
+     "n": 19
+    }
+   },
+   "ZCB": {
+    "rooms": 6,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 1,
+     "n": 6
+    }
+   },
+   "CHALLY": {
+    "rooms": 4,
+    "count": {
+     "median": 1.0,
+     "min": 1,
+     "max": 1,
+     "n": 4
+    }
+   },
+   "KODAI": {
+    "rooms": 2,
+    "count": {
+     "median": 4.5,
+     "min": 3,
+     "max": 6,
+     "n": 2
+    }
+   },
+   "NM_STAFF": {
+    "rooms": 2,
+    "count": {
+     "median": 3.0,
+     "min": 3,
+     "max": 3,
+     "n": 2
+    }
+   },
+   "SOULREAPER_AXE": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   },
+   "CLAW": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   },
+   "EYE_OF_AYAK": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   }
+  },
+  "freezer|50": {
+   "SCEPTRE": {
+    "rooms": 20,
+    "count": {
+     "median": 4.5,
+     "min": 3,
+     "max": 7,
+     "n": 20
+    }
+   },
+   "TWISTED_BOW": {
+    "rooms": 20,
+    "count": {
+     "median": 2.0,
+     "min": 1,
+     "max": 7,
+     "n": 20
+    }
+   },
+   "ZCB": {
+    "rooms": 15,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 2,
+     "n": 15
+    }
+   },
+   "EYE_OF_AYAK": {
+    "rooms": 5,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 5
+    }
+   },
+   "KODAI": {
+    "rooms": 2,
+    "count": {
+     "median": 7.0,
+     "min": 7,
+     "max": 7,
+     "n": 2
+    }
+   },
+   "NM_STAFF": {
+    "rooms": 2,
+    "count": {
+     "median": 5.0,
+     "min": 4,
+     "max": 6,
+     "n": 2
+    }
+   },
+   "BLOWPIPE": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   }
+  },
+  "freezer|70": {
+   "TWISTED_BOW": {
+    "rooms": 22,
+    "count": {
+     "median": 2.0,
+     "min": 1,
+     "max": 4,
+     "n": 22
+    }
+   },
+   "SCEPTRE": {
+    "rooms": 20,
+    "count": {
+     "median": 4.0,
+     "min": 2,
+     "max": 6,
+     "n": 20
+    }
+   },
+   "EYE_OF_AYAK": {
+    "rooms": 3,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 3
+    }
+   },
+   "KODAI": {
+    "rooms": 2,
+    "count": {
+     "median": 6.5,
+     "min": 6,
+     "max": 7,
+     "n": 2
+    }
+   },
+   "NM_STAFF": {
+    "rooms": 2,
+    "count": {
+     "median": 6.0,
+     "min": 5,
+     "max": 7,
+     "n": 2
+    }
+   },
+   "ZCB": {
+    "rooms": 1,
+    "count": {
+     "median": 1,
+     "min": 1,
+     "max": 1,
+     "n": 1
+    }
+   },
+   "BLOWPIPE": {
+    "rooms": 1,
+    "count": {
+     "median": 2,
+     "min": 2,
+     "max": 2,
+     "n": 1
+    }
+   }
+  }
+ },
+ "positions": {
+  "dps1|100": [
+   {
+    "offset": "4,6",
+    "ticks": 129,
+    "share": 0.133
+   },
+   {
+    "offset": "5,6",
+    "ticks": 121,
+    "share": 0.125
+   },
+   {
+    "offset": "3,6",
+    "ticks": 74,
+    "share": 0.076
+   },
+   {
+    "offset": "0,6",
+    "ticks": 51,
+    "share": 0.053
+   },
+   {
+    "offset": "22,4",
+    "ticks": 40,
+    "share": 0.041
+   },
+   {
+    "offset": "6,6",
+    "ticks": 40,
+    "share": 0.041
+   },
+   {
+    "offset": "2,6",
+    "ticks": 30,
+    "share": 0.031
+   },
+   {
+    "offset": "1,6",
+    "ticks": 29,
+    "share": 0.03
+   }
+  ],
+  "dps1|30": [
+   {
+    "offset": "5,6",
+    "ticks": 182,
+    "share": 0.155
+   },
+   {
+    "offset": "4,6",
+    "ticks": 95,
+    "share": 0.081
+   },
+   {
+    "offset": "3,6",
+    "ticks": 60,
+    "share": 0.051
+   },
+   {
+    "offset": "6,5",
+    "ticks": 50,
+    "share": 0.043
+   },
+   {
+    "offset": "2,6",
+    "ticks": 44,
+    "share": 0.038
+   },
+   {
+    "offset": "6,4",
+    "ticks": 30,
+    "share": 0.026
+   },
+   {
+    "offset": "5,-1",
+    "ticks": 28,
+    "share": 0.024
+   },
+   {
+    "offset": "1,6",
+    "ticks": 22,
+    "share": 0.019
+   }
+  ],
+  "dps1|50": [
+   {
+    "offset": "5,6",
+    "ticks": 147,
+    "share": 0.148
+   },
+   {
+    "offset": "4,6",
+    "ticks": 105,
+    "share": 0.106
+   },
+   {
+    "offset": "6,5",
+    "ticks": 88,
+    "share": 0.089
+   },
+   {
+    "offset": "3,6",
+    "ticks": 72,
+    "share": 0.073
+   },
+   {
+    "offset": "6,4",
+    "ticks": 46,
+    "share": 0.046
+   },
+   {
+    "offset": "2,6",
+    "ticks": 40,
+    "share": 0.04
+   },
+   {
+    "offset": "8,1",
+    "ticks": 28,
+    "share": 0.028
+   },
+   {
+    "offset": "9,5",
+    "ticks": 28,
+    "share": 0.028
+   }
+  ],
+  "dps1|70": [
+   {
+    "offset": "5,6",
+    "ticks": 104,
+    "share": 0.128
+   },
+   {
+    "offset": "3,6",
+    "ticks": 96,
+    "share": 0.118
+   },
+   {
+    "offset": "4,6",
+    "ticks": 87,
+    "share": 0.107
+   },
+   {
+    "offset": "2,6",
+    "ticks": 30,
+    "share": 0.037
+   },
+   {
+    "offset": "5,8",
+    "ticks": 22,
+    "share": 0.027
+   },
+   {
+    "offset": "6,5",
+    "ticks": 21,
+    "share": 0.026
+   },
+   {
+    "offset": "8,-3",
+    "ticks": 19,
+    "share": 0.023
+   },
+   {
+    "offset": "6,4",
+    "ticks": 19,
+    "share": 0.023
+   }
+  ],
+  "dps2|100": [
+   {
+    "offset": "5,6",
+    "ticks": 100,
+    "share": 0.103
+   },
+   {
+    "offset": "6,5",
+    "ticks": 74,
+    "share": 0.076
+   },
+   {
+    "offset": "3,6",
+    "ticks": 66,
+    "share": 0.068
+   },
+   {
+    "offset": "6,4",
+    "ticks": 60,
+    "share": 0.062
+   },
+   {
+    "offset": "0,6",
+    "ticks": 52,
+    "share": 0.054
+   },
+   {
+    "offset": "2,6",
+    "ticks": 41,
+    "share": 0.042
+   },
+   {
+    "offset": "22,4",
+    "ticks": 34,
+    "share": 0.035
+   },
+   {
+    "offset": "4,6",
+    "ticks": 33,
+    "share": 0.034
+   }
+  ],
+  "dps2|30": [
+   {
+    "offset": "6,5",
+    "ticks": 92,
+    "share": 0.079
+   },
+   {
+    "offset": "5,6",
+    "ticks": 65,
+    "share": 0.056
+   },
+   {
+    "offset": "2,6",
+    "ticks": 64,
+    "share": 0.055
+   },
+   {
+    "offset": "5,-1",
+    "ticks": 64,
+    "share": 0.055
+   },
+   {
+    "offset": "6,3",
+    "ticks": 56,
+    "share": 0.048
+   },
+   {
+    "offset": "6,4",
+    "ticks": 55,
+    "share": 0.047
+   },
+   {
+    "offset": "4,6",
+    "ticks": 48,
+    "share": 0.041
+   },
+   {
+    "offset": "3,6",
+    "ticks": 47,
+    "share": 0.04
+   }
+  ],
+  "dps2|50": [
+   {
+    "offset": "6,4",
+    "ticks": 98,
+    "share": 0.099
+   },
+   {
+    "offset": "6,5",
+    "ticks": 91,
+    "share": 0.092
+   },
+   {
+    "offset": "6,2",
+    "ticks": 80,
+    "share": 0.081
+   },
+   {
+    "offset": "5,6",
+    "ticks": 66,
+    "share": 0.067
+   },
+   {
+    "offset": "6,3",
+    "ticks": 54,
+    "share": 0.054
+   },
+   {
+    "offset": "10,-5",
+    "ticks": 38,
+    "share": 0.038
+   },
+   {
+    "offset": "6,0",
+    "ticks": 38,
+    "share": 0.038
+   },
+   {
+    "offset": "6,1",
+    "ticks": 31,
+    "share": 0.031
+   }
+  ],
+  "dps2|70": [
+   {
+    "offset": "6,5",
+    "ticks": 185,
+    "share": 0.227
+   },
+   {
+    "offset": "6,3",
+    "ticks": 74,
+    "share": 0.091
+   },
+   {
+    "offset": "5,6",
+    "ticks": 74,
+    "share": 0.091
+   },
+   {
+    "offset": "6,4",
+    "ticks": 53,
+    "share": 0.065
+   },
+   {
+    "offset": "4,6",
+    "ticks": 49,
+    "share": 0.06
+   },
+   {
+    "offset": "6,2",
+    "ticks": 23,
+    "share": 0.028
+   },
+   {
+    "offset": "2,6",
+    "ticks": 19,
+    "share": 0.023
+   },
+   {
+    "offset": "3,6",
+    "ticks": 18,
+    "share": 0.022
+   }
+  ],
+  "freezer|100": [
+   {
+    "offset": "15,-1",
+    "ticks": 98,
+    "share": 0.101
+   },
+   {
+    "offset": "14,1",
+    "ticks": 94,
+    "share": 0.097
+   },
+   {
+    "offset": "15,2",
+    "ticks": 81,
+    "share": 0.084
+   },
+   {
+    "offset": "15,3",
+    "ticks": 62,
+    "share": 0.064
+   },
+   {
+    "offset": "10,6",
+    "ticks": 60,
+    "share": 0.062
+   },
+   {
+    "offset": "12,1",
+    "ticks": 55,
+    "share": 0.057
+   },
+   {
+    "offset": "15,0",
+    "ticks": 49,
+    "share": 0.051
+   },
+   {
+    "offset": "15,1",
+    "ticks": 45,
+    "share": 0.046
+   }
+  ],
+  "freezer|30": [
+   {
+    "offset": "6,0",
+    "ticks": 150,
+    "share": 0.128
+   },
+   {
+    "offset": "6,3",
+    "ticks": 131,
+    "share": 0.112
+   },
+   {
+    "offset": "6,2",
+    "ticks": 124,
+    "share": 0.106
+   },
+   {
+    "offset": "6,1",
+    "ticks": 107,
+    "share": 0.091
+   },
+   {
+    "offset": "6,4",
+    "ticks": 87,
+    "share": 0.074
+   },
+   {
+    "offset": "6,5",
+    "ticks": 54,
+    "share": 0.046
+   },
+   {
+    "offset": "8,-1",
+    "ticks": 37,
+    "share": 0.032
+   },
+   {
+    "offset": "7,-1",
+    "ticks": 20,
+    "share": 0.017
+   }
+  ],
+  "freezer|50": [
+   {
+    "offset": "8,-1",
+    "ticks": 61,
+    "share": 0.062
+   },
+   {
+    "offset": "15,3",
+    "ticks": 50,
+    "share": 0.05
+   },
+   {
+    "offset": "9,-1",
+    "ticks": 50,
+    "share": 0.05
+   },
+   {
+    "offset": "15,-1",
+    "ticks": 48,
+    "share": 0.048
+   },
+   {
+    "offset": "15,2",
+    "ticks": 43,
+    "share": 0.043
+   },
+   {
+    "offset": "7,-1",
+    "ticks": 36,
+    "share": 0.036
+   },
+   {
+    "offset": "6,1",
+    "ticks": 31,
+    "share": 0.031
+   },
+   {
+    "offset": "14,0",
+    "ticks": 31,
+    "share": 0.031
+   }
+  ],
+  "freezer|70": [
+   {
+    "offset": "15,0",
+    "ticks": 135,
+    "share": 0.166
+   },
+   {
+    "offset": "15,3",
+    "ticks": 64,
+    "share": 0.079
+   },
+   {
+    "offset": "15,2",
+    "ticks": 54,
+    "share": 0.066
+   },
+   {
+    "offset": "15,1",
+    "ticks": 44,
+    "share": 0.054
+   },
+   {
+    "offset": "15,-2",
+    "ticks": 42,
+    "share": 0.052
+   },
+   {
+    "offset": "15,-1",
+    "ticks": 40,
+    "share": 0.049
+   },
+   {
+    "offset": "15,-3",
+    "ticks": 31,
+    "share": 0.038
+   },
+   {
+    "offset": "12,-1",
+    "ticks": 26,
+    "share": 0.032
+   }
+  ]
+ }
+}

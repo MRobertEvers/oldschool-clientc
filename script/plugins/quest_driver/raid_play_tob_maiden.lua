@@ -73,7 +73,7 @@ QD.raid._play_plan("tob_maiden", {
         -- `storm` is the largest blackstorm a plan must survive: the protected
         -- hit grows with every Matomenos that reached her (36.5 + 3.5c, W:590)
         -- and s30 run mz30a took 27 through the prayer at c = 6 (t256)
-        entry = { storm = 28, storm_raw = 30, pool = 12, prove_protect = true, presteps = 12, flicks = 12 },
+        entry = { storm = 28, storm_raw = 30, pool = 12, prove_protect = true, presteps = 12, flicks = 12, solo_melee = true },
         -- Normal (raid seam32 play_tob_maiden_normal), from maiden.tsv's
         -- Normal rows: the blackstorm is 36.5 + 3.5c (maiden.auto_damage_base,
         -- auto_damage_per_leak), halved by the prayer (auto_protect_ratio):
@@ -122,13 +122,23 @@ QD.raid._play_plan("tob_maiden", {
         -- allows you to get the best access to the crab that doesn't get
         -- frozen", 10Boot 0:08:48): s33m-survey w2, the tank on 6435,90 could
         -- not reach the north walkers and three walked in
-        [1] = { name = "tank", home = { 6434, 98 }, reserve = { 6438, 101 }, freezer = false, slugs = false, pipe = true },
+        -- raid seam40 play_tob_maiden_follows_blert: THE REAL TRIO.  The
+        -- reference (sources/blert_api/reference/maiden_normal_3.json, 24
+        -- death-free Normal scale-3 rooms) has both dps on her with the
+        -- scythe (melee_pct 88.9 / 89.3; SCYTHE in every phase), standing on
+        -- her north-east corner: dps1 at (5,6) (4,6) (3,6) from her SW tile,
+        -- dps2 at (6,5) (6,4) (6,2) (dist_boss 1 in every phase).  `melee`
+        -- puts a seat on her edge (its `side`: the north row or the east
+        -- column), swinging `weapon`, with no tank swap: both are targeted
+        -- (boss_targeted_pct 38 and 41.45).  The old ranger homes stay as
+        -- `reserve` for nothing; seat 1 keeps the leader's tick log.
+        [1] = { name = "dps1", home = { 6431, 98 }, side = "north", melee = true, weapon = "scythe_of_vitur", freezer = false, slugs = false, pipe = true },
         -- the freezer stands east of her on her middle row, within Ice
         -- Barrage's ten tiles of both spawn rows (s32mzn2: from 6440,89 the
         -- north spawns at z 101-103, x 6444-6448, were out of reach and three
         -- walked in unfrozen); still the furthest raider from her
         [2] = { name = "freezer", home = { 6441, 94 }, freezer = true, slugs = false, pipe = false },
-        [3] = { name = "ranger", home = { 6437, 100 }, freezer = false, slugs = true, pipe = true },
+        [3] = { name = "dps2", home = { 6432, 97 }, side = "east", melee = true, weapon = "scythe_of_vitur", freezer = false, slugs = false, pipe = true },
     },
     -- raid seam33 THE OPENER: "When you run in, everyone should drop a dragon
     -- warhammer spec, then switch to range gear" (10Boot 0:06:33); "Melee &
@@ -139,7 +149,13 @@ QD.raid._play_plan("tob_maiden", {
     -- is swung again while the energy lasts ("use Elder maul special attacks
     -- until two hit", W:630, the duo row's rule for a missed drain).  Cost 500
     -- of the orb's 1000 (DRIVER_NOTES seam10 "falls by 500 (DWH)").
-    opener = { weapon = "dragon_warhammer", cost = 500, tries = 2, give_up = 14 },
+    -- raid seam40: the hammer is the scythe seats' alone, swung once (the
+    -- reference: HAMMER in dps1|100 in 4 of 24 rooms, ELDER_MAUL in dps2|100
+    -- in 8, one attack each; "no real room's freezer used it there", its
+    -- first attacks are TWISTED_BOW 23/24 and TONALZTICS 23/24; m40i: the
+    -- freezer's and dps2's second swings after a 0 put phase 100 at 57 ticks
+    -- against the real 42 [32-52])
+    opener = { weapon = "dragon_warhammer", cost = 500, tries = 1, give_up = 14 },
     -- the toxic blowpipe: PvM speed 3, rapid 2, reach 5 (wiki_Toxic_blowpipe
     -- .wikitext:41, :78); its swing seq 5061 (raid_play_tob_nylocas.lua)
     pipe = { item = "toxic_blowpipe_loaded", reach = 5 },
@@ -168,6 +184,22 @@ QD.raid._play_plan("tob_maiden", {
     -- a walking nylocas this close to her is the rangers' first target (the
     -- seam's choice: five ticks of walking, one bow swing and a bit)
     imminent = 5, freeze_min_gap = 4,
+    -- raid seam40: how far a scythe seat steps off her for a WALKING
+    -- nylocas the freezer's plan leaves (the reference's dps attack 1-3 adds
+    -- a phase, first 4 ticks after the spawn: react.phase.70.dps1.attack_add
+    -- 4 [3-16]); a frozen one is the freezer's
+    melee_add_reach = 12,
+    -- raid seam40: `freezer_melee30 = { casts = 4, item = "scythe_of_vitur" }`
+    -- puts the freezer on her with the scythe after four barrages in her last
+    -- form (the reference's freezer|30: SCEPTRE median 4, then SCYTHE 3).  OFF:
+    -- measured on the three survey names (survey5) the clump it stopped
+    -- barraging thawed and walked in at full health, 30 percent leaks 21 / 9 /
+    -- 7 against 3 / 3 / 2 without it and the room 338 / 305 / 349 against 271 /
+    -- 285 / 327; the real freezer leaves a clump that is already dead.
+    freezer_melee30 = nil,
+    -- raid seam40: the solo's scythe after its technique proofs (THE SOLO ON
+    -- HER below; the mode's `solo_melee` switches it on)
+    solo_melee = { item = "scythe_of_vitur" },
     -- raid seam35m: the freezer's plan (QD.raid._play_maiden_ice_plan) looks
     -- this many barrages ahead (four casts cover a 4's walk: 17 ticks from the
     -- far spawn, m35base), and the first lands this many ticks after the tick
@@ -577,6 +609,32 @@ function QD.raid._play_maiden_party_wave(st, v, m, R, mg, moving, gap_to_her, ch
         if not frozen(c) then m.crab_frozen[c.slot] = nil end
     end
     if R.freezer then
+        -- raid seam40 THE FREEZER'S LAST WAVE: the reference's freezer
+        -- barrages the 30 percent wave (role.freezer.phase.30.attacks_add 4
+        -- [2-7]; SCEPTRE 20/24 rooms, 4 attacks) and then walks onto her with
+        -- the scythe (SCYTHE in freezer|30 19 of 24 rooms, 3 attacks;
+        -- dist_boss 1 [1-3]; reference/maiden_normal_3.json).  After its
+        -- `casts` barrages in her last form the scythe goes on in one block and
+        -- the attack press walks it to her side.
+        if m.fz == "melee" then
+            return nil
+        end
+        local F30 = P.freezer_melee30
+        if F30 ~= nil and m.fz == "magic" and st.boss_symbol ~= nil and st.boss_symbol:find("_30", 1, true) ~= nil then
+            local n30 = 0
+            for _, c in ipairs(m.casts) do
+                if c.form == wave then n30 = n30 + 1 end
+            end
+            if n30 >= F30.casts then
+                local hr, has = QD.inv.has(F30.item)
+                if hr == "ok" and has then
+                    QD.raid._play_maiden_block(st, v, "scythe (30)", { F30.item })
+                    m.fz, m.melee30 = "melee", v.tick
+                    st.engaged = false
+                    return nil
+                end
+            end
+        end
         -- PRIMED: "A solo freezer should hover their mouse over the S1's spawn
         -- position when Maiden is close to spawning a new set of nylocas"
         -- (W:643), and N1 is frozen "on the first tick possible" (W:639): the
@@ -645,8 +703,24 @@ function QD.raid._play_maiden_party_wave(st, v, m, R, mg, moving, gap_to_her, ch
             local target, why, best_n = nil, nil, 0
             -- raid seam35m: the plan over where they WILL be (_play_maiden_ice_plan)
             local list = {}
+            -- raid seam40: with scythe seats on her north-east corner the
+            -- north walkers are theirs (the rank in the seats' own pick), so
+            -- the plan is made over the south lanes while one still walks
+            -- ("Prioritizing the south side of the arena, since those crabs
+            -- reach the boss first", 10Boot 0:07:40; m40f w1: the plan froze
+            -- a north walker at t126 while the south pair walked past the
+            -- freezer's tile into her at 75 each)
+            local south_only = false
+            local last_wave = st.boss_symbol ~= nil and st.boss_symbol:find("_30", 1, true) ~= nil
+            if P.south_first and P.roles[1] ~= nil and P.roles[1].melee and not last_wave then
+                for _, c in ipairs(v.crabs) do
+                    if south(c) and not frozen(c) and not QD.raid._play_maiden_crab_in(v.boss, c.x, c.z) then south_only = true end
+                end
+            end
             for _, c in ipairs(v.crabs) do
-                list[#list + 1] = { slot = c.slot, x = c.x, z = c.z, frozen = frozen(c), lead = (m.crab_track[c.slot] ~= nil and m.crab_track[c.slot].first == v.tick) and 0 or 1 }
+                if not south_only or south(c) or frozen(c) then
+                    list[#list + 1] = { slot = c.slot, x = c.x, z = c.z, frozen = frozen(c), lead = (m.crab_track[c.slot] ~= nil and m.crab_track[c.slot].first == v.tick) and 0 or 1 }
+                end
             end
             local plan = QD.raid._play_maiden_ice_plan(st, v, list, P.ice_lead, me, m.ice_delay_wave == wave and m.ice_delay or nil)
             if plan ~= nil and plan.target ~= nil then
@@ -720,7 +794,11 @@ function QD.raid._play_maiden_party_wave(st, v, m, R, mg, moving, gap_to_her, ch
                 for _, o in ipairs(v.crabs) do
                     if math.abs(o.x - target.x) <= 1 and math.abs(o.z - target.z) <= 1 then m.ice_on[o.slot] = v.tick end
                 end
-                m.casts[#m.casts + 1] = { tick = v.tick, slot = target.slot, result = tostring(cr), wave = m.waves, magic = mg.level, why = why }
+                -- raid seam40: `form`, her threshold the cast was made in (m.waves
+                -- does not count a wave that spawns while the last one's clump
+                -- still holds the magic set: survey3, "waves 2" with casts in
+                -- all three thresholds)
+                m.casts[#m.casts + 1] = { tick = v.tick, slot = target.slot, result = tostring(cr), wave = m.waves, form = wave, magic = mg.level, why = why }
                 if cr ~= "ok" and #st.lines < 6 then st.lines[#st.lines + 1] = "t" .. v.tick .. " cast " .. tostring(cr) .. ": " .. string.sub(tostring(cd), 1, 120) end
             end
         end
@@ -768,6 +846,28 @@ function QD.raid._play_maiden_party_wave(st, v, m, R, mg, moving, gap_to_her, ch
     local function rank(c)
         local tr = m.crab_track[c.slot]
         local gp = gap_to_her(c.x, c.z)
+        -- raid seam40: a scythe seat takes ANY walker that comes into its
+        -- reach, nearest her first (m40d w2: the freezer's plan "meant" to
+        -- freeze the three north walkers, so the seats beside her skipped
+        -- them and all three reached her corner at full health, 75 each)
+        -- and only the NORTH walkers (the seats camp her north-east corner,
+        -- where the north lanes arrive; the freezer takes the south first,
+        -- 10Boot 0:07:40), or one already beside the seat (m40e w2: both
+        -- seats chased the south pair and the north pair walked in at 75)
+        if R.melee then
+            -- N1 first, both seats ("if a crab spawns at the closest north
+            -- side tile, this crab should not get frozen.  Everyone else in
+            -- the raid should just try and kill it", 10Boot 0:08:48): it
+            -- walks onto the seats' corner in six ticks (svaplaymaide,
+            -- svbplaymaide: N1 absorbed at 75 in every 70 percent wave, heal
+            -- 150 against the reference's phase.70.boss_heal 1 [0-226])
+            if not frozen(c) and n1(c) then return -1, gp end
+            -- (every north walker, not only those the freezer's plan leaves:
+            -- svaplaymaide w1, the seats waited for N3's gap to reach 4 and
+            -- it walked in unhit two ticks after their press)
+            if not frozen(c) and not south(c) then return 0, gp end
+            return nil
+        end
         if not frozen(c) and (left == nil or left[c.slot]) then return 0, gp end
         if not frozen(c) and gp <= 2 then return 1, gp end
         if not frozen(c) then return nil end
@@ -778,13 +878,21 @@ function QD.raid._play_maiden_party_wave(st, v, m, R, mg, moving, gap_to_her, ch
     -- wiki_Toxic_blowpipe.wikitext:78): s33m2 t237-246, the tank chased a
     -- south crab onto 6437,90 and died there to a pool and a storm in one tick
     local pick_reach = (R.pipe and P.pipe ~= nil) and (P.pipe.reach + 2) or 10
+    -- raid seam40: a scythe seat swings at a WALKING nylocas only as it
+    -- reaches her beside it (the reference's dps: attacks_add 1-3 a phase,
+    -- 0-1 in the last), never a frozen one across the room
+    if R.melee then pick_reach = P.melee_add_reach end
     local pick, pk, pv = nil, nil, nil
     for _, c in ipairs(v.crabs) do
         -- a FROZEN one anywhere in the bow's ten (it cannot walk to her
         -- while the ice holds; svdplaymaide w2, S2 frozen on its spawn tile
         -- at gap 9 outside the pipe's reach thawed after 68 ticks and walked
         -- in): the press walks the ranger into reach once nothing walks
-        if cheb(c.x, c.z, me.x, me.z) <= ((frozen(c) and 10) or pick_reach) then
+        -- (a scythe seat measures from her edge, not from its own tile: m40g
+        -- w1, dps1 dodged to her north-west end and never saw the north pair)
+        local within = cheb(c.x, c.z, me.x, me.z) <= ((frozen(c) and 10) or pick_reach)
+        if R.melee then within = not frozen(c) and gap_to_her(c.x, c.z) <= pick_reach end
+        if within then
             local k, val = rank(c)
             if k ~= nil and (pick == nil or k < pk or (k == pk and val < pv)) then pick, pk, pv = c, k, val end
         end
@@ -793,9 +901,11 @@ function QD.raid._play_maiden_party_wave(st, v, m, R, mg, moving, gap_to_her, ch
     -- walks in reach (both rangers on one crab until it drops: svdplaymaide
     -- w2, the darts split over N1, N3 and N4 as their gaps crossed, and N3
     -- reached her with 21 of its 75 left)
-    if pick ~= nil and m.add_slot ~= nil and m.add_slot ~= pick.slot then
+    -- (a scythe seat too, on the north walker it is on: svaplaymaide w2, the
+    -- pick flipped between N1 and her and the swing at t165 went on her)
+    if m.add_slot ~= nil and (pick == nil or m.add_slot ~= pick.slot) and (pick ~= nil or R.melee) then
         for _, c in ipairs(v.crabs) do
-            if c.slot == m.add_slot and not frozen(c) and rank(c) ~= nil and cheb(c.x, c.z, me.x, me.z) <= pick_reach then
+            if c.slot == m.add_slot and not frozen(c) and (rank(c) ~= nil or (R.melee and not south(c))) and (R.melee or cheb(c.x, c.z, me.x, me.z) <= pick_reach) then
                 pick = c
                 m.sticky = (m.sticky or 0) + 1
             end
@@ -837,6 +947,33 @@ function QD.raid._play_maiden_opener(st, v, m, intent)
     end
     local _, energy = QD.var.varp("varp300_sa_energy")
     energy = tonumber(energy) or 0
+    -- raid seam40 THE FIRST SHOT: every real raider's first attack is the
+    -- twisted bow on the run in (sources/blert_api/reference/maiden_normal_3
+    -- .json: TWISTED_BOW in dps1|100 19 of 24 rooms, dps2|100 22, one attack;
+    -- the cached streams put it at tick 5-6 from eight tiles east of her, the
+    -- second attack (the special) five ticks later, the scythe after).  The
+    -- press paths the raider into the bow's reach and it shoots there: the
+    -- shot is the first tick it stands still in reach, and the hammer goes on
+    -- the next tick (its press walks in; the swing waits out the bow's 5).
+    local R = m.R
+    if ob.stage == "wait" and R ~= nil and R.melee and ob.bow == nil then
+        ob.bow = { press = v.tick }
+        intent.attack = true
+        st.engaged = false
+        return true
+    end
+    if ob.stage == "wait" and ob.bow ~= nil and ob.bow.shot == nil then
+        local b = v.boss
+        local gx = b and math.max(b.x - v.me.x, 0, v.me.x - (b.x + 5)) or 99
+        local gz = b and math.max(b.z - v.me.z, 0, v.me.z - (b.z + 5)) or 99
+        local still = st.last_me ~= nil and st.last_me.x == v.me.x and st.last_me.z == v.me.z
+        if (still and math.max(gx, gz) <= 10 and v.tick - ob.bow.press >= 2) or v.tick - ob.bow.press >= 12 then
+            ob.bow.shot = v.tick
+        else
+            intent.attack = not st.engaged
+            return true
+        end
+    end
     if ob.stage == "wait" then
         if energy < O.cost then
             ob.stage = "gave_up"
@@ -878,10 +1015,14 @@ function QD.raid._play_maiden_opener(st, v, m, intent)
             st.engaged = false
             return true
         end
-        if seen or v.tick - ob.fired >= 3 then
+        -- raid seam40: with no second swing allowed the splat is not waited
+        -- for: the scythe goes on the tick after the energy is spent (survey4:
+        -- the hammer at room tick 11, the scythe's first swing at 19 where its
+        -- six-tick delay allows 17; the reference's scythes start at 16)
+        if seen or v.tick - ob.fired >= 3 or ob.swings >= O.tries then
             ob.stage = "done"
             ob.done_tick = v.tick
-            intent.gear = { st.plan.bow }
+            intent.gear = { (m.R ~= nil and m.R.weapon) or st.plan.bow }
             intent.want.piety = nil
             st.engaged = false
             return false
@@ -899,7 +1040,7 @@ function QD.raid._play_maiden_opener(st, v, m, intent)
     if v.tick - ob.arm_tick > O.give_up then
         ob.stage = "gave_up"
         ob.why = "no energy spent in " .. (v.tick - ob.arm_tick) .. " ticks"
-        intent.gear = { st.plan.bow }
+        intent.gear = { (m.R ~= nil and m.R.weapon) or st.plan.bow }
         intent.want.piety = nil
         st.engaged = false
         return false
@@ -958,7 +1099,9 @@ function QD.raid._play_maiden_decide(st, v)
     if prayed then intent.want.protectfrommagic = true end
     -- raid seam33: Rigour while the bow or the pipe is in hand (down_prayers)
     if st.party > 1 and (m.opener == nil or m.opener.stage == "done" or m.opener.stage == "gave_up") and m.fz ~= "magic" then
-        intent.want.rigour = true
+        -- raid seam40: Piety for a scythe seat (the reference's dps are
+        -- melee; Blert prayerSet bit 26 piety, sources/blert_api/README.md)
+        if (m.R ~= nil and m.R.melee) or m.fz == "melee" then intent.want.piety = true else intent.want.rigour = true end
     end
     local b = v.boss
     if b == nil then
@@ -1018,7 +1161,22 @@ function QD.raid._play_maiden_decide(st, v)
     local freezer = R == nil or R.freezer
     local function cheb(ax, az, bx, bz) return math.max(math.abs(ax - bx), math.abs(az - bz)) end
     local function floor_ok(x, z)
+        -- raid seam40: a scythe seat also stands on the two rows north of
+        -- her (the reference's dps1 at (3..5,6) from her SW tile)
+        if R ~= nil and R.melee and z >= b.z + 6 and z <= b.z + 7 and x >= b.x and x <= b.x + 6 then return true end
         return x >= P.floor[1] + ox and x <= P.floor[3] + ox and z >= P.floor[2] + oz and z <= P.floor[4] + oz
+    end
+    -- raid seam40: a tile sharing an edge with her 6x6 (the scythe's reach,
+    -- raid_play.lua _play_reach), and the seat's own side of her corner
+    local function her_edge(x, z)
+        local along_x = x >= b.x and x <= b.x + 5
+        local along_z = z >= b.z and z <= b.z + 5
+        return (along_x and (z == b.z - 1 or z == b.z + 6)) or (along_z and (x == b.x - 1 or x == b.x + 6))
+    end
+    local function own_side(x, z)
+        if R == nil or not R.melee then return false end
+        if R.side == "north" then return z == b.z + 6 and x >= b.x and x <= b.x + 5 end
+        return x == b.x + 6 and z >= b.z and z <= b.z + 5
     end
     -- the gap between a 1x1 npc's tile and her 6x6 footprint (maiden.crab_arrive_gap)
     local function gap_to_her(x, z)
@@ -1036,7 +1194,7 @@ function QD.raid._play_maiden_decide(st, v)
     -- ticks (its own client's player rows), steps onto the tank tile.  The
     -- freezer never does (s32mzn3-5: the tank's 20 anglerfish lasted about
     -- 300 ticks of a 600-tick room, and every death came after its last).
-    if R ~= nil and not R.freezer then
+    if R ~= nil and not R.freezer and not R.melee then
         if m.tank == nil then m.tank = (st.role == 1) end
         local _, food_left = QD.inv.count("anglerfish")
         food_left = tonumber(food_left) or 0
@@ -1116,6 +1274,12 @@ function QD.raid._play_maiden_decide(st, v)
                             end
                         end
                         local score = cheb(x, z, home[1], home[2]) * 10 + crowd * 4
+                        -- raid seam40: a scythe seat dodges along her edge
+                        -- (the reference's dps keep dist_boss 1: react step 1)
+                        if R ~= nil and R.melee then
+                            if not her_edge(x, z) then score = score + 200 end
+                            if not own_side(x, z) then score = score + 20 end
+                        end
                         if best == nil or score < best then best, bx, bz = score, x, z end
                     end
                 end
@@ -1126,7 +1290,7 @@ function QD.raid._play_maiden_decide(st, v)
 
     -- raid seam33 THE OPENER (P.opener): the hammer specials own the first
     -- ticks; the prayer and the supplies still run (the library's SEND).
-    if R ~= nil and P.opener ~= nil and QD.raid._play_maiden_opener(st, v, m, intent) then
+    if R ~= nil and R.melee and P.opener ~= nil and QD.raid._play_maiden_opener(st, v, m, intent) then
         local base = m.last_attack or (st.start_tick - 1)
         intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, function(h)
             local total = 0
@@ -1205,7 +1369,26 @@ function QD.raid._play_maiden_decide(st, v)
                 m.prestep_tick = v.tick
                 m.far_moves[#m.far_moves + 1] = { tick = v.tick, fx = me.x, fz = me.z, kind = "prestep" }
             end
-        elseif R ~= nil and ((R.freezer and m.fz ~= "magic") or #v.crabs == 0 or m.swap_walk) and cheb(me.x, me.z, home[1], home[2]) > 1
+        elseif R ~= nil and R.melee and st.role == 1 and next_attack ~= nil and v.tick == next_attack - 1 and m.share_seen ~= next_attack
+            and own_side(me.x, me.z) and floor_ok(me.x, me.z + 1) and not v.marks[me.x * 100000 + me.z + 1] and not near_blood(me.x, me.z + 1, P.scatter) then
+            -- raid seam40 THE SHARED TANK.  Her blackstorm takes "the closest
+            -- player to her centre by Chebyshev distance ... a tie, higher orb
+            -- order" (tob_maiden.rs2 ~tob_maiden_blackstorm, [mc]), and every
+            -- tile on her north and east faces is 3 from that centre, so with
+            -- both scythe seats on her the leader took every storm (m40a-k:
+            -- 19-26 of 19-26, two deaths).  The reference's dps split them
+            -- (role.dps1.boss_targeted_pct 38 [5.6-58.8], dps2 41.45 [18.8-
+            -- 64.3]): on every other attack the leader steps one tile north
+            -- (4 from her centre) on the tick before her scan (the T-1 rule,
+            -- ENCOUNTER_TIMING 1.1) and the second seat takes it; the walk home
+            -- brings it back after the launch.
+            m.share_seen = next_attack
+            m.share_flip = not m.share_flip
+            if m.share_flip then
+                new_walk = { x = me.x, z = me.z + 1, why = "share" }
+                m.shares = (m.shares or 0) + 1
+            end
+        elseif R ~= nil and not R.melee and m.fz ~= "melee" and ((R.freezer and m.fz ~= "magic") or #v.crabs == 0 or m.swap_walk) and cheb(me.x, me.z, home[1], home[2]) > 1
             and not v.marks[home[1] * 100000 + home[2]] and not near_blood(home[1], home[2], P.scatter) then
             -- raid seam32: back to the role's tile when nothing is landing
             -- (10Boot 0:06:33 "The person closest to the boss becomes the
@@ -1216,6 +1399,14 @@ function QD.raid._play_maiden_decide(st, v)
             -- 0:08:48 the others camp north), every tick-end of the walk off
             -- the blood (library _play_safe_step)
             local hx, hz = QD.raid._play_safe_step(st, v, home[1], home[2], function(x, z) return floor_ok(x, z) and x <= reach_x end)
+            if hx ~= me.x or hz ~= me.z then new_walk = { x = hx, z = hz, why = "home" } end
+        elseif R ~= nil and R.melee and (not own_side(me.x, me.z) or cheb(me.x, me.z, home[1], home[2]) > 2) and m.add_slot == nil
+            and not (m.share_seen ~= nil and v.tick < m.share_seen)
+            and not v.marks[home[1] * 100000 + home[2]] and not near_blood(home[1], home[2], P.scatter) then
+            -- raid seam40: a scythe seat off its side of her corner (the
+            -- opener's press paths it to the nearest edge tile, a crab took
+            -- it away) walks back to its tile while no wave is up
+            local hx, hz = QD.raid._play_safe_step(st, v, home[1], home[2], floor_ok)
             if hx ~= me.x or hz ~= me.z then new_walk = { x = hx, z = hz, why = "home" } end
         end
         if new_walk ~= nil then
@@ -1276,7 +1467,15 @@ function QD.raid._play_maiden_decide(st, v)
             if not m.fz_cast[c.slot] and (target == nil or cheb(c.x, c.z, me.x, me.z) < cheb(target.x, target.z, me.x, me.z)) then target = c end
         end
         if (target == nil and v.tick - m.last_cast >= 2) or v.tick - m.fz_tick > 40 then
-            QD.raid._play_maiden_block(st, v, "ranged set", P.ranged_set)
+            -- raid seam40: the scythe instead of the bow once the solo is on her
+            local back = P.ranged_set
+            if m.solo_melee ~= nil then
+                back = { P.solo_melee.item }
+                for _, item in ipairs(P.ranged_set) do
+                    if item ~= P.bow then back[#back + 1] = item end
+                end
+            end
+            QD.raid._play_maiden_block(st, v, "ranged set", back)
             m.fz = "ranged"
             st.engaged = false
         elseif target ~= nil and not moving and v.tick - m.last_cast >= P.cast_every then
@@ -1308,6 +1507,28 @@ function QD.raid._play_maiden_decide(st, v)
         if cheb(s.x, s.z, me.x, me.z) <= 10 then add = { row = s, symbol = P.slug[st.mode] } end
     end
 
+    -- raid seam40 THE SOLO ON HER: the reference's one Entry solo room
+    -- (reference/maiden_entry_1.json, Blert 6ae3d9f8, 82 ticks) is played
+    -- with the scythe from her side (role.solo.melee_pct 100, dist_boss 1;
+    -- SCYTHE in every phase).  The kept room's technique rows are made with
+    -- the bow first (the unprotected storm, the presteps, the flicks: this
+    -- plan's `prove_protect`, `presteps`, `flicks`); once all three are
+    -- measured and no wave is up the scythe goes on in one block and the
+    -- library's cadence row follows it.
+    if R == nil and P.solo_melee ~= nil and N.solo_melee and m.solo_melee == nil and m.fz == nil and m.flick == nil and not moving then
+        local proofs = (not N.prove_protect or (m.first_storm ~= nil and v.tick >= m.first_storm + P.storm_impact + 1))
+            and (m.presteps >= N.presteps or m.prestep_seen) and (#m.flicks >= N.flicks or m.drain_seen)
+        if proofs then
+            local hr, has = QD.inv.has(P.solo_melee.item)
+            if hr == "ok" and has then
+                QD.raid._play_maiden_block(st, v, "scythe (proofs done)", { P.solo_melee.item })
+                m.solo_melee = v.tick
+                st.weapon = QD.RAID_PLAY_WEAPONS[P.solo_melee.item]
+                st.engaged = false
+            end
+        end
+    end
+
     -- THE FLICK (W:591; the advanced guide :92 "Bow flicking"): Entry's
     -- `flicks` puts the whip on after her blackstorm is aimed, until one
     -- drain has been seen, so the kept row tech.bow_flick can read where the
@@ -1330,7 +1551,7 @@ function QD.raid._play_maiden_decide(st, v)
     -- aren't in the clump with their blowpipe", 10Boot 0:08:14) and the bow
     -- comes back when none is left ("DPS roles should kill the stray nylocas
     -- before getting back on Maiden", W:639).
-    if R ~= nil and R.pipe and P.pipe ~= nil then
+    if R ~= nil and R.pipe and P.pipe ~= nil and not R.melee then
         -- The scythe when the kit holds one (the real trios' crab weapon),
         -- else the pipe.
         if m.crab_item == nil then
@@ -1444,7 +1665,7 @@ function QD.raid._play_maiden_decide(st, v)
     -- consume_shared.rs2:49): a bite the library chose that one brew dose
     -- covers is a dose instead.  Never the freezer: a brew lowers Magic, and
     -- Ice Barrage needs 94 (10Boot 0:07:06).
-    if R ~= nil and not R.freezer and intent.eat ~= nil and intent.drink == nil
+    if R ~= nil and not R.freezer and not R.melee and intent.eat ~= nil and intent.drink == nil
         and v.tick - st.last_drink >= QD.RAID_PLAY_DRINK_DELAY and v.hp + QD.RAID_PLAY_BREW_HEAL > (intent.need or 0) then
         for _, name in ipairs(QD.RAID_PLAY_BREWS) do
             local cr, n = QD.inv.count(name)
@@ -1464,7 +1685,44 @@ function QD.raid._play_maiden_decide(st, v)
         -- drain; one restore dose gives back 32, wiki Super restore), not
         -- after every dose
         local floor_lv = (R ~= nil and not R.freezer) and 76 or 88
-        if rg.level < floor_lv then intent.drink = QD.raid._play_maiden_restore() end
+        if R ~= nil and R.melee then
+            -- raid seam40: a scythe seat's brews drain Attack and Strength
+            -- (wiki Saradomin brew: -10% -2 each dose); m40b's dps1 drank 32
+            -- brews and its swings fell from 45 to 27 a swing
+            local _, at = QD.skill.read("attack")
+            local _, sg = QD.skill.read("strength")
+            -- the super combat again under 108 (a boost is set from the base
+            -- level: wiki Super combat potion "+5 +15%", 118 at 99), so a
+            -- brew's drain costs one sip, not the boost (the scythe's three
+            -- hits on her: 36.7 a swing in phase 100, 29.3 in phase 50 after
+            -- the brews, five survey names; the reference's per attack 44.5)
+            local combat = nil
+            for _, dose in ipairs({ "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" }) do
+                local cr, n = QD.inv.count(dose)
+                if combat == nil and cr == "ok" and (tonumber(n) or 0) > 0 then combat = dose end
+            end
+            if (at.level < 108 or sg.level < 108) and combat ~= nil then
+                intent.drink = combat
+                m.reboosts = (m.reboosts or 0) + 1
+            elseif at.level < 90 or sg.level < 90 then intent.drink = QD.raid._play_maiden_restore() end
+        elseif rg.level < floor_lv then intent.drink = QD.raid._play_maiden_restore() end
+    end
+    -- raid seam40: a scythe seat's press paths it to her edge, and that path
+    -- goes through no skill; while blood is down it walks to an unmarked edge
+    -- tile first (library _play_reach, Bloat's shape)
+    if ((R ~= nil and R.melee) or m.solo_melee ~= nil) and intent.attack and intent.walk == nil and not moving and add == nil then
+        local rx, rz, hold = QD.raid._play_reach(st, v, floor_ok)
+        if rx ~= nil then
+            local sx, sz = QD.raid._play_safe_step(st, v, rx, rz, floor_ok)
+            if sx ~= me.x or sz ~= me.z then
+                intent.walk = { x = sx, z = sz }
+                m.move = { x = sx, z = sz, why = "reach" }
+                m.reach_walks = (m.reach_walks or 0) + 1
+            end
+            intent.attack = false
+        elseif hold then
+            intent.attack = false
+        end
     end
     intent.attack = QD.raid._play_attack(st, v, intent.attack and intent.walk == nil)
     return intent
