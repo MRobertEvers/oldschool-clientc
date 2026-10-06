@@ -122,6 +122,9 @@ EYEGLO_NPC = CONTENT / "quests/quest_theeyesofglouphrie/configs/eyeglo.npc"
 EYEGLO_QUEST = CONTENT / "quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2"
 SWANSONG_NPC = CONTENT / "quests/quest_swansong/configs/swansong.npc"
 DREAMMENTOR_NPC = CONTENT / "quests/quest_dreammentor/configs/dreammentor.npc"
+SHADOWSTORM_NPC = CONTENT / "quests/quest_shadowstorm/configs/shadowstorm.npc"
+SHADOWSTORM_CONSTANT = CONTENT / "quests/quest_shadowstorm/configs/shadowstorm.constant"
+SHADOWSTORM_RITUAL = CONTENT / "quests/quest_shadowstorm/scripts/shadowstorm_ritual.rs2"
 DREAMMENTOR_DREAM = CONTENT / "quests/quest_dreammentor/scripts/dreammentor_dream.rs2"
 ASCENT_NPC = CONTENT / "quests/quest_ascentofarceuus/configs/ascentofarceuus.npc"
 ASCENT_LOCS = CONTENT / "quests/quest_ascentofarceuus/scripts/ascentofarceuus_locs.rs2"
@@ -4999,6 +5002,40 @@ def check_theeyesofglouphrie() -> None:
     require_text(quest, tuple(needles), "The Eyes of Glouphrie kill chain")
 
 
+def check_shadow_of_the_storm() -> None:
+    """Shadow of the Storm's Agrith-Naar is a real fight (with no block he fought
+    on the engine default's 10 hp and died after 10 damage in 9 ticks, b66
+    shadowstorm run 2). Wiki Agrith_Naar oldid 15350581 (id 911, level 100);
+    cache all.npc stat1..6 = 83/82/90/95/100/100 agrees."""
+    manifest = json.loads(MANIFEST.read_text())
+    rows = [row for row in manifest["encounters"] if row["id"] == "quest-shadow-of-the-storm"]
+    require(len(rows) == 1, "manifest: expected exactly one Shadow of the Storm row")
+    require(rows[0]["implementation_status"] == "implementation-in-progress",
+            "Shadow of the Storm: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(rows[0][key]), f"Shadow of the Storm: empty evidence field {key}")
+    require(15350581 in {audit["revision"] for audit in rows[0]["source_audits"]},
+            "Shadow of the Storm: pinned Agrith_Naar Wiki audit drifted")
+    block = _npc_block(SHADOWSTORM_NPC.read_text(), "agrith_naar")
+    for line in ("hitpoints=95", "attack=83", "strength=90", "defence=82", "magic=100",
+                 "ranged=100", "huntmode=aggressive", "param=attackrate,4",
+                 "param=damagetype,^crush_style", "param=strengthbonus,0",
+                 "param=crushattack,0", "param=crushdefence,0", "param=magicdefence,0",
+                 "param=elemental_weakness,^element_water",
+                 "param=elemental_weakness_percent,25", "param=death_drop,vile_ashes"):
+        require(line in block, f"Shadow of the Storm: [agrith_naar] lacks `{line}`")
+    require_text(SHADOWSTORM_CONSTANT.read_text(), ("^sots_agrith_fireblast_max = 10",),
+                 "Shadow of the Storm Fire Blast max (wiki 10 Magic)")
+    require_text(
+        SHADOWSTORM_RITUAL.read_text(),
+        ("[opnpc2,agrith_naar]\n@player_combat_start;", "[ai_opplayer2,agrith_naar]",
+         "~npc_meleeattack;", "~sots_agrith_fireblast;", "[ai_queue3,agrith_naar]",
+         "npc_statheal(hitpoints, ^sots_agrith_revive_hp, 0);", "queue(sots_agrith_slain, 0, 0);"),
+        "Shadow of the Storm Agrith-Naar fight",
+    )
+
+
 def check_taleoftherighteous() -> None:
     """Tale of the Righteous' Corrupt Lizardman is a real fight (with no block it
     fought on npc_default.npc's 10 hp). Wiki Corrupt_Lizardman oldid 15200061
@@ -5129,13 +5166,14 @@ def main() -> int:
         check_theeyesofglouphrie()
         check_dreammentor()
         check_taleoftherighteous()
+        check_shadow_of_the_storm()
         check_opnpc2_combat_start()
         check_apnpc2_twins()
         check_quest_progress_varps()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact!, Swan Song, Troubled Tortugans, The Ascent of Arceuus, Another Slice of H.A.M., Meat and Greet, Twilight's Promise, The Eyes of Glouphrie, Dream Mentor and Tale of the Righteous, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact!, Swan Song, Troubled Tortugans, The Ascent of Arceuus, Another Slice of H.A.M., Meat and Greet, Twilight's Promise, The Eyes of Glouphrie, Dream Mentor, Tale of the Righteous and Shadow of the Storm, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
     return 0
 
 

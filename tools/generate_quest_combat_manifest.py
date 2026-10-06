@@ -2418,6 +2418,40 @@ AUDITED_OVERRIDES["Zogre Flesh Eaters"] = {
     ],
 }
 
+AUDITED_OVERRIDES["Shadow of the Storm"] = {
+    "source_audits": [
+        {"url": "https://oldschool.runescape.wiki/w/Agrith_Naar?oldid=15350581", "revision": 15350581, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Shadow_of_the_Storm?oldid=15354765", "revision": 15354765, "retrieved": "2026-10-06"},
+    ],
+    "npc_gamevals": [
+        "agrith_naar: Agrith-Naar (npc 911, level 100, size 3), 95 hitpoints, 83/90/82/100/100 attack/strength/defence/magic/ranged, every bonus and defence 0, crush, attack speed 4, aggressive, 25% Water weakness, max hit 10 crush (falls out of 90 strength) and 10 Fire Blast (^sots_agrith_fireblast_max) (wiki infobox; cache all.npc stat1-6 83/82/90/95/100/100 agrees) (quest_shadowstorm/configs/shadowstorm.npc)",
+    ],
+    "item_gamevals": [
+        "agrith_silverlight_dyed: the finishing blow must land with it worn (or Darklight), else he heals to 12",
+        "darklight: the Silverlight in the striking hand becomes it on the kill",
+        "vile_ashes: his death_drop (wiki: always)",
+    ],
+    "loc_gamevals": [
+        "golem_demon_portal: the throne-room portal; re-entering during the fight puts him back on the throne",
+    ],
+    "trigger_handlers": [
+        "opnpc2:agrith_naar (@player_combat_start; shadowstorm_ritual.rs2)",
+        "ai_opplayer2:agrith_naar (melee, Fire Blast against Protect from Melee or 1 in 4, Telekinetic Grab 1 in 3; shadowstorm_ritual.rs2)",
+        "ai_queue3:agrith_naar (Silverlight finishing-blow gate, revive to ^sots_agrith_revive_hp, queue sots_agrith_slain; shadowstorm_ritual.rs2)",
+        "proc:sots_throne_cast (re-entry resumes the fight with a fresh Agrith-Naar; shadowstorm_ritual.rs2)",
+    ],
+    "loot_contract": "The quest kill hands the player Darklight in place of the dyed Silverlight and completes the quest from the player's own queue; a kill not landed with Silverlight or Darklight worn heals him to 12 hitpoints instead. Outside the quest stage he dies through ~npc_default_death with his death_drop, vile ashes.",
+    "test_ids": [
+        "quest-combat-contract:shadow-of-the-storm",
+        "quest:shadowstorm",
+    ],
+    "known_gaps": [
+        "His prayer reading is partial: Protect from Melee draws Fire Blast, but the unprompted 1-in-4 Fire Blast does not read Protect from Magic.",
+        "Fire Blast rolls accuracy off his attack level (~npc_melee_attack_roll with magic style), not his 100 Magic.",
+        "The standing-torch flinch and the Nightmare Zone variant are not ported.",
+    ],
+}
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
