@@ -26,7 +26,15 @@ return {
     max_frames = 200000, -- every ladder, swing, gate and cave on foot (b62 round 3)
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so bring-along gear fits
-        "::setlevel magic 15",
+        -- Magic 45 + 5 air / 1 law: the start is a real Camelot Teleport
+        -- (magic_spells.dbrow [magic_spell_teleport_camelot]: level 45, airrune 5,
+        -- lawrune 1, tele_coord 0_43_54_5_22 = 2757,3478). Lumbridge to Yanille
+        -- has no walk on foot that does not pass a members' gate (owner ruling
+        -- 2026-10-05: the first goto obeys the door rule). Combat level is
+        -- unchanged (melee outweighs 45 Magic).
+        "::setlevel magic 45",
+        "::give airrune 5",
+        "::give lawrune 1",
         "::setlevel thieving 15",
         "::setlevel agility 25",
         "::setlevel herblore 14",
@@ -129,7 +137,7 @@ return {
         --     2576,3029), OUT by tobanladderdown (p_teleport 2500,2988).
         --   Gu'Tanoth (523 tiles): the NW gate ogreguardgate2/right (x 2504,
         --     z 3062-3063; the relic's guard teleports you in once, then the
-        --     gate opens: ogre_guard.rs2:187-202), the battlement
+        --     gate walks you through: ogre_guard.rs2:187-209), the battlement
         --     ganothbattlement 2507,3012 to the bridge, tanothjump1 over the
         --     gap and tanothjump2 back (the city guard's pocket has no other
         --     exit: wiki "Return back across the bridges, over the
@@ -264,15 +272,24 @@ return {
                 at = { 2511, 3090, 0 }, src = { 2511, 3089 }, dest = { 2511, 3096 }, attempts = 2 })
         end
 
-        -- Gu'Tanoth's north-west gate, once the relic is given: a double
-        -- door that opens (ogre_guard.rs2:198-202 ~open_double_door_right).
+        -- Gu'Tanoth's north-west gate, once the relic is given: a WALK-THROUGH
+        -- double gate since seam b63-seam1 (ogre_guard.rs2:187-209
+        -- open_gutanoth_gate -> ~itwatchtower_gate_walk, LostCity
+        -- quest_itwatchtower.rs2:271-281 ~open_and_close_double_door2). The
+        -- leaf's wall is on the west edge of 2504: from outside the approach
+        -- stands the player on 2504 (the door row, "entering") and the press
+        -- carries them one past it (2503); from inside (2503, across the edge)
+        -- it carries them onto the leaf tile 2504 (outside). Both leaves are
+        -- back 3 ticks later, so every crossing is a press.
         local function nw_gate_in(name)
-            t.exec(name, t.player.pass_door, { closed = "ogreguardgate2right", open = "ogreguardgate2right_open",
-                at = { 2504, 3063, 0 }, near = { 2505, 3063 }, far = { 2503, 3063 } })
+            t.exec(name, t.player.cross_gate, { loc = "ogreguardgate2right", at = { 2504, 3063, 0 },
+                near = { 2505, 3063 }, far_ok = function(tile) return tile.x <= 2503 end,
+                far_desc = "inside Gu'Tanoth, x <= 2503 (entering: leaf 2504 then one past it)" })
         end
         local function nw_gate_out(name)
-            t.exec(name, t.player.pass_door, { closed = "ogreguardgate2right", open = "ogreguardgate2right_open",
-                at = { 2504, 3063, 0 }, near = { 2503, 3063 }, far = { 2505, 3063 } })
+            t.exec(name, t.player.cross_gate, { loc = "ogreguardgate2right", at = { 2504, 3063, 0 },
+                near = { 2503, 3063 }, far_ok = function(tile) return tile.x >= 2504 end,
+                far_desc = "outside Gu'Tanoth, x >= 2504 (carried onto the leaf tile)", far = { 2505, 3063 } })
         end
 
         -- A skavid cave: Enter on the surface (frame 0) lands in the cave
@@ -289,7 +306,14 @@ return {
         end
 
         -- ================= Starting off: reach the Watchtower Wizard =================
-        -- Overland from the fixture to the open ground north of the tower.
+        -- From the fixture (Lumbridge) no walk reaches Kandarin except through a
+        -- members' gate, so the run starts with what a player uses: Camelot
+        -- Teleport cast from the spellbook (three graded rows: cast, runes,
+        -- landing). Camelot to the open ground north of the tower is one
+        -- Kandarin overland walk with every door shut (reach.py REACH
+        -- closed-doors len 567 at margins 30/80/160).
+        t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = "goUpTrellis.camelotTeleport",
+            runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot" })
         t.exec("goto-goUpTrellis", t.player.goto_tile, 2548, 3120, 0)
         -- Agility-18 climb up the tower's north wall (loc_2299 wall climb,
         -- ported seam20; quest_itwatchtower.rs2:121-128 ~agility_climb_up to
@@ -856,8 +880,13 @@ return {
         -- (wiki): out of the SE gate (open now the gold is paid), round to
         -- the north-west gate and in.
         t.exec("walk-leaveSouthPocket", t.player.walk_to, 2549, 3026, 60)
-        t.exec("leaveSouthPocket.southEastGate", t.player.pass_door, { closed = "ogreguardgate1right",
-            open = "ogreguardgate1right_open", at = { 2549, 3028, 0 }, near = { 2549, 3027 }, far = { 2549, 3029 } })
+        -- A walk-through since b63-seam1 (ogre_guard.rs2 ~itwatchtower_gate_walk
+        -- = LC open_and_close_double_door2): from the south the player is
+        -- carried onto the leaf tile 2549,3028 (the north side) and the gate
+        -- shuts 3 ticks later.
+        t.exec("leaveSouthPocket.southEastGate", t.player.cross_gate, { loc = "ogreguardgate1right",
+            at = { 2549, 3028, 0 }, near = { 2549, 3027 }, far_ok = function(tile) return tile.z >= 3028 end,
+            far_desc = "out of the mad skavid's pocket, z >= 3028 (carried onto the leaf tile)", far = { 2549, 3029 } })
         t.exec("goto-returnToGuTanoth", t.player.goto_tile, 2506, 3063, 0)
         t.exec("walk-returnToGuTanoth", t.player.walk_to, 2505, 3063)
         nw_gate_in("returnToGuTanoth.northWestGate")
