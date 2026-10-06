@@ -349,3 +349,142 @@ end
 -- The player-verb spelling the task names: t.player.logout / t.player.login.
 QD.player.logout = QD.session.logout
 QD.player.login = QD.session.login
+
+-- ------------------------------------------------- the starting character state
+--
+-- Raid seam25 starting_character_state (the owner, 2026-10-05: "The script
+-- runner should also specify a starting character state, such as reset
+-- character - clear inventory, clear worn items, clear effects").  A Play from
+-- the Scripts tab starts from one of three states, and the driver applies it
+-- itself, as the first step of the watched run, before the script's setup:
+--
+--   reset   ::resetcharacter on the LIVE character, no relog: the backpack
+--           and every worn slot emptied, every effect cleared (the list is
+--           the cheat's banner, torirs_server_world.c reset_character_clean),
+--           an active raid left.  With a fixture name, ::resetcharacter
+--           fixture <name>: that fixture's state applied in place (what a
+--           fresh account of it has: tile, varps, stats, kit; quest progress
+--           and the bank emptied).  Then the read-back below.
+--   fresh   seam24's fresh account: log out, forget the varp cache, log in
+--           as the account the tab staged the fixture under.
+--   as_is   nothing: the script starts on whatever the character is.
+--
+-- TEST RUNS ARE UNCHANGED: run.py stages a fixture into a fresh account and
+-- never calls any of this (QD.core_run_test is the Scripts tab's runner only).
+
+-- Backpack 28, worn 14 (TORIRSSERVER_INV_SLOTS / TORIRSSERVER_WORN_SLOTS).
+QD.session.BACKPACK_SLOTS = 28
+QD.session.WORN_SLOTS = 14
+-- The cheat's container updates reach the client a frame or two after the
+-- server tick that ran it; three ticks of polls is generous.
+QD.session.RESET_READBACK_POLLS = 3 * 30
+
+local function session_container_names(inv_symbol, slots)
+    local result, container_id = api_drive.symbol("inv", inv_symbol)
+    if result ~= "ok" then
+        return result, "inv " .. inv_symbol .. ": " .. tostring(container_id)
+    end
+    local names = {}
+    for index = 0, slots - 1 do
+        local slot_result, slot = api_drive.inv_slot(container_id, index)
+        if slot_result ~= "ok" then
+            return slot_result, "inv " .. inv_symbol .. " slot " .. index .. ": " .. tostring(slot)
+        end
+        if slot.obj_id >= 0 then
+            local name_result, name = api_drive.symbol_name("obj", slot.obj_id)
+            names[#names + 1] = name_result == "ok" and name or ("obj" .. slot.obj_id)
+        end
+    end
+    return "ok", names
+end
+
+-- t.session.held() -> "ok", { backpack = {names}, worn = {names} }
+-- What the client holds in the backpack and the worn slots, by obj symbol,
+-- one entry per occupied slot.  The reset's read-back, and the reader a
+-- script uses to prove its own setup landed.
+function QD.session.held()
+    local backpack_result, backpack = session_container_names("inv", QD.session.BACKPACK_SLOTS)
+    if backpack_result ~= "ok" then
+        return backpack_result, backpack
+    end
+    local worn_result, worn = session_container_names("worn", QD.session.WORN_SLOTS)
+    if worn_result ~= "ok" then
+        return worn_result, worn
+    end
+    return "ok", { backpack = backpack, worn = worn }
+end
+
+-- t.session.reset([fixture]) -> ok | refused | timeout, detail
+-- The cheat, the server's own line, then a read-back: worn slots empty and,
+-- for the plain reset, the backpack empty too (a fixture's reset fills the
+-- backpack with that fixture's kit, so only the worn half is read there).
+-- The detail carries the server's line, so the ledger row states what was
+-- cleared.
+function QD.session.reset(fixture)
+    local line = "resetcharacter"
+    if fixture ~= nil and fixture ~= "" then
+        line = "resetcharacter fixture " .. string.gsub(fixture, "%.ini$", "")
+    end
+    local cheat_result, cheat_detail = QD.cheat(line, false)
+    if cheat_result ~= "ok" then
+        return "refused", "::" .. line .. " answered " .. tostring(cheat_result) .. ": "
+            .. tostring(cheat_detail)
+    end
+    local said_result, said = QD.msg.await("Reset character:", 5)
+    local held = nil
+    local ready, polls = QD.session._await_polls(function()
+        local held_result, now = QD.session.held()
+        if held_result ~= "ok" then
+            return false
+        end
+        held = now
+        return #now.worn == 0 and (fixture ~= nil and fixture ~= "" or #now.backpack == 0)
+    end, QD.session.RESET_READBACK_POLLS, "session.reset read-back")
+    local counts = held and string.format("backpack %d, worn %d", #held.backpack, #held.worn)
+        or "no read"
+    if not ready then
+        return "timeout", string.format("::%s ran but after %d frame(s) the client holds %s (%s); "
+            .. "server: %s", line, polls, counts,
+            held and table.concat(held.worn, ",") or "", tostring(said))
+    end
+    return "ok", string.format("::%s; read back in %d frame(s): %s; server: %s", line, polls, counts,
+        said_result == "ok" and string.gsub(tostring(said), "^matched: ", "") or
+            ("no line (" .. tostring(said) .. ")"))
+end
+
+-- QD.session._start(options) -> ok | <answer>, detail
+-- The Scripts tab's starting state, applied by QD.core_run_test before the
+-- script's setup.  options.start is "reset" | "fresh" | "as_is" (nil is
+-- "fresh": a client whose tab predates the select keeps seam24's flow);
+-- options.reset_fixture names the fixture a reset applies in place (the
+-- manifest row's own `start=reset` + `fixture=`), nil for the plain reset.
+function QD.session._start(options)
+    assert(type(options) == "table", "session._start: no options table")
+    local start = options.start or "fresh"
+    if start == "as_is" then
+        return "ok", "start as_is: the character as it is"
+    end
+    if start == "reset" then
+        local result, detail = QD.session.reset(options.reset_fixture)
+        return result, "start reset: " .. tostring(detail)
+    end
+    if start ~= "fresh" then
+        return "refused", "start '" .. tostring(start) .. "' is not reset, fresh or as_is"
+    end
+    local out_result, out_detail = QD.session.logout()
+    if out_result ~= "ok" then
+        return out_result, "logging the watcher's account out answered " .. tostring(out_result)
+            .. ": " .. tostring(out_detail)
+    end
+    local forget_result, forget_detail = api_drive.forget_varps()
+    if forget_result ~= "ok" then
+        return forget_result, "forgetting the last account's varps answered "
+            .. tostring(forget_result) .. ": " .. tostring(forget_detail)
+    end
+    local in_result, in_detail = QD.session.login(options.account, options.password)
+    if in_result ~= "ok" then
+        return in_result, "logging in as the fresh account " .. tostring(options.account)
+            .. " answered " .. tostring(in_result) .. ": " .. tostring(in_detail)
+    end
+    return "ok", "start fresh: " .. tostring(in_detail)
+end

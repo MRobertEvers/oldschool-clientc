@@ -60658,6 +60658,175 @@ ToriRSServer_WorldSelftest(void)
     selftest_quest_imp(srv, player);
     selftest_reset_world(srv, player, 402, 402);
 
+    fprintf(stderr, "ToriRSServer selftest: ::resetcharacter puts a live character back to clean\n");
+    {
+        /*
+         * raid seam25 starting_character_state: the Scripts tab's "Reset
+         * character" start. Dress, fill, boost, drain, poison, skull, freeze,
+         * teleblock and stamina a player, arm an effect timer, then reset and
+         * read every one back. Then `fixture fresh_lumbridge` in place: the
+         * fixture's tile and varps, a quest's progress gone, the starter kit
+         * and Hitpoints 10 that a first login's ~newplayer_setup gives. Last of
+         * the suite because the fixture half teleports the player.
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            struct ToriRSServerPlayer* p = srv->active_player;
+            const struct ToriRSServerIds* reset_ids = ToriRSServer_Ids();
+            struct ToriRSServerContainer* backpack;
+            struct ToriRSServerContainer* worn;
+            const struct SSVM_Script* stamina_timer;
+            int varp_poison = ToriRSServer_WorldVarp("varp102_poison");
+            int varp_skull = ToriRSServer_WorldVarp("varp5766_pk_skull");
+            int varp_frozen = ToriRSServer_WorldVarp("varp5754_frozen");
+            int varp_teleblock = ToriRSServer_WorldVarp("varp6447_teleblock");
+            int varp_stamina = ToriRSServer_WorldVarp("varp6221_stamina_ticks_left");
+            int varp_special = ToriRSServer_WorldVarp("varp300_sa_energy");
+            int varp_cook = ToriRSServer_WorldVarp("varp29_cookquest");
+            int varp_tutorial = ToriRSServer_WorldVarp("varp281_tutorial");
+            int varbit_stamina = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,
+                                                            "varb25_stamina_active");
+            int timer_slot = -1;
+            int filled = 0;
+            int kit = 0;
+
+            assert(p);
+            ToriRSServer_WorldSetActive(srv, p);
+            backpack = ToriRSServer_ContainerResolve(srv, p, reset_ids->inv_backpack);
+            worn = ToriRSServer_ContainerResolve(srv, p, reset_ids->inv_worn);
+            SELFTEST_CHECK(backpack != NULL, "the player has a backpack");
+            SELFTEST_CHECK(worn != NULL, "the player has worn slots");
+            SELFTEST_CHECK(varp_poison >= 0 && varp_skull >= 0 && varp_frozen >= 0 &&
+                               varp_teleblock >= 0 && varp_stamina >= 0 && varp_special >= 0 &&
+                               varp_cook >= 0 && varp_tutorial >= 0 && varbit_stamina >= 0,
+                           "the pack declares every effect var the stanza sets");
+            stamina_timer = SSVM_ProviderGetByName(srv->scripts, "[timer,stamina_expire]");
+            SELFTEST_CHECK(stamina_timer != NULL, "the pack has [timer,stamina_expire]");
+            if( backpack && worn && varp_poison >= 0 && varp_skull >= 0 && varp_frozen >= 0 &&
+                varp_teleblock >= 0 && varp_stamina >= 0 && varp_special >= 0 &&
+                varp_cook >= 0 && varp_tutorial >= 0 && varbit_stamina >= 0 && stamina_timer )
+            {
+                /* Dress, fill, boost, drain, poison, skull, freeze, teleblock. */
+                ToriRSServer_ContainerSet(worn, 3, 1277, 1);  /* bronze sword */
+                ToriRSServer_ContainerSet(worn, 5, 1171, 1);  /* wooden shield */
+                for( int slot = 0; slot < backpack->slots; slot++ )
+                    ToriRSServer_ContainerSet(backpack, slot, 1925, 1); /* bucket */
+                ToriRSServer_CombatSetLevel(p, TORIRSSERVER_STAT_ATTACK, 40);
+                ToriRSServer_CombatSetLevel(p, TORIRSSERVER_STAT_DEFENCE, 40);
+                ToriRSServer_CombatSetLevel(p, TORIRSSERVER_STAT_PRAYER, 43);
+                ToriRSServer_CombatSetLevel(p, TORIRSSERVER_STAT_HITPOINTS, 50);
+                p->stat_boosted[TORIRSSERVER_STAT_ATTACK] = 52;
+                p->stat_boosted[TORIRSSERVER_STAT_DEFENCE] = 31;
+                p->stat_boosted[TORIRSSERVER_STAT_PRAYER] = 2;
+                p->hitpoints = 7;
+                ToriRSServer_CombatSyncHitpoints(p);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_poison, 20);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_skull, 500);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_frozen, srv->tick + 50);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_teleblock, srv->tick + 500);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_stamina, 200);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_special, 250);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_cook, 2);
+                ToriRSServer_VarbitSetOn(srv, p, varbit_stamina, 1);
+                p->run_energy = 0;
+                p->stun_ticks = 5;
+                for( int i = 0; i < TORIRSSERVER_TIMER_MAX && timer_slot < 0; i++ )
+                    if( !p->timers[i].active )
+                        timer_slot = i;
+                SELFTEST_CHECK(timer_slot >= 0, "a free timer slot for the stamina timer");
+                if( timer_slot >= 0 )
+                {
+                    p->timers[timer_slot].active = 1;
+                    p->timers[timer_slot].script_id = stamina_timer->id;
+                    p->timers[timer_slot].interval = 10;
+                    p->timers[timer_slot].clock = srv->tick;
+                }
+
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "resetcharacter") ==
+                                   TORIRSSERVER_TRIGGER_RAN,
+                               "::resetcharacter runs");
+                for( int slot = 0; slot < backpack->slots; slot++ )
+                    filled += backpack->items[slot].obj_id >= 0;
+                SELFTEST_CHECK(filled == 0, "the backpack is empty after the reset, %d left", filled);
+                filled = 0;
+                for( int slot = 0; slot < worn->slots; slot++ )
+                    filled += worn->items[slot].obj_id >= 0;
+                SELFTEST_CHECK(filled == 0, "every worn slot is empty after the reset, %d left",
+                               filled);
+                for( int slot = 0; slot < backpack->slots; slot++ )
+                    SELFTEST_CHECK(p->inv[slot].obj_id != 1277 && p->inv[slot].obj_id != 1171,
+                                   "worn gear was removed, not moved to backpack slot %d", slot);
+                SELFTEST_CHECK(p->stat_boosted[TORIRSSERVER_STAT_ATTACK] == 40,
+                               "an Attack boost is gone, %d", p->stat_boosted[TORIRSSERVER_STAT_ATTACK]);
+                SELFTEST_CHECK(p->stat_boosted[TORIRSSERVER_STAT_DEFENCE] == 40,
+                               "a Defence drain is gone, %d", p->stat_boosted[TORIRSSERVER_STAT_DEFENCE]);
+                SELFTEST_CHECK(p->stat_boosted[TORIRSSERVER_STAT_PRAYER] == 43,
+                               "Prayer is full, %d", p->stat_boosted[TORIRSSERVER_STAT_PRAYER]);
+                SELFTEST_CHECK(p->hitpoints == 50, "Hitpoints are full, %d", p->hitpoints);
+                SELFTEST_CHECK(p->stat_level[TORIRSSERVER_STAT_ATTACK] == 40,
+                               "the base level is left alone, %d", p->stat_level[TORIRSSERVER_STAT_ATTACK]);
+                SELFTEST_CHECK(p->varps[varp_poison] == 0, "poison cured, %d", p->varps[varp_poison]);
+                SELFTEST_CHECK(p->varps[varp_skull] == 0, "skull cleared, %d", p->varps[varp_skull]);
+                SELFTEST_CHECK(p->varps[varp_frozen] == 0, "freeze cleared, %d", p->varps[varp_frozen]);
+                SELFTEST_CHECK(p->varps[varp_teleblock] == 0, "teleblock cleared, %d",
+                               p->varps[varp_teleblock]);
+                SELFTEST_CHECK(p->varps[varp_stamina] == 0, "stamina ticks cleared, %d",
+                               p->varps[varp_stamina]);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(p, varbit_stamina) == 0,
+                               "the stamina varbit cleared");
+                SELFTEST_CHECK(p->varps[varp_special] == 1000, "special attack full, %d",
+                               p->varps[varp_special]);
+                SELFTEST_CHECK(p->varps[varp_cook] == 2, "quest progress is left alone, %d",
+                               p->varps[varp_cook]);
+                SELFTEST_CHECK(timer_slot < 0 || !p->timers[timer_slot].active,
+                               "the stamina timer is dropped");
+                SELFTEST_CHECK(p->run_energy == TORIRSSERVER_RUN_ENERGY_MAX, "run energy full, %d",
+                               p->run_energy);
+                SELFTEST_CHECK(p->stun_ticks == 0, "the stun is gone, %d", p->stun_ticks);
+
+                /* A wrong argument is refused, not read as a plain reset. */
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "resetcharacter sideways") ==
+                                   TORIRSSERVER_TRIGGER_FAILED,
+                               "::resetcharacter with an unknown argument is refused");
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p,
+                                   "resetcharacter fixture no_such_fixture") ==
+                                   TORIRSSERVER_TRIGGER_FAILED,
+                               "::resetcharacter fixture <missing> is refused");
+
+                /* The fixture in place. */
+                ToriRSServer_ContainerSet(backpack, 0, 1925, 1);
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p,
+                                   "resetcharacter fixture fresh_lumbridge") ==
+                                   TORIRSSERVER_TRIGGER_RAN,
+                               "::resetcharacter fixture fresh_lumbridge runs (cwd is the repo root)");
+                SELFTEST_CHECK(p->x == 3206 && p->z == 3233 && p->level == 0,
+                               "the fixture's tile, got %d,%d,%d", p->x, p->z, p->level);
+                SELFTEST_CHECK(p->varps[varp_tutorial] == 1000, "the fixture's tutorial varp, %d",
+                               p->varps[varp_tutorial]);
+                SELFTEST_CHECK(p->varps[varp_cook] == 0,
+                               "a fresh account has no quest progress, %d", p->varps[varp_cook]);
+                SELFTEST_CHECK(p->stat_level[TORIRSSERVER_STAT_ATTACK] == 1,
+                               "a fresh account's Attack is 1, %d", p->stat_level[TORIRSSERVER_STAT_ATTACK]);
+                SELFTEST_CHECK(p->stat_level[TORIRSSERVER_STAT_HITPOINTS] == 10 && p->hitpoints == 10,
+                               "a fresh account's Hitpoints are 10 (~newplayer_stats), %d/%d",
+                               p->hitpoints, p->stat_level[TORIRSSERVER_STAT_HITPOINTS]);
+                for( int slot = 0; slot < backpack->slots; slot++ )
+                    kit += backpack->items[slot].obj_id >= 0 && backpack->items[slot].obj_id != 1925;
+                SELFTEST_CHECK(kit > 0, "the starter kit is in the backpack (~newplayer_inv), %d", kit);
+            }
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+    selftest_reset_world(srv, player, 402, 402);
+
     /* Across the WHOLE suite — see the two counters' fields. Asserted here
      * rather than inside one encounter's stanza because the next encounter to
      * make either mistake will not be the one that found it. */

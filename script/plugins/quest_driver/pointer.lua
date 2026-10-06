@@ -1074,7 +1074,17 @@ function QD.drive._frame(target, index, deadline, settle)
     if yaw == nil then
         return "not_visible", "target shares the player's tile"
     end
-    local camera_result = api_drive.camera(yaw, pose.pitch, pose.zoom)
+    -- Through the one camera call (QD.drive.camera_aim): a test run writes
+    -- the pose and waits `deadline` for the projection, exactly as before;
+    -- a watched client turns until the target projects.
+    local camera_result = QD.drive.camera_aim({ yaw = yaw, pitch = pose.pitch, zoom = pose.zoom,
+        purpose = "press",
+        projects = function()
+            local r = api_drive.screen_position(target.kind, target.id)
+            return r == "ok"
+        end,
+        snap_await = (not settle) and deadline or nil,
+        note = "frame.pose" .. tostring(index) })
     if camera_result ~= "ok" then
         return camera_result, "camera"
     end
@@ -1083,13 +1093,6 @@ function QD.drive._frame(target, index, deadline, settle)
             "frame.settle" .. tostring(index))
         return result, pos
     end
-    QD.await({
-        level = function()
-            local r = api_drive.screen_position(target.kind, target.id)
-            return r == "ok"
-        end,
-        note = "frame.pose" .. tostring(index),
-    }, deadline)
     return api_drive.screen_position(target.kind, target.id)
 end
 
@@ -1879,8 +1882,183 @@ function QD.drive.op(target, option)
     return api_drive.world_op(target.kind, target.id, slot)
 end
 
+-- THE ONE CAMERA CALL (raid seam25 watched_camera_and_shots).  Owner,
+-- 2026-10-05: "Only the watched client should turn the camera, headless can
+-- just snap, but make sure they both work and that the tests don't rely on
+-- the snapping behavior - that should be handled by the code in a single
+-- call."  QD.drive.camera_aim is that call: the ONLY caller of the two
+-- camera writers (api_drive.camera, the snap, and api_drive.camera_turn_toward,
+-- the turn), and the only place that reads which one this client gets.
+--
+--   want = { yaw, pitch, zoom,              -- the pose asked for
+--            purpose = "press" | "pose" | "photograph",
+--            projects = function() -> bool, -- "press": the target is on
+--                                           -- screen (the thing asked for)
+--            snap_await = ticks,            -- the snap's settle wait for
+--                                           -- `projects` (today's numbers)
+--            note = string }
+--   -> result, detail  (detail.mode "snap" | "turn" | "refused")
+--
+-- A TEST RUN SNAPS: the pose is written at once (DrivePointer_Camera) and,
+-- when `projects` and `snap_await` are given, the same await the callers made
+-- before this call existed -- the same writes in the same frames, so every
+-- headless ledger is byte-identical.
+--
+-- A WATCHED CLIENT (api_drive.status().on_demand, the Scripts tab) TURNS:
+-- once a frame it asks api_drive.camera_turn_toward to hold the arrow keys a
+-- person would hold (and roll the wheel a notch at a time) toward the pose,
+-- the shortest way round, and it stops as soon as `projects` answers true --
+-- it need not reach the pose.  "pose" stops when the pose is reached, then
+-- writes the last few units exactly (a test asked for THAT pose: a zoom the
+-- wheel's band cannot reach, or a pointer off the world, would otherwise
+-- leave it short).  "photograph" never moves a watched camera (63ea41d39).
+-- The deadline is the call's own per mode (QD.drive._camera_turn_ticks for a
+-- turn); a turn the client will not make (a cutscene or an unlocked camera
+-- owns the angles, no bus) or one that runs out of time falls back to the
+-- snap, so a watched run reaches the same verdicts.  Every way out of a turn
+-- lets go of the keys.  The driver never turns back afterwards.
+QD.drive._camera_turn_ticks = 12
+-- Polls a turn keeps going after the pose arrived with the target still off
+-- screen (the coast after the release can carry it on).
+QD.drive._camera_turn_arrived_polls = 6
+QD.drive._camera_turn_stats = { aims = 0, snaps = 0, turns = 0, turned_polls = 0,
+    longest_turn_polls = 0, presses_waited = 0, fallbacks = 0, finish_writes = 0,
+    photographs_refused = 0 }
+-- Bumped by every turn that held a key for at least one poll: a fast press
+-- that re-aimed counts its own deadline from the poll the turn ended on
+-- (QD.drive._quick_aim).
+QD.drive._camera_turn_serial = 0
+
+-- `_camera_turn_forced` is the conformance stanza's and a scratch proof's
+-- way to drive the TURN path in a headless test run (the mode is otherwise
+-- the client's, never a test's); no kept test sets it.
+QD.drive._camera_turn_forced = false
+
+function QD.drive._camera_watched()
+    if QD.drive._camera_turn_forced then
+        return true
+    end
+    if api_drive.status == nil then
+        return false
+    end
+    local status_result, status = api_drive.status()
+    if type(status_result) == "table" then
+        status = status_result
+    end
+    return type(status) == "table" and status.on_demand and true or false
+end
+
+local function camera_aim_snap(want, stats)
+    stats.snaps = stats.snaps + 1
+    local result, detail = api_drive.camera(want.yaw, want.pitch, want.zoom)
+    if result ~= "ok" then
+        return result, { mode = "snap", why = detail }
+    end
+    if want.projects ~= nil and want.snap_await ~= nil then
+        QD.await({ level = want.projects, note = want.note }, want.snap_await)
+    end
+    return result, { mode = "snap" }
+end
+
+function QD.drive.camera_aim(want)
+    assert(type(want) == "table")
+    assert(want.yaw ~= nil)
+    assert(want.pitch ~= nil)
+    assert(want.zoom ~= nil)
+    local stats = QD.drive._camera_turn_stats
+    stats.aims = stats.aims + 1
+    if not QD.drive._camera_watched() then
+        return camera_aim_snap(want, stats)
+    end
+    if want.purpose == "photograph" then
+        stats.photographs_refused = stats.photographs_refused + 1
+        return "refused", { mode = "refused",
+            why = "a watched client never moves the camera for a photograph" }
+    end
+    if api_drive.camera_turn_toward == nil then
+        return camera_aim_snap(want, stats)
+    end
+    local polls, arrived_polls, held_polls = 0, 0, 0
+    local met, arrived, turn_result = false, false, nil
+    -- A target that already projects when the turn starts is a caller asking
+    -- for THIS pose's view of it (the press ladders' next pose after a
+    -- covered press, _quick_alt_pose): turn to the pose, do not stop on the
+    -- projection it already had.
+    local new_view = false
+    -- No pcall in the driver's sandbox: a script that ends inside this await
+    -- (a Stop, an error) leaves the arrows to PluginDrivePointer_RegisterLua,
+    -- which lets go of them when the watched client reloads the driver.
+    QD.await({
+        level = function()
+            polls = polls + 1
+            if want.projects ~= nil and not new_view and want.projects() then
+                if polls > 1 then
+                    met = true
+                    return true
+                end
+                new_view = true
+            end
+            local result, state = api_drive.camera_turn_toward(want.yaw, want.pitch, want.zoom)
+            if result ~= "ok" then
+                turn_result = result
+                return true
+            end
+            if state.arrived then
+                arrived = true
+                if want.projects == nil or new_view then
+                    met = true
+                    return true
+                end
+                arrived_polls = arrived_polls + 1
+                return arrived_polls > QD.drive._camera_turn_arrived_polls
+            end
+            held_polls = held_polls + 1
+            return false
+        end,
+        note = "camera.turn " .. tostring(want.note or want.purpose),
+    }, QD.drive._camera_turn_ticks)
+    api_drive.camera_turn_release()
+    if held_polls > 0 then
+        QD.drive._camera_turn_serial = QD.drive._camera_turn_serial + 1
+        stats.turns = stats.turns + 1
+        stats.turned_polls = stats.turned_polls + held_polls
+        if held_polls > stats.longest_turn_polls then
+            stats.longest_turn_polls = held_polls
+        end
+        if want.purpose == "press" then
+            stats.presses_waited = stats.presses_waited + 1
+        end
+    end
+    if turn_result ~= nil or (not met and not arrived) then
+        -- The client would not turn (turn_result) or the turn ran out of
+        -- time: the snap, so the run goes on to the same verdict.
+        stats.fallbacks = stats.fallbacks + 1
+        local result, detail = camera_aim_snap(want, stats)
+        detail.mode = "turn->snap"
+        detail.why = tostring(turn_result or "turn deadline")
+        detail.polls = polls
+        return result, detail
+    end
+    if want.purpose == "pose" then
+        local pose_result, live = api_drive.camera_pose()
+        if pose_result == "ok" and type(live) == "table"
+            and (live.yaw ~= (want.yaw % 2048) or live.pitch ~= want.pitch
+                or live.zoom ~= want.zoom) then
+            stats.finish_writes = stats.finish_writes + 1
+            api_drive.camera(want.yaw, want.pitch, want.zoom)
+        end
+    end
+    return "ok", { mode = "turn", polls = polls, held = held_polls, met = met,
+        new_view = new_view }
+end
+
+-- A test's own camera verb: a POSE (t.drive.camera(yaw, pitch, zoom)),
+-- through the one call -- a snap in a test run, a turn to the pose in a
+-- watched client.  Answers what api_drive.camera answered.
 function QD.drive.camera(yaw, pitch, zoom)
-    return api_drive.camera(yaw, pitch, zoom)
+    local result, detail = QD.drive.camera_aim({ yaw = yaw, pitch = pitch, zoom = zoom,
+        purpose = "pose", note = "drive.camera" })
+    return result, detail.why
 end
 
 -- The live follow-camera pose: ("ok", {yaw, pitch, zoom, owned}), or
@@ -2056,14 +2234,8 @@ function QD.drive._shot_plan()
     -- for a photograph: the one-frame aim costs a test nothing and is a camera
     -- flicker to the person watching (owner, 2026-10-05). Its shots are the
     -- live pose's own picture. A test run's status has no `on_demand`.
-    if api_drive.status ~= nil then
-        local status_result, status = api_drive.status()
-        if type(status_result) == "table" then
-            status = status_result
-        end
-        if type(status) == "table" and status.on_demand then
-            return nil, nil, "a watched client photographs the live pose"
-        end
+    if QD.drive._camera_watched() then
+        return nil, nil, "a watched client photographs the live pose"
     end
     local pose_result, live = api_drive.camera_pose()
     if pose_result ~= "ok" then
@@ -6467,7 +6639,8 @@ function QD.drive._face_named_npc(target, deadline)
         pitch = pose.pitch
         zoom = pose.zoom
     end
-    if api_drive.camera(yaw, pitch, zoom) ~= "ok" then
+    if QD.drive.camera_aim({ yaw = yaw, pitch = pitch, zoom = zoom, purpose = "pose",
+        note = "face named npc" }) ~= "ok" then
         return nil
     end
     local polls = 0
@@ -8371,9 +8544,20 @@ end
 -- the camera as it stands.  `held` is what a line hunt already learnt: true
 -- (it found the pixel), false (no pixel it could reach holds the copy, so a
 -- press would only open a menu without it), nil (nothing probed yet).
+-- A fast press that needed a TURN (a watched client) counts its
+-- _quick_ticks from the poll the turn ended on, not from before it; a snap
+-- takes no time, so a test run's deadline is the one it always had.
+function QD.drive._quick_rebase(until_tick, turn_serial)
+    if QD.drive._camera_turn_serial ~= turn_serial then
+        return api_drive.tick() + QD.drive._quick_ticks - 1
+    end
+    return until_tick
+end
+
 function QD.drive._quick_aim(target, until_tick, pose_index)
     local how
     local pos_result, pos
+    local turn_serial = QD.drive._camera_turn_serial
     if pose_index ~= nil then
         pos_result, pos = QD.drive._frame(target, pose_index, 1)
         how = "pose " .. tostring(pose_index)
@@ -8393,6 +8577,7 @@ function QD.drive._quick_aim(target, until_tick, pose_index)
             how = "pose 1 (off frame at the caller's camera)"
         end
     end
+    until_tick = QD.drive._quick_rebase(until_tick, turn_serial)
     if pos_result ~= "ok" or type(pos) ~= "table" then
         return nil, pos_result, how .. " framed nothing (" .. tostring(pos_result) .. ")"
     end
@@ -8579,12 +8764,16 @@ function QD.drive._press_quick(target, option, before_retry)
             local alt = QD.drive._quick_alt_pose(target)
             account[#account + 1] = "re-aim: " .. tostring(why) .. "; camera nudge to pose "
                 .. tostring(alt)
+            local turn_serial = QD.drive._camera_turn_serial
             pos, how, held = QD.drive._quick_aim(target, until_tick, alt)
+            until_tick = QD.drive._quick_rebase(until_tick, turn_serial)
         end
     else
         local alt = QD.drive._quick_alt_pose(target)
         account[#account + 1] = "re-aim: camera nudge to pose " .. tostring(alt)
+        local turn_serial = QD.drive._camera_turn_serial
         pos, how, held = QD.drive._quick_aim(target, until_tick, alt)
+        until_tick = QD.drive._quick_rebase(until_tick, turn_serial)
     end
     if before_retry then
         local arm_result, arm_detail = before_retry()

@@ -3671,6 +3671,28 @@ test-sdl-chrome-geometry:
 	@false
 endif
 
+# Where a mouse press lands in the layout against where the present draws it
+# (raid seam25, watched_client_mouse_mapping): the pure mapping
+# (platform/platform_pointer_map.h) across density, pane, title/in-game layout
+# and window size, then platform_sdl2.c's own MapMouse under the dummy driver
+# at 1x and at a claimed 2x drawable (TORIRS_SIM_PIXEL_DENSITY=2).
+.PHONY: test-sdl-pointer-map
+ifneq ($(filter $(PLATFORM),macos linux),)
+test-sdl-pointer-map: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_pointer_map_test \
+		platform/test/sdl_pointer_map_test.c platform/platform_sdl2.c \
+		$(PLATFORM_OBJC_SRCS) \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_pointer_map_test
+	SDL_VIDEODRIVER=dummy TORIRS_SIM_PIXEL_DENSITY=2 ./$(OBJ_DIR)/sdl_pointer_map_test
+else
+test-sdl-pointer-map:
+	@echo "test-sdl-pointer-map requires PLATFORM=macos or PLATFORM=linux"
+	@false
+endif
+
 # What PlatformWindow_SetTextInput(off) may do on a backend with no on-screen
 # keyboard: nothing. This needs only the platform window/input path.
 .PHONY: test-sdl-text-input

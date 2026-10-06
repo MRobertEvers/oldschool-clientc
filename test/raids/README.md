@@ -60,6 +60,12 @@ play itself in a real window, run the one command:
 ./launch run osrs239-scripts
 ```
 
+The profile pins the window every test is graded in: the software renderer, 765x503, no
+HighDPI drawable (`[args] --soft3d --window 765x503`, `TORIRS_HIDPI=0`). That is the
+combination the owner confirmed on 2026-10-05 after "the mouse coords are WAYYY OFF" in the
+default GPU/Retina window; no extra arguments are needed. The Scripts page opens beside the
+765x503 game area (the window grows by it), never over it.
+
 1. Log in with any name. If the Character Creator opens, Confirm it (measured 2026-10-05:
    a brand-new name in this profile showed none, and Play logged it out cleanly).
 2. Open the **Scripts** tab on the plugin rail (the play-triangle icon).

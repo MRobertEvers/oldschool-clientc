@@ -8529,6 +8529,652 @@ cheat_teleport_stop_action(
 }
 
 /*
+ * `::resetcharacter [home | fixture <name>]` -- the Scripts tab's "Reset
+ * character" start (raid seam25 starting_character_state; the owner,
+ * 2026-10-05: "reset character - clear inventory, clear worn items, clear
+ * effects"). One live character, put into a clean state WITHOUT a relog, so a
+ * script's setup never runs into the last script's full backpack (seam23:
+ * Verzik's setup failed after three rooms on one account).
+ *
+ * WHAT IT CLEARS, in this order:
+ *   raids       an active Theatre / Chambers / Tombs session is left through
+ *               content's own `~tob_leave` / `~cox_leave` / `~toa_leave`
+ *               (they free the instance and teleport outside -- the one case
+ *               in which a plain reset moves the character).
+ *   action      the pending interaction, combat target and route
+ *               (cheat_teleport_stop_action).
+ *   backpack    every slot emptied (ContainerClearSlot, as `::clearinv`).
+ *   worn        every slot emptied -- REMOVED, not dropped and not moved to
+ *               the backpack -- then the recompute death.rs2 runs after it
+ *               takes a player's gear: `~update_bas`,
+ *               `~combat_weapon_category_sync`, `~equipment_refresh`, and
+ *               `~player_combat_stat` last.
+ *   effects     content's own clearers, the list death.rs2 runs on respawn:
+ *               `~clear_poison`, `~clear_venom`, `~cure_disease`,
+ *               `~antifire_on_death`, `~prayer_deactivate_all`,
+ *               `~clear_pk_skull`, `~imbued_heart_on_death`,
+ *               `~combat_death_clear_queues` (the personal hit queues,
+ *               raids' included), plus `~sa_reset` (special attack 100%).
+ *               Then g_reset_character_varps / _varbits / _timers / _queues
+ *               below: the timed potion and spell effects death.rs2 does not
+ *               clear, read off the consumption and combat scripts.
+ *   stats       every skill's current level back to its base (boosts AND
+ *               drains), Hitpoints and Prayer full; run energy full; the
+ *               stun countdown zeroed.
+ * WHAT IT LEAVES: the bank, quest progress (every perm varp not named below),
+ * the base levels and xp, the position (but see raids), appearance, god mode,
+ * friends, the POH and sailing state.
+ *
+ * `home` also teleports to the new-character home tile (g_home_x/z, level 0).
+ * `fixture <name>` is reset_character_apply_fixture below.
+ *
+ * Every clearer is resolved by name; one this pack does not declare is named
+ * in the reply's "missing" list rather than skipped in silence.
+ */
+struct ResetCharacterTally
+{
+    int backpack_slots;
+    int worn_slots;
+    int stats_restored;
+    int vars_cleared;
+    int timers_cleared;
+    int queues_cleared;
+    int procs_run;
+    char raids_left[64];
+    char missing[320];
+};
+
+static void
+reset_character_append(
+    char* list,
+    size_t capacity,
+    const char* word)
+{
+    size_t used;
+
+    assert(list);
+    assert(word);
+    used = strlen(list);
+    snprintf(list + used, capacity - used, "%s%s", used ? " " : "", word);
+}
+
+static int
+reset_character_proc(
+    struct ToriRSServer* srv,
+    const char* proc,
+    struct ResetCharacterTally* tally)
+{
+    char name[96];
+
+    assert(srv);
+    assert(proc);
+    assert(tally);
+    snprintf(name, sizeof(name), "[proc,%s]", proc);
+    if( !srv->scripts_ok || !SSVM_ProviderGetByName(srv->scripts, name) )
+    {
+        reset_character_append(tally->missing, sizeof(tally->missing), name);
+        return 0;
+    }
+    ToriRSServer_ScriptsRunProc(srv, name, NULL, 0);
+    tally->procs_run++;
+    return 1;
+}
+
+/* Varps a timed effect holds, from the content that sets them. */
+static const char* const g_reset_character_varps[] = {
+    /* consumption/energy_potion.rs2 (stamina) */
+    "varp6221_stamina_ticks_left",
+    /* consumption/cox_potion.rs2, inferno_potions.rs2 (overloads) */
+    "varp6365_overload_ticks_left",
+    "varp7116_blighted_overload_ticks_left",
+    /* consumption/divine_potion.rs2 */
+    "varp6218_divine_hold_defence",
+    "varp6219_divine_hold_left",
+    "varp6358_divine_combat_hold_left",
+    "varp6359_divine_potion_attack",
+    "varp6360_divine_potion_defence",
+    "varp6361_divine_potion_hold_left",
+    "varp6362_divine_potion_magic",
+    "varp6363_divine_potion_strength",
+    /* prayer_potion.rs2, restore_potion.rs2, skill_prayer drain */
+    "varp6220_prayer_regen_ticks_left",
+    "varp6366_prayer_enhance_ticks_left",
+    "varp6296_prayer_drain_counter",
+    "varp6297_prayer_drain_effect",
+    /* varlamore_potion.rs2, hunter_meat.rs2 */
+    "varp6364_menaphite_remedy_ticks_left",
+    "varp6679_hunter_meat_secondary_effect",
+    "varp6680_hunter_meat_secondary_heal",
+    /* skill_combat npc_combat_magic.rs2 (freeze), skill_magic magic.rs2
+     * (teleblock), lunar vengeance */
+    "varp5754_frozen",
+    "varp6447_teleblock",
+    "varp6449_vengeance_active",
+    "varp6450_vengeance_ready",
+    /* The Theatre's per-raid registers (tob.rs2 `~tob_debug_reset`). */
+    "varp6844_tob_points",
+    "varp6854_tob_supply_1",
+    "varp6855_tob_supply_2",
+    "varp6853_tob_stamina_bought",
+    "varp6840_tob_died_in",
+    "varp6845_tob_raid_deaths",
+    "varp6857_tob_damage_dealt",
+};
+
+static const char* const g_reset_character_varbits[] = {
+    "varb25_stamina_active",
+};
+
+/* The `[timer,...]` each of those effects ticks on (cleartimer'd by name in
+ * the same consumption scripts). */
+static const char* const g_reset_character_timers[] = {
+    "stamina_expire",      "overload_reapply_t1",  "overload_reapply_t2",
+    "overload_reapply_t3", "blighted_overload_reapply",
+    "divine_hold",         "divine_combat_hold",   "divine_potion_hold",
+    "prayer_enhance_tick", "prayer_regen",         "menaphite_remedy",
+    "hunter_meat_secondary",
+};
+
+static const char* const g_reset_character_queues[] = {
+    "blighted_overload_damage",
+    "cox_overload_damage",
+};
+
+static void
+reset_character_var(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    enum ToriRSServerPackKind kind,
+    const char* symbol,
+    struct ResetCharacterTally* tally)
+{
+    int id = ToriRSServer_ContentSymbol(kind, symbol);
+
+    if( id < 0 )
+    {
+        reset_character_append(tally->missing, sizeof(tally->missing), symbol);
+        return;
+    }
+    if( kind == TORIRSSERVER_PACK_VARBIT )
+    {
+        if( ToriRSServer_VarbitGet(player, id) == 0 )
+            return;
+        ToriRSServer_VarbitSetOn(srv, player, id, 0);
+    }
+    else
+    {
+        assert(id < TORIRSSERVER_VARP_COUNT);
+        if( player->varps[id] == 0 )
+            return;
+        ToriRSServer_WorldSetVarpOn(srv, player, id, 0);
+    }
+    tally->vars_cleared++;
+}
+
+/* `cleartimer` / `clearqueue` by name: SS_OP_CLEARTIMER / SS_OP_CLEARQUEUE's
+ * own loops, keyed on the script the name resolves to. */
+static void
+reset_character_script_entries(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int is_queue,
+    const char* name,
+    struct ResetCharacterTally* tally)
+{
+    char script_name[96];
+    const struct SSVM_Script* script = NULL;
+
+    if( srv->scripts_ok )
+    {
+        snprintf(script_name, sizeof(script_name), is_queue ? "[queue,%s]" : "[timer,%s]", name);
+        script = SSVM_ProviderGetByName(srv->scripts, script_name);
+        if( !script && !is_queue )
+        {
+            snprintf(script_name, sizeof(script_name), "[softtimer,%s]", name);
+            script = SSVM_ProviderGetByName(srv->scripts, script_name);
+        }
+    }
+    if( !script )
+    {
+        reset_character_append(tally->missing, sizeof(tally->missing), name);
+        return;
+    }
+    if( is_queue )
+    {
+        for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
+            if( player->queue[i].active && player->queue[i].script_id == script->id )
+            {
+                player->queue[i].active = 0;
+                tally->queues_cleared++;
+            }
+        return;
+    }
+    for( int i = 0; i < TORIRSSERVER_TIMER_MAX; i++ )
+        if( player->timers[i].active && player->timers[i].script_id == script->id )
+        {
+            player->timers[i].active = 0;
+            tally->timers_cleared++;
+        }
+}
+
+static void
+reset_character_leave_raid(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    const char* active_varp,
+    const char* leave_proc,
+    const char* raid_name,
+    struct ResetCharacterTally* tally)
+{
+    int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, active_varp);
+
+    if( id < 0 )
+    {
+        reset_character_append(tally->missing, sizeof(tally->missing), active_varp);
+        return;
+    }
+    assert(id < TORIRSSERVER_VARP_COUNT);
+    if( player->varps[id] == 0 )
+        return;
+    if( reset_character_proc(srv, leave_proc, tally) )
+        reset_character_append(tally->raids_left, sizeof(tally->raids_left), raid_name);
+}
+
+static void
+reset_character_clean(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    struct ResetCharacterTally* tally)
+{
+    static const char* const gear_procs[] = {
+        "update_bas",
+        "combat_weapon_category_sync",
+        "equipment_refresh",
+    };
+    static const char* const effect_procs[] = {
+        "clear_poison",          "clear_venom",           "cure_disease",
+        "antifire_on_death",     "prayer_deactivate_all", "clear_pk_skull",
+        "imbued_heart_on_death", "combat_death_clear_queues", "sa_reset",
+    };
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    struct ToriRSServerContainer* row;
+    size_t i;
+
+    assert(srv);
+    assert(player);
+    assert(tally);
+    assert(srv->active_player == player);
+    memset(tally, 0, sizeof(*tally));
+
+    reset_character_leave_raid(srv, player, "varp5893_tob_active", "tob_leave", "Theatre", tally);
+    reset_character_leave_raid(srv, player, "varp5912_cox_active", "cox_leave", "Chambers", tally);
+    reset_character_leave_raid(srv, player, "varp6910_toa_active", "toa_leave", "Tombs", tally);
+    cheat_teleport_stop_action(srv, player);
+
+    row = ToriRSServer_ContainerResolve(srv, player, ids->inv_backpack);
+    if( row )
+    {
+        assert(row->items);
+        for( int slot = 0; slot < row->slots; slot++ )
+        {
+            if( row->items[slot].obj_id < 0 )
+                continue;
+            ToriRSServer_ContainerClearSlot(row, slot);
+            tally->backpack_slots++;
+        }
+    }
+    else
+        reset_character_append(tally->missing, sizeof(tally->missing), "backpack");
+
+    row = ToriRSServer_ContainerResolve(srv, player, ids->inv_worn);
+    if( row )
+    {
+        assert(row->items);
+        for( int slot = 0; slot < row->slots; slot++ )
+        {
+            if( row->items[slot].obj_id < 0 )
+                continue;
+            ToriRSServer_ContainerClearSlot(row, slot);
+            tally->worn_slots++;
+        }
+    }
+    else
+        reset_character_append(tally->missing, sizeof(tally->missing), "worn");
+
+    for( i = 0; i < sizeof(gear_procs) / sizeof(gear_procs[0]); i++ )
+        reset_character_proc(srv, gear_procs[i], tally);
+    for( i = 0; i < sizeof(effect_procs) / sizeof(effect_procs[0]); i++ )
+        reset_character_proc(srv, effect_procs[i], tally);
+    for( i = 0; i < sizeof(g_reset_character_varps) / sizeof(g_reset_character_varps[0]); i++ )
+        reset_character_var(srv, player, TORIRSSERVER_PACK_VARP, g_reset_character_varps[i], tally);
+    for( i = 0; i < sizeof(g_reset_character_varbits) / sizeof(g_reset_character_varbits[0]); i++ )
+        reset_character_var(
+            srv, player, TORIRSSERVER_PACK_VARBIT, g_reset_character_varbits[i], tally);
+    for( i = 0; i < sizeof(g_reset_character_timers) / sizeof(g_reset_character_timers[0]); i++ )
+        reset_character_script_entries(srv, player, 0, g_reset_character_timers[i], tally);
+    for( i = 0; i < sizeof(g_reset_character_queues) / sizeof(g_reset_character_queues[0]); i++ )
+        reset_character_script_entries(srv, player, 1, g_reset_character_queues[i], tally);
+
+    /* Last, so no clearer above can leave a stat off its base: boosts and
+     * drains both go, Hitpoints and Prayer come back full. */
+    for( int stat = 0; stat < TORIRSSERVER_STAT_COUNT; stat++ )
+    {
+        if( stat == TORIRSSERVER_STAT_HITPOINTS )
+            continue;
+        if( player->stat_boosted[stat] == player->stat_level[stat] )
+            continue;
+        player->stat_boosted[stat] = player->stat_level[stat];
+        ToriRSServer_CombatStatMark(player, stat);
+        tally->stats_restored++;
+    }
+    if( player->hitpoints != player->stat_level[TORIRSSERVER_STAT_HITPOINTS] )
+        tally->stats_restored++;
+    player->hitpoints = player->stat_level[TORIRSSERVER_STAT_HITPOINTS];
+    ToriRSServer_CombatSyncHitpoints(player);
+    player->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
+    player->stun_ticks = 0;
+    reset_character_proc(srv, "player_combat_stat", tally);
+}
+
+/*
+ * `::resetcharacter fixture <name>`: what a fresh account of that fixture
+ * would have, applied to the live character in place. A fresh login is
+ * ToriRSServer_PlayerInit's defaults, then ToriRSServer_LoadPlayer over them
+ * (a fixture states only the keys it needs), then [login]'s
+ * `~newplayer_setup` (stats, world state, the starter kit). In place, after
+ * the clean reset above:
+ *   1. the fresh baseline: the bank emptied, every perm varp zeroed (quest
+ *      progress included: a fresh account has none), every stat level 1;
+ *   2. the fixture's [player] position / run energy / run toggle, [varps],
+ *      [stats], [inv], [worn] and [bank] rows, written through the live
+ *      paths (teleport, WorldSetVarpOn, ContainerSet) so the client sees
+ *      them without a relog;
+ *   3. `~newplayer_setup`, which runs because step 1 zeroed its perm
+ *      `%varp6298_newplayer_seeded` -- exactly as on a first login.
+ * What still DIFFERS from a fresh login (stated in the reply): temp-scope
+ * varps keep this session's values; appearance, display name, POH, sailing,
+ * the random stream and chat modes are the live character's; and the other
+ * [login] steps (session timers, interface mounts) are not re-run. Sections
+ * the fixture holds that are not applied in place are named.
+ */
+#define RESET_CHARACTER_FIXTURE_VARPS 512
+
+static int
+reset_character_fixture_path(
+    const char* name,
+    char* out,
+    size_t capacity)
+{
+    const char* dirs[5];
+    const char* suffix;
+
+    assert(name);
+    assert(out);
+    dirs[0] = getenv("TORIRSSERVER_FIXTURES");
+    dirs[1] = "test/quests/fixtures";
+    dirs[2] = "test/raids/fixtures";
+    dirs[3] = "../test/quests/fixtures";
+    dirs[4] = "../test/raids/fixtures";
+    suffix = strstr(name, ".ini") ? "" : ".ini";
+    for( int i = 0; i < 5; i++ )
+    {
+        FILE* file;
+
+        if( !dirs[i] || !dirs[i][0] )
+            continue;
+        snprintf(out, capacity, "%s/%s%s", dirs[i], name, suffix);
+        file = fopen(out, "rb");
+        if( file )
+        {
+            fclose(file);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static char*
+reset_character_trim(char* text)
+{
+    char* end;
+
+    assert(text);
+    while( *text == ' ' || *text == '\t' )
+        text++;
+    end = text + strlen(text);
+    while( end > text && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' ||
+                          end[-1] == '\n') )
+        *--end = '\0';
+    return text;
+}
+
+struct ResetCharacterFixtureItem
+{
+    int inv_id;
+    int slot;
+    int obj_id;
+    int count;
+};
+
+static int
+reset_character_apply_fixture(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    const char* path,
+    char* note,
+    size_t note_capacity)
+{
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    FILE* file;
+    char line[512];
+    char section[64] = { 0 };
+    char skipped[160] = { 0 };
+    int varp_ids[RESET_CHARACTER_FIXTURE_VARPS];
+    int varp_values[RESET_CHARACTER_FIXTURE_VARPS];
+    int varp_count = 0;
+    int stat_xp[TORIRSSERVER_STAT_COUNT];
+    int stat_boosted[TORIRSSERVER_STAT_COUNT];
+    int stat_count = 0;
+    struct ResetCharacterFixtureItem items[TORIRSSERVER_INV_SLOTS * 2 + 64];
+    int item_count = 0;
+    int x = g_home_x;
+    int z = g_home_z;
+    int level = 0;
+    int run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
+    int run_toggle = player->run_toggle;
+    int perm_zeroed = 0;
+    int bank_cleared = 0;
+    int seeded;
+    struct ToriRSServerContainer* row;
+
+    assert(srv);
+    assert(player);
+    assert(path);
+    assert(note);
+    for( int stat = 0; stat < TORIRSSERVER_STAT_COUNT; stat++ )
+        stat_xp[stat] = -1;
+
+    file = fopen(path, "rb");
+    if( !file )
+        return 0;
+    while( fgets(line, sizeof(line), file) )
+    {
+        char* text = reset_character_trim(line);
+        char* equals;
+        char* key;
+        char* value;
+
+        if( text[0] == '\0' || text[0] == ';' || text[0] == '#' )
+            continue;
+        if( text[0] == '[' )
+        {
+            char* close = strchr(text, ']');
+
+            if( close )
+                *close = '\0';
+            snprintf(section, sizeof(section), "%s", text + 1);
+            if( strcmp(section, "player") != 0 && strcmp(section, "varps") != 0 &&
+                strcmp(section, "stats") != 0 && strcmp(section, "inv") != 0 &&
+                strcmp(section, "worn") != 0 && strcmp(section, "bank") != 0 )
+                reset_character_append(skipped, sizeof(skipped), section);
+            continue;
+        }
+        equals = strchr(text, '=');
+        if( !equals )
+            continue;
+        *equals = '\0';
+        key = reset_character_trim(text);
+        value = reset_character_trim(equals + 1);
+        if( strcmp(section, "player") == 0 )
+        {
+            if( strcmp(key, "x") == 0 )
+                x = atoi(value);
+            else if( strcmp(key, "z") == 0 )
+                z = atoi(value);
+            else if( strcmp(key, "level") == 0 )
+                level = atoi(value);
+            else if( strcmp(key, "run_energy") == 0 )
+                run_energy = atoi(value);
+            else if( strcmp(key, "run_toggle") == 0 )
+                run_toggle = atoi(value) != 0;
+        }
+        else if( strcmp(section, "varps") == 0 )
+        {
+            int varp = atoi(key);
+
+            if( varp >= 0 && varp < TORIRSSERVER_VARP_COUNT &&
+                varp_count < RESET_CHARACTER_FIXTURE_VARPS )
+            {
+                varp_ids[varp_count] = varp;
+                varp_values[varp_count] = atoi(value);
+                varp_count++;
+            }
+        }
+        else if( strcmp(section, "stats") == 0 )
+        {
+            int stat = atoi(key);
+            int a = 1;
+            int b = 1;
+            int c = 0;
+            int n = sscanf(value, "%d %d %d", &a, &b, &c);
+
+            if( stat < 0 || stat >= TORIRSSERVER_STAT_COUNT )
+                continue;
+            /* torirs_server_save.c SAVE_STATS: `<boosted> <xp_tenths>`, or
+             * the legacy `<level> <boosted> <xp_tenths>`. */
+            if( n == 3 )
+            {
+                stat_boosted[stat] = b;
+                stat_xp[stat] = c;
+            }
+            else if( n == 2 )
+            {
+                stat_boosted[stat] = a;
+                stat_xp[stat] = b;
+            }
+        }
+        else if( strcmp(section, "inv") == 0 || strcmp(section, "worn") == 0 ||
+                 strcmp(section, "bank") == 0 )
+        {
+            int obj_id = -1;
+            int count = 0;
+
+            if( item_count >= (int)(sizeof(items) / sizeof(items[0])) )
+                continue;
+            if( sscanf(value, "%d %d", &obj_id, &count) != 2 || obj_id < 0 || count <= 0 )
+                continue;
+            items[item_count].inv_id = strcmp(section, "inv") == 0    ? ids->inv_backpack
+                                       : strcmp(section, "worn") == 0 ? ids->inv_worn
+                                                                      : ids->inv_bank;
+            items[item_count].slot = atoi(key);
+            items[item_count].obj_id = obj_id;
+            items[item_count].count = count;
+            item_count++;
+        }
+    }
+    fclose(file);
+
+    /* 1. The fresh baseline. */
+    ToriRSServer_WorldTeleport(srv, level, x, z);
+    row = ToriRSServer_ContainerResolve(srv, player, ids->inv_bank);
+    if( row )
+    {
+        assert(row->items);
+        for( int slot = 0; slot < row->slots; slot++ )
+        {
+            if( row->items[slot].obj_id < 0 )
+                continue;
+            ToriRSServer_ContainerClearSlot(row, slot);
+            bank_cleared++;
+        }
+    }
+    for( int varp = 0; varp < TORIRSSERVER_VARP_COUNT; varp++ )
+    {
+        const struct ToriRSServerVarpDef* def;
+
+        if( player->varps[varp] == 0 )
+            continue;
+        def = ToriRSServer_ContentVarp(varp);
+        if( !def || !def->scope_perm )
+            continue;
+        ToriRSServer_WorldSetVarpOn(srv, player, varp, 0);
+        perm_zeroed++;
+    }
+    for( int stat = 0; stat < TORIRSSERVER_STAT_COUNT; stat++ )
+        ToriRSServer_CombatSetLevel(player, stat, 1);
+
+    /* 2. The fixture's own rows. */
+    for( int i = 0; i < varp_count; i++ )
+        ToriRSServer_WorldSetVarpOn(srv, player, varp_ids[i], varp_values[i]);
+    for( int stat = 0; stat < TORIRSSERVER_STAT_COUNT; stat++ )
+    {
+        int xp;
+
+        if( stat_xp[stat] < 0 )
+            continue;
+        xp = ToriRSServer_CombatClampXp(stat_xp[stat]);
+        player->stat_xp_tenths[stat] = xp;
+        player->stat_level[stat] = ToriRSServer_CombatLevelForXp(xp / 10);
+        player->stat_boosted[stat] = stat_boosted[stat];
+        if( stat == TORIRSSERVER_STAT_HITPOINTS )
+        {
+            player->hitpoints = stat_boosted[stat];
+            ToriRSServer_CombatSyncHitpoints(player);
+        }
+        ToriRSServer_CombatStatMark(player, stat);
+        stat_count++;
+    }
+    for( int i = 0; i < item_count; i++ )
+    {
+        row = ToriRSServer_ContainerResolve(srv, player, items[i].inv_id);
+        if( !row || items[i].slot < 0 || items[i].slot >= row->slots )
+            continue;
+        ToriRSServer_ContainerSet(row, items[i].slot, items[i].obj_id, items[i].count);
+    }
+    player->run_energy = run_energy;
+    player->run_toggle = run_toggle;
+    ToriRSServer_WorldSetVarpOn(
+        srv, player, ToriRSServer_WorldVarp("varp173_option_run"), player->run_toggle);
+
+    /* 3. [login]'s first-login step, armed by the zeroed seeded varp. */
+    seeded = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6298_newplayer_seeded");
+    if( seeded >= 0 && player->varps[seeded] != 0 )
+        ToriRSServer_WorldSetVarpOn(srv, player, seeded, 0);
+    ToriRSServer_ScriptsRunProc(srv, "[proc,newplayer_setup]", NULL, 0);
+    ToriRSServer_ScriptsRunProc(srv, "[proc,update_bas]", NULL, 0);
+    ToriRSServer_ScriptsRunProc(srv, "[proc,equipment_refresh]", NULL, 0);
+    ToriRSServer_ScriptsRunProc(srv, "[proc,player_combat_stat]", NULL, 0);
+
+    snprintf(note, note_capacity,
+             " Fixture %s at %d,%d,%d: bank %d emptied, %d perm varp(s) zeroed, %d varp(s) "
+             "%d stat(s) %d item(s) applied, newplayer_setup run. Differs from a fresh "
+             "login: temp varps, appearance, name, POH, sailing kept%s%s.",
+             path, x, z, level, bank_cleared, perm_zeroed, varp_count, stat_count, item_count,
+             skipped[0] ? "; not applied: " : "", skipped);
+    return 1;
+}
+
+/*
  * The C diagnostic ladder `handle_cheat` runs once content has declined the
  * line -- lifted out of it whole, and now with a verdict instead of `void`.
  *
@@ -9745,6 +10391,70 @@ ToriRSServer_RunCheatLadder(
             cleared++;
         }
         say(srv, "Cleared %d item(s).", cleared);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
+    if( strncmp(text, "resetcharacter", 14) == 0 )
+    {
+        /*
+         * `::resetcharacter [home | fixture <name>]` -- the clean start the
+         * Scripts tab's "Reset character" applies before a script runs. What
+         * it clears and what it leaves: reset_character_clean's banner above
+         * RunCheatLadder. The reply is one line of counts; anything a clearer
+         * needed that this pack does not declare is named in it.
+         */
+        struct ResetCharacterTally tally;
+        char argument[16] = { 0 };
+        char name[64] = { 0 };
+        char path[512] = { 0 };
+        char fixture_note[512] = { 0 };
+        int fields = sscanf(text, "resetcharacter %15s %63s", argument, name);
+        int home = 0;
+        int fixture = 0;
+
+        if( fields >= 1 )
+        {
+            if( strcmp(argument, "home") == 0 && fields == 1 )
+                home = 1;
+            else if( strcmp(argument, "fixture") == 0 && fields == 2 )
+                fixture = 1;
+            else
+            {
+                say(srv, "Usage: ::resetcharacter [home | fixture <name>]");
+                return TORIRSSERVER_TRIGGER_FAILED;
+            }
+        }
+        if( fixture && !reset_character_fixture_path(name, path, sizeof(path)) )
+        {
+            say(srv, "::resetcharacter: no fixture named '%s' (test/quests/fixtures, "
+                     "test/raids/fixtures, $TORIRSSERVER_FIXTURES).", name);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+
+        reset_character_clean(srv, player, &tally);
+        if( home )
+            ToriRSServer_WorldTeleport(srv, 0, g_home_x, g_home_z);
+        if( fixture &&
+            !reset_character_apply_fixture(srv, player, path, fixture_note, sizeof(fixture_note)) )
+        {
+            say(srv, "::resetcharacter: could not read fixture %s.", path);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        say(srv,
+            "Reset character: %d backpack, %d worn emptied; %d stat(s) restored; %d effect "
+            "var(s), %d timer(s), %d queue(s) cleared; %d proc(s)%s%s%s%s%s.",
+            tally.backpack_slots, tally.worn_slots, tally.stats_restored, tally.vars_cleared,
+            tally.timers_cleared, tally.queues_cleared, tally.procs_run,
+            tally.raids_left[0] ? "; left " : "", tally.raids_left,
+            home ? "; moved home" : "", tally.missing[0] ? "; missing: " : "", tally.missing);
+        if( fixture )
+            say(srv, "Reset character: fixture %s applied in place.", name);
+        fprintf(stderr,
+                "torirsserver: ::resetcharacter backpack=%d worn=%d stats=%d vars=%d timers=%d "
+                "queues=%d procs=%d left='%s' home=%d missing='%s'%s\n",
+                tally.backpack_slots, tally.worn_slots, tally.stats_restored, tally.vars_cleared,
+                tally.timers_cleared, tally.queues_cleared, tally.procs_run, tally.raids_left, home,
+                tally.missing, fixture_note);
         return TORIRSSERVER_TRIGGER_RAN;
     }
 
