@@ -6540,3 +6540,50 @@ room against its saved ledger, run it under its own name with `--no-publish`.
 one raw over the halved max 8. On the conformance seed of this tree all six rolled 8 or
 less (6,5,2,3,6,7), while a 14-bomb scratch (c38urn1) read 5 over 8. The row now draws
 up to eight more ON->OFF bombs until one exceeds 8; the OFF->ON half is unchanged.
+## `t.raid.play(plan, {role = n})`: a seat is not a role (seam39)
+
+`QD.raid._play_state` reads `role = opts.role or QD.party.role()`. Without the option the
+seat is the role, as before. With it, the plan's role n is played on whichever seat
+calls it. The whole-raid Normal relay maps roles per room (`ROLE_IN` in
+`test/raids/_play_normal.lua`: Maiden by seat, Nylocas seat 1 ranger / 2 meleer / 3 mage,
+Bloat's role 1 on seat 3). Conformance row `seam.raid_play_opts_role`.
+
+## A stat a room expects at its barrier is read, never assumed (seam39)
+
+After brews a super combat drunk on a drained stat boosts from there (77 -> 96, read as
+"the dose did not land"). Read attack and strength from the skill row (level against
+base_level); drink a super restore while either is under base, each dose read back, then
+the combat dose (`boost` in `_play_entry.lua` and `_play_normal.lua`).
+
+## A drink inside the previous drink's potion delay answers `timeout` (seam39)
+
+It changes nothing. Press again until the stat (or the pack's dose) reads moved, up to
+three presses. This bites a combat dose right after a restore and a stamina dose right
+after a combat dose.
+
+## A barrier's `click_loc` ok is not the dialogue (seam39)
+
+svaplayentry's Sotetseg press resolved as a floor walk ("Walk here"); its `chat_message`
+was the stamina-expired line. Await `t.chat.kind() == "options"` and re-press the barrier
+when none opened. Verzik's talk from the fight tile can miss her model on some names:
+re-talk after walking four tiles up the carpet.
+
+## In a party, `~tob_restore` heals only the leader (seam39)
+
+`tob_raid.rs2 ~tob_room_cleared` calls it once, in the room watchdog's raider. A member
+reaches the next room with the hitpoints, prayer, run and special energy the last room
+left it: a relay member must eat up in the corridor (`top_up`), and the raider who needs
+run or special energy at once (Bloat's role 1 run-by) should not be a member Maiden
+emptied.
+
+## The Normal supply chest is a points store after Bloat (seam39)
+
+`tob_midway_stores`, not Entry's bandages. Everything Maiden and Bloat eat comes from the
+pack the raid started with. Bloat Normal's role-1 opener takes about 12 a tick for ten
+ticks (s39bloat: 19, 20, 10, 8, 10, 7, 12, 7, 9, 8, 12); give it to the seat with the
+most food left.
+
+## The Sanguinesti staff's Charge takes every blood rune in the pack (seam39)
+
+`sanguinesti_staff.constant`: 2 runes a charge, up to 20000. A seat that also casts Ice
+Barrage gets its blood runes after the charge.

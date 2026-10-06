@@ -883,6 +883,74 @@ Each plan change was re-proved on its kept harness (`seed_survey --names 5`: _pl
 _play_xarpus, _play_verzik, _play_smoke, _play_nylocas, _play_sotetseg all 5 of 5 solo;
 _play_xarpus, _play_bloat, _play_sotetseg `--party 3` 5 of 5).
 
+## The whole raid, Normal trio (`_play_normal`), NOT KEPT (raid seam39 play_tob_normal_relay)
+
+`test/raids/_play_normal.lua` is the Entry relay for three raiders in lockstep (README "The
+whole raid, Normal trio"). Each room is played by its own trio harness's pre-fight and ONE
+`t.raid.play` per raider. The entry is the notice board and the Normal party, the way
+`_party_smoke` phase B forms it. The leader walks every way out, and its passage carries the
+party (`tob_raid.rs2 ~tob_carry_party`). The lobby, the lockstep and the room-to-room walk
+work on every name: Maiden is reached on 3 of 3 and Bloat on 2 of 3, and `party.lockstep` passes.
+`party_repeat.py --runs 2 --allow-red` AGREEs (s39rep: sha c7d9f0b64027, 1106 boundaries;
+s39rep2, on the final file: sha b36f4fc7c52c, 3698 boundaries).
+
+**Result (`seed_survey.py _play_normal --party 3 --names 3`, final file): 0 of 3.**
+
+| Name | Maiden | Bloat | First cause (leader's tick log) |
+|---|---|---|---|
+| `_play_normal` | cleared at 392 ticks, nobody died | Bloat at 1213 of 1500 when the leader died (t1025) | The leader, Maiden's tank, left her with 0 fish and 5 brew doses (7 eats, 39 drinks). Under Bloat (role 3) it had nothing to eat. |
+| `svaplaynorma` | north ranger p3 died t698, then the leader t701 | not reached | p3 left Maiden with 0 fish, 1 brew dose, 1 restore dose (5 eats, 40 drinks). The leader took 24 + 21 from her at 45 hitpoints. |
+| `svbplaynorma` | cleared at 406 ticks, nobody died | the starter (p3, role 1) died 9 ticks in; the leader died t1149 on a 45 at 45 hitpoints, prayer off | p3 had 2 fish after Maiden. The opener costs about 120 hitpoints in ten ticks. |
+
+**The first cause is the supply budget, and it is the same on every config tried.** The six
+room harnesses each give a raider a whole pack of food for ONE room. A trio carrying the
+whole raid's switches cannot carry that.
+
+| Room harness (Normal trio) | What one raider ate and drank |
+|---|---|
+| Maiden (`_play_maiden`) | tank 12 eats + 28 drinks, rangers' packs 26 supply slots |
+| Bloat (`s39bloat`, run here) | role 1: 9 eats + 11 drinks on 14 fish. Its opener took 19, 20, 10, 8, 10, 7, 12, 7, 9, 8, 12 in ten ticks |
+| Nylocas (`_play_nylocas`) | p1 6 eats + 23 drinks |
+| Verzik (`_play_verzik`) | 16 eats + 17-18 drinks EACH |
+
+In the relay, Maiden alone empties every pack except the freezer's: the tank uses 7-9 eats and
+39-48 drinks. The supply chest is a points store (10-13 points a deathless chest; a shark 1, a
+brew 3), and it stands after Bloat. So nothing refills a raider for Bloat. The arithmetic for
+Verzik alone (about 34 consumables a raider) is out of reach of a 28-slot pack that also holds
+the bow, the scythe, the Dawnbringer slot and the helm.
+
+**What was tried, measured (scratch names n1..n6, surveys 1-7 in the seam39 state dir).**
+
+| Config | Change | Outcome |
+|---|---|---|
+| n1 | seat = role, 13-14 supply slots a seat | all three died at Maiden; the tank ran out of food at t576 |
+| n2, survey 1 | seat 3 tanks (`opts.role`) | Maiden deathless on 2 of 3. She cast at seat 1 as often as at the tank (pid order), so two raiders ate like tanks. Every pack left her with 0 fish; Bloat killed the leader with 0 food |
+| n4 | brews for fish (11 brews, 1 fish) | worse. The library eats only under the plan's threat, so the tank sat at 26 hitpoints for six ticks, then took a 42 (`_play_supplies`: brews alone heal 16 per 3 ticks) |
+| survey 2 (config B) | seat 1 tanks and is the Nylocas ranger (21 supply slots) | Maiden deathless on 2 of 3; the leader as Bloat role 1 died on its walk with 0 fish |
+| survey 3-4 | Bloat role 1 = seat 3; members eat up between rooms | p3 reached Bloat on 34 hitpoints: `~tob_restore` heals only the watchdog's raider. Topped up, it still died 9 ticks in |
+| survey 5 (config C) | the leader is Maiden's freezer and Bloat role 1 | the freezer-leader died in her blood on 2 of 3 (the run ends with the leader). On the third, Bloat reached 1343 of 1500 before all three, out of run energy, walked one tile a tick and took a fly a tick |
+| survey 6 (config D) | C's roles back to B, plus a stamina potion each | the stamina press answered `timeout` inside the combat dose's delay (now re-pressed). The seat-2 starter in Masori died 8 ticks in |
+| survey 7 (config E) | Torva worn, Masori carried | Maiden worse (the tank had 17 slots); the starter in Torva still died 9 ticks in |
+| final (config D + seat-3 starter + stamina re-press) | | the table above |
+
+**Kept in the file.** Seat 1 is Maiden's tank and the Nylocas ranger, and it carries the most
+food. Seat 2 is the freezer and the Nylocas meleer. Seat 3 is the north ranger, the Nylocas mage
+and Bloat's role 1. Every seat carries a stamina potion (10Boot 0:19:24), and the members eat
+up between rooms (`top_up`).
+
+**What would move it (not done here: other rows' files).**
+1. The room plans' intake. The relay's Maiden took 1,050 (n2) and 1,429 (n1) against her
+   harness's 625. Her blood (`-1`, 18-28 a tick and half of it from prayer, `~tob_maiden_blood_sweep`)
+   killed the freezer at its home tile in 4 runs, while it held for a cast
+   (`raid_play_tob_maiden.lua` `holding`).
+2. Bloat's opener at about 12 a tick.
+3. The supply chest store (`tob_midway_stores`, after Bloat and Sotetseg) bought from in the
+   relay, for the rooms after Bloat.
+4. The content's `~tob_restore`: one raider in a party.
+
+Sources: E = wiki_Theatre_of_Blood_Entry_Mode.wikitext, W = wiki_Theatre_of_Blood_Strategies.wikitext,
+10Boot = transcripts/yt_4i4lv-srJkw.md, store = wiki_Chest__Theatre_of_Blood_.wikitext :24-36.
+
 ## Open rows (found is not fixed)
 
 - **The whole-raid relay's supply margin is thin** (raid seam35e). Under the own name the
@@ -914,3 +982,14 @@ _play_xarpus, _play_bloat, _play_sotetseg `--party 3` 5 of 5).
 - **Members count swings** from presses and the weapon speed. They have no tick log, and no
   client read gives the local player's own animation (api_drive.players has no anim field).
 - **The six-tile flinch** is the hide tile, not the guide's five; the row asks for 3 or more.
+- **The Normal relay's supply wall** (raid seam39). No seat survives Maiden + Bloat on one
+  pack. Maiden empties every pack but the freezer's. Bloat's role 1 opener costs about 120 in ten
+  ticks, the room harness's too. Verzik's harness eats 16 + 18 a raider. Open: buy from the
+  Normal store (`tob_midway_stores`) in the relay; lower the plans' intake (Maiden blood under a
+  holding freezer, Bloat's opener).
+- **`~tob_restore` heals one raider of a party** (raid seam39, CONTENT). `~tob_room_cleared`
+  calls it once, in the watchdog's raider. A member reaches the next room on what it had left
+  (svbplaynorma p3: 34 hitpoints at Bloat), with its run and special energy unrestored. The
+  wiki says restore is Entry's ("your Hitpoints and Prayer are replenished after defeating each
+  boss", E:17), so Normal should restore nobody and Entry everybody. Not changed here: no seam
+  row names tob_raid.rs2.

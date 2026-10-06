@@ -11750,6 +11750,30 @@ return {
             return "ok", "a 40-tile jump inside st.teleport_until played on; the same jump with none answered died"
         end)
 
+        -- raid seam39 play_tob_normal_relay: t.raid.play's opts.role (raid_play.lua
+        -- QD.raid.play banner; _play_state: role = opts.role or QD.party.role()).
+        -- A seat is not a role: the whole-raid Normal relay (test/raids/_play_normal.lua
+        -- ROLE_IN) plays Maiden's tank on seat 1 but Bloat's role 1 on seat 3 and the
+        -- Nylocas mage on seat 3.  The row builds a state with and without the option
+        -- (no room is played) and reads the role back.  SEAM_COUNT +1.
+        seam("seam.raid_play_opts_role", function()
+            local state_fn = verb("raid", "_play_state")
+            if not state_fn then return missing("raid", "_play_state") end
+            local plan = { room = "probe", boss = { entry = "tob_bloat_story" }, modes = { entry = {} },
+                walk_prayers = {}, down_prayers = {}, decide = "_conformance_teleport_decide" }
+            local seat = t.party.role()
+            local st0 = state_fn(plan, "_conformance_role", "entry", plan.modes.entry, { speed = 5, seqs = {} }, {})
+            local st3 = state_fn(plan, "_conformance_role", "entry", plan.modes.entry, { speed = 5, seqs = {} }, { role = 3 })
+            if st0.role ~= seat then
+                return "hollow", "no opts.role: role " .. tostring(st0.role) .. ", the seat is " .. tostring(seat)
+            end
+            if st3.role ~= 3 then
+                return "hollow", "opts.role = 3 read back as " .. tostring(st3.role)
+            end
+            return "ok", "no opts.role: role " .. tostring(st0.role) .. " (the seat); opts.role = 3: role " .. tostring(st3.role)
+                .. " (party size " .. tostring(st3.party) .. ")"
+        end)
+
         -- raid seam30 play_tob_xarpus (merged by the seam30 closer): the plan's
         -- quadrant split is the server's (tob_xarpus.rs2 ~tob_xarpus_quadrant_from:
         -- dz > 0 north, dx > 0 east).  A pure function, no npc.  SEAM_COUNT +1.

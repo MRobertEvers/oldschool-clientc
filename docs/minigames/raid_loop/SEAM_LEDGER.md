@@ -1492,3 +1492,32 @@ all clean. No C and no content changed.
   verzik `spec.verzik.reds_absorb_window` fell back to `drive.absorb_diag` (no +5 arrow
   this run). Surveys 5 of 5: _play_smoke _play_sotetseg _play_xarpus _play_verzik
   _play_nylocas, and `_play_bloat --party 3`.
+## matthew-mbp-m4-camera-b1-seam39 (2026-10-06; the commit that carries this heading, OSRS-Content 525e8538a9 unchanged): the Entry relay made robust, then the Normal trio whole-raid relay
+
+- play_tob_entry_relay_robust; LANDED. `_play_entry.lua` only: `boost` (Bloat, Sotetseg,
+  Xarpus) drinks a super restore while attack or strength reads under base, then presses
+  the combat dose until strength moves; the barrier re-pressed until its question opens;
+  Verzik re-talked from up the carpet. Closer re-run `seed_survey.py _play_entry --names 3`:
+  3 of 3 KEEP (svaplayentry `sotetseg.potion` restore 95 -> 99, combat 99 -> 118 on the 2nd
+  press; `verzik.talk` open after 2 talks; `raid.complete` 6 of 6). Open: a run.py run of
+  one name is not an exact replay of its survey row (svaplayentry needed a restore at Bloat
+  under run.py only).
+- play_tob_normal_relay; NOT KEPT, the harness and `t.raid.play(plan, {role = n})` landed
+  (conformance `seam.raid_play_opts_role` PASS). `test/raids/_play_normal.lua` enters as a
+  player does (board, party, door), lockstep per room, no room cheat. Closer re-run
+  `seed_survey.py _play_normal --party 3 --names 3`: 0 of 3; `party_repeat --runs 2` AGREE
+  (fixer, sha b36f4fc7c52c). First cause per leader, supplies: `_play_normal` cleared
+  Maiden at 392 ticks deathless, the leader (her tank, 0 fish left) died in Bloat t1024;
+  svaplaynorma p3 died at Maiden t698 out of supplies, the leader t700; svbplaynorma cleared
+  Maiden at 406 ticks, the Bloat starter p3 died t687 (the role-1 opener costs ~120 hp in
+  ten ticks), the leader t1148 with no food. Nylocas, Sotetseg, Xarpus, Verzik never
+  reached in the relay. Open: the supply budget (the Normal chest is a points store after
+  Bloat and the relay does not shop; each room harness spends a whole pack on one room);
+  Maiden's blood kills the freezer at its home tile in the relay but not in its harness;
+  content question: `~tob_restore` heals only the leader in a party (E:17 says Normal
+  restores nobody, Entry everybody).
+- Closer: conformance 385/385 rows PASS (195 verbs + 190 seam rows); check-quest-verbs,
+  check-drive-abi, check-pt-switch, test-quest-cheats, test-plugin-lua PASS; cooks_assistant
+  ledger byte-identical to build/merge17_check/cooks_before.tsv, gate.py green; no C or
+  content change. The stray quest_cook/play publish in OSRS-Content is still the owner's
+  and is not committed.

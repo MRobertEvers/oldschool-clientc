@@ -281,11 +281,95 @@ local function wear(t, row, item)
     t.exec(row, t.player.equip, item)
 end
 
+-- The barrier's question (tob_arena_barrier op1 -> "Yes, begin the fight.").
+-- A press can come back `ok` without the question opening: svaplayentry's
+-- Sotetseg press resolved as a floor walk (the shot's hover read "Walk here",
+-- the raider stepped 6415,210 -> 6414,210) and the click's `chat_message`
+-- was the stamina-expired line. So the row is the question itself: wait for
+-- the options page, and press again (the barrier re-found from where the
+-- raider now stands) when none opened, up to three presses.
 local function begin_fight(t, name)
-    local cr, cd = t.player.click_loc("tob_arena_barrier", 1)
-    t.check(name .. ".barrier", cr == "ok", tostring(cd))
+    local presses, cr, cd, opened = 0, nil, nil, false
+    while presses < 3 and not opened do
+        presses = presses + 1
+        cr, cd = t.player.click_loc("tob_arena_barrier", 1)
+        t.await({ level = function() return t.chat.kind() == "options" end, note = name .. ": the barrier's question" }, 6)
+        opened = t.chat.kind() == "options"
+    end
+    t.check(name .. ".barrier", opened, "the barrier's question open after " .. presses .. " press(es); last press "
+        .. tostring(cr) .. " " .. string.sub(tostring(cd), 1, 120))
     local pr, pd = t.chat.play({ "options", "choose:Yes, begin the fight." })
     t.check(name .. ".begin", pr == "ok", tostring(pd))
+end
+
+-- A stat's reading after a dose, read back until it moves off `from`
+-- (the dose landed) or `ticks` server ticks pass.
+local function await_stat(t, stat, from, ticks)
+    local r, s = t.skill.read(stat)
+    local waited = 0
+    while waited < ticks and (r ~= "ok" or s.level == from) do
+        t.ticks(1)
+        waited = waited + 1
+        r, s = t.skill.read(stat)
+    end
+    return s, waited
+end
+
+local RESTORE_DOSES = { "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore" }
+local COMBAT_DOSES = { "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" }
+
+local function first_held(t, list)
+    for _, dose in ipairs(list) do
+        local cr, n = t.inv.count(dose)
+        if cr == "ok" and n > 0 then return dose end
+    end
+    return nil
+end
+
+-- The super combat before a melee room's barrier, on the stats the raider
+-- row reads NOW, not the base it started the raid on: the brews drain attack
+-- and strength (E:29 "one super restore per three brews"), and a super
+-- combat drunk on a drained stat boosts from there (svaplayentry: 77 + 5 +
+-- 15% of 99 = 96, read as "the dose did not land"). So: a super restore
+-- while attack or strength reads under its base, each dose read back; then
+-- the combat dose, read back; the row asserts both above their base.
+local function boost(t, name)
+    local _, a0 = t.skill.read("attack")
+    local _, s0 = t.skill.read("strength")
+    local restored, rtext = 0, ""
+    while restored < 3 and (a0.level < a0.base_level or s0.level < s0.base_level) do
+        local dose = first_held(t, RESTORE_DOSES)
+        if dose == nil then break end
+        t.player.inv_op(dose, 1, { quick = true })
+        restored = restored + 1
+        local s1, w = await_stat(t, "strength", s0.level, 4)
+        local _, a1 = t.skill.read("attack")
+        rtext = rtext .. string.format(" %s: attack %d -> %d, strength %d -> %d (+%d tick(s));", dose, a0.level, a1.level, s0.level, s1.level, w)
+        a0, s0 = a1, s1
+    end
+    -- A drink pressed inside the restore's potion delay is refused (e1playentry:
+    -- the combat press right after the restore answered `timeout` and nothing
+    -- moved), so the combat dose is pressed until strength reads above where
+    -- it stood, up to three presses.
+    local dose = first_held(t, COMBAT_DOSES)
+    local r, w, presses = "none", 0, 0
+    local s2 = s0
+    while dose ~= nil and presses < 3 and s2.level == s0.level do
+        presses = presses + 1
+        r = t.player.inv_op(dose, 1, { quick = true })
+        local ws
+        s2, ws = await_stat(t, "strength", s0.level, 4)
+        w = w + ws
+        dose = s2.level == s0.level and first_held(t, COMBAT_DOSES) or dose
+    end
+    local _, a2 = t.skill.read("attack")
+    local _, def = t.skill.read("defence")
+    local _, style = t.var.varp("varp43_com_mode")
+    t.check(name .. ".potion", s2.level > s2.base_level and a2.level > a2.base_level,
+        "super combat before the barrier: strength " .. s0.level .. " -> " .. s2.level .. "/" .. s2.base_level
+        .. ", attack " .. a0.level .. " -> " .. a2.level .. "/" .. a2.base_level .. ", defence " .. tostring(def and def.level)
+        .. ", style " .. tostring(style) .. " (" .. tostring(dose) .. " " .. tostring(r) .. ", " .. presses .. " press(es), +" .. w .. " tick(s)); restores "
+        .. restored .. ":" .. (rtext == "" and " none needed" or rtext))
 end
 
 local function mark_tick(t, label)
@@ -314,11 +398,8 @@ end
 -- scythe, and the crossing when Bloat is on the far row heading west
 -- ("enter the barrier when Bloat is on the other side of the pillar", E:134).
 PRE.bloat = function(t, ox, oz)
-    local pr = t.player.inv_op("4dose2combat", 1, { quick = true })
-    t.ticks(1)
+    boost(t, "bloat")
     wear(t, "bloat.equip.scythe", "scythe_of_vitur")
-    local ar, att = t.skill.read("attack")
-    t.check("bloat.potion", ar == "ok" and att.level > 99, "super combat before the barrier: attack " .. tostring(att and att.level) .. " (" .. tostring(pr) .. ")")
     t.player.walk_to(ox + 42, oz + 31, 1)
     local wait_ticks, wait_x = 0, nil
     while wait_ticks < 60 do
@@ -366,20 +447,7 @@ end
 -- with bandages to boost; the kit's armour is the bow's, so the scythe rooms
 -- take the boost the potion still holds: the relay's fifth run lost Xarpus
 -- to a P2 that ran past the harness's 171 ticks, the scythe unboosted).
-local function boost(t, name)
-    local r = "none"
-    for _, dose in ipairs({ "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" }) do
-        local cr, n = t.inv.count(dose)
-        if r == "none" and cr == "ok" and n > 0 then r = t.player.inv_op(dose, 1, { quick = true }) end
-    end
-    t.ticks(1)
-    local ar, att = t.skill.read("strength")
-    local _, acc = t.skill.read("attack")
-    local _, def = t.skill.read("defence")
-    local _, style = t.var.varp("varp43_com_mode")
-    t.check(name .. ".potion", ar == "ok" and att.level > 99, "super combat before the barrier: strength " .. tostring(att and att.level)
-        .. ", attack " .. tostring(acc and acc.level) .. ", defence " .. tostring(def and def.level) .. ", style " .. tostring(style) .. " (" .. tostring(r) .. ")")
-end
+-- (boost, above the pre-fights, drinks it: the drained stats restored first.)
 
 PRE.sotetseg = function(t, ox, oz)
     wear(t, "sotetseg.equip.scythe", "scythe_of_vitur")
@@ -410,8 +478,22 @@ PRE.verzik = function(t, ox, oz)
     wear(t, "verzik.equip.arrows", "dragon_arrow")
     t.exec("verzik.unequip.scythe", t.player.unequip, "scythe_of_vitur")
     t.exec("verzik.prayer", t.prayer.set, "protectfrommagic", true)
-    local tr, td = t.player.talk_to("verzik_initial_story", 1)
-    t.check("verzik.talk", tr == "ok", tostring(td))
+    -- The talk is the room's barrier: re-talked when no dialogue opened.
+    -- svaplayentry (seam39 survey): from the fight tile the press found no
+    -- pixel of Verzik's (pickset held=false, only "Walk here" in the menu),
+    -- so each retry first walks four tiles up the carpet towards her.
+    local tr, td, talks = nil, nil, 0
+    local opened = false
+    while talks < 3 and not opened do
+        talks = talks + 1
+        if talks > 1 then
+            local _, here = t.world.tile()
+            t.player.walk_to(here.x, here.z + 4, 10)
+        end
+        tr, td = t.player.talk_to("verzik_initial_story", 1)
+        opened = tr == "ok" and t.chat.kind() ~= "none"
+    end
+    t.check("verzik.talk", opened, "dialogue open after " .. talks .. " talk(s): " .. string.sub(tostring(td), 1, 200))
     local cr, cd = t.chat.play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
     t.check("verzik.begin", cr == "ok", tostring(cd))
     return { max_ticks = 1500, no_barrier = true }
