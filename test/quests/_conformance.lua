@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 184
+-- @seam-count 185
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 194
-local SEAM_COUNT = 184
+local SEAM_COUNT = 185
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -11769,6 +11769,48 @@ return {
                 return "fail", "quadrant split differs from tob_xarpus.rs2 ~tob_xarpus_quadrant_from: " .. table.concat(bad, "; ")
             end
             return "ok", "8 of 8 tiles in the server's quadrant (diagonals and the four boundary tiles; centre row south, centre column west)"
+        end)
+
+        -- raid seam34x play_tob_xarpus_normal: the Normal trio's phase 1 split.
+        -- The k-th exhumed to rise (as every raider sees them; two on one tick
+        -- by tile) is raider ((k - 1) mod 3) + 1's; a raider walks only to its
+        -- own and otherwise to its own wait tile.  A pure function on a made-up
+        -- view, no npc.  SEAM_COUNT +1.
+        seam("seam.raid_play_xarpus_trio_split", function()
+            local f = verb("raid", "_xarpus_p1_trio")
+            if not f then return missing("raid", "_xarpus_p1_trio") end
+            local plan = { wait = { 34, 32 }, trio = { waits = { { 34, 32 }, { 31, 35 }, { 37, 35 } } } }
+            -- rises: t10 one at 6430,95; t18 one at 6440,100; t26 two on one
+            -- tick, 6436,104 and 6428,104 (by tile: 6428 first); t34 6433,93
+            local timeline = {
+                { 10, { { x = 6430, z = 95 } } },
+                { 18, { { x = 6430, z = 95 }, { x = 6440, z = 100 } } },
+                { 26, { { x = 6440, z = 100 }, { x = 6436, z = 104 }, { x = 6428, z = 104 } } },
+                { 34, { { x = 6436, z = 104 }, { x = 6428, z = 104 }, { x = 6433, z = 93 } } },
+            }
+            -- what each role must walk to on each of those ticks
+            local want = {
+                [1] = { "6430,95", "6430,95", "6436,104", "6436,104" },
+                [2] = { "6431,99", "6440,100", "6440,100", "6433,93" },
+                [3] = { "6437,99", "6437,99", "6428,104", "6428,104" },
+            }
+            local bad = {}
+            for role = 1, 3 do
+                local st = { plan = plan, origin = { x = 6400, z = 64 }, party = 3, role = role }
+                local X = { covers = {} }
+                for i, step in ipairs(timeline) do
+                    local intent = { want = {} }
+                    f(st, { tick = step[1], me = { x = 6400, z = 64 }, exhumed = step[2] }, X, intent)
+                    local got = intent.walk and (intent.walk.x .. "," .. intent.walk.z) or "none"
+                    if got ~= want[role][i] then
+                        bad[#bad + 1] = "p" .. role .. " t" .. step[1] .. " walked to " .. got .. " want " .. want[role][i]
+                    end
+                end
+            end
+            if #bad > 0 then
+                return "fail", "the trio's exhumed split differs: " .. table.concat(bad, "; ")
+            end
+            return "ok", "12 of 12 walks: the k-th exhumed is raider ((k-1) mod 3)+1's (two on one tick by tile), the others wait on their own tile (34,32 / 31,35 / 37,35 local)"
         end)
 
         -- raid seam30 play_tob_verzik (merged by the seam30 closer): the footprint

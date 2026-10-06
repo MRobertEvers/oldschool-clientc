@@ -18,11 +18,26 @@
 -- measurement rows, not technique or room-complete rows, and are not copied
 -- either -- among them xarpus.av.death_a.seq (:1232-1234), whose nil `kill`
 -- is the script error the kept room hits on a seed with no npc_death row.
-return {
-    id = "_play_xarpus",
-    fixture = "fresh_lumbridge.ini",
-    max_frames = 90000,
-    setup = {
+--
+-- raid seam34x play_tob_xarpus_normal: `--party 3` is the NORMAL TRIO
+-- (`seed_survey.py _play_xarpus --party 3`; PLAY_NOTES.md "Xarpus, Normal
+-- trio").  The solo run above is unchanged; the trio's kit, entry and rows
+-- are trio_kit / trio_run below.
+local role = (QD_PARTY and QD_PARTY.role) or 1
+local size = (QD_PARTY and QD_PARTY.size) or 1
+-- the trio's kit: _play_bloat.lua's Normal party kit (::maxmelee, the scythe
+-- of vitur: "if a scythe is in the player's possession", W:842; anglerfish,
+-- restores, a super combat; Agility 99 for the run energy every step back
+-- spends) without the brews, which drain Attack and Strength
+local trio_kit = {
+    "::clearinv", "::maxmelee", "::setlevel prayer 99", "::setlevel agility 99",
+    "::give anglerfish 16", "::give br_4dose2restore 3", "::give 4dose2combat 2",
+    -- the Defence drain W:839 asks for ("at least two successful hammer/maul
+    -- specials"; the Dragon warhammer is the cache's hammer, _play_bloat.lua)
+    "::give dragon_warhammer 1",
+}
+local trio_run = nil
+local solo_kit = {
         "::clearinv",
         -- an Entry-mode Xarpus player has trained melee stats: attack and strength for the scythe, defence for the armour, hitpoints and prayer to live
         "::setlevel attack 99",
@@ -50,9 +65,253 @@ return {
         "::give shark 15",
         -- a super combat potion, drunk before the swings
         "::give 4dose2combat",
-    },
+}
+
+-- THE TRIO RUN.  Every raider enters, drinks the super combat, and waits at
+-- the entrance; p1 starts the fight at the barrier, p2/p3 cross after it
+-- (_play_bloat.lua's entry).  The fight is one t.raid.play per raider; the
+-- rows after it read the leader's tick log, the evidence for all three.
+trio_run = function(t, role, size)
+    local mode = "normal"
+    if role == 1 then t.ticklog.start() end
+    t.check("spec.scope", true, "mode=normal party=" .. size .. " p" .. role)
+    local er, ed = t.raid.enter("tob", "xarpus", { mode = mode })
+    t.check("play.enter", er == "ok", "p" .. role .. " " .. tostring(ed))
+    local pr = t.player.inv_op("4dose2combat", 1, { quick = true })
+    t.ticks(1)
+    local ar2, att2 = t.skill.read("attack")
+    t.check("play.potion", ar2 == "ok" and att2.level > 99, "p" .. role .. " super combat before the barrier: attack " .. tostring(att2 and att2.level) .. " (" .. tostring(pr) .. ")")
+    t.expect("party.barrier.entrance", t.party.barrier("entrance", 300))
+    local bslot = nil
+    local ft0 = nil
+    -- the fight tile: the room's own (t.raid.start_tile) on the leader; a
+    -- member has no ::tob readout, and walks to the same tile of its square
+    -- (6434,92 in square 6400,64: 34,28 local, the leader's reading)
+    local fight = nil
+    if role == 1 then
+        local _, ft = t.raid.start_tile()
+        fight = ft
+    else
+        local _, here = t.world.tile()
+        fight = { x = math.floor(here.x / 64) * 64 + 34, z = math.floor(here.z / 64) * 64 + 28 }
+    end
+    if role == 1 then
+        local bossr, bossrow = t.npc.nearest("tob_xarpus_static", 20)
+        local slr
+        slr, bslot = t.ticklog.slot(bossrow)
+        t.check("boss.slot", bossr == "ok" and slr == "ok", "boss client slot " .. tostring(bossrow and bossrow.slot) .. " -> world slot " .. tostring(bslot))
+        t.player.walk_to(fight.x, fight.z - 3, 20)
+        _, ft0 = t.tick()
+        t.exec("play.barrier", t.player.click_loc, "tob_arena_barrier", 1)
+        local mr, md = t.ticklog.mark("room start")
+        t.exec("play.begin", t.chat.play, { "options", "choose:Yes, begin the fight." })
+        t.check("play.mark", mr == "ok", tostring(md))
+        t.expect("party.barrier.started", t.party.barrier("started", 900))
+    else
+        t.expect("party.barrier.started", t.party.barrier("started", 900))
+        t.player.walk_to(fight.x, fight.z - 3, 20)
+        local xr, xd = t.player.click_loc("tob_arena_barrier", 1)
+        t.check("play.barrier_cross", xr == "ok", "p" .. role .. " crossed after the start: " .. tostring(xd))
+    end
+
+    -- THE FIGHT: the library and the room's plan, nothing else
+    local result, detail, rec = t.raid.play("tob_xarpus", { mode = mode, weapon = "scythe_of_vitur", max_ticks = 1400 })
+    t.check("play.fight", result == "ok", "p" .. role .. " " .. tostring(detail))
+    if role ~= 1 then
+        t.expect("party.barrier.done", t.party.barrier("done", 9000))
+        t.finish(0)
+        return
+    end
+    local XA = rec.xa or { covers = {}, turns = {}, phase = 0, stops = 0, moves3 = 0, waits3 = 0 }
+    t.ticks(2)
+
+    -- THE TICK LOG (leader): every raider's evidence
+    local mark_tick = nil
+    local _, mrows = t.ticklog.rows({ kind = "mark" })
+    for i = 1, #mrows do if mrows[i].label == "room start" then mark_tick = mrows[i].tick end end
+    ft0 = ft0 or mark_tick or 0
+    local _, drr = t.ticklog.rows({ kind = "npc_death", slot = bslot })
+    local kill = nil
+    for i = 1, #drr do if kill == nil and drr[i].tick >= ft0 then kill = drr[i] end end
+    local kill_tick = kill and kill.tick or 1000000
+    local _, rtu = t.ticklog.rows({ kind = "npc_retype", slot = bslot })
+    local U, seen = nil, 0
+    for i = 1, #rtu do
+        if rtu[i].tick >= ft0 then
+            seen = seen + 1
+            if seen == 2 then U = rtu[i].tick end
+        end
+    end
+    U = U or ft0
+    local _, ptr = t.ticklog.rows({ kind = "player_tile" })
+    local tile_at, pids, pid_list = {}, {}, {}
+    local died = {}
+    local last_tile = {}
+    for i = 1, #ptr do
+        local r = ptr[i]
+        if pids[r.pid] == nil then pids[r.pid] = true; pid_list[#pid_list + 1] = r.pid; tile_at[r.pid] = {} end
+        tile_at[r.pid][r.tick] = { x = r.x, z = r.z }
+        local lt = last_tile[r.pid]
+        if lt ~= nil and r.tick > ft0 and r.tick <= kill_tick and math.abs(r.x - lt.x) + math.abs(r.z - lt.z) > 20 then died[r.pid] = r.tick end
+        last_tile[r.pid] = { x = r.x, z = r.z }
+    end
+    table.sort(pid_list)
+    local function anyone_on(tick, x, z)
+        for _, pid in ipairs(pid_list) do
+            local tt = tile_at[pid][tick]
+            if tt ~= nil and tt.x == x and tt.z == z then return pid end
+        end
+        return nil
+    end
+    -- the exhumed: risen, stood on (any raider on its tile before it closed), heal orbs
+    local _, lsr = t.ticklog.rows({ kind = "loc_set" })
+    local rises, ring_pools, pools = {}, 0, 0
+    local ring_list = ""
+    local function fdist(x, z)
+        return math.max(6432 - x, x - 6436, 97 - z, z - 101, 0)
+    end
+    for i = 1, #lsr do
+        local r = lsr[i]
+        if r.tick >= ft0 and r.tick <= kill_tick then
+            if r.loc == 32743 then
+                rises[#rises + 1] = { tick = r.tick, x = r.x, z = r.z }
+            elseif r.loc == 32744 and r.tick >= U then
+                pools = pools + 1
+                if fdist(r.x, r.z) == 1 then
+                    ring_pools = ring_pools + 1
+                    if ring_pools <= 8 then ring_list = ring_list .. string.format(" t%d %d,%d", r.tick, r.x, r.z) end
+                end
+            end
+        end
+    end
+    local stood, stood_by, late = 0, "", 0
+    for _, e in ipairs(rises) do
+        local who, when = nil, nil
+        for tk = e.tick, e.tick + 11 do
+            if who == nil then
+                who = anyone_on(tk, e.x, e.z)
+                if who ~= nil then when = tk end
+            end
+        end
+        if who ~= nil then
+            stood = stood + 1
+            stood_by = stood_by .. string.format(" %d,%d:p%d+%d", e.x, e.z, who, when - e.tick)
+        else
+            stood_by = stood_by .. string.format(" %d,%d:MISSED", e.x, e.z)
+        end
+    end
+    local _, pjr = t.ticklog.rows({ kind = "projectile" })
+    local orbs, orbs_covered = 0, 0
+    for i = 1, #pjr do
+        if pjr[i].tick >= ft0 and pjr[i].spotanim == 1550 then
+            orbs = orbs + 1
+            if anyone_on(pjr[i].tick - 1, pjr[i].src_x, pjr[i].src_z) ~= nil then orbs_covered = orbs_covered + 1 end
+        end
+    end
+    local _, nhr = t.ticklog.rows({ kind = "npc_heal" })
+    local healed = 0
+    for i = 1, #nhr do
+        if nhr[i].tick >= ft0 and nhr[i].tick <= kill_tick then healed = healed + (nhr[i].amount or 0) end
+    end
+
+    -- damage taken per raider: phase 2 (the spit, his stomp) and phase 3 (a
+    -- retaliation is 50 and up on Normal, X xarpus.p3.retaliate_base)
+    local p3 = XA.p3_tick or kill_tick
+    local _, hur = t.ticklog.rows({ kind = "hit_player" })
+    local taken, retal = {}, {}
+    local retal_n = 0
+    for _, pid in ipairs(pid_list) do taken[pid] = { dmg = 0, n = 0 } end
+    for i = 1, #hur do
+        local h = hur[i]
+        if h.tick >= ft0 and h.tick <= kill_tick and (h.damage or 0) > 0 and taken[h.pid] ~= nil then
+            taken[h.pid].dmg = taken[h.pid].dmg + h.damage
+            taken[h.pid].n = taken[h.pid].n + 1
+            if h.tick > p3 and h.damage >= 30 then
+                retal_n = retal_n + 1
+                retal[#retal + 1] = string.format("t%d p%d %d", h.tick, h.pid, h.damage)
+            end
+        end
+    end
+    local _, par = t.ticklog.rows({ kind = "player_anim" })
+    local swings = {}
+    for _, pid in ipairs(pid_list) do swings[pid] = 0 end
+    for i = 1, #par do
+        if par[i].tick >= ft0 and par[i].tick <= kill_tick and par[i].seq == 8056 and swings[par[i].pid] ~= nil then
+            swings[par[i].pid] = swings[par[i].pid] + 1
+        end
+    end
+    local _, hnr = t.ticklog.rows({ kind = "hit_npc", slot = bslot })
+    local dealt, dealt_n, zeros = 0, 0, 0
+    for i = 1, #hnr do
+        if hnr[i].tick >= ft0 and hnr[i].tick <= kill_tick then
+            dealt = dealt + (hnr[i].damage or 0)
+            dealt_n = dealt_n + 1
+            if (hnr[i].damage or 0) == 0 then zeros = zeros + 1 end
+        end
+    end
+    local per = {}
+    local dead_list = {}
+    for _, pid in ipairs(pid_list) do
+        per[#per + 1] = string.format("pid%d took %d in %d, %d swings", pid, taken[pid].dmg, taken[pid].n, swings[pid])
+        if died[pid] ~= nil then dead_list[#dead_list + 1] = "pid" .. pid .. " t" .. died[pid] end
+    end
+    local hist = { 0, 0, 0, 0 }
+    for _, n in pairs(rec.inputs or {}) do
+        local k = math.min(n, 4)
+        if k >= 1 then hist[k] = hist[k] + 1 end
+    end
+    local tr = XA.trio or { outs = 0, ins = 0, no_out = 0, home_walks = 0 }
+
+    -- the stack (phase 2): ticks the three raiders stood on one tile
+    local stack_same, stack_apart = 0, 0
+    for tk = U + 8, p3 - 1 do
+        local first, apart = nil, false
+        for _, pid in ipairs(pid_list) do
+            local tt = tile_at[pid][tk]
+            if tt ~= nil then
+                if first == nil then first = tt elseif tt.x ~= first.x or tt.z ~= first.z then apart = true end
+            end
+        end
+        if apart then stack_apart = stack_apart + 1 else stack_same = stack_same + 1 end
+    end
+
+    -- THE ROWS
+    t.expect("fight.done", (kill ~= nil) and "ok" or "bad", "boss npc_death row " .. tostring(kill and kill.tick) .. ", mark " .. tostring(mark_tick) .. ", stand-up U " .. tostring(U) .. ", screech seen " .. tostring(XA.p3_tick))
+    t.check("trio.no_death", #pid_list == size and #dead_list == 0, #pid_list .. " raiders in the tick log; deaths: " .. (#dead_list > 0 and table.concat(dead_list, ", ") or "none"))
+    t.check("trio.exhumed_cover", #rises >= 12 and stood == #rises, "stood on " .. stood .. " of " .. #rises .. " exhumed (X exhumed_count.normal 12 at party 3); heal orbs " .. orbs .. " (" .. orbs_covered .. " from a covered tile), healed " .. healed .. ";" .. stood_by)
+    t.check("trio.ring_clean", ring_pools == 0, ring_pools .. " of " .. pools .. " phase 2 puddles on a melee tile (one from his footprint)" .. ring_list .. "; steps back " .. tr.outs .. ", steps in " .. tr.ins .. ", no clean tile " .. tr.no_out)
+    t.check("trio.stacked", stack_apart * 10 <= stack_same + stack_apart, "phase 2 (U+8 to the screech): the three raiders on one tile on " .. stack_same .. " ticks, apart on " .. stack_apart)
+    t.check("play.gaze_kept", XA.phase == 3 and retal_n == 0, retal_n .. " retaliation hitsplat(s) after the screech" .. (#retal > 0 and (": " .. table.concat(retal, ", ")) or "") .. "; " .. #(XA.turns or {}) .. " turns seen by p1")
+    t.check("play.measure_trio", true, string.format("p1 specials%s (energy before each); p1 steps back %s; kill %s ticks from the mark (%s to %s), U %s (p1 saw %s), screech %s; dealt %d in %d hits (%d zeros); %s; p1 food %d drinks %d; p1 inputs per tick 1:%d 2:%d 3:%d 4+:%d; %s",
+        tostring(tr.spec_log), table.concat(tr.out_list or {}, " "),
+        tostring(kill and mark_tick and (kill.tick - mark_tick)), tostring(mark_tick), tostring(kill and kill.tick), tostring(U), tostring(XA.u_tick), tostring(XA.p3_tick),
+        dealt, dealt_n, zeros, table.concat(per, "; "), #rec.eats, #rec.drinks, hist[1], hist[2], hist[3], hist[4], string.sub(tostring(detail), 1, 400)))
+    t.ticks(4)
+
+    -- the room's end (the solo run's, unchanged): the skeleton holds the Dawnbringer
+    local wr, wd = t.player.walk_to(6434, 106, 12)
+    t.check("exit.walk_to_gate", wr == "ok", "walk to the exit gate's near side: " .. tostring(wr) .. " " .. tostring(wd))
+    local gr = t.player.click_loc("tob_arena_barrier", 1, { at = { 6434, 107 } })
+    t.ticks(2)
+    local _, gat = t.world.tile()
+    t.check("exit.gate_crossed", gat.z == 108, "pressed the exit gate (" .. tostring(gr) .. "), stood on " .. tostring(gat.x) .. "," .. tostring(gat.z))
+    local xr, xd = t.player.click_loc("tob_skeleton_with_weapon", 1)
+    t.check("exit.skeleton", xr == "ok", tostring(xd))
+    t.chat.continue_()
+    local wok = t.inv.await("verzik_special_weapon", 1, 5)
+    t.check("exit.dawnbringer", wok == "ok" or wok == true, "inventory holds verzik_special_weapon after the skeleton: " .. tostring(wok))
+    t.expect("party.barrier.done", t.party.barrier("done", 9000))
+    t.finish(0)
+end
+
+return {
+    id = "_play_xarpus",
+    fixture = "fresh_lumbridge.ini",
+    max_frames = 160000,
+    setup = (size > 1) and trio_kit or solo_kit,
 
     run = function(t)
+        if size > 1 then return trio_run(t, role, size) end
         t.check("spec.scope", true, "mode=entry party=1")
         local srl, sdl = t.ticklog.start()
         t.expect("ticklog.start", srl, tostring(sdl))

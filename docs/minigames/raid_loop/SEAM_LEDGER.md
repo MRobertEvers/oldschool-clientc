@@ -1307,3 +1307,22 @@ all clean. No C and no content changed.
   runs AGREE. The full quest suite was not run: outside raid_play*.lua, test/raids/ and docs/
   only test/quests/_conformance.lua changed, and no quest loads it. Honest state: Bloat and
   Nylocas Normal trios green on five names; Maiden Normal is not.
+
+## matthew-mbp-m4-raid-b1-seam34x (2026-10-06; the commit that carries this heading, OSRS-Content fb292a9996 unchanged): the Normal trio Xarpus
+
+- play_tob_xarpus_normal; LANDED. `seed_survey.py _play_xarpus --party 3` 5 of 5 (closer
+  re-run: kills t291-t326, 12 of 12 exhumed stood on, 0 ring puddles, stacked, 0
+  retaliations, party.lockstep PASS), `party_repeat.py` on a `party = 3,` copy AGREE (tick
+  log sha e94bf891a445, 360 boundaries); Entry solo `seed_survey.py _play_xarpus` still 5 of
+  5 (closer re-run); cooks_assistant byte-identical. Phase 1 splits the exhumed in turn
+  (W:831, W:829), phase 2 is one stack with a two-tick step back to a tile three out
+  (W:836, W:844, A:203, A:211) and two Dragon warhammer specials a raider (W:839), phase 3
+  is the Entry plan per raider. Row: seam.raid_play_xarpus_trio_split (PASS). Open:
+  party_repeat.py needs a --party flag; 17 heal orbs (204 hp) land in phase 1 because the
+  owner arrives 2-5 ticks after the rise; the Defence drain is not read back; the chains'
+  aim tick (end of S+2) has no source either way (a CONTENT_BUGS row if one shows the
+  bounce targets are taken at the spit tick); Entry solo under a non-survey name (xn34base)
+  stalled in phase 3 (no turn seen in face_tick), pre-existing; the survey names
+  svaplayxarpu and svbplayxarpu measured the same fight in the trio survey (kill t312,
+  screech t272, the same damage taken and puddles; their tick logs differ), so the five
+  names may be fewer than five distinct rolls for this plan.
