@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 191
+-- @seam-count 192
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 195
-local SEAM_COUNT = 191
+local SEAM_COUNT = 192
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
