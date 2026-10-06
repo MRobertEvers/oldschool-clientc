@@ -5,7 +5,10 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
+        "::complete quest_priestinperil", -- the way into Morytania on foot: the Paterdomus trapdoor and holy barrier (sets the golden-key gate bit too)
+        "::complete quest_restlessghost", -- Priest in Peril's own requirement
         "::complete quest_naturespirit", -- guide requirement: Nature Spirit (druidspirit_complete)
+        "::give dagger_wolfbane 1", -- Priest in Peril's reward (::complete grants no items); Drezel's advice branch needs it held (mausoleum_drezel.rs2:29-34)
         "::setlevel agility 25", -- guide requirement: 25 Agility
         "::setlevel attack 70", "::setlevel strength 70", "::setlevel defence 70", "::setlevel hitpoints 80", -- later legs' fights
         "::give steel_longsword 1", -- guide: steel weapons brought to the Myreque
@@ -17,7 +20,7 @@ return {
         "::give woodplank 6", -- guide: planks (three to Cyreg, three for the bridge)
         "::give hammer 1", -- guide: hammer for the bridge
         "::give druid_pouch 5", -- guide: a druid pouch with five charges
-        "::give coins 10", -- guide: the ten gold boat fee
+        "::give coins 100", -- guide: the ten gold boat fee; each knocked-out quiz round pays it again (routequest_board_mortton)
     },
     bind = {
         varp = "varp387_routequest",
@@ -50,7 +53,53 @@ return {
             t.ticks(3)
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-            -- talkToVanstrom
+            -- Into Morytania on foot, the way Priest in Peril opened (door rule): the Varrock members' gate, the
+            -- Paterdomus trapdoor, Drezel's two gates, his advice, the holy barrier out east of the Salve (copied
+            -- from makinghistory / druidspirit, same reach.py readings from the fixture's tile).
+            t.exec("goto-enterMorytania.varrockGate", t.player.goto_tile, 3318, 3468, 0)
+            t.exec("enterMorytania.varrockGate", t.player.pass_door, { closed = "fai_varrock_member_gatel",
+                open = "fai_varrock_member_gatel_open", at = { 3319, 3468, 0 }, near = { 3318, 3468 }, far = { 3321, 3468 } })
+            t.exec("goto-enterMorytania.trapdoor", t.player.goto_tile, 3405, 3506, 0)
+            t.exec("enterMorytania.openTrapdoor", t.player.click_loc, "trapdoor", 1, { at = { 3405, 3507, 0 } })
+            t.await({
+                level = function()
+                    return t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } }) == "ok"
+                end,
+                note = "enterMorytania: the trapdoor opens",
+            }, 6)
+            local tdo_r, tdo = t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } })
+            local tdc_r = t.world.loc_near("trapdoor", 3, { at = { 3405, 3507, 0 } })
+            t.check("enterMorytania.trapdoorOpen", tdo_r == "ok" and tdc_r ~= "ok",
+                "trapdoor_open on 3405,3507,0 -> " .. tostring(tdo_r) .. " "
+                    .. (tdo_r == "ok" and (tdo.tile_x .. "," .. tdo.tile_z .. "," .. tdo.level) or tostring(tdo))
+                    .. "; closed trapdoor there -> " .. tostring(tdc_r) .. " (want the open leaf and no closed one)")
+            t.exec("enterMorytania.descend", t.player.climb, { loc = "trapdoor_open", op = 1, op_name = "Climb-down",
+                at = { 3405, 3507, 0 }, src = { 3405, 3506 }, dest = { 3405, 9906, 0 }, slack = 1 })
+            t.exec("enterMorytania.gate1", t.player.cross_gate, { loc = "pip_underground_door1", at = { 3405, 9895, 0 },
+                near = { 3405, 9896 }, far_ok = function(tile) return tile.z > 6400 and tile.z <= 9894 end,
+                far_desc = "south of the golden-key gate, z <= 9894", ticks = 30 })
+            t.exec("enterMorytania.gate2", t.player.cross_gate, { loc = "pip_underground_door2", at = { 3431, 9897, 0 },
+                near = { 3430, 9897 }, far_ok = function(tile) return tile.z > 6400 and tile.x >= 3432 end,
+                far_desc = "Drezel's side of the second gate, x >= 3432", ticks = 60 })
+            t.exec("enterMorytania.talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
+            t.exec("enterMorytania.talkToDrezel-dialog", t.chat.play, {
+                "player:So can I pass through that barrier now?",
+                "npc:Ah, ",
+                "npc:Morytania is an evil land",
+                "npc:You should take some basic precautions",
+                "npc:In many ways Werewolves",
+                "npc:and it is a holy relic",
+                "npc:wolf form is incredibly powerful",
+                "player:Okay, I will keep it equipped",
+            })
+            t.exec("enterMorytania.drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
+            t.exec("enterMorytania.holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
+                at = { 3440, 9886, 0 }, near = { 3440, 9887 },
+                far_ok = function(tile) return tile.x == 3423 and tile.z == 3485 end,
+                far_desc = "east of the Salve at 3423,3485 (mausoleum_interactions.rs2 p_telejump(0_53_54_31_29))" })
+            t.exec("enterMorytania.holyBarrier-msg", t.msg.expect, "You pass through the holy barrier")
+
+            -- talkToVanstrom (3423,3485 -> 3503,3478 REACH closed-doors len=95)
             t.exec("goto-talkToVanstrom", t.player.goto_tile, 3503, 3478, 0)
             t.exec("talkToVanstrom", t.player.talk_to, "route_vanstrom_klause_sitting", 1)
             t.exec("talkToVanstrom-dialog", t.chat.play, {
@@ -95,7 +144,7 @@ return {
             t.check("talkToCyreg-planks", true, tostring(planks) .. " planks left after Cyreg")
 
             -- boardBoat
-            t.exec("goto-boardBoat", t.player.goto_tile, 3524, 3283, 0)
+            -- (the boat's own tile 3524,3283 is solid: pressed from where Cyreg stands, never a goto onto it)
             t.exec("boardBoat", t.player.click_loc, "route_rowboat_mortton", 1)
             t.exec("boardBoat-dialog", t.chat.play, { "npc:It costs 10 gold", "choose:/Yes. I.ll pay/" })
             t.ticks(2)
@@ -170,9 +219,25 @@ return {
                 for _, k in ipairs(keys) do if not covered[k.step] then n = n + 1 end end
                 return n
             end
+            -- A wrong answer knocks the player out to Mort'ton (3522,3285): the way back is the real one, every
+            -- time (door rule): the boat (ten coins), a goto across the open Hollows to the south tree, the
+            -- tree's own Cross-bridge op (the mended bridge), then the open ground to Curpile's camp.
+            local function back_to_camp(rname)
+                t.exec(rname .. ".boat", t.player.click_loc, "route_rowboat_mortton", 1)
+                t.exec(rname .. ".boat-dialog", t.chat.play, { "npc:It costs 10 gold", "choose:/Yes. I.ll pay/" })
+                t.ticks(2)
+                t.chat.continue_(true)
+                t.ticks(24)
+                t.check(rname .. ".boat-landed", true, "landed at " .. where())
+                t.exec("goto-" .. rname .. ".tree", t.player.goto_tile, 3502, 3425, 0)
+                t.exec(rname .. ".crossBridge", t.player.click_loc, "spooky_tree_base_forbridge", 1, { at = { 3502, 3426, 0 } })
+                t.ticks(4)
+                t.check(rname .. ".crossBridge-where", true, "crossed the bridge, now at " .. where())
+            end
             local solved = false
             for round = 1, 10 do
                 local rname = "talkToCurpile-round" .. round
+                if round > 1 then back_to_camp(rname) end
                 t.exec("goto-" .. rname, t.player.goto_tile, 3508, 3438, 0)
                 t.exec(rname, t.player.talk_to, "route_curpile_fyod_child", 1)
                 t.exec(rname .. "-intro", t.chat.play, { "npc:Hey, what're you doin", "choose:/I.ve come to help the Myreque/", "player:I've come to help the Myreque", "npc:Okay, I see ya got da weapons",
@@ -300,11 +365,18 @@ return {
             end
             -- The way in again from the surface (guide: the tree, the wooden doors, the cave on the east side).
             local function way_in(tag)
-                t.exec("goto-climbTree" .. tag, t.player.goto_tile, 3503, 3433, 0)
-                t.exec("climbTree" .. tag, t.player.click_loc, "spooky_tree_base_forbridge", 2)
+                -- Out of the dungeon the way a real player walks: the passage to the underground wooden doors
+                -- (freedomfighterundergroundentrancel/r 3500,9812), which open onto the ground north of Curpile's hollow
+                -- tree (LostCity routequest_myreque.rs2 p_teleport(0_54_53_53_57) = 3509,3449; transports.tsv:2127,2129;
+                -- wiki In_Search_of_the_Myreque?oldid=15365477 "circle around his tree to the north ... the doors").
+                t.player.walk_to(3500, 9811, 60) -- the doors' south side, 28 steps from the hideout tunnel's mouth
+                t.check("walk-undergroundDoors" .. tag, true, "walked the passage to " .. where())
+                t.exec("leaveCave" .. tag, t.player.click_loc, "freedomfighterundergroundentrancer", 1, { at = { 3501, 9812, 0 } })
                 t.ticks(4)
-                t.check("climbTree" .. tag .. "-where", true, "climbed the tree, now at " .. where())
-                t.exec("goto-enterDoors" .. tag, t.player.goto_tile, 3509, 3446, 0)
+                local _, out = t.world.tile()
+                t.check("leaveCave" .. tag .. "-where", type(out) == "table" and out.x == 3509 and out.z == 3449 and out.level == 0,
+                    "out through the underground doors onto the marsh north of the hollow tree, now at " .. where() .. " (3509,3449)")
+                -- already in front of the surface doors (their north side); click them from where the player stands
                 t.exec("enterDoors" .. tag, t.player.click_loc, "freedomfighterentrancer", 1)
                 t.ticks(4)
                 t.check("enterDoors" .. tag .. "-where", true, "through the wooden doors, now at " .. where())
@@ -331,7 +403,16 @@ return {
             way_in("Hellhound")
             -- killHellhound: it is added the moment the chamber is entered (routequest_hound.rs2:4-11)
             t.exec("killHellhound", t.player.attack, "skeleton_hellhound", 2, 30)
-            t.exec("killHellhound.dead", t.npc.await_dead_engaged, 300, 50, { eat = { item = "lobster", below = 40 } })
+            local _, food_before = t.inv.count("lobster")
+            local _, hound_detail = t.exec("killHellhound.dead", t.npc.await_dead_engaged, 300, 50, { eat = { item = "lobster", below = 40 } })
+            -- The fight's margin: lowest hp >= a quarter of max AND food left.
+            local lowest = tonumber(tostring(hound_detail):match("lowest hp (%d+)/"))
+            local _, hp_now = t.skill.read("hitpoints")
+            local max_hp = type(hp_now) == "table" and hp_now.base_level or nil
+            local _, food_left = t.inv.count("lobster")
+            t.check("killHellhound.margin", lowest ~= nil and max_hp ~= nil and lowest * 4 >= max_hp and (tonumber(food_left) or 0) >= 1,
+                "lowest hp " .. tostring(lowest) .. "/" .. tostring(max_hp) .. ", lobsters " .. tostring(food_before) .. " -> " .. tostring(food_left)
+                    .. " (margin: lowest hp >= a quarter of max AND food left)")
             t.ticks(3)
             t.expect("quest.stage.saved_myreque", t.quest.expect_stage("saved_myreque"))
 
