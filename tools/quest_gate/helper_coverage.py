@@ -1199,6 +1199,7 @@ CHILDREN = {}     # multinpc/multiloc parent -> [child]
 OPS = {}          # (kind, symbol) -> {op number: op name, lowercased}
 OBJ_LINKS = {}    # obj symbol <-> its certlink / placeholderlink / countobj forms (obj_family)
 SCRIPTS = {}      # (trigger kind, subject) -> (relpath, line): labels, procs, triggers
+SYMBOLS = set()   # (kind, symbol) of every loc/npc/obj config block in this cache (resolves)
 LOC_CLIP = {}     # loc symbol -> (blockwalk, width, length, active): all.loc's collision fields (MapWalls)
 _BODIES = {}
 
@@ -1454,12 +1455,47 @@ def op_word(op_name):
     return re.split(r"[-\s]", (op_name or "").strip().lower())[0]
 
 
+# Two npc/loc symbols this cache has both of are one thing only through
+# family(), and the display-name rule is the objs' alone (distinct_things).
+# False is the reading before seam matthew-mbp-m4-b66-seam1 (any npc of the
+# guide npc's display name, any spelling prefix), kept for the fixtures.
+DISTINCT_SYMBOLS = True
+
+
+def resolves(kind, symbol):
+    """Is `symbol` a `kind` config block in this cache (all.loc/all.npc/all.obj)?"""
+    content_index()
+    return (kind, symbol) in SYMBOLS
+
+
+def distinct_things(kind, guide_symbol, test_string):
+    """Two npc or loc symbols that BOTH exist in this cache, differ, and are
+    not in each other's family() (multinpc/multiloc parents) are two
+    different things, whatever their display names or spellings share:
+    questscorpiona/b/c are all 'Kharid scorpion' and are three scorpions in
+    three places (seam matthew-mbp-m4-b66-seam1 helper_coverage_credits_a_
+    step_to_a_same_named_npc_or_another_copy_of_its_loc: catchOutpostScorpion,
+    whose guide npc is questscorpionb, read DRIVEN off the use on
+    questscorpiona). The name rules below are for a guide symbol this cache
+    does not have (a later cache's gameval). Objs keep their display rule:
+    a guide item's rev 239 variants share it (use_item_matches)."""
+    if not DISTINCT_SYMBOLS or kind not in ("npc", "loc") or test_string == guide_symbol:
+        return False
+    if not (resolves(kind, guide_symbol) and resolves(kind, test_string)):
+        return False
+    return test_string not in family(guide_symbol) and guide_symbol not in family(test_string)
+
+
 def same_thing(kind, guide_symbol, test_string, loose=True):
     """Does a test's string name the guide's symbol? The guide's gameval names
     are a later cache's, so rev 239 may call the same npc by a shorter name
     (holgartlandnotravel/holgartland, kennith_platform/kennith) or by its
-    multinpc parent."""
+    multinpc parent. Two npc/loc symbols this cache has both of are the same
+    thing only through family() (distinct_things); the display-name rule is
+    for objs only (a guide item's rev 239 variants)."""
     if not test_string or not re.match(r"^[a-z0-9_]+$", test_string):
+        return False
+    if distinct_things(kind, guide_symbol, test_string):
         return False
     for name in family(guide_symbol):
         if name == test_string:
@@ -1472,7 +1508,11 @@ def same_thing(kind, guide_symbol, test_string, loose=True):
             # mournerstewfence.
             if loose and (rest.startswith("_") or len(short) / len(long_) > 0.55):
                 return True
-    if kind in ("npc", "obj"):
+    # The display-name rule is the objs' alone now: an npc's guide symbol
+    # this cache has is judged by distinct_things above, and one it does not
+    # have has no display name here to compare (questscorpiona/b/c are all
+    # 'kharid scorpion'; seam matthew-mbp-m4-b66-seam1).
+    if kind == "obj" or (kind == "npc" and not DISTINCT_SYMBOLS):
         display = DISPLAY.get((kind, guide_symbol))
         same_name = BY_DISPLAY.get((kind, display), ())
         if display and len(display) >= 4 and test_string in same_name and len(same_name) <= 4:
@@ -1579,6 +1619,7 @@ def content_index():
             text = handle.read()
         for match in re.finditer(r"^\[(\w+)\]\n((?:[^\[\n].*\n|\n(?!\[))*)", text, re.M):
             symbol, body = match.group(1), match.group(2)
+            SYMBOLS.add((kind, symbol))
             cat = re.search(r"^category=(\w+)", body, re.M)
             if cat and symbol not in categories:
                 categories[symbol] = category_names.get(cat.group(1), cat.group(1))
@@ -3687,6 +3728,11 @@ class Grader:
     # an effect; False is the b57 reading (a bare call, or any PASS row,
     # drives it), kept for the fixtures.
     USE_NEEDS_EFFECT = True
+    # A use_on credits a use step only on the step's own npc or loc; a row
+    # named after the step does not stand in for a call that names another
+    # npc/loc. False is the reading before seam matthew-mbp-m4-b66-seam1,
+    # kept for the fixtures.
+    USE_ON_OWN_TARGET = True
     NOT_AN_EFFECT = re.compile(r"Nothing interesting happens\.?", re.I)
     NO_USE_EFFECT = ("no item left the pack, no var, page, interface, server line or landing on it or on a "
                      "row named after it")
@@ -3788,6 +3834,17 @@ class Grader:
             named_row = bool(row_name) and any(self.row_names_step(row_name, name) for name in names)
             on_target = any(same_thing(kind, symbol, text) or shown_by(kind, symbol, text)
                             for text in call["target"] for kind, symbol in step.targets)
+            # A use credits the step only on the step's own npc or loc: a
+            # row named after the step stands in for the target only when
+            # the call names no npc/loc this cache has (an unbound variable).
+            # The outpost scorpion is not caught by a cage used on the
+            # Taverley one (seam matthew-mbp-m4-b66-seam1).
+            elsewhere = sorted(text for text in call["target"]
+                               if resolves("npc", text) or resolves("loc", text))
+            if self.USE_ON_OWN_TARGET and not on_target and elsewhere and step.targets:
+                if named_row:
+                    seen.append("line %d uses it on %s, not the step's %s" % (line, "/".join(elsewhere), targets))
+                continue
             if not (on_target or named_row):
                 continue
             if not row_name and self.USE_NEEDS_EFFECT:
@@ -3840,9 +3897,12 @@ class Grader:
             _, _, line, hit, where = min(candidates)
             self.line_credits.setdefault(line, step.name)
             return "%s uses %r on the target, the guide's %s" % (where, hit, label)
+        use_lines = {call["line"] for call in self.test.use_calls}
         for row in self.action_rows:
             if not any(self.row_names_step(row["step"], name) for name in names):
                 continue
+            if self.USE_ON_OWN_TARGET and self.row_line(row["step"]) in use_lines:
+                continue  # its use_on was judged above, on its own target
             hit = next((item for item in self.lost_items(row["detail"])
                         if self.use_item_matches(symbols, item)), None)
             if hit and not self.claimed_by_other(row["step"], step):
@@ -4031,12 +4091,104 @@ class Grader:
                     continue  # an inventory read names items too
                 hit = next((t for t in sorted(tokens) if same_thing(kind, symbol, t, loose=False)), None)
                 if hit:
-                    why = self.row_refused(step, row, kind, symbol, hit)
+                    why = self.row_refused(step, row, kind, symbol, hit) or self.row_off_point(step, row, kind, hit)
                     if why:
                         refused.append(why)
                         continue
                     return "ledger row %s %r names %s" % (row["index"], row["step"], hit)
         return None
+
+    # A row that only names a loc step's loc credits the step only when it
+    # worked the copy at the guide's WorldPoint (row_off_point). False is the
+    # reading before seam matthew-mbp-m4-b66-seam1, kept for the fixtures.
+    ROW_AT_POINT = True
+    # How near a row's tile must be to the guide step's WorldPoint for a row
+    # that names the step's loc to be a row that worked THAT copy.
+    POINT_SLACK = 2
+    # How far from where the player stood a copy of the loc may be for a row
+    # that reports no tile of its own to have worked it (a click_loc walks
+    # to the nearest copy it can see).
+    COPY_SEARCH = 15
+    # A world tile in a detail: four-digit x (a screen pixel pair `382,252`
+    # is not one).
+    TILE_RE = re.compile(r"(?<![\d.])(\d{4}),\s*(\d{4,5})(?:,\s*([0-3]))?(?![\d.])")
+
+    def row_off_point(self, step, row, kind, hit):
+        """Why a ledger row that only NAMES the step's loc does not credit a
+        guide step with a WorldPoint, or None. The row must have acted on a
+        copy within POINT_SLACK tiles of it: a tile written right after the
+        symbol (`ladder_from_cellar at 2575,9655,0`) when the detail gives
+        one, else any tile the detail reports; a detail with no tile at all
+        is judged by the copy nearest where the player last stood
+        (player_track), and stays unjudged when neither is known. Cog's
+        climbWhiteLadder (ladder_from_cellar 2575,9655) is not driven by
+        `enterBasement-black`, which climbed ladder_cellar 2566,3242 and only
+        says it landed "beside ladder_from_cellar 2566,9642" (seam
+        matthew-mbp-m4-b66-seam1)."""
+        if not self.ROW_AT_POINT or kind != "loc" or not step.point:
+            return None
+        px, pz = step.point[0], step.point[1]
+        plevel = step.point[2] if len(step.point) > 2 else None
+        detail = row.get("detail") or ""
+
+        def near(x, z, level):
+            if level is not None and plevel is not None and level != plevel:
+                return False
+            return max(abs(x - px), abs(z - pz)) <= self.POINT_SLACK
+
+        def tiles(found):
+            return [(int(x), int(z), int(level) if level not in (None, "") else None) for x, z, level in found]
+
+        attached = tiles(m.groups() for m in re.finditer(
+            r"\b%s\b[\s(:]*(?:at\s+)?(\d{4}),\s*(\d{4,5})(?:,\s*([0-3]))?" % re.escape(hit), detail))
+        pool = attached or tiles(m.groups() for m in self.TILE_RE.finditer(detail))
+        guide = "the guide's %d,%d,%s" % (px, pz, plevel)
+        if pool:
+            if any(near(*tile) for tile in pool):
+                return None
+            shown = ", ".join("%d,%d%s" % (x, z, "" if level is None else ",%d" % level) for x, z, level in pool[:3])
+            return "ledger row %s %r names %s, but %s %s, not the copy within %d tiles of %s" % (
+                row["index"], row["step"], hit, "names it at" if attached else "its detail reports",
+                shown, self.POINT_SLACK, guide)
+        stood = self._stood_before(row)
+        if stood is None:
+            return None
+        copy = self._nearest_copy(hit, stood)
+        if copy is None or near(*copy):
+            return None
+        return "ledger row %s %r names %s and reports no tile; the player stood at %d,%d,%d, whose nearest " \
+            "copy is %d,%d,%d, not the one within %d tiles of %s" % (
+                row["index"], row["step"], hit, stood[0], stood[1], stood[2], copy[0], copy[1], copy[2],
+                self.POINT_SLACK, guide)
+
+    def _stood_before(self, row):
+        """The player's last tile player_track read at or before `row`, or None."""
+        position = next((i for i, r in enumerate(self.rows) if r is row), None)
+        if position is None:
+            return None
+        found = None
+        for at, tile, _ in self.player_track():
+            if at > position:
+                break
+            found = tile
+        return found
+
+    def _nearest_copy(self, symbol, stood):
+        """The origin of the copy of loc `symbol` (or a multiloc state of it)
+        nearest `stood` on its level within COPY_SEARCH tiles, or None."""
+        walls = map_walls()
+        names = family(symbol) | set(loc_states(symbol))
+        x, z, level = stood
+        walls._ready(x, z)
+        best = None
+        for dx in range(-self.COPY_SEARCH, self.COPY_SEARCH + 1):
+            for dz in range(-self.COPY_SEARCH, self.COPY_SEARCH + 1):
+                for name, origin in walls.locs_at.get((x + dx, z + dz, level), ()):
+                    if name in names:
+                        distance = max(abs(dx), abs(dz))
+                        if best is None or distance < best[0]:
+                            best = (distance, origin)
+        return best[1] if best else None
 
     def state_already_set(self, step, line, kind, symbol, text):
         """A loc STATE step the guide shows only while the state is missing

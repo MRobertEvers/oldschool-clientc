@@ -172,7 +172,21 @@ return {
 
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-        -- Councillor Halgrive, outside the East Ardougne church.
+        -- Councillor Halgrive, outside the East Ardougne church. From the
+        -- Lumbridge fixture (3206,3233) the only way on foot into Kandarin is
+        -- the members' gate south of Taverley (reach.py 3206,3233 ->
+        -- 2615,3298: no walk with doors shut at 160, NEEDS-DOOR via
+        -- membergater@2933,3320 at 250). So: overland to its south side
+        -- (reach.py 3206,3233 -> 2934,3318: REACH closed-doors len=387), the
+        -- walk-through gate pressed (gates.rs2 [label,member_fencegate_try],
+        -- graded on the tiles), then overland from its north side to
+        -- Halgrive (reach.py 2934,3322 -> 2615,3298: REACH closed-doors
+        -- len=773 at margin 300). No Magic or combat stat is staged, so every
+        -- dialogue below sees the fixture's combat level.
+        t.exec("goto-talkToHalgrive.memberGate", t.player.goto_tile, 2934, 3318, 0)
+        t.exec("talkToHalgrive.memberGate", t.player.cross_gate, { loc = "membergatel", at = { 2934, 3320, 0 },
+            near = { 2934, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2934) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320" })
         t.exec("goto-talkToHalgrive", t.player.goto_tile, 2615, 3298, 0)
         t.exec("talkToHalgrive", t.player.talk_to, "councillor_halgrive")
         t.exec("talkToHalgrive-dialog", t.chat.play, {
@@ -245,37 +259,23 @@ return {
         local PEN_X_MIN, PEN_X_MAX = 2595, 2609
         local PEN_Z_MIN, PEN_Z_MAX = 3351, 3364
 
-        -- Enter #1. goto_tile lands EXACTLY on the gate loc's own tile
-        -- (2594,3362, loc 166 -- m40_52.jl2) if aimed there directly, and
-        -- click_loc's own "step off the target tile" then lands the player
-        -- on 167 (the gate's second loc, 2594,3361) with NO real walking
-        -- route in between -- _settle_after_click's three arms (mounted
-        -- sub, new chat line, map_flag route-end) all need something to
-        -- resolve ON, and a click with no route, no chat line and no
-        -- interface (sheepherder_gate.rs2's p_teleport fires none of the
-        -- three) times out. Aiming the goto one tile off the loc itself
-        -- gives click_loc a real one-tile approach for the manual poll
-        -- below to catch instead of trusting the click verb's own result
-        -- word.
+        -- Enter #1. sheepherder_gate.rs2 [label,sheepherder_gate] is a
+        -- WALK-THROUGH gate (p_teleport across the gate loc, nothing left
+        -- open): from x <= 2594 it lands the player one tile east of the
+        -- gate (inside the pen), from inside it lands ON the gate tile
+        -- (2594,z). So it is crossed with t.player.cross_gate, graded on
+        -- the tiles before and after the press, on every crossing. The
+        -- goto stops one tile west of the gate (2593,3362, open ground in
+        -- the big outside component -- comp.py: 1202 tiles), never on it.
+        local function in_pen(tile)
+            return tile.x >= PEN_X_MIN and tile.x <= PEN_X_MAX and tile.z >= PEN_Z_MIN and tile.z <= PEN_Z_MAX
+        end
+        local PEN_IN = { loc = "plaguesheep_gatel", at = { 2594, 3362, 0 }, near = { 2593, 3362 },
+            far_ok = in_pen, far_desc = "inside the enclosure (2595-2609,3351-3364)" }
+        local PEN_OUT = { loc = "plaguesheep_gatel", at = { 2594, 3362, 0 }, near = { 2595, 3362 },
+            far_ok = function(tile) return tile.x <= 2594 end, far_desc = "west of the enclosure gate, x <= 2594" }
         t.exec("goto-enterEnclosure1", t.player.goto_tile, 2593, 3362, 0)
-        local enter1_result, enter1_detail = t.player.click_loc("plaguesheep_gatel", 1)
-        local arrived1 = false
-        for _ = 1, 4 do
-            local tile1_result, tile1 = t.world.tile()
-            if tile1_result == "ok" and tile1.x >= PEN_X_MIN and tile1.x <= PEN_X_MAX and tile1.z >= PEN_Z_MIN and tile1.z <= PEN_Z_MAX then
-                arrived1 = true
-                break
-            end
-            t.ticks(1)
-        end
-        t.check("enterEnclosure1", arrived1,
-            string.format("click_loc -> %s (%s); arrived in pen (%d-%d,%d-%d)=%s", tostring(enter1_result), tostring(enter1_detail), PEN_X_MIN, PEN_X_MAX, PEN_Z_MIN, PEN_Z_MAX, tostring(arrived1)))
-        if not arrived1 then
-            t.blocked(string.format(
-                "sheepherder_gate.rs2 [label,sheepherder_gate]: click_loc('plaguesheep_gatel',1) -> %s (%s) and t.world.tile() never read inside the pen (%d-%d,%d-%d) after 4 tick(s) of polling on the FIRST crossing (before the cattleprod) -- the gate's own p_teleport fires none of _settle_after_click's three arms (no mounted sub, no new chat line, no map_flag route-end), so this seam is the driver's click-settle never recognising a LOC-triggered teleport, not a missing trigger or wrong clothing (worn plague_jacket/trousers already confirmed above)",
-                tostring(enter1_result), tostring(enter1_detail), PEN_X_MIN, PEN_X_MAX, PEN_Z_MIN, PEN_Z_MAX))
-            return
-        end
+        t.exec("enterEnclosure1", t.player.cross_gate, PEN_IN)
 
         -- The cattleprod is a ground item in Farmer Brumty's barn, INSIDE
         -- the enclosure now that enterEnclosure1 above landed
@@ -283,10 +283,12 @@ return {
         -- answers `ok` with a nil detail on this pick-up (measured run 1),
         -- the hollow shape trap 12 names -- called directly, not through
         -- t.exec, with the before/after backpack count as the real detail.
-        -- This goto is plain travel WITHIN the already-entered pen (both
-        -- 2593,3362 above and 2604,3357 here are inside PEN_X/PEN_Z), not a
-        -- teleport past anything, so it is not the cheat rule (b) names.
-        t.exec("goto-barn", t.player.goto_tile, 2604, 3357, 0)
+        -- The barn tile is walked to inside the pen (comp.py: the pen is
+        -- one 185-tile component holding both tiles), never a goto.
+        -- Walked to two tiles west of the stack (2602,3357), not onto it:
+        -- standing on the stack after a walk projected it under the UI
+        -- (run 1: click_obj -> covered, "stack 2604,3357 already 0 away").
+        t.exec("walk-barn", t.player.walk_to, 2602, 3357)
         local cattleprod_before_result, cattleprod_before = t.inv.count("cattleprod")
         local pickup_result, pickup_detail = t.player.click_obj("cattleprod")
         local cattleprod_after_result, cattleprod_after = t.inv.count("cattleprod")
@@ -297,11 +299,9 @@ return {
         -- Exit #1: the four wild sheep are OUTSIDE the enclosure
         -- (diseased_sheep.rs2 [label,prod_sheep] refuses to prod an npc
         -- already inside sheepherder_in_pen), so herding them needs the
-        -- player back outside too. This click starts well clear of the
-        -- gate tile (from the barn), which gives click_loc a real walking
-        -- route to settle on, so a plain t.exec works here -- the manual
-        -- poll above is only needed for the adjacent-tile approach.
-        t.exec("exitEnclosureAfterCattleprod", t.player.click_loc, "plaguesheep_gatel", 1)
+        -- player back outside too: the gate pressed from inside, graded on
+        -- the landing (the gate tile, x <= 2594).
+        t.exec("exitEnclosureAfterCattleprod", t.player.cross_gate, PEN_OUT)
 
         -- ---------------------------------------------------------------
         -- Herd all four wild sheep into the enclosure. sheep_table
@@ -836,24 +836,17 @@ return {
                 bit_result, bit_value = t.var.varbit(def.bitvar)
             end
 
-            -- A FAIL row immediately ahead of t.blocked() is the rejected
-            -- shape (section 8's "what the gate will not tell you", trap
-            -- 15's precedent in pryingtimes.lua/makinghistory.lua): grade
-            -- this a RECORDING row (t.check with a literal `true`) and let
-            -- the t.blocked() below carry the verdict when herding failed
-            -- -- the reading (herded or not, and the last press) lives in
-            -- its detail either way.
+            -- Graded on the sheep's own bit: herding is the test's job, so a
+            -- sheep that never reached the gate zone is a FAIL row and the
+            -- run stops there (the press history is in the detail).
             local herded = bit_result == "ok" and bit_value ~= 0
-            t.check("herd.sheep" .. def.id .. "_in_pen", true,
+            t.check("herd.sheep" .. def.id .. "_in_pen", herded,
                 string.format("herded=%s, %s=%s after %d press(es) (stepped=%d walled=%d out_of_range=%d lost=%d no_row=%d wrong_side=%d, re-planned %d drift(s)) -- %s",
                     tostring(herded), def.bitvar, tostring(bit_value), pressed,
                     outcome_counts.stepped, outcome_counts.walled, outcome_counts.out_of_range, outcome_counts.lost, outcome_counts.no_row, outcome_counts.wrong_side,
                     drifted,
                     table.concat(history, " || ")))
             if not herded then
-                t.blocked(string.format(
-                    "diseased_sheep.rs2 [label,prod_sheep]: %s never reached sheepherder_pen_gate (2592-2594,3360-3363) after %d presses (stepped=%d walled=%d out_of_range=%d lost=%d no_row=%d wrong_side=%d) -- last attempt: %s -- driven with the seam13 npc selector (t.player.press(..., { slot = n })) plus a wrong-side check (RETRY after 87ec0250d, the npc wander-parity landing) that skips a press whenever the walk stopped short of the intended stand tile, so a wrong_side count above 0 names attempts the loop deliberately declined rather than a press that ran and did nothing; this is a real routing seam in the staged east/north/west/south plan (herd_plan_move) or the go-around retry, not the multi-copy ambiguity seam13 fixed. Read the per-press ledger above (the full history) and build/author_state/sonnet-b22/sheepherder.author.progress.md for the trail.",
-                    def.npc, pressed, outcome_counts.stepped, outcome_counts.walled, outcome_counts.out_of_range, outcome_counts.lost, outcome_counts.no_row, outcome_counts.wrong_side, last_detail))
                 return
             end
         end
@@ -871,50 +864,12 @@ return {
         -- sheepherder_in_pen) and exitEnclosureAfterCattleprod above left
         -- the player outside too, so this crossing is genuinely needed,
         -- not a leftover.
-        -- Same adjacent-approach settle trap as enterEnclosure1 above:
-        -- goto_tile lands EXACTLY on the gate loc's own tile (2594,3362,
-        -- loc 166 -- m40_52.jl2) if aimed there directly, and
-        -- click_loc's own "step off the target tile" then lands the
-        -- player on 167 (the gate's second loc, 2594,3361) with NO real
-        -- walking route in between -- _settle_after_click's three arms
-        -- (mounted sub, new chat line, map_flag route-end) all need
-        -- something to resolve ON, and a click with no route, no chat
-        -- line and no interface (sheepherder_gate.rs2's p_teleport fires
-        -- none of the three) times out (measured: FAIL
-        -- "settle_after_click -- walk_near: stepped off the target tile
-        -- 2594,3362 (2594,3362 -> 2594,3361)"). Aiming the goto one tile
-        -- off the loc itself gives click_loc a real one-tile approach
-        -- walk to settle on instead (exitEnclosure at the bottom of this
-        -- file, unchanged, already does this by starting elsewhere and
-        -- PASSes on that same map_flag arm).
-        t.exec("goto-enterEnclosure2", t.player.goto_tile, 2593, 3362, 0)
-        -- Recorded directly, not through t.exec: sheepherder_gate.rs2's
-        -- p_teleport fires none of _settle_after_click's three arms (no
-        -- mounted sub, no new chat line, and -- unlike a normal walked
-        -- click -- a one-tile approach may still resolve no map_flag
-        -- route-end either), so a settle timeout here does not mean the
-        -- teleport itself failed; verify by polling the real world tile
-        -- (section 2's teleport-dialogue recipe, applied to a teleporting
-        -- LOC instead of a teleporting dialogue) rather than trusting the
-        -- click verb's own result word.
-        local enter2_result, enter2_detail = t.player.click_loc("plaguesheep_gatel", 1)
-        local arrived2 = false
-        for _ = 1, 4 do
-            local tile2_result, tile2 = t.world.tile()
-            if tile2_result == "ok" and tile2.x >= PEN_X_MIN and tile2.x <= PEN_X_MAX and tile2.z >= PEN_Z_MIN and tile2.z <= PEN_Z_MAX then
-                arrived2 = true
-                break
-            end
-            t.ticks(1)
-        end
-        t.check("enterEnclosure2", arrived2,
-            string.format("click_loc -> %s (%s); arrived in pen (%d-%d,%d-%d)=%s", tostring(enter2_result), tostring(enter2_detail), PEN_X_MIN, PEN_X_MAX, PEN_Z_MIN, PEN_Z_MAX, tostring(arrived2)))
-        if not arrived2 then
-            t.blocked(string.format(
-                "sheepherder_gate.rs2 [label,sheepherder_gate]: click_loc('plaguesheep_gatel',1) -> %s (%s) and t.world.tile() never read inside the pen (%d-%d,%d-%d) after 4 tick(s) of polling on the SECOND crossing (post-herd, before feeding) -- the gate's own p_teleport fires none of _settle_after_click's three arms (no mounted sub, no new chat line, no map_flag route-end), so this seam is the driver's click-settle never recognising a LOC-triggered teleport, not a missing trigger or wrong clothing (worn plague_jacket/trousers already confirmed above)",
-                tostring(enter2_result), tostring(enter2_detail), PEN_X_MIN, PEN_X_MAX, PEN_Z_MIN, PEN_Z_MAX))
-            return
-        end
+        -- The same walk-through gate as enterEnclosure1, pressed from one
+        -- tile west of it and graded on the landing inside the pen. The
+        -- last herd leaves the player beside the gate zone (2592-2594,
+        -- 3360-3363), so cross_gate's own walk to its near tile is the
+        -- whole approach: no goto.
+        t.exec("enterEnclosure2", t.player.cross_gate, PEN_IN)
 
         for _, def in ipairs(sheep_defs) do
             local sheep_target, bs_result, bs_name = t.player.by_symbol("npc", def.enclosure)
@@ -937,14 +892,13 @@ return {
             -- so this drives one by hand: `pen_x`/`pen_z` above is the
             -- sheep's own FIXED landing tile (sheepherder_sheep_data.dbrow
             -- sheep_in_pen_coord), and each of its four neighbours is tried
-            -- in turn with a real `goto_tile` -- plain travel within the
-            -- already-entered enclosure (the "goto-barn" precedent above),
-            -- never a cheat past anything -- until one presses cleanly.
+            -- in turn, WALKED to inside the already-entered enclosure (one
+            -- 185-tile component, comp.py), until one presses cleanly.
             local poison_result, poison_detail
             local approach_tried = {}
             for _, off in ipairs({ { 0, -1 }, { 0, 1 }, { -1, 0 }, { 1, 0 } }) do
                 local ax, az = def.pen_x + off[1], def.pen_z + off[2]
-                t.player.goto_tile(ax, az, 0)
+                t.player.walk_to(ax, az, 10)
                 poison_result, poison_detail = t.player.use_on("poisoned_feed", sheep_target)
                 approach_tried[#approach_tried + 1] = string.format("%d,%d->%s", ax, az, tostring(poison_result))
                 if poison_result == "ok" then
@@ -954,6 +908,19 @@ return {
             t.check("poison" .. def.id, poison_result == "ok",
                 string.format("use_on(poisoned_feed, %s) -> %s (%s) -- approach tiles tried: %s",
                     def.enclosure, tostring(poison_result), tostring(poison_detail), table.concat(approach_tried, "; ")))
+            -- The use's effect: [label,poison_sheep] writes this sheep's
+            -- 3-bit lane to 2 (poisoned) BEFORE its mesbox
+            -- (diseased_sheep.rs2:206); the herd left it at 1.
+            local poisoned_result, poisoned_value = t.var.varbit(def.bitvar)
+            for _ = 1, 3 do
+                if poisoned_result == "ok" and poisoned_value == 2 then
+                    break
+                end
+                t.ticks(1)
+                poisoned_result, poisoned_value = t.var.varbit(def.bitvar)
+            end
+            t.check("poison" .. def.id .. ".var", poisoned_result == "ok" and poisoned_value == 2,
+                string.format("%s=%s after use_on(poisoned_feed, %s) (want 2, poisoned)", def.bitvar, tostring(poisoned_value), def.enclosure))
             -- diseased_sheep.rs2 [label,poison_sheep] opens ~mesbox("You feed
             -- the poisoned food to the sheep...") and SUSPENDS on it (trap
             -- 22): the death anim, npc_del and obj_add(npc_coord, bones) all
@@ -1016,7 +983,7 @@ return {
                 string.format("%s=%s after incinerate (want 6)", def.bitvar, tostring(incinerated_value)))
         end
 
-        t.exec("exitEnclosure", t.player.click_loc, "plaguesheep_gatel", 1)
+        t.exec("exitEnclosure", t.player.cross_gate, PEN_OUT)
 
         -- ---------------------------------------------------------------
         -- Hand-in: councillor_halgrive.rs2's [label,halgrive_before_incinerating_sheep]

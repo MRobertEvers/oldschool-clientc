@@ -2,6 +2,8 @@
 --
 -- b59 door-rule re-drive (2026-10-04), round 3: the whole route runs to
 -- the completion scroll. No goto_tile enters or leaves a closed space.
+-- b66: the run starts on the fixture's Lumbridge tile (no ::mend2
+-- placement) and reaches Lletya with the Elf teleport crystal.
 -- Lletya -> the HQ is Ardougne Teleport, the Ardougne Wall Door (the
 -- Biohazard walk-through, b59-seam1 (c)), the HQ door (admits the disguise
 -- after Part I), its inner door and the trapdoor; the caves are entered
@@ -94,7 +96,7 @@
 return {
     id = "mourningsendpartii",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 180000, -- the whole route: two HQ trips, six puzzles, the altar, two crystal teleports
+    max_frames = 180000, -- the whole route: two HQ trips, six puzzles, the altar, three crystal teleports
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
         "::give gasmask 1",
@@ -127,7 +129,14 @@ return {
         "::give lawrune 4",
         "::give waterrune 4",
         "::complete quest_mourningsendpart1", -- quest_cheat.rs2's arm; quest_mourningsendparti had no arm and did nothing
-        "::mend2", -- last: resets mourning_quest_main and teleports beside Arianwyn
+        -- b66: NO ::mend2. Its quest state (mend2_debug.rs2:5-9) is
+        -- varp517 = ^mend1_complete, which the ::complete arm above already
+        -- writes (quest_cheat.rs2:887-892), plus three Part II varbits reset
+        -- to 0, which a fresh fixture account already holds (the run asserts
+        -- quest.stage.not_started). Its p_teleport(0_36_49_49_36) placed the
+        -- player in Lletya with no on-foot route from Lumbridge (helper_coverage
+        -- b65-seam1: UNREACHABLE at margin 600), so the run starts on the
+        -- fixture's tile and reaches Lletya with the Elf teleport crystal.
     },
 
     run = function(t)
@@ -351,7 +360,7 @@ return {
                 2034, 4636, 2034, 4636, 2033, 4636)
         end
 
-        -- The Temple of Light -> Lletya: the Elf teleport crystal Part I
+        -- The Temple of Light (or, at the start, Lumbridge) -> Lletya: the Elf teleport crystal Part I
         -- hands every player (mend1_shared.rs2:29, given in setup), op1
         -- Lletya (mend1_lletya_access.rs2 [label,mend1_teleport_crystal_lletya]:
         -- ~player_teleport_normal onto a findsquare of radius 2 around
@@ -389,6 +398,14 @@ return {
         t.exec("wear.cloak", t.player.equip, "mourning_mourner_cloak")
         t.exec("wear.boots", t.player.equip, "mourning_mourner_boots")
         t.exec("wear.gloves", t.player.equip, "mourning_mourner_gloves")
+
+        -- ---- Lumbridge -> Lletya (b66, the start): the run begins on the
+        -- fixture's tile. A Part I finisher reaches Lletya with the crystal
+        -- Part I hands out (mend1_shared.rs2:29, crystal_4): op1 Lletya
+        -- (mend1_lletya_access.rs2:79-100) lands within 2 of 2328,3170,0 and
+        -- steps the charge 4 -> 3; then a walk inside Lletya to Arianwyn.
+        -- The two temple -> Lletya trips below spend 3 -> 2 and 2 -> 1.
+        h.temple_to_lletya("toLletya0", "mourning_teleport_crystal_4", "mourning_teleport_crystal_3")
 
         -- ---- Arianwyn #1, Lletya: not_started -> briefed
         -- (mend2_shared.rs2:29-42, re-read fresh this pass -- unchanged
@@ -534,7 +551,7 @@ return {
         -- conversation ("Just a second, I will summon Eluned" ...
         -- ~chatnpc_specific("Eluned", ...)). ----
         -- b59: was a goto from the temple's floor 2 straight into Lletya.
-        h.temple_to_lletya("toLletya1", "mourning_teleport_crystal_4", "mourning_teleport_crystal_3")
+        h.temple_to_lletya("toLletya1", "mourning_teleport_crystal_3", "mourning_teleport_crystal_2")
         t.exec("talkToArianwyn2", t.player.talk_to, "mourning_arianwyn", 1)
         t.exec("talkToArianwyn2-dialog", t.chat.play, {
             "player:Is this it?",
@@ -1786,7 +1803,7 @@ return {
         t.note("reward.qp_before: var.varp(qp) -> " .. tostring(qp_before_result) .. " " .. tostring(qp_before))
 
         -- b59: was a goto from the temple's floor 2 straight into Lletya.
-        h.temple_to_lletya("toLletya2", "mourning_teleport_crystal_3", "mourning_teleport_crystal_2")
+        h.temple_to_lletya("toLletya2", "mourning_teleport_crystal_2", "mourning_teleport_crystal_1")
         t.exec("talkToArianwyn4", t.player.talk_to, "mourning_arianwyn", 1)
         t.exec("talkToArianwyn4-dialog", t.chat.play, {
             "player:Arianwyn -- it's done. The Temple of Light is lit again, and the Death Altar answers to us.",

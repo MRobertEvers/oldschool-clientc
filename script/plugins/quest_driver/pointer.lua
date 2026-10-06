@@ -1510,6 +1510,9 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry, single)
                 end
                 local order = QD.drive._hunt_order(seen, point)
                 local account = {}
+                -- b66-seam1: the projection at the pose the camera is at now,
+                -- for the model aim after the sweep (QD.drive._model_aim).
+                local model_pos = pos
                 for i = 1, #order do
                     local hunt_pos = order[i].pos
                     local framed_ok = true
@@ -1545,6 +1548,7 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry, single)
                         if pressed_at then
                             QD.drive._dismiss_menu(pressed_at)
                         end
+                        model_pos = hunt_pos
                         local hovered, hunt_detail =
                             QD.drive._hover_onto(target, hunt_pos, deadline, budget)
                         account[#account + 1] = "pose " .. tostring(order[i].index)
@@ -1575,6 +1579,33 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry, single)
                     end
                     if budget.left <= 0 then
                         break
+                    end
+                end
+                -- SEAM uzer_stairs_press_aims_where_the_renderer_draws_the_
+                -- model_not_at_the_stairwell_pit (b66-seam1): AFTER the whole
+                -- sweep, and only for a loc, probe where the model's own faces
+                -- are drawn (banner over QD.drive._model_aim).  Every press
+                -- that landed before this point is untouched: this runs only
+                -- where the verb used to answer `covered`.
+                if target.kind == "loc" and api_drive.model_points ~= nil then
+                    if pressed_at then
+                        QD.drive._dismiss_menu(pressed_at)
+                    end
+                    local aimed, aim_detail = QD.drive._model_aim(target, model_pos, deadline)
+                    account[#account + 1] = tostring(aim_detail)
+                    if aimed then
+                        QD.note("click_minimenu: " .. tostring(aim_detail))
+                        if before_retry then
+                            local arm_result, arm_detail = before_retry()
+                            if arm_result ~= "ok" then
+                                return arm_result, arm_detail
+                            end
+                        end
+                        pressed_at = aimed
+                        result, detail = QD.drive._press_row(target, aimed, action, deadline)
+                        if result ~= "covered" then
+                            return result, detail
+                        end
                     end
                 end
                 return "covered", tostring(detail) .. " -- " .. table.concat(account, "; ")
@@ -5795,6 +5826,83 @@ function QD.drive._hover_onto(target, pos, deadline, budget)
         "none of %d pixels hittested around the projected %d,%d holds it"
             .. " (%d off-viewport%s, %d never hittested)",
         tried, pos.x, pos.y, skipped, ui_text, stale)
+end
+
+-- SEAM uzer_stairs_press_aims_where_the_renderer_draws_the_model_not_at_the_
+-- stairwell_pit (matthew-mbp-m4-b66-seam1): THE MODEL AIM, after everything
+-- else answered `covered`.
+--
+-- A loc's projection is its footprint centroid on the ground.  For a model
+-- that is a rim round a hole, that pixel is the hole: the Uzer ruin stairs
+-- (golem_insidestairs_top, model 6071) project into the open stairwell where
+-- nothing is drawn, and the stairs are held 75-105 px away -- outside the
+-- +-64 px ladder _hover_onto walks -- so every pose and every hunt answered
+-- "none of 99 pixels hittested ... holds it" (seam-facts b65 (c)).
+--
+-- api_drive.model_points lists the screen centroids of the element's visible
+-- faces, nearest the projection first.  Each is PROBED like a hunt pixel and
+-- pressed only when the renderer's own pickset holds the element there, so a
+-- point the C reprojection gets wrong costs one probe and nothing else.  b65
+-- moved the AIM to such a point instead and broke five greens (vampire's
+-- stairstop: an origin the renderer held was moved off the model); this runs
+-- only where the verb used to answer `covered`, so no press that landed
+-- before can move.  A binary without the verb answers by name, and the
+-- `covered` that follows is the one the verb answered before this seam.
+QD.drive._model_aim_probes = 12
+QD.drive._model_aim_last = nil
+
+function QD.drive._model_aim(target, pos, deadline)
+    if api_drive.model_points == nil then
+        return nil, "no model aim: this binary predates api_drive.model_points"
+    end
+    if pos == nil or pos.element_id == nil or pos.element_id < 0 then
+        return nil, "no model aim: no projected element"
+    end
+    local result, points = api_drive.model_points(
+        pos.element_id, pos.x, pos.y, QD.drive._model_aim_probes)
+    local faces = type(points) == "table" and points.faces or 0
+    if result ~= "ok" then
+        return nil, string.format("model aim: %s for element %d (%d face(s))",
+            tostring(result), pos.element_id, faces)
+    end
+    local point_result, point = api_drive.pick_point()
+    if point_result ~= "ok" then
+        point = nil
+    end
+    local tried = 0
+    local skipped = 0
+    local stale = 0
+    for i = 1, #points do
+        local x = points[i].x
+        local y = points[i].y
+        local inside = QD.drive._hover_inside(point, x, y)
+        if not inside then
+            skipped = skipped + 1
+        else
+            local held = QD.drive._hover_probe(pos.element_id, x, y, deadline)
+            if held == nil then
+                stale = stale + 1
+            else
+                tried = tried + 1
+                if held then
+                    local aimed = { x = x, y = y, element_id = pos.element_id }
+                    aimed.detail = string.format(
+                        "model aim: face centroid %d,%d (%+d,%+d off the projected %d,%d)"
+                            .. " held on probe %d of %d candidate(s) from %d face(s)",
+                        x, y, x - pos.x, y - pos.y, pos.x, pos.y, tried + stale, #points, faces)
+                    -- The last aim this found, for a reader that cannot see
+                    -- the note it folds into the next row (the conformance
+                    -- row seam.stairwell_pressed_on_its_model_from_the_arch).
+                    QD.drive._model_aim_last = aimed
+                    return aimed, aimed.detail
+                end
+            end
+        end
+    end
+    return nil, string.format(
+        "model aim: none of %d face centroid(s) probed holds element %d"
+            .. " (%d of %d candidate(s) off-viewport or under UI, %d never hittested, %d face(s))",
+        tried, pos.element_id, skipped, #points, stale, faces)
 end
 
 -- What the menu that just opened actually offers, as one line: the row text,
