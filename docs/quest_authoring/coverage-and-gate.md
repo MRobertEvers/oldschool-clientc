@@ -916,11 +916,23 @@ Four holes the b63 fixers found, each closed in `helper_coverage.py`, each with 
   out of it and on to Nulodion's workshop. The departure: the goto's own `from` stamp, else the
   reading before it when every row between kept the player on one side of every door (a talk, a
   page, a read, a walk, a press of a loc that is no door, climb or travel loc: `_side_kept`); a
-  press's `walk_near: stepped off the target tile A (A -> B)` is read as B. An unstamped first goto
-  stays unjudged, as in every other rule; a STAMPED first goto is judged (whether a run's first goto
-  out of the fixture's Lumbridge may cross the Taverley or Varrock members' gate is the owner's open
-  design item). Not judged: a hop to another level or map frame, a hop over 1,200 tiles, a row
-  `enclosure_entries`/`enclosure_exits` already charged.
+  press's `walk_near: stepped off the target tile A (A -> B)` is read as B. The run's start is
+  judged (owner ruling 2026-10-05: the first goto and the setup placement obey the door rule;
+  matthew-mbp-m4-b64-seam1): a first goto with no `from` stamp leaves from the fixture's tile (its
+  ini's `x`/`z`/`level`), or from the last setup placement's landing, in every rule; and the setup's
+  net placement (a `::goto`/`::tele`, or a debugproc whose body reaches `p_teleport`/`p_telejump`
+  through `@label`/`~proc` two levels down) is a ledger row of its own, `(setup placement) <cheat>`,
+  from the fixture's tile to the run's first reading (else the tile the script names), charged to a
+  step of that name. A BLOCKING loc a walk crosses by its own op (shapes 9-21 with Cross, Go-through,
+  Squeeze, Jump...; never a ladder or stair: `MapWalls.is_crossing`) is a gate too: when no walk
+  exists even with the doors open, the route may enter it (fewest crossings, then doors, then
+  shortest) and names it -- the Wilderness Ditch (`ditch_wilderness_cover`, 3106,3521), the Shantay
+  Pass (`shantay_pass_henge_doorway`, 3302,3116, with its op-less `inviswall`), the Barbarian agility
+  pipe; the detail then says `crosses (by its own op) ... (NEEDS-OP ...)`. A `cross_trap` row
+  pressing it in the 500 ticks before credits it like a gate press. Not judged: a hop to another
+  level or map frame, a hop over 1,200 tiles on its longer axis, a row
+  `enclosure_entries`/`enclosure_exits` already charged, a start whose landing is unknown (a setup
+  `::tele <name>`, a debugproc whose teleport target is computed).
 - **`solid_landings`: "lands at x,z,l on a solid tile (<loc> at ...): no walk ends there"**
   (`SOLID_LANDINGS`). A goto row (a `goto_tile`/`::goto` line, or goto_tile's bare `at x,z,l[ from
   ...]` detail; never a climb row named `goToFirstFloor` whose `at` is the stair's own tile) that
@@ -963,13 +975,28 @@ FULL). Every other helper_coverage fixture file holds. `--calibrate` 12/39 -> 15
 108 green rows moved 47 (45 verdicts, plus mm and shadowstorm, already not FULL); the list with
 each charged goto is build/seam_state/matthew-mbp-m4-b63-seam1/helper_coverage.movers.json. Six
 movers' only charge is their first goto (death, druid, eadgar, murder, sleepinggiants, soulsbane):
-held for the owner's first-goto ruling, not reopened.
+held for the owner's first-goto ruling, then queued `todo` (the owner ruled 2026-10-05 that the
+first goto obeys the door rule; matthew-mbp-m4-b64-seam1 also judges an UNSTAMPED first goto and the
+setup placement, below).
 The closer's FRESH runs of all 143 committed tests (a fresh ledger stamps the first goto's
 departure) moved 52 queued-green tests: the grader's movers, plus doric, sheep, runemysteries and
 scorpcatcher under the older `enclosure_entries` (HEAD's grader agrees on those ledgers), plus
 itwatchtower (a content change). doric and sheep join the first-goto-only list (eight in all: death,
 doric, druid, eadgar, murder, sheep, sleepinggiants, soulsbane); the other 44 were reopened naming
 their gotos (seam-facts: Seam pass matthew-mbp-m4-b63-seam1 (f)).
+Seam matthew-mbp-m4-b64-seam1 (`helper_coverage_judges_the_start_placement_and_crossing_locs`):
+`START_JUDGED` (an unstamped first goto from the fixture's tile; the setup placement as a
+`(setup placement) <cheat>` row) and `MapWalls.CROSSINGS` (a blocking crossing loc is a gate). Fixtures
+in helper_coverage_two_op_test.py (27/27: `druid_first_goto` CHEAT on goto-talkToKaqemeex past
+membergater 2935,3450, `_off` FULL; `atotc_sphinx` CHEAT naming shantay_pass_henge_doorway 3302,3116,
+`_off` DRIVEN; `eta_placement` CHEAT naming ditch_wilderness_cover, `_off` absent; `eta_remedy` clean;
+`eadgar_unchanged`) and helper_coverage_op_loc_reach_test.py (13/13: reach.py NEEDS-OP via the pass
+and the ditch, goto_table's goto-sphinx row, only_way_gates on and off, reach.py's `--root`).
+`--calibrate` 10/39 -> 9/39 (entertheabyss's audit FULL predates the ruling). Re-grading the 67 green
+rows moved 4: currentaffairs and taleoftherighteous (their setup placement), entertheabyss (its
+placement over the ditch), horror (goto-talkToGunnjorn into the Barbarian agility course past
+agility_obstical_pipe_barbarian 2552,3559; the route from the repaired bridge's east end also names
+two log balances and Lawgof's railing gate, because the bridge is a run-time loc).
 OPEN: a `GUIDE-GAP:` marker on a use step is still accepted when the content has a use trigger on
 the target (the b63 Haunted Mine copy declares "no [oplocu,hauntedmine_lift_valve]"; the
 concurrent content seam adds one).
