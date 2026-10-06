@@ -46,17 +46,17 @@
 --     underground frame), then one dungeon passage (reach.py closed-doors
 --     len 127) to the blurite rock 3049,9566; the goto lands on 3049,9567
 --     beside it, never on it.
---   * Out of the dungeon: the ladder ladder_from_cellar 3008,9550 (raw level
---     1) has NO maplink.dbrow row, so ladders.rs2 [proc,climb] moves the
---     player +1 plane on the tile (3009,9550,1), not to the surface -- a
---     content gap (LostCity ladders.rs2 [oploc1,ladder_from_cellar]:
---     movecoord(coord, 0, 0, -6400)). The test leaves the way a player can:
---     a real Lumbridge Teleport (Magic 31 and its runes staged in setup),
---     then an overland goto from the open landing 3221,3218 to Thurgo.
---     Staged Magic 31 makes combat 17; no dialogue on this route branches on
---     the combat level (squire.rs2, reldo.rs2's Imcando branch, thurgo.rs2,
---     sir_vyvin.rs2, quest_squire.rs2: no ~player_combat_level), so the
---     staged player sees the same dialogue as a level-3 one.
+--   * Out of the dungeon: back along the same passage to the ladder's foot
+--     3009,9550 (reach.py closed-doors len 127), then the ladder
+--     ladder_from_cellar 3008,9550 (raw level 1) is climbed. It has no
+--     maplink.dbrow row; since seam matthew-mbp-m4-b66-seam1 ladders.rs2
+--     [oploc1,ladder_from_cellar] climbs a rowless copy out of the dungeon by
+--     LostCity's loc_1755 rule (movecoord(coord, 0, 0, -6400), LostCity_Content2
+--     ladders+stairs/scripts/ladders.rs2:87-94): 3009,9550,0 -> 3009,3150,0,
+--     beside the trapdoor on open ground. Then a short walk on foot to Thurgo
+--     (reach.py 3009,3150 -> 3001,3144: closed-doors len 46). No teleport, so
+--     no Magic or runes are staged: the player keeps the fixture's combat
+--     level, and no dialogue on the route branches on it anyway.
 return {
     id = "squire",
     fixture = "fresh_lumbridge.ini",
@@ -66,13 +66,6 @@ return {
         "::give iron_bar 2",
         "::give bronze_pickaxe 1",
         "::setlevel mining 10",
-        -- Lumbridge Teleport out of the Ice Dungeon (its ladder up is a
-        -- content gap, see the header): magic_spells.dbrow levelrequired 31,
-        -- runesrequired earthrune 1, airrune 3, lawrune 1.
-        "::setlevel magic 31",
-        "::give airrune 3",
-        "::give earthrune 1",
-        "::give lawrune 1",
     },
 
     run = function(t)
@@ -330,14 +323,19 @@ return {
         t.note("hitpoints before the dungeon walk " .. tostring(hp0_r == "ok" and hp0.level or hp0_r)
             .. ", after mining " .. tostring(hp1_r == "ok" and hp1.level or hp1_r))
 
-        -- Out by a real Lumbridge Teleport (the dungeon ladder up is a
-        -- content gap, see the header), then overland to Thurgo.
-        t.player.teleport_cast("lumbridge_teleport", { 3221, 3218, 0 }, { name = "leaveDungeon.lumbridgeTeleport",
-            runes = { { "airrune", 3 }, { "earthrune", 1 }, { "lawrune", 1 } }, where = "Lumbridge" })
+        -- Out by the dungeon's own ladder: back along the same passage to its
+        -- foot (travel between two open tiles of one passage, reach.py
+        -- closed-doors len 127), then ladder_from_cellar 3008,9550 (raw level
+        -- 1; no maplink row, so LostCity's loc_1755 rule, -6400 from the
+        -- player's tile) up to 3009,3150,0 beside the trapdoor.
+        t.exec("goto.leaveDungeon", t.player.goto_tile, 3009, 9550, 0)
+        t.exec("leaveDungeon.ladderUp", t.player.climb, { loc = "ladder_from_cellar", op = 1, op_name = "Climb-up",
+            at = { 3008, 9550, 0 }, loc_level = 1, src = { 3009, 9550 }, dest = { 3009, 3150, 0 } })
 
-        -- Thurgo, fourth talk: hand over the blurite ore and the two iron
-        -- bars; he forges the sword.
-        t.exec("goto.thurgo3", t.player.goto_tile, 3001, 3144, 0)
+        -- Thurgo, fourth talk: walk on foot from the trapdoor to him (open
+        -- ground, reach.py closed-doors len 46), hand over the blurite ore
+        -- and the two iron bars; he forges the sword.
+        walk_check("thurgo3.walk", 3001, 3144, 0, "Thurgo's open ground south of Port Sarim", 40)
         t.exec("thurgo.ore", t.player.talk_to, "thurgo", 1)
         local td5r, td5d = t.chat.drain({ stop_at = "none" })
         t.expect("thurgo.ore.done", td5r, td5d)
@@ -358,7 +356,7 @@ return {
         t.step("reward.snapshot", snap_r == "ok" and "PASS" or "FAIL", "skill.snapshot -> " .. tostring(snap_r))
 
         t.exec("goto.squire3", t.player.goto_tile, 2977, 3342, 0)
-        t.ticks(2)  -- let the entity pool settle after the teleport before hunting for a menu row
+        t.ticks(2)  -- let the entity pool settle after the goto before hunting for a menu row
         t.exec("squire.final", t.player.talk_to, "squire", 1)
         local sq3r, sq3d = t.chat.drain({ stop_at = "none" })
         t.expect("squire.final.done", sq3r, sq3d)
