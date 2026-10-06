@@ -966,3 +966,23 @@ guide's `waitForPotatoesToGrow`. That is the documented GRIND fast-forward in
 15-35 minute wait, not a player action, so it does not send the quest back. The rejected
 debugproc is `::twocats_gotobob` (the b25 sampler's finding). The three locator legs here turn
 the whiskers for real.
+
+## Sample matthew-mbp-m4-b64 round 2: a round-2 sampler is handed a quest round 1 already sampled (2026-10-05)
+
+Three quests were sampled: atailoftwocats, eadgar and ratcatchers. All three were kept, and no
+images were opened. Each verdict rests on the run, `gate.py`, `lint_quest.py`, `helper_coverage`
+(FULL with 0 CHEAT for all three), the ledger and `goto_table.py --root <batch checkout>` (every hop
+REACH closed-doors).
+
+(a) THE ROUND-1 SAMPLE STATE MOVES OUT OF SIGHT. When the batch opens round 2, the round-1 files
+move into `build/author_state/<batch>/round1/`, and `sample.json` goes with them. The round-2
+launch then reads no `sample.json` and reports "already sampled: none". In this batch it handed
+atailoftwocats to the sampler a second time, with no new commit to the file since the round-1 check.
+Before you pick, read `round1/sample.json` (or `round<N>/`). A quest already checked there, with no
+commit to its test since, needs only a re-grade under the current `helper_coverage`. Do not repeat
+the full walk.
+
+(b) A ROW THAT CANNOT FAIL IS NOT A FINDING WHEN A LATER ROW GRADES. Ratcatchers'
+`playSnakeCharm-N` rows pass every octave press and the last note unconditionally, because
+`ok = (n[2] == nil) or ... or (n[2] == 8)`. The grade is the next row, `playSnakeCharm.await`
+(`varb1404_ratcatch_var` reaches 105), so the quest is kept. Each row still carries a detail.
