@@ -204,6 +204,23 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
   library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
   pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
+  STATE 2026-10-05 ~19:45. SEAM25 LANDED on w25 (a0f479d06, ledger d6c875357) and is MERGED into
+  the raid branch (c04b94da9; verified on the merged build: cooks and druid identical, conformance
+  363/363, _play_smoke 5 of 5, six rooms green; pushed 79b4dd3da). What seam25 left open: the
+  mouse-mapping ROOT CAUSE on the GPU/Retina window was not reproduced headless (the profile now
+  PINS --soft3d --window 765x503 TORIRS_HIDPI=0, so the one command works; the owner should try the
+  unpinned GPU window later); the camera turn is in (one call QD.drive.camera_aim) but no watched
+  Play has turned yet; the Scripts tab's "Start from" select was NOT wired by the closer -- THE
+  ORCHESTRATOR WIRED IT (419333fb1, proved headless: reset on the watcher's own account, no relog,
+  then Bloat to the kill). raid-watch moved to b5be907ac. The raid25 worktree and the w25 branches
+  can be removed once the camera split is merged (nothing else is on them).
+  THE CAMERA SPLIT (pass matthew-mbp-m4-camera-b1-seam2, worktrees/camera): runner_view_split is
+  FIXED (uncommitted; two views proved by state: cooks and maiden ledgers equal with two views, the
+  runner's pose and pointer identical across 1691 frames while a simulated watcher orbited; Interact
+  off/on proved; ::cam moves both); watch_debug_aids running; then its closer. WHEN IT LANDS: merge
+  origin/matthew-mbp-m4-camera-b1 into the raid branch (conflicts expected in
+  torirs_plugin_drive_pointer.c, pointer.lua, script_runner.lua, _conformance.lua, DRIVER_NOTES.md,
+  SEAM_LEDGER.md), verify as above, push, move raid-watch, THEN launch seam30.
   OWNER, 2026-10-05 ~18:10, THE PRIORITY ABOVE EVERYTHING BELOW: "Ok before you do any more raid
   work, that MUST be implemented. The full multi WorldView support". THE RAID ORCHESTRATOR TOOK
   OVER THE CAMERA SPLIT (the camera session was idle since 14:34, its worktree clean): merged the
