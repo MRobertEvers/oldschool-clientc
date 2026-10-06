@@ -570,6 +570,58 @@ attacks; inputs per tick 1 on 44-50 ticks, 2 on 9-16, 3+ on 0; 0 retaliation. Ke
 ticks, 251 taken (3 retaliations), 9 eats, about 27 ticks with no attack, 5 missed attacks. The
 2026-10-05 survey: 228/263/232/223 ticks, taken 161/259/193/201, eats 7/13/8/10.
 
+## Xarpus, Normal trio (`tob_xarpus`, mode `normal`), proved (raid seam34x play_tob_xarpus_normal)
+
+Harness: `test/raids/_play_xarpus.lua` under `--party 3` (`QD_PARTY.size` picks the trio's kit,
+entry and rows; the solo run is unchanged). Plan: `raid_play_tob_xarpus.lua`
+(`QD.raid._xarpus_p1_trio`, `QD.raid._xarpus_p2_trio`; phase 3 is the Entry plan's, per raider).
+`seed_survey.py _play_xarpus --party 3`: 5 of 5. Repeat: `party_repeat.py` has no `--party`, so
+the proof ran on a copy with `party = 3,` added (`build/xn34_repeat/_play_xarpus_trio.lua`,
+`--name _play_xarpus --runs 3`): AGREE, tick log sha e94bf891a445, 360 boundaries.
+`seed_survey.py _play_xarpus` (Entry solo): still 5 of 5.
+
+| Who / when | Intent | Source |
+|---|---|---|
+| kit | `::maxmelee` (scythe), prayer 99, Agility 99, 16 anglerfish, 3 restores, 2 super combats, a Dragon warhammer each; no brews | W:842 "if a scythe is in the player's possession"; W:839 "at least two successful hammer/maul specials"; _play_bloat.lua's party kit |
+| entry | p1 starts the fight at the barrier; p2/p3 cross after `started` | _play_bloat.lua's entry |
+| phase 1 | The k-th exhumed to rise is raider ((k-1) mod 3)+1's (two on one tick: by tile), so every raider has 24 ticks between its own and two never run for one; between them each waits on its own melee tile of the 5x5 he stands up into (34,32 / 31,35 / 37,35 local) | W:831 "stand on top of them until they return to the ground ... stand in the centre of the arena to quickly intercept"; W:829 "12 exhumed in trios"; X exhumed_count.normal 12, spawn_gap.normal 8, open_ticks 11 |
+| phase 2, the stack | All three stand on ONE tile and move as one: every raider runs the same rule on the same view (ties by tile), so whoever he aims at, the spit, both chains and the next spit land on the stack's step-back tile: one puddle a spit, never on a melee tile | W:836 (the first splatters to the next player, the rest to the next two); W:844 "If on the correct timing, no poison will splatter next to the boss ... especially the marked tiles"; our server: S ~tob_xarpus_land_splat / ~tob_xarpus_chain_to |
+| phase 2, the step back | Two ticks long, the ends of S+2 and S+3 = S'-1 (the chains are aimed at the first, the next spit at the second), on a tile three out from his footprint (two from every melee tile) and two from the last step-back tile; a tile ringed by old puddles scores worse, so the stack walks round him; the press on S'-1 runs back in and swings | A:203 "you step back every 4 ticks"; A:211 "you swing while running in"; measured (xn34c): the spit lands S+3, the chains are thrown on S+3 at the end-of-S+2 tiles and land 2-3 ticks later |
+| phase 2, specials | The hammer goes on with a step back, its special rides the press back in, the scythe comes back with the next step back; two per raider (the first two cycles) | W:831 "All players should have their defence-draining weapon equipped"; W:839 |
+| phase 2, a press that did not land | (a click "covered" by the stack's own models) the raider presses again on the next tick from the step-back tile, so the server's run in puts it back on the stack's tile | measured xn34g t161 |
+| phase 3 | The Entry plan per raider: swing only from a quadrant he does not face, inside the turn window | W:851-853; A:225-227 |
+
+**What was wrong before (read from the logs, never replayed).**
+- `xn34b` (each raider on its own side, the Entry dodge): pools on melee tiles; a press with a bite in
+  the same tick took two ticks, so the pattern slipped; all died by t191.
+- `xn34d`/`xn34e` (own sides, two-tick step back): three puddles a spit (the target's and both chains'),
+  raiders stood on ring puddles (no step-off in melee) and died t212-228. Phase 1 was already 12 of 12.
+- `xn34f` (the stack): held together, but its step-back tiles were two out (one from the melee tile the
+  press runs back to), so every chain splashed the stack in melee (about 22 a cycle); died t357.
+- `xn34g`/`xn34h`: first kills. One press "covered" left p3 a tick behind and it walked to a different
+  melee tile (25 ticks apart); the S row and W column of three-out tiles filled and the fallback put two
+  puddles on melee tiles.
+
+**Measured, five names, leader = p1 (pid 0..2 are the raiders):**
+
+| Leader name | Kill (ticks from the mark) | Screech | Taken pid0 / pid1 / pid2 (hits) | Swings | Ring puddles | Stacked (apart) | Retaliations | p1 food | p1 inputs/tick (1 / 2 / 3+) |
+|---|---|---|---|---|---|---|---|---|---|
+| _play_xarpus | t326 (304) | t280 | 148 (15) / 168 (18) / 167 (18) | 27/27/27 | 0 of 36 | 123 (10) | 0 | 6 | 112 / 13 / 0 |
+| svaplayxarpu | t312 (290) | t272 | 140 (14) / 149 (16) / 148 (16) | 26/26/27 | 0 of 32 | 123 (2) | 0 | 5 | 102 / 12 / 0 |
+| svbplayxarpu | t312 (290) | t272 | 140 (14) / 149 (16) / 148 (16) | 26/26/27 | 0 of 32 | 123 (2) | 0 | 5 | 102 / 12 / 0 |
+| svcplayxarpu | t291 (269) | t256 | 100 (10) / 109 (12) / 108 (12) | 22/23/23 | 0 of 28 | 109 (0) | 0 | 4 | 94 / 11 / 0 |
+| svdplayxarpu | t320 (298) | t280 | 148 (15) / 168 (18) / 167 (18) | 26/26/26 | 0 of 36 | 123 (10) | 0 | 6 | 107 / 13 / 0 |
+
+Every name: 12 of 12 exhumed stood on, 17 heal orbs (all before the owner arrived, +2 to +5 ticks after
+the rise), healed 204; stand-up U t139; dealt 3016 in 203-238 hits (18-34 zeros); p1's specials at t145
+(energy 1000) and t153 (500); no death. Damage taken is all poison (hitsplat 28): splashes and the
+puddles a run crosses; none after the screech is 30 or more.
+
+**Not done.** Phase 1's heal orbs: the owner arrives 2-5 ticks after the rise (X heal_delay 3), so
+17 orbs (204) land; a nearer-raider split would cut that, at the price of a coordination rule the
+raiders cannot check. The specials' drain is not read back (no Defence row). `party_repeat.py`
+gains a `--party` (or `_play_xarpus` a trio id) before the repeat can run on the harness itself.
+
 ## Verzik, Entry solo (`tob_verzik`, mode `entry`), proved (raid seam30 play_tob_verzik, seam31 play_tob_verzik_green)
 
 raid seam30 play_tob_verzik: plan `raid_play_tob_verzik.lua`, harness `test/raids/_play_verzik.lua`.

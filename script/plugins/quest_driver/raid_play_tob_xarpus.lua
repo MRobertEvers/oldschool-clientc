@@ -57,9 +57,19 @@ QD.raid._play_plan("tob_xarpus", {
         -- landings a cycle; X xarpus.p3.retaliate_min_entry 38 is never taken
         -- by this plan (it never swings into his gaze), the margin is a pool
         entry = { splash = 6, landings = 3, p3_margin = 12 },
-        normal = { splash = 11, landings = 3, p3_margin = 24 },
-        hard = { splash = 11, landings = 3, p3_margin = 24 },
+        -- raid seam34x: X xarpus.p2.max_hit.normal 11; X xarpus.p3.screech_pct
+        -- 25 ("Upon reaching ~25% of his health, Xarpus will screech", W:851),
+        -- read with the Entry margin (+2.5 of a 30-pixel bar)
+        normal = { splash = 11, landings = 3, p3_margin = 24, screech_pct = 27.5 },
+        hard = { splash = 11, landings = 3, p3_margin = 24, screech_pct = 27.5 },
     },
+    -- raid seam34x play_tob_xarpus_normal: THE TRIO (PLAY_NOTES.md "Xarpus,
+    -- Normal trio").  Phase 1: the exhumed in turn, each raider waiting on
+    -- its own tile between them (34,32 south -- the Entry wait -- 31,35 west,
+    -- 37,35 east: melee tiles of the 5x5 he stands up into, local 32..36 x
+    -- 33..37).  Phase 2: one stack, formed on `home` (the Entry wait tile).
+    trio = { waits = { { 34, 32 }, { 31, 35 }, { 37, 35 } }, home = { 34, 32 }, specs = 2 },
+    trace_trio = false,
     decide = "_play_xarpus_decide",
 })
 
@@ -132,6 +142,9 @@ function QD.raid._play_xarpus_decide(st, v)
     if b == nil then
         if X.u_tick ~= nil then
             return intent
+        end
+        if st.party ~= nil and st.party > 1 then
+            return QD.raid._xarpus_p1_trio(st, v, X, intent)
         end
         local target = nil
         local best = nil
@@ -267,7 +280,7 @@ function QD.raid._play_xarpus_decide(st, v)
         -- poison around the arena", E:212)
         local missed = X.next_spit
         X.next_spit = X.next_spit + P.cadence
-        local low = (b.health_scale or 0) > 0 and b.health_ratio * 100 <= P.screech_pct * b.health_scale
+        local low = (b.health_scale or 0) > 0 and b.health_ratio * 100 <= (N.screech_pct or P.screech_pct) * b.health_scale
         if X.phase == 2 and low and (#X.spits == 0 or X.spits[#X.spits] < missed - 1) then
             X.phase = 3
             X.p3_tick = v.tick
@@ -281,6 +294,11 @@ function QD.raid._play_xarpus_decide(st, v)
         return N.splash * N.landings * math.max(1, math.ceil(h / P.cadence)) + N.splash
     end
 
+    if X.phase == 2 and st.party ~= nil and st.party > 1 then
+        return QD.raid._xarpus_p2_trio(st, v, X, intent, {
+            BX0 = BX0, BZ0 = BZ0, BX1 = BX1, BZ1 = BZ1, in_foot = in_foot, edge = edge,
+            floor_ok = floor_ok, threat = threat, face_x = b.face_x, face_z = b.face_z })
+    end
     if X.phase == 2 then
         -- ---- PHASE 2: the spit ----
         -- The scan reads the tile "AS OF THE END OF T-1" (ET 6.2) and the acid
@@ -458,5 +476,255 @@ function QD.raid._play_xarpus_decide(st, v)
     end
     intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, threat)
     intent.attack = QD.raid._play_attack(st, v, want_attack and intent.walk == nil)
+    return intent
+end
+
+-- ==========================================================================
+-- raid seam34x play_tob_xarpus_normal: THE NORMAL TRIO (PLAY_NOTES.md
+-- "Xarpus, Normal trio").  Solo plays exactly as before; these two run only
+-- when st.party > 1.
+-- ==========================================================================
+
+-- PHASE 1, trio: "players simply need to stand on top of them until they
+-- return to the ground ... stand in the centre of the arena to quickly
+-- intercept any exhumed that appear" (W:831; 12 exhumed in trios, W:829;
+-- X xarpus.p1.exhumed_count.normal 12 at party 3, spawn_gap.normal 8,
+-- open_ticks.normal 11).  The trio splits them in turn: the k-th exhumed to
+-- rise (in the order every raider sees them; two on one tick by tile) is
+-- raider ((k - 1) mod 3) + 1's, so each raider has 24 ticks between its own
+-- and two raiders never run for one.  Between its own, a raider waits on
+-- the centre tile south of him (the Entry wait tile).
+function QD.raid._xarpus_p1_trio(st, v, X, intent)
+    local P, O = st.plan, st.origin
+    X.ex_seen = X.ex_seen or {}
+    X.ex_count = X.ex_count or 0
+    X.ex_list = X.ex_list or {}
+    local live, fresh = {}, {}
+    for _, e in ipairs(v.exhumed) do
+        local key = e.x * 100000 + e.z
+        live[key] = true
+        local rec = X.ex_seen[key]
+        if rec == nil or rec.gone ~= nil then fresh[#fresh + 1] = { key = key, x = e.x, z = e.z } end
+    end
+    for _, rec in ipairs(X.ex_list) do
+        if rec.gone == nil and not live[rec.key] then rec.gone = v.tick end
+    end
+    table.sort(fresh, function(a, b) return a.key < b.key end)
+    for _, f in ipairs(fresh) do
+        X.ex_count = X.ex_count + 1
+        local rec = { key = f.key, k = X.ex_count, rise = v.tick, x = f.x, z = f.z,
+                      owner = ((X.ex_count - 1) % st.party) + 1 }
+        X.ex_seen[f.key] = rec
+        X.ex_list[#X.ex_list + 1] = rec
+    end
+    local target = nil
+    for _, rec in ipairs(X.ex_list) do
+        if rec.gone == nil and rec.owner == st.role and (target == nil or rec.k < target.k) then target = rec end
+    end
+    if target ~= nil then
+        if v.me.x == target.x and v.me.z == target.z then
+            if target.arrive == nil then
+                target.arrive = v.tick
+                X.covers[#X.covers + 1] = { rise = target.rise, x = target.x, z = target.z, arrive = v.tick,
+                                            at_x = v.me.x, at_z = v.me.z, k = target.k }
+            end
+        else
+            local same = st.walk_target ~= nil and st.walk_target.x == target.x and st.walk_target.z == target.z
+            local stuck = st.last_me ~= nil and st.last_me.x == v.me.x and st.last_me.z == v.me.z
+            if not same or stuck then intent.walk = { x = target.x, z = target.z } end
+        end
+        return intent
+    end
+    local w = P.trio.waits[st.role] or P.wait
+    local wx, wz = O.x + w[1], O.z + w[2]
+    local same = st.walk_target ~= nil and st.walk_target.x == wx and st.walk_target.z == wz
+    if (v.me.x ~= wx or v.me.z ~= wz) and not same then intent.walk = { x = wx, z = wz } end
+    return intent
+end
+
+-- PHASE 2, trio: the spit.  What our server does, measured in the trio's own
+-- tick log (xn34c t145-169): the spit on S aims at the target's tile at the
+-- end of S-1 (ET 1.2) and lands on S+3 (projectile end cycle 102-112); the
+-- landing throws an orb at each other raider -- one for the phase's first
+-- spit, two after ("The first player will splatter to the next player in
+-- sequence, while the remaining players will splatter to the next two
+-- players in sequence", W:836; S ~tob_xarpus_land_splat) -- aimed at their
+-- tiles at the end of S+2 and landing 2-3 ticks later (end cycle 65-95).
+-- Every landing leaves a permanent puddle and hurts a 3x3 (X splat_radius 1,
+-- splat_lifetime never).  The target is drawn at random (S ~tob_xarpus_spit).
+--
+-- THE STACK.  The three raiders stand on ONE tile and move as one: every
+-- raider runs this same rule on the same view, so the three choose the same
+-- tile (the ledger row trio.stacked counts the ticks they did not).  Then
+-- whoever he aims at, the spit, both chains and the next spit all land on
+-- the stack's step-back tile: one puddle a spit instead of three, and never
+-- on a melee tile.  "Melee users can preemptively step back for 1 tick when
+-- Xarpus attacks with poison. If on the correct timing, no poison will
+-- splatter next to the boss" (W:844); "you step back every 4 ticks, based on
+-- Xarpus' attack speed" (A:203).  Our step back is two ticks long, the ends
+-- of S+2 and S+3 = S'-1 (the chain is aimed at the first, the next spit at
+-- the second), on a tile three out from his footprint when one is clean
+-- (two from every melee tile, so a landing there never splashes the stack in
+-- melee), and two from the last step-back tile (the spit aimed there lands
+-- while the stack stands on the next).  The press on S'-1 runs back in and
+-- swings ("you swing while running in", A:211).
+function QD.raid._xarpus_p2_trio(st, v, X, intent, G)
+    local P = st.plan
+    local function fdist(x, z)
+        return math.max(G.BX0 - x, x - G.BX1, G.BZ0 - z, z - G.BZ1, 0)
+    end
+    X.trio = X.trio or { outs = 0, ins = 0, no_out = 0, home_walks = 0, holds = 0, off_acid = 0, out_list = {} }
+    local T = X.trio
+    local function bad(x, z)
+        local k = x * 100000 + z
+        return (not G.floor_ok(x, z)) or G.in_foot(x, z) or v.pools[k] or v.splash[k]
+    end
+    local hx, hz = st.origin.x + P.trio.home[1], st.origin.z + P.trio.home[2]
+    local N = X.next_spit
+    local d = N - v.tick
+    local mode
+    if d == 3 or d == 2 then
+        mode = "out"
+    elseif d == 1 then
+        mode = "press"
+    else
+        mode = "in"
+    end
+    if P.trace_trio then
+        api_drive.report(string.format("xtrio r%d t%d N%d d%d %s me %d,%d hp %d eng %s",
+            st.role, v.tick, N, d, mode, v.me.x, v.me.z, v.hp, tostring(st.engaged)))
+    end
+    if mode == "out" then
+        local cur = T.cur
+        if d == 2 and cur ~= nil and cur.N == N then
+            T.holds = T.holds + 1
+            if (v.me.x ~= cur.x or v.me.z ~= cur.z) and not bad(cur.x, cur.z) then intent.walk = { x = cur.x, z = cur.z } end
+            intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, G.threat)
+            intent.attack = false
+            return intent
+        end
+        local prev = T.prev
+        local best, bs, bk = nil, nil, nil
+        for dx = -2, 2 do
+            for dz = -2, 2 do
+                local x, z = v.me.x + dx, v.me.z + dz
+                local fd = fdist(x, z)
+                local reach = math.max(math.abs(dx), math.abs(dz))
+                if reach > 0 and (fd == 2 or fd == 3) and not bad(x, z) then
+                    local s = ((fd == 3) and 0 or 20) + reach
+                    -- one from the last step-back tile only when nothing else
+                    -- is clean (a spit aimed there splashes this one)
+                    if prev ~= nil and math.max(math.abs(prev.x - x), math.abs(prev.z - z)) < 2 then s = s + 40 end
+                    -- toward fresh floor: every puddle already within two of
+                    -- the tile counts against it, so the stack walks on round
+                    -- him to a side it has not used instead of filling one
+                    for ax = -2, 2 do
+                        for az = -2, 2 do
+                            if v.pools[(x + ax) * 100000 + (z + az)] and fdist(x + ax, z + az) >= 2 then s = s + 2 end
+                        end
+                    end
+                    if reach == 2 then
+                        -- the run's middle tile is passed, never stood on at
+                        -- a tick's end (a landing is judged on that): only a
+                        -- puddle there hurts ("running over it", E:207)
+                        local mx = v.me.x + ((dx > 0) and 1 or ((dx < 0) and -1 or 0))
+                        local mz = v.me.z + ((dz > 0) and 1 or ((dz < 0) and -1 or 0))
+                        if v.pools[mx * 100000 + mz] or G.in_foot(mx, mz) then s = nil end
+                    end
+                    -- the same tile for every raider: ties by the tile itself
+                    local k = x * 100000 + z
+                    if s ~= nil and (bs == nil or s < bs or (s == bs and k < bk)) then bs, best, bk = s, { x = x, z = z }, k end
+                end
+            end
+        end
+        -- the Defence drain: "All players should have their defence-draining
+        -- weapon equipped ... The team should have at least two successful
+        -- hammer/maul specials" (W:831, W:839; Xarpus Defence 250, X
+        -- xarpus.defence.normal).  The hammer goes on with this step back
+        -- (one block: "the scythe back the same tick", PLAY_NOTES Loadouts),
+        -- its special rides the press back in, and the scythe goes back on
+        -- with the next step back.  Two specials a raider (50% each).
+        local _, energy = QD.var.varp("varp300_sa_energy")
+        energy = tonumber(energy) or 0
+        if T.dwh_on then
+            intent.gear = { "scythe_of_vitur" }
+            T.dwh_on = false
+        elseif (T.specs or 0) < P.trio.specs and energy >= 500 then
+            local hr, hn = QD.inv.count("dragon_warhammer")
+            if hr == "ok" and hn > 0 then
+                intent.gear = { "dragon_warhammer" }
+                T.dwh_cycle = N
+            end
+        end
+        if best ~= nil then
+            intent.walk = best
+            T.cur = { N = N, x = best.x, z = best.z }
+            T.prev = { x = best.x, z = best.z }
+            T.outs = T.outs + 1
+            if #T.out_list < 40 then T.out_list[#T.out_list + 1] = string.format("%d:%d,%d", v.tick, best.x, best.z) end
+            st.walk_target = nil
+        else
+            T.no_out = T.no_out + 1
+        end
+        intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, G.threat)
+        intent.attack = false
+        return intent
+    end
+    if mode == "press" then
+        -- back in: the press runs to the nearest melee tile and swings
+        T.ins = T.ins + 1
+        st.engaged = false
+        if T.dwh_cycle == N then
+            local _, energy = QD.var.varp("varp300_sa_energy")
+            intent.spec = true
+            T.dwh_on = true
+            T.specs = (T.specs or 0) + 1
+            T.spec_log = (T.spec_log or "") .. string.format(" t%d e%s", v.tick, tostring(energy))
+        end
+        intent.attack = QD.raid._play_attack(st, v, true)
+        return intent
+    end
+    -- in melee.  Before the first spit the stack forms on the home tile (the
+    -- south middle melee tile, the Entry wait tile); a melee tile under a
+    -- puddle or a landing is left for the nearest clean one (ties by tile).
+    local here = v.me.x * 100000 + v.me.z
+    local move = nil
+    if X.spits[1] == nil and (v.me.x ~= hx or v.me.z ~= hz) then
+        move = { x = hx, z = hz }
+        T.home_walks = T.home_walks + 1
+    elseif not G.edge(v.me.x, v.me.z) and not st.engaged then
+        -- a press that did not land (a click "covered" by the stack's own
+        -- models: xn34g t161) leaves this raider on the step-back tile: press
+        -- again now, the same run in the others made a tick ago, so the stack
+        -- forms again on the tile they chose
+        T.repress = (T.repress or 0) + 1
+        intent.attack = QD.raid._play_attack(st, v, true)
+        return intent
+    elseif v.pools[here] or v.splash[here] or not G.edge(v.me.x, v.me.z) then
+        local bt, bd, bk = nil, nil, nil
+        for x = G.BX0 - 1, G.BX1 + 1 do
+            for z = G.BZ0 - 1, G.BZ1 + 1 do
+                if G.edge(x, z) and not bad(x, z) then
+                    local dd = math.max(math.abs(x - v.me.x), math.abs(z - v.me.z))
+                    local k = x * 100000 + z
+                    if bd == nil or dd < bd or (dd == bd and k < bk) then bt, bd, bk = { x = x, z = z }, dd, k end
+                end
+            end
+        end
+        if bt ~= nil and (bt.x ~= v.me.x or bt.z ~= v.me.z) then
+            move = bt
+            T.off_acid = T.off_acid + 1
+        end
+    end
+    if move ~= nil then
+        local same = st.walk_target ~= nil and st.walk_target.x == move.x and st.walk_target.z == move.z
+        local stuck = st.last_me ~= nil and st.last_me.x == v.me.x and st.last_me.z == v.me.z
+        if not same or stuck then intent.walk = move end
+        intent.attack = false
+        return intent
+    end
+    intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, G.threat)
+    if intent.eat ~= nil and v.hp >= 40 then intent.eat = nil end
+    intent.attack = QD.raid._play_attack(st, v, true)
     return intent
 end

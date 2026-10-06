@@ -6205,3 +6205,40 @@ after its id line: `party_repeat.py --script <copy> --name <run> --runs 3`.
 
 Count kills against pops from npc_spawn/npc_death per slot before tuning a target score:
 the 34-44 copies that chew their whole 51 ticks and pop are about half the support damage.
+## Xarpus phase 2 timing with a party: spit S+3, chains S+4/S+5 (seam34x)
+
+Measured in our server (xn34c): the spit on tick S aims at the target's tile as of the end
+of S-1 and lands on S+3 (projectile end cycle 102-112). The landing throws its chains (one
+for the phase's first spit, two after) at the other raiders' tiles as of the end of S+2, and
+they land 2-3 ticks later (end cycle 65-95). A landing is judged on S+2 (the spit) and on
+S+4/S+5 (the chains). A one-tick step back cannot keep every chain off the melee ring under
+this timing; the trio plan steps back for two ticks (the ends of S+2 and S+3).
+
+## A party that stacks: one rule, one view, ties by tile (seam34x)
+
+Three raiders that run the same decide on the same view, with every tie broken by the tile
+key and nothing by role, stay on one tile without talking (Xarpus phase 2: 109-123 ticks
+together, 0-10 apart). Every landing of a spit cycle then falls on the stack's one step-back
+tile. `trio.stacked` in `test/raids/_play_xarpus.lua` counts the ticks they were apart.
+
+## A covered press: re-press on the next tick (seam34x)
+
+About once a raider a fight, a press onto the boss is "covered" by the stack's own models
+and does not land, leaving that raider on the step-back tile. Re-pressing on the next tick
+puts it back on the stack's tile, because the server's run in takes the same path.
+
+## Never eat on a press tick in a tick-exact pattern (seam34x)
+
+A press with a bite in the same tick took two ticks (xn34b), and the step-back pattern
+slipped by one for the rest of the phase.
+
+## Run energy for a step-back pattern (seam34x)
+
+With Agility 99 and no stamina potion, run energy held for a four-tile-per-four-tick
+pattern over about 140 ticks.
+
+## party_repeat.py has no --party (seam34x)
+
+`party_repeat.py _play_xarpus --runs 3` runs the harness solo and then fails on the missing
+party.tsv. The trio's repeat proof ran on a copy of the harness with `party = 3,` added
+(`build/xn34_repeat/_play_xarpus_trio.lua`, `--script ... --name _play_xarpus --runs 3`).
