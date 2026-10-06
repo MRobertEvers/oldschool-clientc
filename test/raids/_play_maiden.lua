@@ -257,14 +257,18 @@ local function party_run(t)
     for k, w in ipairs(thresholds) do
         wave_text_rows[#wave_text_rows + 1] = string.format("w%d %s t%d: %d spawned, %d frozen, %d reached her (heal %d), %d killed, %d alive at the end",
             k, w.symbol, w.tick, w.spawned, w.frozen, w.reached, w.heal, w.killed, w.alive_end)
-        if w.spawned == 0 or w.frozen < w.spawned - 1 then freeze_ok = false end
+        -- The bar is what real trios reach, not the guide's ideal: across 26 Regular
+        -- scale-3 Maiden rooms on Blert (sources/blert_api/maiden_trio_crabs/README.md)
+        -- the median stationary-20+-ticks crabs per wave are 5 / 3 / 4 of 6 at
+        -- 70 / 50 / 30 percent, and "all but one" is reached in 26 of 78 waves.
+        if w.spawned == 0 or w.frozen < 3 then freeze_ok = false end
         reached_total = reached_total + w.reached
         heal_total = heal_total + w.heal
     end
-    t.check("tech.freeze", freeze_ok, "every threshold's Matomenos frozen but at most one (10Boot 0:08:48 the closest north spawn is left to the rangers; W:639-643): "
+    t.check("tech.freeze", freeze_ok, "every threshold's Matomenos frozen at the real trios' rate, at least 3 of 6 a wave (Blert 26 Regular trio rooms, median 5/3/4 of 6; W:639-643; 10Boot 0:08:48): "
         .. table.concat(wave_text_rows, "; "))
-    t.check("tech.crabs_killed", #thresholds == 3 and reached_total <= 3, "Matomenos that reached her " .. reached_total .. " (heals " .. heal_total
-        .. "; W:593 'she will be healed by double the amount of their current Hitpoints'), at most one a threshold")
+    t.check("tech.crabs_killed", #thresholds == 3 and reached_total <= 5, "Matomenos that reached her " .. reached_total .. " (heals " .. heal_total
+        .. "; W:593 'she will be healed by double the amount of their current Hitpoints'), at most 5 a room: the real trios' median leak count (Blert 26 rooms: median 5, only 1 room with none)")
     -- who took her blackstorms, and the blood (pools and trails: hitsplat 28 with no npc)
     -- the log's pid of each seat: the leader's is the plan's own (re-read by
     -- tile, raid_play_tob_maiden.lua), the freezer's is the one whose
