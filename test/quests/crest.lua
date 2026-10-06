@@ -19,13 +19,19 @@
 --     way in on foot is the east gate guidorgatel/rclosed 3264,3405-3406
 --     (east_gate.rs2 [label,varrock_east_gate], a walk-through p_teleport;
 --     comp.py: the quarter is 473 tiles walled by that gate and house
---     doors). Every visit crosses it by click, in and out.
+--     doors). Every visit crosses it by click, in and out, and his house's
+--     west door 3278,3404 (standing open in the map) by pass_door.
 --   * Catherby, Witchaven and the Ice Mountain hut are on the far side of
 --     the members' wall from Varrock and Al Kharid: the long legs are real
 --     spellbook teleports (Camelot 5 air + 1 law, Varrock 1 fire + 3 air +
 --     1 law, magic_spells.dbrow), each graded TELEPORTED / runes / landing,
 --     then an overland goto between open tiles (reach.py REACH closed-doors).
---   * Caleb's house door poordoor 2815,3448 is passed by pass_door both ways.
+--   * Caleb's house door poordoor 2815,3448 is passed by pass_door both ways;
+--     so is the Al Kharid furnace room's east door 3279,3185 (standing open).
+--   * Avan's spawn tile 3295,3284 is inside the rockslide: both visits land
+--     on the open tile 3295,3286 beside it.
+--   * The Witchaven dungeon's three selfstage room doors and the gold-room
+--     gate are crossed by pass_door on every visit, in and out.
 --   * The Dwarven Mine is entered by the hut's trapdoor (maplink
 --     3018,3450 -> 3018,9850) and left by a teleport; the Witchaven
 --     dungeon by the old ruin entrance (2696,3283 -> 2696,9683) and a
@@ -36,7 +42,8 @@
 --   * The Jolly Boar's ground floor is open from the north doorway (no door
 --     loc); its upper floor is reached and left by the staircase
 --     fai_varrock_stairs_taller / _top 3285,3493 (no maplink: ~climb's +/-1
---     plane on the tile the player stands on).
+--     plane on the tile the player stands on), each way a t.player.climb
+--     row; the trapdoors and the ruin entrance are climb rows too.
 
 return {
     id = "crest",
@@ -126,32 +133,6 @@ return {
             t.check(name, good, why .. ": " .. table.concat(parts, ", "))
         end
 
-        -- The Jolly Boar staircase (no maplink row: ladders.rs2 [proc,climb]
-        -- moves the player one plane on the tile it stands on). No crossing
-        -- verb covers a plane change, so the row is graded here: the level
-        -- changes, and the landing is beside the stairs in the room it opens
-        -- on.
-        local function climb(name, sym, at, to_level, landed_ok, landed_desc)
-            local br, bt = t.world.tile()
-            local cr, cd = t.player.click_loc(sym, 1, { at = at })
-            local ar = t.await({
-                level = function()
-                    local lr, lv = t.world.level()
-                    return lr == "ok" and lv == to_level
-                end,
-                note = sym .. ": waiting for level " .. to_level,
-            }, 10)
-            t.ticks(1)
-            local tr, tt = t.world.tile()
-            t.check(name,
-                br == "ok" and bt.level == at[3] and ar == "ok" and tr == "ok" and tt.level == to_level
-                    and math.abs(tt.x - at[1]) <= 2 and math.abs(tt.z - at[2]) <= 3 and landed_ok(tt),
-                "from " .. tile_text(br, bt) .. "; click_loc(" .. sym .. ", 1, at " .. at[1] .. "," .. at[2] .. "," .. at[3]
-                    .. ") -> " .. tostring(cr) .. " " .. tostring(cd) .. "; level " .. to_level .. " await -> " .. tostring(ar)
-                    .. "; landed " .. tile_text(tr, tt) .. " (want level " .. to_level .. " beside the stairs "
-                    .. at[1] .. "," .. at[2] .. ", " .. landed_desc .. ")")
-        end
-
         -- Varrock's members' south-east quarter: the east gate, walk-through,
         -- pressed on every crossing (east_gate.rs2: from the west the press
         -- lands on the gate tile 3264, from the east one tile west, 3263).
@@ -164,6 +145,19 @@ return {
             t.exec(name, t.player.cross_gate, { loc = "guidorgatelclosed", at = { 3264, 3405, 0 },
                 near = { 3264, 3405 }, far_ok = function(tile) return tile.x <= 3263 end,
                 far_desc = "back in Varrock, x <= 3263" })
+        end
+        -- Dimintheis' house (x 3278-3283, z 3401-3406): its one way in from
+        -- the quarter's street is the west door 3278,3404, which the map
+        -- places standing open (fai_varrock_castle_door_open; comp.py: no
+        -- other opening). pass_door asserts the open leaf on every visit,
+        -- or presses the closed one if the door was shut since.
+        local function dimintheis_house_in(name)
+            t.exec(name, t.player.pass_door, { closed = "fai_varrock_castle_door", open = "fai_varrock_castle_door_open",
+                at = { 3278, 3404, 0 }, near = { 3277, 3404 }, far = { 3279, 3404 } })
+        end
+        local function dimintheis_house_out(name)
+            t.exec(name, t.player.pass_door, { closed = "fai_varrock_castle_door", open = "fai_varrock_castle_door_open",
+                at = { 3278, 3404, 0 }, near = { 3279, 3404 }, far = { 3276, 3404 } })
         end
         local VARROCK_RUNES = { { "firerune", 1 }, { "airrune", 3 }, { "lawrune", 1 } }
         local CAMELOT_RUNES = { { "airrune", 5 }, { "lawrune", 1 } }
@@ -181,6 +175,7 @@ return {
         -- ---------------------------------------------------------------
         t.exec("goto-dimintheis.eastGate", t.player.goto_tile, 3262, 3405, 0)
         east_gate_in("dimintheis.eastGateIn")
+        dimintheis_house_in("dimintheis.houseDoorIn")
         t.exec("talkToDimintheis", t.player.talk_to, "dimintheis")
         t.exec("talkToDimintheis-dialog", t.chat.play, {
             "npc:My name is Dimintheis, of the noble family Fitzharmon.",
@@ -211,6 +206,7 @@ return {
         -- to Caleb's door (reach.py 2757,3478 -> 2815,3447 REACH len=89),
         -- and the door poordoor 2815,3448 by click.
         -- ---------------------------------------------------------------
+        dimintheis_house_out("dimintheis.houseDoorOut")
         east_gate_out("dimintheis.eastGateOut")
         t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = "caleb.camelotTeleport",
             runes = CAMELOT_RUNES, where = "Camelot, for Catherby" })
@@ -310,9 +306,13 @@ return {
         -- ---------------------------------------------------------------
         -- Avan (crest_avan.rs2, spawn m51_51.spawn:9, 3295,3284,0):
         -- avan_intro's second option, then crest_man_avan sets spoken_avan
-        -- before the closing player line.
+        -- before the closing player line. Avan's spawn tile is inside the
+        -- rockslide (rockslide3 3294,3283 / 3296,3285 cover 3295,3284): the
+        -- goto lands on the open tile north of it, 3295,3286 (reach.py
+        -- 3288,3212 -> 3295,3286 REACH closed-doors len=97), and talk_to
+        -- walks the last step.
         -- ---------------------------------------------------------------
-        t.exec("goto-avan", t.player.goto_tile, 3295, 3284, 0)
+        t.exec("goto-avan", t.player.goto_tile, 3295, 3286, 0)
         t.exec("talkToMan", t.player.talk_to, "avan")
         t.exec("talkToMan-dialog", t.chat.play, {
             "options",
@@ -345,8 +345,8 @@ return {
         -- mine walked to Boot (reach.py REACH closed-doors len=75).
         -- ---------------------------------------------------------------
         t.exec("goto-enterDwarvenMine", t.player.goto_tile, 3017, 3450, 0)
-        t.exec("enterDwarvenMine", t.player.cross_trap, { loc = "fai_dwarf_trapdoor_down", op_name = "Climb-down",
-            at = { 3019, 3450, 0 }, src = { 3018, 3450 }, dest = { 3018, 9850 } })
+        t.exec("enterDwarvenMine", t.player.climb, { loc = "fai_dwarf_trapdoor_down", op = 1, op_name = "Climb-down",
+            at = { 3019, 3450, 0 }, src = { 3018, 3450 }, dest = { 3018, 9850, 0 } })
         t.exec("walkToBoot", t.player.walk_route, { { 3018, 9842 }, { 3018, 9834 }, { 3018, 9826 }, { 3018, 9818 },
             { 3014, 9814 }, { 3007, 9813 }, { 3000, 9812 }, { 2993, 9811 }, { 2986, 9810 }, { 2986, 9813 } })
         t.exec("talkToBoot", t.player.talk_to, "boot_the_dwarf")
@@ -382,77 +382,81 @@ return {
         t.check("passive.hellhound", pr3 == "ok", "::passive hellhound -> " .. tostring(pr3) .. " " .. tostring(pd3))
         -- slugmenace_witchaven.rs2 [oploc1,slug2_ruin_entrance]: p_teleport
         -- to the entrance's own coord + 6400 (2696,9683).
-        t.exec("enterWitchavenDungeon", t.player.cross_trap, { loc = "slug2_ruin_entrance", op_name = "Climb-down",
-            at = { 2696, 3283, 0 }, src = { 2697, 3283 }, dest = { 2696, 9683 } })
+        t.exec("enterWitchavenDungeon", t.player.climb, { loc = "slug2_ruin_entrance", op = 1, op_name = "Climb-down",
+            at = { 2696, 3283, 0 }, src = { 2697, 3283 }, dest = { 2696, 9683, 0 } })
 
         -- ---------------------------------------------------------------
         -- The lever puzzle (crest_witchaven.rs2): each [oploc1,lever*]
-        -- swaps the lever for its pair; [oploc1,famcrest_doori2h1] opens
-        -- only with leverh DOWN and leveri2 UP. Quest Helper order; the
-        -- room doors (famcrest_doorg2h1 east, famcrest_doorh2 west,
-        -- famcrest_doorh2g1 north room) are selfstage doors that stay open,
-        -- so each is opened the first time the guide walks through it.
+        -- swaps the lever for its pair on its own coord; [oploc1,
+        -- famcrest_doori2h1] opens only with leverh DOWN and leveri2 UP.
+        -- Quest Helper / wiki order. The room doors -- famcrest_doorg2h1
+        -- 2722,9671 (south room, east), famcrest_doorh2 2719,9671 (south
+        -- room, west), famcrest_doorh2g1 2723,9711 (north room) -- are
+        -- door_selfstage doors (doors_selfstage.loc:239-246): opened, each
+        -- is the SAME symbol one tile over for 500 ticks
+        -- (doors_selfstage.rs2:76-89). Every visit crosses its door by
+        -- pass_door, in and out (reach.py: the south room is NEEDS-DOOR
+        -- from the lever corridor); a door still open from an earlier
+        -- visit is asserted standing open, not pressed shut.
         -- ---------------------------------------------------------------
+        local function room_door(name, sym, at, near, far)
+            t.exec(name, t.player.pass_door, { closed = sym, open = sym, at = at, near = near, far = far })
+        end
+        -- A lever pull, graded on the swapped lever standing on the pulled
+        -- lever's own tile.
+        local function lever(name, sym, swapped, at)
+            t.exec(name, t.player.click_loc, sym, 1, { at = at })
+            t.ticks(2)
+            local lr, l = t.world.loc_near(swapped, 1, { at = at })
+            t.check(name .. ".pulled", lr == "ok",
+                "world.loc_near(" .. swapped .. ", at " .. at[1] .. "," .. at[2] .. "," .. at[3] .. ") -> " .. tostring(lr) .. " "
+                    .. tostring(type(l) == "table" and (tostring(l.tile_x) .. "," .. tostring(l.tile_z) .. "," .. tostring(l.level)) or l))
+        end
+        local function walk_lever_corridor(name)
+            local wr, wd = t.player.walk_to(2722, 9709, 60)
+            local tr, tt = t.world.tile()
+            t.check(name, wr == "ok" and tr == "ok" and tt.x == 2722 and tt.z == 9709 and tt.level == 0,
+                "walk_to 2722,9709 -> " .. tostring(wr) .. " " .. tostring(wd) .. "; at " .. tile_text(tr, tt))
+        end
+        local LEVER_G = { 2722, 9710, 0 }
+        local LEVER_H = { 2724, 9669, 0 }
+        local LEVER_I = { 2722, 9718, 0 }
+        local SOUTH_EAST_DOOR = { 2722, 9671, 0 }
+        local SOUTH_WEST_DOOR = { 2719, 9671, 0 }
+        local NORTH_DOOR = { 2723, 9711, 0 }
         -- followPathAroundEast's first leg: from the ladder's foot round to
         -- the north wall lever (pressed from beside it: a press from the
         -- landing hunted 99 pixels under the chatbox, run 1 row 54).
         t.ticks(3)
-        local w0r, w0d = t.player.walk_to(2722, 9709, 60)
-        local _, w0at = t.world.tile()
-        t.check("walk-pullNorthLever", w0r == "ok",
-            "walk_to 2722,9709 -> " .. tostring(w0r) .. " " .. tostring(w0d) .. "; at " .. tostring(w0at and (w0at.x .. "," .. w0at.z)))
-        t.exec("pullNorthLever", t.player.click_loc, "leverg", 1)
-        t.ticks(2)
-        local l1r, l1 = t.world.loc_near("leverg2", 6)
-        t.check("pullNorthLever.pulled", l1r == "ok", "world.loc_near(leverg2,6) -> " .. tostring(l1r) .. " " .. tostring(l1 and (tostring(l1.tile_x) .. "," .. tostring(l1.tile_z))))
-
-        t.exec("enterSouthRoomEast", t.player.click_loc, "famcrest_doorg2h1", 1)
-        t.ticks(2)
-        t.exec("pullSouthRoomLever", t.player.click_loc, "leverh", 1)
-        t.ticks(2)
-        local l2r, l2 = t.world.loc_near("leverh2", 6)
-        t.check("pullSouthRoomLever.pulled", l2r == "ok", "world.loc_near(leverh2,6) -> " .. tostring(l2r) .. " " .. tostring(l2 and (tostring(l2.tile_x) .. "," .. tostring(l2.tile_z))))
-
-        t.exec("exitSouthRoomWest", t.player.click_loc, "famcrest_doorh2", 1)
-        t.ticks(2)
-        local w3r, w3d = t.player.walk_to(2722, 9709, 60)
-        local _, w3at = t.world.tile()
-        t.check("walk-pullNorthLeverAgain", w3r == "ok",
-            "walk_to 2722,9709 -> " .. tostring(w3r) .. " " .. tostring(w3d) .. "; at " .. tostring(w3at and (w3at.x .. "," .. w3at.z)))
-        t.exec("pullNorthLeverAgain", t.player.click_loc, "leverg2", 1)
-        t.ticks(2)
-        local l3r, l3 = t.world.loc_near("leverg", 6)
-        t.check("pullNorthLeverAgain.pulled", l3r == "ok", "world.loc_near(leverg,6) -> " .. tostring(l3r) .. " " .. tostring(l3 and (tostring(l3.tile_x) .. "," .. tostring(l3.tile_z))))
-
-        t.exec("enterNorthRoom", t.player.click_loc, "famcrest_doorh2g1", 1)
-        t.ticks(2)
-        t.exec("pullNorthRoomLever", t.player.click_loc, "leveri", 1)
-        t.ticks(2)
-        local l4r, l4 = t.world.loc_near("leveri2", 6)
-        t.check("pullNorthRoomLever.pulled", l4r == "ok", "world.loc_near(leveri2,6) -> " .. tostring(l4r) .. " " .. tostring(l4 and (tostring(l4.tile_x) .. "," .. tostring(l4.tile_z))))
-
-        local w5r, w5d = t.player.walk_to(2722, 9709, 60)
-        local _, w5at = t.world.tile()
-        t.check("walk-pullNorthLever3", w5r == "ok",
-            "walk_to 2722,9709 -> " .. tostring(w5r) .. " " .. tostring(w5d) .. "; at " .. tostring(w5at and (w5at.x .. "," .. w5at.z)))
-        t.exec("pullNorthLever3", t.player.click_loc, "leverg", 1)
-        t.ticks(2)
-        local l5r, l5 = t.world.loc_near("leverg2", 6)
-        t.check("pullNorthLever3.pulled", l5r == "ok", "world.loc_near(leverg2,6) -> " .. tostring(l5r) .. " " .. tostring(l5 and (tostring(l5.tile_x) .. "," .. tostring(l5.tile_z))))
-
-        t.exec("pullSouthRoomLever2", t.player.click_loc, "leverh2", 1)
-        t.ticks(2)
-        local l6r, l6 = t.world.loc_near("leverh", 6)
-        t.check("pullSouthRoomLever2.pulled", l6r == "ok", "world.loc_near(leverh,6) -> " .. tostring(l6r) .. " " .. tostring(l6 and (tostring(l6.tile_x) .. "," .. tostring(l6.tile_z))))
+        walk_lever_corridor("walk-pullNorthLever")
+        lever("pullNorthLever", "leverg", "leverg2", LEVER_G)
+        -- pull leverh up: into the south room by its east door, out by its west.
+        room_door("enterSouthRoomEast", "famcrest_doorg2h1", SOUTH_EAST_DOOR, { 2722, 9672 }, { 2722, 9670 })
+        lever("pullSouthRoomLever", "leverh", "leverh2", LEVER_H)
+        room_door("exitSouthRoomWest", "famcrest_doorh2", SOUTH_WEST_DOOR, { 2719, 9670 }, { 2719, 9672 })
+        walk_lever_corridor("walk-pullNorthLeverAgain")
+        lever("pullNorthLeverAgain", "leverg2", "leverg", LEVER_G)
+        -- pull leveri up: into the north room and back out.
+        room_door("enterNorthRoom", "famcrest_doorh2g1", NORTH_DOOR, { 2723, 9710 }, { 2723, 9712 })
+        lever("pullNorthRoomLever", "leveri", "leveri2", LEVER_I)
+        room_door("exitNorthRoom", "famcrest_doorh2g1", NORTH_DOOR, { 2723, 9712 }, { 2723, 9709 })
+        walk_lever_corridor("walk-pullNorthLever3")
+        lever("pullNorthLever3", "leverg", "leverg2", LEVER_G)
+        -- pull leverh down: into the south room by its west door, out by its east.
+        room_door("enterSouthRoomWest", "famcrest_doorh2", SOUTH_WEST_DOOR, { 2719, 9672 }, { 2719, 9670 })
+        lever("pullSouthRoomLever2", "leverh2", "leverh", LEVER_H)
+        room_door("exitSouthRoomEast", "famcrest_doorg2h1", SOUTH_EAST_DOOR, { 2722, 9670 }, { 2722, 9672 })
 
         -- followPathAroundEast (2721,9700), then the goldrock2 gate
-        -- famcrest_doori2h1 (2727,9690), which reads the lever state.
+        -- famcrest_doori2h1 (2727,9690; the only way into the gold room,
+        -- reach.py NEEDS-DOOR), which reads the lever state and swings by
+        -- ~door_open_active to famcrest_doori2h1_open.
         local er, ed = t.player.walk_to(2721, 9700, 60)
-        local _, east = t.world.tile()
-        t.check("followPathAroundEast", er == "ok",
-            "walk_to 2721,9700 -> " .. tostring(er) .. " " .. tostring(ed) .. "; at " .. tostring(east and (east.x .. "," .. east.z)))
-        t.exec("openGoldGate", t.player.click_loc, "famcrest_doori2h1", 1)
-        t.ticks(2)
+        local etr, east = t.world.tile()
+        t.check("followPathAroundEast", er == "ok" and etr == "ok" and east.x == 2721 and east.z == 9700 and east.level == 0,
+            "walk_to 2721,9700 -> " .. tostring(er) .. " " .. tostring(ed) .. "; at " .. tile_text(etr, east))
+        t.exec("openGoldGate", t.player.pass_door, { closed = "famcrest_doori2h1", open = "famcrest_doori2h1_open",
+            at = { 2727, 9690, 0 }, near = { 2727, 9690 }, far = { 2728, 9690 } })
         t.expect("openGoldGate.open", t.msg.expect("The gate swings open"))
 
         -- mineGold: two 'perfect' gold ore from goldrock2 (2732,9680).
@@ -486,13 +490,18 @@ return {
         -- smeltGold: Quest Helper's furnace WorldPoint 3273,3186 (Al
         -- Kharid) is fai_falador_furnace; smelting.rs2's use_furnace has
         -- `case perfect_gold_ore : @smelt_ore_single(perfect_gold_bar)`.
-        -- Out of the dungeon by Varrock Teleport; the furnace building's
-        -- doorway has no door loc (reach.py 3213,3424 -> 3275,3186 REACH
-        -- closed-doors len=322).
+        -- Out of the dungeon by Varrock Teleport, overland to the street
+        -- east of the furnace room (reach.py 3213,3424 -> 3282,3185 REACH
+        -- closed-doors len=318). The room's one way in is its east door
+        -- 3279,3185, which the map places standing open (poordooropen; the
+        -- walk from the street to the furnace crosses that tile and no
+        -- other opening): pass_door asserts the open leaf in and out.
         -- ---------------------------------------------------------------
         t.player.teleport_cast("varrock_teleport", { 3213, 3424, 0 }, { name = "smeltGold.varrockTeleport",
             runes = VARROCK_RUNES, where = "Varrock, out of the Witchaven dungeon, for Al Kharid" })
-        t.exec("goto-alkharidFurnace", t.player.goto_tile, 3275, 3186, 0)
+        t.exec("goto-alkharidFurnace", t.player.goto_tile, 3282, 3185, 0)
+        t.exec("alkharidFurnace.doorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 3279, 3185, 0 }, near = { 3280, 3185 }, far = { 3275, 3186 } })
         t.ticks(2)
         t.exec("smeltGold1", t.player.use_on, "perfect_gold_ore", t.player.by_symbol("loc", "fai_falador_furnace"))
         t.exec("smeltGold1.bar", t.inv.await, "perfect_gold_bar", 1, 15)
@@ -545,7 +554,9 @@ return {
         -- the ring and necklace, sets avan_piece, hands over caleb_crest,
         -- then @crest_avan_johnathon.
         -- ---------------------------------------------------------------
-        t.exec("goto-avanReturn", t.player.goto_tile, 3295, 3284, 0)
+        t.exec("alkharidFurnace.doorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 3279, 3185, 0 }, near = { 3278, 3185 }, far = { 3281, 3185 } })
+        t.exec("goto-avanReturn", t.player.goto_tile, 3295, 3286, 0)
         t.exec("returnToMan", t.player.talk_to, "avan")
         t.exec("returnToMan-dialog", t.chat.play, {
             "npc:So how are you doing getting me my perfect gold jewelry?",
@@ -579,8 +590,13 @@ return {
         end
         t.exec("goto-jollyBoar", t.player.goto_tile, 3280, 3512, 0)
         t.exec("jollyBoar.walkIn", t.player.walk_route, { { 3281, 3505 }, { 3281, 3497 }, { 3282, 3490 }, { 3284, 3492 } })
-        climb("goUpToJohnathon", "fai_varrock_stairs_taller", { 3285, 3493, 0 }, 1, in_inn_upstairs,
-            "in the Jolly Boar's upper room x 3275-3286 z 3486-3506")
+        -- The staircase has no maplink.dbrow row: ladders.rs2 [proc,climb]
+        -- lands the player in the upper room in front of the stair top
+        -- (run b60: 3285,3496,1), graded by t.player.climb on the level and
+        -- the landing.
+        t.exec("goUpToJohnathon", t.player.climb, { loc = "fai_varrock_stairs_taller", op = 1, op_name = "Climb-up",
+            at = { 3285, 3493, 0 }, dest = { 3285, 3496, 1 }, slack = 2, landed_ok = in_inn_upstairs,
+            landed_desc = "in the Jolly Boar's upper room x 3275-3286 z 3486-3506" })
         local jw_r, jw_d = t.player.walk_to(3279, 3501, 30)
         local jt_r, jt = t.world.tile()
         t.check("jollyBoar.toJohnathon", jt_r == "ok" and in_inn_upstairs(jt) and math.abs(jt.x - 3279) <= 1 and math.abs(jt.z - 3501) <= 1,
@@ -622,8 +638,9 @@ return {
         local sd_tr, sd_t = t.world.tile()
         t.check("jollyBoar.toStairsTop", sd_tr == "ok" and in_inn_upstairs(sd_t) and math.abs(sd_t.x - 3284) <= 1 and math.abs(sd_t.z - 3492) <= 1,
             "walk_to 3284,3492,1 -> " .. tostring(sd_r) .. " " .. tostring(sd_d) .. "; at " .. tile_text(sd_tr, sd_t))
-        climb("jollyBoar.stairsDown", "fai_varrock_stairs_top", { 3285, 3493, 1 }, 0, in_inn_ground,
-            "on the Jolly Boar's ground floor")
+        t.exec("jollyBoar.stairsDown", t.player.climb, { loc = "fai_varrock_stairs_top", op = 1, op_name = "Climb-down",
+            at = { 3285, 3493, 1 }, dest = { 3285, 3492, 0 }, slack = 2, landed_ok = in_inn_ground,
+            landed_desc = "on the Jolly Boar's ground floor x 3275-3286 z 3486-3506" })
         t.exec("jollyBoar.walkOut", t.player.walk_route, { { 3282, 3490 }, { 3281, 3497 }, { 3281, 3505 }, { 3280, 3512 } })
 
         -- ---------------------------------------------------------------
@@ -665,8 +682,8 @@ return {
             "click_loc(trapdoor, Open, at 3097,3468,0) -> " .. tostring(op_r) .. " " .. tostring(op_d) .. "; read after "
                 .. tostring(tdo_r) .. " tick(s): trapdoor_open at 3097,3468,0 -> " .. tostring(td_r)
                 .. " " .. tostring(type(td) == "table" and (td.tile_x .. "," .. td.tile_z .. "," .. td.level) or td))
-        t.exec("goDownToChronizon", t.player.cross_trap, { loc = "trapdoor_open", op_name = "Climb-down",
-            at = { 3097, 3468, 0 }, src = { 3096, 3468 }, dest = { 3096, 9868 } })
+        t.exec("goDownToChronizon", t.player.climb, { loc = "trapdoor_open", op = 1, op_name = "Climb-down",
+            at = { 3097, 3468, 0 }, src = { 3096, 3468 }, dest = { 3096, 9868, 0 } })
         t.exec("chronozon.walkToGate", t.player.walk_route, { { 3096, 9876 }, { 3095, 9883 }, { 3095, 9891 },
             { 3095, 9899 }, { 3096, 9906 }, { 3100, 9910 }, { 3102, 9910 } })
         t.exec("chronozon.dungeonGate", t.player.pass_door, { closed = "metalgateclosedl", open = "metalgateopenl",
@@ -808,13 +825,15 @@ return {
         -- ~quest_complete_rewards(quest_familycrest, "Steel gauntlets").
         -- ---------------------------------------------------------------
         local sg_r, sg_before = t.inv.count("steel_gauntlets")
-        t.check("reward.steel_gauntlets.before", sg_r == "ok", "steel_gauntlets before hand-in: " .. tostring(sg_before))
+        t.check("reward.steel_gauntlets.before", sg_r == "ok" and sg_before == 0,
+            "steel_gauntlets before hand-in: " .. tostring(sg_before) .. " (" .. tostring(sg_r) .. ", want 0: setup gives none)")
         -- Out of the lair by Varrock Teleport (wilderness level ~3, under
         -- teleport.rs2's level-20 gate), then the east gate again.
         t.player.teleport_cast("varrock_teleport", { 3213, 3424, 0 }, { name = "returnCrest.varrockTeleport",
             runes = VARROCK_RUNES, where = "Varrock, out of the Edgeville dungeon" })
         t.exec("goto-dimintheisReturn.eastGate", t.player.goto_tile, 3262, 3405, 0)
         east_gate_in("returnCrest.eastGateIn")
+        dimintheis_house_in("returnCrest.houseDoorIn")
         t.exec("returnCrest", t.player.talk_to, "dimintheis")
         t.exec("returnCrest-dialog", t.chat.play, {
             "player:I have retrieved your crest.",
@@ -828,8 +847,13 @@ return {
         t.exec("quest.stage.complete", t.var.await_server, "varp148_crestquest", 11, 10)
         t.ticks(3)
         t.quest.expect_complete()
-        local rg_r, rg_d = t.inv.expect_has("steel_gauntlets", (sg_before or 0) + 1)
-        t.expect("reward.steel_gauntlets", rg_r, "scroll reward 'Steel gauntlets': steel_gauntlets " .. tostring(sg_before) .. " before hand-in, now " .. tostring(rg_d) .. " (expected " .. tostring((sg_before or 0) + 1) .. ")")
+        -- Rewards (wiki / crest_dimintheis.rs2 ~quest_complete_rewards): 1
+        -- quest point (quest.points above, delta 1) and one pair of steel
+        -- gauntlets, 0 -> 1.
+        local sa_r, sg_after = t.inv.count("steel_gauntlets")
+        t.check("reward.steel_gauntlets", sa_r == "ok" and sg_before == 0 and sg_after == 1,
+            "scroll reward 'Steel gauntlets': steel_gauntlets " .. tostring(sg_before) .. " before hand-in, now "
+                .. tostring(sg_after) .. " (" .. tostring(sa_r) .. "; want exactly 0 -> 1)")
         t.finish(0)
         return
     end,
