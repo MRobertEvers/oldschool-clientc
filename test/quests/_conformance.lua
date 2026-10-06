@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 185
+-- @verb-count 188
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 173
+-- @seam-count 174
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 185
-local SEAM_COUNT = 173
+local VERB_COUNT = 188
+local SEAM_COUNT = 174
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -17031,6 +17031,150 @@ return {
                 return "refused", text
             end
             return "ok", text
+        end)
+
+        -- raid seam25 watched_camera_and_shots: QD.drive.camera_aim, the one camera
+        -- call (VERB_COUNT +1) and one seam row (SEAM_COUNT +1).  Placed at the END
+        -- (the seam25 closer): the forced turn spends ticks, and a row early in
+        -- phase 3 shifted every wandering npc after it (seam.attack_presses_the_
+        -- watched_slot went red on the goblins' new tiles).  Back to the Man first.
+        stage(function()
+            local goto_tile = verb("player", "goto_tile")
+            local walk = verb("player", "walk_near")
+            if goto_tile then
+                goto_tile(3222, 3218, 0)
+            end
+            settle(2)
+            if walk and npc_target then
+                walk(npc_target)
+            end
+        end)
+
+        -- The ONE camera call in both modes, at a target BEHIND the camera:
+        -- first a snap (a test run's mode), then the same aim with the turn
+        -- forced (the watched client's mode, driven headless on the virtual
+        -- clock).  Each must answer ok with the target projecting.
+        step("drive.camera_aim", function()
+            local aim = verb("drive", "camera_aim")
+            if not aim then return missing("drive", "camera_aim") end
+            local screen = verb("drive", "screen_position")
+            local tile_of = t.drive._target_tile
+            if not (screen and tile_of and npc_target) then
+                return "FAIL", "no subject to aim at"
+            end
+            local function projects()
+                local r = screen(npc_target)
+                return r == "ok"
+            end
+            local function behind_then_aim(forced)
+                local tile_result, tile_x, tile_z = tile_of(npc_target)
+                local player_result, player = t.world.tile()
+                local px, pz = nil, nil
+                if type(player) == "table" then px, pz = player.x, player.z end
+                if tile_result ~= "ok" or px == nil then
+                    return "FAIL", "no tiles"
+                end
+                local yaw = t.drive._yaw_towards(tile_x - px, tile_z - pz)
+                if yaw == nil then return "FAIL", "subject on the player's tile" end
+                -- Behind: half a turn off, as a SNAP (setup, not the proof).
+                t.drive._camera_turn_forced = false
+                aim({ yaw = (yaw + 1024) % 2048, pitch = 128, zoom = 600, purpose = "pose",
+                    note = "conformance behind" })
+                t.ticks(1)
+                local hidden = not projects()
+                t.drive._camera_turn_forced = forced
+                local result, detail = aim({ yaw = yaw, pitch = 128, zoom = 600, purpose = "press",
+                    projects = projects, snap_await = 3, note = "conformance aim" })
+                t.drive._camera_turn_forced = false
+                return result, string.format("forced=%s hidden_before=%s mode=%s held=%s projects=%s",
+                    tostring(forced), tostring(hidden), tostring(detail and detail.mode),
+                    tostring(detail and detail.held), tostring(projects()))
+            end
+            local snap_result, snap_detail = behind_then_aim(false)
+            local turn_result, turn_detail = behind_then_aim(true)
+            local pass = snap_result == "ok" and turn_result == "ok"
+                and snap_detail:find("mode=snap", 1, true) and snap_detail:find("projects=true", 1, true)
+                and turn_detail:find("mode=turn ", 1, true) and turn_detail:find("projects=true", 1, true)
+            return pass and "ok" or "hollow", snap_detail .. " | " .. turn_detail
+        end)
+
+        -- A watched client never moves the camera for a photograph
+        -- (63ea41d39): the one call refuses that purpose in turn mode.
+        seam("seam.camera_aim_photograph_refused_when_watched", function()
+            local aim = verb("drive", "camera_aim")
+            if not aim then return missing("drive", "camera_aim") end
+            t.drive._camera_turn_forced = true
+            local result, detail = aim({ yaw = 0, pitch = 300, zoom = 600, purpose = "photograph",
+                note = "conformance shot" })
+            t.drive._camera_turn_forced = false
+            return result == "refused" and "ok" or "hollow",
+                tostring(result) .. " " .. tostring(detail and detail.why)
+        end)
+
+        -- raid seam25 starting_character_state: t.session.held and t.session.reset
+        -- (VERB_COUNT +2).  Last before finish: the reset empties the backpack and
+        -- every worn slot, so no row after it may lean on the fixture's kit.
+        step("session.held", function()
+            local fn = verb("session", "held")
+            local cheat = verb("cheat")
+            if not fn then return missing("session", "held") end
+            if not cheat then return missing("cheat") end
+            local give_result, give_detail = cheat("::give " .. OBJ_SYMBOL .. " 1")
+            if give_result ~= "ok" then
+                return give_result, "::give " .. OBJ_SYMBOL .. " -> " .. describe(give_detail)
+            end
+            t.ticks(3)
+            local result, held = fn()
+            if result ~= "ok" then
+                return result, describe(held)
+            end
+            if type(held) ~= "table" or type(held.backpack) ~= "table" or type(held.worn) ~= "table" then
+                return "hollow", "t.session.held() answered ok without { backpack = {}, worn = {} }"
+            end
+            local found = false
+            for i = 1, #held.backpack do
+                if held.backpack[i] == OBJ_SYMBOL then found = true end
+            end
+            if not found then
+                return "hollow", "gave " .. OBJ_SYMBOL .. " but the backpack reads ["
+                    .. table.concat(held.backpack, ",") .. "]"
+            end
+            return "ok", string.format("backpack %d [.. %s ..], worn %d", #held.backpack, OBJ_SYMBOL,
+                #held.worn)
+        end)
+
+        step("session.reset", function()
+            local fn = verb("session", "reset")
+            local held = verb("session", "held")
+            local cheat = verb("cheat")
+            if not fn then return missing("session", "reset") end
+            if not held then return missing("session", "held") end
+            if not cheat then return missing("cheat") end
+            -- Dress and fill first, so an empty read-back is the reset's doing.
+            cheat("::give " .. WEARABLE_OBJ_SYMBOL .. " 1")
+            cheat("::wield " .. WEARABLE_OBJ_SYMBOL)
+            cheat("::give " .. OBJ_SYMBOL .. " 1")
+            t.ticks(3)
+            local before_result, before = held()
+            if before_result ~= "ok" or #before.worn == 0 or #before.backpack == 0 then
+                return "hollow", "could not dress and fill the character first: "
+                    .. describe(before_result) .. " "
+                    .. (type(before) == "table" and (#before.worn .. " worn, " .. #before.backpack .. " held") or describe(before))
+            end
+            local result, detail = fn()
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            local after_result, after = held()
+            if after_result ~= "ok" or #after.worn ~= 0 or #after.backpack ~= 0 then
+                return "hollow", "t.session.reset() answered ok but the client holds "
+                    .. (type(after) == "table" and (#after.worn .. " worn, " .. #after.backpack .. " held") or describe(after))
+            end
+            if not string.find(tostring(detail), "Reset character:", 1, true) then
+                return "hollow", "no server line in the detail: " .. describe(detail)
+            end
+            return "ok", string.format("%d worn + %d held -> 0 + 0; %s", #before.worn, #before.backpack,
+                describe(detail))
         end)
 
         step("finish", function()

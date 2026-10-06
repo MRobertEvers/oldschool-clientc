@@ -5039,6 +5039,38 @@ scripts_tab_every_script) replaced that plumbing. What it is now:
   caption is drawn in `text_dim`, which the OSRS theme sets to the label colour (orange),
   and an enabled one in `text` (white); that reads backwards in this theme and is the
   theme's to change, not the plugin's.
+- THE WINDOW (seam25, watched_client_mouse_mapping, 2026-10-05). The owner: "the mouse
+  coords are WAYYY OFF" at the login screen of the default window on a Retina Mac; fixed
+  for him by `TORIRS_HIDPI=0 ... -- --soft3d --window 765x503`. The profile now pins
+  exactly that (`[args]`, `[env] TORIRS_HIDPI=0`): it is the window every test is graded
+  in, so a watched run looks like what the test saw, and the one command needs no
+  arguments. What was measured about the cause: the SDL mapping is ONE pure function now
+  (`platform/platform_pointer_map.h`; `PlatformWindow_MapMouse` and the present's game
+  area both read it), and `make -C src test-sdl-pointer-map` proves a press lands on the
+  layout pixel the present draws there across 1x/2x, pane closed/rail/page+rail (grown
+  and carved), the title's 765x503 layout and the in-game resizable one, and the real
+  `platform_sdl2.c` MapMouse under the dummy driver at 1x and a claimed 2x (698 checks
+  each, 0 failures). The two candidates' sizes, measured: a density-blind read puts
+  Existing User (462,291) at 231,145; a pane-blind one at 442,291 (rail) or 244,272
+  (carved page). Candidate (b) does not arise: at the title the chrome reports
+  `rail_hidden=1 column=-1`, so `api.panel.request` at plugin start opens no pane there
+  (script_runner.lua unchanged). NOT reproduced headless: the default GPU lane (GL3 is
+  unavailable under the dummy driver) and the real Cocoa WKWebView pane; the factor-2
+  error a density-blind read gives is the size of "way off", and it can only live there.
+  Open item, for the owner's eyes: the profile with its `[args]` and `TORIRS_HIDPI=0`
+  lines removed (the GPU lane, HighDPI drawable) and the pointer on Existing User.
+- REAL-EVENT KNOBS (platform_sdl2.c, headless only in effect):
+  `TORIRS_SIM_SDL_CLICK_AT=frame,x,y[,right][;...]` pushes SDL_MOUSEMOTION, then
+  SDL_MOUSEBUTTONDOWN/UP three and four frames later, in WINDOW POINTS, through
+  SDL_PushEvent, so the press travels the pane routing and MapMouse a person's does
+  (`TORIRS_SIM_CLICK_AT` puts layout coordinates on the bus and cannot see a mapping
+  bug); each release logs `released x,y points -> layout x,y`. `frame` counts
+  PollCommands calls. `TORIRS_SIM_PIXEL_DENSITY=2` makes a `SDL_VIDEODRIVER=dummy` window
+  claim a drawable twice its points (ignored on any real driver). Measured with the
+  profile's env: Existing User (462,291) then name, password and Login (302,321) through
+  the SDL path -> `login user='probeone' session=ok` at 1x and `'probetwo'` at 2x
+  (canvas 765x503 in a 1530x1006 drawable), and under the pinned args; the Scripts
+  page's Search (210,173 in the 807x503 floating pane) -> `search 'cook' -> 1 rows`.
 - Headless drive of the tab (profile env + `SDL_VIDEODRIVER=dummy`; harness
   `build/seam_state/matthew-mbp-m4-raid-b1-seam24/panel/run_watch.sh`):
   `TORIRS_SIM_PLUGIN_PANEL=<tick>,script-runner,page`;
@@ -5348,3 +5380,90 @@ Bloat in about 1,200 ticks.
 - Only Bloat is played through the library, in _play_smoke.lua. The kept tob_*.lua room
   tests still use their own hand-written plays on one seed each, and are re-authored onto
   the library in a later pass (test/raids/README.md states the rule).
+
+## Starting state: `::resetcharacter`, `t.session.reset`, `t.session.held` (seam25)
+
+The Scripts tab used to start every Play on a fresh account (seam24), and a run
+on one account carried the last script's gear into the next one: seam23's
+Verzik setup ran out of backpack after three rooms. `::resetcharacter` cleans the
+live character without a relog.
+
+- **`::resetcharacter`** (torirs_server_world.c, beside `::clearinv`) empties the
+  backpack and every worn slot (removed, not dropped), leaves an active
+  Theatre/Chambers/Tombs through content's own `~tob_leave`/`~cox_leave`/`~toa_leave`
+  (this frees the room and moves the player outside), drops the current action,
+  runs the clearers death.rs2 runs on a respawn (poison, venom, disease, antifire,
+  prayers off, skull, imbued heart, the personal hit queues, special attack back
+  to 100%), clears the timed potion and spell effects death leaves behind (stamina,
+  overloads, divine potions, prayer regen/enhance, Menaphite remedy, hunter meat,
+  freeze, teleblock, vengeance, the Theatre's per-raid registers, and their timers
+  and queues), puts every stat back to its base level, fills Hitpoints, Prayer and
+  run energy, and clears a stun. It leaves the bank, quest progress, base levels
+  and xp, appearance and the tile. It answers in one line ("Reset character: 28
+  backpack, 8 worn emptied; ... 14 proc(s); left Theatre") and names any clearer
+  this pack does not declare.
+- **`::resetcharacter home`** also moves the player to the new-character home tile.
+- **`::resetcharacter fixture <name>`** applies a fixture to the live character
+  (`test/quests/fixtures`, `test/raids/fixtures`, or `$TORIRSSERVER_FIXTURES`): the bank
+  emptied, every perm varp zeroed, every stat set to 1, then the fixture's tile, varps,
+  stats and items, then `~newplayer_setup`. This is a fresh login's state except for
+  temp-scope varps, appearance, name, POH, sailing and the other `[login]` steps,
+  which stay as the live session has them.
+- **`t.session.reset([fixture])`** runs the cheat and then waits until the client
+  shows empty worn slots, and an empty backpack too for a plain reset. Its detail
+  carries the server's line. **`t.session.held()`** returns the backpack and worn
+  item symbols the client holds.
+- **Test runs are unchanged.** run.py still starts every test on a fresh account
+  from its fixture and never calls the reset. The Scripts tab's "Start from"
+  select (Reset character / Fresh character / As it is) goes through
+  `QD.session._start(options)`. Until the core.lua, torirs_plugin_drive.c and
+  script_runner.lua edits are merged, `options.start` is nil and the tab starts
+  every Play on a fresh account, as before.
+
+  Not merged by the seam25 closer: the tab wiring needs a headless Play through the
+  tab to prove it, and snippet 3(f) would pass the manifest's script-item path
+  (`tests/quests/fixtures/fresh_lumbridge.ini`) as the fixture NAME, which
+  `::resetcharacter fixture` looks up under `test/quests/fixtures/` and would refuse.
+  Pass the basename (`fresh_lumbridge`) when it lands.
+
+## One camera call: `QD.drive.camera_aim` (seam25)
+
+- `QD.drive.camera_aim(want)` is the only caller of `api_drive.camera` (the snap) and
+  of `api_drive.camera_turn_toward` / `api_drive.camera_turn_release` (the turn).
+  `want = { yaw, pitch, zoom, purpose = "press" | "pose" | "photograph",
+  projects = fn, snap_await = ticks, note }`; it answers `result, detail` with
+  `detail.mode` one of `snap`, `turn`, `turn->snap`, `refused`.
+- A TEST RUN SNAPS: the same write and the same await in the same frames as before
+  the call existed, so headless ledgers are byte-identical (cooks_assistant and druid
+  against build/merge17_check; the six ToB rooms stay green).
+- A WATCHED CLIENT (`api_drive.status().on_demand`, read only in
+  `QD.drive._camera_watched`) TURNS: once a frame the C verb holds the arrow keys
+  through `CmdBus_PushKey`, the way a person's key does, the shortest way round, and
+  rolls the wheel one notch at a time (only while the pointer is over the world).
+  A `press` stops when the target projects; if the target already projected when the
+  turn began, it turns to the pose (a new view). A `pose` finishes with an exact
+  write. A `photograph` is refused (63ea41d39). A refused turn (cutscene, unlocked
+  camera, no bus) or one past `QD.drive._camera_turn_ticks` (12) falls back to the
+  snap, so a watched run reaches the same verdicts.
+- `t.drive.camera(yaw, pitch, zoom)` is a `pose` through this call: it blocks until
+  the pose is there in both modes. No test calls `api_drive` itself (the sandbox has
+  no `api_drive`).
+- A fast press that re-aimed by a turn counts `_quick_ticks` from the end of the turn
+  (`QD.drive._quick_rebase`); a test run is unchanged.
+- `api_drive.camera_turn_toward(yaw, pitch, zoom)` -> `"ok", {yaw, pitch, zoom,
+  arrived, yaw_arrived, pitch_arrived, zoom_arrived}`: one poll. It refuses the pitch
+  and zoom `api_drive.camera` refuses. `api_drive.camera_turn_release()` lets every
+  arrow go; a driver reload (Stop, script error) also releases them
+  (`PluginDrivePointer_RegisterLua`). The turn state is one static per process: two
+  `t.together` branches turning at once would share it (not seen, not guarded).
+- `QD.drive._camera_turn_forced = true` drives the turn path headless (the
+  conformance row `drive.camera_aim` only). `QD.drive._camera_turn_stats` counts
+  aims, snaps, turns, the longest turn, presses that waited, fallbacks, finish writes
+  and refused photographs.
+- Conformance: `drive.camera_aim` and `seam.camera_aim_photograph_refused_when_watched`
+  sit at the END of the plan, behind a stage that goes back to the Man. Placed early
+  in phase 3, the forced turn's ticks moved every wandering npc after it and
+  `seam.attack_presses_the_watched_slot` went red on the goblins' new tiles.
+- Not proved: a watched Play through the Scripts tab turning (the forced flag stood in
+  for it), the flicker rate before and after, and the Screenshots toggle (off by
+  default in a watched client), which needs `script_runner.lua`.

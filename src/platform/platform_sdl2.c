@@ -1,5 +1,6 @@
 #include "platform/platform_window.h"
 #include "platform/client_scale.h"
+#include "platform/platform_pointer_map.h"
 
 #include "cmd/cmdbus.h"
 #include "input/torirs_input.h"
@@ -214,6 +215,42 @@ struct PlatformWindow
  * SDL_GetWindowSize for it is the bug that makes a Retina window render at a
  * quarter of its resolution and then stretch.
  */
+/*
+ * TORIRS_SIM_PIXEL_DENSITY=2: a HEADLESS window that claims a drawable this
+ * many times its points, the way a Retina window does. Honoured only under
+ * SDL_VIDEODRIVER=dummy, which has no HighDPI of its own and nothing anybody
+ * looks at: the present clips into the real 1x target, and everything that
+ * reads the drawable -- the canvas, the density, the present's placement and
+ * MapMouse -- sees the 2x numbers a Retina Mac hands it. It is what lets a
+ * headless run press a button through the SDL path at the density the
+ * watched client runs at (raid seam25, watched_client_mouse_mapping).
+ */
+static int
+sdl_sim_pixel_density(void)
+{
+    static int density = 0;
+    char const* env;
+    char const* driver;
+
+    if( density > 0 )
+        return density;
+    driver = SDL_GetCurrentVideoDriver();
+    if( !driver )
+        return 1;
+    density = 1;
+    env = getenv("TORIRS_SIM_PIXEL_DENSITY");
+    if( env && env[0] && strcmp(driver, "dummy") == 0 )
+    {
+        density = atoi(env);
+        if( density < 1 )
+            density = 1;
+        if( density > 4 )
+            density = 4;
+        fprintf(stderr, "sim_pixel_density: headless drawable is %dx the window points\n", density);
+    }
+    return density;
+}
+
 static void
 sdl_drawable_size(
     struct PlatformWindow* platform,
@@ -233,6 +270,12 @@ sdl_drawable_size(
         SDL_GetWindowSize(platform->window, &w, &h);
     if( w <= 0 || h <= 0 )
         SDL_GetWindowSize(platform->window, &w, &h);
+    if( sdl_sim_pixel_density() > 1 )
+    {
+        SDL_GetWindowSize(platform->window, &w, &h);
+        w *= sdl_sim_pixel_density();
+        h *= sdl_sim_pixel_density();
+    }
     if( out_w )
         *out_w = w;
     if( out_h )
@@ -2907,6 +2950,26 @@ PlatformWindow_SetClientScaling(
 }
 
 /*
+ * The window's pointer geometry, read once: window points, drawable pixels,
+ * the pane's points and the layout. The present's game area and MapMouse
+ * both come from it, through platform_pointer_map.h, so the two cannot
+ * disagree about where the frame is.
+ */
+static void
+sdl_pointer_geometry(
+    struct PlatformWindow* platform,
+    struct PlatformPointerGeometry* out)
+{
+    assert(platform);
+    assert(out);
+    assert(platform->window);
+    SDL_GetWindowSize(platform->window, &out->point_w, &out->point_h);
+    sdl_drawable_size(platform, &out->drawable_w, &out->drawable_h);
+    out->pane_point_w = sdl_chrome_pane_points(platform);
+    sdl_layout_size(platform, &out->layout_w, &out->layout_h);
+}
+
+/*
  * The game area in drawable pixels -- the drawable less the plugin pane --
  * and where the frame lands in it.
  *
@@ -2926,17 +2989,14 @@ sdl_game_area(
     int area_h = 0;
     int pane_w = 0;
 
+    struct PlatformPointerGeometry geometry;
+
     assert(platform);
     assert(out_w);
     assert(out_h);
-    sdl_drawable_size(platform, &area_w, &area_h);
-    if( platform->chrome_open || platform->chrome_rail_visible )
-    {
-        chrome_drawable_size(platform, &pane_w, NULL);
-        if( pane_w > area_w )
-            pane_w = area_w;
-        area_w -= pane_w;
-    }
+    sdl_pointer_geometry(platform, &geometry);
+    PlatformPointer_GameArea(&geometry, &area_w, &area_h);
+    pane_w = PlatformPointer_PanePixels(&geometry);
     *out_w = area_w;
     *out_h = area_h;
     if( out_pane_w )
@@ -3181,15 +3241,7 @@ PlatformWindow_MapMouse(
     int* out_x,
     int* out_y)
 {
-    int point_w = 0;
-    int point_h = 0;
-    int drawable_w = 0;
-    int drawable_h = 0;
-    int area_w = 0;
-    int area_h = 0;
-    int layout_w = 0;
-    int layout_h = 0;
-    struct ClientScalePresent present;
+    struct PlatformPointerGeometry geometry;
 
     assert(platform);
     assert(out_x);
@@ -3197,27 +3249,12 @@ PlatformWindow_MapMouse(
     assert(platform->window);
 
     /* SDL delivers the pointer in window points and the frame is placed in
-     * drawable pixels, so the point is converted once, here, and everything
-     * after it is the present's own arithmetic. */
-    SDL_GetWindowSize(platform->window, &point_w, &point_h);
-    sdl_drawable_size(platform, &drawable_w, &drawable_h);
-    sdl_game_area(platform, &area_w, &area_h, NULL);
-    if( point_w <= 0 || point_h <= 0 || area_w <= 0 || area_h <= 0 )
-    {
-        *out_x = 0;
-        *out_y = 0;
-        return;
-    }
-    sdl_layout_size(platform, &layout_w, &layout_h);
-    ClientScale_Present(&platform->client_scale, layout_w, layout_h, area_w, area_h, &present);
-    ClientScale_OutputToLayout(
-        &present.output,
-        layout_w,
-        layout_h,
-        (int)((long long)win_x * drawable_w / point_w),
-        (int)((long long)win_y * drawable_h / point_h),
-        out_x,
-        out_y);
+     * drawable pixels, so the point is converted once, and everything after
+     * it is the present's own arithmetic (platform_pointer_map.h). A window
+     * with no game area answers 0,0. */
+    sdl_pointer_geometry(platform, &geometry);
+    (void)PlatformPointer_WindowToLayout(
+        &platform->client_scale, &geometry, win_x, win_y, out_x, out_y);
 }
 
 #if !defined(__APPLE__)
@@ -3573,6 +3610,92 @@ sdl_chrome_event(struct PlatformWindow* platform, SDL_Event const* event)
 }
 #endif
 
+/*
+ * TORIRS_SIM_SDL_CLICK_AT="frame,x,y[,right][;frame,x,y...]": a mouse click
+ * pushed as REAL SDL events, in window POINTS, so it travels exactly the
+ * translation a person's press does (the pane routing below, then
+ * PlatformWindow_MapMouse). TORIRS_SIM_CLICK_AT (main.c) pushes layout
+ * coordinates straight onto the command bus and so cannot see a mapping bug;
+ * this one can. `frame` counts PollCommands calls, one per main-loop frame.
+ * The cadence is TORIRS_SIM_CLICK_AT's: motion on the frame, press three
+ * frames later (the hover pick set is built during render), release the frame
+ * after. A step is the next entry, so presses are sequential.
+ */
+static void
+sdl_sim_click_pump(struct PlatformWindow* platform)
+{
+    static char const* cursor = NULL;
+    static int initialised = 0;
+    static long polls = 0;
+    static long pend_frame = -1;
+    static long pend_x = 0;
+    static long pend_y = 0;
+    static long pend_right = 0;
+    SDL_Event event;
+    long step;
+
+    assert(platform);
+    if( !initialised )
+    {
+        initialised = 1;
+        cursor = getenv("TORIRS_SIM_SDL_CLICK_AT");
+    }
+    polls++;
+    if( pend_frame < 0 && cursor && *cursor )
+    {
+        char* end = NULL;
+        pend_frame = strtol(cursor, &end, 0);
+        if( end && *end == ',' )
+        {
+            pend_x = strtol(end + 1, &end, 0);
+            pend_y = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
+            pend_right = 0;
+            if( end && *end == ',' )
+                pend_right = strtol(end + 1, &end, 0);
+            cursor = (end && *end == ';') ? end + 1 : NULL;
+        }
+        else
+        {
+            cursor = NULL;
+            pend_frame = -1;
+        }
+    }
+    if( pend_frame < 0 || polls < pend_frame )
+        return;
+    step = polls - pend_frame;
+    memset(&event, 0, sizeof(event));
+    if( step == 0 )
+    {
+        event.type = SDL_MOUSEMOTION;
+        event.motion.windowID = SDL_GetWindowID(platform->window);
+        event.motion.x = (Sint32)pend_x;
+        event.motion.y = (Sint32)pend_y;
+        SDL_PushEvent(&event);
+        fprintf(stderr, "sim_sdl_click_at: frame=%ld move %ld,%ld points right=%ld\n",
+            pend_frame, pend_x, pend_y, pend_right);
+    }
+    else if( step == 3 || step == 4 )
+    {
+        event.type = step == 3 ? SDL_MOUSEBUTTONDOWN : SDL_MOUSEBUTTONUP;
+        event.button.windowID = SDL_GetWindowID(platform->window);
+        event.button.button = pend_right ? SDL_BUTTON_RIGHT : SDL_BUTTON_LEFT;
+        event.button.state = step == 3 ? SDL_PRESSED : SDL_RELEASED;
+        event.button.clicks = 1;
+        event.button.x = (Sint32)pend_x;
+        event.button.y = (Sint32)pend_y;
+        SDL_PushEvent(&event);
+        if( step == 4 )
+        {
+            int layout_x = 0;
+            int layout_y = 0;
+            PlatformWindow_MapMouse(platform, (int)pend_x, (int)pend_y, &layout_x, &layout_y);
+            fprintf(stderr, "sim_sdl_click_at: released %ld,%ld points -> layout %d,%d\n",
+                pend_x, pend_y, layout_x, layout_y);
+            pend_frame = -1;
+        }
+    }
+}
+
 void
 PlatformWindow_PollCommands(
     struct PlatformWindow* platform,
@@ -3612,6 +3735,7 @@ PlatformWindow_PollCommands(
      * reported on the same frame as anything else the window saw. */
     sdl_aux_sync_drawable(platform);
     sdl_chrome_sync_drawable(platform);
+    sdl_sim_click_pump(platform);
 
     while( SDL_PollEvent(&event) )
     {
