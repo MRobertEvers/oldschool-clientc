@@ -245,6 +245,30 @@ the merge.
     `script/tests/.gitignore` (the generated `tests.ini`); DELETED
     `script/plugins/assets/script-runner/index.tsv` (seam23's link).
 
+- seam37 scripts_tab_party_play (2026-10-06), the Scripts tab plays a party. Test runs are
+  unchanged: the tab is a plugin only `osrs239-scripts` loads; cooks_assistant and druid
+  byte-identical to build/merge17_check on a build carrying the hook patch.
+  - Plugin: `script/plugins/script_runner.lua` gains the PARTY block (rows `party_session`,
+    `seat1..seat4`, toggles `windowed2..windowed4`, buttons `stop_all`, `respawn`), the
+    launch-service probe (`launch/status` of `session=probe`), Play with `party = {size,
+    launch = true, windowed}` and `start = "fresh"` for a party row, Stop closing the party,
+    `on_stop`. It calls `api.drive.launch_status/_command/_close/_answer` and `api.drive.party`.
+  - Driver verbs CHANGED (the hook patch, merged by the seam37 closer): `api.drive.party()`
+    returns `launch_session` and `launch_token` (the session this client's driver last
+    opened); `api.drive.play`'s `party` takes `windowed = {[seat] = true}`, handed to
+    `QD.launch._party_up` as `options.party.windowed` (seat spawned with `headless=0`). One
+    new conformance SEAM row `seam.launch_own_session` (SEAM_COUNT +1); VERB_COUNT unchanged.
+  - Tools: `tools/raid_gate/prepare_scripts.py` lists `party=N` rows as available (only a
+    missing fixture makes a row unavailable now); the tab decides party availability at run
+    time.
+  - Env a party row needs: the watched client frame-locked (`TORIRS_MAX_FRAMES`, plus
+    `TORIRS_EMBED_CLOCK_MS=20` for the transport's clock). `profiles/osrs239-scripts.ini`
+    does NOT set them (no profile change in seam37), so in the profile as committed a party
+    row reads unavailable with that reason. Decide before the merge whether the profile
+    carries them.
+  - Known limit: one party per client process (the embedded transport never releases a
+    runtime-hosted party); the tab says so.
+
 ## 4. The owner's main checkout
 
 Nine files there carry a stray copy of seam1's client edits (uncommitted, written by a

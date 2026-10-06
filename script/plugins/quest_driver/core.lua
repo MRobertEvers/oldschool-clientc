@@ -1336,6 +1336,20 @@ function QD.core_run_test(loader, options)
         return
     end
     QD.step("watch.start", "PASS", tostring(start_detail))
+    -- A LAUNCHING LEADER (raid seam37): api.drive.play with party = {size =
+    -- N, launch = true}. Its members are started now, after its own log-in
+    -- (their world is this client's) and before the setup list, through the
+    -- embedded IO server's launch service (raid.lua QD.launch._party_up); from
+    -- the party host on, every boundary waits for their READY. A member's own
+    -- Play has party.launch false and skips this.
+    if type(options.party) == "table" and options.party.launch then
+        local party_result, party_detail = QD.launch._party_up(options)
+        QD.step("launch.party", party_result == "ok" and "PASS" or "FAIL", tostring(party_detail))
+        if party_result ~= "ok" then
+            QD.finish(1)
+            return
+        end
+    end
     -- The camera as the first Play found it (torirs_plugin_drive.c
     -- g_demand_camera_*): the last test's camera verbs and a logout leave the
     -- pose where they put it, and a fresh process would start from the

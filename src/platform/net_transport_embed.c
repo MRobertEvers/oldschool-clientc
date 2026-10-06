@@ -228,6 +228,38 @@ party_knobs(struct NetTransportEmbed* self)
         TORIRS_ERR("net: party: the leader cannot listen on %d\n", listen_port);
         abort();
     }
+    /* A boot-time leader: api.drive.party_host is refused in this process. */
+    ToriRSServer_EmbedPartyHostNote(1);
+}
+
+/*
+ * The RUNTIME party host (raid seam37; torirs_server_embed.h): a listen socket
+ * the driver opened after boot (api.drive.party_host), taken at this poll and
+ * attached exactly as the boot knobs attach theirs at CONNECT -- the next
+ * boundary waits for size - 1 seats (TORIRS_EMBED_PARTY_WAIT_S), then the
+ * lock step runs. The leader's own first boundary after it is not judged for
+ * its frame count, as at boot. Only a leader with a world and no party.
+ */
+static void
+party_host_take(struct NetTransportEmbed* self)
+{
+    int listener = -1;
+    int size = 0;
+
+    if( !self->embed || self->party_listener >= 0 || self->party_join_port > 0 )
+        return;
+    if( !ToriRSServer_EmbedPartyHostTake(&listener, &size) )
+        return;
+    self->party_listener = listener;
+    self->party_size = size;
+    if( self->party_trace == 0 )
+        self->party_trace = 1;
+    ToriRSServer_EmbedPartyAttach(self->embed, self->party_listener, self->party_size,
+                                  self->party_wait_ms, self->party_trace);
+    ToriRSServer_EmbedPartyAuditArm(1);
+    self->leader_boundaries = 0;
+    TORIRS_ERR("net: party: hosting at runtime: a party of %d, waiting up to %d s for %d seat(s)\n",
+               size, self->party_wait_ms / 1000, size - 1);
 }
 
 static void
@@ -331,6 +363,9 @@ embed_poll(
     /* One poll per frame, one frame per poll, while a party link is up
      * (ToriRSServer_EmbedPartyAuditPoll aborts otherwise). */
     ToriRSServer_EmbedPartyAuditPoll();
+    /* A launched member's guard against a leader that is gone (raid
+     * seam37): at most one kill(pid, 0) a second, nothing without the knob. */
+    ToriRSServer_EmbedLaunchWatchdog();
 
     if( self->party_join_port > 0 )
     {
@@ -396,6 +431,7 @@ embed_poll(
 
     if( !self->embed )
         return;
+    party_host_take(self);
 
     /* 2. let the server act, and tick it on its own schedule */
     run_tick = embed_clock_step(self);
@@ -580,6 +616,21 @@ party_member_boundary(struct NetTransportEmbed* self)
      * leader holds it to F (torirs_server_embed.h, "Lockstep, pinned"). */
     ToriRSServer_EmbedLinkReadyEncode(ready, self->clock_frames);
     self->clock_frames = 0;
+    /* A launched member polls its mailbox and posts its status once a tick,
+     * here, before its READY (raid seam37; torirs_server_embed.h 'M'); the
+     * answer comes before the TICK. A run.py member sends nothing. */
+    {
+        static char mail[TORIRSSERVER_EMBED_LINK_MAIL_MAX];
+        int const mail_length = ToriRSServer_EmbedMemberMailRequest(mail, (int)sizeof(mail));
+
+        if( mail_length > 0 &&
+            !ToriRSServer_EmbedLinkSend(self->party_fd, TORIRSSERVER_EMBED_LINK_MAIL,
+                                        (const uint8_t*)mail, mail_length) )
+        {
+            party_member_lost(self, "closed");
+            return;
+        }
+    }
     if( !ToriRSServer_EmbedLinkSend(self->party_fd, TORIRSSERVER_EMBED_LINK_READY, ready,
                                     TORIRSSERVER_EMBED_LINK_READY_LEN) )
     {
@@ -598,6 +649,8 @@ party_member_boundary(struct NetTransportEmbed* self)
         {
             if( type == TORIRSSERVER_EMBED_LINK_DATA )
                 party_pending_append(self, payload, len);
+            else if( type == TORIRSSERVER_EMBED_LINK_MAIL_ANSWER )
+                ToriRSServer_EmbedMemberMailDeliver(payload, len);
             else if( type == TORIRSSERVER_EMBED_LINK_TICK )
             {
                 int tick = 0;
@@ -624,6 +677,7 @@ party_member_boundary(struct NetTransportEmbed* self)
                 return;
             }
         }
+        ToriRSServer_EmbedLaunchWatchdog();
         left = deadline - ToriRSServer_EmbedNowMs();
         if( left <= 0 )
         {

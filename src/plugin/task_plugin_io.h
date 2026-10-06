@@ -91,6 +91,23 @@ struct ToriRS_Task* CreateTask_PluginScriptRead(
     PluginScriptReadDeliver deliver,
     void* user);
 
+/**
+ * One request to the launch service of this client's embedded IO server (raid
+ * seam37; src/platform/launch_sessions.h): a SCRIPT item at `launch/<verb>`
+ * lending `body` (`size` bytes of key=value lines, COPIED here) to the
+ * executor (platform_x_io.c answer_launch_item). `deliver` gets the answer
+ * text (OWNED by the callee) -- `ok ...`, `error: ...` or `unsupported: ...`
+ * -- or NULL when the executor had no answer at all (an executor that does
+ * not serve launch items: the caller says "unsupported").
+ */
+struct ToriRS_Task* CreateTask_PluginLaunch(
+    char const* verb,
+    char const* body,
+    int size,
+    int serial,
+    PluginScriptReadDeliver deliver,
+    void* user);
+
 /** Encode the config store now and write it. */
 struct ToriRS_Task* CreateTask_PluginSave(
     struct ToriRS_PluginHost const* host,

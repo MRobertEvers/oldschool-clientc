@@ -828,7 +828,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	platform/sockstream.c platform/platform_mdns.c platform/platform_socket.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
-	platform/net_transport_embed.c \
+	platform/net_transport_embed.c platform/launch_sessions.c \
 	net/loginproto_xrsps.c net/loginproto_osrs230.c \
 	net/loginproto_osrs239.c net/sha256.c net/pow_sha256.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c \
@@ -1486,17 +1486,23 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o | $(IO_SERVER_OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ $(IO_SERVER_SRCS) \
-		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 \
+		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_LAUNCH=1 \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o -lm $(IO_SERVER_SOCKET_LIBS)
 	@echo "built $@"
 
+# TORIRS_PLATFORM_X_IO_NO_LAUNCH (raid seam37): the standalone io_server does
+# NOT host the launch service (owner, 2026-10-06: only the client's embedded
+# IO server spawns members), and neither link carries launch_sessions.c; a
+# platform_x_io.c built with it answers a `launch/*` item `unsupported:`.
+
 # IO wire codec round-trip: encode a request/response pair for every item kind
 # and assert the decoded item matches field for field.
 test-io-wire: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_ONDEMAND=1 -o $(OBJ_DIR)/io_wire_test \
+	$(CC) $(CFLAGS) -DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_ONDEMAND=1 \
+		-DTORIRS_PLATFORM_X_IO_NO_LAUNCH=1 -o $(OBJ_DIR)/io_wire_test \
 		platform/io_wire.c platform/platform_x_io.c platform/platform_x_http.c \
 		platform/sockstream.c platform/platform_mdns.c platform/test/io_wire_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
@@ -2109,6 +2115,18 @@ test-client-scale: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/client_scale_test$(PLATFORM_EXE_SUFFIX) \
 		platform/test/client_scale_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/client_scale_test$(PLATFORM_EXE_SUFFIX)
+
+# The launch service of the embedded IO server (raid seam37,
+# platform/launch_sessions.h): the session table under a fake spawner and a
+# fake clock (open/spawn/status, the member env, one process group, a leader
+# that exits, a heartbeat that stops, a member exit, close then kill, the
+# host's exit, tokens, peers), then one REAL spawn whose fake leader is
+# SIGKILLed and whose member must be gone within 15 s. POSIX only.
+.PHONY: test-launch-sessions
+test-launch-sessions: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/launch_sessions_test$(PLATFORM_EXE_SUFFIX) \
+		platform/launch_sessions.c platform/test/launch_sessions_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/launch_sessions_test$(PLATFORM_EXE_SUFFIX)
 
 .PHONY: test-pacer
 test-pacer: $(OBJ_DIR)

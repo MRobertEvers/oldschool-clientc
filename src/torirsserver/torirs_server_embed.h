@@ -457,4 +457,120 @@ ToriRSServer_EmbedLinkReaderFree(struct ToriRSServerEmbedLinkReader* reader);
 long
 ToriRSServer_EmbedNowMs(void);
 
+/*
+ * ── The launch service on the party link (raid seam37) ──
+ *
+ * A leader client's embedded IO server can start the other raiders itself
+ * (src/platform/launch_sessions.h; docs/minigames/raid_loop/
+ * SEAM_TRIAGE_2026-10-06j.md). Two things cross the party link for it:
+ *
+ *   'M' MAIL         member -> host, sent right before a READY by a member the
+ *                    service spawned (TORIRS_LAUNCH_SESSION in its env): a
+ *                    `launch/mail` request body (session, seat, seat_token and
+ *                    the member's status line), so a member polls its mailbox
+ *                    and posts its status ONCE A TICK, at its boundary;
+ *   'm' MAIL_ANSWER  host -> member, before that boundary's TICK: the answer
+ *                    (`ok` and one `command=` line per queued command, or
+ *                    `error: ...` / `unsupported: ...`).
+ *
+ * A member run.py starts has no TORIRS_LAUNCH_SESSION and never sends 'M', so
+ * a run.py party's link carries exactly what protocol 2 carried; a leader that
+ * receives an 'M' answers it whatever started the member. The protocol number
+ * is unchanged: no existing frame's payload changed.
+ *
+ * And the leader can start hosting at RUNTIME (api.drive.party_host): the
+ * boot knobs (TORIRS_EMBED_PARTY_LISTEN/_SIZE) are read once at transport
+ * creation, but a Scripts-tab client is not started as a leader. The drive
+ * opens the listen socket and hands it here; the embedded transport takes it
+ * at its next poll and attaches it exactly as the boot path does (the READY
+ * wait for size - 1 seats, then the lock step).
+ */
+enum
+{
+    TORIRSSERVER_EMBED_LINK_MAIL = 'M',
+    TORIRSSERVER_EMBED_LINK_MAIL_ANSWER = 'm',
+    /** The longest MAIL or MAIL_ANSWER payload either end sends. */
+    TORIRSSERVER_EMBED_LINK_MAIL_MAX = 16384,
+};
+
+/** The leader's answer to a member's MAIL: `body` is `size` bytes (not
+ *  NUL-terminated); returns a malloc'd answer of *out_size bytes, which the
+ *  caller frees. Set by the host (main.c) to its launch service; with none
+ *  set a MAIL is answered `unsupported: no launch service in the leader`. */
+typedef char* (*ToriRSServerEmbedMailAnswer)(
+    void* context,
+    char const* body,
+    int size,
+    int* out_size);
+
+void
+ToriRSServer_EmbedPartySetMailAnswer(
+    ToriRSServerEmbedMailAnswer answer,
+    void* context);
+
+/** A member's MAIL request for this boundary into `out` (NUL-terminated);
+ *  returns its length, or 0 when this process was not started by a launch
+ *  service (no TORIRS_LAUNCH_SESSION). The status is the last one posted. */
+int
+ToriRSServer_EmbedMemberMailRequest(
+    char* out,
+    int capacity);
+
+/** The status line a member's next MAIL carries (`key=value` pairs, one
+ *  line; the drive posts it every pump). Truncated to the service's limit. */
+void
+ToriRSServer_EmbedMemberStatusPost(char const* status);
+
+/** A MAIL_ANSWER arrived (net_transport_embed.c): its `command=` lines are
+ *  queued for ToriRSServer_EmbedMemberCommandTake, its first line kept for
+ *  ToriRSServer_EmbedMemberMailLast. */
+void
+ToriRSServer_EmbedMemberMailDeliver(
+    const uint8_t* data,
+    int len);
+
+/** Take the oldest command the leader queued for this member (`play {json}`,
+ *  `stop`, `cheat <line>`, `quit`) into `out`; 1 if there was one. */
+int
+ToriRSServer_EmbedMemberCommandTake(
+    char* out,
+    int capacity);
+
+/** The first line of the last MAIL_ANSWER (`ok`, `error: ...`), "" before
+ *  the first, and how many answers have arrived. */
+char const*
+ToriRSServer_EmbedMemberMailLast(int* out_answers);
+
+/*
+ * The member's own guard against a leader that closes or crashes: when
+ * TORIRS_LAUNCH_LEADER_PID names a process that is gone (kill(pid, 0) fails
+ * with ESRCH), print why and exit. Checked at most once a second (a cheap
+ * no-op in between, and nothing at all without the knob); called from the
+ * frame loop, the dial's retry loop and the member's boundary wait, so a
+ * member blocked in either still notices. The party link's own drop is the
+ * second, independent safety.
+ */
+void
+ToriRSServer_EmbedLaunchWatchdog(void);
+
+/** Runtime party host: hand the transport a listen socket (from
+ *  ToriRSServer_EmbedPartyListen) and the party size; it attaches them at its
+ *  next poll. 0 on success, -1 when a host request or a party is already
+ *  pending or running in this process. */
+int
+ToriRSServer_EmbedPartyHostRequest(
+    int listener,
+    int party_size);
+
+/** The transport's half: take a pending host request (1), or 0. */
+int
+ToriRSServer_EmbedPartyHostTake(
+    int* out_listener,
+    int* out_party_size);
+
+/** Note that this process hosts a party (boot knobs or runtime), so a second
+ *  ToriRSServer_EmbedPartyHostRequest is refused. */
+void
+ToriRSServer_EmbedPartyHostNote(int hosting);
+
 #endif

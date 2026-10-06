@@ -2532,10 +2532,195 @@ on_demand_world_clock(void)
     return frame_clock;
 }
 
+/*
+ * THE LAUNCH SERVICE of this client's embedded IO server (raid seam37;
+ * src/platform/launch_sessions.h, docs/minigames/raid_loop/
+ * SEAM_TRIAGE_2026-10-06j.md). The embedded flow stays ONE process with both
+ * servers in it (owner, 2026-10-06): a leader that runs a multi-account flow
+ * asks its own IO layer to start the other clients, and this process is the
+ * spawner. Members are this binary (argv[0] resolved absolute) with this
+ * manifest, WITHOUT the embedded options (launch_sessions.c strips them).
+ *
+ *   - `launch/<verb>` items on the plugin channel are answered here
+ *     (platform_x_io.c answer_launch_item -> main_launch_answer);
+ *   - a member's MAIL on the party link is answered here too
+ *     (torirs_server_embed.c -> main_launch_mail);
+ *   - once a second the frame loop heartbeats every session this process
+ *     opened (its frames running IS the leader being here; a barrier that
+ *     held them for seconds must not read as a hung leader) and runs the
+ *     reaper (main_launch_tick);
+ *   - the process's exit kills every member (atexit -> LaunchSessions_Free;
+ *     SDL turns SIGTERM/SIGINT into a quit, which returns through main).
+ *     A SIGKILLed leader runs nothing: its members' TORIRS_LAUNCH_LEADER_PID
+ *     watchdog and the party link's drop end them.
+ *
+ * Desktop only. Web, Android and iOS link no spawning code and create no
+ * table: their launch items answer `unsupported:` (platform_x_io.c with no
+ * service set, or an executor that does not serve them).
+ */
+#if !defined(TORIRS_PLATFORM_WEB) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) &&   \
+    !defined(TORIRS_PLATFORM_ANDROID) && !defined(TORIRS_PLATFORM_IOS)
+#define MAIN_LAUNCH_SERVICE 1
+#include "platform/launch_sessions.h"
+#if defined(TORIRS_EMBED_SERVER)
+#include "torirsserver/torirs_server_embed.h"
+#endif
+/* platform_x_io.c: the prototype belongs in platform_x_io.h, outside raid
+ * seam37's files. */
+void PlatformX_IO_SetLaunchAnswer(
+    char* (*answer)(void* context, char const* verb, char const* body, int body_size,
+                    int* out_size),
+    void* context);
+#else
+#define MAIN_LAUNCH_SERVICE 0
+#endif
+
+#if MAIN_LAUNCH_SERVICE
+static struct LaunchSessions* g_launch_sessions;
+static long long g_launch_next_tick_ms;
+/* The sessions this process opened: their session= and token= lines, for
+ * the heartbeat. */
+enum
+{
+    MAIN_LAUNCH_OPENED_MAX = 8,
+};
+static char g_launch_opened[MAIN_LAUNCH_OPENED_MAX][160];
+
+static void
+main_launch_remember_open(char const* answer)
+{
+    char const* session = strstr(answer, "\nsession=");
+    char const* token = strstr(answer, "\ntoken=");
+    int slot = -1;
+
+    if( strncmp(answer, "ok", 2) != 0 || !session || !token )
+        return;
+    for( int i = 0; i < MAIN_LAUNCH_OPENED_MAX && slot < 0; i++ )
+        if( !g_launch_opened[i][0] )
+            slot = i;
+    if( slot < 0 )
+        slot = 0;
+    snprintf(g_launch_opened[slot], sizeof(g_launch_opened[slot]), "session=%.*s\ntoken=%.*s\n",
+             (int)strcspn(session + 9, "\n"), session + 9, (int)strcspn(token + 7, "\n"), token + 7);
+}
+
+static char*
+main_launch_answer(void* context, char const* verb, char const* body, int body_size, int* out_size)
+{
+    char* answer;
+
+    assert(context == g_launch_sessions);
+    (void)context;
+    answer = LaunchSessions_Answer(g_launch_sessions, verb, body, body_size, "local", out_size);
+    if( strcmp(verb, "open") == 0 )
+        main_launch_remember_open(answer);
+    return answer;
+}
+
+#if defined(TORIRS_EMBED_SERVER)
+static char*
+main_launch_mail(void* context, char const* body, int size, int* out_size)
+{
+    assert(context == g_launch_sessions);
+    (void)context;
+    /* Another process on this machine, over the loopback party link. */
+    return LaunchSessions_Answer(g_launch_sessions, "mail", body, size, "127.0.0.1", out_size);
+}
+#endif
+
+/* Once a second: heartbeat what this process opened, then the reaper. */
+static void
+main_launch_tick(void)
+{
+    long long const now = (long long)LaunchSessions_MonotonicMs(NULL);
+
+    if( !g_launch_sessions || now < g_launch_next_tick_ms )
+        return;
+    g_launch_next_tick_ms = now + 1000;
+    for( int i = 0; i < MAIN_LAUNCH_OPENED_MAX; i++ )
+    {
+        int size = 0;
+        char* answer;
+
+        if( !g_launch_opened[i][0] )
+            continue;
+        answer = LaunchSessions_Answer(g_launch_sessions, "heartbeat", g_launch_opened[i],
+                                       (int)strlen(g_launch_opened[i]), "local", &size);
+        if( strncmp(answer, "ok\nstate=open", 13) != 0 )
+            g_launch_opened[i][0] = '\0';
+        free(answer);
+        /* Every fifth second the session's own `launch/status` answer goes to
+         * the log: each seat's pid, alive, exit and the status its member
+         * last posted over the link -- what a headless proof reads back. */
+        if( g_launch_opened[i][0] && (now / 1000) % 5 == 0 )
+        {
+            answer = LaunchSessions_Answer(g_launch_sessions, "status", g_launch_opened[i],
+                                           (int)strlen(g_launch_opened[i]), "local", &size);
+            for( char* line = strtok(answer, "\n"); line; line = strtok(NULL, "\n") )
+                if( strncmp(line, "ok", 2) != 0 )
+                    TORIRS_REPORT("launch: status: %.400s\n", line);
+            free(answer);
+        }
+    }
+    (void)LaunchSessions_Reap(g_launch_sessions);
+}
+
+static void
+main_launch_free(void)
+{
+    LaunchSessions_Free(g_launch_sessions);
+    g_launch_sessions = NULL;
+}
+
+static void
+main_launch_init(char const* argv0, char const* manifest_path)
+{
+    static char binary[LAUNCH_SESSIONS_PATH_MAX];
+    static char manifest[LAUNCH_SESSIONS_PATH_MAX];
+    struct LaunchSessions_Config config;
+    char const* reason = LaunchSessions_UnsupportedReason();
+
+    assert(argv0);
+    memset(&config, 0, sizeof(config));
+    if( LaunchSessions_OwnBinaryPath(argv0, binary, (int)sizeof(binary)) != 0 )
+    {
+        TORIRS_REPORT("launch: cannot resolve this binary's path from %s: no launch service\n",
+                      argv0);
+        return;
+    }
+    config.binary_path = binary;
+    if( manifest_path )
+    {
+        snprintf(manifest, sizeof(manifest), "%s", manifest_path);
+        config.manifest_path = manifest;
+    }
+    config.launch_directory = "build/launch";
+    config.spawner = LaunchSessions_SystemSpawner();
+    config.clock_ms = LaunchSessions_MonotonicMs;
+    if( !config.spawner )
+    {
+        TORIRS_REPORT("launch: no spawner on this platform: no launch service\n");
+        return;
+    }
+    g_launch_sessions = LaunchSessions_New(&config);
+    PlatformX_IO_SetLaunchAnswer(main_launch_answer, g_launch_sessions);
+#if defined(TORIRS_EMBED_SERVER)
+    ToriRSServer_EmbedPartySetMailAnswer(main_launch_mail, g_launch_sessions);
+#endif
+    atexit(main_launch_free);
+    TORIRS_REPORT("launch: the embedded IO server's launch service is up (members run %s%s%s)%s%s\n",
+                  binary, manifest_path ? " --manifest " : "", manifest_path ? manifest_path : "",
+                  reason ? "; it answers unsupported: " : "", reason ? reason : "");
+}
+#endif /* MAIN_LAUNCH_SERVICE */
+
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
 static int
 frame_loop_step(void)
 {
+#if MAIN_LAUNCH_SERVICE
+    main_launch_tick();
+#endif
 #if defined(TORIRS_PLATFORM_WEB)
     /* Carry last frame's queued cache reads to the IO server and take delivery
      * of whatever came back. Nothing else in the process runs every frame, and
@@ -6634,12 +6819,18 @@ main(
 
     ToriRS_ExecutorConfig_Init(&executor_cfg);
 
+#if MAIN_LAUNCH_SERVICE
+    char const* launch_manifest_path = NULL;
+#endif
     /* Pre-scan for --manifest so its values seed cfg before the flag loop;
      * explicit CLI flags below then override (precedence CLI > manifest). */
     for( argi = 1; argi < argc; argi++ )
     {
         if( strcmp(argv[argi], "--manifest") == 0 && argi + 1 < argc )
         {
+#if MAIN_LAUNCH_SERVICE
+            launch_manifest_path = argv[argi + 1];
+#endif
             if( BootManifest_LoadFile(&boot_manifest, argv[argi + 1]) != 0 )
                 return 1;
             BootManifest_ApplyToConfig(&boot_manifest, &cfg);
@@ -6657,6 +6848,11 @@ main(
         if( main_argument_takes_value(argv[argi]) && argi + 1 < argc )
             argi++;
     }
+#if MAIN_LAUNCH_SERVICE
+    /* Raid seam37: the embedded IO server's launch service (above
+     * frame_loop_step). Created at boot, idle until a launch item comes. */
+    main_launch_init(argv[0], launch_manifest_path);
+#endif
 
     for( i = 0; i < boot_manifest.client_arg_count; i++ )
         manifest_argv[i] = boot_manifest.client_args[i];

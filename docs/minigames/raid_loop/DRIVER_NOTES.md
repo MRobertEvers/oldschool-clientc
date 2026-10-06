@@ -5266,10 +5266,69 @@ scripts_tab_every_script) replaced that plumbing. What it is now:
   account whose random stream is seeded from its name. A quest whose path does not roll
   matched its kept ledger row for row; a combat room can differ (seam23: tob_maiden left the
   kept ledger at row 29). The native plugins do not touch the play (seam23: byte-identical
-  ledgers with them on and off). Party tests stay unavailable: three clients in lock step.
+  ledgers with them on and off). Party tests were unavailable here until seam37: see "A party
+  from the Scripts tab" below.
 - Test runs are unchanged: run.py keeps its own wrapper and never reads a profile; every
   new path is behind `TORIRS_DRIVE_ON_DEMAND=1` (cooks_assistant and druid ledgers
   byte-identical to build/merge17_check/ after the change).
+
+### A party from the Scripts tab (raid seam37, scripts_tab_party_play)
+
+- A manifest row with `party=N` (prepare_scripts.py no longer marks it unavailable) is
+  playable when (1) this client's launch service answered the tab's probe -- one
+  `launch/status` of `session=probe`: `error: no such session` means the service runs,
+  `unsupported: ...` is the platform's reason (web, Android, iOS, Windows) -- and (2) the
+  client is frame-locked (`api.drive.party().frame_locked`: `TORIRS_MAX_FRAMES`; the party
+  host refuses otherwise) and (3) the client has not hosted a party yet (below). Otherwise
+  the row says `unavailable` with the reason.
+- Play on a party row: `api.drive.play{..., start = "fresh", party = {size = N, launch =
+  true, windowed = {false, w2, w3, w4}}}`. Always FRESH: with reset or as-is, raider 1
+  plays on the logged-in character while QD_PARTY names[1] is the Play's fresh account, and
+  every member's raid.enter fails `the leader playbloa3 is not in its pool` (measured,
+  smoke2). The driver logs in, `QD.launch._party_up` opens the session, spawns seats 2..N
+  (headless unless `party.windowed[n]`), hosts, and the test runs as role 1.
+- The PARTY block (rows `party_session`, `seat1..seat4`, toggles `windowed2..windowed4`,
+  buttons `stop_all`, `respawn`; declared always, the row set never changes) reads
+  `launch/status` every 30 frames with `api.drive.party().launch_session/_token` (the
+  session the driver last opened; the tab and the driver are separate Lua states, so this
+  C reading is the only way the tab reaches it). After a close it reads on until no
+  member is up, so the block ends on `pid N exited 0`. One `script-runner: party ...` log
+  line per change (the headless trace).
+- Stop: `api.drive.stop()` if raider 1 runs, then `launch/close` (quit, grace, kill); with
+  only the party left up (a finished test), Stop just closes it. Stop all: `launch/command
+  seat=all command=stop` plus raider 1's stop; members stay logged in. The party is also
+  closed on the next Play, after 3 status reads with no local player (logout), in
+  `on_stop`, and by the service at process exit.
+- ONE PARTY PER CLIENT: `ToriRSServer_EmbedPartyHostRequest` refuses once
+  `g_party_hosting` is set and nothing clears it, so a second party Play in one process
+  failed `launch.party FAIL party_host: drive.party_host: this client already hosts a
+  party` (measured, runB). The tab now gates it: after it has seen a session open, party
+  rows and Respawn say "this client already hosted a party ... restart the client". Lifting
+  it needs the embedded transport to release a runtime-hosted party once every member link
+  has closed (close the listener, reset party_size/party_assembled/party_joined,
+  `ToriRSServer_EmbedPartyHostNote(0)`).
+- Members inherit the leader's env minus the service's strip list, so a tab leader's
+  members load plugins/script_runner.ini too (headless, harmless) AND any
+  `TORIRS_SIM_*` knobs of a headless harness (their own tab replays the picks; Play is
+  refused there because a script is running).
+- Headless proof (2026-10-06, seam37 tab/run_tab.sh = seam24's run_watch.sh plus
+  `TORIRS_EMBED_CLOCK_MS=20`, `TORIRS_MAX_FRAMES`, `TORIRS_SCRIPT_DIR` and a private
+  binary carrying the hook patch): `TORIRS_SIM_PLUGIN_PANEL=300,script-runner,page`,
+  `TORIRS_SIM_PANEL_PICK=400,script-runner,suite,raid;1850,...,slot1,!activate;
+  1900,...,play,!activate;17500,...,stop,!activate` (`windowed2,!toggle=1`,
+  `stop_all,!activate`, `respawn,!activate` likewise).
+  - runA: `launch.party PASS session 30679-1 ... p2 playbloa4p2 pid 31177, p3 playbloa4p3
+    pid 31178`; `bloat.killed PASS Bloat's npc_death row on tick 413 ... 5 downs`; leader
+    `SUMMARY 19 PASS`, p2 and p3 `SUMMARY 8 PASS`; 015-bloat.killed.png: "Wave 'The
+    Pestilent Bloat' (Normal Mode) complete! Duration 3:19". The block read every seat
+    (`playbloa4p2, pid 31177 up: finished party.barrier.done PASS (8 rows), hp 120,
+    alive`); Stop -> both seats `exited: code 0`, `session 30679-1 closed: closed by the
+    leader`.
+  - runB: Windowed on seat 2 -> p2's log `QUEST watch: view attached` (it presents a
+    window), p3's `view not attached: this client presents nothing` (headless).
+  - runC: Stop all -> raider 1 and both members end `run.unfinished` ("stopped on demand"),
+    members still up; Respawn -> refused with the one-party reason, no FAIL row; Stop ->
+    `exited: code 0` and the block's last line `pid 46295 exited 0`.
 
 ## On demand: t.drive.start, t.drive.stop, t.drive.status
 
@@ -6587,3 +6646,106 @@ most food left.
 
 `sanguinesti_staff.constant`: 2 runes a charge, up to 20000. A seat that also casts Ice
 Barrage gets its blood runes after the charge.
+
+## Seam37: the embedded IO server's launch service (2026-10-06)
+
+The owner's words: the embedded flow stays ONE client process with the game server and the
+IO server inside it; that IO server spawns the other clients, always with the same binary and
+manifest, without the embedded options. Desktop only; web, Android and iOS answer
+`unsupported:` and link no spawning code. Windows answers `unsupported: the party link is not
+available on this platform` until the party link runs there.
+
+### The launch service (src/platform/launch_sessions.h)
+
+- One session table per client process, created at boot by main.c (binary =
+  `LaunchSessions_OwnBinaryPath(argv[0])`, the `--manifest` path, `build/launch`). The client
+  log says `launch: the embedded IO server's launch service is up (members run <binary>
+  --manifest <manifest>)`.
+- Seven verbs, each a request of key=value lines; answer line 1 is `ok`, `error: <reason>` or
+  `unsupported: <reason>`: open, spawn, command, mail, status, heartbeat, close. Only loopback
+  or in-process callers are served; a request cannot name a program (`binary=` and
+  `manifest=` are refused) and cannot set loader keys (`DYLD_*`, `LD_*`) or launch-owned keys.
+- A member's env drops the embedded options and the leader's run (`TORIRS_EMBED_PARTY_LISTEN`
+  / `_SIZE`, `TORIRS_IO_SERVER`, `TORIRS_MAX_FRAMES`, `TORIRS_QUEST_SCRIPT`,
+  `TORIRS_CONTENT_TEST`, prefs, `TORIRS_LAUNCH_*`) and adds `TORIRS_EMBED_PARTY_JOIN` /
+  `_SEAT`, `TORIRSSERVER_SAVES=<the leader's saves>`, `TORIRS_DRIVE_ON_DEMAND=1`,
+  `TORIRS_DRIVE_AUTOPLAY=<json>`, `TORIRS_LAUNCH_LEADER_PID` / `_SESSION` / `_SEAT` /
+  `_SEAT_TOKEN`, plus SDL dummy drivers when headless. `TORIRS_EMBED_CLOCK_MS` passes through.
+  Seat `env=` / `unset=` lines are honoured.
+- Members start with `posix_spawn` into one process group per session, stdout and stderr to
+  `<seat directory>/client.log` (default `build/launch/<hostpid>-<n>/p<seat>/`).
+  `build/launch/<session>.pids` lists host, leader, process group and every seat's pid while
+  the session lives.
+- The reaper runs once a second from the frame loop: it records member exits (a dead seat can
+  be respawned); a dead leader pid, or a heartbeat older than 10 s, sends SIGTERM to every
+  live seat, then SIGKILL after 5 s. close queues `quit`, waits 5 s, then terminates. The
+  client's exit (atexit) kills every member within about a second.
+- `make -C src test-launch-sessions`: 67 checks with a fake spawner and a fake clock, then one
+  REAL spawn whose fake leader is SIGKILLed (member gone in about 1 s; the limit is 15 s).
+  POSIX only.
+
+### A launch request on the plugin channel
+
+- A request is a SCRIPT item at `launch/<verb>` whose data lends the body. platform_x_io.c
+  answers it in this process through the hook main.c sets (`PlatformX_IO_SetLaunchAnswer`);
+  the HTTP leg never sees it. A process with no service (the standalone io_server, a test
+  binary) or an executor that does not know the prefix answers unsupported. It is not a new
+  `TORIRS_IOK_LAUNCH` item kind (asyncio.h was outside the seam's files); behaviour is the
+  same.
+
+### t.launch.open / spawn / command / status / close / host / party
+
+- `t.launch.open{size, port}` (port 0 picks a free loopback port) answers `ok, {session,
+  token, port}`. `t.launch.spawn(seats)`, `t.launch.command(seat, command)` (`quit`, `stop`,
+  `cheat <line>`, `play {json}`), `t.launch.close()` (answers the state, `closed` at once with
+  no live seat). `t.launch.status()` parses each seat's pid, alive, exit, signal, account,
+  mail_age_ms, unread and the member's last status {state, step, verdict, rows, pass, fail,
+  account, hitpoints, alive}.
+- `t.launch.host(port, size)` (`api.drive.party_host`) attaches a party listener at runtime.
+  Call it AFTER spawn: from then on every boundary waits for the members' READY. It refuses
+  without a world, without `TORIRS_MAX_FRAMES` (the frame audit needs exactly one logic cycle
+  a frame), for a size outside 2..4, or when this client already hosts a party.
+- `t.launch.party()` (`api.drive.party()`): role, size, names, launch, launched (spawned by a
+  launch service), session, frame_locked, mail_answers, mail, and launch_session /
+  launch_token (the session this client's driver last opened; "" once its close lands).
+- The underlying flat drive verbs are `api.drive.launch_open/spawn/command/status/close`
+  plus `api.drive.launch_answer(ticket)`; they are flat because check_drive_abi.py parses
+  flat arrays.
+
+### A launched party in one Play
+
+- `api.drive.play{id, source, fixture, party = {size = N, launch = true, windowed = {...}},
+  quit = true?}`. The leader picks every raider's account (`<leader>p2`, `<leader>p3`) and
+  writes each fixture; QD.core_run_test logs in and runs `QD.launch._party_up` (ledger row
+  `launch.party`): open, spawn seats 2..N headless, host. The test then runs with
+  `QD_PARTY = {role, size, names}`, as under run.py. The run directory is
+  `build/quest_gate/watch/<leader>/p1..pN`.
+- A member's drive issues its AUTOPLAY Play on the first pump the world is ready for. Once a
+  tick, at its boundary, it sends a MAIL frame (`M`) with its status; the leader answers
+  (`m`, before the TICK) with the queued commands. A run.py member never sends MAIL, so the
+  party protocol is unchanged for run.py.
+- The leader logs every session's status every 5 s: `launch: status: seat=2 pid=... alive=1
+  ... status=state=running step=... hitpoints=...`.
+- `_party_up` passes `unset=TORIRS_CONTENT_TEST` for every seat: the service sets it, and a
+  member with it set runs the content-test clock, which never steps for an on-demand client,
+  so its second READY never came (measured, s37smoke1). The service should stop setting it.
+- A launched Play is wall-paced (the leader is on-demand, 50 fps): `_play_bloat` party 3 took
+  270 s against 10 s through tools/raid_gate/run.py. It is for watching; run.py's party path
+  stays the grading path, and gate.py does not grade a launched party.
+
+### When the leader dies
+
+- Two safeties end a member: the party link's drop (`link to the leader closed after N
+  boundaries`) and the `TORIRS_LAUNCH_LEADER_PID` watchdog (`the leader (pid N) is gone`),
+  checked once a second even while the member blocks in its dial or boundary wait. Measured:
+  leader SIGKILLed 75 s into `_play_bloat`, both members gone 0.60 s later.
+- Fixed on the way: `ToriRSServer_EmbedDisconnect` called `WorldRemovePlayer(NULL)` for a seat
+  dropped before its login landed, a SIGSEGV in the leader.
+
+### Headless proof recipe
+
+- `build/seam_state/matthew-mbp-m4-raid-b1-seam37/s37_e2e.py --name <label> --binary
+  src/torirs_questtest [--test _party_smoke] [--kill-after S]`: one leader with SDL dummy,
+  `TORIRS_DRIVE_ON_DEMAND=1`, `TORIRS_DRIVE_AUTOPLAY={"id":"_play_bloat",...,"party":
+  {"size":3,"launch":true},"quit":true}`, `TORIRS_EMBED_CLOCK_MS=20`, `TORIRS_MAX_FRAMES`.
+  Read the leader's `watch/<account>/p1/ledger.tsv` and its `launch: status:` lines.

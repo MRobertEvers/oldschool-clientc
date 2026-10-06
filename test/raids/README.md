@@ -112,14 +112,42 @@ A watched run is not a test run, and it grades nothing:
 
 - It runs on the wall clock, and each account's random stream is seeded from its name, so
   its rows can differ from the kept ledger's (a combat room most of all).
-- Party tests (`*_normal`) are listed as unavailable, with that reason: they need three clients
-  in lock step.
+- A party test (`party = 3`: `_play_bloat`, the `*_normal` rooms) is played from the same tab:
+  see "A party from the Scripts tab" below.
 - Anything you do with Interact on is real input to the run (and a ledger row); orbiting and
   zooming with Interact off changes nothing.
 
 Grade a room only with `tools/raid_gate/run.py` and `gate.py` (above). The profile, the
 headless way to drive the tab and the measurements are in
 docs/minigames/raid_loop/DRIVER_NOTES.md, "Watching a test: the Scripts tab".
+
+### A party from the Scripts tab (raid seam37)
+
+Pick a row whose summary ends `[party of 3]` and press **Play**. This client plays raider 1
+on a FRESH account (a party row always starts fresh: the members look for raider 1 by that
+account's name), and its own embedded IO server starts raiders 2 and 3 itself: the same
+binary and manifest, without the embedded game server or IO server, each logged in on its
+own fresh account (`<you>p2`, `<you>p3`) and joining your world over the party link. They
+are headless unless their **Seat n in a window** tick was on before Play.
+
+- The **Party** block shows every seat once a second or so: its account, its process
+  (`pid N up`, `exited 0`, `ended by signal 9`) and the status it last posted (state, step,
+  verdict, rows, hitpoints, alive).
+- **Stop** stops raider 1 and closes the party: every member quits (then the grace, then
+  the kill). After a party test finishes its members stay logged in, so their verdicts stay
+  readable; Stop closes them.
+- **Stop all** stops every raider's script where it is; the members stay logged in.
+- **Respawn** would close the party and play the row again, but one client hosts ONE party:
+  the embedded transport keeps the first party's link until the client exits, so a second
+  party Play (and Respawn) says "restart the client to play another party" instead.
+- The party also closes when you log out, when the plugin stops, and when the client exits
+  (the launch service kills every member it started).
+- A party needs a frame-locked client: until the profile carries it, a party row says
+  "unavailable: a party plays in lock step: start this client frame-locked
+  (TORIRS_MAX_FRAMES=2000000000 TORIRS_EMBED_CLOCK_MS=20)". On web, Android, iOS and Windows
+  it says the launch service's own reason (not supported there).
+- The run directory is `build/quest_gate/watch/<raider 1>/p1..p3/`. Like any watched run it
+  grades nothing; `run.py --party 3` stays the gate.
 
 ## Rules a room test is held to (RAID_ORCHESTRATOR.md section 6)
 

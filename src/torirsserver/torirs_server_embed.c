@@ -39,6 +39,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>
+#include <signal.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #else
@@ -75,6 +76,10 @@ struct ToriRSServerEmbedClient
     int link_readies;
     /** The frame count the last READY carried. */
     int link_frames;
+    /** The answer to the MAIL this member sent before its READY (raid
+     *  seam37), sent before the boundary's TICK; NULL when it sent none. */
+    char* mail_answer;
+    int mail_answer_size;
 };
 
 struct ToriRSServerEmbed
@@ -252,9 +257,15 @@ ToriRSServer_EmbedDisconnect(
     /* Order matters and is the socket server's: the world lets go of the player
      * while the session is still addressable, because that is what makes the
      * packets a logout generates reach everyone *else* before the queues go. */
+    /* A party member dropped before its login landed (a launched member whose
+     * READY never came, raid seam37) has no player: there is nothing in the
+     * world to let go of (WorldRemovePlayer asserts its player; under NDEBUG
+     * the NULL was a SIGSEGV in the leader, measured). */
     if( client->session.player )
+    {
         ToriRSServer_ClaimNoteDeparted(&embed->claims, client->session.player, ToriRSServer_EmbedNowMs());
-    ToriRSServer_WorldRemovePlayer(&embed->srv, client->session.player);
+        ToriRSServer_WorldRemovePlayer(&embed->srv, client->session.player);
+    }
     client->session.player = NULL;
     client->online = 0;
     ToriRSServer_SessionFree(&client->session);
@@ -689,6 +700,216 @@ ToriRSServer_EmbedPartyAuditCycles(int cycles)
     }
 }
 
+/* ---- the launch service on the party link (raid seam37; the header) ---- */
+
+/* The leader's answerer (main.c: its launch service), or NULL. */
+static ToriRSServerEmbedMailAnswer g_mail_answer;
+static void* g_mail_answer_context;
+
+void
+ToriRSServer_EmbedPartySetMailAnswer(
+    ToriRSServerEmbedMailAnswer answer,
+    void* context)
+{
+    g_mail_answer = answer;
+    g_mail_answer_context = context;
+}
+
+/* The member's side: the status it posts, the commands the leader queued for
+ * it, the first line of the last answer. One member per process. */
+enum
+{
+    EMBED_MEMBER_STATUS_MAX = 1024,
+    EMBED_MEMBER_COMMANDS_MAX = 16,
+};
+static char g_member_status[EMBED_MEMBER_STATUS_MAX];
+static char* g_member_commands[EMBED_MEMBER_COMMANDS_MAX];
+static int g_member_command_count;
+static char g_member_mail_last[256];
+static int g_member_mail_answers;
+
+void
+ToriRSServer_EmbedMemberStatusPost(char const* status)
+{
+    size_t length;
+
+    assert(status);
+    snprintf(g_member_status, sizeof(g_member_status), "%s", status);
+    /* One line: the service's status= value runs to the end of its line. */
+    length = strcspn(g_member_status, "\r\n");
+    g_member_status[length] = '\0';
+}
+
+int
+ToriRSServer_EmbedMemberMailRequest(
+    char* out,
+    int capacity)
+{
+    char const* session = getenv("TORIRS_LAUNCH_SESSION");
+    char const* seat = getenv("TORIRS_LAUNCH_SEAT");
+    char const* token = getenv("TORIRS_LAUNCH_SEAT_TOKEN");
+    int written;
+
+    assert(out);
+    assert(capacity > 0);
+    out[0] = '\0';
+    if( !session || !session[0] || !seat || !seat[0] || !token || !token[0] )
+        return 0;
+    written = snprintf(out, (size_t)capacity, "session=%s\nseat=%s\nseat_token=%s\nstatus=%s\n",
+                       session, seat, token, g_member_status[0] ? g_member_status : "-");
+    assert(written > 0);
+    assert(written < capacity);
+    return written;
+}
+
+void
+ToriRSServer_EmbedMemberMailDeliver(
+    const uint8_t* data,
+    int len)
+{
+    char const* text = (char const*)data;
+    int at = 0;
+
+    assert(len >= 0);
+    if( len > 0 )
+        assert(data);
+    g_member_mail_answers++;
+    g_member_mail_last[0] = '\0';
+    while( at < len )
+    {
+        int end = at;
+        int line_length;
+
+        while( end < len && text[end] != '\n' )
+            end++;
+        line_length = end - at;
+        if( at == 0 )
+            snprintf(g_member_mail_last, sizeof(g_member_mail_last), "%.*s", line_length, text);
+        else if( line_length > 8 && strncmp(text + at, "command=", 8) == 0 )
+        {
+            char* command;
+
+            if( g_member_command_count == EMBED_MEMBER_COMMANDS_MAX )
+            {
+                /* The service's mailbox holds as many; a member that let them
+                 * pile up loses the oldest, and says so. */
+                fprintf(stderr, "torirsserver: party: launch: %d unread commands; dropping '%s'\n",
+                        EMBED_MEMBER_COMMANDS_MAX, g_member_commands[0]);
+                free(g_member_commands[0]);
+                memmove(g_member_commands, g_member_commands + 1,
+                        sizeof(g_member_commands[0]) * (EMBED_MEMBER_COMMANDS_MAX - 1));
+                g_member_command_count--;
+            }
+            command = (char*)malloc((size_t)(line_length - 8 + 1));
+            assert(command);
+            memcpy(command, text + at + 8, (size_t)(line_length - 8));
+            command[line_length - 8] = '\0';
+            g_member_commands[g_member_command_count++] = command;
+        }
+        at = end + 1;
+    }
+    if( strncmp(g_member_mail_last, "ok", 2) != 0 )
+        fprintf(stderr, "torirsserver: party: launch: the leader answered this member's mail: %s\n",
+                g_member_mail_last);
+}
+
+int
+ToriRSServer_EmbedMemberCommandTake(
+    char* out,
+    int capacity)
+{
+    assert(out);
+    assert(capacity > 0);
+    if( g_member_command_count == 0 )
+        return 0;
+    snprintf(out, (size_t)capacity, "%s", g_member_commands[0]);
+    free(g_member_commands[0]);
+    memmove(g_member_commands, g_member_commands + 1,
+            sizeof(g_member_commands[0]) * (size_t)(g_member_command_count - 1));
+    g_member_command_count--;
+    return 1;
+}
+
+char const*
+ToriRSServer_EmbedMemberMailLast(int* out_answers)
+{
+    if( out_answers )
+        *out_answers = g_member_mail_answers;
+    return g_member_mail_last;
+}
+
+void
+ToriRSServer_EmbedLaunchWatchdog(void)
+{
+#if EMBED_PARTY_SOCKETS
+    static int leader_pid = -1;
+    static long next_check_ms;
+    long now;
+
+    if( leader_pid < 0 )
+    {
+        char const* knob = getenv("TORIRS_LAUNCH_LEADER_PID");
+        leader_pid = knob && knob[0] ? atoi(knob) : 0;
+        if( leader_pid > 0 )
+            fprintf(stderr, "torirsserver: launch: watching the leader, pid %d (exit when it is "
+                            "gone)\n", leader_pid);
+    }
+    if( leader_pid <= 0 )
+        return;
+    now = ToriRSServer_EmbedNowMs();
+    if( now < next_check_ms )
+        return;
+    next_check_ms = now + 1000;
+    if( kill((pid_t)leader_pid, 0) == 0 || errno != ESRCH )
+        return;
+    fprintf(stderr, "torirsserver: launch: the leader (pid %d) is gone -- this member exits "
+                    "(a member never outlives its leader)\n", leader_pid);
+    exit(EXIT_FAILURE);
+#endif
+}
+
+static int g_party_host_pending_listener = -1;
+static int g_party_host_pending_size;
+static int g_party_hosting;
+
+int
+ToriRSServer_EmbedPartyHostRequest(
+    int listener,
+    int party_size)
+{
+    assert(listener >= 0);
+    assert(party_size >= 2);
+    assert(party_size <= TORIRSSERVER_EMBED_CLIENT_MAX);
+    if( g_party_hosting || g_party_host_pending_listener >= 0 )
+        return -1;
+    g_party_host_pending_listener = listener;
+    g_party_host_pending_size = party_size;
+    return 0;
+}
+
+int
+ToriRSServer_EmbedPartyHostTake(
+    int* out_listener,
+    int* out_party_size)
+{
+    assert(out_listener);
+    assert(out_party_size);
+    if( g_party_host_pending_listener < 0 )
+        return 0;
+    *out_listener = g_party_host_pending_listener;
+    *out_party_size = g_party_host_pending_size;
+    g_party_host_pending_listener = -1;
+    g_party_host_pending_size = 0;
+    g_party_hosting = 1;
+    return 1;
+}
+
+void
+ToriRSServer_EmbedPartyHostNote(int hosting)
+{
+    g_party_hosting = hosting;
+}
+
 #if EMBED_PARTY_SOCKETS
 
 /*
@@ -798,6 +1019,9 @@ ToriRSServer_EmbedPartyDial(
             return fd;
         }
         close(fd);
+        /* A launched member whose leader died before it listened: the dial
+         * would wait out its whole budget against nobody. */
+        ToriRSServer_EmbedLaunchWatchdog();
         /* The leader may still be booting. Refused is the only answer a
          * loopback dial gives while nobody listens, so retry it. */
         if( ToriRSServer_EmbedNowMs() >= deadline )
@@ -823,7 +1047,8 @@ ToriRSServer_EmbedLinkSend(
     assert(len >= 0);
     assert(len == 0 || data);
     assert(type == TORIRSSERVER_EMBED_LINK_DATA || type == TORIRSSERVER_EMBED_LINK_READY ||
-           type == TORIRSSERVER_EMBED_LINK_TICK || type == TORIRSSERVER_EMBED_LINK_SEAT);
+           type == TORIRSSERVER_EMBED_LINK_TICK || type == TORIRSSERVER_EMBED_LINK_SEAT ||
+           type == TORIRSSERVER_EMBED_LINK_MAIL || type == TORIRSSERVER_EMBED_LINK_MAIL_ANSWER);
     header[0] = (uint8_t)type;
     link_put_u32(header + 1, (uint32_t)len);
     if( !link_write_all(fd, header, (int)sizeof(header)) )
@@ -977,6 +1202,9 @@ embed_link_close(struct ToriRSServerEmbedClient* client)
 #endif
     client->link_fd = -1;
     client->link_ready = 0;
+    free(client->mail_answer);
+    client->mail_answer = NULL;
+    client->mail_answer_size = 0;
     ToriRSServer_EmbedLinkReaderFree(&client->link_in);
 }
 
@@ -1203,6 +1431,31 @@ party_take_frames(
     {
         if( type == TORIRSSERVER_EMBED_LINK_DATA )
             ToriRSServer_PipeWrite(&client->to_server, payload, len);
+        else if( type == TORIRSSERVER_EMBED_LINK_MAIL )
+        {
+            /* A launched member's mailbox poll (raid seam37): answered now,
+             * in this process's launch service, and sent before the TICK. */
+            static char const unsupported[] = "unsupported: no launch service in the leader\n";
+
+            if( len > TORIRSSERVER_EMBED_LINK_MAIL_MAX )
+                return 0;
+            free(client->mail_answer);
+            client->mail_answer = NULL;
+            client->mail_answer_size = 0;
+            if( g_mail_answer )
+                client->mail_answer = g_mail_answer(g_mail_answer_context, (char const*)payload,
+                                                    len, &client->mail_answer_size);
+            else
+            {
+                client->mail_answer = (char*)malloc(sizeof(unsupported));
+                assert(client->mail_answer);
+                memcpy(client->mail_answer, unsupported, sizeof(unsupported));
+                client->mail_answer_size = (int)sizeof(unsupported) - 1;
+            }
+            assert(client->mail_answer);
+            if( client->mail_answer_size > TORIRSSERVER_EMBED_LINK_MAIL_MAX )
+                client->mail_answer_size = TORIRSSERVER_EMBED_LINK_MAIL_MAX;
+        }
         else if( type == TORIRSSERVER_EMBED_LINK_READY )
         {
             int frames = 0;
@@ -1351,6 +1604,13 @@ party_flush(struct ToriRSServerEmbed* embed)
                                              bytes, len);
             ToriRSServer_PipeDrop(&client->to_client, len);
         }
+        if( ok && client->mail_answer )
+            ok = ToriRSServer_EmbedLinkSend(client->link_fd, TORIRSSERVER_EMBED_LINK_MAIL_ANSWER,
+                                             (const uint8_t*)client->mail_answer,
+                                             client->mail_answer_size);
+        free(client->mail_answer);
+        client->mail_answer = NULL;
+        client->mail_answer_size = 0;
         if( ok )
             ok = ToriRSServer_EmbedLinkSend(client->link_fd, TORIRSSERVER_EMBED_LINK_TICK,
                                              tick, TORIRSSERVER_EMBED_LINK_TICK_LEN);

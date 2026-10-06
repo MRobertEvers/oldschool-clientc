@@ -1521,3 +1521,55 @@ all clean. No C and no content changed.
   ledger byte-identical to build/merge17_check/cooks_before.tsv, gate.py green; no C or
   content change. The stray quest_cook/play publish in OSRS-Content is still the owner's
   and is not committed.
+
+## matthew-mbp-m4-raid-b1-seam37 (2026-10-06; the commit that carries this heading, OSRS-Content bb84907f76 unchanged): the owner's launch service, embedded in the client
+
+- embedded_launch_sessions: LANDED. `src/platform/launch_sessions.{c,h}`: the session table
+  and seven verbs (open, spawn, command, mail, status, heartbeat, close) as a module of the
+  client's platform layer; members are the host's own binary and manifest without the
+  embedded options, `posix_spawn`ed into one process group per session; reaper once a
+  second; leader death or a stale heartbeat kills the group; web/Android/iOS answer
+  `unsupported: desktop only`, Windows `unsupported: the party link is not available on
+  this platform`. `make -C src test-launch-sessions` 67/0 (one real spawn: member gone
+  about 1 s after the fake leader's SIGKILL). OPEN: Linux unbuilt (no
+  POSIX_SPAWN_CLOEXEC_DEFAULT: open the party sockets SOCK_CLOEXEC); the Windows spawner is
+  syntax-checked only; the service still sets `TORIRS_CONTENT_TEST` for members (raid.lua
+  unsets it per seat); `./launch stop` does not read `build/launch/*.pids`, and a SIGKILLed
+  leader leaves its .pids file behind; `-DTORIRS_PLATFORM_X_IO_NO_LAUNCH` is now unused.
+- client_launch_channel: LANDED. `launch/<verb>` SCRIPT items answered in-process
+  (platform_x_io.c hook set by main.c), the member MAIL / MAIL_ANSWER frames on the party
+  link (once a tick, protocol 2 unchanged, never sent by a run.py member), the leader-pid
+  watchdog, the runtime party host, `api.drive.launch_*` / `party_host` / `party` / `quit`,
+  `api.drive.play{account, session, party, quit}`, `TORIRS_DRIVE_AUTOPLAY`, `t.launch.*`
+  and `QD.launch._party_up` (ledger row `launch.party`). Fixed on the way:
+  `ToriRSServer_EmbedDisconnect` called `WorldRemovePlayer(NULL)` for a seat dropped before
+  login. Seven verb rows. OPEN: not a new `TORIRS_IOK_LAUNCH` kind (asyncio.h); the
+  `PlatformX_IO_SetLaunchAnswer` prototype sits in platform_x_io.c and main.c, not
+  platform_x_io.h; a launched Play is wall-paced (Bloat 230-270 s) and is not graded.
+- scripts_tab_party_play: LANDED (with its hook patch to torirs_plugin_drive.c, raid.lua and
+  plugin_api.meta.lua, applied by the closer). Party rows playable when the service answers,
+  the client is frame-locked and has not hosted a party; Play always starts fresh; the PARTY
+  block, Stop, Stop all, Respawn and the per-seat Windowed tick. Row
+  `seam.launch_own_session`. OPEN: one party per client process (the embedded transport
+  never releases a runtime-hosted party; the tab gates it); `profiles/osrs239-scripts.ini`
+  sets neither `TORIRS_MAX_FRAMES` nor `TORIRS_EMBED_CLOCK_MS`, so in the committed profile
+  party rows read unavailable (owner's call); a reset/as_is party Play would name the wrong
+  seat 1 (the tab forces fresh); members inherit `TORIRS_SIM_*` and script_runner.ini;
+  logout close not driven headless.
+- Closer: conformance 395/395 (202 verbs + 193 seams; HEAD carried 192 seam rows against an
+  asserted 191 after the seam38/seam39 merges, now 193). check-quest-verbs, check-drive-abi,
+  check-pt-switch, check-tree-walks, check-scan-meter, test-plugin-lua, test-quest-cheats,
+  test-launch-sessions 67/0, test-io-wire 229/0, test-embed-party-link PASS; lint clean
+  (127). test-torirsserver-embed 48 FAILED and the server selftest 11 FAIL are identical on
+  a HEAD-only worktree build (baseline). Quest gate 115 green + deserttreasure
+  forgettabletale regicide troll red (baseline, nothing moved); cooks_assistant and druid
+  byte-identical to build/merge17_check. The six Entry rooms and `_play_bloat --party 3`
+  (5 of 5 green) are byte-identical, ledger and tick log, to the same runs on a HEAD-only
+  binary; against the fixers' 10:31 baseline, nylocas, xarpus and `_play_bloat` moved
+  because of seam38's content (overheal decay, scythe arc), on HEAD too. `_party_smoke`
+  party_repeat --runs 3 AGREE (sha 7adb63a57f33, 230 boundaries). End to end on the final
+  binary: one AUTOPLAY leader, `_play_bloat` party 3, members spawned by its embedded IO
+  server: `launch.party PASS`, `bloat.killed PASS` (tick 342), leader 19 PASS, members 8
+  PASS each, both seats' status on `launch: status:`, no member left after exit; leader
+  SIGKILLed at 75 s -> both members gone 0.32 s later (`the leader (pid 5184) is gone`).
+  The 015-bloat.killed.png Read failed on a hook timeout and was not looked at.

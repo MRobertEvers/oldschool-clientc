@@ -45,6 +45,30 @@
 -- outline of what it pressed are drawn by the client itself
 -- (src/app/app_overlay.c, "THE WATCHER'S AIDS"), so they cost nothing when no
 -- script is attached and cannot be covered by any plugin's drawing.
+--
+-- PARTY ROWS (raid seam37, scripts_tab_party_play). A test that declares
+-- `party = N` is played by THIS client as raider 1 while the client's own
+-- embedded IO server starts raiders 2..N (src/platform/launch_sessions.h):
+-- the same binary and manifest, without the embedded options, each joining
+-- this client's world over the party link. Play passes api.drive.play a
+-- `party = {size = N, launch = true, windowed = {...}}`; the driver logs in,
+-- opens the launch session, spawns the members (headless unless their
+-- Windowed tick is on), hosts the party and plays role 1
+-- (quest_driver/raid.lua QD.launch._party_up). A party row is playable when
+-- the launch service answers here (one probe at start: `launch/status` of no
+-- session answers "no such session" where the service runs, "unsupported"
+-- with the reason on web, Android, iOS and Windows) and the client is
+-- frame-locked (TORIRS_MAX_FRAMES: a party's frames each pay one logic
+-- cycle, and the party host refuses otherwise). The PARTY block reads
+-- `launch/status` of the session the driver opened
+-- (api.drive.party().launch_session/_token) every PARTY_INTERVAL_FRAMES
+-- frames: per seat its process (pid, up or how it ended) and the status it
+-- last posted (state, step, rows, hitpoints, alive). Stop all sends `stop` to
+-- every member and stops raider 1; the members stay logged in. Respawn closes
+-- the party and plays the row again with new members (a member cannot rejoin
+-- a lock step that is already running). The session is CLOSED (quit, the
+-- grace, then the kill) on Stop, on the next Play, when this client logs out,
+-- when the plugin stops, and by the service itself when this process exits.
 
 ---@type torirs.Plugin
 local plugin = { id = "script-runner", title = "Scripts", version = "2" }
@@ -89,6 +113,7 @@ local shown_label = {}          -- row id -> label last written by set_label
 local shown_enabled = {}        -- button id -> last enabled flag written
 local shown_driver_logged = nil
 local shown_watch_logged = nil
+local shown_party_logged = nil
 local page_built = false
 -- "Under your pointer": the last hover asked about and its words, so the
 -- entity pools are walked only when what is under the pointer changes.
@@ -96,6 +121,37 @@ local hover_key = nil
 local hover_words = "-"
 local HOVER_KINDS = { [1] = "loc", [2] = "npc", [3] = "player", [4] = "obj" }
 local HOVER_WALK_LIMIT = 20000
+
+-- The PARTY block (see the banner). PARTY_SEATS is the launch service's
+-- LAUNCH_SESSIONS_PARTY_MAX: a row is declared for every seat so the row set
+-- never changes.
+local PARTY_SEATS = 4
+local PARTY_INTERVAL_FRAMES = 30
+-- Status reads in a row with no local player before a logout closes the
+-- party (a Fresh start's own relog happens before the party is up).
+local PARTY_LOGOUT_READS = 3
+-- The launch service probe: none | pending | yes | no, and why not.
+local launch_service = { state = "none", reason = "asking this client's launch service" }
+local windowed = { false, false, false, false }   -- seat -> its Windowed tick (seat 1 unused)
+local party_tickets = {}        -- launch tickets queued here: {ticket =, purpose =}
+local party_status = nil        -- the last launch/status read: {session = row, seats = {[n] = row}}
+local party_status_note = "no party"
+local party_status_pending = false
+local party_logout_reads = 0
+local party_last_play = nil     -- the party row the last Play started (Respawn plays it again)
+-- The last session seen open, read on after its close until no member is
+-- up, so the block ends on each member's exit instead of its last "up".
+local party_known = nil         -- {session =, token =, settled = false}
+-- This process hosted a party already. The embedded transport keeps a
+-- runtime-hosted party's link until the client exits
+-- (torirs_server_embed.c ToriRSServer_EmbedPartyHostRequest refuses a second
+-- host: measured, seam37 runB, launch.party FAIL "this client already hosts a
+-- party"), so a second party Play in one client cannot host: the rows say so
+-- instead of failing a row.
+local party_hosted = false
+local PARTY_REHOST_REASON = "this client already hosted a party; the embedded transport keeps that link "
+    .. "until the client exits: restart the client to play another party"
+local list_stale = false        -- the party gate moved: the list's "unavailable" words follow
 
 local function clip(text)
     text = tostring(text or "")
@@ -198,19 +254,61 @@ local function refilter()
     end
 end
 
+-- Whether this client can play a party at all (see the banner): the launch
+-- service answered the probe, and the client is frame-locked. Returns ok and,
+-- when not, why.
+local function party_gate(api)
+    if api.drive == nil or api.drive.launch_status == nil or api.drive.party == nil then
+        return false, "this client's driver has no launch channel"
+    end
+    if launch_service.state ~= "yes" then
+        return false, launch_service.reason
+    end
+    local result, info = api.drive.party()
+    if result ~= "ok" or type(info) ~= "table" then
+        return false, "drive.party answered " .. tostring(result)
+    end
+    if not info.frame_locked then
+        return false, "a party plays in lock step: start this client frame-locked "
+            .. "(TORIRS_MAX_FRAMES=2000000000 TORIRS_EMBED_CLOCK_MS=20)"
+    end
+    if party_hosted then
+        return false, PARTY_REHOST_REASON
+    end
+    return true, ""
+end
+
+-- Whether Play can start `script` here, and why not.
+local function script_playable(api, script)
+    if not script.available then
+        return false, script.reason
+    end
+    if script.party > 1 then
+        local ok, reason = party_gate(api)
+        if not ok then
+            return false, string.format("party of %d: %s", script.party, reason)
+        end
+    end
+    return true, ""
+end
+
 -- What one list slot says: the id (and "unavailable"), then the title or the
 -- reason, and "selected" on the script Play would start.
-local function slot_texts(script)
+local function slot_texts(api, script)
     if not script then
         return " ", " "
     end
     local label = script.id
     local summary = script.title ~= "" and script.title or script.id
-    if not script.available then
+    local playable, reason = script_playable(api, script)
+    if not playable then
         label = script.id .. "  (unavailable)"
-        summary = script.reason
+        summary = reason
     elseif script.legs > 0 then
         summary = summary .. string.format("  [%d legs]", script.legs)
+    end
+    if playable and script.party > 1 then
+        summary = summary .. string.format("  [party of %d]", script.party)
     end
     if selected and selected.id == script.id then
         summary = "selected: " .. summary
@@ -218,7 +316,7 @@ local function slot_texts(script)
     return clip(label), clip(summary)
 end
 
-local function matched_text()
+local function matched_text(api)
     if manifest_state ~= "ready" then
         return clip(manifest_detail)
     end
@@ -231,7 +329,7 @@ local function matched_text()
     end
     local playable = 0
     for _, script in ipairs(matched) do
-        if script.available then
+        if script_playable(api, script) then
             playable = playable + 1
         end
     end
@@ -396,9 +494,288 @@ local function status_view(api)
     if status.session and status.session ~= "" then
         view.session = status.session
     end
-    view.play = selected ~= nil and selected.available and status.state ~= "running"
+    view.play = selected ~= nil and script_playable(api, selected) and status.state ~= "running"
     view.stop = status.state == "running" and not status.stopping
+    view.running = status.state == "running"
+    view.account = status.account or ""
+    view.status = status
     return view
+end
+
+-- ===================================================================== party
+-- The PARTY block (see the banner). Every launch call is one ticket on the
+-- driver's launch channel; each is read back here (the driver holds 16).
+
+-- The session this client's driver opened, or nil: {session =, token =}.
+local function own_session(api)
+    if api.drive == nil or api.drive.party == nil then
+        return nil
+    end
+    local result, info = api.drive.party()
+    if result ~= "ok" or type(info) ~= "table" then
+        return nil
+    end
+    if (info.launch_session or "") == "" or (info.launch_token or "") == "" then
+        return nil
+    end
+    return { session = info.launch_session, token = info.launch_token }
+end
+
+local function leader_lines(own)
+    return "session=" .. own.session .. "\ntoken=" .. own.token .. "\n"
+end
+
+-- Queue one launch call (`verb` is the api.drive.launch_* name) and keep its
+-- ticket. Returns ok and, when refused at once, why.
+local function party_queue(api, purpose, verb, body)
+    local queued, ticket = api.drive[verb](body)
+    if queued ~= "ok" then
+        api.core.log("script-runner: party " .. purpose .. " -> " .. tostring(queued) .. " " .. tostring(ticket))
+        return false, tostring(ticket)
+    end
+    party_tickets[#party_tickets + 1] = { ticket = ticket, purpose = purpose }
+    return true, ""
+end
+
+-- One `launch/status` line: its space-separated pairs; `status=` runs to the
+-- end of the line and is split the same way.
+local function party_line(line)
+    local row = {}
+    local head, posted = line:match("^(.-) status=(.*)$")
+    if head == nil then
+        head = line
+    end
+    for key, value in head:gmatch("([%w_]+)=(%S+)") do
+        row[key] = value
+    end
+    row.status = {}
+    for key, value in (posted or ""):gmatch("([%w_]+)=(%S+)") do
+        row.status[key] = value
+    end
+    return row
+end
+
+-- The first line of an answer, without its `error: ` / `unsupported: ` word.
+local function answer_reason(text)
+    local line = tostring(text or ""):match("^[^\n]*") or ""
+    return line:gsub("^error:%s*", ""):gsub("^unsupported:%s*", "")
+end
+
+local function party_answer(api, purpose, result, text)
+    if purpose == "probe" then
+        -- `error: no such session` is the service answering; `unsupported`
+        -- names the platform's reason.
+        if result == "refused" then
+            launch_service.state = "yes"
+            launch_service.reason = ""
+        else
+            launch_service.state = "no"
+            launch_service.reason = "no launch service here: " .. answer_reason(text)
+        end
+        api.core.log("script-runner: launch service " .. launch_service.state .. " (" .. tostring(result)
+            .. ": " .. answer_reason(text) .. ")")
+        list_stale = true
+        return
+    end
+    if purpose == "status" then
+        party_status_pending = false
+        if result ~= "ok" then
+            party_status_note = "launch/status: " .. answer_reason(text)
+            if party_known ~= nil then
+                party_known.settled = true
+            end
+            return
+        end
+        local read = { seats = {} }
+        for line in tostring(text):gmatch("[^\n]+") do
+            if line:match("^session=") then
+                read.session = party_line(line)
+            elseif line:match("^seat=") then
+                local row = party_line(line)
+                local seat = math.tointeger(tonumber(row.seat))
+                if seat then
+                    read.seats[seat] = row
+                end
+            end
+        end
+        party_status = read
+        local session = read.session or {}
+        if party_known ~= nil and session.session == party_known.session and session.state ~= "open" then
+            local up = false
+            for _, row in pairs(read.seats) do
+                if row.alive == "1" then
+                    up = true
+                end
+            end
+            party_known.settled = not up
+        end
+        party_status_note = string.format("session %s %s, port %s", tostring(session.session or "?"),
+            tostring(session.state or "?"), tostring(session.port or "?"))
+        return
+    end
+    -- close, stop_all
+    party_status_note = purpose .. ": " .. (result == "ok" and (tostring(text):match("state=(%S+)") or "ok")
+        or answer_reason(text))
+    api.core.log("script-runner: party " .. purpose .. " -> " .. tostring(result) .. " "
+        .. answer_reason(text))
+end
+
+local function party_drain(api)
+    if #party_tickets == 0 then
+        return
+    end
+    local kept = {}
+    for _, entry in ipairs(party_tickets) do
+        local result, text = api.drive.launch_answer(entry.ticket)
+        if result == "timeout" then
+            kept[#kept + 1] = entry
+        else
+            party_answer(api, entry.purpose, result, text)
+        end
+    end
+    party_tickets = kept
+end
+
+-- Close the party the driver brought up (quit to every member, the grace,
+-- then the kill). `why` goes to the log.
+local function party_close(api, why)
+    local own = own_session(api)
+    if own == nil then
+        return false
+    end
+    api.core.log("script-runner: party close (" .. why .. ") session " .. own.session)
+    party_queue(api, "close", "launch_close", leader_lines(own))
+    party_logout_reads = 0
+    return true
+end
+
+-- Every PARTY_INTERVAL_FRAMES frames: the probe once, the session's status,
+-- and the logout watch.
+local function party_poll(api)
+    if api.drive == nil or api.drive.launch_status == nil or api.drive.launch_answer == nil then
+        return
+    end
+    if launch_service.state == "none" then
+        launch_service.state = "pending"
+        local ok, why = party_queue(api, "probe", "launch_status", "session=probe\ntoken=probe\n")
+        if not ok then
+            launch_service.state = "no"
+            launch_service.reason = "no launch service here: " .. why
+        end
+    end
+    local own = own_session(api)
+    if own ~= nil and (party_known == nil or party_known.session ~= own.session) then
+        party_known = { session = own.session, token = own.token, settled = false }
+        if not party_hosted then
+            party_hosted = true
+            list_stale = true
+        end
+    end
+    if own == nil then
+        party_logout_reads = 0
+        if party_known ~= nil and not party_known.settled and not party_status_pending then
+            party_status_pending = party_queue(api, "status", "launch_status", leader_lines(party_known))
+        end
+        return
+    end
+    if not party_status_pending then
+        party_status_pending = party_queue(api, "status", "launch_status", leader_lines(own))
+    end
+    if api.world ~= nil and api.world.local_player ~= nil and api.world.local_player() == nil then
+        party_logout_reads = party_logout_reads + 1
+        if party_logout_reads >= PARTY_LOGOUT_READS then
+            party_close(api, "this client logged out")
+        end
+    else
+        party_logout_reads = 0
+    end
+end
+
+-- How big the party on show is: the session's size, else the last Play's.
+local function party_size()
+    local session = party_status and party_status.session
+    local size = session and math.tointeger(tonumber(session.size))
+    if size then
+        return size
+    end
+    return party_last_play and party_last_play.party or 0
+end
+
+-- One seat's line: who, its process, and the status it last posted.
+local function party_seat_text(api, seat, view)
+    local size = party_size()
+    if size == 0 then
+        return seat == 1 and "no party (pick a party row and Play)" or "-"
+    end
+    if seat > size then
+        return string.format("(a party of %d)", size)
+    end
+    if seat == 1 then
+        local hitpoints = "?"
+        if api.game ~= nil and api.game.skill ~= nil then
+            local skill = api.game.skill(3)
+            if skill then
+                hitpoints = tostring(skill.current_level)
+            end
+        end
+        local status = view.status or {}
+        return string.format("%s (this client): %s %s %s (%d rows), hp %s", view.account ~= "" and view.account or "?",
+            tostring(status.state or "?"), tostring(status.step or ""), tostring(status.verdict or ""),
+            status.rows or 0, hitpoints)
+    end
+    local row = party_status and party_status.seats[seat]
+    if row == nil then
+        return "not spawned yet"
+    end
+    local process
+    if row.alive == "1" then
+        process = "pid " .. tostring(row.pid) .. " up"
+    elseif row.pid == "0" then
+        process = "not spawned"
+    elseif row.signal ~= nil and row.signal ~= "-" then
+        process = "pid " .. tostring(row.pid) .. " ended by signal " .. row.signal
+    else
+        process = "pid " .. tostring(row.pid) .. " exited " .. tostring(row.exit)
+    end
+    local posted = row.status
+    if posted.state == nil then
+        return string.format("%s, %s, no status posted yet", tostring(row.account), process)
+    end
+    return string.format("%s, %s: %s %s %s (%s rows), hp %s, %s", tostring(row.account), process,
+        posted.state, tostring(posted.step or ""), tostring(posted.verdict or ""), tostring(posted.rows or "0"),
+        tostring(posted.hitpoints or "?"), posted.alive == "1" and "alive" or "dead")
+end
+
+-- The PARTY block's texts and its two buttons.
+local function party_view(api, view)
+    local own = own_session(api)
+    local block = { seats = {} }
+    for seat = 1, PARTY_SEATS do
+        block.seats[seat] = party_seat_text(api, seat, view)
+    end
+    if own then
+        block.session = party_status_note
+    elseif party_last_play and party_status == nil then
+        block.session = party_status_note   -- the Play is still bringing it up
+    elseif party_last_play then
+        block.session = "closed (" .. party_status_note .. ")"
+    else
+        block.session = "no party"
+    end
+    local member_up = false
+    if party_status then
+        for _, row in pairs(party_status.seats) do
+            if row.alive == "1" then
+                member_up = true
+            end
+        end
+    end
+    block.stop_all = own ~= nil and (view.running or member_up)
+    -- Enabled after a party Play whenever raider 1 is not running; pressed
+    -- in a client that already hosted, it says why it cannot (play()).
+    block.respawn = party_last_play ~= nil and not view.running
+    block.open = own ~= nil
+    return block
 end
 
 local function selected_text()
@@ -440,11 +817,11 @@ local function refresh_list(api)
     for index = 1, LIST_WINDOW do
         local script = matched[index]
         slot_script[index] = script
-        local label, summary = slot_texts(script)
+        local label, summary = slot_texts(api, script)
         show_label(api, slot_id(index), label)
         show_text(api, slot_id(index), summary)
     end
-    show_text(api, "matched", matched_text())
+    show_text(api, "matched", matched_text(api))
     show_text(api, "more", more_text())
 end
 
@@ -477,9 +854,22 @@ local function refresh_status(api)
         api.core.log("script-runner: driver " .. view.driver .. " | " .. view.test .. " | " .. view.leg
             .. " | " .. view.step .. " | " .. view.counts .. " | " .. view.summary)
     end
+    local party = party_view(api, view)
+    view.stop = view.stop or party.open
+    local party_line_text = party.session .. " | " .. table.concat(party.seats, " | ")
+    if party_line_text ~= shown_party_logged then
+        shown_party_logged = party_line_text
+        api.core.log("script-runner: party " .. party_line_text)
+    end
     if not page_built then
         return
     end
+    show_text(api, "party_session", party.session)
+    for seat = 1, PARTY_SEATS do
+        show_text(api, "seat" .. seat, party.seats[seat])
+    end
+    show_enabled(api, "stop_all", party.stop_all)
+    show_enabled(api, "respawn", party.respawn)
     show_text(api, "driver", view.driver)
     show_text(api, "test", view.test)
     show_text(api, "leg", view.leg)
@@ -545,12 +935,14 @@ function plugin.on_ui_build(api, panel, view)
     -- the same every time (see the banner): nothing here depends on the
     -- filter, the search or the manifest except text.
     local status = status_view(api)
+    local party = party_view(api, status)
+    status.stop = status.stop or party.open
     shown = {}
     shown_label = {}
     shown_enabled = {}
     panel.select("suite", "Suite", suite_filter, SUITES)
     panel.node({ kind = 5, id = "search", label = "Search", text = search_text })
-    panel.label("matched", matched_text())
+    panel.label("matched", matched_text(api))
     panel.key_value("selected", "Selected", selected_text())
     panel.select("start", "Start from", start_choice, STARTS)
     panel.button("play", "Play", status.play)
@@ -569,9 +961,26 @@ function plugin.on_ui_build(api, panel, view)
     panel.key_value("step", "Step", clip(status.step))
     panel.key_value("counts", "Rows", clip(status.counts))
     panel.label("note", note == "" and " " or clip(note))
+    -- The PARTY block: declared for every seat whatever is selected (the row
+    -- set never changes); a solo Play's rows say "no party".
+    panel.node({ kind = 9, id = "rule_party" })
+    panel.key_value("party_session", "Party", clip(party.session))
+    for seat = 1, PARTY_SEATS do
+        panel.key_value("seat" .. seat, "Seat " .. seat, clip(party.seats[seat]))
+        shown["seat" .. seat] = clip(party.seats[seat])
+    end
+    for seat = 2, PARTY_SEATS do
+        panel.toggle("windowed" .. seat, "Seat " .. seat .. " in a window (else headless)", windowed[seat])
+        shown_enabled["windowed" .. seat] = windowed[seat]
+    end
+    panel.button("stop_all", "Stop all", party.stop_all)
+    panel.button("respawn", "Respawn", party.respawn)
+    shown.party_session = clip(party.session)
+    shown_enabled.stop_all = party.stop_all
+    shown_enabled.respawn = party.respawn
     panel.node({ kind = 9, id = "rule_list" })
     for index = 1, LIST_WINDOW do
-        local label, summary = slot_texts(matched[index])
+        local label, summary = slot_texts(api, matched[index])
         slot_script[index] = matched[index]
         panel.action_row(slot_id(index), label, summary)
         shown_label[slot_id(index)] = label
@@ -583,7 +992,7 @@ function plugin.on_ui_build(api, panel, view)
     -- The end of a run: what the ledger said, and where it is.
     panel.key_value("summary", "Summary", clip(status.summary))
     panel.key_value("session", "Session", clip(status.session))
-    shown.matched = matched_text()
+    shown.matched = matched_text(api)
     shown.more = more_text()
     shown.driver = clip(status.driver)
     shown.test = clip(status.test)
@@ -605,8 +1014,11 @@ function plugin.on_ui_build(api, panel, view)
         suite_filter, search_text, #matched, #scripts))
 end
 
-local function play(api)
-    if not selected then
+-- Play `script` (the selected row, or Respawn's last party row). A party row
+-- closes the party still up from the last Play first, then asks the driver to
+-- bring a new one up (see the banner).
+local function play(api, script)
+    if not script then
         note = "Pick a script first."
         return
     end
@@ -614,33 +1026,118 @@ local function play(api)
         note = "This client has no driver: start it with ./launch run osrs239-scripts."
         return
     end
+    local playable, reason = script_playable(api, script)
+    if not playable then
+        note = clip(script.id .. " cannot be played here: " .. reason)
+        return
+    end
+    party_close(api, "a new Play")
+    local party = nil
+    local start = start_choice
+    if script.party > 1 then
+        party = { size = script.party, launch = true,
+            windowed = { false, windowed[2], windowed[3], windowed[4] } }
+        -- Raider 1 is the Play's own fresh account: the members look for it
+        -- by that name (QD_PARTY names[1]), and every member is a fresh
+        -- account too, as under run.py. A reset or as-is start would play on
+        -- the character this client is logged in as, which no member knows
+        -- (measured, seam37 smoke2: "the leader playbloa3 is not in its pool").
+        start = "fresh"
+    end
     local result, detail = api.drive.play({
-        id = selected.id, source = selected.source, fixture = selected.fixture,
-        suite = selected.suite, title = selected.title, legs = selected.legs,
-        start = start_choice,
+        id = script.id, source = script.source, fixture = script.fixture,
+        suite = script.suite, title = script.title, legs = script.legs,
+        start = start,
         -- a row that names start=reset asks for its fixture applied in place
         -- (the cheat takes the fixture's basename)
-        reset_fixture = (start_choice == "reset" and selected.start == "reset")
-            and (selected.fixture:match("([^/]+)%.ini$") or selected.fixture) or nil,
+        reset_fixture = (start == "reset" and script.start == "reset")
+            and (script.fixture:match("([^/]+)%.ini$") or script.fixture) or nil,
+        party = party,
     })
     if result == "ok" then
-        note = clip("Playing " .. selected.id .. " from " .. START_LABEL[start_choice] .. ", "
-            .. tostring(detail) .. (start_choice == "fresh" and " (logging out and in first)." or "."))
+        local who = ""
+        if party then
+            local shown_seats = {}
+            for seat = 2, script.party do
+                shown_seats[#shown_seats + 1] = seat .. (windowed[seat] and " windowed" or " headless")
+            end
+            who = string.format(" as raider 1 of %d (seats %s)", script.party, table.concat(shown_seats, ", "))
+            party_last_play = script
+            party_known = nil
+            party_status = nil
+            party_status_pending = false
+            party_status_note = "bringing the party up: log in, open, spawn, host"
+        end
+        note = clip("Playing " .. script.id .. who .. " from " .. START_LABEL[start] .. ", "
+            .. tostring(detail) .. (start == "fresh" and " (logging out and in first)." or "."))
     else
         note = clip(tostring(detail or result))
     end
-    api.core.log("script-runner: play " .. selected.id .. " -> " .. tostring(result) .. " " ..
-        tostring(detail))
+    api.core.log("script-runner: play " .. script.id .. (party and (" party " .. script.party) or "")
+        .. " -> " .. tostring(result) .. " " .. tostring(detail))
 end
 
+-- Stop: raider 1's script ends at its next step, and a party is closed (its
+-- members quit). With only a party left up (the test finished), Stop closes it.
 local function stop(api)
     if api.drive == nil or api.drive.stop == nil then
         note = "This client has no driver."
         return
     end
-    local result, detail = api.drive.stop()
-    note = clip(result == "ok" and "Stopping at the next step." or tostring(detail or result))
-    api.core.log("script-runner: stop -> " .. tostring(result) .. " " .. tostring(detail))
+    local result, detail = "ok", "no script running"
+    local _, status = api.drive.status()
+    if type(status) == "table" and status.state == "running" then
+        result, detail = api.drive.stop()
+    end
+    local closed = party_close(api, "Stop")
+    if result == "ok" then
+        note = (type(status) == "table" and status.state == "running") and "Stopping at the next step." or ""
+        if closed then
+            note = note .. (note == "" and "" or " ") .. "The party is closing: every member quits."
+        end
+    else
+        note = clip(tostring(detail or result))
+    end
+    note = clip(note)
+    api.core.log("script-runner: stop -> " .. tostring(result) .. " " .. tostring(detail)
+        .. (closed and " (party closing)" or ""))
+end
+
+-- Stop all: every member's script stops where it is and so does raider 1's;
+-- the members stay logged in (Stop, a new Play or logging out closes them).
+local function stop_all(api)
+    local own = own_session(api)
+    if own == nil then
+        note = "No party is up."
+        return
+    end
+    party_queue(api, "stop_all", "launch_command", leader_lines(own) .. "seat=all\ncommand=stop\n")
+    local _, status = api.drive.status()
+    if type(status) == "table" and status.state == "running" then
+        api.drive.stop()
+    end
+    note = "Stop all: every raider stops at its next step; the members stay logged in."
+    api.core.log("script-runner: stop all (session " .. own.session .. ")")
+end
+
+-- Respawn: the party closed and the same row played again with new members.
+local function respawn(api)
+    if party_last_play == nil then
+        note = "No party was played yet."
+        return
+    end
+    if party_hosted then
+        note = clip("Respawn: " .. PARTY_REHOST_REASON .. ".")
+        api.core.log("script-runner: respawn refused: " .. PARTY_REHOST_REASON)
+        return
+    end
+    local _, status = api.drive.status()
+    if type(status) == "table" and status.state == "running" then
+        note = "Respawn: stop the party first (Stop, or Stop all)."
+        return
+    end
+    api.core.log("script-runner: respawn " .. party_last_play.id)
+    play(api, party_last_play)
 end
 
 -- The Interact switch: only while a script's view is attached (the driver
@@ -663,9 +1160,10 @@ local function set_interact(api, on)
 end
 
 local function select_script(api, script)
-    if not script.available then
-        note = clip(script.id .. " cannot be played here: " .. script.reason)
-        api.core.log("script-runner: unavailable " .. script.id .. ": " .. script.reason)
+    local playable, reason = script_playable(api, script)
+    if not playable then
+        note = clip(script.id .. " cannot be played here: " .. reason)
+        api.core.log("script-runner: unavailable " .. script.id .. ": " .. reason)
         refresh_status(api)
         return
     end
@@ -675,6 +1173,9 @@ local function select_script(api, script)
     -- change it before Play (the select re-reads start_choice on rebuild).
     if script.start == "reset" or script.start == "fresh" or script.start == "as_is" then
         start_choice = script.start
+    end
+    if script.party > 1 then
+        start_choice = "fresh"   -- a party's raider 1 is its fresh account (play())
     end
     api.core.log("script-runner: selected " .. script.suite .. " " .. script.id)
     refresh_list(api)
@@ -715,8 +1216,25 @@ function plugin.on_ui_action(api, ev)
         return
     end
     if ev.id == "play" then
-        play(api)
+        play(api, selected)
         refresh_status(api)
+        return
+    end
+    if ev.id == "stop_all" then
+        stop_all(api)
+        refresh_status(api)
+        return
+    end
+    if ev.id == "respawn" then
+        respawn(api)
+        refresh_status(api)
+        return
+    end
+    local windowed_seat = math.tointeger(tonumber((ev.id or ""):match("^windowed(%d+)$")))
+    if windowed_seat and windowed_seat >= 2 and windowed_seat <= PARTY_SEATS then
+        windowed[windowed_seat] = ev.on and true or false
+        shown_enabled[ev.id] = windowed[windowed_seat]
+        api.core.log("script-runner: seat " .. windowed_seat .. (windowed[windowed_seat] and " windowed" or " headless"))
         return
     end
     if ev.id == "stop" then
@@ -746,7 +1264,26 @@ function plugin.on_frame_start(api, _ev)
     if manifest_state == "none" or manifest_state == "pending" then
         poll_manifest(api, false)
     end
+    if api.drive ~= nil and api.drive.launch_answer ~= nil then
+        party_drain(api)
+        if frames % PARTY_INTERVAL_FRAMES == 0 then
+            party_poll(api)
+        end
+    end
+    if list_stale then
+        list_stale = false
+        refilter()
+        refresh_list(api)
+    end
     refresh_status(api)
+end
+
+-- The plugin's end (a reload, the client's exit): close the party it brought
+-- up (the service also kills every member when this process exits).
+function plugin.on_stop(api)
+    if api.drive ~= nil and api.drive.launch_close ~= nil then
+        party_close(api, "the Scripts plugin stopped")
+    end
 end
 
 return plugin

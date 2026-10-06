@@ -1731,3 +1731,306 @@ function QD.ticklog.rows(opts)
     end
     return QD.ticklog._rows_unfiltered(copy)
 end
+
+-- ==================================================================== launch
+--
+-- t.launch: the LAUNCH SERVICE of this client's embedded IO server (raid
+-- seam37; docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-06j.md, src/platform/
+-- launch_sessions.h). A leader that runs a multi-account flow starts the
+-- other raiders itself: the same binary and manifest, without the embedded
+-- options, each joining this client's world over the party link. Every call
+-- is one `launch/<verb>` item on the plugin channel (api.drive.launch_*), and
+-- waits here for its answer.
+--
+--   t.launch.open{size =, port = 0}   -> "ok", {session, port, size}
+--                                        (port 0: a free loopback port)
+--   t.launch.spawn(seats)             -> "ok", {[seat] = {pid, directory}}
+--       seats: { {seat =, account =, password =, autoplay = <table|json>,
+--                 headless = true, directory =, env = {KEY = value}}, ... }
+--   t.launch.command(seat, command)   -> "ok", queued   (seat n or "all";
+--                                        "play {json}", "stop", "cheat <line>",
+--                                        "quit")
+--   t.launch.status()                 -> "ok", {session = {...}, seats = {[n] =
+--                                        {pid, alive, exit, signal, account,
+--                                        mail_age_ms, unread, status = {...}}}},
+--                                        text
+--   t.launch.close()                  -> "ok", state
+--   t.launch.host(port, size)         -> api.drive.party_host: host the party
+--                                        at runtime (AFTER spawn: from the
+--                                        attach on, every boundary waits for
+--                                        the members' READY)
+--   t.launch.party()                  -> "ok", {role, size, names, launch,
+--                                        launched, session, frame_locked,
+--                                        mail_answers, mail} (api.drive.party)
+--
+-- QD.launch._party_up(options): a launching leader's Play (QD.core_run_test)
+-- brings its members up: open, spawn seats 2..N with their AUTOPLAY, host.
+--
+-- Answers: "ok", or the service's "refused" (`error: ...`) / "unsupported"
+-- (web, Android, iOS, Windows until the party link runs there; an IO server
+-- process with no service) with its reason; "timeout" when no answer came.
+
+QD.launch = {}
+
+-- A Lua value as JSON (strings, integers, booleans, arrays 1..n, tables with
+-- string keys): what a member's TORIRS_DRIVE_AUTOPLAY and a `play` command
+-- carry (torirs_plugin_drive.c drive_json_value reads it back).
+function QD.launch._json(value)
+    local kind = type(value)
+    if kind == "string" then
+        local escaped = string.gsub(value, '[%c"\\]', function(c)
+            if c == '"' then return '\\"' end
+            if c == "\\" then return "\\\\" end
+            if c == "\n" then return "\\n" end
+            if c == "\t" then return "\\t" end
+            return string.format("\\u%04x", string.byte(c))
+        end)
+        return '"' .. escaped .. '"'
+    end
+    if kind == "number" then
+        assert(math.type(value) == "integer", "launch json: " .. tostring(value) .. " is not an integer")
+        return tostring(value)
+    end
+    if kind == "boolean" then
+        return value and "true" or "false"
+    end
+    assert(kind == "table", "launch json: a " .. kind .. " has no JSON form")
+    if #value > 0 then
+        local parts = {}
+        for i = 1, #value do
+            parts[i] = QD.launch._json(value[i])
+        end
+        return "[" .. table.concat(parts, ",") .. "]"
+    end
+    local keys = {}
+    for key in pairs(value) do
+        assert(type(key) == "string", "launch json: a table key is a " .. type(key))
+        keys[#keys + 1] = key
+    end
+    table.sort(keys)
+    local parts = {}
+    for i = 1, #keys do
+        parts[i] = QD.launch._json(keys[i]) .. ":" .. QD.launch._json(value[keys[i]])
+    end
+    return "{" .. table.concat(parts, ",") .. "}"
+end
+
+-- Wait for ticket's answer: (result, text). An answer lands on a later frame
+-- (the item is served by the IO runner); a launch answer never takes long in
+-- this process, so the deadline is short.
+function QD.launch._answer(ticket, note, deadline)
+    local result, text
+    local waited = await({ level = function()
+        result, text = api_drive.launch_answer(ticket)
+        return result ~= "timeout"
+    end, note = note }, deadline or 50)
+    if waited ~= "ok" and result == "timeout" then
+        return "timeout", note .. ": the launch service did not answer"
+    end
+    if result ~= "ok" then
+        -- `error: ...` / `unsupported: ...` is one line: a ledger detail
+        -- must not carry the answer's newline.
+        return result, string.match(tostring(text), "^[^\n]*")
+    end
+    return result, text
+end
+
+-- "key=value" lines of an `ok` answer (after line 1) into a table.
+function QD.launch._pairs(text)
+    local out = {}
+    for line in string.gmatch(text or "", "[^\n]+") do
+        local key, value = string.match(line, "^([%w_]+)=(.*)$")
+        if key then out[key] = value end
+    end
+    return out
+end
+
+-- One status line's space-separated pairs; `status=` runs to the end.
+function QD.launch._seat_line(line)
+    local row = {}
+    local head, status = string.match(line, "^(.-) status=(.*)$")
+    if head == nil then head = line end
+    for key, value in string.gmatch(head, "([%w_]+)=(%S+)") do
+        row[key] = tonumber(value) or value
+    end
+    row.status_text = status or "-"
+    row.status = {}
+    for key, value in string.gmatch(status or "", "([%w_]+)=(%S+)") do
+        row.status[key] = tonumber(value) or value
+    end
+    return row
+end
+
+function QD.launch._leader_lines()
+    local session = QD.launch._session
+    if session == nil then return nil end
+    return "session=" .. session.session .. "\ntoken=" .. session.token .. "\n"
+end
+
+function QD.launch.open(fields)
+    assert(type(fields) == "table", "t.launch.open: wants {size =, port =}")
+    assert(math.type(fields.size) == "integer", "t.launch.open: size is an integer")
+    local body = { size = fields.size, port = fields.port or 0 }
+    if fields.saves ~= nil then body.saves = fields.saves end
+    local queued, ticket, port = api_drive.launch_open(body)
+    if queued ~= "ok" then return queued, "t.launch.open: " .. tostring(ticket) end
+    local result, text = QD.launch._answer(ticket, "t.launch.open")
+    if result ~= "ok" then return result, tostring(text) end
+    local got = QD.launch._pairs(text)
+    QD.launch._session = { session = got.session, token = got.token, port = port, size = fields.size }
+    return "ok", { session = got.session, port = port, size = fields.size }
+end
+
+function QD.launch.spawn(seats)
+    assert(type(seats) == "table" and #seats > 0, "t.launch.spawn: wants a list of seats")
+    local lines = QD.launch._leader_lines()
+    if lines == nil then return "refused", "t.launch.spawn: no session (t.launch.open first)" end
+    local body = { lines }
+    for _, seat in ipairs(seats) do
+        assert(math.type(seat.seat) == "integer", "t.launch.spawn: seat.seat is an integer")
+        body[#body + 1] = "seat=" .. seat.seat .. "\naccount=" .. tostring(seat.account)
+            .. "\npassword=" .. tostring(seat.password) .. "\nheadless=" .. ((seat.headless == false) and "0" or "1") .. "\n"
+        if seat.directory ~= nil then body[#body + 1] = "directory=" .. seat.directory .. "\n" end
+        if seat.autoplay ~= nil then
+            local autoplay = type(seat.autoplay) == "table" and QD.launch._json(seat.autoplay) or seat.autoplay
+            body[#body + 1] = "autoplay=" .. autoplay .. "\n"
+        end
+        if seat.unset ~= nil then
+            for _, key in ipairs(seat.unset) do
+                body[#body + 1] = "unset=" .. key .. "\n"
+            end
+        end
+        if seat.env ~= nil then
+            local keys = {}
+            for key in pairs(seat.env) do keys[#keys + 1] = key end
+            table.sort(keys)
+            for _, key in ipairs(keys) do
+                body[#body + 1] = "env=" .. key .. "=" .. tostring(seat.env[key]) .. "\n"
+            end
+        end
+    end
+    local queued, ticket = api_drive.launch_spawn(table.concat(body))
+    if queued ~= "ok" then return queued, "t.launch.spawn: " .. tostring(ticket) end
+    local result, text = QD.launch._answer(ticket, "t.launch.spawn")
+    local spawned = {}
+    for line in string.gmatch(text or "", "[^\n]+") do
+        local n, pid, dir = string.match(line, "^seat=(%d+) pid=(%d+) directory=(.*)$")
+        if n then spawned[tonumber(n)] = { pid = tonumber(pid), directory = dir } end
+    end
+    if result ~= "ok" then return result, tostring(text), spawned end
+    return "ok", spawned, text
+end
+
+function QD.launch.command(seat, command)
+    local lines = QD.launch._leader_lines()
+    if lines == nil then return "refused", "t.launch.command: no session (t.launch.open first)" end
+    local queued, ticket = api_drive.launch_command(lines .. "seat=" .. tostring(seat) .. "\ncommand=" .. command .. "\n")
+    if queued ~= "ok" then return queued, "t.launch.command: " .. tostring(ticket) end
+    local result, text = QD.launch._answer(ticket, "t.launch.command")
+    if result ~= "ok" then return result, tostring(text) end
+    return "ok", tonumber(QD.launch._pairs(text).queued) or 0
+end
+
+function QD.launch.status()
+    local lines = QD.launch._leader_lines()
+    if lines == nil then return "refused", "t.launch.status: no session (t.launch.open first)" end
+    local queued, ticket = api_drive.launch_status(lines)
+    if queued ~= "ok" then return queued, "t.launch.status: " .. tostring(ticket) end
+    local result, text = QD.launch._answer(ticket, "t.launch.status")
+    if result ~= "ok" then return result, tostring(text) end
+    local out = { seats = {} }
+    for line in string.gmatch(text, "[^\n]+") do
+        if string.match(line, "^session=") then
+            out.session = QD.launch._seat_line(line)
+        elseif string.match(line, "^seat=") then
+            local row = QD.launch._seat_line(line)
+            out.seats[row.seat] = row
+        end
+    end
+    return "ok", out, text
+end
+
+function QD.launch.host(port, size)
+    assert(math.type(port) == "integer", "t.launch.host: port is an integer")
+    assert(math.type(size) == "integer", "t.launch.host: size is an integer")
+    return api_drive.party_host(port, size)
+end
+
+function QD.launch.party()
+    return api_drive.party()
+end
+
+function QD.launch.close()
+    local lines = QD.launch._leader_lines()
+    if lines == nil then return "refused", "t.launch.close: no session (t.launch.open first)" end
+    local queued, ticket = api_drive.launch_close(lines)
+    if queued ~= "ok" then return queued, "t.launch.close: " .. tostring(ticket) end
+    local result, text = QD.launch._answer(ticket, "t.launch.close")
+    if result ~= "ok" then return result, tostring(text) end
+    return "ok", QD.launch._pairs(text).state
+end
+
+-- A LAUNCHING LEADER'S PLAY (api.drive.play with party = {size = N, launch =
+-- true}; QD.core_run_test calls this after its own log-in, before the setup
+-- list): open a session, spawn seats 2..N -- each the leader's binary and
+-- manifest, headless, logged in at boot as the account whose save the C side
+-- already wrote, its Play the leader's own test with `start = "as_is"` and its
+-- QD_PARTY role -- then host the party. From the attach on, this client's
+-- next boundary waits for every member's READY (TORIRS_EMBED_PARTY_WAIT_S),
+-- so the test's first row runs in lock step, as under run.py.
+function QD.launch._party_up(options)
+    local party = options.party
+    assert(type(party) == "table" and party.launch, "t.launch._party_up: not a launching leader's Play")
+    local size = party.size
+    local info_result, info = QD.launch.party()
+    local frame_locked = info_result == "ok" and info.frame_locked
+    local open_result, opened = QD.launch.open({ size = size, port = 0 })
+    if open_result ~= "ok" then
+        return open_result, "launch.open: " .. tostring(opened)
+    end
+    local session = api_drive.session()
+    local run_dir = string.match(session.dir or "", "^(.*)/[^/]+$") or session.dir
+    local seats = {}
+    for n = 2, size do
+        local env = nil
+        -- A party's frames each pay exactly one logic cycle (the frame
+        -- audit): a frame-locked leader's members are frame-locked too, with
+        -- no budget of their own -- a member runs until its leader ends.
+        if frame_locked then env = { TORIRS_MAX_FRAMES = "2000000000" } end
+        seats[#seats + 1] = {
+            seat = n, account = party.names[n], password = options.password,
+            directory = run_dir .. "/p" .. n, env = env,
+            -- headless unless the Play asked for this seat's window (the
+            -- Scripts tab's Windowed tick: party.windowed[n])
+            headless = not (type(party.windowed) == "table" and party.windowed[n] == true),
+            -- A Play's client runs on the TRANSPORT's clock (main.c
+            -- on_demand_world_clock): with TORIRS_CONTENT_TEST set, the
+            -- content-test clock -- which steps only for a TORIRS_QUEST_SCRIPT
+            -- run -- held the member's clock still and its leader dropped it
+            -- for no READY (measured, seam37 s37smoke1). Its run directory is
+            -- its Play's `session` instead.
+            unset = { "TORIRS_CONTENT_TEST" },
+            autoplay = {
+                id = options.id, source = options.source, fixture = options.fixture or options.source,
+                suite = options.suite, title = options.title, legs = options.legs,
+                start = "as_is", account = party.names[n], session = run_dir .. "/p" .. n,
+                party = { role = n, size = size, names = party.names },
+            },
+        }
+    end
+    local spawn_result, spawned, spawn_text = QD.launch.spawn(seats)
+    if spawn_result ~= "ok" then
+        return spawn_result, "launch.spawn: " .. tostring(spawned)
+    end
+    local host_result, host_detail = QD.launch.host(opened.port, size)
+    if host_result ~= "ok" then
+        QD.launch.close()
+        return host_result, "party_host: " .. tostring(host_detail)
+    end
+    local pids = {}
+    for n = 2, size do
+        pids[#pids + 1] = "p" .. n .. " " .. tostring(party.names[n]) .. " pid " .. tostring(spawned[n] and spawned[n].pid)
+    end
+    return "ok", string.format("session %s on port %d: %s; %s", tostring(opened.session), opened.port,
+        table.concat(pids, ", "), tostring(host_detail))
+end

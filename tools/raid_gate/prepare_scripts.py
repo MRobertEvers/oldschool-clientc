@@ -26,7 +26,7 @@ THE MANIFEST, one section per test, in TEST_SUITES order then by id:
     source=tests/quests/<id>.lua        ; resolved under the script directory
     fixture=tests/quests/fixtures/<fixture>.ini
     legs=<n>                            ; 0 for a run = function(t) file
-    party=<n>                           ; 1 for a solo test
+    party=<n>                           ; 1 for a solo test; >1: the tab launches raiders 2..n
     max_frames=<n>                      ; run.py's budget; a watched run is not bounded by it
     available=1|0
     reason=<why not, when 0>
@@ -44,10 +44,15 @@ root for a proof) is named by its path relative to the script directory, which
 only the native lane can read.
 
 `_` files are harnesses, not tests (_conformance, _party_smoke, ...) and are
-skipped. A test that declares `party = <n>` needs n clients in lock step (run.py
-run_party): listed, available=0. A test whose fixture file is absent: listed,
-available=0. Everything else is available: Play gives it a fresh account made
-from its own fixture (src/plugin/torirs_plugin_drive.c, api.drive.play).
+skipped. A test whose fixture file is absent: listed, available=0. Everything
+else is available: Play gives it a fresh account made from its own fixture
+(src/plugin/torirs_plugin_drive.c, api.drive.play). A test that declares
+`party = <n>` is available too, with party=<n> (raid seam37,
+scripts_tab_party_play): the tab's Play plays raider 1 and the client's own
+embedded IO server starts raiders 2..n (src/platform/launch_sessions.h). Whether
+THIS client can do that (a launch service that answers, a frame-locked client)
+is known only at run time, so the tab decides and says why not; the manifest
+no longer does.
 
 Nothing here changes what run.py does: it only imports run.py's readers.
 """
@@ -159,9 +164,7 @@ def describe(suite, directory, directory_script_path):
         legs = len(layout["legs"]) if layout else 0
         title = raid_title(test_id, source, party) if suite == "raid" else quest_title(test_id, source)
         reason = ""
-        if party > 1:
-            reason = "needs %d clients (a party of %d plays in lock step under run.py)" % (party, party)
-        elif not os.path.isfile(os.path.join(directory, "fixtures", fixture)):
+        if not os.path.isfile(os.path.join(directory, "fixtures", fixture)):
             reason = "no fixture %s beside it" % fixture
         entries.append({
             "id": test_id,

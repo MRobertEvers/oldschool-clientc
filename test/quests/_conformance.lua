@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 195
+-- @verb-count 202
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 191
+-- @seam-count 193
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 195
-local SEAM_COUNT = 191
+local VERB_COUNT = 202
+local SEAM_COUNT = 193
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -12549,6 +12549,136 @@ return {
                 return "refused", "the ready check did not read 'Members: 1. Mode: Entry.': " .. describe(detail)
             end
             return "ok", describe(detail)
+        end)
+
+        -- raid seam37 client_launch_channel: SEVEN NEW VERBS (VERB_COUNT +7, @verb-count +7;
+        -- tools/quest_gate/verb_list.py gains launch.open, launch.spawn, launch.command,
+        -- launch.status, launch.close, launch.host, launch.party). No seam row.
+        -- PLACE: in the party stanza, right AFTER step("party.allow_death", ...) and its
+        -- seam22 member-reader rows, i.e. after the last party.* row and before the next
+        -- stanza; in this order. The conformance run is ONE client (a test run, frame
+        -- clock, its own world), so these rows prove each verb's round trip through the
+        -- embedded IO server's launch service (src/platform/launch_sessions.h, answered in
+        -- this process: platform_x_io.c answer_launch_item) WITHOUT starting a client:
+        -- open/status/close for real, spawn and command by their refusal shapes (an account
+        -- with a space; a seat never spawned), host by its size refusal (a size-2 host would
+        -- attach and hold every boundary for a member). Their party behaviour -- two members
+        -- spawned headless by the leader's own IO server, AUTOPLAY, the mailbox and status
+        -- over the party link, the leader SIGKILLed -> members gone -- is the seam37 proof
+        -- (build/seam_state/matthew-mbp-m4-raid-b1-seam37/fix.client_launch_channel.json).
+        step("launch.open", function()
+            local fn = verb("launch", "open")
+            if not fn then return missing("launch", "open") end
+            local result, opened = fn({ size = 2, port = 0 })
+            if result ~= "ok" or type(opened) ~= "table" or type(opened.session) ~= "string"
+                or math.type(opened.port) ~= "integer" or opened.port <= 0 then
+                return "refused", "open{size=2, port=0} should answer ok {session, port}; read "
+                    .. describe(result) .. " " .. describe(opened)
+            end
+            return "ok", "session " .. opened.session .. " on port " .. opened.port .. " (a free loopback port)"
+        end)
+        step("launch.status", function()
+            local fn = verb("launch", "status")
+            if not fn then return missing("launch", "status") end
+            local result, status = fn()
+            if result ~= "ok" or type(status) ~= "table" or type(status.session) ~= "table"
+                or status.session.state ~= "open" or type(status.seats[2]) ~= "table"
+                or status.seats[2].pid ~= 0 or status.seats[2].alive ~= 0 then
+                return "refused", "status should read the open session and seat 2 never spawned; read "
+                    .. describe(result) .. " " .. describe(status)
+            end
+            return "ok", "session state=" .. status.session.state .. " size=" .. tostring(status.session.size)
+                .. "; seat 2 pid=0 alive=0 status=" .. tostring(status.seats[2].status_text)
+        end)
+        step("launch.spawn", function()
+            local fn = verb("launch", "spawn")
+            if not fn then return missing("launch", "spawn") end
+            local result, detail = fn({ { seat = 2, account = "has a space", password = "test" } })
+            if result ~= "refused" or not string.find(tostring(detail), "needs account=", 1, true) then
+                return "hollow", "a seat whose account has a space must be refused before any spawn; read "
+                    .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", "refused before spawning, as it must be: " .. describe(detail)
+        end)
+        step("launch.command", function()
+            local fn = verb("launch", "command")
+            if not fn then return missing("launch", "command") end
+            local result, detail = fn(2, "stop")
+            if result ~= "refused" or not string.find(tostring(detail), "never been spawned", 1, true) then
+                return "hollow", "a command to a seat never spawned must be refused; read "
+                    .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", "refused, as it must be: " .. describe(detail)
+        end)
+        step("launch.host", function()
+            local fn = verb("launch", "host")
+            if not fn then return missing("launch", "host") end
+            local result, detail = fn(1, 1)
+            if result ~= "refused" or not string.find(tostring(detail), "size 2..4", 1, true) then
+                return "hollow", "a party of one is not hosted; read " .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", "refused, as it must be: " .. describe(detail)
+        end)
+        step("launch.party", function()
+            local fn = verb("launch", "party")
+            if not fn then return missing("launch", "party") end
+            local result, party = fn()
+            if result ~= "ok" or type(party) ~= "table" or party.role ~= 1 or party.size ~= 1
+                or party.launched ~= false or party.frame_locked ~= true then
+                return "refused", "a solo test run is role 1 of 1, not launched, frame-locked; read "
+                    .. describe(result) .. " " .. describe(party)
+            end
+            return "ok", "role 1 of 1, launched=false, frame_locked=true, mail_answers=" .. tostring(party.mail_answers)
+        end)
+        step("launch.close", function()
+            local fn = verb("launch", "close")
+            if not fn then return missing("launch", "close") end
+            local result, state = fn()
+            if result ~= "ok" or state ~= "closed" then
+                return "refused", "close with no live seat closes at once; read " .. describe(result) .. " " .. describe(state)
+            end
+            return "ok", "state " .. state .. " (no live seat: no grace)"
+        end)
+
+        -- raid seam37 scripts_tab_party_play: ONE SEAM ROW (SEAM_COUNT +1, @seam-count +1), no new verb
+        -- (VERB_COUNT unchanged). The Scripts tab is a plugin, not a driver verb; what it needs from
+        -- the driver is two CHANGED readings, which only exist once the cross-seam hook patch
+        -- build/seam_state/matthew-mbp-m4-raid-b1-seam37/scripts_tab_party_play.hook.patch is applied
+        -- (torirs_plugin_drive.c, raid.lua, plugin_api.meta.lua):
+        --   * api.drive.party() / t.launch.party() gains launch_session and launch_token: the session
+        --     this client's driver last opened ("" until one is open, "" again once its close lands),
+        --     so another plugin of the same client (the tab's PARTY block) can read launch/status and
+        --     send Stop all / close for the party a Play brought up;
+        --   * api.drive.play's party table takes windowed = {[seat] = true} (the tab's Windowed tick),
+        --     handed to QD.launch._party_up as options.party.windowed: that seat spawns with headless=0.
+        --     A conformance run cannot spawn a window; the Windowed path is proved by the tab run
+        --     (seam37 tab/runB: p2 'view attached', p3 'presents nothing').
+        -- PLACE: right AFTER step("launch.close", ...) of client_launch_channel's rows (it opens and
+        -- closes a session of its own, so the rows before it are untouched).
+        seam("seam.launch_own_session", function()
+            local open_fn, party_fn, close_fn = verb("launch", "open"), verb("launch", "party"), verb("launch", "close")
+            if not (open_fn and party_fn and close_fn) then return missing("launch", "open/party/close") end
+            local opened_result, opened = open_fn({ size = 2, port = 0 })
+            if opened_result ~= "ok" or type(opened) ~= "table" then
+                return "refused", "open{size=2} should answer ok; read " .. describe(opened_result) .. " " .. describe(opened)
+            end
+            local _, while_open = party_fn()
+            local seen_session = type(while_open) == "table" and while_open.launch_session or nil
+            local seen_token = type(while_open) == "table" and while_open.launch_token or nil
+            local closed_result, state = close_fn()
+            local _, after_close = party_fn()
+            local after_session = type(after_close) == "table" and after_close.launch_session or nil
+            if seen_session ~= opened.session or type(seen_token) ~= "string" or #seen_token < 16 then
+                return "refused", "while open, drive.party().launch_session should be " .. tostring(opened.session)
+                    .. " with its token; read session=" .. tostring(seen_session) .. " token length "
+                    .. tostring(seen_token and #seen_token)
+            end
+            if closed_result ~= "ok" or after_session ~= "" then
+                return "refused", "after the close lands, launch_session should be \"\"; read close "
+                    .. describe(closed_result) .. " " .. describe(state) .. ", session=" .. describe(after_session)
+            end
+            return "ok", "drive.party() named session " .. seen_session .. " (token " .. #seen_token
+                .. " chars) while open, and \"\" once its close (" .. tostring(state) .. ") landed"
         end)
 
         -- PROTECTION PRAYERS BLOCK A WAVE NYLOCAS'S HIT (raid seam6
