@@ -9,9 +9,12 @@ QD.raid._play_plan("tob_bloat", {
     -- ENCOUNTER_TIMING.md 3.1 (blert BLOAT_DOWN_CYCLE_TICKS = 32): DOWN on T
     -- (seq 8082), attackable T+1..T+28, STOMP T+29, rise T+30..T+32, UP T+33.
     down_seq = 8082, down_ticks = 32, stomp_age = 29, rise_age = 30, up_age = 33,
-    -- tob.constant ^tob_bloat_stomp_range = 6 ([M65]: no source gives a
-    -- number), a huntall from Bloat's south-west tile.
-    stomp_range = 6,
+    -- tob.constant ^tob_bloat_stomp_range = 5 from Bloat's CENTRE tile (raid
+    -- seam48: tob_bloat.rs2's huntall from movecoord(npc_coord, 2, 0, 2); "it
+    -- will stomp the surrounding area", wiki_Pestilent_Bloat.wikitext:92;
+    -- Blert's 27 Normal trio downs: footprint + 3, [M65]).  stomp_centre is
+    -- the centre's offset from the south-west tile the npc row carries.
+    stomp_range = 5, stomp_centre = 2,
     -- ENCOUNTER_TIMING.md 3.4: graphics 1570-1573 mark the landing tile.
     shadow_lo = 1570, shadow_hi = 1573,
     -- Geometry local to Bloat's 64x64 map square (tob_bloat.lua: floor
@@ -142,7 +145,8 @@ function QD.raid._play_bloat_decide(st, v)
         hide_x = math.max(O.x + P.tank[1] - 1, math.min(O.x + P.tank[3] + 1, hide_x))
         hide_z = math.max(O.z + P.tank[2] - 1, math.min(O.z + P.tank[4] + 1, hide_z))
     end
-    local in_stomp = math.max(math.abs(v.me.x - b.x), math.abs(v.me.z - b.z)) <= P.stomp_range
+    local in_stomp = math.max(math.abs(v.me.x - (b.x + P.stomp_centre)), math.abs(v.me.z - (b.z + P.stomp_centre)))
+        <= P.stomp_range
     local hidden = math.max(math.abs(v.me.x - hide_x), math.abs(v.me.z - hide_z)) <= 1
     local on_shadow = v.shadows[v.me.x * 100000 + v.me.z] == true
     local leave_age = P.stomp_age - 1 - math.ceil((P.stomp_range + 1) / QD.RAID_PLAY_RUN_TILES)
@@ -155,12 +159,24 @@ function QD.raid._play_bloat_decide(st, v)
     -- t193, t264: the run round the tank's corner is longer than the
     -- distance); with the tick none landed in survey_4.  The farthest case
     -- (distance 0) is the old age.
+    -- raid seam48: the hunt is from the centre now (d_sw is the distance
+    -- from Bloat's centre tile).  The spare tick stays: the fixer's -1 let
+    -- the stomp land on p0 at every down of the closer's survey (_play_bloat
+    -- t123, t197: a hand dodge west then the run north round the corner took
+    -- three ticks for a three-tile need), so the run is still not straight.
     if N.leave_from_here and phase == "down" then
-        local d_sw = math.max(math.abs(v.me.x - b.x), math.abs(v.me.z - b.z))
+        local d_sw = math.max(math.abs(v.me.x - (b.x + P.stomp_centre)), math.abs(v.me.z - (b.z + P.stomp_centre)))
         local need = math.max(0, P.stomp_range + 1 - d_sw)
         leave_age = math.max(leave_age, P.stomp_age - 2 - math.ceil(need / QD.RAID_PLAY_RUN_TILES))
         if st.down ~= nil and st.down.leave_at == nil and age >= leave_age then
             st.down.leave_at = { age = age, d_sw = d_sw }
+        end
+        -- raid seam48 (closer): a raider who has started the run keeps
+        -- running.  leave_age is read from the tile it stands on, so a step
+        -- out (a hand dodge) pushed the age a tick later and the next tick's
+        -- attack press walked it back in (_play_bloat p0 t120-t121).
+        if st.down ~= nil and st.down.leave_at ~= nil then
+            leave_age = math.min(leave_age, st.down.leave_at.age)
         end
     end
     -- raid seam32: the most one fly lands with Protect from Missiles (W:673).

@@ -7011,3 +7011,59 @@ a fallback.
 Each raider takes one red, picked by role in slot order, and only during the 10-tick
 summon animation (W:928). Killing every red took P2 to 307-350 ticks and a 5-tick window
 to 259-335; the 10-tick window gave 270-310, measured on five names.
+
+## t.raid.own_anim: the swings a raider's own screen shows it start (seam48)
+
+`t.raid.own_anim()` answers `ok, {seq, tick, starts, history, anim}`. It reads
+`api_drive.players`' `me` row, which `drive_own_animation_watch` in
+`src/plugin/torirs_plugin_drive.c` fills every frame from the local player's
+drawn action track. `history` holds the newest eight starts, oldest first, as
+`{n, seq, tick}`. `n` counts from 1, so a reader keeps the last `n` it took.
+`tick` is on `t.tick`'s axis: the tick read now less the start's age in client
+cycles divided by 30. Flooring two cycle counts gave a constant -1. On a
+Lumbridge goblin, unarmed, the starts matched the server's `player_anim` rows
+tick for tick (scratch s48oa2: 7 of 7; conformance row `raid.own_anim`: 6 of 6).
+Every row of `api_drive.players` also carries `anim`, the seq drawn now (-1 none).
+
+It is the draw, not the wire. A seq refused by a higher-priority incumbent, or
+re-sent while still playing under replay mode 2, shows no start. A weapon
+whose swing outlasts its attack speed under replay mode 2 would go unseen, and
+the re-press would fire after speed + 1 ticks.
+
+## In a party every raider takes its swings from its own screen (seam48)
+
+`_play_see` reads the tick log's `player_anim` rows only in a solo run. In a
+party, `api_drive.players`' pid is not the log's pid, and the leader counted
+another raider's swings as its own (survey: log pid 0 swung 13 times, the
+library counted 12). Every raider, leader included, now takes its swings from
+`t.raid.own_anim`. In the closer's `_play_bloat` survey every raider's library
+count equalled its own screen's: the `play.fight` row ends "own screen saw N
+weapon starts". Before this, a member counted a phantom swing every
+weapon-speed ticks and never re-pressed after the server stopped its swings.
+
+## _play_attack re-presses after speed + 1 ticks with no swing (seam48)
+
+The press goes out when no swing has shown for speed + 1 ticks after the
+newest of the logged swing, the seen swing and the press. It was speed + 2,
+with phantom swings on members. Party members in `_play_bloat` now have gaps
+of 2 ticks at most where they stood in reach without input (seam42: 20 ticks,
+twice).
+
+## Bloat's stomp reach is measured from his centre tile (seam48)
+
+The content hunts from `movecoord(npc_coord, 2, 0, 2)` with range 5: the
+footprint plus 3 tiles on every side. The plan's `in_stomp` and the leave
+distance use `b + stomp_centre` (2). The leave margin stays at -2: with -1,
+p0 was stomped on every down of the closer's first survey. A hand dodge west
+and the run north round the corner took three ticks for a three-tile need.
+A raider that has started the run also keeps running. `leave_age` is read
+from the tile it stands on, so a step out pushed the age a tick later, and
+the next attack press walked it back in. With both, `tech.leave_before_stomp`
+passed on 3 of 3 names with 0 stomp hits.
+
+## A Nylocas member's XP rise is a probe, not a swing (seam48)
+
+`raid_play_tob_nylocas.lua` used to add each XP rise as a member swing. With
+the own-screen swings that counted each swing twice, the second a tick or
+more late. Every raider now records the XP rise in `ny.xp_probe`
+(note.xp_swing_lag) and nothing else.

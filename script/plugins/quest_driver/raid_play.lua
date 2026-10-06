@@ -29,7 +29,8 @@
 -- the server's registers, `::tob*` readouts, the seed, the tick log's hidden
 -- columns.  The one tick-log kind it reads is `player_anim` for its own pid
 -- (the swing it sees itself make) and, to stop, the boss's `npc_death`; a
--- member (no tick log) counts its swings from its presses and the speed.
+-- member (no tick log) reads the swings its own screen shows it start
+-- (t.raid.own_anim, raid seam48 member_swings_seen).
 --
 -- THE SKILLS, each a small function below with its source in a comment
 -- (PLAY_NOTES.md "Skills"): _play_attack (attack on cooldown), _play_pray
@@ -83,6 +84,9 @@ QD.RAID_PLAY_EAT_DELAY = 3
 QD.RAID_PLAY_DRINK_DELAY = 3
 -- Running moves two tiles a tick (wiki Energy: run); used to time a leave.
 QD.RAID_PLAY_RUN_TILES = 2
+-- 30 client cycles per game tick (ENCOUNTER_TIMING.md 1.2:
+-- CYCLES_PER_GAME_TICK = 600/20; src/app.h APP_SERVER_TICK_LOGIC_CYCLES).
+QD.RAID_PLAY_CYCLES_PER_TICK = 30
 
 -- THE PLANS.  One table per room, each registered by its own driver part
 -- (raid_play_tob_bloat.lua, raid_play_tob_maiden.lua, ...: after this file in
@@ -160,6 +164,11 @@ function QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
         last_swing = -1000, engaged = false, engaged_tick = -1000, last_eat = -1000, last_drink = -1000,
         walk_target = nil, boss_seen = false, boss_gone = 0, boss_slot = nil, anim_serial = 0,
         death_serial = 0, log = false, my_pid = nil,
+        -- raid seam48: the own-animation starts read so far (t.raid.own_anim)
+        -- and the weapon swings among them, on every raider; a member's
+        -- swings ARE these, the leader keeps its log's and records these
+        -- beside them (the summary's "seen" count)
+        own_starts = 0, seen_swings = {},
     }
     -- The tick log is the leader's; a member reads none (README "A party run").
     local lr = QD.ticklog.rows({ kind = "mark" })
@@ -185,7 +194,55 @@ function QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
             if r.me then st.my_pid = r.pid end
         end
     end
+    -- the starts before this room are not this room's swings
+    local orr, own = QD.raid.own_anim()
+    if orr == "ok" then st.own_starts = own.starts end
     return st
+end
+
+-- t.raid.own_anim() -> "ok", {seq, tick, starts, history, anim} |
+-- not_found | unsupported.  Raid seam48 member_swings_seen: what this
+-- raider's own screen shows its character START playing -- the action seq
+-- the server sent it, as the model draws it (api_drive.players' `me` row,
+-- watched every frame by torirs_plugin_drive.c drive_own_animation_watch).
+-- `seq`/`tick`: the newest start (-1 before the first); `starts`: how many
+-- this client has seen; `history`: the newest starts, oldest first, as
+-- {n, seq, tick} (n counts from 1, so a reader keeps the last n it took);
+-- `anim`: the seq drawn now (-1 none).  Ticks are t.tick's (the server
+-- tick, or the party's lockstep tick on a member): the tick read now less
+-- the whole ticks the start is old (its age in client cycles / 30), so a
+-- member's swing and the leader's log row sit on one axis.  A party member has no tick log; before this it COUNTED
+-- a swing every weapon-speed ticks and never re-pressed after the server
+-- stopped its swings (seam42 _play_bloat: p3 in reach, no input for 20
+-- ticks of a down, twice).  What the screen shows and no more: a seq a hit's
+-- higher-priority block seq refused, or one re-sent while still playing
+-- under replay mode 2, shows no start.
+function QD.raid.own_anim()
+    local pr, rows = api_drive.players()
+    if pr ~= "ok" then
+        return pr, "t.raid.own_anim: api_drive.players answered " .. tostring(pr)
+    end
+    local tr, now = QD.tick()
+    if tr ~= "ok" then
+        now = api_drive.tick()
+    end
+    for _, row in ipairs(rows) do
+        if row.me then
+            if row.seq_starts == nil then
+                return "unsupported", "t.raid.own_anim: this binary's api_drive.players has no seq_starts (rebuild)"
+            end
+            local history = {}
+            for _, h in ipairs(row.seq_history) do
+                history[#history + 1] = { n = h.n, seq = h.seq, tick = now - h.age // QD.RAID_PLAY_CYCLES_PER_TICK }
+            end
+            local newest = history[#history]
+            return "ok", {
+                seq = row.seq, tick = newest and newest.tick or -1,
+                starts = row.seq_starts, history = history, anim = row.anim,
+            }
+        end
+    end
+    return "not_found", "t.raid.own_anim: this client has not placed its own player yet"
 end
 
 -- SEE: what a person at the screen reads this tick.
@@ -216,8 +273,15 @@ function QD.raid._play_see(st)
             end
         end
     end
-    -- the swing animation of the player's own weapon (player_anim, own pid)
-    if st.log then
+    -- the swing animation of the player's own weapon (player_anim, own pid).
+    -- SOLO only (raid seam48): in a party the library's st.my_pid is
+    -- api_drive.players' pid, which is not the log's (the maiden seam32
+    -- finding, s32mzn1), so the leader read another raider's swings as its
+    -- own (seam48 survey _play_bloat: the leader's log pid 0 swung 13 times,
+    -- the library counted 12, pid 1's).  In a party every raider, the leader
+    -- included, takes its swings from its own screen (below), which matched
+    -- the log tick for tick (scratch s48oa2: 7 of 7, offset 0).
+    if st.log and (st.party or 1) <= 1 then
         local ar, rows = QD.ticklog.rows({ kind = "player_anim", since = st.anim_serial })
         if ar == "ok" then
             for _, row in ipairs(rows) do
@@ -226,6 +290,24 @@ function QD.raid._play_see(st)
                     if row.tick > st.last_swing then
                         st.last_swing = row.tick
                         st.swings[#st.swings + 1] = row.tick
+                    end
+                end
+            end
+        end
+    end
+    -- raid seam48: the swings this raider's own screen shows it start
+    -- (t.raid.own_anim).  A member has no log, and a party leader's log read
+    -- cannot tell its own pid (above): for both, these are its swings.
+    local orr, own = QD.raid.own_anim()
+    if orr == "ok" then
+        for _, h in ipairs(own.history) do
+            if h.n > st.own_starts then
+                st.own_starts = h.n
+                if st.weapon.seqs[h.seq] then
+                    st.seen_swings[#st.seen_swings + 1] = h.tick
+                    if not (st.log and (st.party or 1) <= 1) and h.tick > st.last_swing then
+                        st.last_swing = h.tick
+                        st.swings[#st.swings + 1] = h.tick
                     end
                 end
             end
@@ -247,22 +329,25 @@ end
 -- its own every `speed` ticks (wiki Attack speed: "the number of ticks
 -- between attacks"); a click is needed only to START the fight or after a
 -- step cleared it.  So the press goes out when the plan wants a swing and
--- the player is not engaged, or no swing was seen for speed + 2 ticks.  A
--- member with no tick log counts a swing every `speed` ticks of engagement.
+-- the player is not engaged, or no swing was seen inside the speed window:
+-- the swing due `speed` ticks after the last one (or after the press) did
+-- not show, and one tick of grace for the frame it shows on, so the press
+-- goes out the tick after that (raid seam48; it was speed + 2 before).
+-- Every swing here is SEEN: the leader's from its tick log, every raider's
+-- from its own screen (t.raid.own_anim, _play_see; raid seam48: a member
+-- used to count a phantom swing every `speed` ticks of engagement, so the
+-- re-press below never fired for it after the server stopped its swings).
 -- Returns true when this tick should carry an attack press.
 function QD.raid._play_attack(st, v, want)
     if not want then
         return false
     end
     local speed = st.weapon.speed
-    if not st.log and st.engaged and v.tick - math.max(st.last_swing, st.engaged_tick) >= speed then
-        st.last_swing = v.tick
-        st.swings[#st.swings + 1] = v.tick
-    end
     if not st.engaged then
         return true
     end
-    return v.tick - math.max(st.last_swing, st.engaged_tick) > speed + 2
+    local seen = st.seen_swings[#st.seen_swings] or -1000
+    return v.tick - math.max(st.last_swing, seen, st.engaged_tick) > speed + 1
 end
 
 -- The next tick the weapon is ready (the "free" tick to eat on: "If your
@@ -900,6 +985,7 @@ function QD.raid._play_summary(st)
         st.start_tick, tostring(st.end_tick), #st.downs, #st.swings, #st.eats, #st.drinks, st.dodges, flinch,
         ticks, hist[1], hist[2], hist[3], hist[4], st.attack_presses or 0, table.concat(blocks, ", "),
         #st.lines > 0 and table.concat(st.lines, " | ") or "no refusals")
+        .. string.format("; own screen saw %d weapon starts", #st.seen_swings)
         .. QD.raid._play_summary_seam31(st)
 end
 

@@ -1724,3 +1724,17 @@ magic potion (103). Not a content row.
 - CONTENT: the P3 tornado reaches a raider on her east edge (round her body, 12+ tiles) about every 28
   ticks per raider (respawn 16, tob.constant ^tob_verzik_p3_tornado_respawn); W:981 calls a touch "the
   off chance". A ball landing with a touch (74 + 50% of current) is lethal at any hitpoints (e18 svb).
+
+## Seen by seam48 (member_swings_seen)
+
+### Crystal halberd special: the large-target second hit is not implemented (pvm_dragon_halberd.rs2, sa_kind 19)
+special_attack.obj gives crystal_halberd sa_kind 19 (300 energy), the dragon halberd's Sweep. The script's own header
+says it implements only "a single hit with the unconditional +10% damage boost"; the second hit "if used against
+'large' monsters (anything larger than 1x1)" (wiki Dragon halberd, quoted there) is NOT reproduced because the
+engine has no npc_size opcode. Bloat is 5x5: the real trios' down-1 special (17 of 19 Blert Normal trios, seam42)
+would do about half its damage here. Needs an npc_size opcode, then the second hit at 25% reduced accuracy.
+### Bloat stomp reach: centre-based (landed, seam48)
+tob_bloat.rs2 huntall(movecoord(npc_coord, 2, 0, 2), ^tob_bloat_stomp_range = 5): "it will stomp the surrounding
+area" (wiki_Pestilent_Bloat.wikitext:92) + Blert's 27 downs (footprint+2: 23/27, +3: 4/10, >=4: 0/10). [M65] grade D.
+The plan moved with it in the same commit (centre distance, leave margin kept at -2, the leave locked once
+started): tech.leave_before_stomp PASS 3 of 3, 0 stomp hits (closer survey 2).

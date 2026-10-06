@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 229 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 230 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 229
+-- @verb-count 230
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -161,7 +161,7 @@
 -- @seam-count 218
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 229
+local VERB_COUNT = 230
 local SEAM_COUNT = 218
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
@@ -15064,6 +15064,80 @@ return {
             return "ok", "reused world slot " .. s2 .. " (" .. st.death_serial_seeded.earlier .. " earlier death row) did not stop the play; "
                 .. "4 ticks of a failing lookup played on; its death stopped it (" .. tostring(st.stop) .. "); wind strike "
                 .. table.concat(firsts, ",") .. " -> " .. t.raid._play_press_text(st3)
+        end)
+
+        -- (merged by the seam48 closer; VERB_COUNT +1, SEAM_COUNT unchanged)
+        -- raid seam48 member_swings_seen: t.raid.own_anim (raid_play.lua), the swings
+        -- this raider's own screen shows it start (api_drive.players' `me` row:
+        -- seq, seq_tick, seq_starts, seq_history; torirs_plugin_drive.c
+        -- drive_own_animation_watch, every frame).  A party member has no tick log,
+        -- so the play library used to COUNT a phantom swing every weapon-speed ticks
+        -- and never re-pressed after the server stopped its swings.
+        --
+        -- Proved by scratch s48oa2 (build/quest_gate/s48oa2/ledger.tsv rows 5-6,
+        -- 2026-10-06): unarmed on a Lumbridge goblin, log 7 swings
+        -- [7,11,15,19,23,27,31], seen 7 [7,11,15,19,23,27,31], offsets all 0; none
+        -- seen after a step-away.
+        step("raid.own_anim", function()
+            local fn = verb("raid", "own_anim")
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            if not fn then return missing("raid", "own_anim") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            local G = "goblin_unarmed_melee_1"
+            local r0, own0 = fn()
+            if r0 ~= "ok" or type(own0) ~= "table" or type(own0.starts) ~= "number" then
+                return "fail", "own_anim before the fight answered " .. describe(r0) .. " / " .. describe(own0)
+            end
+            t.ticklog.start()
+            setup_cheat("::setlevel attack 1")
+            setup_cheat("::setlevel strength 1")
+            if goto_tile(3241, 3247, 0) ~= "ok" then return "no_subject", "goto the goblin field" end
+            setup_cheat("::spawn " .. G)
+            setup_cheat("::passive " .. G)
+            settle(3)
+            local _, from_tick = t.tick()
+            local ar = attack(G, 2, 20)
+            if ar ~= "ok" then
+                setup_cheat("::kill " .. G .. " 12")
+                return "no_subject", "attack the goblin answered " .. describe(ar)
+            end
+            -- read once a tick, as the play loop does; the unarmed swings
+            -- (punch 422, kick 423; wiki Unarmed: speed 4) by start number
+            local seen, last_n = {}, own0.starts
+            for _ = 1, 20 do
+                settle(1)
+                local rr, own = fn()
+                if rr == "ok" then
+                    for _, h in ipairs(own.history) do
+                        if h.n > last_n then
+                            last_n = h.n
+                            if h.seq == 422 or h.seq == 423 then seen[#seen + 1] = h.tick end
+                        end
+                    end
+                end
+            end
+            setup_cheat("::kill " .. G .. " 12")
+            settle(2)
+            local lr, rows = t.ticklog.rows({ kind = "player_anim" })
+            local logged = {}
+            if lr == "ok" then
+                for _, row in ipairs(rows) do
+                    if (row.seq == 422 or row.seq == 423) and row.tick >= from_tick then logged[#logged + 1] = row.tick end
+                end
+            end
+            -- the screen saw every swing the server made, on the server's tick
+            local n = math.min(#seen, #logged)
+            local same = n >= 3 and math.abs(#seen - #logged) <= 1
+            for i = 1, n do
+                if seen[i] ~= logged[i] then same = false end
+            end
+            if not same then
+                return "fail", "seen [" .. table.concat(seen, ",") .. "] vs the log's player_anim [" .. table.concat(logged, ",") .. "]"
+            end
+            return "ok", string.format("%d swings seen on the server's own ticks [%s] (log [%s])", #seen,
+                table.concat(seen, ","), table.concat(logged, ","))
         end)
 
         -- raid seam31 play_tob_nylocas_green (merged by the seam31 closer): the

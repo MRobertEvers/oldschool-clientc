@@ -581,15 +581,14 @@ function QD.raid._play_nylocas_decide(st, v)
         if hx ~= nil and mx ~= nil then
             if ny.xp_hp ~= nil and (hx > ny.xp_hp or mx > ny.xp_mg) then
                 ny.xp_swings = (ny.xp_swings or 0) + 1
-                -- the leader keeps its log read and records the XP read beside
-                -- it (the harness compares the two: note.xp_swing_lag)
-                if st.log then
-                    ny.xp_probe = ny.xp_probe or {}
-                    if #ny.xp_probe < 40 then ny.xp_probe[#ny.xp_probe + 1] = v.tick end
-                elseif v.tick > st.last_swing then
-                    st.last_swing = v.tick
-                    st.swings[#st.swings + 1] = v.tick
-                end
+                -- every raider records the XP read beside its swings (the
+                -- harness compares the two: note.xp_swing_lag).  Raid seam48
+                -- (closer): a member's swings are the starts its own screen
+                -- shows (raid_play.lua _play_see, t.raid.own_anim), so an XP
+                -- rise is no longer added as a swing -- it would count each
+                -- swing twice, the second a tick or more late.
+                ny.xp_probe = ny.xp_probe or {}
+                if #ny.xp_probe < 40 then ny.xp_probe[#ny.xp_probe + 1] = v.tick end
             end
             ny.xp_hp, ny.xp_mg = hx, mx
         end
