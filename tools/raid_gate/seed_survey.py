@@ -63,6 +63,7 @@ def main():
     parser.add_argument("--names", type=int, default=5, help="how many names in all, the test's own included")
     parser.add_argument("--party", type=int, default=0, help="party size passed to run.py (the name is the leader's)")
     parser.add_argument("--skip-own", action="store_true", help="do not re-run the test's own name")
+    parser.add_argument("--jobs", type=int, default=1, help="names run at once (each party picks its own loopback port; the runs are independent)")
     arguments = parser.parse_args()
     assert 2 <= arguments.names <= len(OTHER_NAME_PREFIXES) + 1, "--names must be 2..%d" % (len(OTHER_NAME_PREFIXES) + 1)
 
@@ -82,11 +83,24 @@ def main():
         name = other_name(prefix, arguments.test_id)
         plan.append((name, runner + ["--script", script_copy, "--name", name] + common))
 
-    results = []
-    for name, command in plan:
+    def run_one(entry):
+        name, command = entry
         log_path = os.path.join(survey_directory, name + ".log")
         with open(log_path, "w") as log:
             subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+        return name
+
+    results = []
+    if arguments.jobs > 1:
+        # Every name is a private run directory and a party picks a free
+        # loopback port, so names are independent; only the build must be
+        # done first (run.py --no-build is passed by `common`).
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=arguments.jobs) as pool:
+            list(pool.map(run_one, plan))
+    for name, command in plan:
+        if arguments.jobs <= 1:
+            run_one((name, command))
         run_directory = os.path.join(ROOT, "build", "quest_gate", name)
         verdict, rows, failing = read_ledger(run_directory)
         reading = ""
