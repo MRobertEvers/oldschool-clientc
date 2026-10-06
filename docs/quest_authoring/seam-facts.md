@@ -1562,9 +1562,10 @@ were already exactly +6400, so the cellar ladders that worked still land on the 
 `enterDungeonForBoots` PASS). Proof: scratch `b54s2_cellar_before2` FAIL "You can't go any
 further." at 2594,3086,0 -> `b54s2_cellar_after` 10/0, tile 2594,9486,0, Wizard Frumscone at
 2588,9489, `quest.stage.frumscone_done` 95. Rows: `test/quests/wip/swansong/relay.md`.
-OPEN: `ladder_from_cellar` (17385) in that basement climbs to 2594,9486 **level 1** by the plane
-default; LostCity `loc_1755` is `movecoord(coord(), 0, 0, -6400)` (`ladders.rs2:87-94`). It has
-about 50 placements, some on level 1, so it needs its own audit; leave a basement by `goto_tile`.
+FIXED by matthew-mbp-m4-b66-seam1 (b) -- was OPEN: `ladder_from_cellar` (17385) in that basement
+climbs to 2594,9486 **level 1** by the plane default; LostCity `loc_1755` is `movecoord(coord(), 0,
+0, -6400)` (`ladders.rs2:87-94`). A rowless copy now leaves by the ladder (-6400); climb it with
+`t.player.climb`, not `goto_tile`.
 
 (b) **`no npc ... in the client's entity pool` on the first `talk_to` after a ladder into a new
 mapsquare.** `click_loc` returns on `map_flag` while the player is still walking to the ladder, so
@@ -2469,7 +2470,7 @@ the Shadow of the Storm arm of the portal still lands at `^sots_throne` 2720,491
 `world.lua`, see verbs-pointer: A double door's open leaf lands a frame late. Conformance
 `seam.pass_door_awaits_a_late_open_leaf`.
 
-(c) **OPEN: the Uzer ruin stairs cannot be pressed from the arch tile 3491,3090.**
+(c) **FIXED by matthew-mbp-m4-b66-seam1 (a) below -- was OPEN: the Uzer ruin stairs cannot be pressed from the arch tile 3491,3090.**
 `golem_insidestairs_top` (model 6071, s10 r1 at 3492,3090,0) is a rim round an open stairwell; the
 loc projector aims at the footprint centroid, which projects into the pit where nothing is drawn
 (TORIRS_PICK_DEBUG=all: zero hits there, not even terrain), and the stairs are held only 75-105 px
@@ -2498,3 +2499,87 @@ mortton, mourningsendpartii, sheepherder); all ten were reopened. `helper_covera
 crosses membergater at margin 400).
 
 (e) **OPEN OWNER QUESTION: a staged level is a stat change** -- verbs-pointer: teleport_cast.
+
+## Seam pass matthew-mbp-m4-b66-seam1 (2026-10-06, batch matthew-mbp-m4-b66)
+
+(a) **A loc whose footprint centroid is a hole is pressed where its faces are drawn -- after the
+hunt, never instead of it** (uzer_stairs_press_aims_where_the_renderer_draws_the_model_not_at_the_
+stairwell_pit; closes b65 (c)). The loc projection is the footprint centroid on the ground; for
+`golem_insidestairs_top` (model 6071, a rim round the open Uzer stairwell) that pixel is the pit and
+every pose answered `covered ... none of 99 pixels hittested around the projected 382,240 holds it`.
+Now, ONLY after the whole pose sweep and pixel hunt said `covered`, and only for a loc,
+`click_minimenu` calls `QD.drive._model_aim` (pointer.lua): `api_drive.model_points(element,
+x, y, max)` (`torirs_plugin_drive_pointer.c` `drive_pointer_model_points`) lists the screen centroids
+of the element's visible, unclipped, non-sliver faces (the scene element's `world_position` and
+model, placed the way `app_overlay_outline_element_mesh_trans` places them), nearest the projection
+first; each is PROBED and pressed only when the renderer's own pickset holds the element there. A
+wrong candidate costs a probe, never a press, and no press that landed before can move -- the b65
+attempt MOVED the aim and broke vampire, losttribe, misc, misc_astrid and mountaindaughter. The row
+detail (the folded note) reads `click_minimenu: model aim: face centroid 394,258 (+12,+18 off the
+projected 382,240) held on probe 1 of 9 candidate(s) from 18 face(s)`; a miss reads `model aim: none
+of N face centroid(s) probed holds element E ...` or `model aim: not_visible for element E (F
+face(s))` inside the `covered` detail. `QD.drive._model_aim_last` holds the last aim found.
+Conformance `seam.stairwell_pressed_on_its_model_from_the_arch` (SEAM_COUNT 125): Climb-down from
+3491,3090 lands 2721,4886,0 through the model aim, and the control (`spiralstairsbottom_3`, shape 10,
+from the side tile 3205,3228) lands on press 1 with no model aim; it FAILS `covered` on the HEAD-C
+binary (conf_base) and passes 311/311 with the fix. Regressions on the rebuilt `torirs_b66engine`:
+vampire 60/0, losttribe 178/0, misc 208/0, misc_astrid 193/0, mountaindaughter 164/0, prince 78/0,
+cooks_assistant 78/0, druid 55/0, coldwar 250/0, entertheabyss 77/0, viking 403/0,
+thefremennikisles 502/0. Two viking rows now land through the model aim instead of the old recovery
+(`goBackUpstairs.down`: before, covered -> pressed again from the trapdoor's other side; now
+`model aim: face centroid 65,269 (-317,+16 ...)` on the first side; `fillVase`: the hunt's remembered
+offset no longer held, the model aim did) -- same outcome, different pixel. Golem copy (both
+`t.blocked` removed, enterRuin `dest={2721,4886,0}`, `same_level="maplink_0_54_48_35_18_down"`,
+leaveRuin `dest={3491,3090,0}`, `same_level="maplink_0_42_76_33_22_up"`) 133/0 to
+`quest.varp_complete`; Shadow of the Storm copy pressing from 3491,3090 (not 3493,3090) 131/0.
+
+(b) **A `ladder_from_cellar` with no maplink row climbs OUT of the dungeon (-6400), not one plane
+up** (ladder_from_cellar_with_no_maplink_row_climbs_one_plane_instead_of_out_of_the_dungeon; closes
+the b54-seam2 OPEN line above). The loc's category (`climb_up_ladder`) reaches `~climb(1)`, whose
+maplink miss is the +1 PLANE default, so a rowless copy stood the player on plane 1 of the same
+dungeon tile: Clock Tower's white-room ladder `2575,9656,0 -> 2575,9656,1`, the Asgarnian Ice
+Dungeon ladder `3009,9550,0 -> 3009,9550,1` (scratch `lfc_pre`, both FAIL). 49 copies are placed,
+all underground (z 9482 and up); 21 have no row from any side. A name binding
+`[oploc1,ladder_from_cellar]` in `ladders_stairs/scripts/ladders.rs2` (beside `ladder_cellar`'s)
+animates, lets a maplink row answer first (`~maplink_try(1)`), and otherwise `p_telejump`s to
+`movecoord(coord, 0, 0, -6400)`. Source: LostCity_Content2
+`scripts/ladders+stairs/scripts/ladders.rs2:87-94` `[oploc1,loc_1755]` (-6400), whose 1755 is placed
+on the same tiles (`m40_150.jm2:7424`, `m47_149.jm2:3712`); every row the harvest wrote for a
+`ladder_from_cellar` is already src -6400 but one (3097,9868, which still answers first). Proof
+(`lfc_post` 6/0): cog's copy lands 2575,3256,0, squire's 3009,3150,0, the rowed druid control
+2884,3398,0 unchanged; copies of cog (climbWhiteLadder up the ladder) 89/0 and squire (out of the
+Ice Dungeon by the ladder, no staged Magic or Lumbridge Teleport) 86/0, both helper_coverage FULL.
+NOT CONFIRMED: the OSRS-only copy 1623,9932 (no LostCity 1755) lands 1623,3532 by the same rule;
+`ladder_from_cellar_directional` (17387, Castle Wars' four rowless copies) keeps its category and
+still climbs +1 plane. The full suite on the new pack moved no committed green.
+
+(c) **Tears of Guthix: the climbing rocks land on their maplink row, both ways at the ledge**
+(tog_climbing_rocks_up_always_step_east_so_the_climb_back_from_junas_side_never_reaches_the_ledge).
+`[oploc1,tog_climbing_rocks_down]` / `[oploc1,tog_climbing_rocks_up]` did `p_teleport(movecoord(coord,
+2, 0, 0))` from every side, so the climb back from Juna's side (3241) landed on 3243, never the
+ledge. Now they answer with `~maplink_try(0)` (the pack's `maplink_2_50_148_*` rows, from
+shortest-path `transports.tsv`'s "# Tears of Guthix" block) and keep "You climb the rocks."; a tile
+with no row refuses with "Nothing interesting happens." (`~displaymessage(^dm_default)`, as
+`~maplink_transition` does). `tog_climbing_rocks_up` (6673, 3240,9524-9525) climbs 3239 <-> 3241;
+`tog_climbing_rocks_down` (6672, 3239,9497-9499) climbs only 3238 -> 3240 and its east side walks
+to Juna. Quest Helper `TearsOfGuthix.java:154-155` ("Go back up the rocks"). Probe
+`tog_rocks_probe2_b66s1` 17/17; tearsofguthix stays green (53/0). No before-fix ledger row: the
+pre-fix landing is read off the old code.
+
+(d) **Scorpion Catcher pays 6,625 Strength XP** (scorpcatcher_quest_complete_pays_no_strength_xp).
+`[queue,scorpcatcher_quest_complete]` paid the quest point alone; it now does `stat_advance(strength,
+66250)` (tenths) and names "6,625 Strength XP" on the scroll with the full cage as its model
+(LostCity `quest_scorpcatcher.rs2:55-60`; OSRS wiki Scorpion Catcher, Rewards). The
+`::scorpcatcherrun` debugproc mirror does the same and fails unless Strength rose by exactly 66250
+tenths. Scratch `b66s1_scorpxp_before` (HEAD pack) 9/2 `expect_gain: refused strength: before=0
+after=0` -> `b66s1_scorpxp_after` 11/0 `strength: +6625 xp (whole units)`. A content BEFORE row is
+made with the scratch pack in running.md ("To show a content seam's behaviour BEFORE the fix"); the
+same `TORIRSSERVER_SCRIPTS` env runs the server selftest against the HEAD pack for a failure-count
+baseline (13 = 13 here).
+
+(e) **The grader no longer credits a step to a same-named npc or another copy of its loc** --
+coverage-and-gate: A step credited to a same-named npc, or to another copy of its loc.
+
+(f) **OPEN OWNER QUESTION, unchanged: a staged level is a stat change** -- verbs-pointer:
+teleport_cast. Squire's staged Magic 31 (for the Lumbridge Teleport out of the Ice Dungeon) goes
+away once its re-author leaves by the ladder ((b) above); druid and pryingtimes still stage.

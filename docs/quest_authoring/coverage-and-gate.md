@@ -848,12 +848,14 @@ any-action-names-the-target loop drove the step.
   `_water` / `_frozen`). Not `next_obj_stage`, which walks into other objects (`oliveoil4 ->
   sacred_oil4`).
 - **What drives it.** A `use_on(item, target)` call on the step's target, or one whose row is
-  named after the step. The call's item must be in the family. That is its literal, the local it
+  named after the step when the call names no npc or loc this cache has (an unbound variable): a
+  row named after the step never stands in for a use on ANOTHER npc or loc (b66-seam1, the section
+  at the end of this file). The call's item must be in the family. That is its literal, the local it
   was bound to, or a loop over `ipairs({...})`. If the item is a variable the test never binds,
   the row's `[backpack: ... lost X]` must show the item left. A call that writes a named row needs
   a PASS of that row in the ledger (`"x" .. i` matches by prefix). Without one, the run never got
   there, and the step is refused. A row named after the step with no `use_on` counts when its
-  backpack diff lost X.
+  backpack diff lost X; a row a `use_on` line writes is judged by that call's target only.
 - **Otherwise.** The other classes grade it as they grade any undriven step. UNMATCHED reads "no
   use_on of the step's item drives it: the guide's step uses <item> (<ids>) on <target>; line N
   (ledger row ...) uses <what it used>".
@@ -1064,3 +1066,45 @@ are not charged. `--calibrate` 10/39 -> 10/39. The closer's fresh runs of all 14
 (matthew-mbp-m4-b65-seam1 close) moved exactly those ten and no other queued green; all ten were
 reopened. `helper_coverage_two_op_test`'s `wt_swung_off_first` (the same Watchtower pair) now wants
 `leaveGrewIsland` DRIVEN instead of a FULL verdict.
+
+### A step credited to a same-named npc, or to another copy of its loc (matthew-mbp-m4-b66-seam1)
+
+Seam `helper_coverage_credits_a_step_to_a_same_named_npc_or_another_copy_of_its_loc`. Two ways a
+step read DRIVEN off a row that did not do it:
+
+- **A same-named npc.** `same_thing`'s display-name rule took any npc of the guide npc's display
+  name. Scorpion Catcher's questscorpiona (Taverley), questscorpionb (the Barbarian Outpost) and
+  questscorpionc (the monastery) are all "Kharid scorpion", so a run catching a, b, c credited
+  catchMonasteryScorpion to the use on questscorpionb and catchOutpostScorpion to the use on
+  questscorpiona. Now two npc or loc symbols that BOTH exist in this cache, differ, and are not in
+  each other's `family()` (multinpc/multiloc parents) are different things (`distinct_things`),
+  whatever their names share: the spelling-prefix rule no longer reads `gertrude` as
+  `gertrudescat` or `mourning_temple_pillar_1_1` as `..._1_10` either. The display-name rule is the
+  objs' alone (a guide item's rev 239 variants, `use_item_matches`). A use step is credited only by
+  a `use_on` on the step's own npc or loc (`USE_ON_OWN_TARGET`).
+- **Another copy of the loc.** The last resort credits a row whose detail merely NAMES the step's
+  loc. Cog's climbWhiteLadder (ladder_from_cellar 2575,9655) read DRIVEN off `enterBasement-black`,
+  which climbed ladder_cellar 2566,3242 and only says it landed "beside ladder_from_cellar
+  2566,9642". Now, when the guide step has a WorldPoint, such a row credits it only if it worked the
+  copy within 2 tiles (`row_off_point`, `POINT_SLACK`): the tile written right after the symbol, else
+  any world tile in the detail (four-digit x; a screen pixel pair is not one), else the copy nearest
+  where the player last stood (`player_track`, within 15 tiles). A row with no tile and no copy in
+  reach is not judged. The refusal reads "ledger row N 'x' names <loc>, but names it at <tile>, not
+  the copy within 2 tiles of the guide's x,z,l". A plain stair or ladder the run took at another copy
+  then grades TRAVEL (merged into the step it leads to), not DRIVEN.
+
+What a test does about it: catch, talk to or use on the npc the guide step names (its own symbol),
+and drive each guide step in the guide's item order. Scorpion Catcher's catchOutpostScorpion wants
+the cage holding the Taverley AND monastery scorpions (scorpioncageac): a run that catches the
+outpost scorpion second (cage a) reads UNMATCHED there until it visits the monastery first.
+
+Proof: `tools/quest_gate/helper_coverage_use_item_test.py` 16/16: `scorp_same_name` (the b66
+fixer's three catches, run3's ledger details), `scorp_named_row_elsewhere`, `cog_white_ladder_other_copy`
+(test/quests/cog.lua at 5e3675055, its ledger at OSRS-Content 6762eaf875), four `same_thing` rows,
+and `rules_off`: every case fails with `DISTINCT_SYMBOLS` / `USE_ON_OWN_TARGET` / `ROW_AT_POINT` off
+(each flag alone fails its own case). The b66 scorpcatcher fixer's file on run3's ledger reads
+catchMonasteryScorpion line 349 and catchOutpostScorpion UNMATCHED (was 299 and 234, FULL).
+Re-grading the 68 green rows against their published ledgers moved no verdict: cog climbWhiteLadder,
+grail goUpStairsBrokenCastle, misc_astrid goUpstairsToAstrid and runemysteries
+goF1ToF0LumbridgeCastle went DRIVEN -> TRAVEL (each was credited to another copy of a stair).
+`--calibrate` 11/39 -> 12/39 (scorpcatcher now agrees with the audit's TEST_GAP).

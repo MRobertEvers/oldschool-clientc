@@ -269,7 +269,10 @@ stats staged at 20 in setup, combat 23, so the low-combat mesbox is never shown)
 for the owner: (a) accept the staged dialogue; (b) drive the low-combat branch first and stage
 only after it (conflicts with the ban on mid-run cheats); (c) a second account run (`run.py
 --name`) at combat 3 for the opening dialogue only. Until the owner rules: check every dialogue
-the run passes for a combat-level branch and say in a comment which branch the staged player sees.
+the run passes for a combat-level branch and say in a comment which branch the staged player sees. b66-seam1
+added squire (staged Magic 31, NOT CONFIRMED live, no dialogue on its route reads the level); its
+staging goes away when its re-author leaves the Ice Dungeon by the ladder (seam-facts b66-seam1 (b),
+(f)).
 
 ### `t.player.climb(spec)` -- a staircase, ladder or trapdoor, graded on the level and the landing (b60-seam1)
 
@@ -423,6 +426,20 @@ An optional fifth argument `single` (seam35) answers the FIRST press -- with its
 returns a `covered` at once instead of running the pose loop, so a caller with a cheaper recovery
 can try it first. Only `t.player.attack`'s first press passes it (verbs-combat: "A covered Attack
 press, a boss that teleports, a timed walk"); every other press is unchanged.
+
+#### After the hunt: the model aim (b66-seam1)
+
+When the whole pose sweep and pixel hunt answered `covered` on a LOC, `click_minimenu` makes one
+last try: `QD.drive._model_aim` asks `api_drive.model_points(element, x, y, max=12)` for the screen
+centroids of the element's visible faces (nearest the projection first) and PROBES each; it presses
+one only when the renderer's pickset holds the element there. It never runs before the hunt and
+never moves a press that the hunt would have landed (the b65 attempt moved the aim and broke five
+greens). The row detail then carries `model aim: face centroid X,Y (+dx,+dy off the projected
+x,y) held on probe N of M candidate(s) from F face(s)`; a miss adds `model aim: none of N face
+centroid(s) probed holds element E ...` or `model aim: not_visible for element E (F face(s))` to the
+`covered`. This is what presses a loc whose footprint centroid is a hole (the Uzer ruin stairs from
+their arch 3491,3090, seam-facts b66-seam1 (a)). A final-covered loc press costs up to 12 more
+probes.
 
 #### The 8,192-row loc pool and the instruction budget
 

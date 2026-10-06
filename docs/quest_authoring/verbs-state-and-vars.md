@@ -146,7 +146,9 @@ refuses both shapes. Write instead:
 - an item: `t.check(name, t.inv.expect_has("contact_keris", 1))` or `t.inv.expect_absent(...)`;
 - a tile: `local r, h = t.world.tile()` then
   `t.check(name, r == "ok" and h.x == X and h.z == Z and h.level == L, h.x .. "," .. h.z .. "," .. h.level)`;
-- a stat: `local r, s = t.skill.read("hitpoints")` then compare `s.current`;
+- a stat: `local r, s = t.skill.read("hitpoints")` then compare `s.level` (the current, boosted or
+  drained level) or `s.base_level` (the max); the reading has no `current` field
+  (torirs_plugin_drive_state.c, b66-seam1);
 - a var: `t.check(name, t.var.expect("varb...", value))`.
 
 A status from a verb that can refuse (`t.var.await`, `t.inv.expect_has`, `t.msg.expect`, ...) is the
