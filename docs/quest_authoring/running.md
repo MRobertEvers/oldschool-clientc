@@ -82,7 +82,9 @@ scratch pack (seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (i)): copy `server/
 `src/build_opt/sscompile --src <scratch>/server/scripts --content-root <scratch> --out <pack>`.
 `--content-root` must be the scratch root, not the real tree (the lane-gated rs2012 files fail to
 compile against the real one). Then run with `TORIRSSERVER_SCRIPTS=<pack>
-TORIRSSERVER_ALLOW_STALE_SCRIPTS=1`.
+TORIRSSERVER_ALLOW_STALE_SCRIPTS=1`. The same env runs the server selftest
+(`torirsserver --selftest`) against the HEAD pack, for a failure-count baseline beside the fixed
+pack's (b66-seam1 (d)).
 
 ## From section 8: harness facts
 

@@ -95,6 +95,8 @@ topic file with one line added here.
 - Biohazard: a teleport does NOT break the plague sample (LostCity's "too delicate...it disintegrates in the crossing." is 2004; OSRS dropped it 25 July 2019) -> seam-facts: Seam pass matthew-mbp-m4-b64-seam1 (a)
 - `You can't go any further.` from a stair that has a `maplink.dbrow` row: `~maplink_try` is keyed on the PLAYER's tile, so you pressed it from its footprint, not the row's src tile (the Uzer ruin stairs answer from the arch 3491,3090 only; b65-seam1) -> seam-facts: Seam pass matthew-mbp-m4-b65-seam1 (a)
 - Golem: the Uzer portal lands in an empty square 3544,4952,0 and the throne room's exit portal loops back into it; the ruin stairs land on their own footprint 3493,3090 (FIXED b65-seam1: throne room 2720,4884,2, out to 2721,4911,0; stairs 3491,3090,0 <-> 2721,4886,0) -> seam-facts: Seam pass matthew-mbp-m4-b65-seam1 (a)
+- a `ladder_from_cellar` Climb-up stands you on level 1 of the same dungeon tile (Clock Tower's white ladder 2575,9655; the Asgarnian Ice Dungeon ladder 3008,9550) (FIXED b66-seam1: a rowless copy lands -6400, out of the dungeon; climb it, never goto out) -> seam-facts: Seam pass matthew-mbp-m4-b66-seam1 (b)
+- Tears of Guthix: the climbing rocks from Juna's side land on 3243, never the ledge; "Nothing interesting happens." from the mine-side rocks' east tile (FIXED b66-seam1: they land on their maplink row, 3239 <-> 3241 at the ledge) -> seam-facts: Seam pass matthew-mbp-m4-b66-seam1 (c)
 
 ## Pressing and clicking
 
@@ -154,7 +156,8 @@ topic file with one line added here.
 - `climb` answers `refused ... a page is up: npc '...' -- the press spoke before it moved the player (pass spec.chat ...)`; the Watchtower's towerladder guard ("It is the wizards' helping hand") -> verbs-pointer: A GUARDED ladder speaks first: `chat=`, `chat_optional=`
 - `covered ... element E at 382,102 ... none of 99 pixels` on a named npc copy (`{slot=}`/`{at=}`) one tile away, every try, every camera (FIXED b63-seam1) -> verbs-pointer: A named npc copy is pressed at its OWN pose's pixel
 - `pass_door` refused "the closed leaf left ... but no <open leaf> stands within 1" on a double door that the next row reads standing open (Al Kharid palace `bankdoor_l`; FIXED b65-seam1: the open leaf is awaited, the detail says `(after N tick(s), M read(s))`) -> verbs-pointer: A double door's open leaf lands a frame late: awaited
-- `covered ... pickset held=false, menu rows: Cancel, Walk here` at EVERY pose and `none of 99 pixels hittested` on a stairwell or ring loc whose middle is a hole (Uzer `golem_insidestairs_top` pressed from 3491,3090): OPEN driver seam, the b65 aim-on-model fix was reverted (it broke five greens) -> seam-facts: Seam pass matthew-mbp-m4-b65-seam1 (c)
+- `covered ... pickset held=false, menu rows: Cancel, Walk here` at EVERY pose and `none of 99 pixels hittested` on a stairwell or ring loc whose middle is a hole (Uzer `golem_insidestairs_top` pressed from 3491,3090) (FIXED b66-seam1: the model aim after the hunt) -> seam-facts: Seam pass matthew-mbp-m4-b66-seam1 (a); was b65-seam1 (c)
+- a row detail reads `model aim: face centroid X,Y ... held on probe N`, or a `covered` ends `model aim: none of N face centroid(s) probed holds element E` / `model aim: not_visible for element E` -> verbs-pointer: After the hunt: the model aim (b66-seam1)
 
 ## Dialogue and chat
 
@@ -327,6 +330,7 @@ topic file with one line added here.
 - a second branch replayed after completion with `::<quest>reset` -> sampler-findings: Sample sonnet-b34, (a)
 - `reward.*` shot shows the Quest List tab; `reward tab ... not selected`; `10,500 Magic XP` read as 500 -> verbs-root-and-quest: Reward rows photograph the tab; `t.scroll.reward_xp`
 - a reward row asserts a var an earlier step already set (`varlamore_visited == 1` for the Fortis teleport) -> sampler-findings: Sample matthew-mbp-m4-b56, round 2 (d)
+- Scorpion Catcher's `expect_gain: refused strength: before=0 after=0 delta=0 expected=6625` (FIXED b66-seam1: the quest pays 6,625 Strength XP) -> seam-facts: Seam pass matthew-mbp-m4-b66-seam1 (d)
 
 ## Long quests
 
@@ -389,6 +393,8 @@ topic file with one line added here.
 - helper_coverage CHEAT "every walk on foot crosses (by its own op) <loc> ... (NEEDS-OP ...)": a goto over the Wilderness Ditch, through the Shantay Pass or the Barbarian agility pipe; reach.py now says NEEDS-OP there, not UNREACHABLE (b64-seam1) -> coverage-and-gate: A goto through the only gate, onto a solid tile, or off an island it swung onto; a use that did nothing
 - helper_coverage CHEAT "no on-foot route (UNREACHABLE at margin 600)" (a goto onto an island, into Morytania or Lletya, with no teleport, boat, climb or ferry row before it) or "the fewest-door walk on foot opens <gate> ... at margin N only" (a members' gate only a wider flood finds); a crossing row named `goToX` no longer reads as a goto (b65-seam1) -> coverage-and-gate: "no on-foot route (UNREACHABLE at margin 600)", "the fewest-door walk on foot opens ... at margin N only"; a `goToX` crossing row is no goto
 - a staged Magic or combat level hides an npc's low-combat dialogue branch (druid's Kaqemeex, Prying Times): OPEN owner question -> verbs-pointer: `t.player.teleport_cast(spell, landing, opts)` (the owner question under it)
+- helper_coverage "ledger row N 'x' names <loc>, but names it at <tile>, not the copy within 2 tiles of the guide's x,z,l" (or "reports no tile; the player stood at ..."); UNMATCHED "line N uses it on <npc>, not the step's <npc>"; a use step read DRIVEN off a same-named npc (questscorpiona/b/c) (b66-seam1) -> coverage-and-gate: A step credited to a same-named npc, or to another copy of its loc
+- `attempt to compare ... s.current` / a stat check that reads nil: `t.skill.read` has `.level` (current) and `.base_level` (max), no `current` -> verbs-state-and-vars: the "a stat" bullet (b66-seam1)
 
 ## Harness and runs
 
