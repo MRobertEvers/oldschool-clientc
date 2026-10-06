@@ -1492,3 +1492,10 @@ all clean. No C and no content changed.
   verzik `spec.verzik.reds_absorb_window` fell back to `drive.absorb_diag` (no +5 arrow
   this run). Surveys 5 of 5: _play_smoke _play_sotetseg _play_xarpus _play_verzik
   _play_nylocas, and `_play_bloat --party 3`.
+
+## matthew-mbp-m4-raid-b1-seam40 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged): the plans follow the successful Blert runs
+
+- blert_reference_tool: LANDED (b001b5000). `tools/raid_gate/blert_reference.py` builds a reference per room, mode and scale from cached Blert streams; `raid_report.py --against` flags numbers outside the real range. Open: BOSS_IDS/ADD_IDS and BOSS_ATTACK_SEQS cover Maiden only, so `--against` asserts on a Nylocas run; `maiden_entry_1.json` holds one room.
+- play_tob_maiden_follows_blert: LANDED (b001b5000), NOT green. Entry solo `_play_maiden` 5 of 5 (closer re-run). Party survey in the closer: 0 of 5, room 324-370 ticks against the reference's 157.5 [132-204]; `ref.room_ticks` red on every name, `ref.phase_100_ticks` on 3, `tech.crabs_killed` on 3, svd lost the leader. The fixer's own survey read 259-305: the gap between the two was not chased. Open: crab-phase damage (no specials), heals, the blackstorm tie-break (CONTENT_BUGS).
+- play_tob_nylocas_follows_blert: LANDED (this commit), NOT green. Per-target weapon key, Blert gear and boosts, offensive prayer per seat. Boss phase 240 -> 143-188 ticks (reference 95 [75-123]); entry solo 5 of 5 and party_repeat AGREE (fixer); closer party survey 0 of 5 (`tech.pillars_at_boss` on 5, `tech.prayer` on 4). Open: wave alive-cap stall from w11, small greys 1.34-1.40 attacks a kill against 1.13, Vasilias 12.5 hp/tick against 20.3 (CONTENT_BUGS, unsourced rule).
+- Closer gates: conformance 386/386 rows PASS (195 verbs, 191 seam rows, no new rows this pass); check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua PASS; cooks_assistant ledger byte-identical to build/merge17_check/cooks_before.tsv. No C changed; the quest suite was not run (pass rule).

@@ -300,6 +300,27 @@ Open (first cause of each red name, from its log):
 - Preferring to leave NORTH crabs (10Boot 0:08:48, the rangers camp north) was tried (sv5) and was
   worse; reverted.
 
+### Maiden, Normal trio, following the Blert reference (raid seam40)
+
+Reference: `docs/minigames/theater_of_blood/sources/blert_api/reference/maiden_normal_3.json`
+(24 death-free Normal scale-3 rooms). Compare with `raid_report.py RUN --against <that file>`.
+
+| What the real trios do (reference) | What the plan does now |
+|---|---|
+| Both dps on her with the SCYTHE in every phase (melee_pct 88.9 / 89.3), dps1 at (5,6) (4,6) (3,6) and dps2 at (6,5) (6,4) (6,2) from her SW tile, dist_boss 1 | Seats 1 and 3 are `melee` scythe seats (`::maxmelee`, super combat at the door), homes (5,6) and (6,5), `side` north / east. They dodge along her edge and walk back to their side. The library's press goes through `_play_reach` while blood is down. |
+| First attack: TWISTED_BOW at tick 5-6 from 8 tiles out, then a special, then the scythe from tick 16 | The tbow is worn at the door and shot on the run in. Then the hammer (scythe seats only, one swing, no retry), then the scythe on the tick the energy is spent. Room ticks 6 / 11 / 17. |
+| Freezer: TWISTED_BOW + barrage from (15,-1)..(15,2); no hammer | The freezer opens with the bow (no opener) and is otherwise unchanged. |
+| Storms split between the dps (boss_targeted_pct 38 / 41.45) | THE SHARED TANK: on every other attack, seat 1 steps one tile north (4 from her centre) on next_attack-1, so seat 3 takes the storm. Measured split 27-46 / 54-73 %. |
+| dps attack 1-3 adds a phase, first at +4 ticks; none at 30 percent | The scythe seats take every NORTH walker within 12 of her edge, N1 first, and stay on it (sticky). Frozen ones and the south lanes are the freezer's. None in her last form. |
+| no eats or drinks per phase (n=10 / 5) | The super combat is drunk again when Attack or Strength is under 108. Super restore under 90. Food before brews for a scythe seat (no brew-first). |
+
+Tried and turned OFF (measured):
+- **Freezer melee at 30 percent.** The reference shows the freezer with SCYTHE in 19/24 rooms. Here, the scythe after four barrages made 30 percent leaks 21 / 9 / 7 (3 / 3 / 2 without it) and the room 338 / 305 / 349. `freezer_melee30 = nil` keeps the code and the reason.
+- **Freezer planning over the south lanes only.** The north trio then walked in unfrozen (m40j). The option `P.south_first` is unset.
+- **Scythe seats killing blood spawns within 3 tiles.** This produced 2 deaths in 3 names (survey11). Reverted.
+
+Entry solo: the reference is ONE room (`maiden_entry_1.json`, 82 ticks, all scythe). The solo now puts the scythe on (`::fullscythe`, one shark fewer) once its kept technique rows are measured: `prove_protect`, `presteps` (or prestep_seen) and `flicks` (or drain_seen). That happens at room tick 117-146. Survey 5/5 KEEP, room 219-236 (was 223-268). The kept rows set the switch tick.
+
 ## The other four rooms: mechanics and sourced answers (for the authors)
 
 **Nylocas** (W:702-776; ET 4). Trio roles are one mage, one melee and one ranger (W:713). Each
@@ -536,6 +557,37 @@ since seam33; the plan's loadout is one weapon a style, so a chin needs its own 
 beside the blowpipe), the meleer's scythe on grey doubles (CONTENT: scythe_of_vitur.rs2:38
 implements the arc only on 2x2 targets), a 3-tick melee weapon (Swift blade: no bonus params
 in all.obj).
+
+### Nylocas follows Blert (seam40, 2026-10-06)
+
+Reference: `docs/minigames/theater_of_blood/sources/blert_api/reference/nylocas_normal_3.json`
+(blert_reference.py nylocas --mode normal --scale 3 --rooms 30: 27 death-free rooms of 31).
+Room 412 [372-472]; boss phase starts 308 [296-357]; boss phase 95 ticks [75-123];
+wave 31 at 260 [244-293]; kill cadence 0.71 kills/tick [0.64-0.75]; small death age median 15.
+
+What the trio plan now copies from Blert (recorder equipmentDeltas, prayerSet, levels):
+- Weapon per seat and target colour (QD.raid._play_nylocas_key -> `<style>`, `<style>_big`, `<style>_boss`):
+  mage blues Ayak / greens blowpipe / greys scythe; ranger greens blowpipe / blues Ayak / greys scythe;
+  meleer greys whip (Sulphur blades are not in content) with scythe on bigs and on Vasilias, blues Ayak (no Sang), greens blowpipe.
+  On Vasilias: melee form scythe (all three), magic form Ayak (all), ranged form tbow/blowpipe.
+- Gear: meleer ::maxmelee; ranger and mage void with the RANGE helm, rupture / occult.
+- Offensive prayer per seat colour in the waves (mage augury, meleer piety, ranger rigour), by form on her.
+  Per-swing switching was tried (ny40e) and cost swings: dropped.
+- Boosts drunk at the door: 4dose2combat + 4doserangerspotion (+ magic potion for the mage); t.ticks(3) between drinks.
+- Lanes: every Blert role's median tile is the centre (31-32,24); ours match.
+
+Measured (party 3, seed_survey --names 5): BEFORE boss phase ~240, pillars standing 1-2 of 4;
+AFTER boss phase 143-188, standing 3,3,3,1,2 of 4, w31 299-335, landing 380-404. 0 of 5 green against
+the reference (boss phase still 1.5-2x Blert's 95). Solo Entry _play_nylocas 5 of 5 green; party_repeat 3 runs AGREE.
+
+Where the gap is (diagnosis scripts under build/seam_state/matthew-mbp-m4-raid-b1-seam40/ny40/):
+- Waves 1-10 land on Blert's ticks exactly; from wave 11 the content's alive cap (12) stalls us
+  (w12 +11, w17 +31, w20 +47, w31 +67) while Blert trios run 14 alive after a spawn with no stall until w28.
+- Attacks per killed small: Blert 1.13 (71% one attack), ours 1.34-1.40. Greys are the gap:
+  small grey death age 23 vs 16, popped 15.8/room vs 9.9, big greys popped 4.6 vs 0.3.
+- Her phase: 12.5 hp/tick vs 20.3; 24.7 a swing vs ~34.
+- One traced run (ny40j, P.trace_seat = 3, restored to nil): the meleer whipped one grey 4 times for 0
+  (t170-183) while it chewed pillar 36,29 -- nulled or blocked, unresolved.
 
 ## Sotetseg, Entry solo (`tob_sotetseg`, mode `entry`), proved
 

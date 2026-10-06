@@ -1465,3 +1465,48 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   Xarpus 100/160; Verzik 10-250 per form; every Nylocas and the Maiden and Blood spawn 0), so
   a heavy split changes no ToB roll; the tree's single `rangedefence` equals the heavy value
   there. Still open tree-wide (an npc whose heavy differs needs the param first).
+
+## From seam40 play_tob_maiden_follows_blert (matthew-mbp-m4-raid-b1-seam40, 2026-10-06)
+
+### Maiden blackstorm: the tie-break hands one raider every storm (Blert says the dps share them)
+
+Content: `tob_maiden.rs2 [proc,tob_maiden_blackstorm]` targets "the closest player to her centre by Chebyshev distance. In the case of a tie, higher orb order takes the hit" [mc]. The centre is (+3,+3) from her SW tile, so EVERY tile on her north face (z+6) and her east face (x+6) is 3 from it. Two scythe raiders on her north-east corner therefore always tie, and orb order gives the same raider every storm. Seam40 runs m40a-m40k, with both seats on her edge: the leader took 19-26 of 19-26 storms and died twice.
+
+Blert (`docs/minigames/theater_of_blood/sources/blert_api/reference/maiden_normal_3.json`, 24 Normal trio rooms) measures who she targets within each room. role.dps1.boss_targeted_pct is 38 [5.6-58.8] and role.dps2 is 41.45 [18.8-64.3]: the two dps share the storms in every room. If ties were broken by a fixed orb order, most rooms would read near 0 / 100. role.freezer is 19.95 [6.2-50], with the freezer at dist_boss 10 in phases 100/70.
+
+Open: what breaks the tie in the real game? Candidates are random, last-attacker, and a different centre. No source has been found. The plan works around it: seat 1 steps one tile off on every other attack ("THE SHARED TANK"). Grade: the [mc] sentence is D; Blert's split contradicts a deterministic orb tie-break (B).
+
+### Maiden Normal trio: our room runs about 1.7x the real length, and specials are not the whole gap
+
+Measured with the seam40 plan, which follows the reference's weapons, stands and cadence. Five names: room 259 / 262 / 305 / 261 (one leader died). The reference is 157.5 [132-204].
+
+Swing rates match. Phase 100 attack counts are inside the reference: role.dps*.phase.100.attacks_boss 8-9 against 7.5 [6-15]. Our scythe swings land at a 5-tick cadence.
+
+Damage per swing is close in phase 100. A scythe swing on her in phase 100 averages 36.7 (42 three-hit swings). Isolated real scythe swings in the Blert cached streams average 39.2 (n=12). In the crab phases ours falls to 29-35 a swing, while the real per-boss-attack average is 44.5-49.5 (Blert crab phases, 27 rooms). The real teams use a special in many crab phases: ZCB in dps*|70 for 8-10 rooms, CLAW and CHALLY at 30, DINHS at 50. The plan uses none after the opener.
+
+Heals: ours 568-1128, the reference 223.5 [0-821]. N1 alone heals 150 in most 70 percent waves; the reference's phase.70.boss_heal is 1 [0-226].
+
+Not a content claim yet: no single number here is shown wrong. Candidates to measure next:
+- the scythe's accuracy against her (zero share 19-23 % after 1-3 successful hammers, where about 11 % is expected at Defence 69-140);
+- the specials the real teams use.
+
+## From seam40 play_tob_nylocas_follows_blert (matthew-mbp-m4-raid-b1-seam40, 2026-10-06)
+
+### Nylocas: wave stall from wave 11 that Blert trios never see (seam40, UNSOURCED rule)
+
+Evidence: reference nylocas_normal_3.json (27 Normal trio rooms) and ny40/ny_waves.py vs ny_ourwaves.py.
+Blert trios have 14 copies alive right after a spawn and no stalled wave before w28; wave 31 at 260 [244-293].
+Our content stalls a wave whenever 12 are alive: w12 +11, w17 +31, w20 +47, w31 +67 ticks (w31 299-335 over 5 names),
+with the same waves 1-10 timing as Blert. Either the cap value, what it counts (e.g. bigs as one, eggs/splits),
+or when it is tested differs from the game. No source pinned here: check the OSRS wiki Nylocas page
+(The Nylocas, "wave" / "cap") before changing minigame_tob's spawn loop.
+
+### Nylocas: attacks per killed small 1.34-1.40 vs Blert 1.13 (71% one attack)
+
+Greys are the gap (death age 23 vs 16; 15.8 popped per room vs 9.9; big greys popped 4.6 vs 0.3).
+Trace ny40j: a whip on a chewing grey hit 0 four times in a row (hitsplat 26) t170-183. Check the small
+nylocas' defence/accuracy against the wiki stat block and whether a copy attacking a pillar blocks hits.
+
+### Vasilias: 12.5 hp per tick vs Blert 20.3 (24.7 a swing vs ~34) with Blert's weapons on her forms.
+
+### Mage level 112 in Blert = Imbued heart; no heart in content (the plan drinks a magic potion, 103).
