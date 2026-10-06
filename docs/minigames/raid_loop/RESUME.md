@@ -204,6 +204,13 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   LAUNCHED 17:50 (pass matthew-mbp-m4-raid-b1-seam29, triage 05h = its first two seams only:
   library files + hazard fix, raider log); the five room plans are SEAM30 (`SEAM_TRIAGE_2026-10-05i.md`,
   pass matthew-mbp-m4-raid-b1-seam30), split off so the first two land early.
+  OWNER'S RULE, 2026-10-06 12:15: "It is a waste of time to prove these, just mark them done" (the
+  room-clear restore and the chest points). So: a CONTENT fix made from a quoted source line is
+  DONE when it compiles and the pack builds; no tick-log proof run, no survey re-run for it alone;
+  the row in CONTENT_BUGS.md says FIXED with the source line. Run proofs are for behaviour in
+  doubt (a disagreement between sources, an engine path) and for the plays. The chest points fix
+  (per player, 6-13 by individual performance, Chest:20, Strategies:568) is DONE as of bf3dabef7c.
+  Put this rule in every content work order from now on.
   STATE 2026-10-06 11:40. LANDED AND MERGED since 09:50: seam38 (p_stopaction + 5 ops bound to the
   script's player; overheal decays; scythe 1x3 arc; salve accuracy; content bb84907f76), the
   camera lane's seam39 (the ENTRY RELAY 5 of 5 ON THE FIXED CONTENT: the potion row reads the
