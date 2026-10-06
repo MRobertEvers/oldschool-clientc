@@ -1601,3 +1601,28 @@ all clean. No C and no content changed.
   and _play_bloat --party 3 5/5, 0 rows changed. tools/raid_gate/seed_survey.py was edited
   in this worktree by someone outside the pass during the close (a --jobs flag): not
   committed.
+
+## matthew-mbp-m4-raid-b1-seam44 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged): Normal Verzik all melee, as Blert's trios play it
+
+- play_tob_verzik_melee_follows_blert; NOT LANDED. The triage (seam42's Verzik finding:
+  the 20 death-free Blert Normal trio rooms in verzik_normal_3.json play Verzik all melee,
+  scythe in P2 and P3 in 16-18 of 20 rooms per role, while our plan plays ::maxrange with a
+  twisted bow and Rigour; HEAD trio survey 2 of 3) was written, but the fixer never ran: no
+  report, no progress notes, no run, and raid_play_tob_verzik.lua and _play_verzik.lua are
+  byte-identical to HEAD 4375ba6fd. Open, unchanged: rewrite the Normal plan melee
+  (::maxmelee, cheat_max_gear.rs2:31, Piety, scythe; P2 step-out on T-1 per
+  verzik.p2_scan_rule; P3 step-under on T-1 per verzik.p3_melee_predicate; harness party
+  kit melee); every outcome outside the reference (room 591-833 vs 359-607, P2 289-299 vs
+  170-261, P3 146-407 vs 122-200, P2 heal 802-848 vs 65-313, hp lost per raider 268-715
+  vs 69-259); raid_report.py --against still knows only Maiden. The reference file itself
+  is seam42's output and is left to seam42's closer.
+- Closer: nothing to merge (no conformance snippet, no doc_notes); no gate run, since this
+  pass changed no driver, content, C or tool file and seam42's fixers were building in this
+  worktree at the time.
+
+## matthew-mbp-m4-raid-b1-seam40 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged): the plans follow the successful Blert runs
+
+- blert_reference_tool: LANDED (b001b5000). `tools/raid_gate/blert_reference.py` builds a reference per room, mode and scale from cached Blert streams; `raid_report.py --against` flags numbers outside the real range. Open: BOSS_IDS/ADD_IDS and BOSS_ATTACK_SEQS cover Maiden only, so `--against` asserts on a Nylocas run; `maiden_entry_1.json` holds one room.
+- play_tob_maiden_follows_blert: LANDED (b001b5000), NOT green. Entry solo `_play_maiden` 5 of 5 (closer re-run). Party survey in the closer: 0 of 5, room 324-370 ticks against the reference's 157.5 [132-204]; `ref.room_ticks` red on every name, `ref.phase_100_ticks` on 3, `tech.crabs_killed` on 3, svd lost the leader. The fixer's own survey read 259-305: the gap between the two was not chased. Open: crab-phase damage (no specials), heals, the blackstorm tie-break (CONTENT_BUGS).
+- play_tob_nylocas_follows_blert: LANDED (this commit), NOT green. Per-target weapon key, Blert gear and boosts, offensive prayer per seat. Boss phase 240 -> 143-188 ticks (reference 95 [75-123]); entry solo 5 of 5 and party_repeat AGREE (fixer); closer party survey 0 of 5 (`tech.pillars_at_boss` on 5, `tech.prayer` on 4). Open: wave alive-cap stall from w11, small greys 1.34-1.40 attacks a kill against 1.13, Vasilias 12.5 hp/tick against 20.3 (CONTENT_BUGS, unsourced rule).
+- Closer gates: conformance 386/386 rows PASS (195 verbs, 191 seam rows, no new rows this pass); check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua PASS; cooks_assistant ledger byte-identical to build/merge17_check/cooks_before.tsv. No C changed; the quest suite was not run (pass rule).

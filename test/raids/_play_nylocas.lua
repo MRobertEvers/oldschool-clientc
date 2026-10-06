@@ -109,13 +109,85 @@ if size > 1 then
         -- :386 the meleer Sangs), charged in run() by its Charge op: demon
         -- tears for the Ayak, blood runes for the Sanguinesti staff (three a
         -- charge, sanguinesti_staff.rs2 ^sanguinesti_staff_runes_per_charge).
-        local staff = role == 2 and "eye_of_ayak_uncharged" or "sanguinesti_staff_uncharged"
-        local charge = role == 2 and "::give demon_tear 2000" or "::give bloodrune 3000"
+        -- raid seam40 play_tob_nylocas_follows_blert: the meleer Ayaks its
+        -- blues as the ranger does (Blert melee|magic EYE_OF_AYAK 203 of 207
+        -- hits in 27 Normal trio rooms; no Sanguinesti staff in any room)
+        local staff = "eye_of_ayak_uncharged"
+        local charge = "::give demon_tear 2000"
         for i = 1, #kit do
             if kit[i] == "::give lava_battlestaff 1" then kit[i] = "::give " .. staff .. " 1" end
             if kit[i] == "::give water_rune 2000" then kit[i] = charge end
         end
     end
+    -- raid seam40 play_tob_nylocas_follows_blert: THE WEAPON PER COLOUR, AS
+    -- BLERT (reference/nylocas_normal_3.json, 27 death-free Normal trio rooms;
+    -- per colour in build/seam_state/matthew-mbp-m4-raid-b1-seam40/ny40/
+    -- ny_blert.out).  Every seat carries the SCYTHE (her melee form: SCYTHE
+    -- 383 of 532 hits on 8355; the mage's and ranger's greys, the meleer's
+    -- big greys), and the mage and meleer a loaded blowpipe for the greens in
+    -- place of the shortbow (mage|ranged BLOWPIPE 116 of 138, melee|ranged
+    -- 75 of 91).  `::fullscythe` hands a charged scythe (scythe_of_vitur.rs2
+    -- ~scythe_of_vitur_cheat); `::blowpipe` gives and loads the pipe in one
+    -- line and needs three free slots, so it takes the shortbow's place early
+    -- in the kit (test/raids/README.md "A loaded toxic blowpipe is one kit
+    -- line"); the arrows go.
+    -- raid seam40: THE GEAR, AS BLERT'S RECORDERS WEAR IT (equipmentDeltas
+    -- of the recording raider in the same 27 rooms, ny40/ny_gear.py): the
+    -- meleer torva helm, amulet of rancour, ferocious gloves, avernic treads,
+    -- ultor ring, infernal cape (8 of 9 meleers; `::maxmelee` is that set and
+    -- the scythe in hand, cheat_max_gear.rs2), the ranger and the mage the
+    -- elite void RANGE helm (7 of 9 rangers, 14 of 14 mages: void range helm)
+    -- with the elite void set, the ranger a necklace of rupture (5 of 9), the
+    -- mage an occult necklace (14 of 14) -- not the Entry page's melee void.
+    local swap = {}
+    if role == 1 or role == 2 then
+        swap["::give game_pest_melee_helm 1"] = "::give game_pest_archer_helm 1"
+        swap["::wield game_pest_melee_helm"] = "::wield game_pest_archer_helm"
+        local neck = role == 1 and "occult_necklace" or "necklace_of_rupture"
+        swap["::give amulet_of_glory 1"] = "::give " .. neck .. " 1"
+        swap["::wield amulet_of_glory"] = "::wield " .. neck
+    end
+    local melee_set = { ["game_pest_melee_helm"] = true, ["amulet_of_glory"] = true, ["elite_void_knight_top"] = true,
+        ["elite_void_knight_robes"] = true, ["pest_void_knight_gloves"] = true, ["dragon_boots"] = true, ["nzone_berzerker_ring"] = true }
+    local out = {}
+    for i = 1, #kit do
+        local c = swap[kit[i]] or kit[i]
+        local item = string.match(c, "^::give ([%w_]+) 1$") or string.match(c, "^::wield ([%w_]+)$")
+        if role == 3 and item ~= nil and melee_set[item] then
+            if c == "::give game_pest_melee_helm 1" then out[#out + 1] = "::maxmelee" end
+        elseif c == "::give abyssal_whip 1" then
+            if role == 3 then out[#out + 1] = c else out[#out + 1] = "::fullscythe" end
+        elseif c == "::give magic_shortbow 1" and role ~= 2 then
+            out[#out + 1] = "::blowpipe dragon_dart 2000 2000"
+            -- raid seam40: the mage and the meleer shoot her ranged form with
+            -- the TWISTED BOW (Blert on 8357: mage TWISTED_BOW 127 of 158,
+            -- melee 88 of 184 with the pipe 68; the ranger pipes, 89 of 191)
+            out[#out + 1] = "::give twisted_bow 1"
+            out[#out + 1] = "::give dragon_arrow 1000"
+            out[#out + 1] = "::wield dragon_arrow"
+        elseif c == "::give chaos_rune 1000" or c == "::give death_rune 1000" or (role == 1 and c == "::give water_rune 2000") then
+            -- (no seat casts from the spellbook: every seat's blues are the
+            -- Ayak's, a powered staff; raid seam40 frees the runes' slots for
+            -- the boosts below)
+        elseif c == "::give rune_arrow 800" and role ~= 2 then
+            -- (no arrows: every seat shoots the pipe)
+        else
+            out[#out + 1] = c
+        end
+    end
+    -- raid seam40: THE BOOSTS, AS BLERT'S RECORDERS CARRY THEM.  Their levels
+    -- in the waves (current<<16|base, the same 27 rooms, ny40/ny_levels.py):
+    -- Attack and Strength 118 (the meleer 118 at its tenth percentile), Ranged
+    -- 112 (the ranger 112 at its tenth) -- a super combat potion (99 + 5 + 15
+    -- percent = 118) and a ranging potion (99 + 4 + 10 percent = 112), drunk
+    -- at the door (run below; _play_maiden.lua's play.potion row).
+    out[#out + 1] = "::give 4dose2combat 1"
+    out[#out + 1] = "::give 4doserangerspotion 1"
+    -- the mage's Magic reads 112 (tenth percentile 107; the others 99): the
+    -- nearest boost this content drinks is a magic potion (99 + 4 = 103,
+    -- magic_potion.rs2); the 112 is a heart's (CONTENT_BUGS snippet)
+    if role == 1 then out[#out + 1] = "::give 4dose1magic 1" end
+    kit = out
 end
 
 return {
@@ -162,25 +234,17 @@ return {
                 .. "; scales " .. tostring(sr2) .. " " .. string.sub(tostring(sd2), 1, 80) .. "; wielded " .. tostring(er) .. " " .. string.sub(tostring(ed), 1, 80)
                 .. "; darts left in the backpack " .. tostring(darts))
         else
-            if size > 1 and role == 3 then
-                local cr0, cd0 = t.player.inv_op("sanguinesti_staff_uncharged", 3)
-                t.ticks(2)
-                local sr0, sangs = t.inv.count("sanguinesti_staff")
-                local br0, bloods = t.inv.count("bloodrune")
-                t.check("setup.sang", sr0 == "ok" and sangs == 1 and br0 == "ok" and bloods == 0, "p3 Charge on the uncharged Sanguinesti staff "
-                    .. tostring(cr0) .. " " .. string.sub(tostring(cd0), 1, 80) .. "; sanguinesti_staff in the backpack " .. tostring(sangs)
-                    .. ", blood runes left " .. tostring(bloods))
-            end
-            if size > 1 and role == 1 then
+            if size > 1 and (role == 1 or role == 3) then
+                -- raid seam40: the meleer's Ayak is charged the way the mage's is
                 local cr0, cd0 = t.player.inv_op("eye_of_ayak_uncharged", 3)
                 t.ticks(2)
                 local ar, ayaks = t.inv.count("eye_of_ayak")
                 local tr, tears = t.inv.count("demon_tear")
-                t.check("setup.ayak", ar == "ok" and ayaks == 1 and tr == "ok" and tears == 0, "p1 Charge on the uncharged Eye of Ayak "
+                t.check("setup.ayak", ar == "ok" and ayaks == 1 and tr == "ok" and tears == 0, "p" .. role .. " Charge on the uncharged Eye of Ayak "
                     .. tostring(cr0) .. " " .. string.sub(tostring(cd0), 1, 80) .. "; eye_of_ayak in the backpack " .. tostring(ayaks)
                     .. ", demon tears left " .. tostring(tears))
             end
-            t.player.equip("rune_arrow")
+            if size <= 1 then t.player.equip("rune_arrow") end
             -- raid seam33: a trio seat starts with its own colour's weapon on
             -- (the plan reads it as worn): the mage the Ayak, the meleer the whip
             if size > 1 and role == 1 then t.player.equip("eye_of_ayak")
@@ -206,6 +270,25 @@ return {
         t.check("setup.retaliate_off", retaliate_after == 1, "combat tab auto-retaliate button: varp172_option_nodef read " .. tostring(retaliate_before)
             .. " before, press " .. tostring(retaliate_press_result) .. ", " .. tostring(retaliate_after) .. " after (1 is off)")
         if role == 1 then t.player.walk_to(fight.x + 1, fight.z, 20) end
+        if size > 1 then
+            -- raid seam40: one dose of each boost at the door (THE BOOSTS above)
+            local pr1 = t.player.inv_op("4dose2combat", 1, { quick = true })
+            -- (a drink holds the next one off: ny40g's second press, one tick
+            -- later, answered timeout)
+            t.ticks(3)
+            local pr2 = t.player.inv_op("4doserangerspotion", 1, { quick = true })
+            t.ticks(1)
+            if role == 1 then
+                t.ticks(2)
+                t.player.inv_op("4dose1magic", 1, { quick = true })
+                t.ticks(1)
+            end
+            local sr, strength = t.skill.read("strength")
+            local rr, ranged = t.skill.read("ranged")
+            t.check("play.potion", sr == "ok" and rr == "ok" and strength.level > 99 and ranged.level > 99,
+                "p" .. role .. " super combat and ranging before the barrier: strength " .. tostring(strength and strength.level)
+                .. ", ranged " .. tostring(ranged and ranged.level) .. " (" .. tostring(pr1) .. ", " .. tostring(pr2) .. ")")
+        end
         if size > 1 then t.expect("party.barrier.entrance", t.party.barrier("entrance", 300)) end
         if role == 1 then
             local click_result, click_detail = t.player.click_loc("tob_arena_barrier", 1)

@@ -75,7 +75,18 @@ QD.raid._play_plan("tob_nylocas", {
         -- (CONTENT_BUGS, Entry-only freeze stop), and the seam32 mage's Ice Rush
         -- at five ticks was the room's bottleneck (127-147 ticks of stall).
         { name = "mage", colour = "magic", freeze = false, home = { 31, 24 },
-            loadout = { magic = { item = "eye_of_ayak", speed = 3, reach = 6, powered = true, seqs = { [12397] = true } } } },
+            -- raid seam40 play_tob_nylocas_follows_blert: the mage's other two
+            -- colours as Blert's trio mages swing them (27 rooms, ny_blert.out):
+            -- greens BLOWPIPE 116 of 138 small-green hits, greys SCYTHE/CLAW
+            -- (CLAW 22 SCYTHE 15 on smalls, SCYTHE 19 of 27 on bigs), her melee
+            -- form SCYTHE 141 of 184 -- not the Entry whip and shortbow.  The
+            -- scythe: speed 5, swing seq 8056 (raid_play.lua weapon table).
+            loadout = { magic = { item = "eye_of_ayak", speed = 3, reach = 6, powered = true, seqs = { [12397] = true } },
+                ranged = { item = "toxic_blowpipe_loaded", speed = 2, reach = 5, seqs = { [5061] = true } },
+                -- her ranged form: the TWISTED BOW (8357: TWISTED_BOW 127 of
+                -- 158 mage hits); speed 6, 5 on rapid, seq 426 (raid_play_tob_maiden.lua)
+                ranged_boss = { item = "twisted_bow", speed = 5, seqs = { [426] = true } },
+                melee = { item = "scythe_of_vitur", speed = 5, seqs = { [8056] = true } } } },
         -- "Rangers should use a toxic blowpipe in this room" (W :717): two
         -- ticks on rapid, an attack range of 5 (wiki Toxic blowpipe), its
         -- swing seq 5061 (s32ny5 ticklog player_anim, every p2 swing;
@@ -91,10 +102,27 @@ QD.raid._play_plan("tob_nylocas", {
         -- "1167=human_castwave_staff"), reach 7 (the powered staves' 7;
         -- the Ayak's own 6, wiki Eye of Ayak :70).
         { name = "ranger", colour = "ranged", freeze = false, home = { 30, 23 },
+            -- raid seam40: the ranger's greys and her melee form with the
+            -- SCYTHE (Blert range|melee SCYTHE 27 of 47, big 24 of 31; on 8355
+            -- SCYTHE 118 of 167), not the whip
             loadout = { ranged = { item = "toxic_blowpipe_loaded", speed = 2, reach = 5, seqs = { [5061] = true } },
-                magic = { item = "eye_of_ayak", speed = 3, reach = 6, powered = true, seqs = { [12397] = true } } } },
+                magic = { item = "eye_of_ayak", speed = 3, reach = 6, powered = true, seqs = { [12397] = true } },
+                melee = { item = "scythe_of_vitur", speed = 5, seqs = { [8056] = true } } } },
         { name = "melee", colour = "melee", freeze = false, home = { 31, 25 },
-            loadout = { magic = { item = "sanguinesti_staff", speed = 4, reach = 7, powered = true, seqs = { [1167] = true } } } },
+            -- raid seam40 play_tob_nylocas_follows_blert: the meleer as Blert's
+            -- trio meleers (27 rooms, ny_blert.out): blues the EYE OF AYAK (203
+            -- of 207 hits; no Sanguinesti staff in any room), greens the
+            -- BLOWPIPE (75 of 91), small greys a 4-tick slash weapon (SULPHUR
+            -- BLADES 682 of 998; ours is the whip: CONTENT_BUGS, the blades'
+            -- obj has the cache's bonuses and no passive here), big greys and
+            -- her melee form the SCYTHE (121 of 311 big-grey hits, the most of
+            -- any weapon; 124 of 181 on 8355).
+            loadout = { magic = { item = "eye_of_ayak", speed = 3, reach = 6, powered = true, seqs = { [12397] = true } },
+                ranged = { item = "toxic_blowpipe_loaded", speed = 2, reach = 5, seqs = { [5061] = true } },
+                melee_big = { item = "scythe_of_vitur", speed = 5, seqs = { [8056] = true } },
+                melee_boss = { item = "scythe_of_vitur", speed = 5, seqs = { [8056] = true } },
+                -- her ranged form: the TWISTED BOW (8357: 88 of 184, the pipe 68)
+                ranged_boss = { item = "twisted_bow", speed = 5, seqs = { [426] = true } } } },
     },
     -- how much an own-colour copy is preferred over a colour another seat
     -- owns (score points; a tile of running is 3): another seat's copy is
@@ -119,7 +147,11 @@ QD.raid._play_plan("tob_nylocas", {
     -- "always switch protection prayers ... When its form changes, the player
     -- should again switch prayers" (W :752)
     walk_prayers = { "protectfrommelee", "protectfrommagic", "protectfrommissiles" },
-    down_prayers = {},
+    -- raid seam40 play_tob_nylocas_follows_blert: a party seat's offensive
+    -- prayer by the style it swings (THE OFFENSIVE PRAYER, below); the
+    -- library puts out the one no longer wanted
+    down_prayers = { "piety", "rigour", "augury" },
+    attack_prayer_of = { melee = "piety", ranged = "rigour", magic = "augury" },
     prayer_of = { melee = "protectfrommelee", magic = "protectfrommagic", ranged = "protectfrommissiles" },
     -- One weapon per colour ("You will need all three attack styles for this
     -- room", E :155; "Ancient Magicks is highly recommended, and a fast ranged
@@ -301,6 +333,21 @@ function QD.raid._play_nylocas_see(st, v)
     end
 end
 
+-- raid seam40 play_tob_nylocas_follows_blert: THE WEAPON PER COLOUR, AS
+-- BLERT'S TRIOS SWING IT.  A seat's loadout may carry `<style>_big` (what it
+-- wears on a big copy of that colour) and `<style>_boss` (on Vasilias in that
+-- form) beside the plain style; the KEY is the loadout entry worn for the
+-- target, the style is the colour the hit must be.  27 death-free Normal trio
+-- rooms (reference/nylocas_normal_3.json; per colour in build/seam_state/
+-- matthew-mbp-m4-raid-b1-seam40/ny40/ny_blert.out): the meleer's big greys
+-- SCYTHE 121 of 311, every seat on her melee form SCYTHE (383 of 467 melee
+-- hits on 8355).
+function QD.raid._play_nylocas_key(ny, style, big, boss)
+    if boss and ny.loadout[style .. "_boss"] ~= nil then return style .. "_boss" end
+    if big and ny.loadout[style .. "_big"] ~= nil then return style .. "_big" end
+    return style
+end
+
 -- A block of the plan's own: a loadout swap ("a gear swap is one tick",
 -- PLAY_NOTES "Loadouts"; the library's SEND has no gear list), counted into
 -- the record's inputs like the library's blocks (maiden's pattern).
@@ -467,7 +514,7 @@ function QD.raid._play_nylocas_decide(st, v)
         if seat ~= nil and seat.loadout ~= nil then
             for style, L in pairs(seat.loadout) do
                 st.ny.loadout[style] = { item = L.item, speed = L.speed, seqs = L.seqs, powered = L.powered }
-                if L.reach ~= nil then st.ny.reach[style] = L.reach end
+                if L.reach ~= nil and P.reach[style] ~= nil then st.ny.reach[style] = L.reach end
             end
         end
         -- raid seam33: a trio seat starts with its own colour's weapon on
@@ -734,7 +781,8 @@ function QD.raid._play_nylocas_decide(st, v)
     if vas ~= nil then
         if vas.form ~= "spawning" then
             local d = dist(me.x, me.z, vas.x, vas.z, vas.size)
-            pick = { slot = vas.slot, style = vas.form, symbol = vas.symbol, vas = true, d = d, x = vas.x, z = vas.z }
+            pick = { slot = vas.slot, style = vas.form, symbol = vas.symbol, vas = true, d = d, x = vas.x, z = vas.z,
+                key = QD.raid._play_nylocas_key(ny, vas.form, false, true) }
         end
     else
         -- the support each chewer bites, and how much of it is left
@@ -807,7 +855,8 @@ function QD.raid._play_nylocas_decide(st, v)
                 -- raid seam32: the kill's own time, the weapon's ticks a swing
                 -- (s32ny8 p2: the blowpipe seat cast Ice Rush 16 times in the
                 -- waves, five ticks each, 80 ticks that were 40 blowpipe darts)
-                if R ~= nil then score = score + ny.loadout[n.style].speed * 3 end
+                local key = QD.raid._play_nylocas_key(ny, n.style, n.big, false)
+                if R ~= nil then score = score + ny.loadout[key].speed * 3 end
                 if n.fighting then
                     -- aggros first: they "must be killed as fast as possible"
                     -- (E :160); the one hitting through the prayer before all
@@ -850,11 +899,11 @@ function QD.raid._play_nylocas_decide(st, v)
                     score = score - math.min(n.age, 45) * 0.2
                 end
                 if n.big then score = score + 2 end
-                if n.style ~= ny.worn then score = score + ((R ~= nil) and 10 or 5) end
+                if key ~= ny.worn then score = score + ((R ~= nil) and 10 or 5) end
                 -- the one already pressed keeps its press unless another is
                 -- clearly worth more (no target flapping, ny30f t328-335)
                 if cur ~= nil and cur.slot == n.slot then score = score - 12 end
-                cands[#cands + 1] = { score = score, n = n, d = d, style = n.style }
+                cands[#cands + 1] = { score = score, n = n, d = d, style = n.style, key = key }
                 if R ~= nil and n.style == R.colour then own_ok = true end
             end
         end
@@ -951,7 +1000,7 @@ function QD.raid._play_nylocas_decide(st, v)
         if best ~= nil then
             local n = best.n
             pick = { slot = n.slot, style = best.style, symbol = n.symbol, vas = false, d = best.d, x = n.x, z = n.z, big = n.big,
-                spell = best.spell, clump = best.clump }
+                spell = best.spell, clump = best.clump, key = best.key or best.style }
         end
     end
 
@@ -960,8 +1009,8 @@ function QD.raid._play_nylocas_decide(st, v)
     -- as the old one is doomed, so the next swing is queued on the cooldown.
     local press = false
     if pick ~= nil and intent.walk == nil then
-        local speed = ny.loadout[pick.style].speed
-        if cur == nil or cur.slot ~= pick.slot or cur.style ~= pick.style then
+        local speed = ny.loadout[pick.key].speed
+        if cur == nil or cur.slot ~= pick.slot or cur.style ~= pick.style or cur.key ~= pick.key then
             press = true
         elseif pick.style == "magic" and not ny.loadout.magic.powered then
             press = cur.swung ~= nil and cur.swung >= cur.pressed and v.tick >= cur.swung + speed - 2
@@ -1018,7 +1067,7 @@ function QD.raid._play_nylocas_decide(st, v)
     -- otherwise wait a tick: right after that swing the window is open again
     -- (and the copy is usually dead).  s33nyseedoneA: the meleer's bow swung
     -- at greys 4 times, the ranger's whip at greens, 11 of 92 matched swings.
-    if press and P.swap_timed and R ~= nil and ny.worn ~= pick.style and cur ~= nil and not cur.vas and cur_row ~= nil
+    if press and P.swap_timed and R ~= nil and ny.worn ~= pick.key and cur ~= nil and not cur.vas and cur_row ~= nil
         and st.engaged and ny.loadout[ny.worn] ~= nil then
         local next_old = math.max(st.last_swing, cur.swung or -1000) + ny.loadout[ny.worn].speed
         if next_old - v.tick <= 1 and next_old >= v.tick then
@@ -1040,7 +1089,7 @@ function QD.raid._play_nylocas_decide(st, v)
             ny.early_sent = { name = name, tick = v.tick }
         end
     end
-    if press and ny.worn ~= pick.style then
+    if press and ny.worn ~= pick.key then
         -- raid seam32: a swap while the old weapon is still swinging at a
         -- copy keeps swinging at it WITH THE NEW WEAPON until the next press
         -- lands: svcplaynyloc p2 pressed a grey with the whip (t163), put the
@@ -1065,16 +1114,34 @@ function QD.raid._play_nylocas_decide(st, v)
                 end
             end
         end
-        QD.raid._play_nylocas_wear(st, v, pick.style, early, stop)
+        QD.raid._play_nylocas_wear(st, v, pick.key, early, stop)
     elseif early ~= nil then
         QD.raid._play_nylocas_wear(st, v, nil, early)
     end
     -- sent already: the library's block must neither re-press it nor light the
     -- old one again (the want keeps only what is lit now)
     if early ~= nil then intent.want = { [early] = true } end
+    -- raid seam40 play_tob_nylocas_follows_blert: THE OFFENSIVE PRAYER, AS
+    -- BLERT'S TRIOS PRAY.  The recorder's lit prayers in the same 27 rooms
+    -- (prayerSet, Blert Prayer bits 26 piety, 27 rigour, 28 augury; ny40/
+    -- ny_prayers.py): in the waves the mage has Augury on 51 percent of its
+    -- ticks, the meleer Piety 69, the ranger Rigour 79, and a protection
+    -- prayer 2-9; on her, Piety 42-44 and Rigour 31-35 with the protection
+    -- by her form.  So a party seat lights, beside whatever protection the
+    -- rule above wants, its OWN colour's prayer through the waves (one
+    -- prayer held: a first cut that followed every swap, ny40e, put 3-4
+    -- inputs on 50-77 ticks a seat and cost the meleer 18 of 105 swings) and
+    -- on her the prayer of her form.  Alone (Entry) nothing changes.
+    if R ~= nil and P.attack_prayer_of ~= nil then
+        local swing = R.colour
+        if vas ~= nil then swing = (pick ~= nil and pick.style) or nil end
+        local name = swing ~= nil and P.attack_prayer_of[swing] or nil
+        if name ~= nil then intent.want[name] = true end
+        ny.attack_prayer = name
+    end
     if press then
         local r, d
-        if ny.worn == pick.style then
+        if ny.worn == pick.key then
             local also = {}
             -- raid seam33: a powered staff is pressed like a weapon (its
             -- built-in spell, wiki Powered staff :8); only a spellbook cast
@@ -1124,7 +1191,7 @@ function QD.raid._play_nylocas_decide(st, v)
             if r ~= "ok" and r ~= "timeout" and #st.lines < 6 then
                 st.lines[#st.lines + 1] = "t" .. v.tick .. " press " .. pick.style .. " " .. tostring(r) .. ": " .. string.sub(tostring(d), 1, 140)
             end
-            ny.target = { slot = pick.slot, style = pick.style, symbol = pick.symbol, vas = pick.vas, pressed = v.tick, d = pick.d, also = also,
+            ny.target = { slot = pick.slot, style = pick.style, key = pick.key, symbol = pick.symbol, vas = pick.vas, pressed = v.tick, d = pick.d, also = also,
                 colour = (not pick.vas and pick.spell == nil) and pick.style or nil }
             if r ~= "ok" and r ~= "timeout" then
                 -- the press did not land on this copy (another one stands on its
