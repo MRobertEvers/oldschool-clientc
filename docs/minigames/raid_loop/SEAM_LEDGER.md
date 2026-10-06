@@ -1307,3 +1307,21 @@ all clean. No C and no content changed.
   runs AGREE. The full quest suite was not run: outside raid_play*.lua, test/raids/ and docs/
   only test/quests/_conformance.lua changed, and no quest loads it. Honest state: Bloat and
   Nylocas Normal trios green on five names; Maiden Normal is not.
+
+## matthew-mbp-m4-camera-b1-seam34v (2026-10-06; the commit that carries this heading, OSRS-Content fb292a9996 unchanged): the Normal trio Verzik with the Dawnbringer shared
+
+- play_tob_verzik_normal; LANDED. `seed_survey.py _play_verzik --party 3` 5 of 5 (closer
+  re-run: deathless on every name, `::tobjail ... deaths=0 cleared=1`; room 599-702 ticks;
+  6 Dawnbringer specials, two per raider, each name), `party_repeat.py` on a copy declaring
+  `party = 3` (name vzrepc) 3 runs AGREE (tick log sha c787dada9f7b, 729 boundaries,
+  lockstep PASS). Entry solo `seed_survey.py _play_verzik` 5 of 5 (closer re-run).
+  cooks_assistant ledger byte-identical to build/merge17_check/cooks_before.tsv;
+  conformance 378/378 rows PASS; check-quest-verbs, test-plugin-lua PASS. No verb added, no
+  conformance row, no content or C change. The plan: Protect from Magic, the scythe between
+  bolts, the content's pillar box as cover with remembered pillar health, the Dawnbringer
+  shared by drop and take (owner, 2026-10-05; W:875, W:887), W:904's three P2 sides, one
+  deduplicated yellow pool per role, webs on a teammate shot, power through the enrage
+  (W:983). Open: p1 is handed the Dawnbringer by `::give` (Xarpus is not played before
+  this harness); every raider eats most of its 16 anglerfish (thin margin); P1 takes
+  124-157 ticks; tornado rows do not follow the server's walk; 2-3 urnbombs a raider land
+  on a held tile (reported, not asserted); party_repeat.py has no `--party` option.
