@@ -1385,3 +1385,40 @@ all clean. No C and no content changed.
   this harness); every raider eats most of its 16 anglerfish (thin margin); P1 takes
   124-157 ticks; tornado rows do not follow the server's walk; 2-3 urnbombs a raider land
   on a held tile (reported, not asserted); party_repeat.py has no `--party` option.
+
+## matthew-mbp-m4-raid-b1-seam36 (2026-10-06): the content rows the play passes filed
+
+- tob_rows_nylocas_verzik: LANDED (content). Verzik P2 reds now come on an attack slot in
+  place of its attack: 7 casts between spawns, the last cast to the next spawn 8, spawn to
+  spawn 44, the first set on the slot after 35% (Blert 84 of 84 and 62 of 62,
+  sources/blert_api/spec_pass_verzik/seam36_p2_reds_cycle.txt); it used to summon after six
+  (a 36-tick cycle). Closer tick log svaplayverzi: RED 215, casts 227..251, RED 259, RED 303.
+  Settled, no change: an Entry frozen nylocas not biting (Freeze page: an Entry exception),
+  Vasilias' 100% reflect, the urn bomb already reading prayer at landing, the tornado walked
+  by the server. Open: `p_stopaction` stops `srv->active_player`, not the bound raider
+  (torirs_server_scripts.c:13461; ENGINE, needs a party Nylocas run); Entry Vasilias' prayed
+  max unsourced; a hit in flight across her turn; the tornado's client row (client lane).
+- tob_rows_bloat_sotetseg_brews: LANDED (content + engine). The br_ (Last Man Standing)
+  Saradomin brew raises Defence 2 + 20% (99 -> 120, wiki Saradomin brew :56);
+  `ToriRSServer_CombatSyncHitpoints` no longer clamps hitpoints to the base, so an overheal
+  holds through hits (s36brewA: 99 -> 115, a 15 bite -> 100). Settled: Bloat's flies ARE
+  25% off under Protect from Missiles (3..6 after the first press; the survey's 7s landed
+  before it, a test window); Sotetseg Entry prayed melee 10 closed as E/M165. Open: overheal
+  decay (stat_restore.rs2 skips hitpoints); M165 needs its plan-table row.
+- combat_rows_tree_wide: LANDED (content). Salve amulet vs undead, damage at
+  `~player_hit_npc_prepare` (s36c_salve_green2: salve(ei) max 40 = floor(34 x 6/5)) and,
+  applied by the closer, accuracy at `[proc,player_attack_roll]`; barrage/burst 3x3 only in
+  multi-way areas and instances; chinchompa fuse accuracy by distance. Barrage, chinchompa
+  and the salve's accuracy are compiled and suite-gated, not driven. Open: heavy ranged
+  defence, forcemulti npcs, the Scythe 1x1 arc, the swift blade.
+- Closer: no driver verb changed (conformance 382/382 PASS, 195 verbs + 187 seam rows,
+  counts unchanged). make torirsserver-scripts clean (42445 scripts); server C selftest 11
+  failures, the baseline list; cooks_assistant and druid byte-identical to merge17_check;
+  quest suite gate 115 green + deserttreasure forgettabletale regicide troll red (baseline,
+  nothing moved). Solo surveys 5 of 5: _play_smoke _play_maiden _play_nylocas
+  _play_sotetseg _play_xarpus _play_verzik; _play_bloat --party 3 5 of 5. Kept Entry rooms:
+  maiden 113, bloat 95, sotetseg 159 identical; xarpus 117 PASS (a shorter fight, trace rows
+  only); verzik `spec.verzik.reds_attacks_between` 7 -> 8 FAIL (the row counts the summon,
+  re-author note); nylocas `spec.nylocas.vasilias_spawn_delay` 17 -> 41 FAIL (the row skips
+  split smalls; she spawned 17 ticks after the last nylocas free, inside 16-19; re-author
+  note). The fight changed because a brew overheal now holds.

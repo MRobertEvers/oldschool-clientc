@@ -992,15 +992,32 @@ ToriRSServer_CombatStatMark(
  * hitsplat's health bar reads the DAMAGE mask. Keeping them in one function
  * rather than assigning both at every call site is the only reason they cannot
  * drift.
+ *
+ * Current hitpoints are NOT clamped to the base here. They are the boosted
+ * hitpoints level, and a boost above the base is legal: the Saradomin brew
+ * "can boost the player's Hitpoints and Defence above their base level"
+ * (wiki Saradomin brew :56), and "Boosted hitpoints levels above a player's
+ * maximum Hitpoints level decay at a rate of one per minute, identically to
+ * other temporary boosts" (wiki Hitpoints :95). This used to clamp to the base
+ * on every call, and every hit on the player calls it, so a brew's overheal
+ * lasted until the next splat -- a 0 included (seam36: consume 89 -> 105, the
+ * raider row 105, a 0 lands, 99). The decay is content's, on the stat timer.
+ * The one downward clamp left is a lost hitpoints LEVEL, in the xp path.
+ *
+ * `max_hitpoints` is the health bar's denominator on the wire: the base, or
+ * the current hitpoints while they are above it, so an overhealed bar reads
+ * full instead of overflowing its width. 255 is the byte both travel in.
  */
 void
 ToriRSServer_CombatSyncHitpoints(struct ToriRSServerPlayer* player)
 {
+    if( player->hitpoints > 255 )
+        player->hitpoints = 255;
     player->max_hitpoints = player->stat_level[TORIRSSERVER_STAT_HITPOINTS];
     if( player->max_hitpoints <= 0 )
         player->max_hitpoints = 1;
     if( player->hitpoints > player->max_hitpoints )
-        player->hitpoints = player->max_hitpoints;
+        player->max_hitpoints = player->hitpoints;
     player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = player->hitpoints;
     ToriRSServer_CombatStatMark(player, TORIRSSERVER_STAT_HITPOINTS);
 }
@@ -1149,10 +1166,18 @@ ToriRSServer_CombatAddXp(
         /* A hitpoints level-up raises the ceiling but does not heal, which is
          * what OldSchool does and is also the only behaviour that cannot
          * surprise someone mid-fight. A level *loss* does the same work in
-         * reverse, and `sync_hitpoints` clamps current hitpoints to the new
-         * ceiling itself. */
+         * reverse: current hitpoints above the new, lower ceiling come down
+         * to it, the rule the other stats follow below (a boost above a base
+         * the player no longer has is power the experience no longer pays
+         * for). `sync_hitpoints` itself no longer clamps, so an overheal on an
+         * unchanged level survives. */
         if( stat == TORIRSSERVER_STAT_HITPOINTS )
+        {
+            if( player->stat_level[stat] < before &&
+                player->hitpoints > player->stat_level[stat] )
+                player->hitpoints = player->stat_level[stat];
             ToriRSServer_CombatSyncHitpoints(player);
+        }
         /* Only upward: `advancestat` is the level-up trigger, and content hangs
          * the fanfare interface off it. Losing a level is not an advance. */
         if( player->stat_level[stat] > before )

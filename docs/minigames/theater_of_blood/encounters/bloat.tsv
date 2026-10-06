@@ -93,8 +93,10 @@ bloat.hp_entry_unit	Entry hitpoints for one player (cache stat4 of the story rec
 bloat.hp_entry_scale	Entry hitpoints per party size 1..5 as a multiple of the one-player figure (the percentages stack: +90, +80, +70, +60)	1,1.9,2.7,3.4,4	ratio	[jagex]	A	newsposts/wiki_Update_Theatre_of_Blood_Entry_Mode_Improvements.wikitext:59	M61	exact
 # bloat.walk_damage_pct measured: ours: 469 hits on a walking Bloat max 12 (two at 16 landed on the rise tick), 352 on a down Bloat max 24
 bloat.walk_damage_pct	damage dealt to Bloat while it is walking, as a share (rounded down)	50	percent	[wiki]	D	wiki_Pestilent_Bloat.wikitext:90; wiki_Theatre_of_Blood_Strategies.wikitext:673	-	exact
-# bloat.entry_fly_max measured: ours: Entry flies 10-20 (same script as Normal): CONTENT BUG against a D source
+# bloat.entry_fly_max measured: ours: Entry flies 4-8 (~tob_bloat_entry_hit(^tob_bloat_entry_flies_max 8), half the max to the max); seam36 svdbloat ticklog: the unprayed fly hits before the first prayer press (t87 7, t88 4, t89 7)
 bloat.entry_fly_max	Entry: fly hit (infobox max 8; "much weaker flies")	1-8	hp	[wiki][M62]	D	wiki_Pestilent_Bloat.wikitext:24; wiki_Theatre_of_Blood_Entry_Mode.wikitext:132	M62	range
+# bloat.entry_fly_prayer measured: seam36 re-read of build/seed_survey_2026-10-05/svdbloat/ticklog.tsv: hit_player <= 8 from tick 153 (Protect from Missiles first pressed) on: 3 x64, 4 x23, 5 x33, 6 x22, max 6; the survey's 'largest was 7' was t87/t89, before any press (tob_bloat.lua :185 counts a walking tick with prayer POINTS as shielded)
+bloat.entry_fly_prayer	Entry: fly hit under Protect from Missiles (25 % off the 4-8 roll, rounded down)	3-6	hp	[wiki][M62]	D	wiki_Pestilent_Bloat.wikitext:90; wiki_Pestilent_Bloat.wikitext:24	M62	range
 # bloat.entry_stomp_max measured: ours: Entry stomp 40-80 in 80 of 80 rooms: CONTENT BUG against a D source
 bloat.entry_stomp_max	Entry: stomp hit (infobox max 40; "heavily reduced")	1-40	hp	[wiki][M62]	D	wiki_Pestilent_Bloat.wikitext:24; wiki_Theatre_of_Blood_Entry_Mode.wikitext:134	M62	range
 # bloat.entry_hand_damage measured: ours 30-50; one narrator: "it'll stun you and do around 20 or 25 damage"

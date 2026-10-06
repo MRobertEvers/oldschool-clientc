@@ -1183,3 +1183,183 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   swing still landing on the npc_retype tick (seam32 s32ny2) points at the engine's turn
   order or at p_stopaction not clearing an interaction already due that tick. The Normal
   plan masks it (npc_heal on her 0 on all seven seam33 names).
+
+## From seam36 tob_rows_nylocas_verzik (matthew-mbp-m4-raid-b1-seam36, 2026-10-06)
+
+- FIXED (content): Verzik P2 summoned the Matomenos one attack early and the first set off
+  the attack clock. Source, the 60 pinned Blert streams re-read by red spawn tick
+  (build/spec_state/matthew-mbp-m4-raid-b1-spec-tob/blert_verzik/1[012]_*.json): 7 P2
+  attacks between two spawns in 84 of 84 cycles, spawn -> first attack 12 (84/84), seventh
+  attack -> next spawn 8 (84/84), spawn -> spawn 44 (84/84); the first set 4 ticks after the
+  attack before it in 62 of 62 rooms (Entry 2, Normal 43, Hard 17). Blert's plugin says the
+  same, VerzikDataTracker.java:70-71 `P2_ATTACKS_PER_REDS = 7` and :721-722 "Last auto before
+  the next reds phase". Ours summoned on the seventh slot after SIX attacks (36-tick cycle,
+  survey svaverzik: RED307, 319..339, RED343) and checked the 35% every tick. Now
+  `[proc,tob_verzik_reds_due]` is read on the attack slot only and the seventh attack pushes
+  the next slot to `^tob_verzik_p2_reds_after_last = 8` (tob_verzik.rs2 ~tob_verzik_p2_tick,
+  tob.constant). Measured: seed_survey _play_verzik 5 of 5 green, every name RED -> 7
+  attacks 4 apart -> RED 8 later (svaplayverzi RED215, 227..251, RED259, 271..295, RED303).
+  Changed kept row: tob_verzik `spec.verzik.reds_attacks_between` 7 PASS -> 8 FAIL; it counts
+  "casts and the summon, which takes the seventh attack's place", the old reading; the
+  re-author counts casts between spawns (7). verzik.tsv: row reworded, new row
+  `verzik.reds_last_attack_to_summon` 8 (grade B).
+- OPEN, ENGINE (not in this seam's files; one line): `p_stopaction` stops the wrong player.
+  torirs_server_scripts.c:13461 `case SS_OP_P_STOPACTION: ToriRSServer_CombatStopPlayer(srv);`
+  stops `srv->active_player` (torirs_server_combat.c:951-953), while `p_finduid` binds only
+  the script's active player (scripts.c:6956-6985, `SSVM_SetActive`), which is the handler's
+  own `player` (scripts.c:5175). So Vasilias' turn cancel (tob_nylocas_boss.rs2:187-190, the
+  wiki's "The player will stop attacking when Vasilias changes forms",
+  wiki_Theatre_of_Blood_Strategies.wikitext:752) stops one stale player once per raider.
+  Evidence, build/quest_gate/s32ny2 ticklog, tick 562 in serial order: 15615 npc_retype 1079
+  8355 -> 8357, 15616 input p0 [apnpc2,nylocas_boss_ranged], 15617 player_anim p0 1658,
+  15619 hit_player p0 4, 15620 npc_heal 4: the interaction survived the stop. A solo room
+  hides it (the stale player is the only one). Fix: `assert(player);
+  ToriRSServer_CombatStopPlayerAt(player);`. This settles the seam32/seam33 rows "a swing due
+  ON Vasilias' turn tick": the content is right, the engine op is not. A hit already in
+  flight at the turn (rolled before it) is a separate question no source answers (the Blert
+  streams carry no hitsplats); not changed.
+- SETTLED, no change: a frozen nylocas and a pillar. The mechanic page: "Freeze ... restricts
+  movement of affected players and NPCs, rendering them immobile for a period of time without
+  disabling other actions" (wiki Freeze, fetched 2026-10-06, build/seam_state/
+  matthew-mbp-m4-raid-b1-seam36/sources36/wiki_Freeze.wikitext:4). So "a frozen npc cannot
+  attack" is false in general; Entry's own sentence is an Entry exception ("Frozen nylocas
+  cannot attack the pillars until unfrozen, even if they are in melee range",
+  wiki_Theatre_of_Blood_Entry_Mode.wikitext:166), and Normal's "Frozen nylocas will usually
+  stop attacking a pillar for a short time" (Strategies:719) is the Freeze rule seen from
+  play (a frozen walker cannot reach the support; one already biting goes on). The content
+  (tob_nylocas.rs2 ~tob_nylo_pillar_tick) is exactly that. The live Nylocas, Ice spells and
+  Theatre of Blood pages carry no frozen-nylocas sentence.
+- SETTLED, no change: Vasilias' reflect is 100 percent ("now reflects and heals 100% of the
+  damage done with the incorrect style instead of 50%", wiki_Nylocas_Vasilias.wikitext:131;
+  newsposts Deadman Summer Finals:52); tob_damage.rs2:293-301 reflects and heals the rolled
+  damage (clamped to her hitpoints). The survey FAIL "largest reflect 7 > half 9 of max hit
+  19" is the kept check's sample bound (tob_nylocas.lua:1797: one reflect over half the max
+  rules out 50 percent), not the rule: the re-author keeps pressing the wrong style until one
+  reflect exceeds half its press max.
+- SETTLED, no change: the urnbomb reads Protect from Missiles at LANDING already
+  (tob_verzik.rs2 `[queue,tob_verzik_urnbomb_land]` rolls and calls `~check_protect_prayer`
+  inside the landing queue). Decisive server evidence: build/quest_gate/s22e_verzik "rev thrown
+  334 landing 337 flipped 334 (before true, after false) hit 15", the seam36 tob_verzik run
+  "rev thrown 292 ... hit 10": over the prayed ceiling 8 under a prayer that was on at the
+  throw, impossible under a throw read. The sva/svc/svd FAILs had 1-2 reverse trials that
+  all rolled <= 8 (each 1 in 2). Re-author: a trial is decisive only when it is a reverse
+  trial (on at throw, off at landing) that lands over floor(max/2); keep trialling until one
+  does (a forward trial can never prove landing).
+- OPEN, unsourced: Entry Vasilias' prayed max (17 = Normal's). The one Entry Nylocas stream
+  (blert_nylo_raw/*.m10.s4.json) has 0 of 300 player rows with hitpoints; nothing new.
+- SETTLED server side, CLIENT note: the Verzik tornado (10846) is walked by the server as an
+  npc and its npc_tile rows move one tile a tick (svaverzik slot 1080: 624 6431,91, 625
+  6430,91 ... 630 6425,86, 632 6427,84). The client row that stays on the spawn tile is the
+  client lane's (DriveUi_Npcs / WorldEntity grid_position).
+
+## From seam36 tob_rows_bloat_sotetseg_brews (matthew-mbp-m4-raid-b1-seam36, 2026-10-06)
+
+- CLOSED, NOT A CONTENT BUG: Bloat's flies through Protect from Missiles (the survey's
+  `tech.protect_from_missiles` "123 fly hits ... the largest was 7"). Source:
+  wiki_Pestilent_Bloat.wikitext:90 "[[Protect from Missiles]] reduces damage from the flies
+  by 25%." tob_bloat.rs2 `~tob_bloat_fly_damage` already keeps 75 % (`^tob_bloat_flies_prayer_pct`)
+  of the Entry 4..8 roll, read off the target at launch: 3..6. Re-read of
+  build/seed_survey_2026-10-05/svdbloat/ticklog.tsv: the fly-sized hit_player rows from tick 153
+  (the first press) on are 3 x64, 4 x23, 5 x33, 6 x22, max 6; the only 7s are t87 and t89,
+  before any press. The kept test's window is wrong, not the content: tob_bloat.lua :185
+  `shield_at[now] = (phase == "walk" and prayer_now > 0)` counts a walking tick with prayer
+  POINTS as shielded, so pre-press flies count (note for the re-author: read the lit set,
+  `t.prayer.read`, or the raider row's `prayers` bit). Spec: bloat.entry_fly_prayer 3-6 (D).
+- CLOSED as a disclosed approximation (grade E, M165): Sotetseg Entry's melee through Protect
+  from Melee 1..10. Normal is halved, not blocked: wiki_Theatre_of_Blood_Strategies.wikitext:787
+  "The melee attack consists of a lunge with its horns that can deal up to 45 damage (22 if
+  prayed against)". Entry has only the unprayed max (wiki_Sotetseg.wikitext:23 "max hit1 = 20
+  ([[Melee]])") and the Entry page's advice "praying Protect from Melee"
+  (wiki_Theatre_of_Blood_Entry_Mode.wikitext:191); no Entry recorder row exists (blert: one
+  Entry raid, no melee on the recorder). `^tob_sote_melee_prayed_max_entry = 10` stays;
+  spec sotetseg.melee_max_prayed_entry (E, [M165]); the plan's open table needs its M165 row.
+  raid_report.py counting a hit through the right prayer as a "prayer" MISTAKE is the tool's
+  rule, not the play's error, for this boss.
+- FIXED (content): the `br_` Saradomin brew drained Defence. `br_` is the cache's Last Man
+  Standing supply family ("battle royale": all.obj also holds br_bloody_key, br_token); the
+  ToB chest (tob.rs2 :855) and the ToA bundles hand it out. br_potion.rs2 now
+  `stat_boost(defence, 2, 20)` like sara_brew.rs2 (wiki_Saradomin_brew.wikitext:56 "raises
+  Hitpoints by 15% + 2 and Defence by 20% + 2 of their base levels"). Measured
+  (build/quest_gate/s36brewA): defence 99 -> 120 on one dose. The only other Saradomin brew
+  path is sara_brew.rs2 (castlewars_brew.rs2 is a different potion).
+- FIXED (engine): a brew's overheal was cancelled by the next hit. Every hit on a player ran
+  ToriRSServer_CombatSyncHitpoints (torirs_server_combat.c), which clamped hitpoints to the
+  base; a 0 splat did it too (svaplaynylocC: consume 89 -> 105 at t274, raider 105 at t275, a 0
+  hit_player at t276, 99). Sources: wiki_Saradomin_brew.wikitext:68 "This heal is a boost to the
+  Hitpoints skill and does allow for [[overhealing]]"; wiki_Hitpoints.wikitext:95 "Boosted
+  hitpoints levels above a player's maximum Hitpoints level decay at a rate of one per minute,
+  identically to other [[temporary boost]]s." The sync no longer clamps (255 cap; the bar's
+  denominator becomes the current hitpoints while overhealed, so the bar reads full); a LOST
+  hitpoints level still clamps, in the xp path. Tick log (s36brewA): t12 consume
+  br_4dosepotionofsaradomin 99 -> 115; raider 115 at t13..t16; a 15 nightshade at t16 -> 100.
+  Before (s36brewBefore, pre-edit binary): the same bite read 99. The bandage's combat boost
+  (tob_spectate.rs2) holds through a hit (attack 106, defence 120 after a 15 bite).
+- OPEN (content, not this seam's file): the overheal never DECAYS. stat_restore.rs2
+  `[timer,stat_restore]` skips `^stat_hitpoints` (LostCity's stat_boost_restore does too: 2004
+  had no hitpoints boost), so a held overheal stays until a hit. The page's rule (Hitpoints :95
+  above) is one line there: for hitpoints, `if (stat > stat_base) stat_sub(hitpoints, 1, 0)`.
+  Also seen, not investigated: in the scratch run hitpoints 84/85 under base did not regenerate
+  in 240 ticks on either binary (health_regen.rs2 timer).
+
+## From seam36 combat_rows_tree_wide (matthew-mbp-m4-raid-b1-seam36, 2026-10-06)
+
+- FIXED (seam36, content; commit named by the closer), DAMAGE half: no salve amulet bonus
+  against undead (the seam32 row above). wiki_Salve_amuleti.wikitext "Comparison": Salve
+  amulet 16.67% melee; (e) 20% melee; (i) 16.67% melee and ranged, 15% magic; (ei) 20% all
+  three, "to accuracy and damage"; :111 "do not stack with the black mask and slayer
+  helmet's on-task bonuses; wearing both will only apply the bonuses of the salve amulet".
+  New gear/salve_amulet.rs2 `~salve_or_black_mask_scale_target` (salve when it applies to
+  that style against an `undead`-param npc, else the mask) replaces the mask call in
+  `~player_hit_npc_prepare`. Pestilent Bloat already carries param=undead,1
+  (npc/configs/combat_stats.generated.npc; wiki_Pestilent_Bloat.wikitext:20). Measured,
+  kourend_spectre stand-in, Lumbridge, ::maxmelee + whip: build/quest_gate/s36c_salve_red2
+  (salve(ei): 16 landed, max 34 = M) -> s36c_salve_green2 (`fury.hits` M=36 max 36, 0 above;
+  `salve_ei.hits` M=34 (::salvemax) max 40 = floor(34 x 6/5), 2 rows above M).
+- Still open, CONTENT (one line, not in seam36's files): the salve's ACCURACY half.
+  combat_stats.rs2:642 `[proc,player_attack_roll]` still calls
+  `~slayer_black_mask_scale_target($roll, $style)`; replacing it with
+  `~salve_or_black_mask_scale_target($roll, $style)` applies the page's accuracy column
+  (the closer's snippet). Until then a salve raises the max, not the hit chance.
+- FIXED (seam36, content), compiled only, no driver run: a barrage/burst hit the 3x3 in a
+  single-way area (the seam33 row). wiki_Multicombat_area.wikitext:68 "they can only hit
+  multiple opponents while in a multi-combat area"; wiki_Ice_Barrage.wikitext:23/:29.
+  `~pvm_barrage_spell` (player_magic.rs2) now sweeps the 3x3 only when `map_multiway` or
+  `map_instance_find` says so (the chinchompa splash's own test; every ToB room is an
+  instance, so no ToB plan changes). gear_selftest.rs2 `~gear_selftest_barrage` asserts 1
+  target in a single-way area, 2..9 in a multi-way one.
+- FIXED (seam36, content), compiled only, no driver run: chinchompa fuse accuracy (the
+  seam33 row). wiki_Chinchompa_weapon.wikitext:21-40 (short 100/75/50, medium 75/100/75,
+  long 50/75/100 at 0-3/4-6/7+ squares; Mod Ash "applied to the accuracy/defence roll when
+  the attack is cast"). player_ranged.rs2 `~player_chinchompa_hit_roll` scales the ranged
+  attack roll by the stance's percentage at Chebyshev distance player->npc coord (a big
+  npc's south-west tile: an approximation the page does not settle). The seam33 Normal
+  Maiden ranger chins from short range on short fuse (100%), so its plan should not move;
+  not re-surveyed in seam36.
+- Still open, CONTENT: the chinchompa primary's 'heavy' ranged defence
+  (wiki_Chinchompa_weapon.wikitext:19). No npc in this tree carries a light/standard/heavy
+  split of `rangedefence`; needs the param first.
+- Left, not ToB: `forcemulti` npcs (only dks.npc and tormented_demons.npc carry it) outside
+  multiway.csv and an instance read as single-way to the chinchompa splash and now to the
+  barrage too; the key is the engine's (`ToriRSServer_CombatMultiway`).
+- Left, time: the Scythe of Vitur 1x1 arc (seam33 row; gear/scythe_of_vitur.rs2:38) and the
+  swift blade's missing bonuses (no source fetched) are unchanged by seam36.
+
+## From the seam36 closer (matthew-mbp-m4-raid-b1-seam36, 2026-10-06)
+
+- FIXED (closer, content, one line): the salve's ACCURACY half above.
+  combat_stats.rs2 `[proc,player_attack_roll]` now calls
+  `~salve_or_black_mask_scale_target($roll, $style)`: wiki_Salve_amuleti.wikitext:20
+  "Increases melee, ranged and magic damage & accuracy", the Comparison table's Accuracy
+  columns, and :111 "do not stack with the black mask". With no salve against an undead
+  target it returns the black mask call unchanged (cooks_assistant and druid byte-identical,
+  the quest suite at its baseline). The accuracy effect itself was not measured by a run.
+- Still OPEN, ENGINE: `p_stopaction` stops `srv->active_player`, not the bound player
+  (torirs_server_scripts.c:13461; the seam36 nylocas row above). Not applied by the closer:
+  it changes every content caller of the command, and the party Nylocas run that proves it
+  was not in this pass.
+- Still OPEN, CONTENT: a held overheal never decays (stat_restore.rs2 skips hitpoints;
+  wiki_Hitpoints.wikitext:95 "decay at a rate of one per minute").
+- Test row, not content: tob_nylocas `spec.nylocas.vasilias_spawn_delay` reads 41 on the
+  closer's own-name run. Tick log: a big died at 613 and split; its smalls freed at 665; she
+  spawned at 682, 17 ticks later, inside the spec's 16-19. The row takes the last WAVE
+  nylocas free (641) and skips the split smalls (DRIVER_NOTES.md, closer seam36).

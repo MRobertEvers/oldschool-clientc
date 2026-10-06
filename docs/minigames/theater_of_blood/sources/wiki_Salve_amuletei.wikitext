@@ -1,0 +1,282 @@
+{{Infobox Item
+|version1 = Nightmare Zone
+|version2 = Soul Wars
+|version3 = Emir's Arena
+|name = Salve amulet(ei)
+|image = [[File:Salve amulet(ei).png]]
+|release1 = [[1 May]] [[2014]]
+|release2 = [[6 January]] [[2021]]
+|release3 = [[6 July]] [[2022]]
+|update1 = Spirit trees, clues & more!
+|update2 = Soul Wars And 20th Anniversary Event
+|update3 = PvP Arena: Soft Launch
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wear, Uncharge, Drop
+|examine = Increases melee, ranged and magic damage & accuracy by 20% against the undead.
+|value = 300
+|weight = 0.007
+|id1 = 12018
+|id2 = 25278
+|id3 = 26782
+|leagueRegion = Morytania&Kandarin,Morytania&Misthalin
+}}
+[[File:Salve amulet(ei) detail.png|left|150px]]
+The '''Salve amulet(ei)''' is the enchanted and imbued form of the [[salve amulet]], granting a 20% increase in the wearer's accuracy and damage for [[melee]], [[ranged]], and [[magic]] when fighting [[Undead (attribute)|undead monsters]].
+
+The salve amulet's bonuses against the undead '''do not''' stack with the [[black mask]] and [[Slayer helmet|slayer helmet's]] on-task bonuses; wearing both will only apply the bonuses of the salve amulet (ei). The salve amulet also '''does not''' have an effect on the [[dwarf multicannon]]'s accuracy.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1297156273645985793|date=22 August 2020|archiveurl=https://reldo.runescape.wiki/i/106099|archivedate=22 August 2020|quote=Yes, boosts that apply to any target will help with the cannon. The boosts that tend not to help are the target-specific ones, e.g. boosts that require the target to be undead or require it to be your Slayer assignment.}} However, the bonuses of [[Void Knight equipment]] '''do''' stack with the salve amulet. Additionally, the amulet's effects apply to all targets when using multi-hitting melee weapons in a [[multicombat area]], such as the [[Scythe of Vitur]] and the [[special attack]] of the [[dragon 2h sword]], but not for multi-hitting magic and ranged attacks (ex. [[Chinchompa (weapon)|chinchompas]] and [[burst spells]]).
+
+As the amulet is untradeable and does not [[(broken)|break]], it will always be kept on PvP death in the [[Wilderness]].
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Nightmare Zone
+|version2 = Soul Wars
+|version3 = Emir's Arena
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = 0
+|dstab = +3
+|dslash = +3
+|dcrush = +3
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = +3
+|slot = neck
+|image = [[File:Salve amulet(ei) equipped.png|130px]]
+|altimage = [[File:Salve amulet(ei) equipped female.png|130px]]
+}}
+
+==Creation==
+===Whole process===
+{{Switch infobox
+|text1 = Nightmare Zone
+|item1 = {{Recipe
+|notes = {{SCP|Quest}} Completion of [[Lair of Tarn Razorlor]]
+|members = Yes
+|ticks = Varies
+|tools = Tarn's diary
+|facilities = Dom Onion's Reward Shop
+|mat1 = Salve amulet
+|mat1cost = no
+|mat2 = Nightmare Zone points
+|mat2quantity = 800000
+|mat2pic = Minigame map icon
+|mat2cost = {{Average drop value|mob=herb box|raw=y}} / 9500
+|mat2itemnote = Value based on the expected average value of spending Nightmare Zone points on [[herb box]]es.
+|output1 = Salve amulet(ei)
+|output1cost = no
+|output1subtxt = Total - Nightmare Zone
+}}
+|text2 = Soul Wars
+|item2 = {{Recipe
+|notes = {{SCP|Quest}} Completion of [[Lair of Tarn Razorlor]]
+|members = Yes
+|ticks = Varies
+|tools = Tarn's diary
+|facilities = Soul Wars Reward Shop
+|mat1 = Salve amulet
+|mat1cost = no
+|mat2 = Zeal Tokens
+|mat2quantity = 320
+|mat2pic = Minigame map icon
+|mat2cost = {{Average drop value|mob=spoils of war|raw=y}} / 30
+|mat2itemnote = Value based on the expected average value of spending [[Soul Wars]] [[Zeal Tokens]] on [[spoils of war]].
+|output1 = Salve amulet(ei)
+|output1cost = no
+|output1subtxt = Total - Soul Wars
+}}
+|text3 = Emir's Arena
+|item3 = {{Recipe
+|notes = {{SCP|Quest}} Completion of [[Lair of Tarn Razorlor]]
+|members = Yes
+|ticks = Varies
+|tools = Tarn's diary
+|mat1 = Salve amulet
+|mat1cost = no
+|mat2 = Scroll of Imbuing
+|mat2cost = No
+|mat2itemnote = When uncharged, the [[scroll of imbuing]] is returned.
+|output1 = Salve amulet(ei)
+|output1cost = no
+|output1subtxt = Total - Emir's Arena
+}}
+}}
+
+===Imbuing first===
+{{Recipe
+|notes = {{SCP|Quest}} Completion of [[Lair of Tarn Razorlor]]
+|members = Yes
+|ticks = 1
+|tools = Tarn's diary
+|mat1 = Salve amulet(i)
+|mat1cost = No
+|output1 = Salve amulet(ei)
+|output1cost = No
+}}
+
+===Enchanting first===
+{{Switch infobox
+|text1 = Nightmare Zone
+|item1 = {{Recipe
+|members = Yes
+|ticks = 1
+|facilities = Dom Onion's Reward Shop
+|mat1 = Salve amulet (e)
+|mat1cost = no
+|mat2 = Nightmare Zone points
+|mat2quantity = 800000
+|mat2pic = Minigame map icon
+|mat2cost = {{Average drop value|mob=herb box|raw=y}} / 9500
+|mat2itemnote = Value based on the expected average value of spending Nightmare Zone points on [[herb box]]es.
+|output1 = Salve amulet(ei)
+|output1cost = no
+|output1subtxt = Nightmare Zone
+}}
+|text2 = Soul Wars
+|item2 = {{Recipe
+|members = Yes
+|ticks = 1
+|facilities = Soul Wars Reward Shop
+|mat1 = Salve amulet (e)
+|mat1cost = no
+|mat2 = Zeal Tokens
+|mat2quantity = 320
+|mat2pic = Minigame map icon
+|mat2cost = {{Average drop value|mob=spoils of war|raw=y}} / 30
+|mat2itemnote = Value based on the expected average value of spending [[Soul Wars]] [[Zeal Tokens]] on [[spoils of war]].
+|output1 = Salve amulet(ei)
+|output1cost = no
+|output1subtxt = Soul Wars
+}}
+|text3 = Emir's Arena
+|item3 = {{Recipe
+|members = Yes
+|ticks = 1
+|mat1 = Salve amulet (e)
+|mat1cost = no
+|mat2 = Scroll of Imbuing
+|mat2cost = No
+|mat2itemnote = When uncharged, the [[scroll of imbuing]] is returned.
+|output1 = Salve amulet(ei)
+|output1cost = no
+|output1subtxt = Emir's Arena
+}}
+}}
+
+==Effects==
+:''For a list of monsters affected by the salve amulet, [[Undead (attribute)|see here]].''
+The salve amulet's bonuses against the undead '''do not''' stack with the [[black mask]] and [[Slayer helmet|slayer helmet's]] on-task bonuses; wearing both will only apply the bonuses of the salve amulet (i). However, the bonuses of [[Void Knight equipment]] '''does''' stack. Additionally, the amulet's effects apply to all targets when using multi-hitting melee weapons in a [[multicombat area]], such as the [[Scythe of Vitur]] and the [[special attack]] of the [[dragon 2h sword]], but not for multi-hitting magic and ranged attacks (ex. [[Chinchompa (weapon)|chinchompas]] and [[burst spells]]).
+===Comparison===
+{| class="wikitable"
+! colspan="2" rowspan="2" |Items
+! colspan="2" |Melee
+! colspan="2" |Ranged
+! colspan="2" |Magic
+|-
+!Accuracy
+!Damage
+!Accuracy
+!Damage
+!Accuracy
+!Damage
+|-
+|{{plinkt|Salve amulet}}
+|16.67%
+|16.67%
+|0%
+|0%
+|0%
+|0%
+|-
+|{{plinkt|Salve amulet (e)}}
+|20%
+|20%
+|0%
+|0%
+|0%
+|0%
+|-
+|{{plinkt|Salve amulet(i)}}
+|16.67%
+|16.67%
+|16.67%
+|16.67%
+|15%
+|15%
+|-
+|{{plinkt|Salve amulet(ei)}}
+|20%
+|20%
+|20%
+|20%
+|20%
+|20%
+|}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Salve amulet(ei)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 April 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = The death protection value of imbued salve amulets has been reduced.
+}}
+{{Subject changes
+|date = 11 January 2023
+|update = Secrets of the North & More!
+|change = The salve amulet's combat bonuses now apply to [[Ghost (Soul Wars)|ghosts]] within [[Soul Wars]].
+}}
+{{Subject changes
+|date = 18 April 2019
+|update = QoL and Treasure Trails Feedback Changes
+|poll = Old School Content Poll 66: Hosidius Rework and QoL Changes
+|change = The amulet was [[Graphical updates|graphically updated]] to make it distinct from the Salve amulet (e).
+}}
+{{Subject changes
+|date = 7 June 2018
+|update = The Theatre of Blood
+|change = The two imbued Salve amulet versions are now protected over more items on death, reflecting the time and trouble required to re-imbue them.
+}}
+{{Subject changes
+|date = 16 November 2017
+|update = Buy 50, Item Changes and QoL
+|change = The value of the Salve Amulet (i) and the Salve Amulet (ei) have been increased to better reflect the time it takes to acquire them.
+}}
+{{Subject changes
+|date = 18 December 2014
+|update = Christmas 2014
+|change = You can now enchant an imbued Salve amulet.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Salve amulet(ei) (v1) detail.png|center|300x150px]]
+|[[File:Salve amulet(ei) detail.png|center|300x150px]]
+|-
+|[[File:Salve amulet(ei) v1.png|center]]
+|[[File:Salve amulet(ei).png|center]]
+|-
+|1 May 2014 –<br/>18 April 2019
+|18 April 2019 –<br/>present
+|}
+
+==References==
+{{Reflist}}
+
+{{Amulets}}
+{{Attribute_affinities}}
+{{Nightmare Zone}}
+{{Soul Wars}}

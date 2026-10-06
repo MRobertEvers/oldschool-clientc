@@ -6292,3 +6292,78 @@ green ball is in the air or above the band + 15.
 `_play_verzik` must stay the Entry solo, so it declares no `party`; a `--party 3` run of it
 plays Normal. `party_repeat.py` has no `--party` option, so its gate runs a scratch copy
 with `party = 3,` added, through `--script` (build/seam34v_scratch/_play_verzik_party3c.lua).
+
+## Verzik P2 reds: count casts between spawns, not attacks to the summon (seam36)
+
+A summon is never one of the seven attacks. Count her casts between the npc_spawn rows of
+10845/8385/10862: 7 casts, the last cast to the next spawn 8 ticks (one empty slot), spawn
+to spawn 44 (Blert 84 of 84 cycles). The first set comes on the attack slot after she
+crosses 35%, 4 ticks after the attack before it (62 of 62). The kept tob_verzik row
+`spec.verzik.reds_attacks_between` counts casts plus the summon and now reads 8: it asserted
+the old one-short cycle and is a note for the re-author.
+
+## The account name seeds the fight: compare under the same name (seam36)
+
+`run.py <test> --name X --no-publish` plays a different fight from the test's own name
+(s36tobvz died in P3 where tob_verzik under its own name is green). Compare before and
+after under the SAME name. `run.py <test> --no-publish` without `--name` still writes
+build/quest_gate/<test>/, so copy the old ledger first.
+
+## A decisive prayer-read-tick trial is a reverse trial above the prayed ceiling (seam36)
+
+For a damage-on-landing attack, a trial decides only when the prayer is on at the send,
+off at landing, and the hit exceeds the prayed ceiling. A forward trial, or any hit at or
+under the ceiling, proves nothing (P 1/2 a trial for a halving prayer).
+
+## A Saradomin brew's overheal holds through hits (seam36)
+
+Engine fix in `ToriRSServer_CombatSyncHitpoints`: a raider at 115 hit for 15 reads 100, not
+99 (it used to clamp to the base on every hit, a 0 included). Plans that cap a brew at the
+base (`_play_nylocas_supplies`) can count the overheal again. The overheal does not decay
+yet: stat_restore.rs2 skips hitpoints (open). On a player's hit_player row, max_hitpoints in
+the DAMAGE mask equals the current hitpoints while overhealed (a full bar); the raider
+row's `hpmax` label is still the base level.
+
+## The br_ Saradomin brew raises Defence (seam36)
+
+`br_` is the cache's Last Man Standing supply family (br_bloody_key, br_token); the ToB chest
+and the ToA bundles hand out its potions. Its Saradomin brew now raises Defence to base + 2
++ 20% (99 -> 120), like the tradeable brew; it used to drain it.
+
+## A prayer technique row reads the lit prayer, never prayer points (seam36)
+
+Read `t.prayer.read` or the raider row's prayers bit. tob_bloat.lua :185 counts a walking
+tick with prayer POINTS as shielded, so under other names it counts flies that landed before
+the first press (svdbloat t87/t89 7s; from the first press on the flies are 3..6, the wiki's
+25% off the Entry 4..8).
+
+## Salve amulet against the undead (seam36)
+
+gear/salve_amulet.rs2 `~salve_or_black_mask_scale_target(value, style)` is the one
+target-bound call at both funnels, the attack roll (combat_stats.rs2) and
+`~player_hit_npc_prepare`: the salve when it applies to that style against an
+`npc_param(undead)` npc, else the black mask or slayer helmet, never both. Pestilent Bloat is
+undead. POH dummies keep their own path. `::salvemax` (debugproc) prints the content's own
+melee/ranged max hit; read it with `t.chat._choose_new_line(0)`. A POH dummy cannot name M
+(its hit is capped at its 10 hitpoints), and `varp6287_com_maxhit` through `t.var.server`
+answers 0.
+
+## Barrage and chinchompa: multi-way areas and instances only, fuse accuracy (seam36)
+
+A barrage or burst reaches the 3x3 only where `map_multiway` or `map_instance_find` says so,
+the same test as the chinchompa splash; a raid room is an instance, so multi. A chinchompa's
+attack roll is scaled by the fuse table (short/medium/long = accurate/rapid/longrange) at
+the Chebyshev distance to the npc's south-west tile. Both compiled and gated by the suite,
+not driven by a scratch.
+
+## Scratch scripts run without pcall/api_drive globals (seam36)
+
+A scratch script passed with `--script` sees only the `t.*` verbs.
+
+## Vasilias' spawn delay counts the split smalls too (closer seam36)
+
+The kept tob_nylocas row `spec.nylocas.vasilias_spawn_delay` takes the last free of a WAVE
+nylocas. When a big dies late its split smalls outlive the wave (tick 613 split, 665 free),
+and she spawns 17 ticks after them (682), inside the spec's 16-19; the row then reads 41.
+Under its own name the room now plays that roll (the brew overheal holds, seam36), so the
+row is red on a measurement, not on the content: a note for the re-author.
