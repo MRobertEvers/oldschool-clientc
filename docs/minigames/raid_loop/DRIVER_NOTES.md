@@ -4936,6 +4936,133 @@ share it using their special attack".
 
 ## Watching a test: the Scripts tab
 
+### Two views: what you see while a script plays (camera seam2, 2026-10-05)
+
+The owner: "I want to be able to watch the runner run its test, but I don't want the
+watcher's camera to be affected." Since camera seam2 a Play in a client that presents has
+TWO world views (struct App_ViewSplit, src/app.h; runner_view_split):
+
+- **AutomationRunner** (`views[0]`): what every driver verb reads and writes -- its camera
+  (the pose ladder, `t.camera`, a shot's re-aim), its pointer, its pick results, its
+  right-click menu and its photographs (drawn offscreen on the software lane, through its
+  own camera).
+- **PlayerClient** (`views[1]`): what is presented, steered by YOUR mouse and keys -- arrows,
+  middle-drag and wheel orbit and zoom it; your hover picks through it.
+
+`QD.core_run_test` attaches at Play (`api.drive.view_attach("AutomationRunner")`) and
+`QD.finish` / Stop detach; the second view is created as a copy of the first (no jump) and
+copied back at the end. A cutscene, a `CAM_*` packet and `CAM_FORCEANGLE` take BOTH views
+(owner decision 2). A test run (run.py, SDL dummy, render skip) presents nothing: attach
+answers `attached=false` with a reason and nothing is created.
+
+**The Interact switch** (owner decision 1). A toggle on the Scripts page, "Interact (play
+while the script runs)", OFF when a script starts. OFF: your mouse and keys are a
+spectator's -- orbit, zoom, hover-inspect, the plugin chrome -- and game clicks and typing
+are dropped. ON: they play the game through YOUR view (your pointer, your pick, your menu),
+never inside one of the runner's gestures (a press waits), and every action becomes a
+`watcher.<click|right_click|key|wheel>` PASS row with its tick, written before the script's
+next row. The switch is `api.drive.view_interact(on)`; without an attached view it is
+refused and the toggle falls back to off.
+
+**What the presented frame shows** (watch_debug_aids, src/app/app_overlay.c "THE WATCHER'S
+AIDS"; drawn by the client, not a plugin, so nothing costs anything with one view and no
+plugin can cover it):
+
+- THE BADGE, top-centre of the world viewport, on the canvas overlay list (above every
+  interface, every lane, every gameframe): "Runner has control" (white on a dark wash) or
+  "You can interact (Scripts: Interact is on)" (black on the game's orange `0xFF981F`, a
+  yellow edge).
+- THE GHOST CURSOR at the runner's pointer (screen space, which the views share): four cyan
+  ticks round a dot with a black shadow; a red X while a runner button is held and for
+  400 ms after a runner press; under it what the runner's OWN pick holds -- `runner: npc 3105
+  at 3212,3230 (2 hits)` (kind, config id, absolute tile, hit count; recomputed only when the
+  first hit changes). The game's own yellow/red click cross still lands at the runner's
+  press pixel too.
+- THE PRESS OUTLINE. The runner's pixel means nothing in your picture; the thing it pressed
+  does. When the runner presses a menu row on the world, the npc, loc, obj or player that
+  row names is outlined in cyan through YOUR camera for 1.5 s (the hover outline's model
+  path, `app_overlay_outline_element_model`); a Walk-here row outlines its tile. HOW IT
+  KNOWS: while the runner's menu is open, each presented frame records its rows' y bands
+  and picks (the driver's row press closes the menu in the same input step, so no frame
+  ever sees the menu and the press together); a NEW click cross while the runner moved last
+  is the press, and the recorded row under the runner's pointer is what it pressed. A
+  `drive.op` bypass (no pointer, no menu) and a minimap walk draw no outline.
+- MENUS (runner_view_split): the menu of the view that is not presented is drawn under
+  yours in `0x474745` and takes no physical click; yours draws as usual on top.
+- None of this reaches a script's photograph: the world items are built only while the
+  frame's view is yours, and the runner's re-walk of the emit for a shot gets the canvas
+  list cut back to the plugins' items.
+
+**The page's readings** (script/plugins/script_runner.lua; every 10 frames, rows never
+added or removed, each under 192 characters): `Control` (the badge's words, or "no script
+attached: your mouse and keys play the game"); `Under your pointer` (YOUR pick:
+`api.input.hover_entity` / `hover_tile`, which answer for the presented view -- `npc Hans
+(id 3105) at 3221,3219 level 0`, `tile 3222,3218 level 0, nothing on it`; the name comes from
+one walk of that kind's pool, only when the hovered thing changes); `Runner pointer`
+(`api.drive.view_status().runner`: `386,129  picked 3  menu open  camera yaw 1024 pitch 300
+zoom 600`). WHAT THE PAGE CANNOT SAY: what the runner's pick holds -- no plugin read of
+`views[0].world_pickset` exists (`drive_push_view`, torirs_plugin_drive.c, would carry it),
+so the page gives its count and the ghost cursor's label gives its contents.
+
+**What is and is not deterministic.** The runner's picks are drawn on demand exactly as
+render skip draws them (owed by a push, or late on a read), so a watched run's timeline
+equals a render-skip run's; orbiting and zooming your own camera the whole run changes
+nothing (cooks_assistant and tob_maiden ledgers identical, ticks and shots included, with
+and without a watcher orbiting). NOT deterministic: anything you do with Interact ON (it is
+real input, recorded as `watcher.*` rows), the moment you press Play, and the account
+NAME (each name has its own random stream, so a combat room's watched ledger can differ
+from its kept one -- not because of the views).
+
+**Cost.**
+
+| state | per frame |
+|---|---|
+| headless test run (run.py) | one view; nothing new; attach refused with a reason |
+| client, no script attached | one view; the aids are one branch on `view_split.attached` in two overlay builders |
+| client, script attached, nothing pushed | the presented frame + badge and ghost cursor (about 15 canvas items) |
+| client, script attached, runner picks/shots | + an offscreen software frame through the runner's view when a push owes one or a read needs one: 181 for 1691 presented in cooks_assistant (~5/s at 50 fps; 110 for reads, 46 for shots) |
+| a runner press on the world | + the outline (14 world items in the Hans proof) for 1.5 s |
+
+`./launch bench osrs239-bench --renderer soft3d`, no script attached, interleaved A/B: the
+split vs HEAD +0.6% summed frame p50 (noise); the aids vs the split alone 28.38 vs 29.12 ms
+(two runs each, -2.5%, noise).
+
+**Proof knobs.** `TORIRS_VIEW_SPLIT_FORCE=1` (+ `--render-every-frame`) forces the two
+views headless; `TORIRS_VIEW_TRACE=<file>` both views' poses per frame;
+`TORIRS_VIEW_SIM_ORBIT=start,end` and `TORIRS_VIEW_SIM_EVENTS='frame:op:a:b:c;...'` physical
+input; `TORIRS_WATCH_TRACE=<file>` one line per presented frame while attached: interact,
+badge words and box, ghost x/y, buttons, click cross, runner menu open and rows recorded,
+presses, the press mark (pick kind, element, ids, tile, items pushed, row text), the ghost
+label, and `cuts` (photograph walks the canvas was cut for). Measured
+(build/watch_aids/wa_aids.lua, `--name wa_aids3`, all 5 rows PASS): 449 presented frames,
+the badge "Runner has control" on 359 and "You can interact" on the 90 between
+`t.view.interact(true)` and `(false)`; the ghost at the runner's pointer on every frame;
+`t.player.talk_to("hans")` -> press at presented frame 187, kind NPC, element 1073761432,
+npc id 3105, row "Talk-to Hans", 14 outline items on each of the next 75 frames (1.5 s at
+20 ms); `cuts=1` for the shot `001-aids.talk`.
+
+### t.view.attach / detach / status / interact / watcher (camera seam2)
+
+No room test calls these: `QD.core_run_test` attaches for a Play and `QD.finish` (or a
+Stop, in C) detaches. They exist for the conformance rows and for probes. Every one
+answers `"ok", status` where status is `{attached, views, presentable, interact,
+reason?, lane_refusal?, runner = {yaw, pitch, zoom, pointer_x, pointer_y, menu_open,
+picked, eye_*}, watcher = {...} (attached only), offscreen, offscreen_reads,
+offscreen_shots, presented, delivered, dropped, held, watcher_serial}`.
+
+- On a test run (run.py: SDL dummy, render skip) `t.view.attach("AutomationRunner")`
+  answers `attached=false, views=1` with a reason: nothing is created and nothing new runs
+  per frame. Any other role name is `refused`.
+- `t.view.interact(true)` is `refused` while nothing is attached; with no argument it is
+  a read.
+- `t.view.watcher(after)` lists the watcher's actions while Interact was on, after serial
+  `after` (the last 32 are kept); `core.lua` turns each into a `watcher.<what>` row.
+- Lanes: the software and OpenGL3 lanes carry the second view. D3D9, GLES and WebGL
+  answer `attached=false` with `lane_refusal` set, and a lane switch while attached
+  detaches. On those lanes a Play still moves the presented camera, as before.
+
+### The Scripts tab itself (seam23, seam24)
+
 Seam23 built the tab for the six solo raid rooms off a prepared index; seam24 (2026-10-05,
 scripts_tab_every_script) replaced that plumbing. What it is now:
 
@@ -5022,7 +5149,8 @@ scripts_tab_every_script) replaced that plumbing. What it is now:
   photographs the world as Play found it. Either way the latch is empty when the test's
   first `t.shot` asks.
 - THE PAGE (`script/plugins/script_runner.lua`). Rows, never added or removed: Suite (a
-  select), Search (node kind 5), the match count, Selected, Play, Stop, Driver, Test (suite,
+  select), Search (node kind 5), the match count, Selected, Play, Stop, Interact (a toggle),
+  Control, Under your pointer, Runner pointer (camera seam2, above), Driver, Test (suite,
   id, account), Leg, Step, Rows, a note, 12 list slots (action rows: the id, then the title
   or `[n legs]`, `selected:` on the chosen one; an unavailable test reads
   `<id>  (unavailable)` with its reason and answers its reason in the note when clicked),

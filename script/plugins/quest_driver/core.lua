@@ -444,7 +444,31 @@ function QD.core_row_tally()
     return rows_written, rows_not_pass
 end
 
+-- The runner camera split (raid camera seam runner_view_split): while a
+-- Play's own view is attached (QD.core_run_test), every action the WATCHER
+-- took on the game with Interact on is a `watcher.<what>` row, written ahead
+-- of the script's next row with the tick it reached the game. A test run
+-- attaches nothing, so this is one boolean test per row there.
+local view_attached = false
+local watcher_serial = 0
+
+local function core_watcher_rows()
+    local result, actions = api_drive.view_watcher(watcher_serial)
+    if result ~= "ok" or type(actions) ~= "table" then
+        return
+    end
+    for _, action in ipairs(actions) do
+        watcher_serial = action.serial
+        api_drive.ledger({ step = "watcher." .. tostring(action.what), verdict = "PASS", ticks = 0, shots = "",
+            detail = string.format("tick=%d at %d,%d detail=%d: the watcher acted on the game (Interact on)",
+                action.tick, action.x, action.y, action.detail) })
+    end
+end
+
 local function flush(name, verdict, detail)
+    if view_attached then
+        core_watcher_rows()
+    end
     name = normalise_step_name(name)
     verdict = normalise_verdict(verdict)
     rows_written = rows_written + 1
@@ -756,6 +780,42 @@ function QD.drive.play(test)
     return api_drive.play(test)
 end
 
+-- t.view.attach(role) / t.view.detach() / t.view.status() /
+-- t.view.interact([on]) / t.view.watcher([after]) (raid camera seam
+-- runner_view_split): the script's own world view (api.drive.view_*; the
+-- meta file documents each). QD.core_run_test attaches for a Play, so no test
+-- file calls these; they exist for the conformance rows and for a probe.
+QD.view = {}
+
+function QD.view.attach(role)
+    local result, status = api_drive.view_attach(role)
+    if result == "ok" and type(status) == "table" and status.attached then
+        view_attached = true
+        watcher_serial = status.watcher_serial or 0
+    end
+    return result, status
+end
+
+function QD.view.detach()
+    if view_attached then
+        core_watcher_rows()
+        view_attached = false
+    end
+    return api_drive.view_detach()
+end
+
+function QD.view.status()
+    return api_drive.view_status()
+end
+
+function QD.view.interact(on)
+    return api_drive.view_interact(on)
+end
+
+function QD.view.watcher(after)
+    return api_drive.view_watcher(after)
+end
+
 -- t.finish(code): write the ledger's SUMMARY row and END THE RUN.
 --
 -- The SUMMARY is written synchronously inside api_drive.finish
@@ -771,6 +831,13 @@ end
 -- Returns api_drive.finish's own (result, detail) for the one caller that
 -- reads it, QD.blocked below.
 function QD.finish(code)
+    -- The run wrapper's own view goes at the finish (the C side detaches a
+    -- stop): the watcher's last actions are rows first.
+    if view_attached then
+        core_watcher_rows()
+        api_drive.view_detach()
+        view_attached = false
+    end
     local result, detail = api_drive.finish(code)
     finished = true
     return result, detail
@@ -1247,6 +1314,16 @@ function QD.core_run_test(loader, options)
         error("quest file's setup is a " .. type(quest_setup)
             .. ", not a table of cheat lines")
     end
+    -- THE RUNNER'S OWN VIEW (owner, 2026-10-05: "the scripts will have to
+    -- say attachCamera(\"AutomationRunner\")"): from here every camera move,
+    -- pick, press and photograph of this script goes through a view of its
+    -- own, and the watcher's camera is left alone. A client that presents
+    -- nothing attaches nothing and says so.
+    local view_result, view = api_drive.view_attach("AutomationRunner")
+    view_attached = view_result == "ok" and type(view) == "table" and view.attached == true
+    watcher_serial = view_attached and view.watcher_serial or 0
+    api_drive.report("watch: view " .. (view_attached and "attached (AutomationRunner; the watcher keeps their camera)"
+        or ("not attached: " .. tostring(type(view) == "table" and view.reason or view))))
     core_run_test_settle_shot()
     local out_result, out_detail = QD.session.logout()
     if out_result ~= "ok" then

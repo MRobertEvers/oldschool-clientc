@@ -443,16 +443,37 @@ app_world_paint(struct App* app)
     int shake_z = app->frame_view->world_camera_pos.z;
     int shake_pitch = app->frame_view->world_camera.pitch;
     int shake_yaw = app->frame_view->world_camera.yaw;
+    /* The roll. One view (headless, or no script attached): every paint rolls,
+     * exactly as it always has. Two views (the runner camera split): the
+     * offscreen runner frame and the presented frame of one loop iteration
+     * share ONE roll -- the offscreen frame consumes no rand() of its own and
+     * does not advance the shake's cycle (cam_script.shake_roll). */
+    if( !app->view_split.attached || !app->cam_script.shake_roll.valid ||
+        app->cam_script.shake_roll.frame != (uint64_t)g_torirs_frame_no )
+    {
+        for( int axis = 0; axis < 5; axis++ )
+        {
+            int spread, jitter;
+            app->cam_script.shake_roll.jitter[axis] = 0;
+            if( !app->cam_script.shake[axis] )
+                continue;
+            spread = app->cam_script.shake_jitter[axis];
+            jitter = (int)((double)rand() / ((double)RAND_MAX + 1.0) * (spread * 2 + 1)) - spread;
+            jitter += (int)(sin((double)app->cam_script.shake_cycle[axis] *
+                                ((double)app->cam_script.shake_speed[axis] / 100.0)) *
+                            app->cam_script.shake_amplitude[axis]);
+            app->cam_script.shake_roll.jitter[axis] = jitter;
+            app->cam_script.shake_cycle[axis]++;
+        }
+        app->cam_script.shake_roll.frame = (uint64_t)g_torirs_frame_no;
+        app->cam_script.shake_roll.valid = 1;
+    }
     for( int axis = 0; axis < 5; axis++ )
     {
-        int spread, jitter;
+        int jitter;
         if( !app->cam_script.shake[axis] )
             continue;
-        spread = app->cam_script.shake_jitter[axis];
-        jitter = (int)((double)rand() / ((double)RAND_MAX + 1.0) * (spread * 2 + 1)) - spread;
-        jitter += (int)(sin((double)app->cam_script.shake_cycle[axis] *
-                            ((double)app->cam_script.shake_speed[axis] / 100.0)) *
-                        app->cam_script.shake_amplitude[axis]);
+        jitter = app->cam_script.shake_roll.jitter[axis];
         switch( axis )
         {
         case 0:
@@ -477,7 +498,6 @@ app_world_paint(struct App* app)
         default:
             break;
         }
-        app->cam_script.shake_cycle[axis]++;
     }
     if( app->world )
     {

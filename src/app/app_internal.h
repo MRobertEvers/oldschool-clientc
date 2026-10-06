@@ -636,6 +636,25 @@ app_text_input_focused(struct App const* app);
 int
 app_chrome_holds_keyboard(struct App const* app);
 
+/* The runner camera split's drain steps (app_render.c; struct App_ViewSplit):
+ * App_DrainCommands calls them while a script's view is attached. */
+void
+app_view_split_drain_begin(
+    struct App* app,
+    struct LibToriRS_Input* game_input);
+
+void
+app_view_split_note_runner_command(
+    struct App* app,
+    struct ToriRS_CmdHeader const* header,
+    uint8_t const* payload);
+
+void
+app_view_split_drain_end(struct App* app);
+
+void
+app_view_split_latch_pointers(struct App* app);
+
 int
 app_chat_focus_tick(
     struct App* app,

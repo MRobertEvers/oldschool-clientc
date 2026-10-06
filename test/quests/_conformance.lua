@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 185
+-- @verb-count 190
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 173
+-- @seam-count 174
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 185
-local SEAM_COUNT = 173
+local VERB_COUNT = 190
+local SEAM_COUNT = 174
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -1407,6 +1407,111 @@ return {
                 return "hollow", "a test run accepted a Play: " .. describe(detail)
             end
             return result, describe(detail)
+        end)
+
+        -- camera seam2 runner_view_split: t.view.attach / status / interact /
+        -- watcher / detach (VERB_COUNT +5).  A conformance run presents
+        -- nothing (SDL dummy, render skip), so the split attaches NOTHING and
+        -- says so; the two-view behaviour is proved by the seam's scratch runs
+        -- under TORIRS_VIEW_SPLIT_FORCE=1 (DRIVER_NOTES.md, "Two views").
+        step("view.attach", function()
+            local fn = verb("view", "attach")
+            if not fn then return missing("view", "attach") end
+            local result, status = fn("AutomationRunner")
+            if result ~= "ok" or type(status) ~= "table" then
+                return result, describe(status)
+            end
+            if status.attached then
+                -- A test run presents nothing; a second view here would be a
+                -- cost the gate says a headless run never pays.
+                fn = verb("view", "detach")
+                if fn then fn() end
+                return "hollow", "a test run attached a second view: " .. describe(status)
+            end
+            if status.views ~= 1 or type(status.reason) ~= "string" or status.reason == "" then
+                return "hollow", "not attached but did not say why: " .. describe(status)
+            end
+            local wrong_result = verb("view", "attach")("PlayerClient")
+            if wrong_result ~= "refused" then
+                return "hollow", "attaching a role other than AutomationRunner answered " .. tostring(wrong_result)
+            end
+            return "ok", "one view, nothing created: " .. status.reason
+        end)
+
+        step("view.status", function()
+            local fn = verb("view", "status")
+            if not fn then return missing("view", "status") end
+            local result, status = fn()
+            if result ~= "ok" or type(status) ~= "table" then
+                return result, describe(status)
+            end
+            if status.attached or status.views ~= 1 or status.watcher ~= nil or type(status.runner) ~= "table"
+                or math.type(status.runner.yaw) ~= "integer" or math.type(status.offscreen) ~= "integer" then
+                return "hollow", "status of a one-view client: " .. describe(status)
+            end
+            return "ok", string.format("views=1 runner yaw=%d pitch=%d zoom=%d offscreen=%d presented=%d",
+                status.runner.yaw, status.runner.pitch, status.runner.zoom, status.offscreen, status.presented)
+        end)
+
+        step("view.interact", function()
+            local fn = verb("view", "interact")
+            if not fn then return missing("view", "interact") end
+            local read_result, status = fn()
+            if read_result ~= "ok" or type(status) ~= "table" or status.interact ~= false then
+                return "hollow", "the read: " .. tostring(read_result) .. " " .. describe(status)
+            end
+            local result, detail = fn(true)
+            if result == "refused" and string.find(tostring(detail), "no script's view is attached", 1, true) then
+                return "ok", "refused with one view, as it must be: " .. tostring(detail)
+            end
+            return "hollow", "switching Interact with no second view answered " .. tostring(result) .. " " .. describe(detail)
+        end)
+
+        step("view.watcher", function()
+            local fn = verb("view", "watcher")
+            if not fn then return missing("view", "watcher") end
+            local result, actions = fn(0)
+            if result ~= "ok" or type(actions) ~= "table" then
+                return result, describe(actions)
+            end
+            if #actions ~= 0 then
+                return "hollow", "a test run recorded watcher actions: " .. describe(actions)
+            end
+            return "ok", "no watcher actions on a test run"
+        end)
+
+        step("view.detach", function()
+            local fn = verb("view", "detach")
+            if not fn then return missing("view", "detach") end
+            local result, status = fn()
+            if result ~= "ok" or type(status) ~= "table" or status.attached or status.views ~= 1 then
+                return "hollow", "detach with nothing attached: " .. tostring(result) .. " " .. describe(status)
+            end
+            return "ok", "a no-op with nothing attached (views=1)"
+        end)
+
+        -- camera seam2 watch_debug_aids (SEAM_COUNT +1): the shape of
+        -- view_status().runner, which the Scripts page's "Runner pointer" row
+        -- reads every 10 frames.
+        seam("seam.watch_runner_reading", function()
+            local fn = verb("view", "status")
+            if not fn then return missing("view", "status") end
+            local result, status = fn()
+            if result ~= "ok" or type(status) ~= "table" or type(status.runner) ~= "table" then
+                return result, describe(status)
+            end
+            local runner = status.runner
+            for _, key in ipairs({ "pointer_x", "pointer_y", "picked", "yaw", "pitch", "zoom" }) do
+                if math.type(runner[key]) ~= "integer" then
+                    return "hollow", "view_status().runner." .. key .. " is not an integer: " .. describe(runner)
+                end
+            end
+            if type(runner.menu_open) ~= "boolean" or type(status.interact) ~= "boolean" then
+                return "hollow", "menu_open / interact are not booleans: " .. describe(status)
+            end
+            return "ok", string.format("runner %d,%d picked %d menu_open=%s yaw %d pitch %d zoom %d interact=%s",
+                runner.pointer_x, runner.pointer_y, runner.picked, tostring(runner.menu_open),
+                runner.yaw, runner.pitch, runner.zoom, tostring(status.interact))
         end)
 
         step("player.idle", function()

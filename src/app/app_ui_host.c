@@ -192,6 +192,27 @@ app_ui_host_publish_inputs(struct App* app)
         signature[UITREE_HOST_INPUT_POINTER] = UITree_InputSignatureInt(
             signature[UITREE_HOST_INPUT_POINTER], UICross_AtlasFrame(&app->cross));
     }
+    /* The runner camera split: the other view's menu is drawn too (tinted),
+     * so its phases are this frame's as well. */
+    if( app->view_split.attached )
+    {
+        struct UIMinimenu const* other =
+            app->views[app->frame_view == &app->views[APP_VIEW_RUNNER] ? APP_VIEW_PLAYER_CLIENT : APP_VIEW_RUNNER]
+                .minimenu;
+        signature[UITREE_HOST_INPUT_POINTER] =
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], other->visible);
+        if( other->visible )
+        {
+            signature[UITREE_HOST_INPUT_POINTER] =
+                UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], other->x);
+            signature[UITREE_HOST_INPUT_POINTER] =
+                UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], other->y);
+            signature[UITREE_HOST_INPUT_POINTER] =
+                UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], other->option_count);
+            signature[UITREE_HOST_INPUT_POINTER] =
+                UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], other->hovered_option);
+        }
+    }
     menu = app->frame_view->minimenu;
     signature[UITREE_HOST_INPUT_POINTER] =
         UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], menu->visible);

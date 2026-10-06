@@ -83,12 +83,33 @@ edited file runs. A test file created after the client started appears after
 never swapped mid-run, and the driver's own verbs (script/plugins/quest_driver/) are read
 only when the client starts.
 
+**Your camera is yours while it plays.** The script has its own camera (the
+AutomationRunner view): its turns, zooms and photographs never move your picture. Orbit
+with the arrow keys or middle-drag and zoom with the wheel as you like; the run is the same
+either way.
+
+- The game frame says who has control, top-centre: **Runner has control** while your
+  clicks only look, **You can interact** (orange) while they play.
+- The **Interact** toggle on the Scripts page switches between the two. Off when a script
+  starts. On: your clicks and keys play the game through your own camera, the script keeps
+  running, and each of your actions is written into its ledger as a `watcher.*` row.
+- A cyan **ghost cursor** is where the script's pointer is, with a red X when it clicks and
+  a label saying what its own pick sees (`runner: npc 3105 at 3212,3230 (2 hits)`).
+- When the script presses something in the world, that npc, object or tile is outlined in
+  cyan in YOUR view for a second and a half.
+- The script's right-click menus are drawn grey and take none of your clicks; a menu of
+  your own (Interact on) draws normally, on top.
+- The page's **Under your pointer** row names what your own pointer is on (kind, name, id,
+  tile); **Runner pointer** gives the script's pointer, its pick count and its camera.
+
 A watched run is not a test run, and it grades nothing:
 
 - It runs on the wall clock, and each account's random stream is seeded from its name, so
   its rows can differ from the kept ledger's (a combat room most of all).
 - Party tests (`*_normal`) are listed as unavailable, with that reason: they need three clients
   in lock step.
+- Anything you do with Interact on is real input to the run (and a ledger row); orbiting and
+  zooming with Interact off changes nothing.
 
 Grade a room only with `tools/raid_gate/run.py` and `gate.py` (above). The profile, the
 headless way to drive the tab and the measurements are in

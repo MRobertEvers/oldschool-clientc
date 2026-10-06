@@ -101,6 +101,15 @@ app_host_request(
     case UITREE_HOST_GET_MINIMENU_STATE:
         assert(req->u.get_minimenu_state.out);
         *req->u.get_minimenu_state.out = app->frame_view->minimenu;
+        /* The runner camera split: the view that is not being drawn has a
+         * menu too; the emit draws it tinted (owner decision 3). */
+        if( req->u.get_minimenu_state.out_other )
+            *req->u.get_minimenu_state.out_other =
+                app->view_split.attached
+                    ? app->views[app->frame_view == &app->views[APP_VIEW_RUNNER] ? APP_VIEW_PLAYER_CLIENT
+                                                                                  : APP_VIEW_RUNNER]
+                          .minimenu
+                    : NULL;
         return 1;
     case UITREE_HOST_GET_HOVERTEXT_STATE:
         assert(req->u.get_hovertext_state.out);

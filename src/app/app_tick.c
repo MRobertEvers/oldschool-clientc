@@ -295,8 +295,10 @@ app_logic_tick(struct App* app)
             }
             else
             {
-                listener_x = app->frame_view->world_camera_pos.x >> 7;
-                listener_z = app->frame_view->world_camera_pos.z >> 7;
+                /* What is presented is heard (the runner camera split: the
+                 * watcher's eye while a script is attached). */
+                listener_x = App_PresentedView(app)->world_camera_pos.x >> 7;
+                listener_z = App_PresentedView(app)->world_camera_pos.z >> 7;
             }
             listener_level = app_cinema_level(app);
         }
@@ -416,6 +418,10 @@ app_logic_tick(struct App* app)
             int const level = self ? (self->grid_position.level & 3) : 0;
             dest_coord = (level << 28) | ((x & 0x3fff) << 14) | (z & 0x3fff);
         }
+        /* The runner camera split: logic runs with frame_view = views[0], so
+         * the CS2 hover coordinate and clientop's menu_open below are the
+         * RUNNER's -- the game's scripts answer the player the script plays,
+         * and a watcher's hover never reaches a test's timeline. */
         if( app->world && app->frame_view->world_hover_tile_x >= 0 &&
             app->frame_view->world_hover_tile_z >= 0 )
         {

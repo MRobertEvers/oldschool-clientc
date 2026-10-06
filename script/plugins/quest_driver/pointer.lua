@@ -2052,17 +2052,26 @@ function QD.drive._shot_plan()
     if api_drive.camera_pose == nil then
         return nil, nil, "no camera_pose verb in this binary"
     end
-    -- A WATCHED client (TORIRS_DRIVE_ON_DEMAND=1, the Scripts tab) never re-aims
-    -- for a photograph: the one-frame aim costs a test nothing and is a camera
-    -- flicker to the person watching (owner, 2026-10-05). Its shots are the
-    -- live pose's own picture. A test run's status has no `on_demand`.
+    -- A WATCHED client (TORIRS_DRIVE_ON_DEMAND=1, the Scripts tab) re-aims for
+    -- a photograph only through the script's OWN view (the runner camera
+    -- split: the aim and the picture are the runner's, the watcher's camera
+    -- never moves). Where no view of its own is attached -- a lane that
+    -- cannot carry one -- the one-frame aim would be a flicker to the person
+    -- watching (owner, 2026-10-05), so the shot is the live pose's own
+    -- picture. A test run's status has no `on_demand`.
     if api_drive.status ~= nil then
         local status_result, status = api_drive.status()
         if type(status_result) == "table" then
             status = status_result
         end
         if type(status) == "table" and status.on_demand then
-            return nil, nil, "a watched client photographs the live pose"
+            local view_result, view = nil, nil
+            if api_drive.view_status ~= nil then
+                view_result, view = api_drive.view_status()
+            end
+            if not (view_result == "ok" and type(view) == "table" and view.attached) then
+                return nil, nil, "a watched client with no view of its own photographs the live pose"
+            end
         end
     end
     local pose_result, live = api_drive.camera_pose()
