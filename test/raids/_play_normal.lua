@@ -628,9 +628,11 @@ PRE.nylocas = function(t, ox, oz)
     if nrole ~= 2 then wear(t, "nylocas.equip.arrows", "rune_arrow") end
     local own = (nrole == 1 and "eye_of_ayak") or (nrole == 2 and "toxic_blowpipe_loaded") or "abyssal_whip"
     wear(t, "nylocas.equip.own", own)
-    -- the same slot the old press chose, by the worn weapon's name for it: the
-    -- staff's Accurate, the pipe's Rapid, the whip's Lash
-    set_style(t, "nylocas.style", (nrole == 1 and "Accurate") or (nrole == 2 and "Rapid") or "Lash")
+    -- the same slot the old press chose, by the worn weapon's name for it (seam55
+    -- probe: the Eye of Ayak shows Bash/Pound/-/Focus on this content, the pipe
+    -- Accurate/Rapid/-/Longrange, the whip Flick/Lash/-/Deflect; the press needs
+    -- the combat tab shown, which ui.style opens)
+    set_style(t, "nylocas.style", (nrole == 1 and "Pound") or (nrole == 2 and "Rapid") or "Lash")
     set_retaliate(t, "nylocas.retaliate_off", true)
     start_room(t, "nylocas", function()
         local fr, fight, ftext = t.raid.start_tile()
