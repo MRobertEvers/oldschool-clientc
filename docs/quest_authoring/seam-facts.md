@@ -2435,3 +2435,66 @@ entertheabyss, taleoftherighteous (their setup placement), horror (goto-talkToGu
 agility pipe), ratcatchers ((b): its committed trellis row expects the old landing) and itwatchtower
 (NOT this pass: the same `leaveSouthPocket.southEastGate` pass_door FAIL as b63-seam1 (d), which the
 owner set back to green in d3427b3fe). The first five were reopened.
+
+## Seam pass matthew-mbp-m4-b65-seam1 (2026-10-05, batch matthew-mbp-m4-b65)
+
+(a) **Golem / Shadow of the Storm: the Uzer portal landed in an empty map square (3544,4952,0),
+the throne room's exit portal looped back into it, and the ruin stairs landed on their own
+footprint** -- FIXED in content. `quest_golem/configs/golem.constant`: `^golem_demon_lair` is now
+2720,4884,2 (the throne room floor beside its exit portal) and the new `^golem_ruin_portal` is
+2721,4911,0; the golem arm of `[oploc1,golem_demon_portal]` (`golem_portal.rs2`) says "You step
+into the portal." and lands there. `quest_shadowstorm/scripts/shadowstorm_dye.rs2` no longer binds
+`golem_insidestairs_top` / `golem_insidestairs_base` (and `^sots_stairs` is gone), so the stairs
+fall through to their `ladders.loc` category, `~climb`, then `~maplink_try`: Climb-down from
+3491,3090,0 lands 2721,4886,0 at the stairs' base; Climb-up lands 3491,3090,0, the open arch
+beside the top. `^golem_uzer` / `^sots_uzer` (the `::golem` / `::shadowstorm` stands) moved from
+3493,3090 (inside the stairs' footprint, a one-tile walking component) to 3491,3090. Sources: the
+shortest-path transport data `maplink.dbrow` is imported from,
+`tools/data/shortest_path/transports/transports.tsv:3551-3570` ("# Uzer": Climb-down Staircase
+6373 3491,3090,0 -> 2721,4886,0; Climb-up 6372 -> 3491,3090,0; Enter Door 6310 -> 2720,4884,2) and
+`teleportation_portals.tsv:85-93` (Enter Portal 6282 -> 2721,4911,0); Quest Helper
+`TheGolem.java:185`, `:340`, `:342`. The general fact: **`~maplink_try` is keyed on the PLAYER's
+tile**, so a stair with a maplink row answers only from that row's src tiles; a press from the
+loc's own footprint falls to `~climb`'s default and reads "You can't go any further." Press from
+the maplink src tile, and grade the landing as a same-level climb
+(`same_level="maplink_0_54_48_35_18_down"` / `"maplink_0_42_76_33_22_up"`). Proof:
+`golem_seam_probe` 21/0 (down 2721,4886,0; up 3491,3090,0; portal 2720,4884,2; exit 2721,4911,0)
+and a golem.lua copy 134/0 to `quest.varp_complete` -- its stair press through the logged
+`t.drive.op` bypass, because of (c). Moved: shadowstorm's `goIntoRuin`, `enterRuinAfterBook`,
+`enterRuinAfterRecruiting` (goto 3493,3090 then press: "You can't go any further."). Not changed:
+the Shadow of the Storm arm of the portal still lands at `^sots_throne` 2720,4912,2, and
+`^sots_mushroom` 3495,3088 is on `golem_black_mushrooms`' solid tile (parity notes).
+
+(b) **pass_door refused a double door whose open leaf arrived a frame late** -- FIXED in
+`world.lua`, see verbs-pointer: A double door's open leaf lands a frame late. Conformance
+`seam.pass_door_awaits_a_late_open_leaf`.
+
+(c) **OPEN: the Uzer ruin stairs cannot be pressed from the arch tile 3491,3090.**
+`golem_insidestairs_top` (model 6071, s10 r1 at 3492,3090,0) is a rim round an open stairwell; the
+loc projector aims at the footprint centroid, which projects into the pit where nothing is drawn
+(TORIRS_PICK_DEBUG=all: zero hits there, not even terrain), and the stairs are held only 75-105 px
+away, outside the hunt's +-64 px (fixer sweep: held at 12 pixels x 403..433 against the projected
+508,259). Every pose answers `covered ... pickset held=false, menu rows: Cancel, Walk here` and
+`none of 99 pixels ... holds it`. The fixer's C change (aim at the nearest visible face's screen
+centroid when the origin is on no face, reprojecting `element->model` through
+`drive_pointer_project_point`) pressed the Uzer stairs on press 1 but was REVERTED by the closer:
+its reprojection disagrees with the renderer's own pick, and it broke five committed greens on a
+full-suite run (vampire `goDownstairsMorgan` on `stairstop` 3100,3266,1: the origin 416,241 that the
+renderer holds was moved to 397,263 / 392,115, `covered`; losttribe, misc, misc_astrid,
+mountaindaughter also went RED and all five were green again on the HEAD-C binary). The probe (a
+worktree build printing the element) measured `at.y == ground_y` (-560) and yaw 0, so the
+mismatch is not the element's height or rotation; NOT CONFIRMED where it is (the drawn model or
+position vs `element->model`). A fix must answer "is the origin on the model" with the renderer's
+own test (`ToriDraw_ProjectedModelMouseHitTest` on the drawn command), or try the new point only
+after the existing hunt fails, so nothing that pressed before can move. Until then golem and
+shadowstorm stop at that press.
+
+(d) **The grader charges a hop with no on-foot route, and reads a goto by what the row did** --
+coverage-and-gate: "no on-foot route (UNREACHABLE at margin 600)" ... (matthew-mbp-m4-b65-seam1).
+The closer's fresh runs of all 143 committed tests (HEAD-C binary) moved exactly the ten queued
+greens the fixer's re-grade predicted (chompybird, cog, dreammentor, elena, fenkenstrain, ikov, imp,
+mortton, mourningsendpartii, sheepherder); all ten were reopened. `helper_coverage_two_op_test`'s
+`wt_swung_off_first` now wants `leaveGrewIsland` DRIVEN rather than a FULL verdict (its goto-goUpTrellis
+crosses membergater at margin 400).
+
+(e) **OPEN OWNER QUESTION: a staged level is a stat change** -- verbs-pointer: teleport_cast.
