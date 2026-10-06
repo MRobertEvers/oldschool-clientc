@@ -754,3 +754,27 @@ When the guide names no levels, stage the lowest levels the staged gear needs to
 The fight is then a real one, and a full-hp margin row is evidence and not an artefact of
 staging. Spirits of the Elid's golems read 60/60 at Defence 50 for the same reason. A probe at
 Defence 1 showed them landing hits.
+
+## A quest boss with no `hitpoints=` fights on the engine's 10: `hp no bar -> 24/30` after one hit on a "level-150" (matthew-mbp-m4-b67-seam1)
+
+*Origin: the b67 triage of Rum Deal's Evil spirit and Wanted!'s Solus Dellagar.*
+
+A quest boss with no `hitpoints=` in any `.npc` section fights on the engine default (10 hp, stats
+1). The ledger tell is the first bar reading: `hp no bar -> 24/30` after one ordinary hit on a boss
+the wiki gives 90 hp, and a kill in a handful of ticks. **FIXED for both in b67-seam1:**
+`quest_rumdeal/configs/rumdeal.npc [deal_evil_spirit]` (wiki Evil_spirit oldid 15199641: hp 90,
+170/146/100, crush, speed 4, aggressive, 30% Air weakness) and `wanted.npc [solus]` (wiki
+Solus_Dellagar oldid 15204754: hp 40, 25/25/25, strbns 16, magic def 72, speed 3). The spirit now
+reads `27/30, hitsplat 7` after the first hit and dies in 56 ticks (was 16); Solus in 36 (was 8).
+
+A page max hit above what the sourced stats roll through `~npc_melee_maxhit` (the Evil spirit's 28
+against 16) is a sourced disagreement, not a reason to invent a strength bonus: the fix is the
+boss's own swing rolling a constant (Swan Song's `ssq_queen_melee` pattern), still OPEN for the
+spirit (`deal_combat.rs2`, recorded in the combat manifest's known_gaps). Until then the Rum Deal
+fight passes on 99 Defence and sharks; with the real swing, pray (the test stages Prayer 47).
+
+Twenty-nine more test-fought npcs still have no block. Their sourced drafts (pinned wiki oldids,
+compared with the cache, target file named) are in
+`build/seam_state/matthew-mbp-m4-b67-seam1/bossfix/needs_blocks.npc.txt` and
+`bossfix/wiki_audit.json`; adding one to a GREEN quest (the Elid golems, the Feud tough guys, the
+Mourners, Sir Leye, the drink troll) moves that quest's fight and needs a re-run.
